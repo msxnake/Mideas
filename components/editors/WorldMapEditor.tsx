@@ -589,7 +589,7 @@ NodeComponent.displayName = 'NodeComponent';
          <Button onClick={() => onUpdate({panOffset: {x:0, y:0}, zoomLevel: 1})} size="sm" variant="ghost">Reset View</Button>
          <Button onClick={handleSaveWorldJson} size="sm" variant="secondary" icon={<SaveFloppyIcon className="w-3.5 h-3.5"/>} title="Save World Map as JSON">Save JSON</Button>
          <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon className="w-3.5 h-3.5"/>} title="Export World Map as ASM">Export ASM</Button>
-         <Button onClick={() => setIsRandomMapModalOpen(true)} size="sm" variant="secondary" title="Generate Random Map">Generate Random Map</Button>
+         <Button onClick={() => setIsRandomMapModalOpen(true)} size="sm" variant="secondary" title="Generar Mapa Aleatorio">Generar Mapa Aleatorio</Button>
       </div>
 
       <div className="flex-grow relative overflow-hidden" style={{ background: '#10101A' }} role="application" aria-roledescription="World map canvas">
