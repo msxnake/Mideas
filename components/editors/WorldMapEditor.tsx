@@ -4,7 +4,8 @@ import { WorldMapGraph, WorldMapScreenNode, WorldMapConnection, ConnectionDirect
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
-import { ExportWorldMapASMModal } from '../modals/ExportWorldMapASMModal'; // New Modal
+import { ExportWorldMapASMModal } from '../modals/ExportWorldMapASMModal';
+import { RandomMapGeneratorModal } from '../modals/RandomMapGeneratorModal';
 
 const NODE_WIDTH = 120;
 const NODE_HEIGHT = 90;
@@ -111,6 +112,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const CONNECTION_PROXIMITY_THRESHOLD = gridSize * CONNECTION_PROXIMITY_THRESHOLD_DEFAULT_FACTOR;
 
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState<boolean>(false);
+  const [isRandomMapModalOpen, setIsRandomMapModalOpen] = useState<boolean>(false);
 
 
   useEffect(() => {
@@ -587,6 +589,7 @@ NodeComponent.displayName = 'NodeComponent';
          <Button onClick={() => onUpdate({panOffset: {x:0, y:0}, zoomLevel: 1})} size="sm" variant="ghost">Reset View</Button>
          <Button onClick={handleSaveWorldJson} size="sm" variant="secondary" icon={<SaveFloppyIcon className="w-3.5 h-3.5"/>} title="Save World Map as JSON">Save JSON</Button>
          <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon className="w-3.5 h-3.5"/>} title="Export World Map as ASM">Export ASM</Button>
+         <Button onClick={() => setIsRandomMapModalOpen(true)} size="sm" variant="secondary" title="Generate Random Map">Generate Random Map</Button>
       </div>
 
       <div className="flex-grow relative overflow-hidden" style={{ background: '#10101A' }} role="application" aria-roledescription="World map canvas">
@@ -728,6 +731,13 @@ NodeComponent.displayName = 'NodeComponent';
           worldMapGraph={worldMapGraph}
           availableScreenMaps={availableScreenMaps}
           dataOutputFormat={dataOutputFormat}
+        />
+      )}
+
+      {isRandomMapModalOpen && (
+        <RandomMapGeneratorModal
+          isOpen={isRandomMapModalOpen}
+          onClose={() => setIsRandomMapModalOpen(false)}
         />
       )}
     </Panel>
