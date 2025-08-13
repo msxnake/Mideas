@@ -1,0 +1,14 @@
+{
+  "theme": "dark",
+  "customColors": {
+    "bgcolor": "#22272E",
+    "panelbg": "#2D333B",
+    "accent": "#58A6FF",
+    "highlight": "#3FB950",
+    "textprimary": "#C9D1D9",
+    "textsecondary": "#8B949E",
+    "border": "#444C56",
+    "danger": "#F85149",
+    "warning": "#F0A832"
+  }
+}
