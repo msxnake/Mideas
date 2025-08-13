@@ -1,0 +1,147 @@
+Project Summary:
+This project is a comprehensive, in-browser Integrated Development Environment (IDE) for creating retro games for the MSX home computer system. It provides a suite of tools for editing game assets, writing code, and managing the overall project structure. The IDE is built using React and TypeScript.
+
+---
+# File and Directory Purposes
+
+## Root Directory
+
+- **.gitignore**: Specifies which files and directories should be ignored by the Git version control system.
+- **App.tsx**: The main React component of the application. It manages the entire state of the IDE, including all assets, editors, and UI logic. It's the central hub of the application.
+- **README.md**: Provides a brief introduction to the project and instructions on how to run it locally.
+- **components/**: A directory containing all the React components that make up the user interface of the IDE.
+- **constants.asm**: An assembly file containing constants for the game project.
+- **constants.ts**: A TypeScript file that defines various constants used throughout the IDE's frontend, such as default values, palettes, and configuration settings.
+- **contexts/**: Contains React Context providers for managing global state, like themes.
+- **data/**: Contains default data used by the application, such as default font data and project templates.
+- **index.html**: The main HTML file that serves as the entry point for the web application.
+- **index.tsx**: The TypeScript file that renders the main React `App` component into the DOM.
+- **map.asm**: An assembly file for map data.
+- **metadata.json**: A file containing metadata about the project.
+- **package.json**: Defines the project's metadata, dependencies, and scripts for building and running the application.
+- **themeConfig.json**: A JSON file that defines the color scheme and theme of the IDE.
+- **tsconfig.json**: The configuration file for the TypeScript compiler, specifying how TypeScript files should be compiled into JavaScript.
+- **types.ts**: Contains all the custom TypeScript type definitions and interfaces used across the project, defining the data structures for assets like tiles, sprites, maps, etc.
+- **utils/**: A directory for general utility functions that are not specific to a single component.
+- **vite.config.ts**: The configuration file for the Vite build tool, which is used to develop and bundle the application.
+
+## `components/` Directory
+
+- **AppUI.tsx**: A React component that likely defines the main layout and structure of the application's UI, using the state and logic passed down from `App.tsx`.
+
+### `components/common/`
+This directory contains common, reusable UI components used throughout the application.
+- **Button.tsx**: A custom button component.
+- **CellInput.tsx**: An input component for a single cell or small data entry.
+- **ContextMenu.tsx**: A component for creating right-click context menus.
+- **Panel.tsx**: A generic panel component for grouping UI elements.
+- **SnippetsPanel.tsx**: A UI panel for displaying and managing code snippets.
+- **VirtualPiano.tsx**: A component that renders a clickable piano keyboard, likely for the music tracker.
+- **Z80SyntaxHighlighter.tsx**: A component for applying syntax highlighting to Z80 assembly code.
+
+### `components/editors/`
+This directory contains the main editor components, each dedicated to a specific type of game asset.
+- **BehaviorEditor.tsx**: An editor for writing and managing entity behavior scripts in assembly.
+- **BossEditor.tsx**: A specialized editor for creating and configuring multi-part boss entities.
+- **BossMovementController.tsx**: A UI component for defining the movement patterns of a boss.
+- **CodeEditor.tsx**: A general-purpose code editor, likely with features like syntax highlighting.
+- **ComponentDefinitionEditor.tsx**: An editor for defining the structure of Entity-Component-System (ECS) components.
+- **EntityTemplateEditor.tsx**: An editor for creating templates (prefabs) of game entities from defined components.
+- **FontEditor.tsx**: An editor for creating or modifying MSX fonts.
+- **HUDEditorModal.tsx**: A modal editor for designing the game's Head-Up Display (HUD).
+- **HelpDocsViewer.tsx**: A component for displaying help and tutorial documentation.
+- **MainMenuEditor.tsx**: An editor for designing the game's main menu.
+- **ScreenEditor.tsx**: The main editor for building game levels or screens by placing tiles.
+- **SoundEditor.tsx**: An editor for creating PSG (Programmable Sound Generator) sound effects.
+- **SpriteEditor.tsx**: An editor for creating and animating sprites.
+- **TileBankEditor.tsx**: An editor for managing banks of tiles.
+- **TileEditor.tsx**: An editor for drawing and defining the properties of individual tiles.
+- **TrackerComposer.tsx**: A full-featured music tracker for composing songs (likely for the PT3 format).
+- **WorldMapEditor.tsx**: An editor for creating a world map by connecting different screen maps.
+- **WorldViewEditor.tsx**: A high-level editor for visualizing the entire game world or entity structure.
+
+### `components/icons/`
+- **MsxIcons.tsx**: A file containing custom MSX-themed icons, likely as React components.
+
+### `components/layout/`
+This directory contains components that define the main layout of the IDE.
+- **StatusBar.tsx**: The status bar at the bottom of the IDE, which displays messages and information.
+- **Toolbar.tsx**: The main toolbar at the top of the IDE, containing buttons for common actions.
+
+### `components/modals/`
+This directory contains all the modal dialog components used in the application.
+- **AboutModal.tsx**: A modal showing information about the application.
+- **AnimationWatcherModal.tsx**: A modal to preview sprite animations.
+- **AssetPickerModal.tsx**: A modal for selecting a project asset.
+- **ConfirmationModal.tsx**: A generic modal for confirming user actions (e.g., deletion).
+- **ExplosionGeneratorModal.tsx**: A specialized modal for generating explosion effects.
+- **Export...Modal.tsx**: A series of modals for handling the export of various assets (Behaviors, Fonts, Layouts, Sprites, etc.) to assembly or binary formats.
+- **LogModal.tsx**: A modal for displaying logs or console output.
+- **MainMenuPreviewModal.tsx**: A modal for previewing the main menu.
+- **NewProjectModal.tsx**: A modal for creating a new project.
+- **PT3FileOperationsModal.tsx**: A modal for operations related to PT3 tracker files.
+- **RenameModal.tsx**: A modal for renaming an asset.
+- **SaveAsModal.tsx**: A modal for saving the current project with a new name.
+- **SnippetEditorModal.tsx**: A modal for creating and editing code snippets.
+- **SpriteFramesModal.tsx**: A modal for managing the frames of a sprite animation.
+- **SpriteImportConfigModal.tsx**: A modal to configure options when importing a sprite.
+- **SpriteSheetReorderModal.tsx**: A modal for reordering sprites in the spritesheet.
+- **TileFileOperationsModal.tsx**: A modal for operations related to tile files.
+
+### `components/screen_editor/`
+This directory contains components specifically for the Screen Editor UI.
+- **ScreenEditorStatusBar.tsx**: The status bar specific to the screen editor.
+- **ScreenEditorToolbar.tsx**: The toolbar for the screen editor, with tools like brush, fill, etc.
+- **ScreenGrid.tsx**: The main grid component where tiles are placed to build a screen.
+- **ScreenSelectionToolsPanel.tsx**: A panel with selection tools for the screen editor.
+- **ScreenTilesetPanel.tsx**: A panel that displays the available tileset for the screen editor.
+
+### `components/theme_config/`
+- **ColorPicker.tsx**: A component for selecting colors.
+- **ConfigTabModal.tsx**: A modal for configuring the IDE's theme and other settings.
+- **ThemePreview.tsx**: A component to preview the selected theme.
+
+### `components/tools/`
+This directory contains various tool panels that are part of the main IDE interface.
+- **EntityTypeListPanel.tsx**: A panel for listing and managing entity types.
+- **FileExplorerPanel.tsx**: The main file explorer panel for navigating and managing project assets.
+- **PalettePanel.tsx**: A panel for displaying and selecting colors from the MSX palette.
+- **PropertiesPanel.tsx**: A panel for viewing and editing the properties of the selected asset or object.
+
+### `components/tracker/`
+This directory contains components for the music tracker interface.
+- **InstrumentEditorModal.tsx**: A modal for editing tracker instruments.
+- **InstrumentsPanel.tsx**: A panel for managing tracker instruments.
+- **OrnamentEditorModal.tsx**: A modal for editing tracker ornaments.
+- **OrnamentsPanel.tsx**: A panel for managing tracker ornaments.
+- **PatternEditorGrid.tsx**: The main grid for editing music patterns in the tracker.
+- **PatternOrderPanel.tsx**: A panel for arranging the order of patterns in a song.
+- **PatternsPanel.tsx**: A panel for managing the song's patterns.
+- **TrackerHeader.tsx**: The header component for the music tracker.
+- **TrackerPianoControls.tsx**: Piano controls for the music tracker.
+
+### `components/utils/`
+This directory contains utility functions that are specific to certain parts of the component library.
+- **aySynthesizer.ts**: A synthesizer for the AY-3-8910 sound chip, used for sound/music playback.
+- **ecsUtils.ts**: Utility functions related to the Entity-Component-System.
+- **mainMenuAsmLogic.ts**: Logic for generating assembly code for the main menu.
+- **mainMenuUtils.ts**: Utility functions for the main menu editor.
+- **msxFontRenderer.ts**: Functions for rendering MSX fonts.
+- **msxFontUtils.ts**: Utility functions for handling MSX font data.
+- **noteFrequencies.ts**: A mapping of musical notes to their corresponding frequencies.
+- **pt3...ts**: A set of files (`pt3AsmExport.ts`, `pt3Parser.ts`, `pt3Serializer.ts`) for handling the PT3 music tracker format.
+- **screenUtils.ts**: Utility functions for the screen editor.
+- **snippetResolver.ts**: Functions to resolve placeholders in code snippets.
+- **spriteUtils.ts**: Utility functions for the sprite editor.
+- **tileUtils.ts**: Utility functions for the tile editor.
+- **trackerUtils.ts**: Utility functions for the music tracker.
+
+## `contexts/` Directory
+- **ThemeContext.tsx**: A React Context for providing theme information to all components in the application.
+
+## `data/` Directory
+- **defaults.ts**: Contains default project data, such as default component definitions and entity templates.
+- **msxFontData.ts**: Contains the data for the default MSX font.
+
+## `utils/` Directory
+- **projectUtils.ts**: Contains general utility functions for project-wide operations, like saving, loading, and formatting.
