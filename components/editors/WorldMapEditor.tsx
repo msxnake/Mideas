@@ -513,36 +513,36 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
           stack.pop();
         }
       }
-    }
 
-    if (options.allowMultiplePaths && newNodes.length > 1) {
-      const extraConnectionCount = Math.floor(newNodes.length * 0.15); // Add 15% more connections
-      for (let i = 0; i < extraConnectionCount; i++) {
-        const node1 = newNodes[Math.floor(Math.random() * newNodes.length)];
-        const x1 = Math.round(node1.position.x / (NODE_WIDTH + 40));
-        const y1 = Math.round(node1.position.y / (NODE_HEIGHT + 40));
+      if (options.allowMultiplePaths && newNodes.length > 1) {
+        const extraConnectionCount = Math.floor(newNodes.length * 0.15); // Add 15% more connections
+        for (let i = 0; i < extraConnectionCount; i++) {
+          const node1 = newNodes[Math.floor(Math.random() * newNodes.length)];
+          const x1 = Math.round(node1.position.x / (NODE_WIDTH + 40));
+          const y1 = Math.round(node1.position.y / (NODE_HEIGHT + 40));
 
-        const neighbors = [
-          { x: x1, y: y1 - 1 }, { x: x1, y: y1 + 1 },
-          { x: x1 - 1, y: y1 }, { x: x1 + 1, y: y1 },
-        ].map(n => nodeGrid[`${n.x},${n.y}`]).filter(n => n);
+          const neighbors = [
+            { x: x1, y: y1 - 1 }, { x: x1, y: y1 + 1 },
+            { x: x1 - 1, y: y1 }, { x: x1 + 1, y: y1 },
+          ].map(n => nodeGrid[`${n.x},${n.y}`]).filter(n => n);
 
-        if (neighbors.length > 0) {
-          const node2 = neighbors[Math.floor(Math.random() * neighbors.length)];
-          const connectionExists = connections.some(c =>
-            (c.fromNodeId === node1.id && c.toNodeId === node2.id) ||
-            (c.fromNodeId === node2.id && c.toNodeId === node1.id)
-          );
-          if (!connectionExists) {
-            const directions = getDirection({x: x1, y: y1}, {x: Math.round(node2.position.x / (NODE_WIDTH + 40)), y: Math.round(node2.position.y / (NODE_HEIGHT + 40))});
-            if (directions) {
-              connections.push({
-                id: `wmconn_extra_${i}`,
-                fromNodeId: node1.id,
-                fromDirection: directions.from,
-                toNodeId: node2.id,
-                toDirection: directions.to,
-              });
+          if (neighbors.length > 0) {
+            const node2 = neighbors[Math.floor(Math.random() * neighbors.length)];
+            const connectionExists = connections.some(c =>
+              (c.fromNodeId === node1.id && c.toNodeId === node2.id) ||
+              (c.fromNodeId === node2.id && c.toNodeId === node1.id)
+            );
+            if (!connectionExists) {
+              const directions = getDirection({x: x1, y: y1}, {x: Math.round(node2.position.x / (NODE_WIDTH + 40)), y: Math.round(node2.position.y / (NODE_HEIGHT + 40))});
+              if (directions) {
+                connections.push({
+                  id: `wmconn_extra_${i}`,
+                  fromNodeId: node1.id,
+                  fromDirection: directions.from,
+                  toNodeId: node2.id,
+                  toDirection: directions.to,
+                });
+              }
             }
           }
         }
