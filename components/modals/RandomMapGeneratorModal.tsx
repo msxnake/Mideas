@@ -16,6 +16,8 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
   const [hasFinalBoss, setHasFinalBoss] = useState(true);
   const [hasExitDoor, setHasExitDoor] = useState(true);
   const [density, setDensity] = useState(1.5);
+  const [beginInCenter, setBeginInCenter] = useState(true);
+  const [allowMultiplePaths, setAllowMultiplePaths] = useState(false);
 
   if (!isOpen) return null;
 
@@ -29,6 +31,8 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
       hasFinalBoss,
       hasExitDoor,
       density,
+      beginInCenter,
+      allowMultiplePaths,
     };
 
     const map = generateMap(options);
@@ -56,7 +60,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
   };
 
   const generateMap = (options: any) => {
-    const { numScreens, numEnemies, numKeys, numSecretZones, numSpecialItems, hasFinalBoss, hasExitDoor, density } = options;
+    const { numScreens, numEnemies, numKeys, numSecretZones, numSpecialItems, hasFinalBoss, hasExitDoor, density, beginInCenter } = options;
 
     let screenTypes: string[] = [];
     if (hasFinalBoss) screenTypes.push('M');
@@ -90,11 +94,13 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
     const map = Array(height).fill(null).map(() => Array(width).fill('X'));
 
     if (numScreens > 0) {
+      const mazeCells = new Set<string>();
       const frontier = new Set<string>();
-      const startX = Math.floor(Math.random() * width);
-      const startY = Math.floor(Math.random() * height);
+      const startX = beginInCenter ? Math.floor(width / 2) : Math.floor(Math.random() * width);
+      const startY = beginInCenter ? Math.floor(height / 2) : Math.floor(Math.random() * height);
 
-      map[startY][startX] = screenTypes.pop()!;
+      const startKey = `${startX},${startY}`;
+      mazeCells.add(startKey);
 
       const addNeighborsToFrontier = (x: number, y: number) => {
         const neighbors = [{x: x-1, y}, {x: x+1, y}, {x: x, y: y-1}, {x: x, y: y+1}];
@@ -107,7 +113,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
 
       addNeighborsToFrontier(startX, startY);
 
-      while (screenTypes.length > 0 && frontier.size > 0) {
+      while (mazeCells.size < numScreens && frontier.size > 0) {
         const frontierArray = Array.from(frontier);
         const randIndex = Math.floor(Math.random() * frontierArray.length);
         const [xStr, yStr] = frontierArray[randIndex].split(',');
@@ -116,11 +122,58 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
 
         frontier.delete(frontierArray[randIndex]);
 
-        if (map[y][x] === 'X') {
-          map[y][x] = screenTypes.pop()!;
+        if (!mazeCells.has(`${x},${y}`)) {
+          mazeCells.add(`${x},${y}`);
           addNeighborsToFrontier(x, y);
         }
       }
+
+      const strategicTypes = ['S', 'M', 'F'];
+      const strategicRooms = screenTypes.filter(t => strategicTypes.includes(t));
+      const otherRooms = screenTypes.filter(t => !strategicTypes.includes(t));
+
+      const mazeCellCoords = Array.from(mazeCells).map(key => {
+        const [x,y] = key.split(',').map(Number);
+        return {x, y};
+      });
+
+      const deadEnds = mazeCellCoords.filter(cell => {
+        const neighbors = [{x: cell.x-1, y: cell.y}, {x: cell.x+1, y: cell.y}, {x: cell.x, y: cell.y-1}, {x: cell.x, y: cell.y+1}];
+        const connectedNeighbors = neighbors.filter(n => mazeCells.has(`${n.x},${n.y}`));
+        return connectedNeighbors.length === 1;
+      });
+
+      const availableForStrategic = [...deadEnds];
+      const remainingPlaceable = [...mazeCellCoords];
+
+      strategicRooms.forEach(type => {
+        let placed = false;
+        if (availableForStrategic.length > 0) {
+          const randIndex = Math.floor(Math.random() * availableForStrategic.length);
+          const {x, y} = availableForStrategic[randIndex];
+          map[y][x] = type;
+          placed = true;
+          availableForStrategic.splice(randIndex, 1);
+          const mainIndex = remainingPlaceable.findIndex(c => c.x === x && c.y === y);
+          if (mainIndex > -1) remainingPlaceable.splice(mainIndex, 1);
+        }
+        if (!placed) {
+          // Fallback: place anywhere if no dead ends left
+          const randIndex = Math.floor(Math.random() * remainingPlaceable.length);
+          const {x, y} = remainingPlaceable[randIndex];
+          map[y][x] = type;
+          remainingPlaceable.splice(randIndex, 1);
+        }
+      });
+
+      otherRooms.forEach(type => {
+        if (remainingPlaceable.length > 0) {
+          const randIndex = Math.floor(Math.random() * remainingPlaceable.length);
+          const {x, y} = remainingPlaceable[randIndex];
+          map[y][x] = type;
+          remainingPlaceable.splice(randIndex, 1);
+        }
+      });
     }
 
     return map;
@@ -216,6 +269,24 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
               value={density}
               onChange={(e) => setDensity(parseFloat(e.target.value))}
               className="w-48 accent-msx-accent"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <label>Begin in Center:</label>
+            <input
+              type="checkbox"
+              checked={beginInCenter}
+              onChange={(e) => setBeginInCenter(e.target.checked)}
+              className="w-6 h-6"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <label>Allow Multiple Paths:</label>
+            <input
+              type="checkbox"
+              checked={allowMultiplePaths}
+              onChange={(e) => setAllowMultiplePaths(e.target.checked)}
+              className="w-6 h-6"
             />
           </div>
         </div>

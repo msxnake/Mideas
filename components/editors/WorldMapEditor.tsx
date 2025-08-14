@@ -23,8 +23,6 @@ interface WorldMapEditorProps {
   onNavigateToAsset: (assetId: string) => void;
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
   setStatusBarMessage: (message: string) => void;
-  setConfirmModalProps: (props: { title: string; message: string | React.ReactNode; onConfirm: () => void; confirmText?: string; cancelText?: string; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null) => void;
-  setIsConfirmModalOpen: (isOpen: boolean) => void;
 }
 
 // Simplified preview for world map nodes
@@ -100,9 +98,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   dataOutputFormat,
   onNavigateToAsset,
   onShowContextMenu,
-  setStatusBarMessage,
-  setConfirmModalProps,
-  setIsConfirmModalOpen
+  setStatusBarMessage
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -230,65 +226,39 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
 
 
   const handlePortClick = (nodeId: string, direction: ConnectionDirection) => {
-    const fromNode = nodes.find(n => n.id === nodeId);
-    if (!fromNode) return;
-
-    let targetX = fromNode.position.x;
-    let targetY = fromNode.position.y;
-    const oppositeDir = oppositeDirectionMap[direction];
-
-    switch (direction) {
-      case 'north': targetY -= gridSize; break;
-      case 'south': targetY += gridSize; break;
-      case 'west': targetX -= gridSize; break;
-      case 'east': targetX += gridSize; break;
-    }
-
-    const toNode = nodes.find(n => n.position.x === targetX && n.position.y === targetY);
-
-    if (!toNode) {
-      setStatusBarMessage("No adjacent screen found in that direction.");
-      return;
-    }
-
-    const existingConnection = connections.find(c =>
-      (c.fromNodeId === fromNode.id && c.toNodeId === toNode.id && c.fromDirection === direction) ||
-      (c.toNodeId === fromNode.id && c.fromNodeId === toNode.id && c.toDirection === direction)
-    );
-
-    if (existingConnection) {
-      setConfirmModalProps({
-        title: "Disconnect Screens",
-        message: `Do you want to disconnect "${fromNode.name}" from "${toNode.name}"?`,
-        onConfirm: () => {
-          const newConnections = connections.filter(c => c.id !== existingConnection.id);
-          onUpdate({ connections: newConnections });
-          setStatusBarMessage("Connection removed.");
-          setIsConfirmModalOpen(false);
-        },
-        confirmText: "Disconnect",
-        confirmButtonVariant: 'danger',
-      });
+    if (!linkingState) {
+      setLinkingState({ fromNodeId: nodeId, fromDirection: direction });
+      setSelectedNodeId(null);
+      setSelectedConnectionId(null);
     } else {
-      setConfirmModalProps({
-        title: "Connect Screens",
-        message: `Do you want to connect "${fromNode.name}" (${direction}) to "${toNode.name}" (${oppositeDir})?`,
-        onConfirm: () => {
-          const newConnection: WorldMapConnection = {
-            id: `wmconn_${Date.now()}`,
-            fromNodeId: fromNode.id,
-            fromDirection: direction,
-            toNodeId: toNode.id,
-            toDirection: oppositeDir,
-          };
-          onUpdate({ connections: [...connections, newConnection] });
-          setStatusBarMessage("Connection created.");
-          setIsConfirmModalOpen(false);
-        },
-        confirmText: "Connect",
-      });
+      if (linkingState.fromNodeId === nodeId && linkingState.fromDirection === direction) {
+        setLinkingState(null); return;
+      }
+      if (linkingState.fromNodeId === nodeId) {
+         alert("Cannot connect a node to itself via manual port linking.");
+         setLinkingState(null); return;
+      }
+
+      const existing = worldMapGraph.connections.find(c =>
+        (c.fromNodeId === linkingState.fromNodeId && c.fromDirection === linkingState.fromDirection && c.toNodeId === nodeId && c.toDirection === direction) ||
+        (c.fromNodeId === nodeId && c.fromDirection === direction && c.toNodeId === linkingState.fromNodeId && c.toDirection === linkingState.fromDirection)
+      );
+      if (existing) {
+        setLinkingState(null);
+        alert("Connection already exists.");
+        return;
+      }
+
+      const newConnection: WorldMapConnection = {
+        id: `wmconn_${Date.now()}`,
+        fromNodeId: linkingState.fromNodeId,
+        fromDirection: linkingState.fromDirection,
+        toNodeId: nodeId,
+        toDirection: direction,
+      };
+      onUpdate({ connections: [...worldMapGraph.connections, newConnection] });
+      setLinkingState(null);
     }
-    setIsConfirmModalOpen(true);
   };
 
   const handleDeleteSelected = () => {
@@ -439,7 +409,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   };
 
   const handleGenerateAndPlace = (data: { options: any; map: string[][] }) => {
-    const { map } = data;
+    const { map, options } = data;
     const newNodes: WorldMapScreenNode[] = [];
     const newScreensToCreate: ProjectAsset[] = [];
     const typeCounters: { [key: string]: number } = { M: 0, F: 0, E: 0, K: 0, S: 0, I: 0, O: 0 };
@@ -545,7 +515,58 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       }
     }
 
-    onUpdate({ nodes: newNodes, connections, startScreenNodeId: newNodes[0]?.id || null }, newScreensToCreate);
+    if (options.allowMultiplePaths && newNodes.length > 1) {
+      const extraConnectionCount = Math.floor(newNodes.length * 0.15); // Add 15% more connections
+      for (let i = 0; i < extraConnectionCount; i++) {
+        const node1 = newNodes[Math.floor(Math.random() * newNodes.length)];
+        const x1 = Math.round(node1.position.x / (NODE_WIDTH + 40));
+        const y1 = Math.round(node1.position.y / (NODE_HEIGHT + 40));
+
+        const neighbors = [
+          { x: x1, y: y1 - 1 }, { x: x1, y: y1 + 1 },
+          { x: x1 - 1, y: y1 }, { x: x1 + 1, y: y1 },
+        ].map(n => nodeGrid[`${n.x},${n.y}`]).filter(n => n);
+
+        if (neighbors.length > 0) {
+          const node2 = neighbors[Math.floor(Math.random() * neighbors.length)];
+          const connectionExists = connections.some(c =>
+            (c.fromNodeId === node1.id && c.toNodeId === node2.id) ||
+            (c.fromNodeId === node2.id && c.toNodeId === node1.id)
+          );
+          if (!connectionExists) {
+            const directions = getDirection({x: x1, y: y1}, {x: Math.round(node2.position.x / (NODE_WIDTH + 40)), y: Math.round(node2.position.y / (NODE_HEIGHT + 40))});
+            if (directions) {
+              connections.push({
+                id: `wmconn_extra_${i}`,
+                fromNodeId: node1.id,
+                fromDirection: directions.from,
+                toNodeId: node2.id,
+                toDirection: directions.to,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    let startNodeId = newNodes[0]?.id || null;
+    if (options.beginInCenter && newNodes.length > 0) {
+      let minDistance = Infinity;
+      let centerX = (map[0].length / 2) * (NODE_WIDTH + 40);
+      let centerY = (map.length / 2) * (NODE_HEIGHT + 40);
+
+      newNodes.forEach(node => {
+        const dx = node.position.x - centerX;
+        const dy = node.position.y - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < minDistance) {
+          minDistance = distance;
+          startNodeId = node.id;
+        }
+      });
+    }
+
+    onUpdate({ nodes: newNodes, connections, startScreenNodeId: startNodeId }, newScreensToCreate);
     setStatusBarMessage(`Generated and placed ${newNodes.length} screens and ${connections.length} connections on the map.`);
   };
 
