@@ -250,7 +250,7 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
                 </div>
                 <div className="flex items-center space-x-2">
                     <Button variant="secondary" size="sm" onClick={() => setIsPreviewModalOpen(true)}>Preview</Button>
-                    <Button variant="secondary" size="sm" icon={<CodeIcon/>} onClick={handleExportAsm}>Export ASM</Button>
+                    <Button variant="secondary" size="sm" icon={<CodeIcon/>} onClick={handleExportAsm}>Menu Game</Button>
                 </div>
             </div>
             <div className="flex-grow p-3 overflow-y-auto">
