@@ -467,12 +467,6 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         nodeGrid[`${x},${y}`] = node;
       });
 
-      const visited = new Set<string>();
-      const stack: WorldMapScreenNode[] = [];
-      const startNode = newNodes[0];
-      stack.push(startNode);
-      visited.add(startNode.id);
-
       const getDirection = (from: {x: number, y: number}, to: {x: number, y: number}): { from: ConnectionDirection, to: ConnectionDirection } | null => {
         if (to.y < from.y) return { from: 'north', to: 'south' };
         if (to.y > from.y) return { from: 'south', to: 'north' };
@@ -480,6 +474,12 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         if (to.x > from.x) return { from: 'east', to: 'west' };
         return null;
       };
+
+      const visited = new Set<string>();
+      const stack: WorldMapScreenNode[] = [];
+      const startNode = newNodes[0];
+      stack.push(startNode);
+      visited.add(startNode.id);
 
       while (stack.length > 0) {
         const currentNode = stack[stack.length - 1];
