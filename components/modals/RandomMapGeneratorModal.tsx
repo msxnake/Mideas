@@ -4,9 +4,10 @@ import { Button } from '../common/Button';
 interface RandomMapGeneratorModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onGenerateAndPlace: (data: { options: any; map: string[][] }) => void;
 }
 
-export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = ({ isOpen, onClose }) => {
+export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = ({ isOpen, onClose, onGenerateAndPlace }) => {
   const [numScreens, setNumScreens] = useState(10);
   const [numEnemies, setNumEnemies] = useState(5);
   const [numKeys, setNumKeys] = useState(2);
@@ -17,7 +18,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
 
   if (!isOpen) return null;
 
-  const handleGenerate = () => {
+  const generateMapData = () => {
     const options = {
       numScreens,
       numEnemies,
@@ -30,11 +31,11 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
 
     const map = generateMap(options);
 
-    const data = {
-      options,
-      map,
-    };
+    return { options, map };
+  }
 
+  const handleDownloadJson = () => {
+    const data = generateMapData();
     const dataStr = JSON.stringify(data, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -43,43 +44,59 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
     a.download = "random_map.json";
     a.click();
     URL.revokeObjectURL(url);
+    onClose();
+  };
 
+  const handleGenerateAndPlaceClick = () => {
+    const data = generateMapData();
+    onGenerateAndPlace(data);
     onClose();
   };
 
   const generateMap = (options: any) => {
     const { numScreens, numEnemies, numKeys, numSecretZones, numSpecialItems, hasFinalBoss, hasExitDoor } = options;
-    const totalCells = numScreens * 2;
+
+    let screenTypes: string[] = [];
+    if (hasFinalBoss) screenTypes.push('M');
+    if (hasExitDoor) screenTypes.push('F');
+    for (let i = 0; i < numEnemies; i++) screenTypes.push('E');
+    for (let i = 0; i < numKeys; i++) screenTypes.push('K');
+    for (let i = 0; i < numSecretZones; i++) screenTypes.push('S');
+    for (let i = 0; i < numSpecialItems; i++) screenTypes.push('I');
+
+    if (screenTypes.length > numScreens) {
+      alert('The number of special screens is greater than the total number of screens. Please adjust the numbers.');
+      return [];
+    }
+
+    const normalScreensToAdd = numScreens - screenTypes.length;
+    for (let i = 0; i < normalScreensToAdd; i++) {
+      screenTypes.push('O');
+    }
+
+    // Shuffle the screen types
+    for (let i = screenTypes.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [screenTypes[i], screenTypes[j]] = [screenTypes[j], screenTypes[i]];
+    }
+
+    const aspectRatio = 1.618; // Golden ratio
+    const width = Math.round(Math.sqrt(numScreens * aspectRatio));
+    const height = Math.round(numScreens / width);
+    const totalCells = width * height;
+
     const cells = new Array(totalCells).fill('X');
-    let placedCount = 0;
+    screenTypes.forEach((type, index) => {
+      cells[index] = type;
+    });
 
-    const placeItem = (item: string, count: number) => {
-      for (let i = 0; i < count; i++) {
-        let index = Math.floor(Math.random() * totalCells);
-        while (cells[index] !== 'X') {
-          index = Math.floor(Math.random() * totalCells);
-        }
-        cells[index] = item;
-        placedCount++;
-      }
-    };
-
-    if (hasFinalBoss) placeItem('M', 1);
-    if (hasExitDoor) placeItem('F', 1);
-    placeItem('E', numEnemies);
-    placeItem('K', numKeys);
-    placeItem('S', numSecretZones);
-    placeItem('I', numSpecialItems);
-
-    for (let i = 0; i < totalCells; i++) {
-      if (cells[i] === 'X' && placedCount < numScreens) {
-        cells[i] = 'O';
-        placedCount++;
-      }
+    // Shuffle the cells to distribute the 'X's randomly
+    for (let i = cells.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cells[i], cells[j]] = [cells[j], cells[i]];
     }
 
     const map = [];
-    const width = Math.ceil(Math.sqrt(numScreens));
     for (let i = 0; i < totalCells; i += width) {
       map.push(cells.slice(i, i + width));
     }
@@ -172,8 +189,11 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
           <Button onClick={onClose} variant="secondary">
             Cancelar
           </Button>
-          <Button onClick={handleGenerate} variant="primary">
-            Generar
+          <Button onClick={handleDownloadJson} variant="secondary">
+            Descargar JSON
+          </Button>
+          <Button onClick={handleGenerateAndPlaceClick} variant="primary">
+            Generar y Colocar
           </Button>
         </div>
       </div>

@@ -15,13 +15,14 @@ const CONNECTION_PROXIMITY_THRESHOLD_DEFAULT_FACTOR = 1.5; // Multiplier for gri
 
 interface WorldMapEditorProps {
   worldMapGraph: WorldMapGraph;
-  onUpdate: (data: Partial<WorldMapGraph>) => void;
+  onUpdate: (data: Partial<WorldMapGraph>, newAssetsToCreate?: ProjectAsset[]) => void;
   availableScreenMaps: ScreenMap[];
   tileset: Tile[]; 
   currentScreenMode: string;
   dataOutputFormat: DataFormat;
   onNavigateToAsset: (assetId: string) => void;
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
+  setStatusBarMessage: (message: string) => void;
 }
 
 // Simplified preview for world map nodes
@@ -97,6 +98,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   dataOutputFormat,
   onNavigateToAsset,
   onShowContextMenu,
+  setStatusBarMessage
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -406,6 +408,117 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setIsExportAsmModalOpen(true);
   };
 
+  const handleGenerateAndPlace = (data: { options: any; map: string[][] }) => {
+    const { map } = data;
+    const newNodes: WorldMapScreenNode[] = [];
+    const newScreensToCreate: ProjectAsset[] = [];
+    const typeCounters: { [key: string]: number } = { M: 0, F: 0, E: 0, K: 0, S: 0, I: 0, O: 0 };
+    const typeNames: { [key: string]: string } = { M: 'boss', F: 'final', E: 'enemy', K: 'key', S: 'secret', I: 'item', O: 'normal' };
+
+    map.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell !== 'X') {
+          typeCounters[cell]++;
+          const screenId = `screenmap_random_${y}_${x}_${Date.now()}`;
+          const screenName = `Room_${typeNames[cell] || 'unknown'}_${typeCounters[cell]}`;
+
+          const newScreenMap: ScreenMap = {
+            id: screenId,
+            name: screenName,
+            width: 32, // DEFAULT_SCREEN_WIDTH_TILES
+            height: 24, // DEFAULT_SCREEN_HEIGHT_TILES
+            layers: {
+              background: Array(24).fill(null).map(() => Array(32).fill({ tileId: null })),
+              collision: Array(24).fill(null).map(() => Array(32).fill({ tileId: null })),
+              effects: Array(24).fill(null).map(() => Array(32).fill({ tileId: null })),
+              entities: [],
+            },
+            effectZones: [],
+            activeAreaX: 0,
+            activeAreaY: 0,
+            activeAreaWidth: 32,
+            activeAreaHeight: 24,
+            hudConfiguration: { elements: [] },
+          };
+
+          newScreensToCreate.push({
+            id: screenId,
+            name: screenName,
+            type: 'screenmap',
+            data: newScreenMap,
+          });
+
+          newNodes.push({
+            id: `wmnode_random_${y}_${x}`,
+            screenAssetId: screenId,
+            name: screenName,
+            position: { x: x * (NODE_WIDTH + 40), y: y * (NODE_HEIGHT + 40) },
+          });
+        }
+      });
+    });
+
+    const connections: WorldMapConnection[] = [];
+    if (newNodes.length > 0) {
+      const nodeGrid: { [key: string]: WorldMapScreenNode } = {};
+      newNodes.forEach(node => {
+        const x = Math.round(node.position.x / (NODE_WIDTH + 40));
+        const y = Math.round(node.position.y / (NODE_HEIGHT + 40));
+        nodeGrid[`${x},${y}`] = node;
+      });
+
+      const visited = new Set<string>();
+      const stack: WorldMapScreenNode[] = [];
+      const startNode = newNodes[0];
+      stack.push(startNode);
+      visited.add(startNode.id);
+
+      const getDirection = (from: {x: number, y: number}, to: {x: number, y: number}): { from: ConnectionDirection, to: ConnectionDirection } | null => {
+        if (to.y < from.y) return { from: 'north', to: 'south' };
+        if (to.y > from.y) return { from: 'south', to: 'north' };
+        if (to.x < from.x) return { from: 'west', to: 'east' };
+        if (to.x > from.x) return { from: 'east', to: 'west' };
+        return null;
+      };
+
+      while (stack.length > 0) {
+        const currentNode = stack[stack.length - 1];
+        const currentX = Math.round(currentNode.position.x / (NODE_WIDTH + 40));
+        const currentY = Math.round(currentNode.position.y / (NODE_HEIGHT + 40));
+
+        const neighbors = [
+          { x: currentX, y: currentY - 1 }, // North
+          { x: currentX, y: currentY + 1 }, // South
+          { x: currentX - 1, y: currentY }, // West
+          { x: currentX + 1, y: currentY }, // East
+        ];
+
+        const unvisitedNeighbors = neighbors.map(n => nodeGrid[`${n.x},${n.y}`]).filter(n => n && !visited.has(n.id));
+
+        if (unvisitedNeighbors.length > 0) {
+          const neighbor = unvisitedNeighbors[Math.floor(Math.random() * unvisitedNeighbors.length)];
+          const directions = getDirection({x: currentX, y: currentY}, {x: Math.round(neighbor.position.x / (NODE_WIDTH + 40)), y: Math.round(neighbor.position.y / (NODE_HEIGHT + 40))});
+          if (directions) {
+            connections.push({
+              id: `wmconn_random_${connections.length}`,
+              fromNodeId: currentNode.id,
+              fromDirection: directions.from,
+              toNodeId: neighbor.id,
+              toDirection: directions.to,
+            });
+          }
+          visited.add(neighbor.id);
+          stack.push(neighbor);
+        } else {
+          stack.pop();
+        }
+      }
+    }
+
+    onUpdate({ nodes: newNodes, connections, startScreenNodeId: newNodes[0]?.id || null }, newScreensToCreate);
+    setStatusBarMessage(`Generated and placed ${newNodes.length} screens and ${connections.length} connections on the map.`);
+  };
+
 interface NodeComponentProps {
   node: WorldMapScreenNode;
   onNodeDrag: (nodeId: string, dx: number, dy: number) => void;
@@ -529,6 +642,9 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
             width={NODE_WIDTH - 2 * PORT_OFFSET} height={NODE_HEIGHT * 0.6 - 2 * PORT_OFFSET} 
             preserveAspectRatio="xMidYMid slice"
         />
+        <text x={PORT_OFFSET + 5} y={PORT_OFFSET + 15} fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none" style={{ textShadow: '1px 1px 2px black' }}>
+          {node.name.split('_')[1]}
+        </text>
         <text x={NODE_WIDTH / 2} y={NODE_HEIGHT - 15} textAnchor="middle" fill="white" fontSize="12px" className="pixel-font select-none pointer-events-none">
           {node.name}
         </text>
@@ -738,6 +854,7 @@ NodeComponent.displayName = 'NodeComponent';
         <RandomMapGeneratorModal
           isOpen={isRandomMapModalOpen}
           onClose={() => setIsRandomMapModalOpen(false)}
+          onGenerateAndPlace={handleGenerateAndPlace}
         />
       )}
     </Panel>
