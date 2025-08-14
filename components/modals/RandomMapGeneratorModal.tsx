@@ -85,22 +85,42 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
     const aspectRatio = 1.618; // Golden ratio
     const totalCells = Math.ceil(numScreens * density);
     const width = Math.round(Math.sqrt(totalCells * aspectRatio));
-    const height = Math.round(totalCells / width);
+    const height = Math.ceil(totalCells / width);
 
-    const cells = new Array(width * height).fill('X');
-    screenTypes.forEach((type, index) => {
-      cells[index] = type;
-    });
+    const map = Array(height).fill(null).map(() => Array(width).fill('X'));
 
-    // Shuffle the cells to distribute the 'X's randomly
-    for (let i = cells.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [cells[i], cells[j]] = [cells[j], cells[i]];
-    }
+    if (numScreens > 0) {
+      const frontier = new Set<string>();
+      const startX = Math.floor(Math.random() * width);
+      const startY = Math.floor(Math.random() * height);
 
-    const map = [];
-    for (let i = 0; i < totalCells; i += width) {
-      map.push(cells.slice(i, i + width));
+      map[startY][startX] = screenTypes.pop()!;
+
+      const addNeighborsToFrontier = (x: number, y: number) => {
+        const neighbors = [{x: x-1, y}, {x: x+1, y}, {x: x, y: y-1}, {x: x, y: y+1}];
+        neighbors.forEach(n => {
+          if (n.x >= 0 && n.x < width && n.y >= 0 && n.y < height) {
+            frontier.add(`${n.x},${n.y}`);
+          }
+        });
+      };
+
+      addNeighborsToFrontier(startX, startY);
+
+      while (screenTypes.length > 0 && frontier.size > 0) {
+        const frontierArray = Array.from(frontier);
+        const randIndex = Math.floor(Math.random() * frontierArray.length);
+        const [xStr, yStr] = frontierArray[randIndex].split(',');
+        const x = parseInt(xStr, 10);
+        const y = parseInt(yStr, 10);
+
+        frontier.delete(frontierArray[randIndex]);
+
+        if (map[y][x] === 'X') {
+          map[y][x] = screenTypes.pop()!;
+          addNeighborsToFrontier(x, y);
+        }
+      }
     }
 
     return map;
