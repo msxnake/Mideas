@@ -15,6 +15,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
   const [numSpecialItems, setNumSpecialItems] = useState(1);
   const [hasFinalBoss, setHasFinalBoss] = useState(true);
   const [hasExitDoor, setHasExitDoor] = useState(true);
+  const [density, setDensity] = useState(1.5);
 
   if (!isOpen) return null;
 
@@ -27,6 +28,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
       numSpecialItems,
       hasFinalBoss,
       hasExitDoor,
+      density,
     };
 
     const map = generateMap(options);
@@ -54,7 +56,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
   };
 
   const generateMap = (options: any) => {
-    const { numScreens, numEnemies, numKeys, numSecretZones, numSpecialItems, hasFinalBoss, hasExitDoor } = options;
+    const { numScreens, numEnemies, numKeys, numSecretZones, numSpecialItems, hasFinalBoss, hasExitDoor, density } = options;
 
     let screenTypes: string[] = [];
     if (hasFinalBoss) screenTypes.push('M');
@@ -81,11 +83,11 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
     }
 
     const aspectRatio = 1.618; // Golden ratio
-    const width = Math.round(Math.sqrt(numScreens * aspectRatio));
-    const height = Math.round(numScreens / width);
-    const totalCells = width * height;
+    const totalCells = Math.ceil(numScreens * density);
+    const width = Math.round(Math.sqrt(totalCells * aspectRatio));
+    const height = Math.round(totalCells / width);
 
-    const cells = new Array(totalCells).fill('X');
+    const cells = new Array(width * height).fill('X');
     screenTypes.forEach((type, index) => {
       cells[index] = type;
     });
@@ -182,6 +184,18 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
               checked={hasExitDoor}
               onChange={(e) => setHasExitDoor(e.target.checked)}
               className="w-6 h-6"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <label>Map Density: {density.toFixed(1)}x</label>
+            <input
+              type="range"
+              min="1.1"
+              max="3.0"
+              step="0.1"
+              value={density}
+              onChange={(e) => setDensity(parseFloat(e.target.value))}
+              className="w-48 accent-msx-accent"
             />
           </div>
         </div>

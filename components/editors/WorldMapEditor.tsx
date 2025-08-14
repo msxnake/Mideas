@@ -23,6 +23,8 @@ interface WorldMapEditorProps {
   onNavigateToAsset: (assetId: string) => void;
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
   setStatusBarMessage: (message: string) => void;
+  setConfirmModalProps: (props: { title: string; message: string | React.ReactNode; onConfirm: () => void; confirmText?: string; cancelText?: string; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null) => void;
+  setIsConfirmModalOpen: (isOpen: boolean) => void;
 }
 
 // Simplified preview for world map nodes
@@ -98,7 +100,9 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   dataOutputFormat,
   onNavigateToAsset,
   onShowContextMenu,
-  setStatusBarMessage
+  setStatusBarMessage,
+  setConfirmModalProps,
+  setIsConfirmModalOpen
 }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
@@ -226,39 +230,65 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
 
 
   const handlePortClick = (nodeId: string, direction: ConnectionDirection) => {
-    if (!linkingState) {
-      setLinkingState({ fromNodeId: nodeId, fromDirection: direction });
-      setSelectedNodeId(null); 
-      setSelectedConnectionId(null);
-    } else {
-      if (linkingState.fromNodeId === nodeId && linkingState.fromDirection === direction) { 
-        setLinkingState(null); return;
-      }
-      if (linkingState.fromNodeId === nodeId) { 
-         alert("Cannot connect a node to itself via manual port linking.");
-         setLinkingState(null); return;
-      }
-      
-      const existing = worldMapGraph.connections.find(c => 
-        (c.fromNodeId === linkingState.fromNodeId && c.fromDirection === linkingState.fromDirection && c.toNodeId === nodeId && c.toDirection === direction) ||
-        (c.fromNodeId === nodeId && c.fromDirection === direction && c.toNodeId === linkingState.fromNodeId && c.toDirection === linkingState.fromDirection)
-      );
-      if (existing) {
-        setLinkingState(null);
-        alert("Connection already exists.");
-        return;
-      }
+    const fromNode = nodes.find(n => n.id === nodeId);
+    if (!fromNode) return;
 
-      const newConnection: WorldMapConnection = {
-        id: `wmconn_${Date.now()}`,
-        fromNodeId: linkingState.fromNodeId,
-        fromDirection: linkingState.fromDirection,
-        toNodeId: nodeId,
-        toDirection: direction,
-      };
-      onUpdate({ connections: [...worldMapGraph.connections, newConnection] });
-      setLinkingState(null);
+    let targetX = fromNode.position.x;
+    let targetY = fromNode.position.y;
+    const oppositeDir = oppositeDirectionMap[direction];
+
+    switch (direction) {
+      case 'north': targetY -= gridSize; break;
+      case 'south': targetY += gridSize; break;
+      case 'west': targetX -= gridSize; break;
+      case 'east': targetX += gridSize; break;
     }
+
+    const toNode = nodes.find(n => n.position.x === targetX && n.position.y === targetY);
+
+    if (!toNode) {
+      setStatusBarMessage("No adjacent screen found in that direction.");
+      return;
+    }
+
+    const existingConnection = connections.find(c =>
+      (c.fromNodeId === fromNode.id && c.toNodeId === toNode.id && c.fromDirection === direction) ||
+      (c.toNodeId === fromNode.id && c.fromNodeId === toNode.id && c.toDirection === direction)
+    );
+
+    if (existingConnection) {
+      setConfirmModalProps({
+        title: "Disconnect Screens",
+        message: `Do you want to disconnect "${fromNode.name}" from "${toNode.name}"?`,
+        onConfirm: () => {
+          const newConnections = connections.filter(c => c.id !== existingConnection.id);
+          onUpdate({ connections: newConnections });
+          setStatusBarMessage("Connection removed.");
+          setIsConfirmModalOpen(false);
+        },
+        confirmText: "Disconnect",
+        confirmButtonVariant: 'danger',
+      });
+    } else {
+      setConfirmModalProps({
+        title: "Connect Screens",
+        message: `Do you want to connect "${fromNode.name}" (${direction}) to "${toNode.name}" (${oppositeDir})?`,
+        onConfirm: () => {
+          const newConnection: WorldMapConnection = {
+            id: `wmconn_${Date.now()}`,
+            fromNodeId: fromNode.id,
+            fromDirection: direction,
+            toNodeId: toNode.id,
+            toDirection: oppositeDir,
+          };
+          onUpdate({ connections: [...connections, newConnection] });
+          setStatusBarMessage("Connection created.");
+          setIsConfirmModalOpen(false);
+        },
+        confirmText: "Connect",
+      });
+    }
+    setIsConfirmModalOpen(true);
   };
 
   const handleDeleteSelected = () => {
