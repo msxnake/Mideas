@@ -6,6 +6,7 @@ import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveFloppyIcon, CodeIcon, PencilIcon } from '../icons/MsxIcons';
 import { ExportWorldMapASMModal } from '../modals/ExportWorldMapASMModal';
 import { RandomMapGeneratorModal } from '../modals/RandomMapGeneratorModal';
+import { ConnectionManagerModal } from '../modals/ConnectionManagerModal';
 
 const NODE_WIDTH = 120;
 const NODE_HEIGHT = 90;
@@ -115,6 +116,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
 
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState<boolean>(false);
   const [isRandomMapModalOpen, setIsRandomMapModalOpen] = useState<boolean>(false);
+  const [editingConnectionsForNode, setEditingConnectionsForNode] = useState<WorldMapScreenNode | null>(null);
 
 
   useEffect(() => {
@@ -408,6 +410,41 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setIsExportAsmModalOpen(true);
   };
 
+  const handleCenterGrid = () => {
+    if (nodes.length === 0) {
+      onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 });
+      return;
+    }
+
+    const padding = 50;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    nodes.forEach(node => {
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + NODE_WIDTH);
+      maxY = Math.max(maxY, node.position.y + NODE_HEIGHT);
+    });
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+
+    if (contentWidth <= 0 || contentHeight <= 0) return;
+
+    const svgWidth = svgRef.current?.clientWidth || 1000;
+    const svgHeight = svgRef.current?.clientHeight || 700;
+
+    const zoomX = svgWidth / (contentWidth + padding * 2);
+    const zoomY = svgHeight / (contentHeight + padding * 2);
+    const newZoom = Math.min(zoomX, zoomY, 2); // Cap max zoom at 2x
+
+    const newPanX = minX - padding + (contentWidth + padding * 2 - svgWidth / newZoom) / 2;
+    const newPanY = minY - padding + (contentHeight + padding * 2 - svgHeight / newZoom) / 2;
+
+    onUpdate({ panOffset: { x: newPanX, y: newPanY }, zoomLevel: newZoom });
+    setStatusBarMessage("Centered view on all screens.");
+  };
+
   const handleGenerateAndPlace = (data: { options: any; map: string[][] }) => {
     const { map, options } = data;
     const newNodes: WorldMapScreenNode[] = [];
@@ -672,7 +709,7 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
       <g transform={`translate(${node.position.x}, ${node.position.y})`} 
          onMouseDown={handleMouseDown}
          onContextMenu={handleContextMenu}
-         onDoubleClick={() => onNavigateToAsset(node.screenAssetId)}
+         onDoubleClick={() => setEditingConnectionsForNode(node)}
          style={{ cursor: isDraggingVisual ? 'grabbing' : 'grab' }}
          role="button"
          aria-label={`Screen node ${node.name}`}
@@ -754,6 +791,7 @@ NodeComponent.displayName = 'NodeComponent';
           <input id="worldMapGridSize" type="number" min="5" max="50" step="5" value={gridSize} onChange={e => onUpdate({gridSize: parseInt(e.target.value)})} className="w-12 p-0.5 text-xs bg-msx-panelbg border border-msx-border rounded" />
         </div>
          <Button onClick={() => onUpdate({panOffset: {x:0, y:0}, zoomLevel: 1})} size="sm" variant="ghost">Reset View</Button>
+         <Button onClick={handleCenterGrid} size="sm" variant="ghost">Center Grid</Button>
          <Button onClick={handleSaveWorldJson} size="sm" variant="secondary" icon={<SaveFloppyIcon className="w-3.5 h-3.5"/>} title="Save World Map as JSON">Save JSON</Button>
          <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon className="w-3.5 h-3.5"/>} title="Export World Map as ASM">Export ASM</Button>
          <Button onClick={() => setIsRandomMapModalOpen(true)} size="sm" variant="secondary" title="Generar Mapa Aleatorio">Generar Mapa Aleatorio</Button>
@@ -908,6 +946,15 @@ NodeComponent.displayName = 'NodeComponent';
           onGenerateAndPlace={handleGenerateAndPlace}
         />
       )}
+
+      <ConnectionManagerModal
+        isOpen={!!editingConnectionsForNode}
+        onClose={() => setEditingConnectionsForNode(null)}
+        node={editingConnectionsForNode}
+        allNodes={nodes}
+        connections={connections}
+        onUpdateConnections={(newConnections) => onUpdate({ connections: newConnections })}
+      />
     </Panel>
   );
 };
