@@ -340,52 +340,6 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setPendingAutoConnectionProposal(null);
   };
 
-  // Keyboard movement for selected node
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!selectedNodeId || !worldMapGraph) return;
-
-      const targetElement = event.target as HTMLElement;
-      if (targetElement.tagName === 'INPUT' || targetElement.tagName === 'TEXTAREA' || targetElement.tagName === 'SELECT' || targetElement.isContentEditable) {
-        return;
-      }
-
-      let dx = 0;
-      let dy = 0;
-      const currentGridSize = worldMapGraph.gridSize;
-
-      switch (event.key.toLowerCase()) {
-        case 'w': dy = -currentGridSize; break;
-        case 's': dy = currentGridSize; break;
-        case 'a': dx = -currentGridSize; break;
-        case 'd': dx = currentGridSize; break;
-        default: return;
-      }
-
-      event.preventDefault();
-
-      const nodeToMove = worldMapGraph.nodes.find(n => n.id === selectedNodeId);
-      if (!nodeToMove) return;
-
-      const newPosition = {
-        x: nodeToMove.position.x + dx,
-        y: nodeToMove.position.y + dy,
-      };
-      const updatedNode = { ...nodeToMove, position: newPosition };
-      
-      const newNodes = worldMapGraph.nodes.map(n => (n.id === selectedNodeId ? updatedNode : n));
-      onUpdate({ nodes: newNodes });
-      
-      checkForAutoConnections(updatedNode);
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [selectedNodeId, worldMapGraph, onUpdate, checkForAutoConnections]); 
-
-
   const handleSaveWorldJson = () => {
     const worldDataString = JSON.stringify(worldMapGraph, null, 2);
     const blob = new Blob([worldDataString], { type: 'application/json' });
@@ -506,7 +460,6 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
       <g transform={`translate(${node.position.x}, ${node.position.y})`} 
          onMouseDown={handleMouseDown}
          onContextMenu={handleContextMenu}
-         onDoubleClick={() => onNavigateToAsset(node.screenAssetId)}
          style={{ cursor: isDraggingVisual ? 'grabbing' : 'grab' }}
          role="button"
          aria-label={`Screen node ${node.name}`}
@@ -526,6 +479,7 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
             x={PORT_OFFSET} y={PORT_OFFSET} 
             width={NODE_WIDTH - 2 * PORT_OFFSET} height={NODE_HEIGHT * 0.6 - 2 * PORT_OFFSET} 
             preserveAspectRatio="xMidYMid slice"
+            onDragStart={(e) => e.preventDefault()}
         />
         <text x={NODE_WIDTH / 2} y={NODE_HEIGHT - 15} textAnchor="middle" fill="white" fontSize="12px" className="pixel-font select-none pointer-events-none">
           {node.name}
@@ -599,6 +553,7 @@ NodeComponent.displayName = 'NodeComponent';
           onMouseDown={handleSvgMouseDown}
           onMouseMove={handleSvgMouseMove}
           onMouseUp={handleSvgMouseUp}
+          onDoubleClick={(e) => e.preventDefault()}
           onContextMenu={(e) => {
             if (e.target === svgRef.current) {
                 e.preventDefault();
@@ -718,7 +673,7 @@ NodeComponent.displayName = 'NodeComponent';
       )}
 
       <div className="p-1 border-t border-msx-border text-xs text-msx-textsecondary pixel-font">
-        Nodes: {nodes.length} | Connections: {connections.length} | Start: {nodes.find(n => n.id === worldMapGraph.startScreenNodeId)?.name || 'None'} | Zoom: {zoomLevel.toFixed(2)}x | Grid: {gridSize}px | Keys: W/A/S/D to move selected node.
+        Nodes: {nodes.length} | Connections: {connections.length} | Start: {nodes.find(n => n.id === worldMapGraph.startScreenNodeId)?.name || 'None'} | Zoom: {zoomLevel.toFixed(2)}x | Grid: {gridSize}px
       </div>
 
       {isExportAsmModalOpen && (
