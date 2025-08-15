@@ -112,6 +112,10 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
 
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState<boolean>(false);
 
+  const nodesRef = useRef(nodes);
+  useEffect(() => {
+      nodesRef.current = nodes;
+  }, [nodes]);
 
   useEffect(() => {
     const vbWidth = (svgRef.current?.clientWidth || 1000) / zoomLevel;
@@ -138,12 +142,12 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
 
   const handleNodeDrag = useCallback((nodeId: string, newPosition: { x: number, y: number }) => {
-    onUpdate({
-        nodes: worldMapGraph.nodes.map(n =>
-            n.id === nodeId ? { ...n, position: newPosition } : n
-        )
-    });
-}, [worldMapGraph.nodes, onUpdate]);
+    const newNodes = nodesRef.current.map(n =>
+        n.id === nodeId ? { ...n, position: newPosition } : n
+    );
+    nodesRef.current = newNodes;
+    onUpdate({ nodes: newNodes });
+  }, [onUpdate]);
 
 
   const getPortPosition = (node: WorldMapScreenNode, dir: ConnectionDirection): { x: number; y: number } => {
