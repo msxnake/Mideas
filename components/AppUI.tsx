@@ -204,6 +204,40 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const isUndoDisabled = history.undoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
   const isRedoDisabled = history.redoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
 
+  const handleCompile = async () => {
+    if (currentEditor !== EditorType.Code || !activeAsset || typeof activeAsset.data !== 'string') {
+      setStatusBarMessage("No code editor active or no code to compile.");
+      return;
+    }
+
+    const code = activeAsset.data;
+
+    try {
+      setStatusBarMessage("Compiling...");
+      const response = await fetch('http://localhost:3001/compile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setStatusBarMessage(`Compilation successful! Output size: ${result.data.length / 2} bytes.`);
+        console.log('Compiled HEX:', result.data);
+        alert(`Compilation Successful:\n${result.message}`);
+      } else {
+        setStatusBarMessage(`Compilation failed: ${result.error}`);
+        alert(`Compilation Error:\n${result.details}`);
+      }
+    } catch (error) {
+      setStatusBarMessage("Failed to connect to the compiler backend.");
+      alert("Could not connect to the compiler backend. Is it running?");
+    }
+  };
+
   const allWorldMapGraphs = React.useMemo(() => assets
     .filter(a => a.type === 'worldmap' && a.data)
     .map(a => a.data as WorldMapGraph), [assets]);
@@ -258,7 +292,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onSaveProjectAs={handleOpenSaveAsModal} 
         onLoadProject={() => fileLoadInputRef.current?.click()}
         onExportAllCodeFiles={handleExportAllCodeFiles} 
-        onCompile={() => setStatusBarMessage("Compile: Mock action. Implement actual compilation.")}
+        onCompile={handleCompile}
         onDebug={() => setStatusBarMessage("Debug: Mock action. Implement debugger.")}
         onRun={() => setStatusBarMessage("Run: Mock action. Implement emulator integration.")}
         onOpenHelpDocs={() => memoizedHandleSelectAsset(HELP_DOCS_SYSTEM_ASSET_ID, EditorType.HelpDocs)}
