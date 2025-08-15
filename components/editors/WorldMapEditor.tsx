@@ -108,6 +108,11 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
   const { nodes, connections, gridSize, zoomLevel, panOffset } = worldMapGraph;
+  const nodesRef = useRef(nodes);
+  useEffect(() => {
+      nodesRef.current = nodes;
+  }, [nodes]);
+
   const CONNECTION_PROXIMITY_THRESHOLD = gridSize * CONNECTION_PROXIMITY_THRESHOLD_DEFAULT_FACTOR;
 
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState<boolean>(false);
@@ -138,12 +143,14 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
 
   const handleNodeDrag = useCallback((nodeId: string, dx: number, dy: number) => {
+    const updatedNodes = nodesRef.current.map(n =>
+      n.id === nodeId ? { ...n, position: { x: n.position.x + dx / zoomLevel, y: n.position.y + dy / zoomLevel } } : n
+    );
+    nodesRef.current = updatedNodes;
     onUpdate({
-      nodes: worldMapGraph.nodes.map(n => // Use worldMapGraph.nodes to ensure latest data
-        n.id === nodeId ? { ...n, position: { x: n.position.x + dx / zoomLevel, y: n.position.y + dy / zoomLevel } } : n
-      )
+      nodes: updatedNodes
     });
-  }, [worldMapGraph.nodes, zoomLevel, onUpdate]);
+  }, [zoomLevel, onUpdate]);
 
 
   const getPortPosition = (node: WorldMapScreenNode, dir: ConnectionDirection): { x: number; y: number } => {
