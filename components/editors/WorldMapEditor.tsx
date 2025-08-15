@@ -452,6 +452,39 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setStatusBarMessage("Centered view on all screens.");
   };
 
+  const handleAlign = () => {
+    const updatedNodes = JSON.parse(JSON.stringify(nodes));
+
+    // First, snap all nodes to the grid
+    updatedNodes.forEach((node: WorldMapScreenNode) => {
+      node.position.x = snapToGrid(node.position.x);
+      node.position.y = snapToGrid(node.position.y);
+    });
+
+    // Align connected nodes
+    connections.forEach(conn => {
+      const fromNode = updatedNodes.find((n: WorldMapScreenNode) => n.id === conn.fromNodeId);
+      const toNode = updatedNodes.find((n: WorldMapScreenNode) => n.id === conn.toNodeId);
+
+      if (fromNode && toNode) {
+        if (conn.fromDirection === 'east' || conn.fromDirection === 'west') {
+          // Horizontal connection, align Y
+          const avgY = (fromNode.position.y + toNode.position.y) / 2;
+          fromNode.position.y = snapToGrid(avgY);
+          toNode.position.y = snapToGrid(avgY);
+        } else if (conn.fromDirection === 'north' || conn.fromDirection === 'south') {
+          // Vertical connection, align X
+          const avgX = (fromNode.position.x + toNode.position.x) / 2;
+          fromNode.position.x = snapToGrid(avgX);
+          toNode.position.x = snapToGrid(avgX);
+        }
+      }
+    });
+
+    onUpdate({ nodes: updatedNodes });
+    setStatusBarMessage("Aligned screens to grid.");
+  };
+
   const handleGenerateAndPlace = (data: { options: any; map: string[][] }) => {
     const { map, options } = data;
     const newNodes: WorldMapScreenNode[] = [];
@@ -758,6 +791,7 @@ NodeComponent.displayName = 'NodeComponent';
         </div>
          <Button onClick={() => onUpdate({panOffset: {x:0, y:0}, zoomLevel: 1})} size="sm" variant="ghost">Reset View</Button>
          <Button onClick={handleCenterGrid} size="sm" variant="ghost">Center Grid</Button>
+         <Button onClick={handleAlign} size="sm" variant="ghost">Align</Button>
          <Button onClick={handleSaveWorldJson} size="sm" variant="secondary" icon={<SaveFloppyIcon className="w-3.5 h-3.5"/>} title="Save World Map as JSON">Save JSON</Button>
          <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon className="w-3.5 h-3.5"/>} title="Export World Map as ASM">Export ASM</Button>
          <Button onClick={() => setIsRandomMapModalOpen(true)} size="sm" variant="secondary" title="Generar Mapa Aleatorio">Generar Mapa Aleatorio</Button>
