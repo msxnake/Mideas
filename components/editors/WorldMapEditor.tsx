@@ -284,7 +284,9 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   };
 
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (movingNodeId && e.target === svgRef.current) {
+    // If a node is being moved, a click on the canvas background should place it.
+    // The `NodeComponent`'s own mouseDown handler stops propagation, so this won't fire when clicking another node.
+    if (movingNodeId) {
       const svgPoint = svgRef.current?.createSVGPoint();
       if (svgPoint && svgRef.current) {
         svgPoint.x = e.clientX;
