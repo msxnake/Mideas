@@ -209,7 +209,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     .map(a => a.data as WorldMapGraph), [assets]);
 
   const dataAssets = assets.filter(a =>
-    ['tile', 'sprite', 'screenmap', 'sound', 'track'].includes(a.type)
+    ['tile', 'sprite', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
   );
 
   if (Object.keys(msxFont).length > 0) {
