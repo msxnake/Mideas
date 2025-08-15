@@ -212,6 +212,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
     ['tile', 'sprite', 'screenmap', 'sound', 'track'].includes(a.type)
   );
 
+  if (Object.keys(msxFont).length > 0) {
+    dataAssets.push({
+      id: 'msx-font-data',
+      name: 'MSX Font & Colors',
+      type: 'code',
+      data: 'Font data is handled separately'
+    });
+  }
+
   const renderRightPanelContent = () => {
     if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
       return (
