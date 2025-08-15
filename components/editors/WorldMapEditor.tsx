@@ -117,6 +117,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState<boolean>(false);
   const [isRandomMapModalOpen, setIsRandomMapModalOpen] = useState<boolean>(false);
   const [editingConnectionsForNode, setEditingConnectionsForNode] = useState<WorldMapScreenNode | null>(null);
+  const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
+  const [mousePosition, setMousePosition] = useState<{x: number, y: number} | null>(null);
 
 
   useEffect(() => {
@@ -142,15 +144,6 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   };
   
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
-
-  const handleNodeDrag = useCallback((nodeId: string, dx: number, dy: number) => {
-    onUpdate({
-      nodes: worldMapGraph.nodes.map(n => // Use worldMapGraph.nodes to ensure latest data
-        n.id === nodeId ? { ...n, position: { x: n.position.x + dx / zoomLevel, y: n.position.y + dy / zoomLevel } } : n
-      )
-    });
-  }, [worldMapGraph.nodes, zoomLevel, onUpdate]);
-
 
   const getPortPosition = (node: WorldMapScreenNode, dir: ConnectionDirection): { x: number; y: number } => {
     switch (dir) {
@@ -210,23 +203,6 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     }
   }, [worldMapGraph.nodes, worldMapGraph.connections, worldMapGraph.gridSize, setPendingAutoConnectionProposal]);
   
-  const handleNodeMouseUp = useCallback((nodeId: string) => {
-    let snappedNode: WorldMapScreenNode | undefined;
-    const newNodes = worldMapGraph.nodes.map(n => { // Use worldMapGraph.nodes
-      if (n.id === nodeId) {
-        snappedNode = { ...n, position: { x: snapToGrid(n.position.x), y: snapToGrid(n.position.y) } };
-        return snappedNode;
-      }
-      return n;
-    });
-    onUpdate({ nodes: newNodes });
-
-    if (snappedNode) {
-      checkForAutoConnections(snappedNode);
-    }
-  }, [worldMapGraph.nodes, worldMapGraph.gridSize, onUpdate, checkForAutoConnections, snapToGrid]);
-
-
   const handlePortClick = (nodeId: string, direction: ConnectionDirection) => {
     if (!linkingState) {
       setLinkingState({ fromNodeId: nodeId, fromDirection: direction });
@@ -308,7 +284,26 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   };
 
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey))) { 
+    if (movingNodeId && e.target === svgRef.current) {
+      const svgPoint = svgRef.current?.createSVGPoint();
+      if (svgPoint && svgRef.current) {
+        svgPoint.x = e.clientX;
+        svgPoint.y = e.clientY;
+        const CTM = svgRef.current.getScreenCTM()?.inverse();
+        if (CTM) {
+          const { x: pointerX, y: pointerY } = svgPoint.matrixTransform(CTM);
+          const newX = snapToGrid(pointerX - NODE_WIDTH / 2);
+          const newY = snapToGrid(pointerY - NODE_HEIGHT / 2);
+
+          onUpdate({
+            nodes: worldMapGraph.nodes.map(n =>
+              n.id === movingNodeId ? { ...n, position: { x: newX, y: newY } } : n
+            )
+          });
+          setMovingNodeId(null);
+        }
+      }
+    } else if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey))) {
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
       if (e.currentTarget) e.currentTarget.style.cursor = 'grabbing';
@@ -316,6 +311,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         setSelectedNodeId(null);
         setSelectedConnectionId(null);
         setLinkingState(null);
+        setMovingNodeId(null);
         if (svgRef.current) svgRef.current.focus(); // Focus for keyboard events
     }
   };
@@ -325,6 +321,15 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       const dy = (e.clientY - panStart.y);
       onUpdate({ panOffset: { x: worldMapGraph.panOffset.x - dx / worldMapGraph.zoomLevel, y: worldMapGraph.panOffset.y - dy / worldMapGraph.zoomLevel }});
       setPanStart({ x: e.clientX, y: e.clientY });
+    } else if (movingNodeId && svgRef.current) {
+      const svgPoint = svgRef.current.createSVGPoint();
+      svgPoint.x = e.clientX;
+      svgPoint.y = e.clientY;
+      const CTM = svgRef.current.getScreenCTM()?.inverse();
+      if (CTM) {
+        const { x, y } = svgPoint.matrixTransform(CTM);
+        setMousePosition({ x, y });
+      }
     }
   };
   const handleSvgMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -609,8 +614,6 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
 
 interface NodeComponentProps {
   node: WorldMapScreenNode;
-  onNodeDrag: (nodeId: string, dx: number, dy: number) => void;
-  onNodeMouseUp: (nodeId: string) => void;
   setSelectedNodeId: (id: string | null) => void;
   setSelectedConnectionId: (id: string | null) => void;
   setLinkingState: (state: { fromNodeId: string; fromDirection: ConnectionDirection } | null) => void;
@@ -620,12 +623,11 @@ interface NodeComponentProps {
   isLinking: boolean;
   isNodeSelected: boolean;
   isStartNode: boolean;
+  isMoving: boolean;
 }
 
 const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
     node, 
-    onNodeDrag, 
-    onNodeMouseUp,
     setSelectedNodeId,
     setSelectedConnectionId,
     setLinkingState,
@@ -634,63 +636,25 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
     svgGlobalRef,
     isLinking, 
     isNodeSelected,
-    isStartNode
+    isStartNode,
+    isMoving
   }) => {
     const screenMapAsset = availableScreenMaps.find(sm => sm.id === node.screenAssetId);
-    const [isDraggingVisual, setIsDraggingVisual] = useState(false);
-    
-    const onNodeDragRef = useRef(onNodeDrag);
-    const onNodeMouseUpRef = useRef(onNodeMouseUp);
-    const nodeIdRef = useRef(node.id);
-    const dragStartCoordsRef = useRef({ x: 0, y: 0 });
-    const isActuallyDraggingRef = useRef(false);
-
-    useEffect(() => { onNodeDragRef.current = onNodeDrag; }, [onNodeDrag]);
-    useEffect(() => { onNodeMouseUpRef.current = onNodeMouseUp; }, [onNodeMouseUp]);
-    useEffect(() => { nodeIdRef.current = node.id; }, [node.id]);
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         if (e.button !== 0) return;
-        setSelectedNodeId(nodeIdRef.current);
+
+        setMovingNodeId(prev => prev === node.id ? null : node.id);
+        setSelectedNodeId(node.id);
         setSelectedConnectionId(null);
         setLinkingState(null);
-        
-        dragStartCoordsRef.current = { x: e.clientX, y: e.clientY };
-        isActuallyDraggingRef.current = true;
-        setIsDraggingVisual(true);
         e.stopPropagation();
 
         if (svgGlobalRef?.current) {
             svgGlobalRef.current.focus(); // Focus SVG for keyboard events
         }
 
-    }, [setSelectedNodeId, setSelectedConnectionId, setLinkingState, svgGlobalRef]); 
-
-    useEffect(() => {
-        const handleDocumentMouseMove = (e: MouseEvent) => {
-            if (!isActuallyDraggingRef.current) return;
-            const dx = e.clientX - dragStartCoordsRef.current.x;
-            const dy = e.clientY - dragStartCoordsRef.current.y;
-            onNodeDragRef.current(nodeIdRef.current, dx, dy);
-            dragStartCoordsRef.current = { x: e.clientX, y: e.clientY };
-        };
-
-        const handleDocumentMouseUp = () => {
-            if (!isActuallyDraggingRef.current) return;
-            onNodeMouseUpRef.current(nodeIdRef.current);
-            isActuallyDraggingRef.current = false;
-            setIsDraggingVisual(false);
-        };
-
-        if (isDraggingVisual) {
-            document.addEventListener('mousemove', handleDocumentMouseMove);
-            document.addEventListener('mouseup', handleDocumentMouseUp);
-            return () => {
-                document.removeEventListener('mousemove', handleDocumentMouseMove);
-                document.removeEventListener('mouseup', handleDocumentMouseUp);
-            };
-        }
-    }, [isDraggingVisual]);
+    }, [node.id, setSelectedNodeId, setSelectedConnectionId, setLinkingState, svgGlobalRef]);
 
     const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -710,7 +674,7 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
          onMouseDown={handleMouseDown}
          onContextMenu={handleContextMenu}
          onDoubleClick={() => setEditingConnectionsForNode(node)}
-         style={{ cursor: isDraggingVisual ? 'grabbing' : 'grab' }}
+         style={{ cursor: 'pointer' }}
          role="button"
          aria-label={`Screen node ${node.name}`}
          tabIndex={-1}
@@ -719,8 +683,8 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
           width={NODE_WIDTH}
           height={NODE_HEIGHT}
           fill={isNodeSelected ? "hsl(220, 70%, 65%)" : "hsl(220, 30%, 40%)"}
-          stroke={isStartNode ? "hsl(100, 70%, 60%)" : (isNodeSelected ? "hsl(220, 80%, 80%)" : "hsl(220, 50%, 70%)")}
-          strokeWidth={isStartNode || isNodeSelected ? 2.5 : 1.5}
+          stroke={isMoving ? "hsl(30, 100%, 70%)" : (isStartNode ? "hsl(100, 70%, 60%)" : (isNodeSelected ? "hsl(220, 80%, 80%)" : "hsl(220, 50%, 70%)"))}
+          strokeWidth={isMoving || isStartNode || isNodeSelected ? 2.5 : 1.5}
           rx={5}
           ry={5}
         />
@@ -856,8 +820,6 @@ NodeComponent.displayName = 'NodeComponent';
             <NodeComponent 
                 key={node.id} 
                 node={node} 
-                onNodeDrag={handleNodeDrag}
-                onNodeMouseUp={handleNodeMouseUp}
                 setSelectedNodeId={setSelectedNodeId}
                 setSelectedConnectionId={setSelectedConnectionId}
                 setLinkingState={setLinkingState}
@@ -867,6 +829,7 @@ NodeComponent.displayName = 'NodeComponent';
                 isLinking={linkingState?.fromNodeId === node.id}
                 isNodeSelected={selectedNodeId === node.id}
                 isStartNode={worldMapGraph.startScreenNodeId === node.id}
+                isMoving={movingNodeId === node.id}
             />
           ))}
           
@@ -897,6 +860,23 @@ NodeComponent.displayName = 'NodeComponent';
                 />
             );
 
+          })()}
+
+          {movingNodeId && mousePosition && (() => {
+            const movingNode = nodes.find(n => n.id === movingNodeId);
+            if (!movingNode) return null;
+            const p1 = { x: movingNode.position.x + NODE_WIDTH / 2, y: movingNode.position.y + NODE_HEIGHT / 2 };
+            return (
+              <line
+                x1={p1.x} y1={p1.y}
+                x2={mousePosition.x}
+                y2={mousePosition.y}
+                stroke="hsl(30, 100%, 70%)"
+                strokeWidth="2"
+                strokeDasharray="4 2"
+                style={{pointerEvents: 'none'}}
+              />
+            );
           })()}
 
         </svg>
