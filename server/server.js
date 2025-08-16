@@ -34,7 +34,8 @@ app.post('/compile', (req, res) => {
       return res.status(500).send({ error: 'Failed to write temporary file', details: err });
     }
 
-    const command = `java -jar glass.jar ${tempFilePath} ${outputFilePath}`;
+    const jarPath = path.join(__dirname, 'glass.jar');
+    const command = `java -jar "${jarPath}" ${tempFilePath} ${outputFilePath}`;
 
     exec(command, (error, stdout, stderr) => {
       if (error) {
