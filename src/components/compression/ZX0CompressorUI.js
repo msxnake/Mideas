@@ -16,8 +16,14 @@ const ZX0CompressorUI = ({ inputFilePath, outputFilePath, onCompressionComplete 
     setError(null);
     setCompressionStats(null);
 
+    // Ensure the output path is within the 'compressed/' directory.
+    let finalOutputFilePath = outputFilePath;
+    if (!finalOutputFilePath.startsWith('compressed/')) {
+      finalOutputFilePath = `compressed/${finalOutputFilePath}`;
+    }
+
     try {
-      const stats = await compressFile('ZX0', inputFilePath, outputFilePath);
+      const stats = await compressFile('ZX0', inputFilePath, finalOutputFilePath);
       setCompressionStats(stats);
       if (onCompressionComplete) {
         onCompressionComplete(stats);
