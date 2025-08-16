@@ -47,6 +47,7 @@ import { SaveAsModal } from './modals/SaveAsModal';
 import { NewProjectModal } from './modals/NewProjectModal';
 import { AboutModal } from './modals/AboutModal'; 
 import { ConfirmationModal } from './modals/ConfirmationModal';
+import { CompressDataModal } from './modals/CompressDataModal';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ConfigTabModal } from './theme_config/ConfigTabModal';
 import { Panel } from './common/Panel';
@@ -75,6 +76,7 @@ interface AppUIProps {
   isSaveAsModalOpen: boolean;
   isNewProjectModalOpen: boolean;
   isAboutModalOpen: boolean;
+  isCompressDataModalOpen: boolean;
   isConfirmModalOpen: boolean;
   confirmModalProps: { title: string; message: string | React.ReactNode; onConfirm: () => void; confirmText?: string; cancelText?: string; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null;
   tileBanks: TileBank[];
@@ -123,6 +125,7 @@ interface AppUIProps {
   setIsSaveAsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsNewProjectModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsAboutModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsCompressDataModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsConfirmModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setConfirmModalProps: React.Dispatch<React.SetStateAction<{ title: string; message: string | React.ReactNode; onConfirm: () => void; confirmText?: string; cancelText?: string; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null>>;
   setTileBanks: (updater: TileBank[] | ((prev: TileBank[]) => TileBank[])) => void;
@@ -182,9 +185,9 @@ interface AppUIProps {
 
 export const AppUI: React.FC<AppUIProps> = (props) => {
     const {
-        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, contextMenu, waypointPickerState,
+        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, contextMenu, waypointPickerState,
         
-        setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm
+        setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm
     } = props;
 
   const activeAsset = assets.find(a => a.id === selectedAssetId);
@@ -201,9 +204,56 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const isUndoDisabled = history.undoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
   const isRedoDisabled = history.redoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
 
+  const handleCompile = async () => {
+    if (currentEditor !== EditorType.Code || !activeAsset || typeof activeAsset.data !== 'string') {
+      setStatusBarMessage("No code editor active or no code to compile.");
+      return;
+    }
+
+    const code = activeAsset.data;
+
+    try {
+      setStatusBarMessage("Compiling...");
+      const response = await fetch('http://localhost:3001/compile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setStatusBarMessage(`Compilation successful! Output size: ${result.data.length / 2} bytes.`);
+        console.log('Compiled HEX:', result.data);
+        alert(`Compilation Successful:\n${result.message}`);
+      } else {
+        setStatusBarMessage(`Compilation failed: ${result.error}`);
+        alert(`Compilation Error:\n${result.details}`);
+      }
+    } catch (error) {
+      setStatusBarMessage("Failed to connect to the compiler backend.");
+      alert("Could not connect to the compiler backend. Is it running?");
+    }
+  };
+
   const allWorldMapGraphs = React.useMemo(() => assets
     .filter(a => a.type === 'worldmap' && a.data)
     .map(a => a.data as WorldMapGraph), [assets]);
+
+  const dataAssets = assets.filter(a =>
+    ['tile', 'sprite', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
+  );
+
+  if (Object.keys(msxFont).length > 0) {
+    dataAssets.push({
+      id: 'msx-font-data',
+      name: 'MSX Font & Colors',
+      type: 'code',
+      data: 'Font data is handled separately'
+    });
+  }
 
   const renderRightPanelContent = () => {
     if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
@@ -242,7 +292,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onSaveProjectAs={handleOpenSaveAsModal} 
         onLoadProject={() => fileLoadInputRef.current?.click()}
         onExportAllCodeFiles={handleExportAllCodeFiles} 
-        onCompile={() => setStatusBarMessage("Compile: Mock action. Implement actual compilation.")}
+        onCompile={handleCompile}
         onDebug={() => setStatusBarMessage("Debug: Mock action. Implement debugger.")}
         onRun={() => setStatusBarMessage("Run: Mock action. Implement emulator integration.")}
         onOpenHelpDocs={() => memoizedHandleSelectAsset(HELP_DOCS_SYSTEM_ASSET_ID, EditorType.HelpDocs)}
@@ -261,7 +311,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenAbout={() => setIsAboutModalOpen(true)}
         onOpenComponentDefEditor={() => memoizedHandleSelectAsset(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, EditorType.ComponentDefinitionEditor)}
         onOpenEntityTemplateEditor={() => memoizedHandleSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
-        onCompressAllDataFiles={() => setStatusBarMessage("Compress All Data Files: Mock Action")}
+        onCompressAllDataFiles={() => setIsCompressDataModalOpen(true)}
         onCompileAndRun={() => setStatusBarMessage("Compile and Run: Mock Action")}
         onCompressExportCompileRun={() => setStatusBarMessage("Compress, Export, Compile, Run: Mock Action")}
         onConfigureASM={() => alert("Configure ASM Compiler: Mock Action")}
@@ -412,6 +462,17 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             }}
             onSplit={handleSplitFrames}
             spriteAsset={spriteForFramesModal}
+        />
+      )}
+      {isCompressDataModalOpen && (
+        <CompressDataModal
+          isOpen={isCompressDataModalOpen}
+          onClose={() => setIsCompressDataModalOpen(false)}
+          assets={dataAssets}
+          onCompress={(selectedAssetIds) => {
+            console.log('Selected assets for compression:', selectedAssetIds);
+            setStatusBarMessage(`Compression requested for ${selectedAssetIds.length} assets.`);
+          }}
         />
       )}
     </div>
