@@ -35,7 +35,7 @@ app.post('/compile', (req, res) => {
     }
 
     const jarPath = path.join(__dirname, 'glass.jar');
-    const command = `java -jar "${jarPath}" ${tempFilePath} ${outputFilePath}`;
+    const command = `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}"`;
 
     exec(command, (error, stdout, stderr) => {
       if (error) {
