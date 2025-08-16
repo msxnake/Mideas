@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { ProjectAsset } from '../../types';
+import ZX0CompressorUI from '../../src/components/compression/ZX0CompressorUI';
 
 interface CompressDataModalProps {
   isOpen: boolean;
@@ -92,6 +93,34 @@ export const CompressDataModal: React.FC<CompressDataModalProps> = ({
             </Button>
             <p className="text-xs text-msx-textsecondary">{selectedCount} of {assets.length} selected</p>
         </div>
+
+        {selectedCount > 0 && (
+          <div className="my-4 p-3 border-t border-b border-msx-border bg-msx-bgcolor-dark/50">
+            <h3 className="text-sm text-msx-textprimary mb-2">ZX0 Compressor</h3>
+            <div className="space-y-4 max-h-40 overflow-y-auto pr-2">
+              {Object.keys(selected).filter(id => selected[id]).map(assetId => {
+                const asset = assets.find(a => a.id === assetId);
+                if (!asset) return null;
+
+                // ASSUMPTION: The actual file path is constructed based on asset type and name.
+                // This may need to be adjusted if the project's file structure is different.
+                const inputPath = `assets/${asset.type}s/${asset.name}`; // e.g. assets/screenmaps/level1.map
+                const outputPath = `${asset.name}.zx0`; // The component will prepend 'compressed/'
+
+                return (
+                  <div key={asset.id}>
+                    <p className="text-xs text-msx-textsecondary mb-1">{inputPath}</p>
+                    <ZX0CompressorUI
+                      inputFilePath={inputPath}
+                      outputFilePath={outputPath}
+                      onCompressionComplete={(stats) => console.log(`Compression complete for ${asset.name}`, stats)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
           <Button onClick={onClose} variant="ghost" size="sm" className="w-full sm:w-auto">Cancel</Button>
