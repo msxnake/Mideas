@@ -11,6 +11,7 @@ import { PencilIcon, FireIcon as FloodFillIcon, SaveFloppyIcon, PatternBrushIcon
 import { TileFileOperationsModal } from '../modals/TileFileOperationsModal';
 import { createDefaultLineAttributes } from '../utils/tileUtils';
 import TileMirrorTools from './TileMirrorTools';
+import TiledPatternPreview from './TiledPatternPreview';
 
 
 // Helper to resize PixelData (Pattern)
@@ -1631,6 +1632,10 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                 </div>
             </Panel>
 
+            <TiledPatternPreview
+              activeTileData={tile}
+              palette={isScreen2 ? MSX1_PALETTE : MSX_SCREEN5_PALETTE}
+            />
 
           {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
             <>

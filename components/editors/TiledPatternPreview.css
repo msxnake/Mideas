@@ -1,0 +1,19 @@
+.tiled-pattern-preview-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 4px;
+  background-color: #333;
+  border-radius: 4px;
+  min-height: 138px;
+  min-width: 138px;
+}
+
+.tiled-pattern-preview-canvas {
+  border: 1px solid #4a4a4a;
+  image-rendering: pixelated;
+  max-width: 128px;
+  max-height: 128px;
+  width: auto;
+  height: auto;
+}
