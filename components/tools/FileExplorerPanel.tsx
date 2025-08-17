@@ -10,7 +10,6 @@ import { useWindowManager } from '../../hooks/useWindowManager';
 interface FileExplorerPanelProps {
   assets: ProjectAsset[];
   selectedAssetId: string | null;
-  // onSelectAsset is no longer needed
   onRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
   onRequestDelete: (assetId: string) => void; 
   showTileBanksEntry?: boolean;
@@ -77,7 +76,6 @@ export const MAIN_MENU_SYSTEM_ASSET_ID = "MAIN_MENU_SYSTEM_ASSET"; // New system
 export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({ 
     assets, 
     selectedAssetId, 
-    // onSelectAsset, // Removed
     onRequestRename,
     onRequestDelete,
     showTileBanksEntry = false,
