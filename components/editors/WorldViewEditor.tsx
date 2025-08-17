@@ -395,8 +395,8 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                             <div
                                 style={{
                                     position: 'absolute',
-                                    left: screensToRender.worldBounds.minX,
-                                    top: screensToRender.worldBounds.minY,
+                                    left: screensToRender.worldBounds.minX - 48,
+                                    top: screensToRender.worldBounds.minY + 8,
                                     pointerEvents: 'none'
                                 }}
                             >
