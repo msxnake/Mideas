@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { useWindowManager } from '../../hooks/useWindowManager';
-import { WindowState } from './WindowManagerProvider';
-import '../../styles/WindowManager.css';
+import { useWindowManager } from '@/hooks/useWindowManager';
+import { WindowState } from '@/components/WindowManager/WindowManagerProvider';
+import '@/styles/WindowManager.css';
 
 interface WindowProps {
   window: WindowState;

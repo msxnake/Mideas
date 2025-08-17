@@ -53,7 +53,7 @@ import { ConfigTabModal } from './theme_config/ConfigTabModal';
 import { Panel } from './common/Panel';
 import { HUDEditorModal } from './editors/HUDEditorModal';
 import { ContextMenu } from './common/ContextMenu';
-import { useWindowManager } from '../hooks/useWindowManager';
+import { useWindowManager } from '@/hooks/useWindowManager';
 import { Window } from './WindowManager/Window';
 import { WindowState } from './WindowManager/WindowManagerProvider';
 
