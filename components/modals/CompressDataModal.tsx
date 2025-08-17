@@ -100,18 +100,15 @@ export const CompressDataModal: React.FC<CompressDataModalProps> = ({
             <div className="space-y-4 max-h-40 overflow-y-auto pr-2">
               {Object.keys(selected).filter(id => selected[id]).map(assetId => {
                 const asset = assets.find(a => a.id === assetId);
-                if (!asset) return null;
+                if (!asset || !asset.data) return null;
 
-                // ASSUMPTION: The actual file path is constructed based on asset type and name.
-                // This may need to be adjusted if the project's file structure is different.
-                const inputPath = `assets/${asset.type}s/${asset.name}`; // e.g. assets/screenmaps/level1.map
                 const outputPath = `${asset.name}.zx0`; // The component will prepend 'compressed/'
 
                 return (
                   <div key={asset.id}>
-                    <p className="text-xs text-msx-textsecondary mb-1">{inputPath}</p>
+                    <p className="text-xs text-msx-textsecondary mb-1">Compressing: {asset.name}</p>
                     <ZX0CompressorUI
-                      inputFilePath={inputPath}
+                      inputData={asset.data}
                       outputFilePath={outputPath}
                       onCompressionComplete={(stats) => console.log(`Compression complete for ${asset.name}`, stats)}
                     />

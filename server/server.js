@@ -60,50 +60,48 @@ app.post('/compile', (req, res) => {
 });
 
 app.post('/run-compressor', async (req, res) => {
-  const { tool, inputFile, outputFile } = req.body;
+  const { tool, inputData, outputFile } = req.body;
 
-  if (!tool || !inputFile || !outputFile) {
-    return res.status(400).json({ message: 'Missing required parameters: tool, inputFile, outputFile' });
+  if (!tool || !inputData || !outputFile) {
+    return res.status(400).json({ message: 'Missing required parameters: tool, inputData, or outputFile.' });
   }
 
-  // --- Basic Security Sanity Checks ---
-  // Prevent path traversal. We assume paths are relative to the project root.
   const projectRoot = path.join(__dirname, '..');
-  const safeInputFile = path.join(projectRoot, inputFile);
   const safeOutputFile = path.join(projectRoot, outputFile);
 
-  if (!safeInputFile.startsWith(projectRoot) || !safeOutputFile.startsWith(projectRoot)) {
-    return res.status(400).json({ message: 'Invalid file path specified. Paths must be relative to the project root.' });
+  if (!safeOutputFile.startsWith(projectRoot)) {
+    return res.status(400).json({ message: 'Invalid output file path specified.' });
   }
 
-  try {
-    // 1. Check if input file exists
-    const originalStats = await fs.promises.stat(safeInputFile);
+  const tempDir = path.join(__dirname, 'temp');
+  let tempInputFilePath = null;
 
-    // 2. Ensure output directory exists
+  try {
+    // 1. Create temp directory
+    await fs.promises.mkdir(tempDir, { recursive: true });
+
+    // 2. Write input data to a temporary file
+    tempInputFilePath = path.join(tempDir, `compress_input_${Date.now()}`);
+    // The asset data is an object/array, so we stringify it for saving.
+    // A real implementation might require a specific binary serialization.
+    await fs.promises.writeFile(tempInputFilePath, JSON.stringify(inputData, null, 2));
+
+    // 3. Get original size from the temp file
+    const originalStats = await fs.promises.stat(tempInputFilePath);
+
+    // 4. Ensure output directory exists
     const outputDir = path.dirname(safeOutputFile);
     await fs.promises.mkdir(outputDir, { recursive: true });
 
-    // 3. Execute compression tool
-    // NOTE: The actual compressor tool (e.g., ZX0.exe) is not provided in the repository.
-    // As a placeholder, we will simulate the compression by simply copying the file.
-    // The actual command to run the compressor should be substituted here.
-    // For example:
-    // const compressorPath = path.join(__dirname, 'ZX0.exe');
-    // const command = `"${compressorPath}" "${safeInputFile}" "${safeOutputFile}"`;
-    // await new Promise((resolve, reject) => {
-    //   exec(command, (error, stdout, stderr) => {
-    //     if (error) return reject(error);
-    //     resolve(stdout);
-    //   });
-    // });
-    await fs.promises.copyFile(safeInputFile, safeOutputFile);
+    // 5. Execute compression tool (placeholder logic)
+    // NOTE: Replace this with the actual call to zx0.exe
+    await fs.promises.copyFile(tempInputFilePath, safeOutputFile);
 
-    // 4. Get compressed file stats
+    // 6. Get compressed file stats
     const compressedStats = await fs.promises.stat(safeOutputFile);
 
-    // 5. Send back statistics
-    const ratio = (compressedStats.size / originalStats.size) * 100;
+    // 7. Send back statistics
+    const ratio = originalStats.size > 0 ? (compressedStats.size / originalStats.size) * 100 : 0;
     res.json({
       message: 'File compressed successfully (simulation).',
       originalSize: originalStats.size,
@@ -113,10 +111,16 @@ app.post('/run-compressor', async (req, res) => {
 
   } catch (error) {
     console.error('Compression error:', error);
-    if (error.code === 'ENOENT') {
-        return res.status(404).json({ message: `Input file not found: ${inputFile}` });
-    }
     res.status(500).json({ message: 'An error occurred during compression.', details: error.message });
+  } finally {
+    // 8. Clean up temporary file
+    if (tempInputFilePath) {
+      try {
+        await fs.promises.unlink(tempInputFilePath);
+      } catch (cleanupError) {
+        console.error('Failed to delete temporary compression file:', cleanupError);
+      }
+    }
   }
 });
 

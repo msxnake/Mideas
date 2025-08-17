@@ -7,11 +7,11 @@ import axios from 'axios';
  * @param {string} outputFile The path of the output file.
  * @returns {Promise<object>} A promise that resolves with an object containing the compression statistics.
  */
-export const compressFile = async (tool, inputFile, outputFile) => {
+export const compressData = async (tool, inputData, outputFile) => {
   const serverUrl = 'http://localhost:3001/run-compressor';
   const body = {
     tool,
-    inputFile,
+    inputData,
     outputFile,
   };
 
@@ -34,7 +34,7 @@ export const compressFile = async (tool, inputFile, outputFile) => {
 };
 
 const CompressionService = {
-  compressFile,
+  compressData,
 };
 
 export default CompressionService;
