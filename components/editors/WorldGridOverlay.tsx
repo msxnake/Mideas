@@ -39,9 +39,17 @@ export const WorldGridOverlay: React.FC<WorldGridOverlayProps> = ({
             width={screenWidth}
             height={screenHeight}
             fill="none"
-            stroke="rgba(128, 128, 128, 0.5)"
+            stroke="rgba(0, 0, 0, 0.7)"
+            strokeWidth="2"
+            strokeDasharray="2,3"
+          />
+          <rect
+            width={screenWidth}
+            height={screenHeight}
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.8)"
             strokeWidth="1"
-            strokeDasharray="2,2"
+            strokeDasharray="2,3"
           />
         </pattern>
       </defs>

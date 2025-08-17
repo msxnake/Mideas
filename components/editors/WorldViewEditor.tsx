@@ -392,12 +392,21 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                         }}
                     >
                         {isGridVisible && (
-                            <WorldGridOverlay
-                                worldWidth={screensToRender.worldBounds.width}
-                                worldHeight={screensToRender.worldBounds.height}
-                                screenWidth={256}
-                                screenHeight={212}
-                            />
+                            <div
+                                style={{
+                                    position: 'absolute',
+                                    left: screensToRender.worldBounds.minX,
+                                    top: screensToRender.worldBounds.minY,
+                                    pointerEvents: 'none'
+                                }}
+                            >
+                                <WorldGridOverlay
+                                    worldWidth={screensToRender.worldBounds.width}
+                                    worldHeight={screensToRender.worldBounds.height}
+                                    screenWidth={256}
+                                    screenHeight={212}
+                                />
+                            </div>
                         )}
                         {screensToRender.nodes.map(s => (
                             <div
