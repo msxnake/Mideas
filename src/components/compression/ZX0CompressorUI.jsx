@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { compressData } from '../../services/CompressionService';
 
-const ZX0CompressorUI = ({ inputData, outputFilePath, onCompressionComplete }) => {
+const ZX0CompressorUI = ({ inputData, outputFilePath, onCompressionComplete, assetType }) => {
   const [isCompressing, setIsCompressing] = useState(false);
   const [error, setError] = useState(null);
   const [compressionStats, setCompressionStats] = useState(null);
 
   const handleCompressClick = async () => {
-    if (!inputData || !outputFilePath) {
-      setError("Input data and output file path are required.");
+    if (!inputData || !outputFilePath || !assetType) {
+      setError("Input data, output file path, and asset type are required.");
       return;
     }
 
@@ -23,7 +23,7 @@ const ZX0CompressorUI = ({ inputData, outputFilePath, onCompressionComplete }) =
     }
 
     try {
-      const stats = await compressData('ZX0', inputData, finalOutputFilePath);
+      const stats = await compressData('ZX0', inputData, finalOutputFilePath, assetType);
       setCompressionStats(stats);
       if (onCompressionComplete) {
         onCompressionComplete(stats);

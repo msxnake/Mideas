@@ -110,6 +110,7 @@ export const CompressDataModal: React.FC<CompressDataModalProps> = ({
                     <ZX0CompressorUI
                       inputData={asset.data}
                       outputFilePath={outputPath}
+                      assetType={asset.type}
                       onCompressionComplete={(stats) => console.log(`Compression complete for ${asset.name}`, stats)}
                     />
                   </div>

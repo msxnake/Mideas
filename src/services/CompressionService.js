@@ -3,16 +3,18 @@ import axios from 'axios';
 /**
  * Sends a request to the local server to execute a compression tool.
  * @param {string} tool The name of the compression tool to use (e.g., 'ZX0').
- * @param {string} inputFile The path of the input file.
- * @param {string} outputFile The path of the output file.
+ * @param {string} inputData The data to be compressed.
+ * @param {string} outputFile The desired path for the output file.
+ * @param {string} assetType The type of the asset being compressed (e.g., 'tile', 'sprite').
  * @returns {Promise<object>} A promise that resolves with an object containing the compression statistics.
  */
-export const compressData = async (tool, inputData, outputFile) => {
+export const compressData = async (tool, inputData, outputFile, assetType) => {
   const serverUrl = 'http://localhost:3001/run-compressor';
   const body = {
     tool,
     inputData,
     outputFile,
+    assetType,
   };
 
   try {
