@@ -1593,6 +1593,11 @@ export const TileEditor: React.FC<TileEditorProps> = ({
              </div>
           </Panel>
 
+            <TiledPatternPreview
+              activeTileData={tile}
+              palette={isScreen2 ? MSX1_PALETTE : MSX_SCREEN5_PALETTE}
+            />
+
            <Panel title="Logical Properties (Collision/Behavior)">
                 <div className="space-y-2 text-xs">
                      <p className="text-[0.65rem] text-msx-textsecondary">Define gameplay attributes for this tile. These are exported in the Behavior Map.</p>
@@ -1631,11 +1636,6 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                     </div>
                 </div>
             </Panel>
-
-            <TiledPatternPreview
-              activeTileData={tile}
-              palette={isScreen2 ? MSX1_PALETTE : MSX_SCREEN5_PALETTE}
-            />
 
           {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
             <>
