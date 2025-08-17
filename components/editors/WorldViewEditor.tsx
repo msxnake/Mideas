@@ -5,7 +5,6 @@ import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { EDITOR_BASE_TILE_DIM_S2, MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
 import { Button } from '../common/Button';
 import { GridToggleButton } from './GridToggleButton';
-import { WorldGridOverlay } from './WorldGridOverlay';
 
 const SCREEN_EDITOR_BASE_TILE_DIM_OTHER = 16;
 
@@ -391,28 +390,19 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                             transformOrigin: '0 0'
                         }}
                     >
-                        {isGridVisible && (
-                            <div
-                                style={{
-                                    position: 'absolute',
-                                    left: screensToRender.worldBounds.minX - 48,
-                                    top: screensToRender.worldBounds.minY + 8,
-                                    pointerEvents: 'none'
-                                }}
-                            >
-                                <WorldGridOverlay
-                                    worldWidth={screensToRender.worldBounds.width}
-                                    worldHeight={screensToRender.worldBounds.height}
-                                    screenWidth={256}
-                                    screenHeight={212}
-                                />
-                            </div>
-                        )}
                         {screensToRender.nodes.map(s => (
                             <div
                                 key={s.key}
                                 className="absolute"
-                                style={{ left: s.left, top: s.top }}
+                                style={{
+                                    left: s.left,
+                                    top: s.top,
+                                    boxSizing: 'border-box',
+                                    ...(isGridVisible && {
+                                        border: '1px dashed #fff',
+                                        boxShadow: '0 0 0 1px #000',
+                                    })
+                                }}
                                 title={s.title}
                             >
                                 <ScreenCanvas
