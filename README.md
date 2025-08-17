@@ -19,7 +19,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1xgj6UXS5hQYcZFfncqzZX5
 3. Run the app:
    `npm run dev`
 
-  ¡Entendido\! Aquí tienes el `README.md` formateado para que cualquier usuario pueda seguir los pasos fácilmente y probar tu proyecto de React.js. Puedes copiar y pegar este texto directamente en tu repositorio de GitHub.
+
 
 -----
 
