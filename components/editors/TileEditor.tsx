@@ -10,6 +10,7 @@ import { Button } from '../common/Button';
 import { PencilIcon, FireIcon as FloodFillIcon, SaveFloppyIcon, PatternBrushIcon, TilesetIcon as SplitIcon, CopyIcon, PasteIcon, SparklesIcon } from '../icons/MsxIcons'; 
 import { TileFileOperationsModal } from '../modals/TileFileOperationsModal';
 import { createDefaultLineAttributes } from '../utils/tileUtils';
+import TileMirrorTools from './TileMirrorTools';
 
 
 // Helper to resize PixelData (Pattern)
@@ -1578,11 +1579,15 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                         {EDITABLE_TILE_DIMENSIONS.map(d => <option key={`h-${d}`} value={d}>{d}</option>)}
                     </select>
                 </div>
-                 <div className="flex space-x-2 pt-1">
+                 <div className="flex space-x-2 pt-1 flex-wrap gap-2">
                     <Button onClick={handleCopyCurrentTile} size="sm" variant="secondary" icon={<CopyIcon/>}>Copy Tile</Button>
                     <Button onClick={handlePasteTileData} size="sm" variant="secondary" icon={<PasteIcon/>} disabled={!copiedTileData}>Paste Data</Button>
                     <Button onClick={handleSplitTile8x8} size="sm" variant="secondary" icon={<SplitIcon/>}>Split 8x8</Button>
                     <Button onClick={() => setIsGeneratorModalOpen(true)} size="sm" variant="secondary" icon={<SparklesIcon/>}>Generator</Button>
+                    <TileMirrorTools
+                        currentTileData={tile.data}
+                        onUpdateTileData={(newData) => onUpdate({ data: newData })}
+                    />
                 </div>
              </div>
           </Panel>
