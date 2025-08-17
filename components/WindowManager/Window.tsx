@@ -10,15 +10,16 @@ interface WindowProps {
 
 const MIN_WIDTH = 150;
 const MIN_HEIGHT = 100;
-const TITLE_BAR_HEIGHT = 37; // Approximate height of the title bar for boundary checks
+const TITLE_BAR_HEIGHT = 37;
 
 const WindowComponent: React.FC<WindowProps> = ({ window, children }) => {
   const { updateWindowState, focusWindow, closeWindow } = useWindowManager();
 
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
 
+  // Use a ref for drag start position to avoid re-triggering useEffect
+  const dragStartPosRef = useRef({ x: 0, y: 0 });
   const windowRef = useRef<HTMLDivElement>(null);
 
   const handleMouseDownOnWindow = () => {
@@ -32,14 +33,14 @@ const WindowComponent: React.FC<WindowProps> = ({ window, children }) => {
     if (window.id) {
         focusWindow(window.id);
     }
-    setIsDragging(true);
 
     const rect = windowRef.current?.getBoundingClientRect();
     if (rect) {
-      setDragStartPos({
+      dragStartPosRef.current = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
-      });
+      };
+      setIsDragging(true);
     }
   };
 
@@ -49,55 +50,55 @@ const WindowComponent: React.FC<WindowProps> = ({ window, children }) => {
     setIsResizing(true);
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (isDragging) {
-      let newX = e.clientX - dragStartPos.x;
-      let newY = e.clientY - dragStartPos.y;
-
-      // Viewport boundary checks for dragging
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      // Prevent dragging header completely off-screen
-      newX = Math.max(-window.width + 50, Math.min(newX, viewportWidth - 50));
-      newY = Math.max(0, Math.min(newY, viewportHeight - TITLE_BAR_HEIGHT));
-
-      updateWindowState(window.id, { x: newX, y: newY });
-    }
-
-    if (isResizing) {
-        const rect = windowRef.current?.getBoundingClientRect();
-        if (rect) {
-            let newWidth = e.clientX - rect.left;
-            let newHeight = e.clientY - rect.top;
-
-            // Enforce minimum size
-            newWidth = Math.max(newWidth, MIN_WIDTH);
-            newHeight = Math.max(newHeight, MIN_HEIGHT);
-
-            // Enforce maximum size (viewport boundary)
-            newWidth = Math.min(newWidth, window.innerWidth - rect.left);
-            newHeight = Math.min(newHeight, window.innerHeight - rect.top);
-
-            updateWindowState(window.id, { width: newWidth, height: newHeight });
-        }
-    }
-  }, [isDragging, isResizing, dragStartPos, window.id, window.width, updateWindowState]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-    setIsResizing(false);
-  }, []);
-
   useEffect(() => {
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        let newX = e.clientX - dragStartPosRef.current.x;
+        let newY = e.clientY - dragStartPosRef.current.y;
+
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        newX = Math.max(-window.width + 50, Math.min(newX, viewportWidth - 50));
+        newY = Math.max(0, Math.min(newY, viewportHeight - TITLE_BAR_HEIGHT));
+
+        updateWindowState(window.id, { x: newX, y: newY });
+      }
+
+      if (isResizing) {
+          const rect = windowRef.current?.getBoundingClientRect();
+          if (rect) {
+              let newWidth = e.clientX - rect.left;
+              let newHeight = e.clientY - rect.top;
+
+              newWidth = Math.max(newWidth, MIN_WIDTH);
+              newHeight = Math.max(newHeight, MIN_HEIGHT);
+
+              newWidth = Math.min(newWidth, window.innerWidth - rect.left);
+              newHeight = Math.min(newHeight, window.innerHeight - rect.top);
+
+              updateWindowState(window.id, { width: newWidth, height: newHeight });
+          }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setIsResizing(false);
+    };
+
+    // Only add listeners if we are currently dragging or resizing
+    if (isDragging || isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp, { once: true }); // Automatically remove after one fire
+    }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [handleMouseMove, handleMouseUp]);
+  }, [isDragging, isResizing, window.id, window.width, updateWindowState]);
+
 
   if (!window.isVisible) {
     return null;
