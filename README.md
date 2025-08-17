@@ -64,7 +64,9 @@ Antes de empezar, asegúrate de tener instalados los siguientes programas en tu 
     Finalmente, para ver la aplicación en acción, inicia el servidor de desarrollo local:
 
     ```bash
-    npm start
+    npm run dev &
     ```
-
+    Se va a abrir ventana de  VITE v6.3.5  ready in 174 ms
+    ahora:  o + enter
+    
     Tu navegador web predeterminado se abrirá automáticamente en `http://localhost:3000` y mostrará la aplicación. ¡Ya está lista para que la uses\! El servidor se recargará automáticamente cada vez que hagas cambios en el código. 
