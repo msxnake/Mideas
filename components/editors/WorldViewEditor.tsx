@@ -4,6 +4,8 @@ import { Panel } from '../common/Panel';
 import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
 import { EDITOR_BASE_TILE_DIM_S2, MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
 import { Button } from '../common/Button';
+import { GridToggleButton } from './GridToggleButton';
+import { WorldGridOverlay } from './WorldGridOverlay';
 
 const SCREEN_EDITOR_BASE_TILE_DIM_OTHER = 16;
 
@@ -105,6 +107,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
   currentScreenMode
 }) => {
     const [selectedWorldMapId, setSelectedWorldMapId] = useState<string | null>(null);
+    const [isGridVisible, setIsGridVisible] = useState(false);
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
@@ -112,6 +115,8 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
     const [refreshKey, setRefreshKey] = useState(0);
+
+    const handleToggleGrid = () => setIsGridVisible(prevState => !prevState);
 
     const EDITOR_BASE_TILE_DIM = currentScreenMode === "SCREEN 2 (Graphics I)" 
         ? EDITOR_BASE_TILE_DIM_S2 
@@ -357,6 +362,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                     ))}
                 </select>
                 <div className="flex-grow"></div>
+                <GridToggleButton isGridVisible={isGridVisible} onToggle={handleToggleGrid} />
                 <Button 
                     onClick={() => setRefreshKey(k => k + 1)} 
                     size="sm" 
@@ -385,6 +391,14 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                             transformOrigin: '0 0'
                         }}
                     >
+                        {isGridVisible && (
+                            <WorldGridOverlay
+                                worldWidth={screensToRender.worldBounds.width}
+                                worldHeight={screensToRender.worldBounds.height}
+                                screenWidth={256}
+                                screenHeight={212}
+                            />
+                        )}
                         {screensToRender.nodes.map(s => (
                             <div
                                 key={s.key}
