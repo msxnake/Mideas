@@ -1,13 +1,10 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, PletterExportData, SuperRLEExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, OptimizedRLEExportData } from '../../types';
+import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANKS_CONFIG, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
 import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
 import { ExportBehaviorMapASMModal } from '../modals/ExportBehaviorMapASMModal';
-import { ExportPletterModal } from '../modals/ExportPletterModal';
-import { ExportSuperRLEModal } from '../modals/ExportSuperRLEModal';
-import { ExportOptimizedRLEModal } from '../modals/ExportOptimizedRLEModal'; // New Import
 import { HUDEditorModal } from './HUDEditorModal';
 import { generateSuperRLEData, deepCompareTiles, generateScreenMapLayoutBytes, generateOptimizedRLEData } from '../utils/screenUtils'; // New Import
 import { ConfirmationModal } from '../modals/ConfirmationModal';
@@ -79,14 +76,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [isExportBehaviorMapModalOpen, setIsExportBehaviorMapModalOpen] = useState(false);
   const [behaviorMapASMExportData, setBehaviorMapASMExportData] = useState<BehaviorMapASMExportData | null>(null);
 
-  const [isExportPletterModalOpen, setIsExportPletterModalOpen] = useState(false);
-  const [pletterExportData, setPletterExportData] = useState<PletterExportData | null>(null);
-
-  const [isExportSuperRLEModalOpen, setIsExportSuperRLEModalOpen] = useState(false);
-  const [superRLEExportData, setSuperRLEExportData] = useState<SuperRLEExportData | null>(null);
-  
-  const [isExportOptimizedRLEModalOpen, setIsExportOptimizedRLEModalOpen] = useState(false);
-  const [optimizedRLEExportData, setOptimizedRLEExportData] = useState<OptimizedRLEExportData | null>(null);
 
   const [isHudEditorModalOpen, setIsHudEditorModalOpen] = useState(false);
 
@@ -385,61 +374,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setIsExportLayoutModalOpen(true);
   };
   
-  const prepareAndOpenOptimizedRLEExportModal = () => {
-    const uncompressedLayoutBytes = Array.from(generateScreenMapLayoutBytes(screenMap, tileset, tileBanks, currentScreenMode));
-    const compressedPackets = generateOptimizedRLEData(uncompressedLayoutBytes);
-    
-    const decompressorAsm = `
-  include "asm/screen_decompress.asm"
-`;
 
-    setOptimizedRLEExportData({
-        mapName: screenMap.name,
-        mapWidth: screenMap.activeAreaWidth ?? screenMap.width,
-        mapHeight: screenMap.activeAreaHeight ?? screenMap.height,
-        originalSize: uncompressedLayoutBytes.length,
-        compressedSize: compressedPackets.length,
-        optimizedRLEPackets: compressedPackets,
-        decompressorAsm: decompressorAsm,
-        compressionMethodName: 'OptimizedRLE'
-    });
-    setIsExportOptimizedRLEModalOpen(true);
-  };
-
-  const prepareAndOpenPletterExportModal = () => {
-    const result = generateSuperRLEData(screenMap.layers.background, tileset, EDITOR_BASE_TILE_DIM, tileBanks, 'pletter');
-    if ('error' in result) {
-        alert(`Pletter Export Error: ${result.error}`);
-        return;
-    }
-    setPletterExportData({
-        mapName: screenMap.name,
-        mapWidth: result.mapWidth,
-        mapHeight: result.mapHeight,
-        pletterDataBytes: result.superRLEDataBytes, 
-        tilePartReferences: result.tilePartReferences || [],
-    });
-    setIsExportPletterModalOpen(true);
-  };
-
-  const prepareAndOpenSuperRLEExportModal = () => {
-    const result = generateSuperRLEData(screenMap.layers.background, tileset, EDITOR_BASE_TILE_DIM, tileBanks, 'superRLE');
-    if ('error' in result) {
-        alert(`SuperRLE Export Error: ${result.error}`);
-        return;
-    }
-    setSuperRLEExportData({
-        mapName: screenMap.name,
-        mapWidth: result.mapWidth,
-        mapHeight: result.mapHeight,
-        originalSize: result.originalSize,
-        compressedSize: result.compressedSize,
-        superRLEDataBytes: result.superRLEDataBytes,
-        tilePartReferences: result.tilePartReferences,
-        compressionMethodName: 'SuperRLE'
-    });
-    setIsExportSuperRLEModalOpen(true);
-  };
 
   const handleExportBehaviorMapASM = () => {
     const behaviorMapData: number[] = [];
@@ -735,9 +670,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         isHudAreaDefined={isHudAreaDefined}
         onExportLayout={prepareAndOpenLayoutExportModal}
         onExportBehavior={handleExportBehaviorMapASM}
-        onExportPletter={prepareAndOpenPletterExportModal}
-        onExportSuperRLE={prepareAndOpenSuperRLEExportModal}
-        onExportOptimizedRLE={prepareAndOpenOptimizedRLEExportModal}
         onCopyLayer={handleCopyActiveLayer}
         onPasteLayer={handlePasteLayer}
         isCopyLayerDisabled={activeLayer === 'entities' || activeLayer === 'effects'}
@@ -827,9 +759,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       />
        {isExportLayoutModalOpen && layoutASMExportData && ( <ExportLayoutASMModal isOpen={isExportLayoutModalOpen} onClose={() => setIsExportLayoutModalOpen(false)} {...layoutASMExportData} /> )}
       {isExportBehaviorMapModalOpen && behaviorMapASMExportData && ( <ExportBehaviorMapASMModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} /> )}
-      {isExportPletterModalOpen && pletterExportData && ( <ExportPletterModal isOpen={isExportPletterModalOpen} onClose={() => setIsExportPletterModalOpen(false)} {...pletterExportData} /> )}
-      {isExportSuperRLEModalOpen && superRLEExportData && ( <ExportSuperRLEModal isOpen={isExportSuperRLEModalOpen} onClose={() => setIsExportSuperRLEModalOpen(false)} {...superRLEExportData} /> )}
-      {isExportOptimizedRLEModalOpen && optimizedRLEExportData && ( <ExportOptimizedRLEModal isOpen={isExportOptimizedRLEModalOpen} onClose={() => setIsExportOptimizedRLEModalOpen(false)} {...optimizedRLEExportData} /> )}
       {isHudEditorModalOpen && screenMap && ( 
           <HUDEditorModal 
             isOpen={isHudEditorModalOpen} 

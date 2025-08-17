@@ -31,9 +31,6 @@ interface ScreenEditorToolbarProps {
   isHudAreaDefined: boolean;
   onExportLayout: () => void; 
   onExportBehavior: () => void; 
-  onExportPletter: () => void;
-  onExportSuperRLE: () => void;
-  onExportOptimizedRLE: () => void; // New prop
 
   onCopyLayer: () => void; 
   onPasteLayer: () => void; 
@@ -48,7 +45,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   activeAreaX, activeAreaY, activeAreaWidth, activeAreaHeight, onActiveAreaChange,
   maxActiveAreaX, maxActiveAreaY, maxActiveAreaWidth, maxActiveAreaHeight,
   onOpenHudEditor, isHudAreaDefined,
-  onExportLayout, onExportBehavior, onExportPletter, onExportSuperRLE, onExportOptimizedRLE,
+  onExportLayout, onExportBehavior,
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
   onAddNewEffectZone, onShowMapFile
 }) => {
@@ -102,9 +99,6 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
         <Button onClick={onShowMapFile} size="sm" variant="secondary" title="Show/Generate main map ASM file" icon={<MapIcon className="w-4 h-4"/>}> Map ASM </Button>
         <Button onClick={onExportLayout} size="sm" variant="secondary" title="Export active area layout as ASM data" icon={<ASMIcon className="w-4 h-4"/>}> Layout ASM </Button>
         <Button onClick={onExportBehavior} size="sm" variant="secondary" title="Export active area behavior map as ASM data" icon={<ASMIcon className="w-4 h-4"/>}> Behavior ASM </Button>
-        <Button onClick={onExportPletter} size="sm" variant="secondary" title="Export background layer layout as Pletter compressed data"> Pletter </Button>
-        <Button onClick={onExportSuperRLE} size="sm" variant="secondary" title="Export background layer layout as SuperRLE compressed data"> SuperRLE </Button>
-        <Button onClick={onExportOptimizedRLE} size="sm" variant="secondary" title="Export background layer layout as Optimized RLE compressed data"> Optimized RLE </Button>
       </div>
     </div>
   );
