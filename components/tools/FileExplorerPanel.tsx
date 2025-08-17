@@ -5,20 +5,22 @@ import { ProjectAsset, EditorType } from '../../types'; // Added EditorType
 import { Panel } from '../common/Panel';
 import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon } from '../icons/MsxIcons'; // Added SparklesIcon
 
+import { useWindowManager } from '../../hooks/useWindowManager';
+
 interface FileExplorerPanelProps {
   assets: ProjectAsset[];
   selectedAssetId: string | null;
-  onSelectAsset: (assetId: string | null, editorType?: EditorType) => void; // Modified to accept EditorType
+  // onSelectAsset is no longer needed
   onRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
   onRequestDelete: (assetId: string) => void; 
   showTileBanksEntry?: boolean;
   isTileBanksActive?: boolean;
   isFontEditorActive?: boolean; 
   isHelpDocsActive?: boolean; 
-  isComponentDefEditorActive?: boolean; // Added for Component Def Editor
-  isEntityTemplateEditorActive?: boolean; // Added for Entity Template Editor
+  isComponentDefEditorActive?: boolean;
+  isEntityTemplateEditorActive?: boolean;
   isWorldViewActive?: boolean;
-  isMainMenuActive?: boolean; // Added for Main Menu Editor
+  isMainMenuActive?: boolean;
   className?: string;
 }
 
@@ -75,19 +77,21 @@ export const MAIN_MENU_SYSTEM_ASSET_ID = "MAIN_MENU_SYSTEM_ASSET"; // New system
 export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({ 
     assets, 
     selectedAssetId, 
-    onSelectAsset, 
+    // onSelectAsset, // Removed
     onRequestRename,
     onRequestDelete,
     showTileBanksEntry = false,
+    // The active state will now be derived from the window manager context, but for now we leave the props
     isTileBanksActive = false,
     isFontEditorActive = false,
     isHelpDocsActive = false,
     isComponentDefEditorActive = false,
     isEntityTemplateEditorActive = false,
     isWorldViewActive = false,
-    isMainMenuActive = false, // New prop
+    isMainMenuActive = false,
     className = '',
 }) => {
+  const { openWindow } = useWindowManager();
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
     'sound': true, 
     'track': true,
@@ -133,7 +137,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
             tool.id === TILE_BANKS_SYSTEM_ASSET_ID && !showTileBanksEntry ? null : (
                 <li key={tool.id}>
                     <button
-                        onClick={() => onSelectAsset(tool.id, tool.editorType)}
+                        onClick={() => openWindow(tool.id, tool.iconType, tool.name)}
                         className={`${baseItemClass} ${tool.isActive ? activeItemClass : inactiveItemClass}`}
                         title={tool.title}
                         aria-current={tool.isActive ? "page" : undefined}
@@ -171,7 +175,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                                     ${selectedAssetId === asset.id ? '' : 'hover:bg-msx-border/70'}`}
                     >
                       <button
-                        onClick={() => onSelectAsset(asset.id)}
+                        onClick={() => openWindow(asset.id, asset.type, asset.name)}
                         onDoubleClick={() => {
                             onRequestRename(asset.id, asset.name, asset.type);
                         }}

@@ -36,13 +36,13 @@ import { AppUI } from './components/AppUI';
 import { deepCopy, getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from './utils/projectUtils';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES, DEFAULT_MAP_ASM_CONTENT, DEFAULT_CONSTANTS_ASM_CONTENT } from './data/defaults';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { WindowManagerProvider } from './components/WindowManager/WindowManagerProvider';
 
 
 const SNIPPETS_STORAGE_KEY = 'msxIdeUserSnippets_v1';
 const AUTOSAVE_INTERVAL = 10 * 60 * 1000;
 
 const App: React.FC = () => {
-  const [currentEditor, setCurrentEditor] = useState<EditorType>(EditorType.None); 
   const [assets, setAssets] = useState<ProjectAsset[]>([]);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [currentProjectName, setCurrentProjectName] = useState<string | null>(null); 
@@ -51,7 +51,6 @@ const App: React.FC = () => {
   const [selectedColor, setSelectedColor] = useState<MSXColorValue>(MSX_SCREEN5_PALETTE[1].hex);
   
   const [screenEditorSelectedTileId, setScreenEditorSelectedTileId] = useState<string | null>(null);
-  const [currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer] = useState<ScreenEditorLayerName>('background'); 
   
   const [componentDefinitions, setComponentDefinitionsState] = useState<ComponentDefinition[]>(DEFAULT_COMPONENT_DEFINITIONS);
   const [entityTemplates, setEntityTemplatesState] = useState<EntityTemplate[]>(DEFAULT_ENTITY_TEMPLATES);
@@ -1674,28 +1673,6 @@ RLEDECOMPRESS_RLENEXT:
   };
 
 
-  const memoizedHandleSelectAsset = useCallback((assetId: string | null, editorTypeOverride?: EditorType) => {
-    setSelectedAssetId(assetId); 
-    setSelectedEntityInstanceId(null); 
-    setSelectedEffectZoneId(null); 
-    
-    if (editorTypeOverride) { 
-      setCurrentEditor(editorTypeOverride);
-      if (assetId) setStatusBarMessage(`Opened ${EditorType[editorTypeOverride]} Editor.`);
-      return;
-    }
-
-    if (assetId === TILE_BANKS_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.TileBanks); setStatusBarMessage("Opened Tile Banks Editor."); } 
-    else if (assetId === FONT_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.Font); setStatusBarMessage("Opened Font Editor."); } 
-    else if (assetId === HELP_DOCS_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.HelpDocs); setStatusBarMessage("Opened Help & Tutorials."); }
-    else if (assetId === COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.ComponentDefinitionEditor); setStatusBarMessage("Opened Component Definition Editor."); }
-    else if (assetId === ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.EntityTemplateEditor); setStatusBarMessage("Opened Entity Template Editor."); }
-    else if (assetId === WORLD_VIEW_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.WorldView); setStatusBarMessage("Opened World View."); }
-    else if (assetId === MAIN_MENU_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.MainMenu); setStatusBarMessage("Opened Main Menu Editor."); }
-    else if (assetId) { const asset = assets.find(a => a.id === assetId); if (asset) { setCurrentEditor( asset.type === 'tile' ? EditorType.Tile : asset.type === 'sprite' ? EditorType.Sprite : asset.type === 'screenmap' ? EditorType.Screen : asset.type === 'worldmap' ? EditorType.WorldMap : asset.type === 'sound' ? EditorType.Sound : asset.type === 'track' ? EditorType.Track : asset.type === 'behavior' ? EditorType.BehaviorEditor : asset.type === 'code' ? EditorType.Code : asset.type === 'boss' ? EditorType.Boss : EditorType.None ); setStatusBarMessage(`Selected ${asset.name}.`); }} 
-    else { setCurrentEditor(EditorType.None); setStatusBarMessage("No asset selected.");}
-  }, [assets]);
-
   const memoizedOnRequestRename = useCallback((assetId: string, currentName: string, assetType: ProjectAsset['type']) => { setAssetToRenameInfo({ id: assetId, currentName, type: assetType }); setIsRenameModalOpen(true);}, []);
   
   const handleConfirmRename = useCallback((newName: string) => { 
@@ -1728,7 +1705,7 @@ RLEDECOMPRESS_RLENEXT:
                   setAssets(prevAssets => prevAssets.filter(a => a.id !== assetId));
                   if (selectedAssetId === assetId) { 
                       setSelectedAssetId(null); 
-                      setCurrentEditor(EditorType.None); 
+                      // setCurrentEditor(EditorType.None);  <- This logic is now handled by window manager
                       setSelectedEffectZoneId(null); 
                   } 
                   setStatusBarMessage(`Asset "${assetToDelete.name}" deleted.`); 
@@ -1756,7 +1733,7 @@ RLEDECOMPRESS_RLENEXT:
       }
     }
     const projectData = { 
-        assets, currentScreenMode, selectedAssetId, currentEditor, 
+        assets, currentScreenMode, selectedAssetId, /* currentEditor removed */
         tileBanks, msxFont, msxFontColorAttributes, 
         ideConfiguration: { dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled }, 
         userSnippets, helpDocsData,
@@ -1778,7 +1755,7 @@ RLEDECOMPRESS_RLENEXT:
     if (isManualSaveOperation && !effectiveFilename.includes('autosave')) { 
         setStatusBarMessage(`Project saved to ${effectiveFilename}`);
     }
-  }, [assets, currentScreenMode, selectedAssetId, currentEditor, tileBanks, msxFont, msxFontColorAttributes, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, userSnippets, helpDocsData, currentProjectName, componentDefinitions, entityTemplates, mainMenuConfig, selectedEntityInstanceId, selectedEffectZoneId]); 
+  }, [assets, currentScreenMode, selectedAssetId, tileBanks, msxFont, msxFontColorAttributes, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, userSnippets, helpDocsData, currentProjectName, componentDefinitions, entityTemplates, mainMenuConfig, selectedEntityInstanceId, selectedEffectZoneId]);
   
   useEffect(() => { autosaveFunctionRef.current = () => { handleSaveProject('msx_ide_project_autosave.json', false); };}, [handleSaveProject]);
   
@@ -1834,7 +1811,7 @@ RLEDECOMPRESS_RLENEXT:
           }
           if (projectData.currentScreenMode) setCurrentScreenMode(projectData.currentScreenMode);
           if (projectData.selectedAssetId) setSelectedAssetId(projectData.selectedAssetId);
-          if (projectData.currentEditor) setCurrentEditor(projectData.currentEditor);
+          // if (projectData.currentEditor) setCurrentEditor(projectData.currentEditor); // This is removed
           if (projectData.tileBanks) setTileBanksState(projectData.tileBanks); else setTileBanksState(DEFAULT_TILE_BANKS_CONFIG);
           if (projectData.msxFont) setMsxFontState(projectData.msxFont); else setMsxFontState(DEFAULT_MSX_FONT); 
           if (projectData.msxFontColorAttributes) setMsxFontColorAttributesState(projectData.msxFontColorAttributes); else { const initialColors: MSXFontColorAttributes = {}; Object.keys(projectData.msxFont || msxFont).forEach(charCodeStr => { const charCodeNum = Number(charCodeStr); if (!isNaN(charCodeNum)) { initialColors[charCodeNum] = Array(8).fill(null).map(() => ({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR }));}}); setMsxFontColorAttributesState(initialColors);}
@@ -1936,12 +1913,13 @@ RLEDECOMPRESS_RLENEXT:
         setStatusBarMessage(`Updated map.asm with MAX_PTR = ${calculatedMaxPtr}.`);
     }
 
-    setTimeout(() => {
-        if (mapAsmAssetId) {
-          memoizedHandleSelectAsset(mapAsmAssetId, EditorType.Code);
-        }
-    }, 0);
-  }, [assets, tileBanks, memoizedHandleSelectAsset, setAssetsWithHistory]);
+    // This part needs to be updated to use the new window manager
+    // setTimeout(() => {
+    //     if (mapAsmAssetId) {
+    //       memoizedHandleSelectAsset(mapAsmAssetId, EditorType.Code);
+    //     }
+    // }, 0);
+  }, [assets, tileBanks, setAssetsWithHistory]);
 
   const handleUndo = useCallback(() => {
     if (history.undoStack.length === 0) {
@@ -2145,7 +2123,7 @@ RLEDECOMPRESS_RLENEXT:
     if (existingAsset) {
         setAssetsWithHistory(prev => prev.map(a => a.id === existingAsset.id ? { ...a, data: asmCode } : a));
         setStatusBarMessage(`Updated ${asmFilename} with latest template data.`);
-        memoizedHandleSelectAsset(existingAsset.id);
+        // memoizedHandleSelectAsset(existingAsset.id);
     } else {
         const id = `code_tpl_asm_${Date.now()}`;
         const newAsset: ProjectAsset = {
@@ -2156,18 +2134,20 @@ RLEDECOMPRESS_RLENEXT:
         };
         setAssetsWithHistory(prev => [...prev, newAsset]);
         setStatusBarMessage(`Created ${asmFilename} with template data.`);
-        memoizedHandleSelectAsset(id);
+        // memoizedHandleSelectAsset(id);
     }
-  }, [entityTemplates, componentDefinitions, assets, setAssetsWithHistory, memoizedHandleSelectAsset]);
+  }, [entityTemplates, componentDefinitions, assets, setAssetsWithHistory]);
 
   const allPassedProps = {
-    currentEditor, setCurrentEditor, assets, setAssets, selectedAssetId, setSelectedAssetId, currentProjectName, setCurrentProjectName, currentScreenMode, setCurrentScreenMode, statusBarMessage, setStatusBarMessage, selectedColor, setSelectedColor, screenEditorSelectedTileId, setScreenEditorSelectedTileId, currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer, componentDefinitions, setComponentDefinitions, entityTemplates, setEntityTemplates, currentEntityTypeToPlace, setCurrentEntityTypeToPlace, selectedEntityInstanceId, setSelectedEntityInstanceId, selectedEffectZoneId, setSelectedEffectZoneId, isRenameModalOpen, setIsRenameModalOpen, assetToRenameInfo, setAssetToRenameInfo, isSaveAsModalOpen, setIsSaveAsModalOpen, isNewProjectModalOpen, setIsNewProjectModalOpen, isAboutModalOpen, setIsAboutModalOpen, isConfirmModalOpen, setIsConfirmModalOpen, confirmModalProps, setConfirmModalProps, tileBanks, setTileBanks, msxFont, setMsxFont, msxFontColorAttributes, setMsxFontColorAttributes, currentLoadedFontName, setCurrentLoadedFontName, helpDocsData, setHelpDocsData, dataOutputFormat, setDataOutputFormat, autosaveEnabled, setAutosaveEnabled, snippetsEnabled, setSnippetsEnabled, syntaxHighlightingEnabled, setSyntaxHighlightingEnabled, isConfigModalOpen, setIsConfigModalOpen, isSpriteSheetModalOpen, setIsSpriteSheetModalOpen, isSpriteFramesModalOpen, setIsSpriteFramesModalOpen, spriteForFramesModal, setSpriteForFramesModal, snippetToInsert, setSnippetToInsert, userSnippets, setUserSnippets, isSnippetEditorModalOpen, setIsSnippetEditorModalOpen, editingSnippet, setEditingSnippet, isAutosaving, setIsAutosaving, history, setHistory, copiedScreenBuffer, setCopiedScreenBuffer, copiedTileData, setCopiedTileData, copiedLayerBuffer, setCopiedLayerBuffer, contextMenu, setContextMenu, waypointPickerState, setWaypointPickerState, mainMenuConfig, onUpdateMainMenuConfig: setMainMenuConfig, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, playAutosaveSound, pushToHistory, clearAllHistory, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleUpdateScreenMode, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
+    assets, setAssets, selectedAssetId, setSelectedAssetId, currentProjectName, setCurrentProjectName, currentScreenMode, setCurrentScreenMode, statusBarMessage, setStatusBarMessage, selectedColor, setSelectedColor, screenEditorSelectedTileId, setScreenEditorSelectedTileId, componentDefinitions, setComponentDefinitions, entityTemplates, setEntityTemplates, currentEntityTypeToPlace, setCurrentEntityTypeToPlace, selectedEntityInstanceId, setSelectedEntityInstanceId, selectedEffectZoneId, setSelectedEffectZoneId, isRenameModalOpen, setIsRenameModalOpen, assetToRenameInfo, setAssetToRenameInfo, isSaveAsModalOpen, setIsSaveAsModalOpen, isNewProjectModalOpen, setIsNewProjectModalOpen, isAboutModalOpen, setIsAboutModalOpen, isCompressDataModalOpen, setIsCompressDataModalOpen, isConfirmModalOpen, setIsConfirmModalOpen, confirmModalProps, setConfirmModalProps, tileBanks, setTileBanks, msxFont, setMsxFont, msxFontColorAttributes, setMsxFontColorAttributes, currentLoadedFontName, setCurrentLoadedFontName, helpDocsData, setHelpDocsData, dataOutputFormat, setDataOutputFormat, autosaveEnabled, setAutosaveEnabled, snippetsEnabled, setSnippetsEnabled, syntaxHighlightingEnabled, setSyntaxHighlightingEnabled, isConfigModalOpen, setIsConfigModalOpen, isSpriteSheetModalOpen, setIsSpriteSheetModalOpen, isSpriteFramesModalOpen, setIsSpriteFramesModalOpen, spriteForFramesModal, setSpriteForFramesModal, snippetToInsert, setSnippetToInsert, userSnippets, setUserSnippets, isSnippetEditorModalOpen, setIsSnippetEditorModalOpen, editingSnippet, setEditingSnippet, isAutosaving, setIsAutosaving, history, setHistory, copiedScreenBuffer, setCopiedScreenBuffer, copiedTileData, setCopiedTileData, copiedLayerBuffer, setCopiedLayerBuffer, contextMenu, setContextMenu, waypointPickerState, setWaypointPickerState, mainMenuConfig, onUpdateMainMenuConfig: setMainMenuConfig, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, playAutosaveSound, pushToHistory, clearAllHistory, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, /* memoizedHandleSelectAsset removed */ memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleUpdateScreenMode, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
     isCompressDataModalOpen, setIsCompressDataModalOpen,
   };
 
   return (
     <ThemeProvider>
+      <WindowManagerProvider>
         <AppUI {...allPassedProps} />
+      </WindowManagerProvider>
     </ThemeProvider>
   );
 };

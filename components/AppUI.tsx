@@ -53,10 +53,13 @@ import { ConfigTabModal } from './theme_config/ConfigTabModal';
 import { Panel } from './common/Panel';
 import { HUDEditorModal } from './editors/HUDEditorModal';
 import { ContextMenu } from './common/ContextMenu';
+import { useWindowManager } from '../../hooks/useWindowManager';
+import { Window } from './WindowManager/Window';
+import { WindowState } from './WindowManager/WindowManagerProvider';
+
 
 // A massive props interface to pass everything down from the container App.tsx
 interface AppUIProps {
-  currentEditor: EditorType;
   assets: ProjectAsset[];
   selectedAssetId: string | null;
   currentProjectName: string | null;
@@ -64,7 +67,7 @@ interface AppUIProps {
   statusBarMessage: string;
   selectedColor: MSXColorValue;
   screenEditorSelectedTileId: string | null;
-  currentScreenEditorActiveLayer: ScreenEditorLayerName;
+  // currentScreenEditorActiveLayer is now per-window, so removed from props
   componentDefinitions: ComponentDefinition[];
   entityTemplates: EntityTemplate[];
   mainMenuConfig: MainMenuConfig;
@@ -107,14 +110,13 @@ interface AppUIProps {
   onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
 
   // Setters and handlers
-  setCurrentEditor: React.Dispatch<React.SetStateAction<EditorType>>;
   setAssets: React.Dispatch<React.SetStateAction<ProjectAsset[]>>;
   setSelectedAssetId: React.Dispatch<React.SetStateAction<string | null>>;
   setCurrentProjectName: React.Dispatch<React.SetStateAction<string | null>>;
   setStatusBarMessage: React.Dispatch<React.SetStateAction<string>>;
   setSelectedColor: React.Dispatch<React.SetStateAction<MSXColorValue>>;
   setScreenEditorSelectedTileId: React.Dispatch<React.SetStateAction<string | null>>;
-  setCurrentScreenEditorActiveLayer: React.Dispatch<React.SetStateAction<ScreenEditorLayerName>>;
+  // setCurrentScreenEditorActiveLayer is now per-window, so removed from props
   setComponentDefinitions: (updater: ComponentDefinition[] | ((prev: ComponentDefinition[]) => ComponentDefinition[])) => void;
   setEntityTemplates: (updater: EntityTemplate[] | ((prev: EntityTemplate[]) => EntityTemplate[])) => void;
   setCurrentEntityTypeToPlace: React.Dispatch<React.SetStateAction<EntityTemplate | null>>;
@@ -163,7 +165,6 @@ interface AppUIProps {
   handleConfirmNewProject: (projectNameFromModal: string) => void;
   handleNewAsset: (type: ProjectAsset['type']) => void;
   handleSpriteImported: (newSpriteData: Omit<Sprite, 'id' | 'name'>) => void;
-  memoizedHandleSelectAsset: (assetId: string | null, editorTypeOverride?: EditorType) => void;
   memoizedOnRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
   handleConfirmRename: (newName: string) => void;
   handleCancelRename: () => void;
@@ -185,10 +186,12 @@ interface AppUIProps {
 
 export const AppUI: React.FC<AppUIProps> = (props) => {
     const {
-        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, contextMenu, waypointPickerState,
+        assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, componentDefinitions, entityTemplates, mainMenuConfig, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, contextMenu, waypointPickerState,
         
-        setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm
+        setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm
     } = props;
+
+  const { windows, openWindow, updateWindowState } = useWindowManager();
 
   const activeAsset = assets.find(a => a.id === selectedAssetId);
   const activeScreenMapAsset = activeAsset?.type === 'screenmap' ? activeAsset.data as ScreenMap : undefined;
@@ -200,36 +203,43 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const screenMapForHudModal = assets.find(a => a.id === selectedAssetId && a.type === 'screenmap')?.data as ScreenMap | undefined;
 
   const allTileAssetsData = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+
+  const focusedWindow = windows.find(w => w.isFocused);
+  const activeEditorType = focusedWindow ? focusedWindow.assetType : 'none';
   
-  const isUndoDisabled = history.undoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
-  const isRedoDisabled = history.redoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
+  const isUndoDisabled = history.undoStack.length === 0;
+  const isRedoDisabled = history.redoStack.length === 0;
 
   const handleCompile = async () => {
-    if (currentEditor !== EditorType.Code || !activeAsset || typeof activeAsset.data !== 'string') {
-      setStatusBarMessage("No code editor active or no code to compile.");
+    const focused = windows.find(w => w.isFocused);
+    if (!focused || (focused.assetType !== 'code' && focused.assetType !== 'behavior')) {
+      setStatusBarMessage("No code editor window is focused.");
       return;
     }
 
-    const code = activeAsset.data;
+    const assetToCompile = assets.find(a => a.id === focused.assetId);
+    if (!assetToCompile || (typeof assetToCompile.data !== 'string' && typeof (assetToCompile.data as any).code !== 'string')) {
+      setStatusBarMessage("Could not find code for the focused asset.");
+      return;
+    }
+
+    const code = typeof assetToCompile.data === 'string' ? assetToCompile.data : (assetToCompile.data as any).code;
 
     try {
-      setStatusBarMessage("Compiling...");
+      setStatusBarMessage(`Compiling ${assetToCompile.name}...`);
       const response = await fetch('http://localhost:3001/compile', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
-        setStatusBarMessage(`Compilation successful! Output size: ${result.data.length / 2} bytes.`);
-        console.log('Compiled HEX:', result.data);
+        setStatusBarMessage(`Compilation of ${assetToCompile.name} successful! Output size: ${result.data.length / 2} bytes.`);
         alert(`Compilation Successful:\n${result.message}`);
       } else {
-        setStatusBarMessage(`Compilation failed: ${result.error}`);
+        setStatusBarMessage(`Compilation of ${assetToCompile.name} failed: ${result.error}`);
         alert(`Compilation Error:\n${result.details}`);
       }
     } catch (error) {
@@ -241,6 +251,31 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const allWorldMapGraphs = React.useMemo(() => assets
     .filter(a => a.type === 'worldmap' && a.data)
     .map(a => a.data as WorldMapGraph), [assets]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'w') {
+        e.preventDefault();
+        const focused = windows.find(w => w.isFocused);
+        if (focused) {
+          closeWindow(focused.id);
+        }
+      } else if (e.ctrlKey && e.key === 'Tab') {
+        e.preventDefault();
+        const visibleWindows = windows.filter(w => w.isVisible);
+        if (visibleWindows.length < 2) return;
+
+        const focusedIndex = visibleWindows.findIndex(w => w.isFocused);
+        const nextIndex = (focusedIndex + 1) % visibleWindows.length;
+        focusWindow(visibleWindows[nextIndex].id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [windows, focusWindow, closeWindow]);
 
   const dataAssets = assets.filter(a =>
     ['tile', 'sprite', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
@@ -256,7 +291,13 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   }
 
   const renderRightPanelContent = () => {
-    if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
+    const focused = windows.find(w => w.isFocused);
+    if (!focused) {
+      // Default panel when no window is focused
+      return <PalettePanel palette={currentScreenMode === "SCREEN 2 (Graphics I)" ? MSX1_PALETTE : MSX_SCREEN5_PALETTE} selectedColor={selectedColor} onColorSelect={setSelectedColor} isMsx1Palette={currentScreenMode === "SCREEN 2 (Graphics I)"} />;
+    }
+
+    if (focused.assetType === 'screenmap' && focused.activeLayer === 'entities') {
       return (
         <EntityTypeListPanel
           entityTypes={entityTemplates}
@@ -265,11 +306,9 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         />
       );
     }
-    const paletteEditors = [EditorType.Tile, EditorType.Sprite, EditorType.Screen, EditorType.Font, EditorType.Boss];
-    if (paletteEditors.includes(currentEditor) || (currentEditor === EditorType.None && selectedAssetId === null) ) {
-      if (currentEditor === EditorType.Screen && currentScreenEditorActiveLayer === 'entities') {
-        return null;
-      }
+
+    const paletteEditors = ['tile', 'sprite', 'screenmap', 'fonteditor', 'boss'];
+    if (paletteEditors.includes(focused.assetType)) {
       return (
         <PalettePanel
           palette={currentScreenMode === "SCREEN 2 (Graphics I)" ? MSX1_PALETTE : MSX_SCREEN5_PALETTE}
@@ -279,7 +318,34 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         />
       );
     }
+
     return null;
+  };
+
+  const renderEditorForWindow = (win: WindowState) => {
+    const asset = assets.find(a => a.id === win.assetId);
+    switch (win.assetType) {
+        case 'tile': return asset && <TileEditor currentTile={asset.data as Tile} onUpdateCurrentTile={(data, newAssets) => handleUpdateAsset(asset.id, data, newAssets)} allTileAssets={assets.filter(a => a.type === 'tile')} onUpdateAllTileAssets={(newTiles) => setAssetsWithHistory(prev => [...prev.filter(a => a.type !== 'tile'), ...newTiles])} selectedColor={selectedColor} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} copiedTileData={copiedTileData} onCopyTileData={handleCopyTileData} setStatusBarMessage={setStatusBarMessage} />;
+        case 'sprite': return asset && <SpriteEditor sprite={asset.data as Sprite} onUpdate={(data) => handleUpdateAsset(asset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} />;
+        case 'boss': return asset && <BossEditor boss={asset.data as Boss} onUpdate={(data, newAssets) => handleUpdateAsset(asset.id, data, newAssets)} allAssets={assets} tileBanks={tileBanks} onNavigateToAsset={(assetId, assetType) => openWindow(assetId, assetType || 'unknown', 'Navigate')} onShowContextMenu={showContextMenu} currentScreenMode={currentScreenMode} />;
+        case 'screenmap': return asset && <ScreenEditor screenMap={asset.data as ScreenMap} onUpdate={(data, newTilesToCreate) => { handleUpdateAsset(asset.id, data, newTilesToCreate);}} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} sprites={assets.filter(a => a.type === 'sprite')} selectedTileId={screenEditorSelectedTileId} setSelectedTileId={setScreenEditorSelectedTileId} currentEntityTypeToPlace={currentEntityTypeToPlace} currentScreenMode={currentScreenMode} tileBanks={tileBanks} msx1FontData={msxFont} msxFontColorAttributes={msxFontColorAttributes} dataOutputFormat={dataOutputFormat} selectedEntityInstanceId={selectedEntityInstanceId} onSelectEntityInstance={setSelectedEntityInstanceId} selectedEffectZoneId={selectedEffectZoneId} onSelectEffectZone={setSelectedEffectZoneId} copiedScreenBuffer={copiedScreenBuffer} setCopiedScreenBuffer={setCopiedScreenBuffer} allProjectAssets={assets} copiedLayerBuffer={copiedLayerBuffer} setCopiedLayerBuffer={setCopiedLayerBuffer} setStatusBarMessage={setStatusBarMessage} activeLayer={win.activeLayer} onActiveLayerChange={(layer) => updateWindowState(win.id, { activeLayer: layer })} componentDefinitions={componentDefinitions} entityTemplates={entityTemplates} onShowMapFile={handleShowMapFile} onNavigateToAsset={(assetId, assetType) => openWindow(assetId, assetType || 'unknown', 'Navigate')} onShowContextMenu={showContextMenu} waypointPickerState={waypointPickerState} onWaypointPicked={handleWaypointPicked} />;
+        case 'code': return asset && <CodeEditor code={asset.data as string} onUpdate={(code) => handleUpdateAsset(asset.id, code)} language="z80" assetName={asset.name} snippetToInsert={snippetToInsert} />;
+        case 'behavior': return asset && <BehaviorEditor behaviorScript={asset.data as BehaviorScript} onUpdate={(data) => handleUpdateAsset(asset.id, data)} userSnippets={userSnippets} onSnippetSelect={handleSnippetSelected} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet} isSnippetsPanelEnabled={snippetsEnabled} />;
+        case 'worldmap': return asset && <WorldMapEditor worldMapGraph={asset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(asset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} onNavigateToAsset={(assetId, assetType) => openWindow(assetId, assetType || 'unknown', 'Navigate')} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />;
+        case 'sound': return asset && <SoundEditor soundData={asset.data as PSGSoundData} onUpdate={(data) => handleUpdateAsset(asset.id, data)}/>;
+        case 'track': return asset && <TrackerComposer songData={asset.data as TrackerSongData} onUpdate={(data) => handleUpdateAsset(asset.id, data)}/>;
+
+        // System Editors
+        case 'tilebanks': return <TileBankEditor tileBanks={tileBanks} onUpdateBanks={setTileBanks} allTiles={assets.filter(a => a.type === 'tile')} currentScreenMode={currentScreenMode}/>;
+        case 'fonteditor': return <FontEditor fontData={msxFont} onUpdateFont={setMsxFont} fontColorAttributes={msxFontColorAttributes} onUpdateFontColorAttributes={setMsxFontColorAttributes} currentScreenMode={currentScreenMode} selectedColor={selectedColor as MSX1ColorValue} dataOutputFormat={dataOutputFormat}/>;
+        case 'helpdocs': return <HelpDocsViewer helpDocsData={helpDocsData} />;
+        case 'worldview': return <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} />;
+        case 'componentdefinitioneditor': return <ComponentDefinitionEditor componentDefinitions={componentDefinitions} onUpdateComponentDefinitions={setComponentDefinitions} />;
+        case 'entitytemplateeditor': return <EntityTemplateEditor entityTemplates={entityTemplates} onUpdateEntityTemplates={setEntityTemplates} componentDefinitions={componentDefinitions} onGenerateAsm={handleGenerateTemplatesAsm} allAssets={assets} />;
+        case 'mainmenu': return <MainMenuEditor mainMenuConfig={mainMenuConfig} onUpdateMainMenuConfig={onUpdateMainMenuConfig} allAssets={assets} msxFont={msxFont} msxFontColorAttributes={msxFontColorAttributes} currentScreenMode={currentScreenMode} />;
+
+        default: return <div className="p-4">Unknown asset type: {win.assetType}</div>;
+    }
   };
 
   return (
@@ -295,7 +361,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onCompile={handleCompile}
         onDebug={() => setStatusBarMessage("Debug: Mock action. Implement debugger.")}
         onRun={() => setStatusBarMessage("Run: Mock action. Implement emulator integration.")}
-        onOpenHelpDocs={() => memoizedHandleSelectAsset(HELP_DOCS_SYSTEM_ASSET_ID, EditorType.HelpDocs)}
+        onOpenHelpDocs={() => openWindow(HELP_DOCS_SYSTEM_ASSET_ID, 'helpdocs', 'Help & Tutorials')}
         onOpenThemeSettings={() => setIsConfigModalOpen(true)}
         dataOutputFormat={dataOutputFormat}
         setDataOutputFormat={setDataOutputFormat}
@@ -309,8 +375,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         isUndoDisabled={isUndoDisabled}
         isRedoDisabled={isRedoDisabled}
         onOpenAbout={() => setIsAboutModalOpen(true)}
-        onOpenComponentDefEditor={() => memoizedHandleSelectAsset(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, EditorType.ComponentDefinitionEditor)}
-        onOpenEntityTemplateEditor={() => memoizedHandleSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
+        onOpenComponentDefEditor={() => openWindow(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, 'componentdefinitioneditor', 'Component Definitions')}
+        onOpenEntityTemplateEditor={() => openWindow(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, 'entitytemplateeditor', 'Entity Templates')}
         onCompressAllDataFiles={() => setIsCompressDataModalOpen(true)}
         onCompileAndRun={() => setStatusBarMessage("Compile and Run: Mock Action")}
         onCompressExportCompileRun={() => setStatusBarMessage("Compress, Export, Compile, Run: Mock Action")}
@@ -324,54 +390,31 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             className="w-60 flex-shrink-0"
             assets={assets} 
             selectedAssetId={selectedAssetId} 
-            onSelectAsset={memoizedHandleSelectAsset} 
             onRequestRename={memoizedOnRequestRename} 
             showTileBanksEntry={currentScreenMode === "SCREEN 2 (Graphics I)"} 
-            isTileBanksActive={currentEditor === EditorType.TileBanks} 
-            isFontEditorActive={currentEditor === EditorType.Font} 
-            isHelpDocsActive={currentEditor === EditorType.HelpDocs}
-            isComponentDefEditorActive={currentEditor === EditorType.ComponentDefinitionEditor}
-            isEntityTemplateEditorActive={currentEditor === EditorType.EntityTemplateEditor}
-            isWorldViewActive={currentEditor === EditorType.WorldView}
-            isMainMenuActive={currentEditor === EditorType.MainMenu}
+            isTileBanksActive={windows.some(w => w.isVisible && w.id === TILE_BANKS_SYSTEM_ASSET_ID)}
+            isFontEditorActive={windows.some(w => w.isVisible && w.id === FONT_EDITOR_SYSTEM_ASSET_ID)}
+            isHelpDocsActive={windows.some(w => w.isVisible && w.id === HELP_DOCS_SYSTEM_ASSET_ID)}
+            isComponentDefEditorActive={windows.some(w => w.isVisible && w.id === COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID)}
+            isEntityTemplateEditorActive={windows.some(w => w.isVisible && w.id === ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID)}
+            isWorldViewActive={windows.some(w => w.isVisible && w.id === WORLD_VIEW_SYSTEM_ASSET_ID)}
+            isMainMenuActive={windows.some(w => w.isVisible && w.id === MAIN_MENU_SYSTEM_ASSET_ID)}
             onRequestDelete={handleDeleteAsset} 
         />
         
-        <div className="flex-grow flex flex-col" role="main">
-          {currentEditor === EditorType.None && <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>}
-          
-          {currentEditor === EditorType.Tile && activeAsset?.type === 'tile' && ( <TileEditor currentTile={activeAsset.data as Tile} onUpdateCurrentTile={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allTileAssets={assets.filter(a => a.type === 'tile')} onUpdateAllTileAssets={(newTiles) => setAssetsWithHistory(prev => [...prev.filter(a => a.type !== 'tile'), ...newTiles])} selectedColor={selectedColor} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} copiedTileData={copiedTileData} onCopyTileData={handleCopyTileData} setStatusBarMessage={setStatusBarMessage} />)}
-          {currentEditor === EditorType.Sprite && activeAsset?.type === 'sprite' && ( <SpriteEditor sprite={activeAsset.data as Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} />)}
-          {currentEditor === EditorType.Boss && activeAsset?.type === 'boss' && ( <BossEditor boss={activeAsset.data as Boss} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allAssets={assets} tileBanks={tileBanks} onNavigateToAsset={memoizedHandleSelectAsset} onShowContextMenu={showContextMenu} currentScreenMode={currentScreenMode} /> )}
-          {currentEditor === EditorType.Screen && activeAsset?.type === 'screenmap' && ( <ScreenEditor screenMap={activeAsset.data as ScreenMap} onUpdate={(data, newTilesToCreate) => { if (data.layers?.entities === undefined && (activeAsset.data as ScreenMap).layers.entities) { (data as Partial<ScreenMap>).layers = { ... (activeAsset.data as ScreenMap).layers, ...data.layers, entities: (activeAsset.data as ScreenMap).layers.entities };} if(data.effectZones === undefined && (activeAsset.data as ScreenMap).effectZones) { (data as Partial<ScreenMap>).effectZones = (activeAsset.data as ScreenMap).effectZones;} handleUpdateAsset(activeAsset.id, data, newTilesToCreate);}} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} sprites={assets.filter(a => a.type === 'sprite')} selectedTileId={screenEditorSelectedTileId} setSelectedTileId={setScreenEditorSelectedTileId} currentEntityTypeToPlace={currentEntityTypeToPlace} currentScreenMode={currentScreenMode} tileBanks={tileBanks} msx1FontData={msxFont} msxFontColorAttributes={msxFontColorAttributes} dataOutputFormat={dataOutputFormat} selectedEntityInstanceId={selectedEntityInstanceId} onSelectEntityInstance={setSelectedEntityInstanceId} selectedEffectZoneId={selectedEffectZoneId} onSelectEffectZone={setSelectedEffectZoneId} copiedScreenBuffer={copiedScreenBuffer} setCopiedScreenBuffer={setCopiedScreenBuffer} allProjectAssets={assets} copiedLayerBuffer={copiedLayerBuffer} setCopiedLayerBuffer={setCopiedLayerBuffer} setStatusBarMessage={setStatusBarMessage} onActiveLayerChange={setCurrentScreenEditorActiveLayer} componentDefinitions={componentDefinitions} entityTemplates={entityTemplates} onShowMapFile={handleShowMapFile} onNavigateToAsset={memoizedHandleSelectAsset} onShowContextMenu={showContextMenu} waypointPickerState={waypointPickerState} onWaypointPicked={handleWaypointPicked} />)}
-          {currentEditor === EditorType.Code && activeAsset?.type === 'code' && ( <div className="flex flex-grow h-full overflow-hidden"> <div className="flex-grow h-full"> <CodeEditor code={activeAsset.data as string} onUpdate={(code) => handleUpdateAsset(activeAsset.id, code)} language="z80" assetName={activeAsset.name} snippetToInsert={snippetToInsert} /> </div> {snippetsEnabled && ( <SnippetsPanel snippets={userSnippets.filter(s => !Z80_BEHAVIOR_SNIPPETS.find(bs => bs.name === s.name))} onSnippetSelect={handleSnippetSelected} isEnabled={true} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet}/>)}</div>)}
-          {currentEditor === EditorType.BehaviorEditor && activeAsset?.type === 'behavior' && ( <BehaviorEditor behaviorScript={activeAsset.data as BehaviorScript} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} userSnippets={userSnippets} onSnippetSelect={handleSnippetSelected} onAddSnippet={() => handleOpenSnippetEditor(null)} onEditSnippet={handleOpenSnippetEditor} onDeleteSnippet={handleDeleteSnippet} isSnippetsPanelEnabled={snippetsEnabled} /> )}
-          {currentEditor === EditorType.WorldMap && activeAsset?.type === 'worldmap' && ( <WorldMapEditor worldMapGraph={activeAsset.data as WorldMapGraph} onUpdate={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} availableScreenMaps={assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap)} tileset={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} onNavigateToAsset={memoizedHandleSelectAsset} onShowContextMenu={showContextMenu} setStatusBarMessage={setStatusBarMessage} />)}
-          {currentEditor === EditorType.WorldView && ( <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} /> )}
-          {currentEditor === EditorType.Sound && activeAsset?.type === 'sound' && ( <SoundEditor soundData={activeAsset.data as PSGSoundData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
-          {currentEditor === EditorType.Track && activeAsset?.type === 'track' && ( <TrackerComposer songData={activeAsset.data as TrackerSongData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
-          {currentEditor === EditorType.TileBanks && ( <TileBankEditor tileBanks={tileBanks} onUpdateBanks={setTileBanks} allTiles={assets.filter(a => a.type === 'tile')} currentScreenMode={currentScreenMode}/>)}
-          {currentEditor === EditorType.Font && ( <FontEditor fontData={msxFont} onUpdateFont={setMsxFont} fontColorAttributes={msxFontColorAttributes} onUpdateFontColorAttributes={setMsxFontColorAttributes} currentScreenMode={currentScreenMode} selectedColor={selectedColor as MSX1ColorValue} dataOutputFormat={dataOutputFormat}/>)}
-          {currentEditor === EditorType.HelpDocs && ( <HelpDocsViewer helpDocsData={helpDocsData} /> )}
-           
-           {currentEditor === EditorType.ComponentDefinitionEditor && <ComponentDefinitionEditor componentDefinitions={componentDefinitions} onUpdateComponentDefinitions={setComponentDefinitions} />}
-           {currentEditor === EditorType.EntityTemplateEditor && <EntityTemplateEditor entityTemplates={entityTemplates} onUpdateEntityTemplates={setEntityTemplates} componentDefinitions={componentDefinitions} onGenerateAsm={handleGenerateTemplatesAsm} allAssets={assets} />}
-           {currentEditor === EditorType.MainMenu && (
-             <MainMenuEditor
-                mainMenuConfig={mainMenuConfig}
-                onUpdateMainMenuConfig={onUpdateMainMenuConfig}
-                allAssets={assets}
-                msxFont={msxFont}
-                msxFontColorAttributes={msxFontColorAttributes}
-                currentScreenMode={currentScreenMode}
-             />
-           )}
+        <div className="flex-grow flex flex-col relative" role="main">
+          {windows.length === 0 && <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>}
+          {windows.map(win => (
+            <Window key={win.id} window={win}>
+              {renderEditorForWindow(win)}
+            </Window>
+          ))}
         </div>
 
         <div className="w-64 flex-shrink-0 flex flex-col">
          {renderRightPanelContent()}
           <PropertiesPanel 
-            asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor ? undefined : activeAsset}
+            asset={focusedWindow ? assets.find(a => a.id === focusedWindow.assetId) : undefined}
             entityInstance={selectedEntityInstance}
             effectZone={selectedEffectZone} 
             onUpdateEntityInstance={(id, data) => { 
@@ -398,13 +441,13 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                     setSelectedEffectZoneId(null);
                 }
             }}
-            spriteForPreview={activeAsset?.type === 'sprite' ? activeAsset.data as Sprite : undefined}
+            spriteForPreview={focusedWindow?.assetType === 'sprite' ? assets.find(a => a.id === focusedWindow.assetId)?.data as Sprite : undefined}
             allAssets={assets}
             componentDefinitions={componentDefinitions} 
             entityTemplates={entityTemplates}         
             currentScreenMode={currentScreenMode}
-            activeEditorType={currentEditor}
-            screenEditorActiveLayer={currentEditor === EditorType.Screen ? currentScreenEditorActiveLayer : undefined}
+            activeEditorType={activeEditorType as any}
+            screenEditorActiveLayer={focusedWindow?.activeLayer}
             msxFontName={currentLoadedFontName}
             msxFontStats={getFontStats()}
             screenEditorSelectedTileId={screenEditorSelectedTileId}
@@ -415,7 +458,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           />
         </div>
       </div>
-      <StatusBar message={statusBarMessage} details={currentProjectName || activeAsset?.name} />
+      <StatusBar message={statusBarMessage} details={currentProjectName || focusedWindow?.title} />
       {contextMenu && <ContextMenu {...contextMenu} onClose={closeContextMenu} />}
       {isAboutModalOpen && <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />}
       {isConfigModalOpen && <ConfigTabModal isOpen={isConfigModalOpen} onClose={() => setIsConfigModalOpen(false)} />}
@@ -424,7 +467,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       {isNewProjectModalOpen && ( <NewProjectModal isOpen={isNewProjectModalOpen} onConfirm={handleConfirmNewProject} onClose={() => setIsNewProjectModalOpen(false)}/>)}
       {isSnippetEditorModalOpen && ( <SnippetEditorModal isOpen={isSnippetEditorModalOpen} onClose={() => { setIsSnippetEditorModalOpen(false); setEditingSnippet(null); }} onSave={handleSaveSnippet} editingSnippet={editingSnippet} allAssets={assets} tileBanks={tileBanks} />)}
       {isConfirmModalOpen && confirmModalProps && ( <ConfirmationModal isOpen={isConfirmModalOpen} title={confirmModalProps.title} message={confirmModalProps.message} onConfirm={confirmModalProps.onConfirm} onCancel={() => { setIsConfirmModalOpen(false); setConfirmModalProps(null);}} confirmText={confirmModalProps.confirmText} cancelText={confirmModalProps.cancelText} confirmButtonVariant={confirmModalProps.confirmButtonVariant}/>)}
-      {screenMapForHudModal && currentEditor === EditorType.Screen && 
+      {screenMapForHudModal && focusedWindow?.assetType === 'screenmap' &&
          <HUDEditorModal 
             isOpen={false} 
             onClose={() => { }} 
