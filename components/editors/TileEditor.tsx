@@ -1514,7 +1514,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
 
   return (
     <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col items-center p-2 bg-msx-bgcolor">
-      <div className="w-full grid items-start gap-4" style={{ gridTemplateColumns: '256px auto 288px' }}>
+      <div className="w-full grid items-start gap-4" style={{ gridTemplateColumns: '256px auto 288px 288px' }}>
         {/* Column 1: Tools & Properties */}
         <div className="flex flex-col space-y-2">
           <div className="flex flex-wrap items-center gap-2 p-2 bg-msx-panelbg rounded border border-msx-border">
@@ -1637,22 +1637,25 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                     </div>
                 </div>
             </Panel>
+        </div>
 
-          {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
-            <>
-                <LineAttributeEditorPanel 
-                    tile={tile} 
-                    onUpdateLineAttribute={handleUpdateLineAttribute} 
-                    selectedPaletteColor={selectedColor as MSX1ColorValue}
-                    onCopyAttributes={handleCopyAttributes}
-                    onPasteAttributes={handlePasteAttributes}
-                    copiedAttribute={copiedAttribute}
-                    onFillAllFg={(color) => handleFillAll('fg', color)}
-                    onFillAllBg={(color) => handleFillAll('bg', color)}
-                />
-                <TechnicalPreviewPanel tile={tile} dataFormat={dataOutputFormat} />
-            </>
-          )}
+        {/* Column 4: Screen 2 Attributes */}
+        <div className="flex flex-col space-y-2">
+            {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
+                <>
+                    <LineAttributeEditorPanel
+                        tile={tile}
+                        onUpdateLineAttribute={handleUpdateLineAttribute}
+                        selectedPaletteColor={selectedColor as MSX1ColorValue}
+                        onCopyAttributes={handleCopyAttributes}
+                        onPasteAttributes={handlePasteAttributes}
+                        copiedAttribute={copiedAttribute}
+                        onFillAllFg={(color) => handleFillAll('fg', color)}
+                        onFillAllBg={(color) => handleFillAll('bg', color)}
+                    />
+                    <TechnicalPreviewPanel tile={tile} dataFormat={dataOutputFormat} />
+                </>
+            )}
         </div>
       </div>
       {isFileModalOpen && (
