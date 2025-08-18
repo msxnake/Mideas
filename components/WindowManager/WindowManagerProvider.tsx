@@ -16,6 +16,10 @@ export interface WindowState {
   assetId: string;
   assetType: string;
   activeLayer?: ScreenEditorLayerName;
+  // New state properties
+  isMaximized: boolean;
+  isMinimized: boolean;
+  previousState: { x: number; y: number; width: number; height: number; } | null;
 }
 
 export type InteractionMode = 'idle' | 'dragging' | 'resizing';
@@ -23,7 +27,6 @@ export type InteractionMode = 'idle' | 'dragging' | 'resizing';
 export interface InteractionState {
   mode: InteractionMode;
   targetId: string | null;
-  // Store the initial mouse and window positions at the start of an interaction
   initialMouseX: number;
   initialMouseY: number;
   initialWindowX: number;
@@ -41,6 +44,10 @@ export interface WindowManagerContextType {
   updateWindowState: (id: string, newState: Partial<Pick<WindowState, 'x' | 'y' | 'width' | 'height' | 'activeLayer'>>) => void;
   startInteraction: (mode: InteractionMode, targetId: string, e: React.MouseEvent<HTMLDivElement>) => void;
   stopInteraction: () => void;
+  // New functions
+  maximizeWindow: (id: string) => void;
+  minimizeWindow: (id: string) => void;
+  restoreWindow: (id: string) => void;
 }
 
 // --- Context ---
@@ -103,6 +110,7 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
         y: 50 + (prevWindows.length % 10) * 25,
         width: 640, height: 480, zIndex: highestZIndex + 1,
         isFocused: true, isVisible: true,
+        isMaximized: false, isMinimized: false, previousState: null,
         ...(assetType === 'screenmap' && { activeLayer: 'background' as ScreenEditorLayerName }),
       };
       return [...prevWindows.map(w => ({...w, isFocused: false})), newWindow];
@@ -140,6 +148,44 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
     setInteractionState(prev => ({ ...prev, mode: 'idle', targetId: null }));
   }, []);
 
+  const maximizeWindow = useCallback((id: string) => {
+    setWindows(prev => prev.map(w => {
+      if (w.id === id) {
+        return {
+          ...w,
+          isMaximized: true,
+          previousState: { x: w.x, y: w.y, width: w.width, height: w.height }, // Save current state
+          // The actual position/size update will be handled by the Window component or CSS
+        };
+      }
+      return w;
+    }));
+    focusWindow(id);
+  }, [focusWindow]);
+
+  const restoreWindow = useCallback((id: string) => {
+    setWindows(prev => prev.map(w => {
+      if (w.id === id && w.previousState) {
+        return {
+          ...w,
+          isMaximized: false,
+          x: w.previousState.x,
+          y: w.previousState.y,
+          width: w.previousState.width,
+          height: w.previousState.height,
+          previousState: null,
+        };
+      }
+      return w;
+    }));
+    focusWindow(id);
+  }, [focusWindow]);
+
+  const minimizeWindow = useCallback((id: string) => {
+    setWindows(prev => prev.map(w => w.id === id ? { ...w, isMinimized: true, isFocused: false } : w));
+    // Optionally, focus the next available window
+  }, []);
+
   const contextValue: WindowManagerContextType = {
     windows,
     interactionState,
@@ -149,6 +195,9 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
     updateWindowState,
     startInteraction,
     stopInteraction,
+    maximizeWindow,
+    minimizeWindow,
+    restoreWindow,
   };
 
   return (
