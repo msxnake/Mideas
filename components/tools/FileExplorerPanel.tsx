@@ -135,7 +135,13 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
             tool.id === TILE_BANKS_SYSTEM_ASSET_ID && !showTileBanksEntry ? null : (
                 <li key={tool.id}>
                     <button
-                        onClick={() => openWindow(tool.id, tool.iconType, tool.name)}
+                        onClick={() => {
+                            if (tool.id === WORLD_VIEW_SYSTEM_ASSET_ID) {
+                                openWindow(tool.id, tool.iconType, tool.name, { isMaximized: true });
+                            } else {
+                                openWindow(tool.id, tool.iconType, tool.name);
+                            }
+                        }}
                         className={`${baseItemClass} ${tool.isActive ? activeItemClass : inactiveItemClass}`}
                         title={tool.title}
                         aria-current={tool.isActive ? "page" : undefined}
