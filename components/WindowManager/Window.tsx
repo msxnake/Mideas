@@ -9,6 +9,8 @@ interface WindowProps {
   children: React.ReactNode;
 }
 
+const STORAGE_KEY_PREFIX = 'mideas_window_state_';
+
 export const Window = React.memo<WindowProps>(({ window, children }) => {
   const {
     interactionState,
@@ -16,7 +18,6 @@ export const Window = React.memo<WindowProps>(({ window, children }) => {
     stopInteraction,
     closeWindow,
     maximizeWindow,
-    minimizeWindow,
     restoreWindow,
     updateWindowState,
   } = useWindowManager();
@@ -25,14 +26,43 @@ export const Window = React.memo<WindowProps>(({ window, children }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // If we are already in an interaction, this click stops it.
     if (interactionState.mode !== 'idle') {
       stopInteraction();
     } else {
-      // Otherwise, start a new interaction.
       startInteraction(mode, window.id, e);
     }
   };
+
+  const handleSaveState = () => {
+    try {
+      const stateToSave = JSON.stringify({
+        x: window.x,
+        y: window.y,
+        width: window.width,
+        height: window.height,
+      });
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}${window.id}`, stateToSave);
+      // Optional: notify user
+      console.log(`State for window ${window.id} saved.`);
+    } catch (error) {
+      console.error("Failed to save window state:", error);
+    }
+  };
+
+  const handleRestoreState = () => {
+    try {
+      const savedStateJSON = localStorage.getItem(`${STORAGE_KEY_PREFIX}${window.id}`);
+      if (savedStateJSON) {
+        const savedState = JSON.parse(savedStateJSON);
+        updateWindowState(window.id, savedState);
+      } else {
+        console.log(`No saved state found for window ${window.id}.`);
+      }
+    } catch (error) {
+      console.error("Failed to restore window state:", error);
+    }
+  };
+
 
   if (!window.isVisible) {
     return null;
@@ -48,27 +78,22 @@ export const Window = React.memo<WindowProps>(({ window, children }) => {
         height: window.isMaximized ? '100%' : `${window.height}px`,
         zIndex: window.zIndex,
         cursor: interactionState.mode !== 'idle' ? 'move' : 'default',
-        display: window.isMinimized ? 'none' : 'flex',
       }}
     >
       <div className="window-title-bar" onMouseDown={(e) => handleMouseDown(e, 'dragging')}>
         <span className="window-title">{window.title}</span>
         <WindowControls
-            windowId={window.id}
             isMaximized={window.isMaximized}
             onClose={() => closeWindow(window.id)}
             onMaximize={() => maximizeWindow(window.id)}
             onRestore={() => restoreWindow(window.id)}
-            onMinimize={() => minimizeWindow(window.id)}
-            onStateRestored={(state) => updateWindowState(window.id, state)}
-            currentGeometry={{ x: window.x, y: window.y, width: window.width, height: window.height }}
+            onStateSave={handleSaveState}
+            onStateRestore={handleRestoreState}
         />
       </div>
-      {!window.isMinimized && (
-        <div className="window-content">
-          {children}
-        </div>
-      )}
+      <div className="window-content">
+        {children}
+      </div>
       <div
         className="resize-handle resize-handle-se"
         onMouseDown={(e) => handleMouseDown(e, 'resizing')}

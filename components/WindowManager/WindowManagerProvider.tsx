@@ -18,7 +18,6 @@ export interface WindowState {
   activeLayer?: ScreenEditorLayerName;
   // New state properties
   isMaximized: boolean;
-  isMinimized: boolean;
   previousState: { x: number; y: number; width: number; height: number; } | null;
 }
 
@@ -46,7 +45,6 @@ export interface WindowManagerContextType {
   stopInteraction: () => void;
   // New functions
   maximizeWindow: (id: string) => void;
-  minimizeWindow: (id: string) => void;
   restoreWindow: (id: string) => void;
 }
 
@@ -110,7 +108,7 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
         y: 50 + (prevWindows.length % 10) * 25,
         width: 640, height: 480, zIndex: highestZIndex + 1,
         isFocused: true, isVisible: true,
-        isMaximized: false, isMinimized: false, previousState: null,
+        isMaximized: false, previousState: null,
         ...(assetType === 'screenmap' && { activeLayer: 'background' as ScreenEditorLayerName }),
       };
       return [...prevWindows.map(w => ({...w, isFocused: false})), newWindow];
@@ -181,11 +179,6 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
     focusWindow(id);
   }, [focusWindow]);
 
-  const minimizeWindow = useCallback((id: string) => {
-    setWindows(prev => prev.map(w => w.id === id ? { ...w, isMinimized: true, isFocused: false } : w));
-    // Optionally, focus the next available window
-  }, []);
-
   const contextValue: WindowManagerContextType = {
     windows,
     interactionState,
@@ -196,7 +189,6 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
     startInteraction,
     stopInteraction,
     maximizeWindow,
-    minimizeWindow,
     restoreWindow,
   };
 
