@@ -20,12 +20,19 @@
 .window-title-bar {
   background-color: #f0f0f0;
   padding: 8px;
-  cursor: move;
   user-select: none;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid #ccc;
+}
+
+.window-title-draggable-area {
+  flex-grow: 1;
+  cursor: move;
+  /* Make sure title is not blocking the drag area */
+  display: flex;
+  align-items: center;
 }
 
 .window-title {

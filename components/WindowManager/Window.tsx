@@ -80,8 +80,10 @@ export const Window = React.memo<WindowProps>(({ window, children }) => {
         cursor: interactionState.mode !== 'idle' ? 'move' : 'default',
       }}
     >
-      <div className="window-title-bar" onMouseDown={(e) => handleMouseDown(e, 'dragging')}>
-        <span className="window-title">{window.title}</span>
+      <div className="window-title-bar">
+        <div className="window-title-draggable-area" onMouseDown={(e) => handleMouseDown(e, 'dragging')}>
+          <span className="window-title">{window.title}</span>
+        </div>
         <WindowControls
             isMaximized={window.isMaximized}
             onClose={() => closeWindow(window.id)}
