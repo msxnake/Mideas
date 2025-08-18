@@ -428,10 +428,12 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                         ))}
                     </div>
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-full h-full flex items-center justify-center relative">
                         <p className="text-msx-textsecondary">
                             This World Map has no screens to display. Add nodes in the World Map Editor.
                         </p>
+                        {/* Dummy node to enforce a minimum canvas size, as per user suggestion */}
+                        <div style={{ position: 'absolute', left: '1920px', top: '1080px' }}>Map</div>
                     </div>
                 )}
             </div>
