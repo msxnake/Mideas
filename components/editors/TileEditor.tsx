@@ -7,11 +7,10 @@ import {
   DEFAULT_SCREEN2_FG_COLOR_INDEX, DEFAULT_SCREEN2_BG_COLOR_INDEX, MSX_SCREEN5_PALETTE, EDITOR_BASE_TILE_DIM_S2
 } from '../../constants';
 import { Button } from '../common/Button';
-import { PencilIcon, FireIcon as FloodFillIcon, SaveFloppyIcon, PatternBrushIcon, TilesetIcon as SplitIcon, CopyIcon, PasteIcon, SparklesIcon } from '../icons/MsxIcons'; 
 import { TileFileOperationsModal } from '../modals/TileFileOperationsModal';
 import { createDefaultLineAttributes } from '../utils/tileUtils';
-import TileMirrorTools from './TileMirrorTools';
 import TiledPatternPreview from './TiledPatternPreview';
+import { TileEditorToolbar } from './TileEditorToolbar';
 
 
 // Helper to resize PixelData (Pattern)
@@ -1512,68 +1511,33 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     setStatusBarMessage(`Filled all ${type.toUpperCase()} colors with the selected palette color.`);
   };
 
-  return (
-    <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col items-center p-2 bg-msx-bgcolor">
-      <div className="w-full grid items-start gap-4" style={{ gridTemplateColumns: '256px auto 288px 288px' }}>
-        {/* Column 1: Tools & Properties */}
-        <div className="flex flex-col space-y-2">
-          <div className="flex flex-wrap items-center gap-2 p-2 bg-msx-panelbg rounded border border-msx-border">
-            <div className="flex items-center space-x-1">
-              <label className="text-xs">Tool:</label>
-              <Button onClick={() => setCurrentTool('pencil')} className={toolButtonClass('pencil')} title="Pencil (Draw/Erase)"><PencilIcon className="w-4 h-4" /></Button>
-              <Button onClick={() => setCurrentTool('floodfill')} className={toolButtonClass('floodfill')} title="Flood Fill"><FloodFillIcon className="w-4 h-4" /></Button>
-              <Button onClick={() => setCurrentTool('dither')} className={toolButtonClass('dither')} title="Dither Brush"><PatternBrushIcon className="w-4 h-4" /></Button>
-            </div>
-             {currentTool === 'dither' && (
-              <div className="flex items-center space-x-1">
-                 <label className="text-xs">Brush Size:</label>
-                 {DITHER_BRUSH_DIAMETERS.map(d => 
-                    <Button key={d} onClick={() => setDitherBrushDiameter(d)} size="sm" variant={ditherBrushDiameter === d ? 'secondary' : 'ghost'} className="!p-1 text-[0.6rem] w-6 h-6">{d}x{d}</Button>
-                 )}
-              </div>
-            )}
-             <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<SaveFloppyIcon/>} className="ml-auto">File Ops</Button>
-          </div>
-          <div className="p-1 bg-msx-panelbg rounded border border-msx-border text-xs flex flex-wrap gap-1 items-center">
-                <span className="text-msx-textsecondary mr-1">Symmetry:</span>
-                <Button onClick={() => toggleSymmetry('horizontal')} className={symmetryButtonClass(symmetrySettings.horizontal)}>H</Button>
-                <Button onClick={() => toggleSymmetry('vertical')} className={symmetryButtonClass(symmetrySettings.vertical)}>V</Button>
-                <Button onClick={() => toggleSymmetry('diagonalMain')} className={symmetryButtonClass(symmetrySettings.diagonalMain)}>D1</Button>
-                <Button onClick={() => toggleSymmetry('diagonalAnti')} className={symmetryButtonClass(symmetrySettings.diagonalAnti)}>D2</Button>
-                <Button onClick={() => toggleSymmetry('quadMirror')} className={symmetryButtonClass(symmetrySettings.quadMirror)}>Quad</Button>
-                <Button onClick={clearAllSymmetry} className="px-1.5 py-0.5 text-[0.65rem] bg-msx-danger text-white hover:bg-opacity-80">Off</Button>
-          </div>
-          <Panel title="Tile Properties">
-             <div className="space-y-2 text-xs">
-                 <div>
-                    <label>Tile Name:</label>
-                    <input type="text" value={tile.name} onChange={(e) => onUpdate({name: e.target.value})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded" />
-                </div>
-                <div className="flex items-center space-x-2">
-                    <label>Dimensions (px):</label>
-                    <select value={tile.width} onChange={(e) => handleDimensionChange(parseInt(e.target.value), tile.height)} className="p-1 bg-msx-bgcolor border-msx-border rounded">
-                        {EDITABLE_TILE_DIMENSIONS.map(d => <option key={`w-${d}`} value={d}>{d}</option>)}
-                    </select>
-                    <span>x</span>
-                    <select value={tile.height} onChange={(e) => handleDimensionChange(tile.width, parseInt(e.target.value))} className="p-1 bg-msx-bgcolor border-msx-border rounded">
-                        {EDITABLE_TILE_DIMENSIONS.map(d => <option key={`h-${d}`} value={d}>{d}</option>)}
-                    </select>
-                </div>
-                 <div className="flex space-x-2 pt-1 flex-wrap gap-2">
-                    <Button onClick={handleCopyCurrentTile} size="sm" variant="secondary" icon={<CopyIcon/>}>Copy Tile</Button>
-                    <Button onClick={handlePasteTileData} size="sm" variant="secondary" icon={<PasteIcon/>} disabled={!copiedTileData}>Paste Data</Button>
-                    <Button onClick={handleSplitTile8x8} size="sm" variant="secondary" icon={<SplitIcon/>}>Split 8x8</Button>
-                    <Button onClick={() => setIsGeneratorModalOpen(true)} size="sm" variant="secondary" icon={<SparklesIcon/>}>Generator</Button>
-                    <TileMirrorTools
-                        currentTileData={tile.data}
-                        onUpdateTileData={(newData) => onUpdate({ data: newData })}
-                    />
-                </div>
-             </div>
-          </Panel>
-        </div>
+  const [tileMirrorToolInstance, setTileMirrorToolInstance] = useState<any>(null);
 
-        {/* Column 2: Main Editor */}
+  return (
+    <Panel title={`Tile Editor: ${tile.name}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor">
+      <TileEditorToolbar
+        currentTool={currentTool}
+        onToolChange={setCurrentTool}
+        ditherBrushDiameter={ditherBrushDiameter}
+        onDitherBrushDiameterChange={setDitherBrushDiameter}
+        symmetrySettings={symmetrySettings}
+        onSymmetryToggle={toggleSymmetry}
+        onSymmetryClear={clearAllSymmetry}
+        tileName={tile.name}
+        onTileNameChange={(name) => onUpdate({ name })}
+        tileDimensions={{ width: tile.width, height: tile.height }}
+        onDimensionsChange={handleDimensionChange}
+        onCopy={handleCopyCurrentTile}
+        onPaste={handlePasteTileData}
+        isPasteDisabled={!copiedTileData}
+        onSplit={handleSplitTile8x8}
+        onGenerate={() => setIsGeneratorModalOpen(true)}
+        onMirrorH={() => tileMirrorToolInstance?.mirrorHorizontal()}
+        onMirrorV={() => tileMirrorToolInstance?.mirrorVertical()}
+        onFileOps={() => setIsFileModalOpen(true)}
+      />
+      <div className="w-full grid items-start gap-4 flex-grow" style={{ gridTemplateColumns: 'auto 1fr auto' }}>
+        {/* Column 1: Main Editor */}
         <div className="flex flex-col items-center space-y-3">
            <PixelGrid
             pixelData={tile.data}
@@ -1594,8 +1558,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
           </div>
         </div>
 
-        {/* Column 3: Previews & Advanced Properties */}
-        <div className="flex flex-col space-y-2">
+        {/* Column 2: Previews & Advanced Properties */}
+        <div className="flex flex-col space-y-2 w-72">
             <TiledPatternPreview
               activeTileData={tile}
               palette={isScreen2 ? MSX1_PALETTE : MSX_SCREEN5_PALETTE}
@@ -1639,8 +1603,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
             </Panel>
         </div>
 
-        {/* Column 4: Screen 2 Attributes */}
-        <div className="flex flex-col space-y-2">
+        {/* Column 3: Screen 2 Attributes */}
+        <div className="flex flex-col space-y-2 w-72">
             {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
                 <>
                     <LineAttributeEditorPanel
