@@ -1514,9 +1514,9 @@ export const TileEditor: React.FC<TileEditorProps> = ({
 
   return (
     <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col items-center p-2 bg-msx-bgcolor">
-      <div className="w-full flex flex-col lg:flex-row lg:items-start lg:justify-center space-y-2 lg:space-y-0 lg:space-x-4">
-        {/* Left Column: Controls & Main Editor */}
-        <div className="flex flex-col items-center space-y-3">
+      <div className="w-full grid items-start gap-4" style={{ gridTemplateColumns: '256px auto 288px' }}>
+        {/* Column 1: Tools & Properties */}
+        <div className="flex flex-col space-y-2">
           <div className="flex flex-wrap items-center gap-2 p-2 bg-msx-panelbg rounded border border-msx-border">
             <div className="flex items-center space-x-1">
               <label className="text-xs">Tool:</label>
@@ -1534,24 +1534,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
             )}
              <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<SaveFloppyIcon/>} className="ml-auto">File Ops</Button>
           </div>
-           <PixelGrid
-            pixelData={tile.data}
-            tileWidth={tile.width}
-            tileHeight={tile.height}
-            lineAttributes={tile.lineAttributes || []}
-            onGridInteraction={handleGridInteraction}
-            pixelSize={zoom}
-            showCenterGuide={showCenterGuide}
-            currentScreenMode={currentScreenMode}
-            symmetrySettings={symmetrySettings}
-            currentTool={currentTool}
-          />
-          <div className="flex items-center space-x-2 text-xs">
-            <span>Zoom:</span>
-            <input type="range" min="8" max="40" value={zoom} onChange={(e) => setZoom(parseInt(e.target.value))} className="w-24 accent-msx-accent" />
-            <label><input type="checkbox" checked={showCenterGuide} onChange={() => setShowCenterGuide(s => !s)} /> Guide</label>
-          </div>
-           <div className="p-1 bg-msx-panelbg rounded border border-msx-border text-xs flex flex-wrap gap-1 items-center">
+          <div className="p-1 bg-msx-panelbg rounded border border-msx-border text-xs flex flex-wrap gap-1 items-center">
                 <span className="text-msx-textsecondary mr-1">Symmetry:</span>
                 <Button onClick={() => toggleSymmetry('horizontal')} className={symmetryButtonClass(symmetrySettings.horizontal)}>H</Button>
                 <Button onClick={() => toggleSymmetry('vertical')} className={symmetryButtonClass(symmetrySettings.vertical)}>V</Button>
@@ -1559,11 +1542,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                 <Button onClick={() => toggleSymmetry('diagonalAnti')} className={symmetryButtonClass(symmetrySettings.diagonalAnti)}>D2</Button>
                 <Button onClick={() => toggleSymmetry('quadMirror')} className={symmetryButtonClass(symmetrySettings.quadMirror)}>Quad</Button>
                 <Button onClick={clearAllSymmetry} className="px-1.5 py-0.5 text-[0.65rem] bg-msx-danger text-white hover:bg-opacity-80">Off</Button>
-            </div>
-        </div>
-
-        {/* Right Column: Properties & Previews */}
-        <div className="flex-grow max-w-sm w-full space-y-2">
+          </div>
           <Panel title="Tile Properties">
              <div className="space-y-2 text-xs">
                  <div>
@@ -1592,12 +1571,35 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                 </div>
              </div>
           </Panel>
+        </div>
 
+        {/* Column 2: Main Editor */}
+        <div className="flex flex-col items-center space-y-3">
+           <PixelGrid
+            pixelData={tile.data}
+            tileWidth={tile.width}
+            tileHeight={tile.height}
+            lineAttributes={tile.lineAttributes || []}
+            onGridInteraction={handleGridInteraction}
+            pixelSize={zoom}
+            showCenterGuide={showCenterGuide}
+            currentScreenMode={currentScreenMode}
+            symmetrySettings={symmetrySettings}
+            currentTool={currentTool}
+          />
+          <div className="flex items-center space-x-2 text-xs">
+            <span>Zoom:</span>
+            <input type="range" min="8" max="40" value={zoom} onChange={(e) => setZoom(parseInt(e.target.value))} className="w-24 accent-msx-accent" />
+            <label><input type="checkbox" checked={showCenterGuide} onChange={() => setShowCenterGuide(s => !s)} /> Guide</label>
+          </div>
+        </div>
+
+        {/* Column 3: Previews & Advanced Properties */}
+        <div className="flex flex-col space-y-2">
             <TiledPatternPreview
               activeTileData={tile}
               palette={isScreen2 ? MSX1_PALETTE : MSX_SCREEN5_PALETTE}
             />
-
            <Panel title="Logical Properties (Collision/Behavior)">
                 <div className="space-y-2 text-xs">
                      <p className="text-[0.65rem] text-msx-textsecondary">Define gameplay attributes for this tile. These are exported in the Behavior Map.</p>
@@ -1609,7 +1611,6 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                             className="w-full p-1 bg-msx-bgcolor border-msx-border rounded text-xs"
                         >
                            {SOLIDITY_TYPES.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
-                           {/* Add more family types later */}
                         </select>
                     </div>
                     <div>

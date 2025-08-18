@@ -1650,7 +1650,7 @@ RLEDECOMPRESS_RLENEXT:
     const newAsset: ProjectAsset = { id, name: defaultName, type, data: newAssetData };
     setAssetsWithHistory(prev => [...prev, newAsset]);
     setSelectedAssetId(id);
-    setCurrentEditor(newEditorType);
+    // The window will be opened by the useEffect in AppUI that watches selectedAssetId
     if (type === 'screenmap') setSelectedEffectZoneId(null); 
     setStatusBarMessage(`${defaultName} created.`);
   };

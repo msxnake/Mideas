@@ -193,6 +193,26 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
 
   const { windows, openWindow, updateWindowState, focusWindow, closeWindow, interactionState } = useWindowManager();
 
+  useEffect(() => {
+    // This effect handles opening a window when a new asset is created,
+    // which is signified by `selectedAssetId` changing.
+    if (selectedAssetId) {
+      const windowAlreadyOpen = windows.some(w => w.id === selectedAssetId);
+      if (!windowAlreadyOpen) {
+        const asset = assets.find(a => a.id === selectedAssetId);
+        if (asset) {
+          openWindow(asset.id, asset.type, asset.name);
+        }
+      } else {
+        // If window is open but not focused, focus it.
+        const targetWindow = windows.find(w => w.id === selectedAssetId);
+        if (targetWindow && !targetWindow.isFocused) {
+          focusWindow(targetWindow.id);
+        }
+      }
+    }
+  }, [selectedAssetId, assets, windows, openWindow, focusWindow]);
+
   const activeAsset = assets.find(a => a.id === selectedAssetId);
   const activeScreenMapAsset = activeAsset?.type === 'screenmap' ? activeAsset.data as ScreenMap : undefined;
   
