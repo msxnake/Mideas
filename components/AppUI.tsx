@@ -191,7 +191,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm
     } = props;
 
-  const { windows, openWindow, updateWindowState, focusWindow, closeWindow } = useWindowManager();
+  const { windows, openWindow, updateWindowState, focusWindow, closeWindow, interactionState } = useWindowManager();
 
   const activeAsset = assets.find(a => a.id === selectedAssetId);
   const activeScreenMapAsset = activeAsset?.type === 'screenmap' ? activeAsset.data as ScreenMap : undefined;
@@ -271,11 +271,33 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       }
     };
 
+    const handleMouseMove = (e: MouseEvent) => {
+      if (interactionState.mode === 'idle' || !interactionState.targetId) return;
+
+      const { targetId, mode, initialMouseX, initialMouseY, initialWindowX, initialWindowY, initialWindowWidth, initialWindowHeight } = interactionState;
+      const deltaX = e.clientX - initialMouseX;
+      const deltaY = e.clientY - initialMouseY;
+
+      if (mode === 'dragging') {
+        let newX = initialWindowX + deltaX;
+        let newY = initialWindowY + deltaY;
+        // Optional: Add boundary checks here if needed
+        updateWindowState(targetId, { x: newX, y: newY });
+      } else if (mode === 'resizing') {
+        let newWidth = initialWindowWidth + deltaX;
+        let newHeight = initialWindowHeight + deltaY;
+        // Optional: Add boundary checks here if needed
+        updateWindowState(targetId, { width: newWidth, height: newHeight });
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousemove', handleMouseMove);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [windows, focusWindow, closeWindow]);
+  }, [windows, focusWindow, closeWindow, interactionState, updateWindowState]);
 
   const dataAssets = assets.filter(a =>
     ['tile', 'sprite', 'screenmap', 'sound', 'track', 'worldmap'].includes(a.type)
