@@ -386,7 +386,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
             </div>
             <div
                 ref={containerRef}
-                className="w-full h-full bg-msx-black overflow-hidden relative"
+                className="w-full flex-grow bg-msx-black overflow-hidden relative"
                 style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
                 onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
