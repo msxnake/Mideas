@@ -349,8 +349,9 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
     
     return (
         <Panel title="World View" icon={<WorldViewIcon />} className="flex-grow flex flex-col !p-0">
-            <div className="p-2 border-b border-msx-border flex items-center space-x-4 text-xs">
-                <label htmlFor="world-view-selector" className="font-bold text-msx-textsecondary">Viewing Map:</label>
+            <div className="h-full flex flex-col">
+                <div className="p-2 border-b border-msx-border flex items-center space-x-4 text-xs flex-shrink-0">
+                    <label htmlFor="world-view-selector" className="font-bold text-msx-textsecondary">Viewing Map:</label>
                 <select
                     id="world-view-selector"
                     value={selectedWorldMapId || ''}
@@ -434,6 +435,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                     </div>
                 )}
             </div>
+        </div>
         </Panel>
     );
 };
