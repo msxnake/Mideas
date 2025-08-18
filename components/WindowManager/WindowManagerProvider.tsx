@@ -37,7 +37,7 @@ export interface InteractionState {
 export interface WindowManagerContextType {
   windows: WindowState[];
   interactionState: InteractionState;
-  openWindow: (assetId: string, assetType: string, title: string, options?: { isMaximized?: boolean }) => void;
+  openWindow: (assetId: string, assetType: string, title: string) => void;
   closeWindow: (id: string) => void;
   focusWindow: (id: string) => void;
   updateWindowState: (id: string, newState: Partial<Pick<WindowState, 'x' | 'y' | 'width' | 'height' | 'activeLayer'>>) => void;
@@ -95,11 +95,10 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
     });
   }, []);
 
-  const openWindow = useCallback((assetId: string, assetType: string, title: string, options?: { isMaximized?: boolean }) => {
+  const openWindow = useCallback((assetId: string, assetType: string, title: string) => {
     setWindows(prevWindows => {
       const existingWindow = prevWindows.find(w => w.id === assetId);
       if (existingWindow) {
-        // If it exists, just make it visible and focus it. Don't apply new options.
         return prevWindows.map(w => w.id === assetId ? { ...w, isVisible: true } : w);
       }
 
@@ -110,15 +109,10 @@ export const WindowManagerProvider: React.FC<{ children: ReactNode }> = ({ child
         y: 50 + (prevWindows.length % 10) * 25,
         width: 640, height: 480, zIndex: highestZIndex + 1,
         isFocused: true, isVisible: true,
-        isMaximized: options?.isMaximized ?? false, // Apply option here
+        isMaximized: false,
         previousState: null,
         ...(assetType === 'screenmap' && { activeLayer: 'background' as ScreenEditorLayerName }),
       };
-
-      // If maximized, save the default size as previousState
-      if (newWindow.isMaximized) {
-        newWindow.previousState = { x: newWindow.x, y: newWindow.y, width: newWindow.width, height: newWindow.height };
-      }
 
       return [...prevWindows.map(w => ({...w, isFocused: false})), newWindow];
     });

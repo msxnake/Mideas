@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection } from '../../types';
 import { Panel } from '../common/Panel';
 import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
+import { useWindowManager } from '@/hooks/useWindowManager';
+import { WORLD_VIEW_SYSTEM_ASSET_ID } from '../tools/FileExplorerPanel';
 import { EDITOR_BASE_TILE_DIM_S2, MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
 import { Button } from '../common/Button';
 import { GridToggleButton } from './GridToggleButton';
@@ -105,6 +107,7 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
   allTiles,
   currentScreenMode
 }) => {
+    const { closeWindow } = useWindowManager();
     const [selectedWorldMapId, setSelectedWorldMapId] = useState<string | null>(null);
     const [isGridVisible, setIsGridVisible] = useState(false);
     const [zoom, setZoom] = useState(1);
@@ -370,6 +373,15 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                     icon={<RefreshCwIcon className="w-4 h-4" />}
                 >
                     Refresh
+                </Button>
+                <Button
+                    onClick={() => closeWindow(WORLD_VIEW_SYSTEM_ASSET_ID)}
+                    size="sm"
+                    variant="danger"
+                    title="Close World View"
+                    className="ml-auto"
+                >
+                    Close (X)
                 </Button>
             </div>
             <div

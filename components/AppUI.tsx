@@ -445,12 +445,28 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         />
         
         <div className="flex-grow flex flex-col relative" role="main">
-          {windows.length === 0 && <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>}
-          {windows.map(win => (
-            <Window key={win.id} window={win}>
-              {renderEditorForWindow(win)}
-            </Window>
-          ))}
+          {(() => {
+            const worldViewWindow = windows.find(w => w.id === WORLD_VIEW_SYSTEM_ASSET_ID && w.isVisible);
+            const otherWindows = windows.filter(w => w.id !== WORLD_VIEW_SYSTEM_ASSET_ID);
+
+            if (worldViewWindow) {
+              return (
+                <div className="w-full h-full flex-grow">
+                  {renderEditorForWindow(worldViewWindow)}
+                </div>
+              );
+            }
+
+            if (otherWindows.length === 0) {
+              return <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>;
+            }
+
+            return otherWindows.map(win => (
+              <Window key={win.id} window={win}>
+                {renderEditorForWindow(win)}
+              </Window>
+            ));
+          })()}
         </div>
 
         <div className="w-64 flex-shrink-0 flex flex-col">
