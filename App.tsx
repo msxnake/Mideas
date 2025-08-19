@@ -1348,55 +1348,6 @@ RLEDECOMPRESS_RLENEXT:
     setContextMenu(null);
   };
   
-  useEffect(() => {
-    const playTadaSound = () => {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-  
-      if (!audioContext) return;
-  
-      if (audioContext.state === 'suspended') {
-          audioContext.resume().catch(e => console.warn("AudioContext resume failed", e));
-      }
-      
-      const now = audioContext.currentTime;
-      const gainNode = audioContext.createGain();
-      gainNode.connect(audioContext.destination);
-      
-      const osc1 = audioContext.createOscillator();
-      const osc2 = audioContext.createOscillator();
-      
-      osc1.type = 'triangle';
-      osc2.type = 'triangle';
-      
-      osc1.frequency.value = 523.25; 
-      osc2.frequency.value = 783.99;
-  
-      gainNode.gain.setValueAtTime(0, now);
-      gainNode.gain.linearRampToValueAtTime(0.4, now + 0.05);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
-  
-      osc1.connect(gainNode);
-      osc2.connect(gainNode);
-  
-      osc1.start(now);
-      osc2.start(now + 0.12);
-  
-      osc1.stop(now + 1.0);
-      osc2.stop(now + 1.0);
-  
-      setTimeout(() => {
-          audioContext.close();
-      }, 1500);
-    };
-  
-    try {
-        playTadaSound();
-    } catch(e) {
-        console.error("Could not play init sound:", e);
-    }
-  
-  }, []);
-  
   const playAutosaveSound = useCallback(() => {
     try {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();

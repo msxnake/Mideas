@@ -294,27 +294,6 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
         }
     }, [screensToRender, containerSize]);
 
-    const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        const scaleAmount = -e.deltaY * 0.001;
-        const newZoom = Math.max(0.1, Math.min(8, zoom + scaleAmount * zoom));
-        
-        if (containerRef.current) {
-            const rect = containerRef.current.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-            
-            const worldX = (mouseX - pan.x) / zoom;
-            const worldY = (mouseY - pan.y) / zoom;
-            
-            const newPanX = mouseX - worldX * newZoom;
-            const newPanY = mouseY - worldY * newZoom;
-
-            setZoom(newZoom);
-            setPan({ x: newPanX, y: newPanY });
-        }
-    };
-
     const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey))) {
             setIsPanning(true);
@@ -389,7 +368,6 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
                 ref={containerRef}
                 className="w-full flex-grow bg-msx-black overflow-hidden relative"
                 style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
-                onWheel={handleWheel}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}

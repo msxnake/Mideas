@@ -217,10 +217,10 @@ const LineAttributeEditorPanel: React.FC<LineAttributeEditorPanelProps> = ({
 
   return (
     <Panel title="SCREEN 2 Line Color Attributes" className="max-h-96 overflow-y-auto">
-      <p className="text-xs text-msx-textsecondary mb-2 p-1">
+      <div className="text-xs text-msx-textsecondary mb-2 p-1">
         Define 2 colors (Foreground/Background) for each 8-pixel segment of each row.
         Selected palette color <div className="inline-block w-3 h-3 border border-msx-border" style={{backgroundColor: selectedPaletteColor}}></div> will be used.
-      </p>
+      </div>
       <div className="flex space-x-2 mb-2 px-1">
           <Button onClick={() => onFillAllFg(selectedPaletteColor)} size="sm" variant="secondary" className="flex-1 text-xs" title="Set the Foreground color of all segments to the selected palette color">
               Fill All FG
