@@ -1491,12 +1491,12 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     setStatusBarMessage("Texture generated successfully.");
   };
 
-  const handleShiftUp = () => onUpdate({ data: shiftTileDataUp(tile.data) });
-  const handleShiftDown = () => onUpdate({ data: shiftTileDataDown(tile.data) });
-  const handleShiftLeft = () => onUpdate({ data: shiftTileDataLeft(tile.data) });
-  const handleShiftRight = () => onUpdate({ data: shiftTileDataRight(tile.data) });
-  const handleMirrorHorizontal = () => onUpdate({ data: mirrorTileDataHorizontal(tile.data) });
-  const handleMirrorVertical = () => onUpdate({ data: mirrorTileDataVertical(tile.data) });
+  const handleShiftUp = () => onUpdate({ data: shiftTileDataUp(tile.data, tile.lineAttributes, currentScreenMode) });
+  const handleShiftDown = () => onUpdate({ data: shiftTileDataDown(tile.data, tile.lineAttributes, currentScreenMode) });
+  const handleShiftLeft = () => onUpdate({ data: shiftTileDataLeft(tile.data, tile.lineAttributes, currentScreenMode) });
+  const handleShiftRight = () => onUpdate({ data: shiftTileDataRight(tile.data, tile.lineAttributes, currentScreenMode) });
+  const handleMirrorHorizontal = () => onUpdate({ data: mirrorTileDataHorizontal(tile.data, tile.lineAttributes, currentScreenMode) });
+  const handleMirrorVertical = () => onUpdate({ data: mirrorTileDataVertical(tile.data, tile.lineAttributes, currentScreenMode) });
 
   const handleFillAll = (type: 'fg' | 'bg', newColor: MSX1ColorValue) => {
     if (!tile.lineAttributes) return;
