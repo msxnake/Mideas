@@ -191,6 +191,145 @@ export const generateTilePatternBytes = (tile: Tile, currentScreenMode: string):
 };
 
 /**
+ * Corrects any pixels in a data grid that are not valid for their segment in SCREEN 2 mode.
+ * Invalid pixels are "snapped" to the foreground color of their segment.
+ * This is an internal helper function.
+ * @param pixelData The pixel data to correct.
+ * @param lineAttributes The line color attributes to validate against.
+ * @returns A new PixelData grid with corrected colors.
+ */
+const correctInvalidPixelsForScreen2 = (
+  pixelData: PixelData,
+  lineAttributes: LineColorAttribute[][]
+): PixelData => {
+  const height = pixelData.length;
+  if (height === 0) return [];
+  const width = pixelData[0]?.length || 0;
+  if (width === 0) return [[]];
+
+  const correctedData = pixelData.map(row => [...row]);
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const segmentIndex = Math.floor(x / SCREEN2_PIXELS_PER_COLOR_SEGMENT);
+      const attributes = lineAttributes[y]?.[segmentIndex];
+      const currentColor = correctedData[y][x];
+
+      if (attributes && currentColor !== attributes.fg && currentColor !== attributes.bg) {
+        // This pixel's color is invalid for its new segment.
+        // Snap it to the foreground color of the new segment.
+        correctedData[y][x] = attributes.fg;
+      }
+    }
+  }
+
+  return correctedData;
+};
+
+/**
+ * Rolls the tile data up by one pixel.
+ * The top row is moved to the bottom.
+ */
+export const shiftTileDataUp = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
+  const height = tileData.length;
+  if (height < 2) return tileData;
+
+  const rolledData = tileData.slice(1);
+  rolledData.push([...tileData[0]]);
+
+  if (screenMode === "SCREEN 2 (Graphics I)" && lineAttributes) {
+    return correctInvalidPixelsForScreen2(rolledData, lineAttributes);
+  }
+  return rolledData;
+};
+
+/**
+ * Rolls the tile data down by one pixel.
+ * The bottom row is moved to the top.
+ */
+export const shiftTileDataDown = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
+  const height = tileData.length;
+  if (height < 2) return tileData;
+
+  const rolledData = tileData.slice(0, height - 1);
+  rolledData.unshift([...tileData[height - 1]]);
+
+  if (screenMode === "SCREEN 2 (Graphics I)" && lineAttributes) {
+    return correctInvalidPixelsForScreen2(rolledData, lineAttributes);
+  }
+  return rolledData;
+};
+
+/**
+ * Rolls the tile data left by one pixel.
+ * The leftmost column is moved to the right.
+ */
+export const shiftTileDataLeft = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
+  if (tileData.length === 0) return [];
+
+  const rolledData = tileData.map(row => {
+    if (row.length < 2) return [...row];
+    const newRow = row.slice(1);
+    newRow.push(row[0]);
+    return newRow;
+  });
+
+  if (screenMode === "SCREEN 2 (Graphics I)" && lineAttributes) {
+    return correctInvalidPixelsForScreen2(rolledData, lineAttributes);
+  }
+  return rolledData;
+};
+
+/**
+ * Rolls the tile data right by one pixel.
+ * The rightmost column is moved to the left.
+ */
+export const shiftTileDataRight = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
+  if (tileData.length === 0) return [];
+
+  const rolledData = tileData.map(row => {
+    const width = row.length;
+    if (width < 2) return [...row];
+    const newRow = row.slice(0, width - 1);
+    newRow.unshift(row[width - 1]);
+    return newRow;
+  });
+
+  if (screenMode === "SCREEN 2 (Graphics I)" && lineAttributes) {
+    return correctInvalidPixelsForScreen2(rolledData, lineAttributes);
+  }
+  return rolledData;
+};
+
+/**
+ * Mirrors the tile data horizontally (left to right).
+ */
+export const mirrorTileDataHorizontal = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
+  if (tileData.length === 0) return [];
+
+  const mirroredData = tileData.map(row => [...row].reverse());
+
+  if (screenMode === "SCREEN 2 (Graphics I)" && lineAttributes) {
+    return correctInvalidPixelsForScreen2(mirroredData, lineAttributes);
+  }
+  return mirroredData;
+};
+
+/**
+ * Mirrors the tile data vertically (top to bottom).
+ */
+export const mirrorTileDataVertical = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
+  if (tileData.length === 0) return [];
+
+  const mirroredData = [...tileData].reverse();
+
+  if (screenMode === "SCREEN 2 (Graphics I)" && lineAttributes) {
+    return correctInvalidPixelsForScreen2(mirroredData, lineAttributes);
+  }
+  return mirroredData;
+};
+
+/**
  * Generates raw byte array for tile color attribute data (SCREEN 2 only).
  */
 export const generateTileColorBytes = (tile: Tile): Uint8Array | null => {
