@@ -15,14 +15,14 @@ export const TileEditorAdvancedLayout: React.FC<TileEditorAdvancedLayoutProps> =
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '280px 1fr 280px',
+        gridTemplateColumns: '280px 1fr 308px',
         gap: '16px',
         width: '100%',
         height: '100%',
-        alignItems: 'start',
+        alignItems: 'stretch',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', flexGrow: 1 }}>
         {columnaIzquierda}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
