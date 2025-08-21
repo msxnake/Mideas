@@ -650,7 +650,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   return (
-    <Panel title={`Screen Editor: ${screenMap.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})` : `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden">
+    <Panel title={`Screen Editor: ${screenMap.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})` : `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
       <ScreenEditorToolbar
         activeLayer={activeLayer}
         onLayerChange={handleLayerChange}
