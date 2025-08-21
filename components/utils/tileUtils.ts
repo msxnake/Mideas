@@ -191,77 +191,60 @@ export const generateTilePatternBytes = (tile: Tile, currentScreenMode: string):
 };
 
 /**
- * Shifts the tile data up by one pixel.
- * The bottom row is filled with the background color.
+ * Rolls the tile data up by one pixel.
+ * The top row is moved to the bottom.
  */
-export const shiftTileDataUp = (tileData: PixelData, backgroundColor: MSXColorValue): PixelData => {
+export const shiftTileDataUp = (tileData: PixelData): PixelData => {
   const height = tileData.length;
-  if (height === 0) return [];
-  const width = tileData[0]?.length || 0;
-  if (width === 0) return [[]];
+  if (height < 2) return tileData; // Nothing to roll
 
-  const newData: PixelData = [];
-  // Copy rows from y=1 to the end of the original data
-  for (let y = 1; y < height; y++) {
-    newData.push([...tileData[y]]);
-  }
-  // Add the new background color row at the bottom
-  newData.push(Array(width).fill(backgroundColor));
+  const newData = tileData.slice(1); // All elements except the first
+  newData.push([...tileData[0]]); // Add the first element to the end
   return newData;
 };
 
 /**
- * Shifts the tile data down by one pixel.
- * The top row is filled with the background color.
+ * Rolls the tile data down by one pixel.
+ * The bottom row is moved to the top.
  */
-export const shiftTileDataDown = (tileData: PixelData, backgroundColor: MSXColorValue): PixelData => {
+export const shiftTileDataDown = (tileData: PixelData): PixelData => {
   const height = tileData.length;
-  if (height === 0) return [];
-  const width = tileData[0]?.length || 0;
-  if (width === 0) return [[]];
+  if (height < 2) return tileData;
 
-  const newData: PixelData = [Array(width).fill(backgroundColor)];
-  // Copy rows from y=0 to height-2 of the original data
-  for (let y = 0; y < height - 1; y++) {
-    newData.push([...tileData[y]]);
-  }
+  const newData = tileData.slice(0, height - 1); // All elements except the last
+  newData.unshift([...tileData[height - 1]]); // Add the last element to the beginning
   return newData;
 };
 
 /**
- * Shifts the tile data left by one pixel.
- * The rightmost column is filled with the background color.
+ * Rolls the tile data left by one pixel.
+ * The leftmost column is moved to the right.
  */
-export const shiftTileDataLeft = (tileData: PixelData, backgroundColor: MSXColorValue): PixelData => {
-  const height = tileData.length;
-  if (height === 0) return [];
+export const shiftTileDataLeft = (tileData: PixelData): PixelData => {
+  if (tileData.length === 0) return [];
 
-  const newData: PixelData = [];
-  for (let y = 0; y < height; y++) {
-    // Take from the second pixel to the end, then add the background color
-    const newRow = tileData[y].slice(1);
-    newRow.push(backgroundColor);
-    newData.push(newRow);
-  }
-  return newData;
+  return tileData.map(row => {
+    if (row.length < 2) return [...row];
+    const newRow = row.slice(1);
+    newRow.push(row[0]);
+    return newRow;
+  });
 };
 
 /**
- * Shifts the tile data right by one pixel.
- * The leftmost column is filled with the background color.
+ * Rolls the tile data right by one pixel.
+ * The rightmost column is moved to the left.
  */
-export const shiftTileDataRight = (tileData: PixelData, backgroundColor: MSXColorValue): PixelData => {
-  const height = tileData.length;
-  if (height === 0) return [];
-  const width = tileData[0]?.length || 0;
+export const shiftTileDataRight = (tileData: PixelData): PixelData => {
+  if (tileData.length === 0) return [];
 
-  const newData: PixelData = [];
-  for (let y = 0; y < height; y++) {
-    // Add the background color at the start, then the rest of the row (excluding the last pixel)
-    const newRow = [backgroundColor, ...tileData[y].slice(0, width - 1)];
-    newData.push(newRow);
-  }
-  return newData;
+  return tileData.map(row => {
+    const width = row.length;
+    if (width < 2) return [...row];
+    const newRow = row.slice(0, width - 1);
+    newRow.unshift(row[width - 1]);
+    return newRow;
+  });
 };
 
 /**

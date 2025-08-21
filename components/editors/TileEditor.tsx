@@ -1491,17 +1491,10 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     setStatusBarMessage("Texture generated successfully.");
   };
 
-  const getBackgroundColorForShift = () => {
-    // As per spec, use color index 0. For non-S2 modes this is transparent.
-    // For S2 modes, this is black, which might not be valid for a given segment,
-    // but the PixelGrid will highlight this for the user to correct.
-    return MSX1_PALETTE[0].hex;
-  };
-
-  const handleShiftUp = () => onUpdate({ data: shiftTileDataUp(tile.data, getBackgroundColorForShift()) });
-  const handleShiftDown = () => onUpdate({ data: shiftTileDataDown(tile.data, getBackgroundColorForShift()) });
-  const handleShiftLeft = () => onUpdate({ data: shiftTileDataLeft(tile.data, getBackgroundColorForShift()) });
-  const handleShiftRight = () => onUpdate({ data: shiftTileDataRight(tile.data, getBackgroundColorForShift()) });
+  const handleShiftUp = () => onUpdate({ data: shiftTileDataUp(tile.data) });
+  const handleShiftDown = () => onUpdate({ data: shiftTileDataDown(tile.data) });
+  const handleShiftLeft = () => onUpdate({ data: shiftTileDataLeft(tile.data) });
+  const handleShiftRight = () => onUpdate({ data: shiftTileDataRight(tile.data) });
   const handleMirrorHorizontal = () => onUpdate({ data: mirrorTileDataHorizontal(tile.data) });
   const handleMirrorVertical = () => onUpdate({ data: mirrorTileDataVertical(tile.data) });
 
