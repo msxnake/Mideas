@@ -10,6 +10,7 @@ import { Button } from '../common/Button';
 import { PencilIcon, FireIcon as FloodFillIcon, SaveFloppyIcon, PatternBrushIcon, TilesetIcon as SplitIcon, CopyIcon, PasteIcon, SparklesIcon } from '../icons/MsxIcons'; 
 import { TileFileOperationsModal } from '../modals/TileFileOperationsModal';
 import { createDefaultLineAttributes } from '../utils/tileUtils';
+import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
 
 
 // Helper to resize PixelData (Pattern)
@@ -215,7 +216,7 @@ const LineAttributeEditorPanel: React.FC<LineAttributeEditorPanelProps> = ({
   };
 
   return (
-    <Panel title="SCREEN 2 Line Color Attributes" className="max-h-96 overflow-y-auto">
+    <Panel title="SCREEN 2 Line Color Attributes" className="flex-grow flex flex-col overflow-y-auto">
       <p className="text-xs text-msx-textsecondary mb-2 p-1">
         Define 2 colors (Foreground/Background) for each 8-pixel segment of each row.
         Selected palette color <div className="inline-block w-3 h-3 border border-msx-border" style={{backgroundColor: selectedPaletteColor}}></div> will be used.
@@ -1509,8 +1510,6 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     onUpdate({ data: newPixelData, lineAttributes: newLineAttributes });
     setStatusBarMessage(`Filled all ${type.toUpperCase()} colors with the selected palette color.`);
   };
-
-import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
 
   return (
     <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor">
