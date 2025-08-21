@@ -7,9 +7,20 @@ import {
   DEFAULT_SCREEN2_FG_COLOR_INDEX, DEFAULT_SCREEN2_BG_COLOR_INDEX, MSX_SCREEN5_PALETTE, EDITOR_BASE_TILE_DIM_S2
 } from '../../constants';
 import { Button } from '../common/Button';
-import { PencilIcon, FireIcon as FloodFillIcon, SaveFloppyIcon, PatternBrushIcon, TilesetIcon as SplitIcon, CopyIcon, PasteIcon, SparklesIcon } from '../icons/MsxIcons'; 
+import {
+  PencilIcon, FireIcon as FloodFillIcon, SaveFloppyIcon, PatternBrushIcon, TilesetIcon as SplitIcon, CopyIcon, PasteIcon, SparklesIcon,
+  ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, SwapHorizIcon, SwapVertIcon
+} from '../icons/MsxIcons';
 import { TileFileOperationsModal } from '../modals/TileFileOperationsModal';
-import { createDefaultLineAttributes } from '../utils/tileUtils';
+import {
+  createDefaultLineAttributes,
+  shiftTileDataUp,
+  shiftTileDataDown,
+  shiftTileDataLeft,
+  shiftTileDataRight,
+  mirrorTileDataHorizontal,
+  mirrorTileDataVertical
+} from '../utils/tileUtils';
 import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
 
 
@@ -1480,6 +1491,20 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     setStatusBarMessage("Texture generated successfully.");
   };
 
+  const getBackgroundColorForShift = () => {
+    // As per spec, use color index 0. For non-S2 modes this is transparent.
+    // For S2 modes, this is black, which might not be valid for a given segment,
+    // but the PixelGrid will highlight this for the user to correct.
+    return MSX1_PALETTE[0].hex;
+  };
+
+  const handleShiftUp = () => onUpdate({ data: shiftTileDataUp(tile.data, getBackgroundColorForShift()) });
+  const handleShiftDown = () => onUpdate({ data: shiftTileDataDown(tile.data, getBackgroundColorForShift()) });
+  const handleShiftLeft = () => onUpdate({ data: shiftTileDataLeft(tile.data, getBackgroundColorForShift()) });
+  const handleShiftRight = () => onUpdate({ data: shiftTileDataRight(tile.data, getBackgroundColorForShift()) });
+  const handleMirrorHorizontal = () => onUpdate({ data: mirrorTileDataHorizontal(tile.data) });
+  const handleMirrorVertical = () => onUpdate({ data: mirrorTileDataVertical(tile.data) });
+
   const handleFillAll = (type: 'fg' | 'bg', newColor: MSX1ColorValue) => {
     if (!tile.lineAttributes) return;
 
@@ -1601,6 +1626,35 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                 </div>
               )}
               <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<SaveFloppyIcon/>} className="ml-auto">File Ops</Button>
+            </div>
+            {/* --- Tile Manipulation Tools --- */}
+            <div
+              className="p-1 bg-msx-panelbg rounded border border-msx-border flex flex-row gap-2 items-center"
+              style={{ marginTop: '8px', padding: '5px' }}
+            >
+                <div className="flex gap-1">
+                  <Button onClick={handleShiftUp} size="sm" variant="secondary" title="Desplazar tile hacia arriba (Norte)">
+                    <ArrowUpIcon className="w-4 h-4" />
+                  </Button>
+                  <Button onClick={handleShiftDown} size="sm" variant="secondary" title="Desplazar tile hacia abajo (Sur)">
+                    <ArrowDownIcon className="w-4 h-4" />
+                  </Button>
+                  <Button onClick={handleShiftLeft} size="sm" variant="secondary" title="Desplazar tile hacia la izquierda (Oeste)">
+                    <ArrowLeftIcon className="w-4 h-4" />
+                  </Button>
+                  <Button onClick={handleShiftRight} size="sm" variant="secondary" title="Desplazar tile hacia la derecha (Este)">
+                    <ArrowRightIcon className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="border-l border-msx-border h-5"></div>
+                <div className="flex gap-1">
+                  <Button onClick={handleMirrorHorizontal} size="sm" variant="secondary" title="Espejo Horizontal (Mirror H)">
+                    <SwapHorizIcon className="w-4 h-4" />
+                  </Button>
+                  <Button onClick={handleMirrorVertical} size="sm" variant="secondary" title="Espejo Vertical (Mirror V)">
+                    <SwapVertIcon className="w-4 h-4" />
+                  </Button>
+                </div>
             </div>
             <PixelGrid
               pixelData={tile.data}

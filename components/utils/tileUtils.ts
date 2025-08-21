@@ -191,6 +191,98 @@ export const generateTilePatternBytes = (tile: Tile, currentScreenMode: string):
 };
 
 /**
+ * Shifts the tile data up by one pixel.
+ * The bottom row is filled with the background color.
+ */
+export const shiftTileDataUp = (tileData: PixelData, backgroundColor: MSXColorValue): PixelData => {
+  const height = tileData.length;
+  if (height === 0) return [];
+  const width = tileData[0]?.length || 0;
+  if (width === 0) return [[]];
+
+  const newData: PixelData = [];
+  // Copy rows from y=1 to the end of the original data
+  for (let y = 1; y < height; y++) {
+    newData.push([...tileData[y]]);
+  }
+  // Add the new background color row at the bottom
+  newData.push(Array(width).fill(backgroundColor));
+  return newData;
+};
+
+/**
+ * Shifts the tile data down by one pixel.
+ * The top row is filled with the background color.
+ */
+export const shiftTileDataDown = (tileData: PixelData, backgroundColor: MSXColorValue): PixelData => {
+  const height = tileData.length;
+  if (height === 0) return [];
+  const width = tileData[0]?.length || 0;
+  if (width === 0) return [[]];
+
+  const newData: PixelData = [Array(width).fill(backgroundColor)];
+  // Copy rows from y=0 to height-2 of the original data
+  for (let y = 0; y < height - 1; y++) {
+    newData.push([...tileData[y]]);
+  }
+  return newData;
+};
+
+/**
+ * Shifts the tile data left by one pixel.
+ * The rightmost column is filled with the background color.
+ */
+export const shiftTileDataLeft = (tileData: PixelData, backgroundColor: MSXColorValue): PixelData => {
+  const height = tileData.length;
+  if (height === 0) return [];
+
+  const newData: PixelData = [];
+  for (let y = 0; y < height; y++) {
+    // Take from the second pixel to the end, then add the background color
+    const newRow = tileData[y].slice(1);
+    newRow.push(backgroundColor);
+    newData.push(newRow);
+  }
+  return newData;
+};
+
+/**
+ * Shifts the tile data right by one pixel.
+ * The leftmost column is filled with the background color.
+ */
+export const shiftTileDataRight = (tileData: PixelData, backgroundColor: MSXColorValue): PixelData => {
+  const height = tileData.length;
+  if (height === 0) return [];
+  const width = tileData[0]?.length || 0;
+
+  const newData: PixelData = [];
+  for (let y = 0; y < height; y++) {
+    // Add the background color at the start, then the rest of the row (excluding the last pixel)
+    const newRow = [backgroundColor, ...tileData[y].slice(0, width - 1)];
+    newData.push(newRow);
+  }
+  return newData;
+};
+
+/**
+ * Mirrors the tile data horizontally (left to right).
+ */
+export const mirrorTileDataHorizontal = (tileData: PixelData): PixelData => {
+  if (tileData.length === 0) return [];
+  // For each row, create a new reversed array
+  return tileData.map(row => [...row].reverse());
+};
+
+/**
+ * Mirrors the tile data vertically (top to bottom).
+ */
+export const mirrorTileDataVertical = (tileData: PixelData): PixelData => {
+  if (tileData.length === 0) return [];
+  // Create a new reversed array of rows
+  return [...tileData].reverse();
+};
+
+/**
  * Generates raw byte array for tile color attribute data (SCREEN 2 only).
  */
 export const generateTileColorBytes = (tile: Tile): Uint8Array | null => {
