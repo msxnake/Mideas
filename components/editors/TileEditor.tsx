@@ -10,6 +10,7 @@ import { Button } from '../common/Button';
 import { PencilIcon, FireIcon as FloodFillIcon, SaveFloppyIcon, PatternBrushIcon, TilesetIcon as SplitIcon, CopyIcon, PasteIcon, SparklesIcon } from '../icons/MsxIcons'; 
 import { TileFileOperationsModal } from '../modals/TileFileOperationsModal';
 import { createDefaultLineAttributes } from '../utils/tileUtils';
+import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
 
 
 // Helper to resize PixelData (Pattern)
@@ -1509,8 +1510,6 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     onUpdate({ data: newPixelData, lineAttributes: newLineAttributes });
     setStatusBarMessage(`Filled all ${type.toUpperCase()} colors with the selected palette color.`);
   };
-
-import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
 
   return (
     <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor">
