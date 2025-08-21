@@ -1510,140 +1510,144 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     setStatusBarMessage(`Filled all ${type.toUpperCase()} colors with the selected palette color.`);
   };
 
+import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
+
   return (
-    <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col items-center p-2 bg-msx-bgcolor">
-      <div className="w-full flex flex-col lg:flex-row lg:items-start lg:justify-center space-y-2 lg:space-y-0 lg:space-x-4">
-        {/* Left Column: Controls & Main Editor */}
-        <div className="flex flex-col items-center space-y-3">
-          <div className="flex flex-wrap items-center gap-2 p-2 bg-msx-panelbg rounded border border-msx-border">
-            <div className="flex items-center space-x-1">
-              <label className="text-xs">Tool:</label>
-              <Button onClick={() => setCurrentTool('pencil')} className={toolButtonClass('pencil')} title="Pencil (Draw/Erase)"><PencilIcon className="w-4 h-4" /></Button>
-              <Button onClick={() => setCurrentTool('floodfill')} className={toolButtonClass('floodfill')} title="Flood Fill"><FloodFillIcon className="w-4 h-4" /></Button>
-              <Button onClick={() => setCurrentTool('dither')} className={toolButtonClass('dither')} title="Dither Brush"><PatternBrushIcon className="w-4 h-4" /></Button>
-            </div>
-             {currentTool === 'dither' && (
-              <div className="flex items-center space-x-1">
-                 <label className="text-xs">Brush Size:</label>
-                 {DITHER_BRUSH_DIAMETERS.map(d => 
-                    <Button key={d} onClick={() => setDitherBrushDiameter(d)} size="sm" variant={ditherBrushDiameter === d ? 'secondary' : 'ghost'} className="!p-1 text-[0.6rem] w-6 h-6">{d}x{d}</Button>
-                 )}
+    <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor">
+      <TileEditorAdvancedLayout
+        columnaIzquierda={
+          <>
+            <Panel title="Tile Properties">
+              <div className="space-y-2 text-xs">
+                  <div>
+                      <label>Tile Name:</label>
+                      <input type="text" value={tile.name} onChange={(e) => onUpdate({name: e.target.value})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded" />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                      <label>Dimensions (px):</label>
+                      <select value={tile.width} onChange={(e) => handleDimensionChange(parseInt(e.target.value), tile.height)} className="p-1 bg-msx-bgcolor border-msx-border rounded">
+                          {EDITABLE_TILE_DIMENSIONS.map(d => <option key={`w-${d}`} value={d}>{d}</option>)}
+                      </select>
+                      <span>x</span>
+                      <select value={tile.height} onChange={(e) => handleDimensionChange(tile.width, parseInt(e.target.value))} className="p-1 bg-msx-bgcolor border-msx-border rounded">
+                          {EDITABLE_TILE_DIMENSIONS.map(d => <option key={`h-${d}`} value={d}>{d}</option>)}
+                      </select>
+                  </div>
+                  <div className="flex space-x-2 pt-1">
+                      <Button onClick={handleCopyCurrentTile} size="sm" variant="secondary" icon={<CopyIcon/>}>Copy Tile</Button>
+                      <Button onClick={handlePasteTileData} size="sm" variant="secondary" icon={<PasteIcon/>} disabled={!copiedTileData}>Paste Data</Button>
+                      <Button onClick={handleSplitTile8x8} size="sm" variant="secondary" icon={<SplitIcon/>}>Split 8x8</Button>
+                      <Button onClick={() => setIsGeneratorModalOpen(true)} size="sm" variant="secondary" icon={<SparklesIcon/>}>Generator</Button>
+                  </div>
               </div>
-            )}
-             <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<SaveFloppyIcon/>} className="ml-auto">File Ops</Button>
-          </div>
-           <PixelGrid
-            pixelData={tile.data}
-            tileWidth={tile.width}
-            tileHeight={tile.height}
-            lineAttributes={tile.lineAttributes || []}
-            onGridInteraction={handleGridInteraction}
-            pixelSize={zoom}
-            showCenterGuide={showCenterGuide}
-            currentScreenMode={currentScreenMode}
-            symmetrySettings={symmetrySettings}
-            currentTool={currentTool}
-          />
-          <div className="flex items-center space-x-2 text-xs">
-            <span>Zoom:</span>
-            <input type="range" min="8" max="40" value={zoom} onChange={(e) => setZoom(parseInt(e.target.value))} className="w-24 accent-msx-accent" />
-            <label><input type="checkbox" checked={showCenterGuide} onChange={() => setShowCenterGuide(s => !s)} /> Guide</label>
-          </div>
-           <div className="p-1 bg-msx-panelbg rounded border border-msx-border text-xs flex flex-wrap gap-1 items-center">
-                <span className="text-msx-textsecondary mr-1">Symmetry:</span>
-                <Button onClick={() => toggleSymmetry('horizontal')} className={symmetryButtonClass(symmetrySettings.horizontal)}>H</Button>
-                <Button onClick={() => toggleSymmetry('vertical')} className={symmetryButtonClass(symmetrySettings.vertical)}>V</Button>
-                <Button onClick={() => toggleSymmetry('diagonalMain')} className={symmetryButtonClass(symmetrySettings.diagonalMain)}>D1</Button>
-                <Button onClick={() => toggleSymmetry('diagonalAnti')} className={symmetryButtonClass(symmetrySettings.diagonalAnti)}>D2</Button>
-                <Button onClick={() => toggleSymmetry('quadMirror')} className={symmetryButtonClass(symmetrySettings.quadMirror)}>Quad</Button>
-                <Button onClick={clearAllSymmetry} className="px-1.5 py-0.5 text-[0.65rem] bg-msx-danger text-white hover:bg-opacity-80">Off</Button>
-            </div>
-        </div>
-
-        {/* Right Column: Properties & Previews */}
-        <div className="flex-grow max-w-sm w-full space-y-2">
-          <Panel title="Tile Properties">
-             <div className="space-y-2 text-xs">
-                 <div>
-                    <label>Tile Name:</label>
-                    <input type="text" value={tile.name} onChange={(e) => onUpdate({name: e.target.value})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded" />
-                </div>
-                <div className="flex items-center space-x-2">
-                    <label>Dimensions (px):</label>
-                    <select value={tile.width} onChange={(e) => handleDimensionChange(parseInt(e.target.value), tile.height)} className="p-1 bg-msx-bgcolor border-msx-border rounded">
-                        {EDITABLE_TILE_DIMENSIONS.map(d => <option key={`w-${d}`} value={d}>{d}</option>)}
-                    </select>
-                    <span>x</span>
-                    <select value={tile.height} onChange={(e) => handleDimensionChange(tile.width, parseInt(e.target.value))} className="p-1 bg-msx-bgcolor border-msx-border rounded">
-                        {EDITABLE_TILE_DIMENSIONS.map(d => <option key={`h-${d}`} value={d}>{d}</option>)}
-                    </select>
-                </div>
-                 <div className="flex space-x-2 pt-1">
-                    <Button onClick={handleCopyCurrentTile} size="sm" variant="secondary" icon={<CopyIcon/>}>Copy Tile</Button>
-                    <Button onClick={handlePasteTileData} size="sm" variant="secondary" icon={<PasteIcon/>} disabled={!copiedTileData}>Paste Data</Button>
-                    <Button onClick={handleSplitTile8x8} size="sm" variant="secondary" icon={<SplitIcon/>}>Split 8x8</Button>
-                    <Button onClick={() => setIsGeneratorModalOpen(true)} size="sm" variant="secondary" icon={<SparklesIcon/>}>Generator</Button>
-                </div>
-             </div>
-          </Panel>
-
-           <Panel title="Logical Properties (Collision/Behavior)">
-                <div className="space-y-2 text-xs">
-                     <p className="text-[0.65rem] text-msx-textsecondary">Define gameplay attributes for this tile. These are exported in the Behavior Map.</p>
-                    <div>
-                        <label className="block mb-0.5">Solidity Family:</label>
-                        <select
-                            value={selectedSolidityFamilyId}
-                            onChange={(e) => handleSolidityTypeChange(parseInt(e.target.value, 10) as SolidityTypeId)}
-                            className="w-full p-1 bg-msx-bgcolor border-msx-border rounded text-xs"
-                        >
-                           {SOLIDITY_TYPES.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
-                           {/* Add more family types later */}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block mb-0.5">Property Flags:</label>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                            {Object.entries(PROPERTY_FLAGS).map(([key, flag]) => {
-                                const flagKey = key as PropertyFlagKey;
-                                return (
-                                    <label key={key} className="flex items-center space-x-1.5 cursor-pointer p-0.5 hover:bg-msx-border rounded">
-                                    <input
-                                        type="checkbox"
-                                        checked={flagStates[flagKey]}
-                                        onChange={(e) => handlePropertyFlagChange(flagKey, e.target.checked)}
-                                        className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
-                                    />
-                                    <span className="text-msx-textsecondary truncate" title={flag.label}>{flag.label}</span>
-                                    </label>
-                                );
-                            })}
-                        </div>
-                    </div>
-                    <div className="pt-1 border-t border-msx-border/50 text-msx-textsecondary text-center">
-                        Final Map ID Byte: <span className="font-mono text-msx-highlight">{currentDisplayedMapId}</span> (Hex: <span className="font-mono text-msx-highlight">0x{currentDisplayedMapId.toString(16).padStart(2,'0').toUpperCase()}</span>)
-                    </div>
-                </div>
             </Panel>
 
-
-          {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
-            <>
-                <LineAttributeEditorPanel 
-                    tile={tile} 
-                    onUpdateLineAttribute={handleUpdateLineAttribute} 
-                    selectedPaletteColor={selectedColor as MSX1ColorValue}
-                    onCopyAttributes={handleCopyAttributes}
-                    onPasteAttributes={handlePasteAttributes}
-                    copiedAttribute={copiedAttribute}
-                    onFillAllFg={(color) => handleFillAll('fg', color)}
-                    onFillAllBg={(color) => handleFillAll('bg', color)}
-                />
-                <TechnicalPreviewPanel tile={tile} dataFormat={dataOutputFormat} />
-            </>
-          )}
-        </div>
-      </div>
+            <Panel title="Logical Properties (Collision/Behavior)">
+              <div className="space-y-2 text-xs">
+                    <p className="text-[0.65rem] text-msx-textsecondary">Define gameplay attributes for this tile. These are exported in the Behavior Map.</p>
+                  <div>
+                      <label className="block mb-0.5">Solidity Family:</label>
+                      <select
+                          value={selectedSolidityFamilyId}
+                          onChange={(e) => handleSolidityTypeChange(parseInt(e.target.value, 10) as SolidityTypeId)}
+                          className="w-full p-1 bg-msx-bgcolor border-msx-border rounded text-xs"
+                      >
+                          {SOLIDITY_TYPES.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                      </select>
+                  </div>
+                  <div>
+                      <label className="block mb-0.5">Property Flags:</label>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                          {Object.entries(PROPERTY_FLAGS).map(([key, flag]) => {
+                              const flagKey = key as PropertyFlagKey;
+                              return (
+                                  <label key={key} className="flex items-center space-x-1.5 cursor-pointer p-0.5 hover:bg-msx-border rounded">
+                                  <input
+                                      type="checkbox"
+                                      checked={flagStates[flagKey]}
+                                      onChange={(e) => handlePropertyFlagChange(flagKey, e.target.checked)}
+                                      className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
+                                  />
+                                  <span className="text-msx-textsecondary truncate" title={flag.label}>{flag.label}</span>
+                                  </label>
+                              );
+                          })}
+                      </div>
+                  </div>
+                  <div className="pt-1 border-t border-msx-border/50 text-msx-textsecondary text-center">
+                      Final Map ID Byte: <span className="font-mono text-msx-highlight">{currentDisplayedMapId}</span> (Hex: <span className="font-mono text-msx-highlight">0x{currentDisplayedMapId.toString(16).padStart(2,'0').toUpperCase()}</span>)
+                  </div>
+              </div>
+            </Panel>
+            {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
+              <TechnicalPreviewPanel tile={tile} dataFormat={dataOutputFormat} />
+            )}
+          </>
+        }
+        columnaCentral={
+          <>
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-msx-panelbg rounded border border-msx-border">
+              <div className="flex items-center space-x-1">
+                <label className="text-xs">Tool:</label>
+                <Button onClick={() => setCurrentTool('pencil')} className={toolButtonClass('pencil')} title="Pencil (Draw/Erase)"><PencilIcon className="w-4 h-4" /></Button>
+                <Button onClick={() => setCurrentTool('floodfill')} className={toolButtonClass('floodfill')} title="Flood Fill"><FloodFillIcon className="w-4 h-4" /></Button>
+                <Button onClick={() => setCurrentTool('dither')} className={toolButtonClass('dither')} title="Dither Brush"><PatternBrushIcon className="w-4 h-4" /></Button>
+              </div>
+              {currentTool === 'dither' && (
+                <div className="flex items-center space-x-1">
+                    <label className="text-xs">Brush Size:</label>
+                    {DITHER_BRUSH_DIAMETERS.map(d =>
+                      <Button key={d} onClick={() => setDitherBrushDiameter(d)} size="sm" variant={ditherBrushDiameter === d ? 'secondary' : 'ghost'} className="!p-1 text-[0.6rem] w-6 h-6">{d}x{d}</Button>
+                    )}
+                </div>
+              )}
+              <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<SaveFloppyIcon/>} className="ml-auto">File Ops</Button>
+            </div>
+            <PixelGrid
+              pixelData={tile.data}
+              tileWidth={tile.width}
+              tileHeight={tile.height}
+              lineAttributes={tile.lineAttributes || []}
+              onGridInteraction={handleGridInteraction}
+              pixelSize={zoom}
+              showCenterGuide={showCenterGuide}
+              currentScreenMode={currentScreenMode}
+              symmetrySettings={symmetrySettings}
+              currentTool={currentTool}
+            />
+            <div className="flex items-center space-x-2 text-xs">
+              <span>Zoom:</span>
+              <input type="range" min="8" max="40" value={zoom} onChange={(e) => setZoom(parseInt(e.target.value))} className="w-24 accent-msx-accent" />
+              <label><input type="checkbox" checked={showCenterGuide} onChange={() => setShowCenterGuide(s => !s)} /> Guide</label>
+            </div>
+            <div className="p-1 bg-msx-panelbg rounded border border-msx-border text-xs flex flex-wrap gap-1 items-center">
+                  <span className="text-msx-textsecondary mr-1">Symmetry:</span>
+                  <Button onClick={() => toggleSymmetry('horizontal')} className={symmetryButtonClass(symmetrySettings.horizontal)}>H</Button>
+                  <Button onClick={() => toggleSymmetry('vertical')} className={symmetryButtonClass(symmetrySettings.vertical)}>V</Button>
+                  <Button onClick={() => toggleSymmetry('diagonalMain')} className={symmetryButtonClass(symmetrySettings.diagonalMain)}>D1</Button>
+                  <Button onClick={() => toggleSymmetry('diagonalAnti')} className={symmetryButtonClass(symmetrySettings.diagonalAnti)}>D2</Button>
+                  <Button onClick={() => toggleSymmetry('quadMirror')} className={symmetryButtonClass(symmetrySettings.quadMirror)}>Quad</Button>
+                  <Button onClick={clearAllSymmetry} className="px-1.5 py-0.5 text-[0.65rem] bg-msx-danger text-white hover:bg-opacity-80">Off</Button>
+              </div>
+          </>
+        }
+        columnaDerecha={
+          <>
+            {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
+              <LineAttributeEditorPanel
+                  tile={tile}
+                  onUpdateLineAttribute={handleUpdateLineAttribute}
+                  selectedPaletteColor={selectedColor as MSX1ColorValue}
+                  onCopyAttributes={handleCopyAttributes}
+                  onPasteAttributes={handlePasteAttributes}
+                  copiedAttribute={copiedAttribute}
+                  onFillAllFg={(color) => handleFillAll('fg', color)}
+                  onFillAllBg={(color) => handleFillAll('bg', color)}
+              />
+            )}
+          </>
+        }
+      />
       {isFileModalOpen && (
         <TileFileOperationsModal 
             isOpen={isFileModalOpen} 
