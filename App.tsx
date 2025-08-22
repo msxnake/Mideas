@@ -42,7 +42,10 @@ const SNIPPETS_STORAGE_KEY = 'msxIdeUserSnippets_v1';
 const AUTOSAVE_INTERVAL = 10 * 60 * 1000;
 
 const App: React.FC = () => {
-  const [currentEditor, setCurrentEditor] = useState<EditorType>(EditorType.None); 
+  const [currentEditor, setCurrentEditor] = useState<EditorType>(EditorType.None);
+  const [previousEditorContext, setPreviousEditorContext] = useState<{ editor: EditorType, assetId: string | null } | null>(null);
+  const prevValuesRef = useRef<{ editor: EditorType, assetId: string | null }>();
+
   const [assets, setAssets] = useState<ProjectAsset[]>([]);
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [currentProjectName, setCurrentProjectName] = useState<string | null>(null); 
@@ -1126,9 +1129,27 @@ const App: React.FC = () => {
     }
   }, [entityTemplates, componentDefinitions, assets, setAssetsWithHistory, memoizedHandleSelectAsset]);
 
+  useEffect(() => {
+    if (prevValuesRef.current && prevValuesRef.current.editor !== currentEditor) {
+      setPreviousEditorContext(prevValuesRef.current);
+    }
+    prevValuesRef.current = { editor: currentEditor, assetId: selectedAssetId };
+  }, [currentEditor, selectedAssetId]);
+
+  const handleToggleEditor = useCallback(() => {
+    if (previousEditorContext) {
+      const newPreviousContext = { editor: currentEditor, assetId: selectedAssetId };
+      setCurrentEditor(previousEditorContext.editor);
+      setSelectedAssetId(previousEditorContext.assetId);
+      setPreviousEditorContext(newPreviousContext);
+    }
+  }, [previousEditorContext, currentEditor, selectedAssetId]);
+
   const allPassedProps = {
     currentEditor, setCurrentEditor, assets, setAssets, selectedAssetId, setSelectedAssetId, currentProjectName, setCurrentProjectName, currentScreenMode, setCurrentScreenMode, statusBarMessage, setStatusBarMessage, selectedColor, setSelectedColor, screenEditorSelectedTileId, setScreenEditorSelectedTileId, currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer, componentDefinitions, setComponentDefinitions, entityTemplates, setEntityTemplates, currentEntityTypeToPlace, setCurrentEntityTypeToPlace, selectedEntityInstanceId, setSelectedEntityInstanceId, selectedEffectZoneId, setSelectedEffectZoneId, isRenameModalOpen, setIsRenameModalOpen, assetToRenameInfo, setAssetToRenameInfo, isSaveAsModalOpen, setIsSaveAsModalOpen, isNewProjectModalOpen, setIsNewProjectModalOpen, isAboutModalOpen, setIsAboutModalOpen, isConfirmModalOpen, setIsConfirmModalOpen, confirmModalProps, setConfirmModalProps, tileBanks, setTileBanks, msxFont, setMsxFont, msxFontColorAttributes, setMsxFontColorAttributes, currentLoadedFontName, setCurrentLoadedFontName, helpDocsData, setHelpDocsData, dataOutputFormat, setDataOutputFormat, autosaveEnabled, setAutosaveEnabled, snippetsEnabled, setSnippetsEnabled, syntaxHighlightingEnabled, setSyntaxHighlightingEnabled, isConfigModalOpen, setIsConfigModalOpen, isSpriteSheetModalOpen, setIsSpriteSheetModalOpen, isSpriteFramesModalOpen, setIsSpriteFramesModalOpen, spriteForFramesModal, setSpriteForFramesModal, snippetToInsert, setSnippetToInsert, userSnippets, setUserSnippets, isSnippetEditorModalOpen, setIsSnippetEditorModalOpen, editingSnippet, setEditingSnippet, isAutosaving, setIsAutosaving, history, setHistory, copiedScreenBuffer, setCopiedScreenBuffer, copiedTileData, setCopiedTileData, copiedLayerBuffer, setCopiedLayerBuffer, contextMenu, setContextMenu, waypointPickerState, setWaypointPickerState, mainMenuConfig, onUpdateMainMenuConfig: setMainMenuConfig, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, playAutosaveSound, pushToHistory, clearAllHistory, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleUpdateScreenMode, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
     isCompressDataModalOpen, setIsCompressDataModalOpen,
+    isToggleEditorDisabled: previousEditorContext === null,
+    onToggleEditor: handleToggleEditor,
   };
 
   return (
