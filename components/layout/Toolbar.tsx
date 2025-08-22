@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
 import { ProjectAsset, DataFormat, EditorType } from '../../types'; 
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon } from '../icons/MsxIcons';
+import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon } from '../icons/MsxIcons';
 
 // --- PROPS INTERFACE ---
 interface ToolbarProps {
@@ -38,6 +38,8 @@ interface ToolbarProps {
   onCompressExportCompileRun: () => void;
   onConfigureASM: () => void;
   onConfigureEmulator: () => void;
+  onToggleEditor: () => void;
+  isToggleEditorDisabled: boolean;
 }
 
 // --- REUSABLE DROPDOWN COMPONENTS ---
@@ -123,7 +125,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   autosaveEnabled, setAutosaveEnabled, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
   onOpenComponentDefEditor, onOpenEntityTemplateEditor, onCompressAllDataFiles,
-  onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator
+  onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
+  onToggleEditor, isToggleEditorDisabled
 }) => {
     const { loadConfig: loadThemeConfig } = useTheme();
 
@@ -217,6 +220,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onOpenHelpDocs} icon={<QuestionMarkCircleIcon/>}>Tutorials</DropdownItem>
         <DropdownItem onClick={onOpenAbout}>About</DropdownItem>
       </DropdownMenu>
+
+      <Button
+        onClick={onToggleEditor}
+        variant="ghost"
+        size="sm"
+        icon={<SwapHorizIcon />}
+        title="Toggle Last Editor"
+        disabled={isToggleEditorDisabled}
+      >
+        Last Editor
+      </Button>
       
       <div className="flex-grow"></div>
       
