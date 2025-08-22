@@ -1530,7 +1530,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   };
 
   return (
-    <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor">
+    <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor select-none">
       <TileEditorAdvancedLayout
         columnaIzquierda={
           <>

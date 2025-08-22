@@ -612,7 +612,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
           HUD Configuration Editor (Screen: {currentScreenMode})
         </h2>
 
-        <div className="flex flex-grow overflow-hidden">
+        <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
           {/* Left Panel: Element List and Add Buttons per Tab */}
           <div className="w-1/4 border-r-2 border-msx-lightyellow flex flex-col">
             <div className="flex border-b-2 border-msx-lightyellow select-none">

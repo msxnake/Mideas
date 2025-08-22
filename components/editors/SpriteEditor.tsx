@@ -32,7 +32,7 @@ const createEmptySpriteFrameData = (width: number, height: number, fillColor: MS
 
 interface SpritePixelGridProps {
   pixelData: PixelData;
-  onPixelClick?: (point: Point) => void; 
+  onPixelClick?: (point: Point, isRightClick: boolean) => void; 
   pixelSize?: number;
   spriteWidth: number;
   spriteHeight: number;
@@ -85,22 +85,29 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
     toolMode
 }) => {
   const [isMouseDown, setIsMouseDown] = useState(false);
+  const [isRightMBDown, setIsRightMBDown] = useState(false);
 
-  const handleMouseDown = (x: number, y: number) => {
+  const handleMouseDown = (e: React.MouseEvent, x: number, y: number) => {
     if (!onPixelClick) return;
+    e.preventDefault();
+    const isRight = e.button === 2;
     setIsMouseDown(true);
-    onPixelClick({ x, y });
+    setIsRightMBDown(isRight);
+    onPixelClick({ x, y }, isRight);
   };
 
   const handleMouseEnter = (x: number, y: number) => {
     if (isMouseDown && onPixelClick) {
       if (toolMode === 'sphere') return; // Do not drag-draw spheres
-      onPixelClick({ x, y });
+      onPixelClick({ x, y }, isRightMBDown);
     }
   };
 
   const handleMouseUp = useCallback(() => { 
-    if (onPixelClick) setIsMouseDown(false);
+    if (onPixelClick) {
+      setIsMouseDown(false);
+      setIsRightMBDown(false);
+    }
   }, [onPixelClick]);
 
   React.useEffect(() => {
@@ -128,6 +135,7 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
         cursor: onPixelClick ? 'crosshair' : 'default'
       }}
       onMouseLeave={onPixelClick ? handleMouseUp : undefined}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {/* Onion Skin Layers - Rendered first to be in the background */}
       {onionSkinEnabled && prevFrameData && (
@@ -164,8 +172,9 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
                 gridColumn: x + 1,
                 gridRow: y + 1,
             }}
-            onMouseDown={onPixelClick ? () => handleMouseDown(x,y) : undefined}
+            onMouseDown={onPixelClick ? (e) => handleMouseDown(e, x, y) : undefined}
             onMouseEnter={onPixelClick ? () => handleMouseEnter(x,y) : undefined}
+            onDragStart={(e) => e.preventDefault()}
           />
         ))
       )}
@@ -314,8 +323,20 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
     onUpdate({ frames: updatedFrames });
   }, [currentFrameData, sprite.size, sprite.spritePalette, activeBrushColorIndex, sphereRadius, sprite.currentFrameIndex, sprite.frames, onUpdate]);
 
-  const handlePixelClick = useCallback((point: Point) => {
+  const handlePixelClick = useCallback((point: Point, isRightClick: boolean) => {
     if (!currentFrameData) return;
+
+    if (isRightClick) {
+      const newPixelData = currentFrameData.map(row => [...row]);
+      if (newPixelData[point.y]?.[point.x] !== sprite.backgroundColor) {
+        newPixelData[point.y][point.x] = sprite.backgroundColor;
+        const updatedFrames = sprite.frames.map((frame, index) =>
+          index === sprite.currentFrameIndex ? { ...frame, data: newPixelData } : frame
+        );
+        onUpdate({ frames: updatedFrames });
+      }
+      return;
+    }
 
     if (toolMode === 'sphere') {
       drawSphere(point);
@@ -857,7 +878,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
         <Button onClick={handleExportAsm} size="sm" variant="secondary" icon={<CodeIcon />}>Export ASM</Button>
       </div>
 
-      <div className="flex-grow flex overflow-hidden">
+      <div className="flex-grow flex overflow-hidden" style={{ userSelect: 'none' }}>
         {/* Left Panel: Tools & Palette */}
         <div className="w-48 p-2 border-r border-msx-border flex-shrink-0 flex flex-col space-y-3 overflow-y-auto">
             <div>

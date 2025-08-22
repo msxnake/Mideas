@@ -435,7 +435,7 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
          <input type="range" min="0" max="1" step="0.01" value={soundData.masterVolume} onChange={e => onUpdate({ masterVolume: parseFloat(e.target.value) })} className="w-20 accent-msx-accent" />
       </div>
 
-      <div className="flex-grow p-2 space-y-3 overflow-y-auto">
+      <div className="flex-grow p-2 space-y-3 overflow-y-auto" style={{ userSelect: 'none' }}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           {soundData.channels.map(channelState => channelSequenceControl(channelState))}
         </div>

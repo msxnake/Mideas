@@ -163,7 +163,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
 
   return (
     <Panel title="Component Definition Editor" icon={<PuzzlePieceIcon className="w-5 h-5 text-msx-textprimary" />} className="flex-grow flex flex-col !p-0">
-      <div className="flex flex-grow overflow-hidden">
+      <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
         {/* Left Panel: List of Component Definitions */}
         <div className="w-1/3 border-r border-msx-border p-2 overflow-y-auto">
           <Button onClick={handleAddNewDefinition} variant="secondary" size="sm" icon={<PlusCircleIcon />} className="w-full mb-2">

@@ -26,7 +26,7 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
     const { width, height } = phase.dimensions;
 
     return (
-        <div className="flex flex-col items-center space-y-2">
+        <div className="flex flex-col items-center space-y-2" style={{ userSelect: 'none' }}>
             <div className="aspect-square bg-msx-bgcolor border border-msx-border rounded-md overflow-auto p-1" style={{ width: 'min-content' }}>
                 <div className="grid" style={{ gridTemplateColumns: `repeat(${width}, 32px)` }}>
                     {Array.from({ length: height * width }).map((_, i) => {

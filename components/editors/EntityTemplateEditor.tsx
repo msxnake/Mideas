@@ -205,7 +205,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
 
   return (
     <Panel title="Entity Template Editor" icon={<SpriteIcon className="w-5 h-5 text-msx-textprimary" />} className="flex-grow flex flex-col !p-0">
-      <div className="flex flex-grow overflow-hidden">
+      <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
         <div className="w-1/3 border-r border-msx-border p-2 overflow-y-auto">
           <div className="flex space-x-2 mb-2">
               <Button onClick={handleAddNewTemplate} variant="secondary" size="sm" icon={<PlusCircleIcon />} className="flex-1">

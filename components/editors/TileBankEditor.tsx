@@ -365,7 +365,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   };
 
   return (
-    <Panel title="Tile Banks Management (SCREEN 2)" icon={<ListBulletIcon />} className="flex-grow flex flex-col p-2 bg-msx-bgcolor overflow-y-auto">
+    <Panel title="Tile Banks Management (SCREEN 2)" icon={<ListBulletIcon />} className="flex-grow flex flex-col p-2 bg-msx-bgcolor overflow-y-auto select-none">
       <p className="text-xs text-msx-textsecondary mb-2">
         Define up to 3 independent banks for character tiles. Each bank reserves a range of character codes (0-255) and VRAM for patterns and colors.
         Associate banks with screen zones for organization. Exported screen maps will use character codes from these banks.

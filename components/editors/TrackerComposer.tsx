@@ -910,7 +910,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }
 
   return (
-    <div className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden h-full">
+    <div className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden h-full select-none">
       <TrackerHeader
         songName={localSongName} onSongNameChange={(name) => { setLocalSongName(name); onUpdate({ name }); }}
         songTitle={localSongTitle} onSongTitleChange={(title) => { setLocalSongTitle(title); onUpdate({ title }); }}

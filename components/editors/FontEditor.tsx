@@ -563,7 +563,7 @@ export const FontEditor: React.FC<FontEditorProps> = ({
             />
         </div>
       </div>
-      <div className="flex flex-grow overflow-hidden">
+      <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
         {/* Left: Character Selector */}
         <div className="w-48 p-2 border-r border-msx-border overflow-y-auto flex-shrink-0">
           <h4 className="text-sm pixel-font text-msx-highlight mb-2">Characters {filterEditableCharsOnly ? "(Editable Subset)" : "(All 256)"}</h4>

@@ -764,7 +764,7 @@ NodeComponent.displayName = 'NodeComponent';
 
 
   return (
-    <Panel title={`World Map Editor: ${worldMapGraph.name}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden">
+    <Panel title={`World Map Editor: ${worldMapGraph.name}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
       <div className="p-2 border-b border-msx-border flex space-x-2 items-center flex-wrap">
         <div className="flex items-center space-x-1">
             <label className="text-xs pixel-font text-msx-textsecondary">Add Screen:</label>

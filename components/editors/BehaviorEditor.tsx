@@ -53,7 +53,7 @@ export const BehaviorEditor: React.FC<BehaviorEditorProps> = ({
 
   return (
     <Panel title={`Behavior Editor: ${behaviorScript.name}`} className="flex-grow flex flex-col h-full overflow-hidden">
-      <div className="flex flex-grow h-full overflow-hidden">
+      <div className="flex flex-grow h-full overflow-hidden" style={{ userSelect: 'none' }}>
         <div className="flex-grow h-full">
           <CodeEditor
             code={behaviorScript.code}

@@ -20,6 +20,7 @@ export const TileEditorAdvancedLayout: React.FC<TileEditorAdvancedLayoutProps> =
         width: '100%',
         height: '100%',
         alignItems: 'stretch',
+        userSelect: 'none',
       }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
