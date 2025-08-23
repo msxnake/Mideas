@@ -56,17 +56,29 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
         if (!template) return;
 
-        const spriteAsset = getAsset(template.spriteAssetId, 'sprite');
+        const spriteAssetId = instance.componentOverrides?.comp_render?.spriteAssetId || template.spriteAssetId;
+        const spriteAsset = getAsset(spriteAssetId, 'sprite');
         if (!spriteAsset) return;
         const sprite = spriteAsset.data as Sprite;
 
         const image = new Image();
         image.src = createSpriteDataURL(sprite.frames[0].data, sprite.size.width, sprite.size.height);
 
+        const patrolComp = instance.componentOverrides?.comp_patrol;
         let vx = 0, vy = 0;
-        if (instance.patrolX !== undefined && instance.patrolY !== undefined && instance.patrolX !== null && instance.patrolY !== null) {
-            const dx = instance.patrolX - instance.position.x;
-            const dy = instance.patrolY - instance.position.y;
+        let startX = instance.position.x * TILE_SIZE;
+        let startY = instance.position.y * TILE_SIZE;
+        let endX = startX;
+        let endY = startY;
+
+        if (patrolComp && patrolComp.waypoint1_x !== undefined && patrolComp.waypoint1_y !== undefined) {
+            startX = patrolComp.waypoint1_x;
+            startY = patrolComp.waypoint1_y;
+            endX = patrolComp.waypoint2_x ?? startX;
+            endY = patrolComp.waypoint2_y ?? startY;
+
+            const dx = endX - startX;
+            const dy = endY - startY;
             const dist = Math.sqrt(dx*dx + dy*dy);
             if (dist > 0) {
                 vx = (dx / dist);
@@ -78,8 +90,8 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
           instance,
           template,
           sprite,
-          x: instance.position.x * TILE_SIZE,
-          y: instance.position.y * TILE_SIZE,
+          x: startX,
+          y: startY,
           vx,
           vy,
           image,
@@ -113,26 +125,24 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
             x += vx;
             y += vy;
 
-            const startPixelX = entity.instance.position.x * TILE_SIZE;
-            const startPixelY = entity.instance.position.y * TILE_SIZE;
-            const endPixelX = (entity.instance.patrolX ?? entity.instance.position.x) * TILE_SIZE;
-            const endPixelY = (entity.instance.patrolY ?? entity.instance.position.y) * TILE_SIZE;
+            const patrolComp = entity.instance.componentOverrides?.comp_patrol;
+            let startPixelX = entity.instance.position.x * TILE_SIZE;
+            let startPixelY = entity.instance.position.y * TILE_SIZE;
+            let endPixelX = startPixelX;
+            let endPixelY = startPixelY;
 
-            // Simple bounce logic
-            if (vx > 0 && x >= endPixelX) { vx = -vx; x = endPixelX; }
-            if (vx < 0 && x <= startPixelX) { vx = -vx; x = startPixelX; }
-            if (vy > 0 && y >= endPixelY) { vy = -vy; y = endPixelY; }
-            if (vy < 0 && y <= startPixelY) { vy = -vy; y = startPixelY; }
+            if (patrolComp && patrolComp.waypoint1_x !== undefined && patrolComp.waypoint1_y !== undefined) {
+                startPixelX = patrolComp.waypoint1_x;
+                startPixelY = patrolComp.waypoint1_y;
+                endPixelX = patrolComp.waypoint2_x ?? startPixelX;
+                endPixelY = patrolComp.waypoint2_y ?? startPixelY;
+            }
 
-            // Swap direction if patrol points are swapped
-            if (startPixelX > endPixelX) {
-              if (vx < 0 && x <= endPixelX) { vx = -vx; x = endPixelX; }
-              if (vx > 0 && x >= startPixelX) { vx = -vx; x = startPixelX; }
-            }
-             if (startPixelY > endPixelY) {
-              if (vy < 0 && y <= endPixelY) { vy = -vy; y = endPixelY; }
-              if (vy > 0 && y >= startPixelY) { vy = -vy; y = startPixelY; }
-            }
+            // More robust bounce logic
+            if (vx > 0 && x >= Math.max(startPixelX, endPixelX)) { vx = -vx; x = Math.max(startPixelX, endPixelX); }
+            if (vx < 0 && x <= Math.min(startPixelX, endPixelX)) { vx = -vx; x = Math.min(startPixelX, endPixelX); }
+            if (vy > 0 && y >= Math.max(startPixelY, endPixelY)) { vy = -vy; y = Math.max(startPixelY, endPixelY); }
+            if (vy < 0 && y <= Math.min(startPixelY, endPixelY)) { vy = -vy; y = Math.min(startPixelY, endPixelY); }
 
             ctx.drawImage(entity.image, x, y);
 

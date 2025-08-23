@@ -322,7 +322,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onToggleEditor={onToggleEditor}
         isToggleEditorDisabled={isToggleEditorDisabled}
       />
-      <input type="file" accept=".json" ref={fileLoadInputRef} onChange={handleLoadProject} style={{ display: 'none' }} />
+      <input id="project-loader-input" type="file" accept=".json" ref={fileLoadInputRef} onChange={handleLoadProject} style={{ display: 'none' }} />
 
       <div className="flex-grow flex overflow-hidden">
         <FileExplorerPanel 

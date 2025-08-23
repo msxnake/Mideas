@@ -799,7 +799,7 @@ const App: React.FC = () => {
                 }
                 return asset;
             });
-            setAssets(assetsWithEnsuredEffectZones);
+            setAssetsWithHistory(() => assetsWithEnsuredEffectZones);
           }
           if (projectData.currentScreenMode) setCurrentScreenMode(projectData.currentScreenMode);
           if (projectData.selectedAssetId) setSelectedAssetId(projectData.selectedAssetId);
