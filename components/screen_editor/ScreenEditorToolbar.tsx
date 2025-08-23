@@ -6,10 +6,10 @@
 
 import React from 'react';
 import { Button } from '../common/Button';
-import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, MapIcon } from '../icons/MsxIcons';
-import { ScreenMap } from '../../types'; 
+import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, MapIcon, PlayIcon } from '../icons/MsxIcons';
+import { ScreenMap } from '../../types';
 
-type LayerName = keyof ScreenMap['layers'] | 'entities' | 'effects'; // Added 'effects' type explicitly for toolbar
+type LayerName = keyof ScreenMap['layers'] | 'entities' | 'effects';
 
 interface ScreenEditorToolbarProps {
   activeLayer: LayerName;
@@ -31,6 +31,7 @@ interface ScreenEditorToolbarProps {
   isHudAreaDefined: boolean;
   onExportLayout: () => void; 
   onExportBehavior: () => void; 
+  onPreview: () => void;
 
   onCopyLayer: () => void; 
   onPasteLayer: () => void; 
@@ -45,7 +46,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   activeAreaX, activeAreaY, activeAreaWidth, activeAreaHeight, onActiveAreaChange,
   maxActiveAreaX, maxActiveAreaY, maxActiveAreaWidth, maxActiveAreaHeight,
   onOpenHudEditor, isHudAreaDefined,
-  onExportLayout, onExportBehavior,
+  onExportLayout, onExportBehavior, onPreview,
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
   onAddNewEffectZone, onShowMapFile
 }) => {
@@ -90,6 +91,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
       </div>
 
       <div className="flex items-center space-x-1 ml-auto">
+        <Button onClick={onPreview} size="sm" variant="primary" icon={<PlayIcon className="w-4 h-4" />} title="Preview Screen"> Preview </Button>
         <Button onClick={onOpenHudEditor} size="sm" variant="secondary" icon={<HudIcon className="w-4 h-4" />} title={!isHudAreaDefined ? "No HUD area defined (Active Area covers full screen)" : "Manage HUD elements for this screen"} disabled={!isHudAreaDefined}> HUD </Button>
         {activeLayer === 'effects' && (
             <Button onClick={onAddNewEffectZone} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-3.5 h-3.5"/>} title="Add a new effect zone to the map">Add Effect Zone</Button>
