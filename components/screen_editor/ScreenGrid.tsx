@@ -66,6 +66,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
   };
   
   const handleMouseDown = (event: React.MouseEvent) => {
+    if (event.button !== 0) return; // Only handle left-click for placing/selecting
     const point = getGridCoordinatesFromMouseEvent(event);
     if (!point) return;
 
