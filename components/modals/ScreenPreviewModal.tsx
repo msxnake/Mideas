@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ProjectAsset, ScreenMap, Tile, Sprite, EntityInstance, EntityTemplate } from '../../types';
+import { ProjectAsset, ScreenMap, Tile, Sprite, EntityInstance, EntityTemplate, AssetType } from '../../types';
 import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
-import { getAsset } from '../../utils/projectUtils';
 
 interface ScreenPreviewModalProps {
   isOpen: boolean;
@@ -44,14 +43,21 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
     if (isOpen) {
       modalRef.current?.focus();
 
+      const getAsset = <T extends AssetType>(assetId: string | null | undefined, assetType: T): ProjectAsset | undefined => {
+        if (!assetId) return undefined;
+        return allAssets.find(a => a.id === assetId && a.type === assetType);
+      };
+
       const entitiesToAnimate: AnimatedEntity[] = [];
 
       screenMap.layers.entities.forEach(instance => {
-        const template = getAsset(allAssets, instance.entityTemplateId, 'entityTemplate')?.data as EntityTemplate;
-        if (!template) return;
+        const templateAsset = getAsset(instance.entityTemplateId, 'entityTemplate');
+        if (!templateAsset) return;
+        const template = templateAsset.data as EntityTemplate;
 
-        const sprite = getAsset(allAssets, template.spriteAssetId, 'sprite')?.data as Sprite;
-        if (!sprite) return;
+        const spriteAsset = getAsset(template.spriteAssetId, 'sprite');
+        if (!spriteAsset) return;
+        const sprite = spriteAsset.data as Sprite;
 
         const image = new Image();
         image.src = createSpriteDataURL(sprite.frames[0].data, sprite.size.width, sprite.size.height);
