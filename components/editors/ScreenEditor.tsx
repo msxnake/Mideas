@@ -822,6 +822,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         screenMap={screenMap}
         allAssets={allProjectAssets}
         currentScreenMode={currentScreenMode}
+        entityTemplates={entityTemplates}
       />
     </Panel>
   );

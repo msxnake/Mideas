@@ -13,6 +13,7 @@ interface ScreenPreviewModalProps {
   screenMap: ScreenMap;
   allAssets: ProjectAsset[];
   currentScreenMode: string;
+  entityTemplates: EntityTemplate[];
 }
 
 // State for animating entities
@@ -33,6 +34,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
   screenMap,
   allAssets,
   currentScreenMode,
+  entityTemplates,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -51,9 +53,8 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
       const entitiesToAnimate: AnimatedEntity[] = [];
 
       screenMap.layers.entities.forEach(instance => {
-        const templateAsset = getAsset(instance.entityTemplateId, 'entityTemplate');
-        if (!templateAsset) return;
-        const template = templateAsset.data as EntityTemplate;
+        const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
+        if (!template) return;
 
         const spriteAsset = getAsset(template.spriteAssetId, 'sprite');
         if (!spriteAsset) return;
@@ -86,7 +87,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
       });
       entitiesRef.current = entitiesToAnimate;
     }
-  }, [isOpen, screenMap, allAssets]);
+  }, [isOpen, screenMap, allAssets, entityTemplates]);
 
   useEffect(() => {
     if (!isOpen) return;
