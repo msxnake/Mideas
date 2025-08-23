@@ -3,6 +3,10 @@ import { ProjectAsset, ScreenMap, Tile, Sprite, EntityInstance, EntityTemplate, 
 import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 
+const PREVIEW_WIDTH = 256;
+const PREVIEW_HEIGHT = 192;
+const TILE_SIZE = 8;
+
 interface ScreenPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -10,10 +14,6 @@ interface ScreenPreviewModalProps {
   allAssets: ProjectAsset[];
   currentScreenMode: string;
 }
-
-const PREVIEW_WIDTH = 256;
-const PREVIEW_HEIGHT = 192;
-const TILE_SIZE = 8;
 
 // State for animating entities
 interface AnimatedEntity {
@@ -37,7 +37,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number>();
-  const [animatedEntities, setAnimatedEntities] = useState<AnimatedEntity[]>([]);
+  const entitiesRef = useRef<AnimatedEntity[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -84,17 +84,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
           image,
         });
       });
-      setAnimatedEntities(entitiesToAnimate);
-
-    } else {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
-      }
-    }
-    return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
-      }
+      entitiesRef.current = entitiesToAnimate;
     }
   }, [isOpen, screenMap, allAssets]);
 
@@ -116,7 +106,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
 
         // 2. Update and Draw Entities
-        const updatedEntities = animatedEntities.map(entity => {
+        const updatedEntities = entitiesRef.current.map(entity => {
             let { x, y, vx, vy } = entity;
 
             x += vx;
@@ -148,7 +138,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
             return { ...entity, x, y, vx, vy };
         });
 
-        setAnimatedEntities(updatedEntities);
+        entitiesRef.current = updatedEntities;
         animationFrameId.current = requestAnimationFrame(animate);
     };
 
@@ -159,7 +149,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [isOpen, allAssets, currentScreenMode, screenMap, animatedEntities]);
+  }, [isOpen, allAssets, currentScreenMode, screenMap]);
 
   if (!isOpen) return null;
 
