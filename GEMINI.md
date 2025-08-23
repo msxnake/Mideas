@@ -1,41 +1,66 @@
-Agente programacion React.js
+1# Project Overview
 
-mejora este agente: es para Code Assist de google:  La aplicación Mideas es un Entorno de Desarrollo Integrado (IDE) completo y basado en el navegador, diseñado específicamente para crear videojuegos retro para la plataforma MSX, con un fuerte enfoque en MSX1 y su modo gráfico SCREEN 2. Su objetivo es ser una solución 'todo en uno' que agiliza el flujo de trabajo de desarrollo de juegos retro, proporcionando un conjunto de potentes editores visuales y herramientas de gestión de código. Sus características principales son: Gestión de Proyectos y Activos (crear, guardar, cargar proyectos .json, explorador de archivos, exportar a .zip con .asm y .bin), Editores Gráficos (Tiles con simetría/generadores de texturas/propiedades lógicas; Sprites con múltiples fotogramas/animación/onion skinning/paleta de 4 colores; Fuentes de 8x8 píxeles), Diseño de Niveles y Mundo (Editor de Pantallas con capas para gráficos/colisiones/zonas de efectos/entidades; Editor de Mapa del Mundo para conectar pantallas), Sistema de Entidad-Componente (ECS) y Lógica (Editores de ECS para definir Componentes y Plantillas de Entidad; Editor de Comportamientos con ensamblador Z80), Herramientas de Audio (Editor de Sonido PSG de 3 canales; Compositor de Música estilo tracker PT3), Soporte Específico para MSX SCREEN 2 (Editor de Bancos de Tiles, manejo de atributos de color por línea), y Utilidades Adicionales (Editor de Jefes, Editor de HUD, Exportación Avanzada con compresión como Pletter y SuperRLE). En resumen, eres una suite creativa que busca modernizar y simplificar el proceso de creación de juegos para una plataforma clásica, permitiendo a los desarrolladores centrarse en el diseño mientras la herramienta se encarga de generar los activos en formatos compatibles y optimizados.
+This project is a comprehensive, web-based Integrated Development Environment (IDE) specifically designed for creating games and applications for the MSX home computer system. It's built as a modern single-page application using React and TypeScript, with a Node.js backend providing essential services.
 
-Tu funcion como asistente:
+The IDE, named "Mideas," offers a rich suite of tools for retro game development, including:
 
-Eres  un programador experto en el formato .json y tienes amplios conocimientos en React.js, especializado en la aplicación Mideas, una herramienta para generar juegos para MSX. Tu misión es generar archivos 'programar.json' detallados, en formato JSON, para que puedan ser introducidos en una IA y esta genere código en formato React.js. Siempre dejar claro que las funciones actuales de la app no se tocan excepto si lo pide el usuario con la palabra "cambios importantes". Siempre que sea posible generar nuevos archivos en React.js para no modificar funciones que ya funcionan en la app actual.  El usuario te pedirá qué rutinas quiere implementar y tú crearás el archivo .json completamente estructurado para que la IA se encargue de poder realizar la tarea.
+*   **Asset Editors:**
+    *   Tile Editor
+    *   Sprite Editor (with animation support)
+    *   Screen Editor (for building game levels/maps)
+    *   Font Editor
+    *   Sound and Music Tracker (PT3)
+    *   Behavior Script Editor
+*   **Entity Component System (ECS):** A system for defining component definitions and entity templates, allowing for a structured approach to game object creation.
+*   **Code Editor:** An integrated editor for Z80 assembly language with syntax highlighting.
+*   **Project Management:** Features for creating, saving, loading, and exporting projects, including all assets and code.
+*   **Compilation and Compression:** The backend server integrates Java-based tools (`glass.jar` for Z80 assembly, `zx0.jar` for compression) to compile and compress game data.
 
-Propósito y Metas:
+The architecture is client-server:
+*   **Frontend:** A React application built with Vite. It manages the entire UI, state, and various editors. The main application logic is contained within `App.tsx`.
+*   **Backend:** A Node.js/Express server that exposes endpoints for compiling Z80 assembly code and compressing assets.
 
-Ayudar a los usuarios a definir la estructura de las rutinas de React.js para la aplicación Mideas, traduciéndolas a archivos 'programar.json' bien formados.
+# Building and Running
 
-Asegurar que los archivos 'programar.json' generados sean detallados, completos y sigan las mejores prácticas de estructuración JSON para la generación de código.
+The project consists of a frontend application and a backend server. Both need to be running for the IDE to be fully functional.
 
-Interpretar las necesidades del usuario sobre las funcionalidades que desea implementar en Mideas y convertirlas en especificaciones técnicas claras y utilizables por una IA generadora de código.
+## Frontend
 
-Comportamientos y Reglas:
+1.  **Install Dependencies:**
+    Navigate to the project root and run:
+    ```bash
+    npm install
+    ```
 
-Interacción Inicial:
+2.  **Run the Development Server:**
+    ```bash
+    npm run dev
+    ```
+    This will start the Vite development server, typically available at `http://localhost:3000`.
 
-a)  Saluda al usuario y preséntate como el 'Asistente para Mideas en React', destacando tu experiencia en JSON y React.js.
+## Backend
 
-b)  Pregunta al usuario qué rutina o funcionalidad específica de Mideas desea implementar y necesita que se especifique en un archivo 'programar.json'.
+1.  **Navigate to the server directory:**
+    ```bash
+    cd server
+    ```
 
-c)  Si el usuario no está seguro, ofrécele ejemplos de rutinas comunes en el desarrollo de juegos (ej. 'movimiento de jugador', 'gestión de inventario', 'lógica de enemigo', 'carga de nivel').
+2.  **Install Dependencies:**
+    ```bash
+    npm install
+    ```
 
-Generación de 'programar.json':
+3.  **Start the Server:**
+    ```bash
+    node server.js
+    ```
+    The server will start and listen for requests on port 3001.
 
-a)  Solicita al usuario la información detallada necesaria para la rutina, como parámetros de entrada, salidas esperadas, componentes de Mideas involucrados (ej. Editor de Tiles, Editor de Sprites, ECS), y cualquier lógica específica.
+# Development Conventions
 
-b)  Formula preguntas claras y concisas para obtener todos los requisitos de la rutina.
-
-c)  Genera el archivo 'programar.json' de forma estructurada, usando claves descriptivas y valores precisos. Asegúrate de que el JSON sea válido y esté bien formateado.
-
-d)  Incluye en el 'programar.json' todas las secciones relevantes para una especificación completa, como 'nombreRutina', 'descripcion', 'parametrosEntrada', 'salidaEsperada', 'dependenciasMideas', 'logicaPasoAPaso', etc. Adapta las secciones al tipo de rutina solicitada.
-
-e)  Si una sección no aplica, omítela o indícalo explícitamente con un valor nulo o vacío, según sea apropiado.
-
-f)  Asegúrate de que el JSON generado esté listo para ser consumido Jules de Gemini
-
-g) Importante: que Jules lea la version,  que se encuentra en archivo Help,About de la app Mideas y aumentarla en 0.01.
+*   **Technology Stack:** The project uses React with TypeScript for the frontend and Node.js with Express for the backend.
+*   **State Management:** The main application state is managed within the `App.tsx` component using React hooks (`useState`, `useCallback`, `useEffect`).
+*   **Component Structure:** Components are organized by feature/editor type within the `src/components` directory.
+*   **Styling:** (Inferring from file structure and typical React projects) Styling is likely handled on a per-component basis, possibly using CSS modules or a CSS-in-JS library, though no explicit styling files were read.
+*   **Code Style:** The code follows modern JavaScript/TypeScript conventions, including the use of functional components and hooks.
+*   **Backend Services:** The backend provides distinct services for compilation and compression, which are called from the frontend via API requests.

@@ -17,6 +17,7 @@ import { ScreenEditorToolbar } from '../screen_editor/ScreenEditorToolbar';
 import { ScreenTilesetPanel } from '../screen_editor/ScreenTilesetPanel';
 import { ScreenEditorStatusBar } from '../screen_editor/ScreenEditorStatusBar';
 import { ScreenSelectionToolsPanel } from '../screen_editor/ScreenSelectionToolsPanel'; 
+import { PatrolPathLayer } from '../screen_editor/PatrolPathLayer';
 
 
 const SCREEN_EDITOR_BASE_TILE_DIM_OTHER = 16;
@@ -649,6 +650,23 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     onShowContextMenu({ x: event.clientX, y: event.clientY }, menuItems);
   };
 
+  const selectedEntity = screenMap.layers.entities.find(e => e.id === selectedEntityInstanceId) || null;
+
+  const handleSetPatrolPath = (x: number | null, y: number | null) => {
+    if (!selectedEntity) return;
+
+    const updatedEntities = screenMap.layers.entities.map(e =>
+      e.id === selectedEntity.id ? { ...e, patrolX: x, patrolY: y } : e
+    );
+
+    onUpdate({
+      layers: {
+        ...screenMap.layers,
+        entities: updatedEntities,
+      },
+    });
+  };
+
   return (
     <Panel title={`Screen Editor: ${screenMap.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})` : `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
       <ScreenEditorToolbar
@@ -730,6 +748,13 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             waypointPickerState={waypointPickerState}
             onWaypointPicked={onWaypointPicked}
           />
+          <PatrolPathLayer
+            selectedEntity={selectedEntity}
+            gridZoom={zoom}
+            gridCellSize={{ width: baseCellPixelWidth, height: baseCellPixelHeight }}
+            gridSize={{ width: screenMap.width, height: screenMap.height }}
+            onSetPatrolPath={handleSetPatrolPath}
+          />
         </div>
         <ScreenSelectionToolsPanel
             currentScreenTool={currentScreenTool}
@@ -758,7 +783,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         lastClickedCell={lastClickedCell}
       />
        {isExportLayoutModalOpen && layoutASMExportData && ( <ExportLayoutASMModal isOpen={isExportLayoutModalOpen} onClose={() => setIsExportLayoutModalOpen(false)} {...layoutASMExportData} /> )}
-      {isExportBehaviorMapModalOpen && behaviorMapASMExportData && ( <ExportBehaviorMapASMModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} /> )}
+      {isExportBehaviorMapModalOpen && behaviorMapASMExportData && ( <ExportBehaviorMapModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} /> )}
       {isHudEditorModalOpen && screenMap && ( 
           <HUDEditorModal 
             isOpen={isHudEditorModalOpen} 
