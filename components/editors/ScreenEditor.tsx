@@ -16,8 +16,9 @@ import { ScreenGrid } from '../screen_editor/ScreenGrid';
 import { ScreenEditorToolbar } from '../screen_editor/ScreenEditorToolbar';
 import { ScreenTilesetPanel } from '../screen_editor/ScreenTilesetPanel';
 import { ScreenEditorStatusBar } from '../screen_editor/ScreenEditorStatusBar';
-import { ScreenSelectionToolsPanel } from '../screen_editor/ScreenSelectionToolsPanel'; 
+import { ScreenSelectionToolsPanel } from '../screen_editor/ScreenSelectionToolsPanel';
 import { PatrolPathLayer } from '../screen_editor/PatrolPathLayer';
+import { ScreenPreviewModal } from '../modals/ScreenPreviewModal';
 
 
 const SCREEN_EDITOR_BASE_TILE_DIM_OTHER = 16;
@@ -79,6 +80,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
 
   const [isHudEditorModalOpen, setIsHudEditorModalOpen] = useState(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   const [localActiveX, setLocalActiveX] = useState<string>((screenMap.activeAreaX ?? 0).toString());
   const [localActiveY, setLocalActiveY] = useState<string>((screenMap.activeAreaY ?? 0).toString());
@@ -688,6 +690,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         isHudAreaDefined={isHudAreaDefined}
         onExportLayout={prepareAndOpenLayoutExportModal}
         onExportBehavior={handleExportBehaviorMapASM}
+        onPreview={() => setIsPreviewModalOpen(true)}
         onCopyLayer={handleCopyActiveLayer}
         onPasteLayer={handlePasteLayer}
         isCopyLayerDisabled={activeLayer === 'entities' || activeLayer === 'effects'}
@@ -813,6 +816,14 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           confirmButtonVariant="danger"
         />
       )}
+      <ScreenPreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        screenMap={screenMap}
+        allAssets={allProjectAssets}
+        currentScreenMode={currentScreenMode}
+        entityTemplates={entityTemplates}
+      />
     </Panel>
   );
 };
