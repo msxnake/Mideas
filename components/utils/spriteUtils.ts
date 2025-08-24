@@ -1,4 +1,4 @@
-import { Sprite } from '../../types';
+import { PixelData, Sprite } from '../../types';
 
 /**
  * Generates raw byte array for a sprite, concatenating all layers of all frames.
@@ -48,4 +48,12 @@ export const generateSpriteBinaryData = (sprite: Sprite): Uint8Array => {
 
   const flatBytes = allFramesBytes.flat();
   return new Uint8Array(flatBytes);
+};
+
+export const mirrorPixelDataHorizontally = (pixelData: PixelData): PixelData => {
+  return pixelData.map(row => [...row].reverse());
+};
+
+export const mirrorPixelDataVertically = (pixelData: PixelData): PixelData => {
+  return [...pixelData].reverse();
 };

@@ -1,7 +1,8 @@
 
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Sprite, MSXColorValue, PixelData, Point, SpriteFrame, DataFormat, ExplosionParams, ExplosionType, EXPLOSION_SPRITE_SIZES, ProjectAsset } from '../../types';
+import { Sprite, MSXColorValue, PixelData, Point, SpriteFrame, DataFormat, ExplosionParams, ExplosionType, EXPLOSION_SPRITE_SIZES, ProjectAsset, FacingDirection } from '../../types';
+import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, RefreshCwIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon } from '../icons/MsxIcons';
@@ -467,14 +468,14 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
     }
   };
 
-  const handleTransform = (action: 'rotate' | 'shiftUp' | 'shiftDown' | 'shiftLeft' | 'shiftRight') => {
+  const handleTransform = (action: 'rotate' | 'shiftUp' | 'shiftDown' | 'shiftLeft' | 'shiftRight' | 'flipHorizontal' | 'flipVertical') => {
     if (!currentFrameData) return;
     let newData = currentFrameData.map(row => [...row]);
     const W = sprite.size.width;
     const H = sprite.size.height;
 
     switch(action) {
-        case 'rotate': 
+        case 'rotate':
             if (W !== H) { alert("Rotate only works for square sprites currently."); return; }
             const rotated = Array(H).fill(null).map(() => Array(W).fill(sprite.backgroundColor));
             for(let y=0; y<H; y++) {
@@ -503,6 +504,12 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 row.pop();
                 row.unshift(sprite.backgroundColor);
             });
+            break;
+        case 'flipHorizontal':
+            newData = mirrorPixelDataHorizontally(newData);
+            break;
+        case 'flipVertical':
+            newData = mirrorPixelDataVertically(newData);
             break;
     }
     const updatedFrames = sprite.frames.map((frame, index) =>
@@ -1031,6 +1038,24 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
         {/* Right Panel: Frame Management & Animation Preview */}
         <div className="w-48 p-2 border-l border-msx-border flex-shrink-0 flex flex-col space-y-3 overflow-y-auto">
+          <Panel title="Sprite Settings">
+            <div className="space-y-2 text-xs">
+              <label className="flex items-center justify-between">
+                <span>Facing</span>
+                <select
+                  value={sprite.facingDirection ?? 'neutral'}
+                  onChange={e => onUpdate({ facingDirection: e.target.value as any })}
+                  className="p-1 text-xs bg-msx-panelbg border-msx-border rounded"
+                >
+                  <option value="neutral">Neutral</option>
+                  <option value="right">Right</option>
+                  <option value="left">Left</option>
+                  <option value="up">Up</option>
+                  <option value="down">Down</option>
+                </select>
+              </label>
+            </div>
+          </Panel>
           <Panel title="Animation Tools">
             <div className="text-center">
               {currentFrameData && sprite.size.width > 0 && sprite.size.height > 0 ? (
@@ -1083,6 +1108,10 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     
                     <Button onClick={handleContractRow} variant="ghost" size="sm" icon={<CompressVerticalIcon className="w-3 h-3"/>} title="Contract Row (Del Mid Row)" disabled={sprite.size.height <= 1}>{null}</Button>
                     <Button onClick={handleContractColumn} variant="ghost" size="sm" icon={<CompressHorizontalIcon className="w-3 h-3"/>} title="Contract Col (Del Mid Col)" disabled={sprite.size.width <= 1}>{null}</Button>
+                </div>
+                <div className="grid grid-cols-2 gap-1 text-xs mb-2">
+                    <Button onClick={() => handleTransform('flipHorizontal')} variant="ghost" size="sm" className="w-full" justify="start">Flip H</Button>
+                    <Button onClick={() => handleTransform('flipVertical')} variant="ghost" size="sm" className="w-full" justify="start">Flip V</Button>
                 </div>
                 <Button 
                     onClick={() => setIsExplosionModalOpen(true)} 
