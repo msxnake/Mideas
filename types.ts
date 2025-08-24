@@ -64,6 +64,8 @@ export interface ExplosionParams {
   fragmentSpeedVariation?: number; 
 }
 
+export type FacingDirection = 'neutral' | 'right' | 'left' | 'up' | 'down';
+
 export interface Sprite {
   id: string;
   name: string;
@@ -72,7 +74,10 @@ export interface Sprite {
   backgroundColor: MSXColorValue;
   frames: SpriteFrame[];
   currentFrameIndex: number;
-  attributes?: Record<string, any>; 
+  attributes?: Record<string, any>;
+  facingDirection?: FacingDirection;
+  mirroredHorizontally?: boolean;
+  mirroredVertically?: boolean;
 }
 
 export interface ScreenTile {

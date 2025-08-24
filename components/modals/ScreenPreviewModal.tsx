@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ProjectAsset, ScreenMap, Tile, Sprite, EntityInstance, EntityTemplate, AssetType } from '../../types';
+import { ProjectAsset, ScreenMap, Tile, Sprite, EntityInstance, EntityTemplate, AssetType, PixelData } from '../../types';
 import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
+import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 
 const PREVIEW_WIDTH = 256;
 const PREVIEW_HEIGHT = 192;
@@ -26,6 +27,7 @@ interface AnimatedEntity {
   vx: number;
   vy: number;
   frameImages: HTMLImageElement[];
+  mirroredFrameImages?: HTMLImageElement[];
   currentFrame: number;
   lastFrameUpdateTime: number;
 }
@@ -93,6 +95,23 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
           return img;
         });
 
+        let mirroredFrameImages: HTMLImageElement[] | undefined = undefined;
+        if (sprite.facingDirection === 'right' || sprite.facingDirection === 'left') {
+            mirroredFrameImages = sprite.frames.map(frame => {
+                const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                const img = new Image();
+                img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+                return img;
+            });
+        } else if (sprite.facingDirection === 'up' || sprite.facingDirection === 'down') {
+            mirroredFrameImages = sprite.frames.map(frame => {
+                const mirroredData = mirrorPixelDataVertically(frame.data as PixelData);
+                const img = new Image();
+                img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+                return img;
+            });
+        }
+
 
         const patrolComp = instance.componentOverrides?.comp_patrol;
         let vx = 0, vy = 0;
@@ -125,6 +144,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
           vx,
           vy,
           frameImages,
+          mirroredFrameImages,
           currentFrame: 0,
           lastFrameUpdateTime: 0,
         });
@@ -190,7 +210,17 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
               lastFrameUpdateTime = now;
             }
 
-            const imageToDraw = entity.frameImages[currentFrame];
+            let imageToDraw = entity.frameImages[currentFrame];
+            if (entity.sprite.facingDirection === 'right' && vx < 0 && entity.mirroredFrameImages) {
+                imageToDraw = entity.mirroredFrameImages[currentFrame];
+            } else if (entity.sprite.facingDirection === 'left' && vx > 0 && entity.mirroredFrameImages) {
+                imageToDraw = entity.mirroredFrameImages[currentFrame];
+            } else if (entity.sprite.facingDirection === 'up' && vy > 0 && entity.mirroredFrameImages) {
+                imageToDraw = entity.mirroredFrameImages[currentFrame];
+            } else if (entity.sprite.facingDirection === 'down' && vy < 0 && entity.mirroredFrameImages) {
+                imageToDraw = entity.mirroredFrameImages[currentFrame];
+            }
+
             if (imageToDraw) {
               ctx.drawImage(imageToDraw, x, y);
             }
