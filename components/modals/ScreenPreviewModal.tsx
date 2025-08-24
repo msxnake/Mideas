@@ -25,8 +25,11 @@ interface AnimatedEntity {
   y: number;
   vx: number;
   vy: number;
-  image: HTMLImageElement;
+  frameImages: HTMLImageElement[];
+  currentFrame: number;
+  lastFrameUpdateTime: number;
 }
+const ANIMATION_SPEED_MS = 200; // ms per frame
 
 export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
   isOpen,
@@ -56,13 +59,40 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
         if (!template) return;
 
-        const spriteAssetId = instance.componentOverrides?.comp_render?.spriteAssetId || template.spriteAssetId;
+        // This logic needs to be robust to find the sprite asset ID
+        // It might be in componentOverrides or in the base template components
+        let spriteAssetId: string | undefined = undefined;
+        // Check instance overrides first
+        if (instance.componentOverrides) {
+            for (const compId in instance.componentOverrides) {
+                if (instance.componentOverrides[compId]?.spriteAssetId) {
+                    spriteAssetId = instance.componentOverrides[compId].spriteAssetId;
+                    break;
+                }
+            }
+        }
+        // If not found in overrides, check template's components
+        if (!spriteAssetId) {
+            for (const comp of template.components) {
+                if (comp.defaultValues?.spriteAssetId) {
+                    spriteAssetId = comp.defaultValues.spriteAssetId;
+                    break;
+                }
+            }
+        }
+
         const spriteAsset = getAsset(spriteAssetId, 'sprite');
-        if (!spriteAsset) return;
+        if (!spriteAsset || !spriteAsset.data) return;
         const sprite = spriteAsset.data as Sprite;
 
-        const image = new Image();
-        image.src = createSpriteDataURL(sprite.frames[0].data, sprite.size.width, sprite.size.height);
+        if (!sprite.frames || sprite.frames.length === 0) return;
+
+        const frameImages = sprite.frames.map(frame => {
+          const img = new Image();
+          img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
+          return img;
+        });
+
 
         const patrolComp = instance.componentOverrides?.comp_patrol;
         let vx = 0, vy = 0;
@@ -94,7 +124,9 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
           y: startY,
           vx,
           vy,
-          image,
+          frameImages,
+          currentFrame: 0,
+          lastFrameUpdateTime: 0,
         });
       });
       entitiesRef.current = entitiesToAnimate;
@@ -112,15 +144,22 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
     ctx.imageSmoothingEnabled = false;
 
     const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+    let lastTimestamp = 0;
 
-    const animate = () => {
+    const animate = (timestamp: number) => {
+        if (lastTimestamp === 0) {
+            lastTimestamp = timestamp;
+        }
+        const deltaTime = timestamp - lastTimestamp;
+        lastTimestamp = timestamp;
+
         // 1. Clear and Draw Background
         ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
         renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
 
         // 2. Update and Draw Entities
         const updatedEntities = entitiesRef.current.map(entity => {
-            let { x, y, vx, vy } = entity;
+            let { x, y, vx, vy, currentFrame, lastFrameUpdateTime } = entity;
 
             x += vx;
             y += vy;
@@ -144,16 +183,27 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
             if (vy > 0 && y >= Math.max(startPixelY, endPixelY)) { vy = -vy; y = Math.max(startPixelY, endPixelY); }
             if (vy < 0 && y <= Math.min(startPixelY, endPixelY)) { vy = -vy; y = Math.min(startPixelY, endPixelY); }
 
-            ctx.drawImage(entity.image, x, y);
+            // Update animation frame
+            const now = performance.now();
+            if (now - lastFrameUpdateTime > ANIMATION_SPEED_MS) {
+              currentFrame = (currentFrame + 1) % entity.frameImages.length;
+              lastFrameUpdateTime = now;
+            }
 
-            return { ...entity, x, y, vx, vy };
+            const imageToDraw = entity.frameImages[currentFrame];
+            if (imageToDraw) {
+              ctx.drawImage(imageToDraw, x, y);
+            }
+
+
+            return { ...entity, x, y, vx, vy, currentFrame, lastFrameUpdateTime };
         });
 
         entitiesRef.current = updatedEntities;
         animationFrameId.current = requestAnimationFrame(animate);
     };
 
-    animate();
+    animationFrameId.current = requestAnimationFrame(animate);
 
     return () => {
       if (animationFrameId.current) {
