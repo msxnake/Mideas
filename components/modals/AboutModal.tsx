@@ -27,7 +27,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
         </h2>
         <div className="space-y-2 text-sm text-msx-textprimary mb-6 font-sans">
             <p>A specialized Integrated Development Environment for MSX (MSX1/MSX2) game development.</p>
-            <p>Version: 1.02 (Conceptual Mockup)</p>
+            <p>Version: 1.1 (Conceptual Mockup)</p>
             <p>This tool showcases key UI/UX elements for retro game creation.</p>
         </div>
         <div className="flex justify-center">

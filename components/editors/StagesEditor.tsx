@@ -9,10 +9,33 @@ interface StagesEditorProps {
     allAssets: ProjectAsset[];
 }
 
+import React, { useState, useRef, useLayoutEffect, useEffect } from 'react';
+import { MainMenuConfig, ProjectAsset, StageNode, StageConnection, StagesGraph } from '../../types';
+import { Button } from '../common/Button';
+import { PlusCircleIcon } from '../icons/MsxIcons';
+
+interface StagesEditorProps {
+    mainMenuConfig: MainMenuConfig;
+    onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
+    allAssets: ProjectAsset[];
+}
+const EMPTY_GRAPH: StagesGraph = { nodes: [], connections: [], panOffset: { x: 0, y: 0 }, zoomLevel: 1 };
+
 export const StagesEditor: React.FC<StagesEditorProps> = ({ mainMenuConfig, onUpdateMainMenuConfig, allAssets }) => {
     const [draggingNode, setDraggingNode] = useState<{ id: string; offset: { x: number; y: number } } | null>(null);
     const [elementPositions, setElementPositions] = useState<Record<string, { x: number; y: number }>>({});
     const elementRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+    const graph = mainMenuConfig.stagesGraph || EMPTY_GRAPH;
+
+    useEffect(() => {
+        if (!mainMenuConfig.stagesGraph) {
+            onUpdateMainMenuConfig(prev => ({
+                ...prev,
+                stagesGraph: EMPTY_GRAPH
+            }));
+        }
+    }, [mainMenuConfig.stagesGraph, onUpdateMainMenuConfig]);
 
     useLayoutEffect(() => {
         const newPositions: Record<string, { x: number; y: number }> = {};
@@ -25,25 +48,10 @@ export const StagesEditor: React.FC<StagesEditorProps> = ({ mainMenuConfig, onUp
             }
         });
         setElementPositions(newPositions);
-    }, [mainMenuConfig.stagesGraph?.nodes, mainMenuConfig.options]);
-
-    if (!mainMenuConfig.stagesGraph) {
-        setTimeout(() => {
-            onUpdateMainMenuConfig(prev => ({
-                ...prev,
-                stagesGraph: {
-                    nodes: [],
-                    connections: [],
-                    panOffset: { x: 0, y: 0 },
-                    zoomLevel: 1,
-                }
-            }));
-        }, 0);
-        return <div>Loading Stages...</div>;
-    }
+    }, [graph.nodes, mainMenuConfig.options]);
 
     const handleMouseDown = (e: React.MouseEvent, nodeId: string) => {
-        const node = mainMenuConfig.stagesGraph.nodes.find(n => n.id === nodeId);
+        const node = graph.nodes.find(n => n.id === nodeId);
         if (!node) return;
         e.stopPropagation();
         setDraggingNode({
@@ -61,10 +69,10 @@ export const StagesEditor: React.FC<StagesEditorProps> = ({ mainMenuConfig, onUp
         const newY = e.clientY - draggingNode.offset.y;
 
         onUpdateMainMenuConfig(prev => {
-            const newNodes = prev.stagesGraph.nodes.map(n =>
+            const newNodes = (prev.stagesGraph || EMPTY_GRAPH).nodes.map(n =>
                 n.id === draggingNode.id ? { ...n, position: { x: newX, y: newY } } : n
             );
-            return { ...prev, stagesGraph: { ...prev.stagesGraph, nodes: newNodes } };
+            return { ...prev, stagesGraph: { ...(prev.stagesGraph || EMPTY_GRAPH), nodes: newNodes } };
         });
     };
 
@@ -80,31 +88,37 @@ export const StagesEditor: React.FC<StagesEditorProps> = ({ mainMenuConfig, onUp
             position: { x: 350, y: 150 },
             options: [],
         };
-        onUpdateMainMenuConfig(prev => ({
-            ...prev,
-            stagesGraph: {
-                ...prev.stagesGraph,
-                nodes: [...prev.stagesGraph.nodes, newNode],
-            },
-        }));
+        onUpdateMainMenuConfig(prev => {
+            const currentGraph = prev.stagesGraph || EMPTY_GRAPH;
+            return {
+                ...prev,
+                stagesGraph: {
+                    ...currentGraph,
+                    nodes: [...currentGraph.nodes, newNode],
+                },
+            }
+        });
     };
 
     const handleAddConnection = () => {
-        if (mainMenuConfig.options.length === 0 || mainMenuConfig.stagesGraph.nodes.length === 0) return;
+        if (mainMenuConfig.options.length === 0 || graph.nodes.length === 0) return;
         const fromOptionId = mainMenuConfig.options[0].id;
-        const toNodeId = mainMenuConfig.stagesGraph.nodes[0].id;
+        const toNodeId = graph.nodes[0].id;
 
         // Avoid duplicate connections
-        if (mainMenuConfig.stagesGraph.connections.some(c => c.fromOptionId === fromOptionId && c.toNodeId === toNodeId)) return;
+        if (graph.connections.some(c => c.fromOptionId === fromOptionId && c.toNodeId === toNodeId)) return;
 
         const newConnection = { id: `conn_${Date.now()}`, fromOptionId, toNodeId };
-        onUpdateMainMenuConfig(prev => ({
-            ...prev,
-            stagesGraph: {
-                ...prev.stagesGraph,
-                connections: [...prev.stagesGraph.connections, newConnection],
-            },
-        }));
+        onUpdateMainMenuConfig(prev => {
+            const currentGraph = prev.stagesGraph || EMPTY_GRAPH;
+            return {
+                ...prev,
+                stagesGraph: {
+                    ...currentGraph,
+                    connections: [...currentGraph.connections, newConnection],
+                },
+            }
+        });
     };
 
     const mainMenuNode = {
@@ -145,7 +159,7 @@ export const StagesEditor: React.FC<StagesEditorProps> = ({ mainMenuConfig, onUp
             </div>
 
             {/* Render other nodes from stagesGraph.nodes */}
-            {mainMenuConfig.stagesGraph.nodes.map(node => (
+            {graph.nodes.map(node => (
                 <div
                     key={node.id}
                     ref={el => elementRefs.current[node.id] = el}
@@ -170,7 +184,7 @@ export const StagesEditor: React.FC<StagesEditorProps> = ({ mainMenuConfig, onUp
                         <polygon points="0 0, 10 3.5, 0 7" fill="#00a8a8" />
                     </marker>
                 </defs>
-                {mainMenuConfig.stagesGraph.connections.map(conn => {
+                {graph.connections.map(conn => {
                     const fromPos = elementPositions[conn.fromOptionId];
                     const toPos = elementPositions[conn.toNodeId];
                     if (!fromPos || !toPos) return null;
