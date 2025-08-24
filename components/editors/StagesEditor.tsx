@@ -1,14 +1,5 @@
-import React from 'react';
-import { MainMenuConfig, ProjectAsset } from '../../types';
-
-interface StagesEditorProps {
-    mainMenuConfig: MainMenuConfig;
-    onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
-    allAssets: ProjectAsset[];
-}
-
 import React, { useState, useRef, useLayoutEffect } from 'react';
-import { MainMenuConfig, ProjectAsset, StageNode } from '../../types';
+import { MainMenuConfig, ProjectAsset, StageNode, StageConnection } from '../../types';
 import { Button } from '../common/Button';
 import { PlusCircleIcon } from '../icons/MsxIcons';
 
@@ -34,7 +25,7 @@ export const StagesEditor: React.FC<StagesEditorProps> = ({ mainMenuConfig, onUp
             }
         });
         setElementPositions(newPositions);
-    }, [mainMenuConfig.stagesGraph.nodes, mainMenuConfig.options]);
+    }, [mainMenuConfig.stagesGraph?.nodes, mainMenuConfig.options]);
 
     if (!mainMenuConfig.stagesGraph) {
         setTimeout(() => {
