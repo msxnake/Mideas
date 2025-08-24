@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MainMenuConfig, MainMenuOption, MainMenuKeyMapping, ProjectAsset, MSX1ColorValue } from '../../types';
 import { Panel } from '../common/Panel';
+import { StagesEditor } from './StagesEditor';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, CodeIcon, ListBulletIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
@@ -19,7 +20,7 @@ interface MainMenuEditorProps {
     currentScreenMode: string;
 }
 
-type MainMenuTab = 'Design' | 'Appearance' | 'Keys' | 'Settings' | 'Continue' | 'Intro';
+type MainMenuTab = 'Design' | 'Appearance' | 'Keys' | 'Settings' | 'Continue' | 'Intro' | 'Stages';
 
 const KeyInput: React.FC<{ label: string; value: string; onSet: () => void; isListening: boolean }> = ({ label, value, onSet, isListening }) => (
     <div className="flex items-center justify-between p-2 bg-msx-bgcolor rounded">
@@ -237,6 +238,14 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
                         </div>
                     </div>
                 );
+            case 'Stages':
+                return (
+                    <StagesEditor
+                        mainMenuConfig={mainMenuConfig}
+                        onUpdateMainMenuConfig={onUpdateMainMenuConfig}
+                        allAssets={allAssets}
+                    />
+                )
         }
     };
     
@@ -244,7 +253,7 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
         <Panel title="Main Menu Editor" icon={<ListBulletIcon/>} className="flex-grow flex flex-col !p-0">
             <div className="p-2 border-b border-msx-border flex items-center justify-between">
                 <div className="flex space-x-1">
-                    {(['Design', 'Appearance', 'Keys', 'Settings', 'Continue', 'Intro'] as MainMenuTab[]).map(tab => (
+                    {(['Design', 'Stages', 'Appearance', 'Keys', 'Settings', 'Continue', 'Intro'] as MainMenuTab[]).map(tab => (
                         <Button key={tab} onClick={() => setActiveTab(tab)} variant={activeTab === tab ? 'primary' : 'ghost'} size="sm">{tab}</Button>
                     ))}
                 </div>

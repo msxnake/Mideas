@@ -422,6 +422,29 @@ export interface Boss {
 }
 
 // --- Main Menu Types ---
+
+export interface StageNode {
+  id: string;
+  position: { x: number; y: number };
+  type: 'SubMenu' | 'WorldLink';
+  name?: string;
+  options?: MainMenuOption[];
+  worldAssetId?: string;
+}
+
+export interface StageConnection {
+  id: string;
+  fromOptionId: string;
+  toNodeId: string;
+}
+
+export interface StagesGraph {
+  nodes: StageNode[];
+  connections: StageConnection[];
+  panOffset: { x: number; y: number };
+  zoomLevel: number;
+}
+
 export interface MainMenuOption {
   id: string;
   label: string;
@@ -460,6 +483,7 @@ export interface MainMenuConfig {
   introScreen: MainMenuIntroScreen;
   menuScreenAssetId: string | null;
   cursorSpriteAssetId: string | null;
+  stagesGraph?: StagesGraph;
   menuColors: {
     text: MSX1ColorValue;
     background: MSX1ColorValue;
