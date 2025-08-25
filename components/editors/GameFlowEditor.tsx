@@ -5,6 +5,8 @@ import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
+
+const NODE_WIDTH = 150;
 const NODE_HEIGHT = 100;
 const PORT_SIZE = 10;
 
