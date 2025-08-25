@@ -8,6 +8,7 @@ import { createTileDataURL } from '../utils/screenUtils';
 import { EDITOR_BASE_TILE_DIM_S2, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, DEFAULT_SCREEN2_FG_COLOR, MSX_SCREEN5_PALETTE, DEFAULT_SCREEN2_BG_COLOR } from '../../constants';
 import { createDefaultLineAttributes } from '../utils/tileUtils';
 import { BossMovementController } from './BossMovementController';
+import { BossTilesetPanel } from './BossTilesetPanel';
 
 
 interface BossEditorProps {
@@ -50,6 +51,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
+    const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -129,12 +131,19 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     
     const handleGridClick = (x: number, y: number) => {
         const currentPhase = boss.phases.find(p => p.id === selectedPhaseId);
-        if (!currentPhase || currentPhase.buildType !== 'tile' || editMode === 'tiles') return;
+        if (!currentPhase || currentPhase.buildType !== 'tile') return;
 
         const updatedPhases = boss.phases.map(p => {
             if (p.id === selectedPhaseId) {
-                const newPhase = {...p};
+                const newPhase = { ...p };
                 switch (editMode) {
+                    case 'tiles':
+                        const newMatrix = (newPhase.tileMatrix || []).map(row => [...row]);
+                        if (newMatrix[y]) {
+                            newMatrix[y][x] = selectedTileId;
+                            newPhase.tileMatrix = newMatrix;
+                        }
+                        break;
                     case 'collision':
                         const newCollisionMatrix = (newPhase.collisionMatrix || []).map(row => [...row]);
                         if (newCollisionMatrix[y]) {
@@ -272,6 +281,15 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                         <p className="text-msx-textsecondary">Select a phase to begin editing.</p>
                     )}
                 </div>
+
+                {selectedPhase && selectedPhase.buildType === 'tile' && editMode === 'tiles' && (
+                    <BossTilesetPanel
+                        tileset={tilesForBank}
+                        selectedTileId={selectedTileId}
+                        onSelectTile={setSelectedTileId}
+                        currentScreenMode={currentScreenMode}
+                    />
+                )}
 
                  <div className="w-80 border-l border-msx-border p-2 overflow-y-auto space-y-4 flex-shrink-0">
                     <Panel title="General">
