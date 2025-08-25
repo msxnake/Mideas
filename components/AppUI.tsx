@@ -383,13 +383,6 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             />
           )}
         </div>
-                allAssets={assets}
-                msxFont={msxFont}
-                msxFontColorAttributes={msxFontColorAttributes}
-                currentScreenMode={currentScreenMode}
-             />
-           )}
-        </div>
 
         <div className="w-64 flex-shrink-0 flex flex-col">
          {renderRightPanelContent()}
