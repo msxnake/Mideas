@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { ProjectAsset, EditorType } from '../../types'; // Added EditorType
 import { Panel } from '../common/Panel';
-import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon } from '../icons/MsxIcons'; // Added SparklesIcon
+import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon } from '../icons/MsxIcons'; // Added SparklesIcon
 
 interface FileExplorerPanelProps {
   assets: ProjectAsset[];
@@ -18,11 +18,12 @@ interface FileExplorerPanelProps {
   isComponentDefEditorActive?: boolean; // Added for Component Def Editor
   isEntityTemplateEditorActive?: boolean; // Added for Entity Template Editor
   isWorldViewActive?: boolean;
+  isGameFlowActive?: boolean;
   isMainMenuActive?: boolean; // Added for Main Menu Editor
   className?: string;
 }
 
-const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'mainmenu'}> = ({ type }) => { 
+const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'gameflow' | 'mainmenu'}> = ({ type }) => {
   const iconClass = "w-4 h-4 mr-2";
   switch (type) {
     case 'tile': return <TilesetIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -42,6 +43,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'componentdefinitioneditor': return <PuzzlePieceIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'entitytemplateeditor': return <SpriteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'worldview': return <WorldViewIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
+    case 'gameflow': return <GameFlowIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'mainmenu': return <ListBulletIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />; // Added Main Menu icon
     default: return <PlaceholderIcon className={`${iconClass} text-msx-textsecondary`} />;
   }
@@ -69,6 +71,7 @@ export const HELP_DOCS_SYSTEM_ASSET_ID = "HELP_DOCS_SYSTEM_ASSET";
 export const COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID = "COMPONENT_DEF_EDITOR_SYSTEM_ASSET";
 export const ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID = "ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET";
 export const WORLD_VIEW_SYSTEM_ASSET_ID = "WORLD_VIEW_SYSTEM_ASSET";
+export const GAME_FLOW_SYSTEM_ASSET_ID = "GAME_FLOW_SYSTEM_ASSET_ID";
 export const MAIN_MENU_SYSTEM_ASSET_ID = "MAIN_MENU_SYSTEM_ASSET"; // New system asset ID
 
 
@@ -85,6 +88,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     isComponentDefEditorActive = false,
     isEntityTemplateEditorActive = false,
     isWorldViewActive = false,
+    isGameFlowActive = false,
     isMainMenuActive = false, // New prop
     className = '',
 }) => {
@@ -116,6 +120,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
   const systemTools = [
     { id: WORLD_VIEW_SYSTEM_ASSET_ID, name: "World View", iconType: "worldview" as const, editorType: EditorType.WorldView, isActive: isWorldViewActive, title: "View Composite World Map" },
+    { id: GAME_FLOW_SYSTEM_ASSET_ID, name: "Game Flow", iconType: "gameflow" as const, editorType: EditorType.GameFlow, isActive: isGameFlowActive, title: "Manage the game flow" },
     { id: MAIN_MENU_SYSTEM_ASSET_ID, name: "Main Menu", iconType: "mainmenu" as const, editorType: EditorType.MainMenu, isActive: isMainMenuActive, title: "Configure the game's main menu" },
     { id: COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, name: "Component Definitions", iconType: "componentdefinitioneditor" as const, editorType: EditorType.ComponentDefinitionEditor, isActive: isComponentDefEditorActive, title: "Manage Component Definitions" },
     { id: ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, name: "Entity Templates", iconType: "entitytemplateeditor" as const, editorType: EditorType.EntityTemplateEditor, isActive: isEntityTemplateEditorActive, title: "Manage Entity Templates" },

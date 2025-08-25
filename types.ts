@@ -479,6 +479,7 @@ export enum EditorType {
   EntityTemplateEditor = "EntityTemplateEditor",
   Boss = "Boss",
   WorldView = "WorldView",
+  GameFlow = "GameFlow",
   MainMenu = "MainMenu",
 }
 

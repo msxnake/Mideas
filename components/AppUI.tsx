@@ -34,7 +34,8 @@ import { SpriteFramesModal } from './modals/SpriteFramesModal';
 import { ComponentDefinitionEditor } from './editors/ComponentDefinitionEditor';
 import { EntityTemplateEditor } from './editors/EntityTemplateEditor';
 import { MainMenuEditor } from './editors/MainMenuEditor';
-import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, MAIN_MENU_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel'; 
+import { GameFlowEditor } from './editors/GameFlowEditor';
+import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, MAIN_MENU_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
 import { PropertiesPanel } from './tools/PropertiesPanel';
 import { PalettePanel } from './tools/PalettePanel';
 import { EntityTypeListPanel } from './tools/EntityTypeListPanel'; 
@@ -338,12 +339,14 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             isComponentDefEditorActive={currentEditor === EditorType.ComponentDefinitionEditor}
             isEntityTemplateEditorActive={currentEditor === EditorType.EntityTemplateEditor}
             isWorldViewActive={currentEditor === EditorType.WorldView}
+            isGameFlowActive={currentEditor === EditorType.GameFlow}
             isMainMenuActive={currentEditor === EditorType.MainMenu}
             onRequestDelete={handleDeleteAsset} 
         />
         
         <div className="flex-grow flex flex-col" role="main">
           {currentEditor === EditorType.None && <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>}
+          {currentEditor === EditorType.GameFlow && <GameFlowEditor />}
           
           {currentEditor === EditorType.Tile && activeAsset?.type === 'tile' && ( <TileEditor currentTile={activeAsset.data as Tile} onUpdateCurrentTile={(data, newAssets) => handleUpdateAsset(activeAsset.id, data, newAssets)} allTileAssets={assets.filter(a => a.type === 'tile')} onUpdateAllTileAssets={(newTiles) => setAssetsWithHistory(prev => [...prev.filter(a => a.type !== 'tile'), ...newTiles])} selectedColor={selectedColor} currentScreenMode={currentScreenMode} dataOutputFormat={dataOutputFormat} copiedTileData={copiedTileData} onCopyTileData={handleCopyTileData} setStatusBarMessage={setStatusBarMessage} />)}
           {currentEditor === EditorType.Sprite && activeAsset?.type === 'sprite' && ( <SpriteEditor sprite={activeAsset.data as Sprite} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)} onSpriteImported={handleSpriteImported} onCreateSpriteFromFrame={handleCreateSpriteFromFrame} globalSelectedColor={selectedColor} dataOutputFormat={dataOutputFormat} allAssets={assets} currentScreenMode={currentScreenMode} onOpenSpriteSheetModal={() => setIsSpriteSheetModalOpen(true)} />)}
