@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { ProjectAsset, EditorType } from '../../types'; // Added EditorType
 import { Panel } from '../common/Panel';
-import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon } from '../icons/MsxIcons'; // Added SparklesIcon
+import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon } from '../icons/MsxIcons'; // Added SparklesIcon
 
 interface FileExplorerPanelProps {
   assets: ProjectAsset[];
@@ -18,11 +18,12 @@ interface FileExplorerPanelProps {
   isComponentDefEditorActive?: boolean; // Added for Component Def Editor
   isEntityTemplateEditorActive?: boolean; // Added for Entity Template Editor
   isWorldViewActive?: boolean;
+  isGameFlowActive?: boolean;
   isMainMenuActive?: boolean; // Added for Main Menu Editor
   className?: string;
 }
 
-const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'mainmenu'}> = ({ type }) => { 
+const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'gameflow' | 'mainmenu'}> = ({ type }) => {
   const iconClass = "w-4 h-4 mr-2";
   switch (type) {
     case 'tile': return <TilesetIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -30,6 +31,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'boss': return <BugIcon className={`${iconClass} text-msx-danger group-hover:text-msx-accent`} />;
     case 'screenmap': return <MapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'worldmap': return <WorldMapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
+    case 'gameflow': return <GameFlowIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'code': return <CodeIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'sound': return <SoundIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'track': return <MusicNoteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -47,13 +49,14 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
   }
 };
 
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['tile', 'sprite', 'boss', 'screenmap', 'worldmap', 'sound', 'track', 'behavior', 'componentdefinition', 'entitytemplate', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['tile', 'sprite', 'boss', 'screenmap', 'worldmap', 'gameflow', 'sound', 'track', 'behavior', 'componentdefinition', 'entitytemplate', 'code'];
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   tile: "Tiles",
   sprite: "Sprites",
   boss: "Bosses",
   screenmap: "Screen Maps",
   worldmap: "World Maps",
+  gameflow: "Game Flows",
   sound: "Sound FX",
   track: "Music Tracks",
   behavior: "Behavior Scripts",
@@ -69,6 +72,7 @@ export const HELP_DOCS_SYSTEM_ASSET_ID = "HELP_DOCS_SYSTEM_ASSET";
 export const COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID = "COMPONENT_DEF_EDITOR_SYSTEM_ASSET";
 export const ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID = "ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET";
 export const WORLD_VIEW_SYSTEM_ASSET_ID = "WORLD_VIEW_SYSTEM_ASSET";
+export const GAME_FLOW_SYSTEM_ASSET_ID = "GAME_FLOW_SYSTEM_ASSET_ID";
 export const MAIN_MENU_SYSTEM_ASSET_ID = "MAIN_MENU_SYSTEM_ASSET"; // New system asset ID
 
 
@@ -85,6 +89,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     isComponentDefEditorActive = false,
     isEntityTemplateEditorActive = false,
     isWorldViewActive = false,
+    isGameFlowActive = false,
     isMainMenuActive = false, // New prop
     className = '',
 }) => {
@@ -95,6 +100,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     'sprite': true,
     'boss': true,
     'screenmap': true,
+    'gameflow': true,
     'behavior': true, 
     'componentdefinition': true,
     'entitytemplate': true,
@@ -103,6 +109,22 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
   const toggleFolder = (folderType: ProjectAsset['type']) => {
     setExpandedFolders(prev => ({ ...prev, [folderType]: !prev[folderType] }));
+  };
+
+  const handleExpandAll = () => {
+    const allExpanded = FOLDER_TYPE_ORDER.reduce((acc, folderType) => {
+      acc[folderType] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+    setExpandedFolders(allExpanded);
+  };
+
+  const handleCollapseAll = () => {
+    const allCollapsed = FOLDER_TYPE_ORDER.reduce((acc, folderType) => {
+      acc[folderType] = false;
+      return acc;
+    }, {} as Record<string, boolean>);
+    setExpandedFolders(allCollapsed);
   };
 
   const groupedAssets = assets.reduce((acc, asset) => {
@@ -116,6 +138,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
   const systemTools = [
     { id: WORLD_VIEW_SYSTEM_ASSET_ID, name: "World View", iconType: "worldview" as const, editorType: EditorType.WorldView, isActive: isWorldViewActive, title: "View Composite World Map" },
+    { id: GAME_FLOW_SYSTEM_ASSET_ID, name: "Game Flow", iconType: "gameflow" as const, editorType: EditorType.GameFlow, isActive: isGameFlowActive, title: "Manage the game flow" },
     { id: MAIN_MENU_SYSTEM_ASSET_ID, name: "Main Menu", iconType: "mainmenu" as const, editorType: EditorType.MainMenu, isActive: isMainMenuActive, title: "Configure the game's main menu" },
     { id: COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, name: "Component Definitions", iconType: "componentdefinitioneditor" as const, editorType: EditorType.ComponentDefinitionEditor, isActive: isComponentDefEditorActive, title: "Manage Component Definitions" },
     { id: ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, name: "Entity Templates", iconType: "entitytemplateeditor" as const, editorType: EditorType.EntityTemplateEditor, isActive: isEntityTemplateEditorActive, title: "Manage Entity Templates" },
@@ -126,7 +149,17 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
 
   return (
-    <Panel title="Project Assets" className={className} icon={<FolderOpenIcon className="w-4 h-4 text-msx-textsecondary"/>}>
+    <Panel
+      title="Project Assets"
+      className={className}
+      icon={<FolderOpenIcon className="w-4 h-4 text-msx-textsecondary"/>}
+      headerButtons={
+        <>
+          <button onClick={handleExpandAll} title="Expand All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><ExpandAllIcon className="w-3.5 h-3.5"/></button>
+          <button onClick={handleCollapseAll} title="Collapse All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><CollapseAllIcon className="w-3.5 h-3.5"/></button>
+        </>
+      }
+    >
       {(assets.length === 0 && systemTools.every(tool => !tool.isActive)) && <p className="text-xs text-msx-textsecondary p-2">No assets in project. Click 'New Asset' in the toolbar to create one.</p>}
       <ul className="space-y-0.5 text-sm font-sans">
         {systemTools.map(tool => (

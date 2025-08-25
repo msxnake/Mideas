@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, LineColorAttribute, 
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
-    ComponentDefinition, EntityTemplate, EffectZone, EffectZoneFlagKey, ScreenEditorLayerName, ComponentPropertyDefinition
+    ComponentDefinition, EntityTemplate, EffectZone, EffectZoneFlagKey, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode
 } from '../../types';
 import { Panel } from '../common/Panel';
 import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP, EDITOR_BASE_TILE_DIM_S2, EFFECT_ZONE_FLAGS } from '../../constants'; 
@@ -76,8 +76,10 @@ interface PropertiesPanelProps {
   asset: ProjectAsset | undefined;
   entityInstance?: EntityInstance | undefined; 
   effectZone?: EffectZone | undefined; 
+  gameFlowNode?: GameFlowNode | undefined;
   onUpdateEntityInstance?: (id: string, data: Partial<EntityInstance>) => void; 
   onUpdateEffectZone?: (id: string, data: Partial<EffectZone>) => void; 
+  onUpdateGameFlowNode?: (id: string, data: Partial<GameFlowNode>) => void;
   onDeleteEntityInstance?: (id: string) => void;
   onDeleteEffectZone?: (id: string) => void; 
   spriteForPreview?: Sprite; 
@@ -98,8 +100,8 @@ interface PropertiesPanelProps {
 
 
 export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ 
-  asset, entityInstance, effectZone, 
-  onUpdateEntityInstance, onUpdateEffectZone, 
+  asset, entityInstance, effectZone, gameFlowNode,
+  onUpdateEntityInstance, onUpdateEffectZone, onUpdateGameFlowNode,
   onDeleteEntityInstance, onDeleteEffectZone,
   spriteForPreview, allAssets,
   componentDefinitions, entityTemplates, 
@@ -122,6 +124,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const [localEffectZoneMask, setLocalEffectZoneMask] = useState(effectZone?.mask || 0);
   const [localEffectZoneDesc, setLocalEffectZoneDesc] = useState(effectZone?.description || "");
   
+  useEffect(() => {
+    console.log("PropertiesPanel gameFlowNode updated:", gameFlowNode);
+  }, [gameFlowNode]);
+
   const [assetPickerState, setAssetPickerState] = useState<{
     isOpen: boolean;
     assetTypeToPick: ProjectAsset['type'] | null;
@@ -459,34 +465,124 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const compDefExists = (id: string, template: EntityTemplate) => template.components.some(c => c.definitionId === id);
   
   let panelTitle = "Properties";
-  if (entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities') panelTitle = "Entity Instance Properties";
+  if (gameFlowNode && activeEditorType === EditorType.GameFlow) panelTitle = "Game Flow Node Properties";
+  else if (entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities') panelTitle = "Entity Instance Properties";
   else if (effectZone && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'effects') panelTitle = "Effect Zone Properties";
   else if (asset && activeEditorType !== EditorType.BehaviorEditor && activeEditorType !== EditorType.Font && activeEditorType !== EditorType.HelpDocs && activeEditorType !== EditorType.ComponentDefinitionEditor && activeEditorType !== EditorType.EntityTemplateEditor) panelTitle = "Asset Properties";
 
+  const renderGameFlowNodeProperties = (): React.ReactNode => {
+    if (!gameFlowNode || !onUpdateGameFlowNode) return null;
+    if (gameFlowNode.type === 'SubMenu') {
+      const node = gameFlowNode as GameFlowSubMenuNode;
+      return (
+        <div className="space-y-2">
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Title:</label>
+            <input
+              type="text"
+              value={node.title}
+              onChange={(e) => onUpdateGameFlowNode(node.id, { title: e.target.value })}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-msx-textsecondary mb-0.5">Options:</label>
+            <div className="space-y-1">
+              {node.options.map((option, index) => (
+                <div key={option.id} className="flex items-center space-x-1">
+                  <input
+                    type="text"
+                    value={option.text}
+                    onChange={(e) => {
+                      const newOptions = [...node.options];
+                      newOptions[index] = { ...option, text: e.target.value };
+                      onUpdateGameFlowNode(node.id, { options: newOptions });
+                    }}
+                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+                  />
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => {
+                      const newOptions = node.options.filter(o => o.id !== option.id);
+                      onUpdateGameFlowNode(node.id, { options: newOptions });
+                    }}
+                  >
+                    <TrashIcon className="w-3 h-3"/>
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-2 w-full"
+              onClick={() => {
+                const newOption = { id: `opt_${Date.now()}`, text: 'New Option' };
+                onUpdateGameFlowNode(node.id, { options: [...node.options, newOption] });
+              }}
+            >
+              Add Option
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    if (gameFlowNode.type === 'End') {
+        const node = gameFlowNode as GameFlowEndNode;
+        return (
+            <div className="space-y-2">
+                <div>
+                    <label className="block text-xs text-msx-textsecondary mb-0.5">End Type:</label>
+                    <select
+                        value={node.endType}
+                        onChange={(e) => onUpdateGameFlowNode(node.id, { endType: e.target.value as 'Victory' | 'GameOver' })}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+                    >
+                        <option value="Victory">Victory</option>
+                        <option value="GameOver">Game Over</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs text-msx-textsecondary mb-0.5">Message:</label>
+                    <textarea
+                        value={node.message}
+                        onChange={(e) => onUpdateGameFlowNode(node.id, { message: e.target.value })}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+                        rows={3}
+                    />
+                </div>
+            </div>
+        );
+    }
+    return <p className="text-msx-textsecondary">Selected node type: {gameFlowNode.type}</p>;
+  };
 
   return (
     <>
     <Panel title={panelTitle} className="text-xs">
       <div className="space-y-1 p-2">
-        {entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'
-          ? renderEntityInstanceProperties() 
-          : effectZone && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'effects'
-            ? renderEffectZoneProperties()
-            : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor ))
-                ? renderAssetProperties() 
-                : (activeEditorType === EditorType.Font 
-                    ? ( 
-                      <div className="space-y-1">
-                        <div><strong className="text-msx-highlight">Font:</strong> {msxFontName || "Default MSX1 Font"}</div>
-                        {msxFontStats && (<><div><strong className="text-msx-highlight">Total Defined Chars:</strong> {msxFontStats.defined} / 256</div><div><strong className="text-msx-highlight">Editable Range Defined:</strong> {msxFontStats.editableDefined} / {msxFontStats.editableTotal}</div></>)}
-                        <p className="text-[0.65rem] text-msx-textsecondary mt-1">Global MSX1 font used for HUD text rendering. Edit Space, 0-9, A-Z.</p>
-                      </div>
-                    )
-                    : (activeEditorType === EditorType.HelpDocs 
-                        ? <p className="text-msx-textsecondary">Viewing Help & Documentation.</p>
-                        : <p className="text-msx-textsecondary">Select an asset or element.</p>
+        {gameFlowNode && activeEditorType === EditorType.GameFlow
+          ? renderGameFlowNodeProperties()
+          : entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'
+            ? renderEntityInstanceProperties()
+            : effectZone && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'effects'
+              ? renderEffectZoneProperties()
+              : (asset && (activeEditorType === EditorType.Tile || activeEditorType === EditorType.Sprite || activeEditorType === EditorType.Screen || activeEditorType === EditorType.Code || activeEditorType === EditorType.BehaviorEditor || activeEditorType === EditorType.ComponentDefinitionEditor || activeEditorType === EditorType.EntityTemplateEditor ))
+                  ? renderAssetProperties()
+                  : (activeEditorType === EditorType.Font
+                      ? (
+                        <div className="space-y-1">
+                          <div><strong className="text-msx-highlight">Font:</strong> {msxFontName || "Default MSX1 Font"}</div>
+                          {msxFontStats && (<><div><strong className="text-msx-highlight">Total Defined Chars:</strong> {msxFontStats.defined} / 256</div><div><strong className="text-msx-highlight">Editable Range Defined:</strong> {msxFontStats.editableDefined} / {msxFontStats.editableTotal}</div></>)}
+                          <p className="text-[0.65rem] text-msx-textsecondary mt-1">Global MSX1 font used for HUD text rendering. Edit Space, 0-9, A-Z.</p>
+                        </div>
                       )
-                  )
+                      : (activeEditorType === EditorType.HelpDocs
+                          ? <p className="text-msx-textsecondary">Viewing Help & Documentation.</p>
+                          : <p className="text-msx-textsecondary">Select an asset or element.</p>
+                        )
+                    )
         }
         {activeEditorType === EditorType.Screen && screenEditorSelectedTileId && charCodesForDrawingTile && screenEditorActiveLayer !== 'effects' && screenEditorActiveLayer !== 'entities' && (
           <div className="mt-2 pt-2 border-t border-msx-border">
