@@ -4,6 +4,7 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
+import PreviewWindow from '../game_flow/PreviewWindow';
 
 const NODE_WIDTH = 150;
 const NODE_HEIGHT = 100;
@@ -103,7 +104,76 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [nodeToPlace, setNodeToPlace] = useState<NodeToPlace | null>(null);
   const [draggingState, setDraggingState] = useState<{ nodeId: string, offset: Point } | null>(null);
 
+  // State for the preview functionality
+  const [previewEnabled, setPreviewEnabled] = useState(true);
+  const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
+  const [navigationStack, setNavigationStack] = useState<string[]>([]);
+  const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
+
   const { nodes, connections, gridSize, zoomLevel, panOffset } = { ...gameFlowGraph, gridSize: gameFlowGraph.gridSize || 40, zoomLevel: gameFlowGraph.zoomLevel || 1, panOffset: gameFlowGraph.panOffset || { x: 0, y: 0 } };
+
+  const currentNode = nodes.find(node => node.id === currentNodeId);
+
+  useEffect(() => {
+    const startNode = nodes.find(n => n.type === 'Start');
+    if (startNode && !currentNodeId) {
+      setCurrentNodeId(startNode.id);
+    }
+  }, [nodes, currentNodeId]);
+
+  const handleAction = () => {
+    if (!currentNode || currentNode.type !== 'SubMenu') return;
+
+    const selectedOption = currentNode.options[selectedOptionIndex];
+    if (!selectedOption) return;
+
+    const connection = connections.find(c => c.from.nodeId === currentNode.id && c.from.sourceId === selectedOption.id);
+    if (connection) {
+      setNavigationStack([...navigationStack, currentNode.id]);
+      setCurrentNodeId(connection.to.nodeId);
+      setSelectedOptionIndex(0);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (navigationStack.length > 0) {
+      const lastNodeId = navigationStack[navigationStack.length - 1];
+      setNavigationStack(navigationStack.slice(0, -1));
+      setCurrentNodeId(lastNodeId);
+      setSelectedOptionIndex(0);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!previewEnabled) return;
+
+      if (currentNode?.type === 'SubMenu') {
+        switch (e.key) {
+          case 'ArrowUp':
+            e.preventDefault();
+            setSelectedOptionIndex(prev => Math.max(0, prev - 1));
+            break;
+          case 'ArrowDown':
+            e.preventDefault();
+            setSelectedOptionIndex(prev => Math.min(currentNode.options.length - 1, prev + 1));
+            break;
+          case ' ':
+          case 'Enter':
+            e.preventDefault();
+            handleAction();
+            break;
+          case 'Escape':
+            e.preventDefault();
+            handleGoBack();
+            break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentNode, selectedOptionIndex, navigationStack, previewEnabled]);
 
   const handleDeleteNode = (nodeId: string) => {
     const nodesToDelete = new Set<string>([nodeId]);
@@ -259,34 +329,43 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('End')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add End</Button>
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
         <div className="flex-grow" />
-        <Button size="sm" variant="primary" disabled>Preview</Button>
+        <Button size="sm" variant={previewEnabled ? "primary" : "secondary"} onClick={() => setPreviewEnabled(!previewEnabled)}>Preview</Button>
       </div>
-      <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
-        <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
-          <defs>
-            <pattern id="gridPattern" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse"><path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/></pattern>
-            <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="hsl(150, 50%, 60%)" /></marker>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#gridPattern)" />
-          {connections.map(conn => {
-              const fromNode = nodes.find(n => n.id === conn.from.nodeId);
-              const toNode = nodes.find(n => n.id === conn.to.nodeId);
-              if(!fromNode || !toNode) return null;
-              const p1 = getPortPosition(fromNode, conn.from.sourceId || 'out');
-              const p2 = getPortPosition(toNode, 'in');
-              return <path key={conn.id} data-testid={`connection-${conn.id}`} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
-          })}
-          {nodes.map(node => (
-            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} />
-          ))}
-          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - NODE_HEIGHT/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} /></g>}
-          {linkingState && mousePosition && (() => {
-              const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
-              if (!fromNode) return null;
-              const p1 = getPortPosition(fromNode, linkingState.fromPortId);
-              return <line x1={p1.x} y1={p1.y} x2={mousePosition.x} y2={mousePosition.y} stroke="hsl(50, 80%, 60%)" strokeWidth="2" strokeDasharray="4 2" />
-          })()}
-        </svg>
+      <div className="flex-grow flex">
+        <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
+          <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
+            <defs>
+              <pattern id="gridPattern" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse"><path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/></pattern>
+              <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="hsl(150, 50%, 60%)" /></marker>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#gridPattern)" />
+            {connections.map(conn => {
+                const fromNode = nodes.find(n => n.id === conn.from.nodeId);
+                const toNode = nodes.find(n => n.id === conn.to.nodeId);
+                if(!fromNode || !toNode) return null;
+                const p1 = getPortPosition(fromNode, conn.from.sourceId || 'out');
+                const p2 = getPortPosition(toNode, 'in');
+                return <path key={conn.id} data-testid={`connection-${conn.id}`} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
+            })}
+            {nodes.map(node => (
+              <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} />
+            ))}
+            {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - NODE_HEIGHT/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} /></g>}
+            {linkingState && mousePosition && (() => {
+                const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
+                if (!fromNode) return null;
+                const p1 = getPortPosition(fromNode, linkingState.fromPortId);
+                return <line x1={p1.x} y1={p1.y} x2={mousePosition.x} y2={mousePosition.y} stroke="hsl(50, 80%, 60%)" strokeWidth="2" strokeDasharray="4 2" />
+            })()}
+          </svg>
+        </div>
+        {previewEnabled && (
+          <div className="w-1/3 border-l border-msx-border bg-msx-background-light">
+            <Panel title="Preview" className="h-full">
+              <PreviewWindow node={currentNode} selectedOptionIndex={selectedOptionIndex} allAssets={allAssets} />
+            </Panel>
+          </div>
+        )}
       </div>
       {assetPickerState.isOpen && (
         <AssetPickerModal isOpen={assetPickerState.isOpen} onClose={() => setAssetPickerState({ isOpen: false, onSelect: null })} onSelectAsset={(assetId) => { assetPickerState.onSelect?.(assetId); setAssetPickerState({ isOpen: false, onSelect: null }); }} assetTypeToPick={'screenmap'} allAssets={allAssets} currentSelectedId={null}/>
