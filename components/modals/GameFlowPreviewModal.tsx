@@ -182,12 +182,45 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 return img;
             });
 
+            let mirroredFrameImages: HTMLImageElement[] | undefined = undefined;
+            if (sprite.facingDirection === 'right' || sprite.facingDirection === 'left') {
+                mirroredFrameImages = sprite.frames.map(frame => {
+                    const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                    const img = new Image();
+                    img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+                    return img;
+                });
+            }
+
+            const patrolComp = instance.componentOverrides?.comp_patrol;
+            let vx = 0, vy = 0;
+            let startX = instance.position.x * TILE_SIZE;
+            let startY = instance.position.y * TILE_SIZE;
+            let endX = startX;
+            let endY = startY;
+
+            if (patrolComp && patrolComp.waypoint1_x !== undefined && patrolComp.waypoint1_y !== undefined) {
+                startX = patrolComp.waypoint1_x;
+                startY = patrolComp.waypoint1_y;
+                endX = patrolComp.waypoint2_x ?? startX;
+                endY = patrolComp.waypoint2_y ?? startY;
+
+                const dx = endX - startX;
+                const dy = endY - startY;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist > 0) {
+                    vx = (dx / dist);
+                    vy = (dy / dist);
+                }
+            }
+
             return {
                 instance, template, sprite,
-                x: instance.position.x * TILE_SIZE,
-                y: instance.position.y * TILE_SIZE,
-                vx: 0, vy: 0, // Simplified for now, patrol logic can be added later
+                x: startX,
+                y: startY,
+                vx, vy,
                 frameImages,
+                mirroredFrameImages,
                 currentFrame: 0,
                 lastFrameUpdateTime: 0,
             };
@@ -203,17 +236,51 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
             renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
 
-            entitiesRef.current.forEach(entity => {
+            const updatedEntities = entitiesRef.current.map(entity => {
+                let { x, y, vx, vy, currentFrame, lastFrameUpdateTime } = entity;
+
+                x += vx;
+                y += vy;
+
+                const patrolComp = entity.instance.componentOverrides?.comp_patrol;
+                let startPixelX = entity.instance.position.x * TILE_SIZE;
+                let startPixelY = entity.instance.position.y * TILE_SIZE;
+                let endPixelX = startPixelX;
+                let endPixelY = startPixelY;
+
+                if (patrolComp && patrolComp.waypoint1_x !== undefined && patrolComp.waypoint1_y !== undefined) {
+                    startPixelX = patrolComp.waypoint1_x;
+                    startPixelY = patrolComp.waypoint1_y;
+                    endPixelX = patrolComp.waypoint2_x ?? startPixelX;
+                    endPixelY = patrolComp.waypoint2_y ?? startPixelY;
+                }
+
+                if (vx > 0 && x >= Math.max(startPixelX, endPixelX)) { vx = -vx; x = Math.max(startPixelX, endPixelX); }
+                if (vx < 0 && x <= Math.min(startPixelX, endPixelX)) { vx = -vx; x = Math.min(startPixelX, endPixelX); }
+                if (vy > 0 && y >= Math.max(startPixelY, endPixelY)) { vy = -vy; y = Math.max(startPixelY, endPixelY); }
+                if (vy < 0 && y <= Math.min(startPixelY, endPixelY)) { vy = -vy; y = Math.min(startPixelY, endPixelY); }
+
                 const now = performance.now();
-                if (now - entity.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
+                if (now - lastFrameUpdateTime > ANIMATION_SPEED_MS) {
                     entity.currentFrame = (entity.currentFrame + 1) % entity.frameImages.length;
                     entity.lastFrameUpdateTime = now;
                 }
-                const imageToDraw = entity.frameImages[entity.currentFrame];
-                if (imageToDraw) {
-                    ctx.drawImage(imageToDraw, entity.x, entity.y);
+
+                let imageToDraw = entity.frameImages[entity.currentFrame];
+                if (entity.sprite.facingDirection === 'right' && vx < 0 && entity.mirroredFrameImages) {
+                    imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
+                } else if (entity.sprite.facingDirection === 'left' && vx > 0 && entity.mirroredFrameImages) {
+                    imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
                 }
+
+                if (imageToDraw) {
+                    ctx.drawImage(imageToDraw, x, y);
+                }
+
+                return { ...entity, x, y, vx, vy, currentFrame, lastFrameUpdateTime };
             });
+
+            entitiesRef.current = updatedEntities;
             animationFrameId.current = requestAnimationFrame(animate);
         };
         animationFrameId.current = requestAnimationFrame(animate);
