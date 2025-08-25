@@ -360,6 +360,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               onShowContextMenu={showContextMenu}
               msxFont={msxFont}
               msxFontColorAttributes={msxFontColorAttributes}
+              entityTemplates={entityTemplates}
+              currentScreenMode={currentScreenMode}
             />
           )}
           

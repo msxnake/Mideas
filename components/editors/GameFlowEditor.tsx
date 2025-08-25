@@ -12,7 +12,7 @@ const PORT_SIZE = 10;
 
 type NodeToPlace = Omit<GameFlowNode, 'position' | 'id'> & { id?: string };
 
-import { MSXFont, MSXFontColorAttributes } from '../../types';
+import { MSXFont, MSXFontColorAttributes, EntityTemplate } from '../../types';
 
 interface GameFlowEditorProps {
   gameFlowGraph: GameFlowGraph;
@@ -23,6 +23,8 @@ interface GameFlowEditorProps {
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
   msxFont: MSXFont;
   msxFontColorAttributes: MSXFontColorAttributes;
+  entityTemplates: EntityTemplate[];
+  currentScreenMode: string;
 }
 
 const getPortPosition = (node: GameFlowNode, portId: string): Point => {
@@ -97,7 +99,7 @@ const GameFlowNodeComponent: React.FC<{
   );
 };
 
-export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes }) => {
+export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
@@ -305,6 +307,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           allAssets={allAssets}
           msxFont={msxFont}
           msxFontColorAttributes={msxFontColorAttributes}
+          entityTemplates={entityTemplates}
+          currentScreenMode={currentScreenMode}
         />
       )}
     </Panel>

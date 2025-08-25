@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GameFlowGraph, ProjectAsset, GameFlowNode, GameFlowSubMenuNode, GameFlowWorldLinkNode, MSXFont, MSXFontColorAttributes } from '../../types';
+import { GameFlowGraph, ProjectAsset, GameFlowNode, GameFlowSubMenuNode, GameFlowWorldLinkNode, MSXFont, MSXFontColorAttributes, EntityTemplate, ScreenMap, Sprite, PixelData, Tile, AssetType } from '../../types';
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFontRenderer';
+import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
+import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
+
+const TILE_SIZE = 8;
 
 interface GameFlowPreviewModalProps {
   isOpen: boolean;
@@ -10,7 +14,25 @@ interface GameFlowPreviewModalProps {
   allAssets: ProjectAsset[];
   msxFont: MSXFont;
   msxFontColorAttributes: MSXFontColorAttributes;
+  entityTemplates: EntityTemplate[];
+  currentScreenMode: string;
 }
+
+// State for animating entities
+interface AnimatedEntity {
+  instance: any; // Using 'any' for instance as it's a mix from graph data, not a direct EntityInstance
+  template: EntityTemplate;
+  sprite: Sprite;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  frameImages: HTMLImageElement[];
+  mirroredFrameImages?: HTMLImageElement[];
+  currentFrame: number;
+  lastFrameUpdateTime: number;
+}
+const ANIMATION_SPEED_MS = 200; // ms per frame
 
 const PREVIEW_WIDTH = 256;
 const PREVIEW_HEIGHT = 192;
@@ -22,9 +44,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
   allAssets,
   msxFont,
   msxFontColorAttributes,
+  entityTemplates,
+  currentScreenMode,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const animationFrameId = useRef<number>();
+  const entitiesRef = useRef<AnimatedEntity[]>([]);
 
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
   const [navigationStack, setNavigationStack] = useState<string[]>([]);
@@ -97,77 +123,154 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
   };
 
   useEffect(() => {
-    if (!isOpen || !canvasRef.current || !currentNode) return;
+    if (!isOpen) {
+        if (animationFrameId.current) {
+            cancelAnimationFrame(animationFrameId.current);
+        }
+        return;
+    };
 
     const canvas = canvasRef.current;
+    if (!canvas || !currentNode) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 
-    const drawText = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes) => {
-        const textImg = new Image();
-        textImg.onload = () => {
-            ctx.drawImage(textImg, x, y);
-        };
-        textImg.src = renderMSX1TextToDataURL(text, msxFont, colorAttrs, 1, 1);
-    };
-
-    switch (currentNode.type) {
-        case 'Start':
-            const startText = 'Game Start';
-            const startDims = getTextDimensionsMSX1(startText, 1);
-            drawText(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
-
-            setTimeout(() => {
-                const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                if (conn) setCurrentNodeId(conn.to.nodeId);
-            }, 1000);
-            break;
-        case 'SubMenu':
-            const subMenuNode = currentNode as GameFlowSubMenuNode;
-            const titleDims = getTextDimensionsMSX1(subMenuNode.title, 1);
-            drawText(subMenuNode.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes);
-
-            subMenuNode.options.forEach((option, index) => {
-                const optionText = option.text;
-                const optionDims = getTextDimensionsMSX1(optionText, 1);
-
-                const tempColorAttrs: MSXFontColorAttributes = JSON.parse(JSON.stringify(msxFontColorAttributes));
-                if (index === selectedOptionIndex) {
-                    for(let i=0; i<optionText.length; i++){
-                        tempColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
-                    }
-                }
-
-                drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, tempColorAttrs);
-            });
-            break;
-        case 'WorldLink':
-            const worldLinkNode = currentNode as GameFlowWorldLinkNode;
-            const asset = allAssets.find(a => a.id === worldLinkNode.worldAssetId);
-            const worldText1 = 'Loading World:';
-            const worldText2 = asset ? asset.name : 'Unknown';
-            const worldDims1 = getTextDimensionsMSX1(worldText1, 1);
-            const worldDims2 = getTextDimensionsMSX1(worldText2, 1);
-
-            drawText(worldText1, (PREVIEW_WIDTH - worldDims1.width) / 2, PREVIEW_HEIGHT / 2 - 10, msxFontColorAttributes);
-            drawText(worldText2, (PREVIEW_WIDTH - worldDims2.width) / 2, PREVIEW_HEIGHT / 2 + 10, msxFontColorAttributes);
-
-            const noBackText = '(Cannot go back from here)';
-            const noBackDims = getTextDimensionsMSX1(noBackText, 1);
-            drawText(noBackText, (PREVIEW_WIDTH - noBackDims.width) / 2, PREVIEW_HEIGHT - 20, msxFontColorAttributes);
-            break;
-        case 'End':
-            const endText = 'Game Over';
-            const endDims = getTextDimensionsMSX1(endText, 1);
-            drawText(endText, (PREVIEW_WIDTH - endDims.width) / 2, (PREVIEW_HEIGHT - endDims.height) / 2, msxFontColorAttributes);
-            break;
+    // Stop any previous animation before starting a new one
+    if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
     }
 
-  }, [isOpen, currentNode, selectedOptionIndex, allAssets, connections, msxFont, msxFontColorAttributes]);
+    if (currentNode.type === 'WorldLink') {
+        const screenMapAsset = allAssets.find(a => a.id === (currentNode as GameFlowWorldLinkNode).worldAssetId && a.type === 'screenmap');
+        if (!screenMapAsset) return;
+        const screenMap = screenMapAsset.data as ScreenMap;
+        const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+
+        // Initialize entities for animation
+        const entitiesToAnimate: AnimatedEntity[] = (screenMap.layers.entities || []).map(instance => {
+            const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
+            if (!template) return null;
+
+            let spriteAssetId: string | undefined;
+            if (instance.componentOverrides) {
+                for (const compId in instance.componentOverrides) {
+                    if (instance.componentOverrides[compId]?.spriteAssetId) {
+                        spriteAssetId = instance.componentOverrides[compId].spriteAssetId;
+                        break;
+                    }
+                }
+            }
+            if (!spriteAssetId) {
+                for (const comp of template.components) {
+                    if (comp.defaultValues?.spriteAssetId) {
+                        spriteAssetId = comp.defaultValues.spriteAssetId;
+                        break;
+                    }
+                }
+            }
+
+            const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+            if (!spriteAsset || !spriteAsset.data) return null;
+            const sprite = spriteAsset.data as Sprite;
+            if (!sprite.frames || sprite.frames.length === 0) return null;
+
+            const frameImages = sprite.frames.map(frame => {
+                const img = new Image();
+                img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
+                return img;
+            });
+
+            return {
+                instance, template, sprite,
+                x: instance.position.x * TILE_SIZE,
+                y: instance.position.y * TILE_SIZE,
+                vx: 0, vy: 0, // Simplified for now, patrol logic can be added later
+                frameImages,
+                currentFrame: 0,
+                lastFrameUpdateTime: 0,
+            };
+        }).filter((e): e is AnimatedEntity => e !== null);
+
+        entitiesRef.current = entitiesToAnimate;
+
+        // Start animation loop
+        let lastTimestamp = 0;
+        const animate = (timestamp: number) => {
+            if (lastTimestamp === 0) lastTimestamp = timestamp;
+
+            ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
+
+            entitiesRef.current.forEach(entity => {
+                const now = performance.now();
+                if (now - entity.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
+                    entity.currentFrame = (entity.currentFrame + 1) % entity.frameImages.length;
+                    entity.lastFrameUpdateTime = now;
+                }
+                const imageToDraw = entity.frameImages[entity.currentFrame];
+                if (imageToDraw) {
+                    ctx.drawImage(imageToDraw, entity.x, entity.y);
+                }
+            });
+            animationFrameId.current = requestAnimationFrame(animate);
+        };
+        animationFrameId.current = requestAnimationFrame(animate);
+
+    } else {
+        // Handle non-worldlink nodes (text-based rendering)
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+
+        const drawText = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes) => {
+            const textImg = new Image();
+            textImg.onload = () => ctx.drawImage(textImg, x, y);
+            textImg.src = renderMSX1TextToDataURL(text, msxFont, colorAttrs, 1, 1);
+        };
+
+        switch (currentNode.type) {
+            case 'Start':
+                const startText = 'Game Start';
+                const startDims = getTextDimensionsMSX1(startText, 1);
+                drawText(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
+                setTimeout(() => {
+                    const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                    if (conn) setCurrentNodeId(conn.to.nodeId);
+                }, 1000);
+                break;
+            case 'SubMenu':
+                const subMenuNode = currentNode as GameFlowSubMenuNode;
+                const titleDims = getTextDimensionsMSX1(subMenuNode.title, 1);
+                drawText(subMenuNode.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes);
+
+                subMenuNode.options.forEach((option, index) => {
+                    const optionText = option.text;
+                    const optionDims = getTextDimensionsMSX1(optionText, 1);
+                    const tempColorAttrs: MSXFontColorAttributes = JSON.parse(JSON.stringify(msxFontColorAttributes));
+                    if (index === selectedOptionIndex) {
+                        for(let i=0; i<optionText.length; i++){
+                            tempColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
+                        }
+                    }
+                    drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, tempColorAttrs);
+                });
+                break;
+            case 'End':
+                const endText = 'Game Over';
+                const endDims = getTextDimensionsMSX1(endText, 1);
+                drawText(endText, (PREVIEW_WIDTH - endDims.width) / 2, (PREVIEW_HEIGHT - endDims.height) / 2, msxFontColorAttributes);
+                break;
+        }
+    }
+
+    return () => {
+        if (animationFrameId.current) {
+            cancelAnimationFrame(animationFrameId.current);
+        }
+    };
+
+  }, [isOpen, currentNode, selectedOptionIndex, allAssets, connections, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode]);
 
   if (!isOpen) return null;
 
