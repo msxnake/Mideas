@@ -357,6 +357,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               allAssets={assets}
               selectedNodeId={selectedGameFlowNodeId}
               setSelectedNodeId={setSelectedGameFlowNodeId}
+              onShowContextMenu={showContextMenu}
             />
           )}
           

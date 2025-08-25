@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode } from '../../types';
+import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, ContextMenuItem } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 
 const NODE_WIDTH = 150;
@@ -17,6 +17,7 @@ interface GameFlowEditorProps {
   allAssets: ProjectAsset[];
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
+  onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
 }
 
 const getPortPosition = (node: GameFlowNode, portId: string): Point => {
@@ -44,7 +45,8 @@ const GameFlowNodeComponent: React.FC<{
     isSelected: boolean;
     onSelect: (e: React.MouseEvent, nodeId: string) => void;
     onMouseDown: (e: React.MouseEvent, nodeId: string) => void;
-}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown }) => {
+    onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
+}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu }) => {
   const nodeColor =
       node.type === 'Start' ? 'hsl(120, 30%, 40%)'
     : node.type === 'SubMenu' ? 'hsl(220, 30%, 40%)'
@@ -67,7 +69,7 @@ const GameFlowNodeComponent: React.FC<{
   const hasInput = node.type !== 'Start';
 
   return (
-    <g transform={`translate(${node.position.x}, ${node.position.y})`} onMouseDown={(e) => onMouseDown(e, node.id)} onClick={(e) => onSelect(e, node.id)}>
+    <g transform={`translate(${node.position.x}, ${node.position.y})`} onMouseDown={(e) => onMouseDown(e, node.id)} onClick={(e) => onSelect(e, node.id)} onContextMenu={(e) => onContextMenu(e, node.id)}>
       <rect width={NODE_WIDTH} height={NODE_HEIGHT} fill={nodeColor} stroke={strokeColor} strokeWidth={isSelected ? 2.5 : 1.5} rx={5} ry={5} style={{ cursor: 'grab' }} />
       <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" fill="white" fontSize="10px" className="pixel-font select-none pointer-events-none">{node.type}</text>
       <text x={NODE_WIDTH / 2} y={35} textAnchor="middle" fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none">{nodeName}</text>
@@ -90,7 +92,7 @@ const GameFlowNodeComponent: React.FC<{
   );
 };
 
-export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId }) => {
+export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
@@ -103,6 +105,44 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
 
   const { nodes, connections, gridSize, zoomLevel, panOffset } = { ...gameFlowGraph, gridSize: gameFlowGraph.gridSize || 40, zoomLevel: gameFlowGraph.zoomLevel || 1, panOffset: gameFlowGraph.panOffset || { x: 0, y: 0 } };
 
+  const handleDeleteNode = (nodeId: string) => {
+    const nodesToDelete = new Set<string>([nodeId]);
+    const queue = [nodeId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (!currentId) continue;
+
+      const outgoingConnections = connections.filter(c => c.from.nodeId === currentId);
+      for (const conn of outgoingConnections) {
+        const targetNodeId = conn.to.nodeId;
+        if (!nodesToDelete.has(targetNodeId)) {
+          nodesToDelete.add(targetNodeId);
+          queue.push(targetNodeId);
+        }
+      }
+    }
+
+    const newNodes = nodes.filter(n => !nodesToDelete.has(n.id));
+    const newConnections = connections.filter(c => !nodesToDelete.has(c.from.nodeId) && !nodesToDelete.has(c.to.nodeId));
+
+    onUpdate({ nodes: newNodes, connections: newConnections });
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, nodeId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const menuItems: ContextMenuItem[] = [
+      {
+        label: 'Delete Node',
+        icon: <TrashIcon className="w-4 h-4" />,
+        onClick: () => handleDeleteNode(nodeId),
+      },
+    ];
+    onShowContextMenu({ x: e.clientX, y: e.clientY }, menuItems);
+  };
+
+  // ... (all other handler functions remain the same)
   const handlePortClick = (nodeId: string, portId: string) => {
       if (!linkingState) {
           setLinkingState({ fromNodeId: nodeId, fromPortId: portId });
@@ -114,7 +154,6 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       }
   };
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
-
   const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'End') => {
     let newNodeData: NodeToPlace;
     if (type === 'SubMenu') {
@@ -130,7 +169,6 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         setNodeToPlace(newNodeData);
     }
   };
-
   const getPointFromEvent = (e: React.MouseEvent): Point | null => {
     if (!svgRef.current) return null;
     const svgPoint = svgRef.current.createSVGPoint();
@@ -139,19 +177,16 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     const CTM = svgRef.current.getScreenCTM()?.inverse();
     return CTM ? svgPoint.matrixTransform(CTM) : null;
   }
-
   useEffect(() => {
     const vbWidth = (svgRef.current?.clientWidth || 1000) / zoomLevel;
     const vbHeight = (svgRef.current?.clientHeight || 700) / zoomLevel;
     setViewBox(`${panOffset.x} ${panOffset.y} ${vbWidth} ${vbHeight}`);
   }, [zoomLevel, panOffset, svgRef.current?.clientWidth, svgRef.current?.clientHeight]);
-
   const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
     const newZoomLevel = Math.max(0.1, Math.min(5, zoomLevel - e.deltaY * 0.001 * zoomLevel));
     onUpdate({ zoomLevel: newZoomLevel });
   };
-
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if (nodeToPlace) {
         const pos = getPointFromEvent(e);
@@ -173,7 +208,6 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         setLinkingState(null);
     }
   };
-
   const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
     if (nodeToPlace) return;
     e.stopPropagation();
@@ -184,12 +218,10 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         if (svgRef.current) svgRef.current.style.cursor = 'grabbing';
     }
   };
-
   const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const point = getPointFromEvent(e);
     if (!point) return;
     setMousePosition(point);
-
     if (isPanning) {
       const dx = (e.clientX - panStart.x);
       const dy = (e.clientY - panStart.y);
@@ -202,7 +234,6 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         onUpdate({ nodes: updatedNodes });
     }
   };
-
   const handleSvgMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isPanning) { setIsPanning(false); if (svgRef.current) svgRef.current.style.cursor = 'grab'; }
     if (draggingState) {
@@ -215,7 +246,6 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         if (svgRef.current) svgRef.current.style.cursor = 'grab';
     }
   };
-
   const handleNodeSelect = (e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation();
     setSelectedNodeId(nodeId);
@@ -228,6 +258,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('WorldLink')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add World Link</Button>
         <Button onClick={() => handleAddNode('End')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add End</Button>
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
+        <div className="flex-grow" />
+        <Button size="sm" variant="primary" disabled>Preview</Button>
       </div>
       <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
         <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
@@ -242,12 +274,12 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               if(!fromNode || !toNode) return null;
               const p1 = getPortPosition(fromNode, conn.from.sourceId || 'out');
               const p2 = getPortPosition(toNode, 'in');
-              return <path key={conn.id} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
+              return <path key={conn.id} data-testid={`connection-${conn.id}`} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
           })}
           {nodes.map(node => (
-            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} />
+            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} />
           ))}
-          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - NODE_HEIGHT/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} /></g>}
+          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - NODE_HEIGHT/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} /></g>}
           {linkingState && mousePosition && (() => {
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;
