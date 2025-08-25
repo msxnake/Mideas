@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { ProjectAsset, EditorType } from '../../types'; // Added EditorType
 import { Panel } from '../common/Panel';
-import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon } from '../icons/MsxIcons'; // Added SparklesIcon
+import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon } from '../icons/MsxIcons'; // Added SparklesIcon
 
 interface FileExplorerPanelProps {
   assets: ProjectAsset[];
@@ -100,6 +100,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     'sprite': true,
     'boss': true,
     'screenmap': true,
+    'gameflow': true,
     'behavior': true, 
     'componentdefinition': true,
     'entitytemplate': true,
@@ -108,6 +109,22 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
   const toggleFolder = (folderType: ProjectAsset['type']) => {
     setExpandedFolders(prev => ({ ...prev, [folderType]: !prev[folderType] }));
+  };
+
+  const handleExpandAll = () => {
+    const allExpanded = FOLDER_TYPE_ORDER.reduce((acc, folderType) => {
+      acc[folderType] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+    setExpandedFolders(allExpanded);
+  };
+
+  const handleCollapseAll = () => {
+    const allCollapsed = FOLDER_TYPE_ORDER.reduce((acc, folderType) => {
+      acc[folderType] = false;
+      return acc;
+    }, {} as Record<string, boolean>);
+    setExpandedFolders(allCollapsed);
   };
 
   const groupedAssets = assets.reduce((acc, asset) => {
@@ -132,7 +149,17 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
 
   return (
-    <Panel title="Project Assets" className={className} icon={<FolderOpenIcon className="w-4 h-4 text-msx-textsecondary"/>}>
+    <Panel
+      title="Project Assets"
+      className={className}
+      icon={<FolderOpenIcon className="w-4 h-4 text-msx-textsecondary"/>}
+      headerButtons={
+        <>
+          <button onClick={handleExpandAll} title="Expand All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><ExpandAllIcon className="w-3.5 h-3.5"/></button>
+          <button onClick={handleCollapseAll} title="Collapse All" className="p-0.5 text-msx-textsecondary hover:text-msx-textprimary hover:bg-msx-border rounded"><CollapseAllIcon className="w-3.5 h-3.5"/></button>
+        </>
+      }
+    >
       {(assets.length === 0 && systemTools.every(tool => !tool.isActive)) && <p className="text-xs text-msx-textsecondary p-2">No assets in project. Click 'New Asset' in the toolbar to create one.</p>}
       <ul className="space-y-0.5 text-sm font-sans">
         {systemTools.map(tool => (
