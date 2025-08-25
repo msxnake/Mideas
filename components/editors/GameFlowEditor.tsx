@@ -9,6 +9,8 @@ const NODE_WIDTH = 150;
 const NODE_HEIGHT = 100;
 const PORT_SIZE = 10;
 
+type NodeToPlace = Omit<GameFlowNode, 'position' | 'id'> & { id?: string };
+
 interface GameFlowEditorProps {
   gameFlowGraph: GameFlowGraph;
   onUpdate: (data: Partial<GameFlowGraph>) => void;
@@ -40,9 +42,9 @@ const GameFlowNodeComponent: React.FC<{
     allAssets: ProjectAsset[];
     onPortClick: (nodeId: string, portId: string) => void;
     isSelected: boolean;
-    onSelect: (nodeId: string) => void;
-}> = ({ node, allAssets, onPortClick, isSelected, onSelect }) => {
-  // ... (rendering logic remains the same)
+    onSelect: (e: React.MouseEvent, nodeId: string) => void;
+    onMouseDown: (e: React.MouseEvent, nodeId: string) => void;
+}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown }) => {
   const nodeColor =
       node.type === 'Start' ? 'hsl(120, 30%, 40%)'
     : node.type === 'SubMenu' ? 'hsl(220, 30%, 40%)'
@@ -65,8 +67,8 @@ const GameFlowNodeComponent: React.FC<{
   const hasInput = node.type !== 'Start';
 
   return (
-    <g transform={`translate(${node.position.x}, ${node.position.y})`}>
-      <rect width={NODE_WIDTH} height={NODE_HEIGHT} fill={nodeColor} stroke={strokeColor} strokeWidth={isSelected ? 2.5 : 1.5} rx={5} ry={5} onClick={() => onSelect(node.id)} style={{ cursor: 'pointer' }} />
+    <g transform={`translate(${node.position.x}, ${node.position.y})`} onMouseDown={(e) => onMouseDown(e, node.id)} onClick={(e) => onSelect(e, node.id)}>
+      <rect width={NODE_WIDTH} height={NODE_HEIGHT} fill={nodeColor} stroke={strokeColor} strokeWidth={isSelected ? 2.5 : 1.5} rx={5} ry={5} style={{ cursor: 'grab' }} />
       <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" fill="white" fontSize="10px" className="pixel-font select-none pointer-events-none">{node.type}</text>
       <text x={NODE_WIDTH / 2} y={35} textAnchor="middle" fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none">{nodeName}</text>
       {hasInput && <rect x={NODE_WIDTH / 2 - PORT_SIZE / 2} y={-PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(200, 60%, 50%)" stroke="hsl(200, 80%, 70%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}/>}
@@ -93,10 +95,11 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [mousePosition, setMousePosition] = useState<Point | null>(null);
+  const [nodeToPlace, setNodeToPlace] = useState<NodeToPlace | null>(null);
+  const [draggingState, setDraggingState] = useState<{ nodeId: string, offset: Point } | null>(null);
 
   const { nodes, connections, gridSize, zoomLevel, panOffset } = { ...gameFlowGraph, gridSize: gameFlowGraph.gridSize || 40, zoomLevel: gameFlowGraph.zoomLevel || 1, panOffset: gameFlowGraph.panOffset || { x: 0, y: 0 } };
 
-  // ... (all other handler functions remain the same)
   const handlePortClick = (nodeId: string, portId: string) => {
       if (!linkingState) {
           setLinkingState({ fromNodeId: nodeId, fromPortId: portId });
@@ -108,40 +111,57 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       }
   };
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
+
   const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'End') => {
-    const newX = snapToGrid(panOffset.x + ((svgRef.current?.clientWidth || 1000) / zoomLevel) / 10);
-    const newY = snapToGrid(panOffset.y + ((svgRef.current?.clientHeight || 700) / zoomLevel) / 10);
+    let newNodeData: NodeToPlace;
     if (type === 'SubMenu') {
-      const newNode: GameFlowSubMenuNode = { id: `gfsmenu_${Date.now()}`, type: 'SubMenu', title: 'Nuevo Menú', options: [{ id: 'opt_1', text: 'Opción 1' }], position: { x: newX, y: newY } };
-      onUpdate({ nodes: [...nodes, newNode] });
+        newNodeData = { type: 'SubMenu', title: 'Nuevo Menú', options: [{ id: 'opt_1', text: 'Opción 1' }] };
+        setNodeToPlace(newNodeData);
     } else if (type === 'WorldLink') {
-      setAssetPickerState({ isOpen: true, onSelect: (worldAssetId) => {
-          const newNode: GameFlowWorldLinkNode = { id: `gfwlink_${Date.now()}`, type: 'WorldLink', worldAssetId, position: { x: newX, y: newY } };
-          onUpdate({ nodes: [...nodes, newNode] });
-      }});
+        setAssetPickerState({ isOpen: true, onSelect: (worldAssetId) => {
+            newNodeData = { type: 'WorldLink', worldAssetId };
+            setNodeToPlace(newNodeData);
+        }});
     } else if (type === 'End') {
-      const newNode: GameFlowNode = {
-        id: `gfend_${Date.now()}`,
-        type: 'End',
-        endType: 'Victory',
-        message: 'You Win!',
-        position: { x: newX, y: newY },
-      };
-      onUpdate({ nodes: [...nodes, newNode] });
+        newNodeData = { type: 'End', endType: 'Victory', message: 'You Win!' };
+        setNodeToPlace(newNodeData);
     }
   };
+
+  const getPointFromEvent = (e: React.MouseEvent): Point | null => {
+    if (!svgRef.current) return null;
+    const svgPoint = svgRef.current.createSVGPoint();
+    svgPoint.x = e.clientX;
+    svgPoint.y = e.clientY;
+    const CTM = svgRef.current.getScreenCTM()?.inverse();
+    return CTM ? svgPoint.matrixTransform(CTM) : null;
+  }
+
   useEffect(() => {
     const vbWidth = (svgRef.current?.clientWidth || 1000) / zoomLevel;
     const vbHeight = (svgRef.current?.clientHeight || 700) / zoomLevel;
     setViewBox(`${panOffset.x} ${panOffset.y} ${vbWidth} ${vbHeight}`);
   }, [zoomLevel, panOffset, svgRef.current?.clientWidth, svgRef.current?.clientHeight]);
+
   const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
     const newZoomLevel = Math.max(0.1, Math.min(5, zoomLevel - e.deltaY * 0.001 * zoomLevel));
     onUpdate({ zoomLevel: newZoomLevel });
   };
+
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey))) {
+    if (nodeToPlace) {
+        const pos = getPointFromEvent(e);
+        if (pos) {
+            const newNode: GameFlowNode = {
+                ...nodeToPlace,
+                id: `gfn_${Date.now()}`,
+                position: { x: snapToGrid(pos.x - NODE_WIDTH / 2), y: snapToGrid(pos.y - NODE_HEIGHT / 2) }
+            };
+            onUpdate({ nodes: [...nodes, newNode] });
+            setNodeToPlace(null);
+        }
+    } else if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey))) {
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
       if (e.currentTarget) e.currentTarget.style.cursor = 'grabbing';
@@ -150,23 +170,53 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         setLinkingState(null);
     }
   };
+
+  const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
+    if (nodeToPlace) return;
+    e.stopPropagation();
+    const node = nodes.find(n => n.id === nodeId);
+    const point = getPointFromEvent(e);
+    if (node && point) {
+        setDraggingState({ nodeId, offset: { x: node.position.x - point.x, y: node.position.y - point.y } });
+        if (svgRef.current) svgRef.current.style.cursor = 'grabbing';
+    }
+  };
+
   const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const point = getPointFromEvent(e);
+    if (!point) return;
+    setMousePosition(point);
+
     if (isPanning) {
       const dx = (e.clientX - panStart.x);
       const dy = (e.clientY - panStart.y);
       onUpdate({ panOffset: { x: panOffset.x - dx / zoomLevel, y: panOffset.y - dy / zoomLevel }});
       setPanStart({ x: e.clientX, y: e.clientY });
-    } else if (linkingState && svgRef.current) {
-        const svgPoint = svgRef.current.createSVGPoint();
-        svgPoint.x = e.clientX;
-        svgPoint.y = e.clientY;
-        const CTM = svgRef.current.getScreenCTM()?.inverse();
-        if(CTM) { setMousePosition(svgPoint.matrixTransform(CTM)); }
+    } else if (draggingState) {
+        const newX = point.x + draggingState.offset.x;
+        const newY = point.y + draggingState.offset.y;
+        const updatedNodes = nodes.map(n => n.id === draggingState.nodeId ? {...n, position: {x: newX, y: newY}} : n);
+        onUpdate({ nodes: updatedNodes });
     }
   };
+
   const handleSvgMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (isPanning) { setIsPanning(false); if (e.currentTarget) e.currentTarget.style.cursor = 'grab'; }
+    if (isPanning) { setIsPanning(false); if (svgRef.current) svgRef.current.style.cursor = 'grab'; }
+    if (draggingState) {
+        const node = nodes.find(n => n.id === draggingState.nodeId);
+        if (node) {
+            const updatedNodes = nodes.map(n => n.id === draggingState.nodeId ? {...n, position: {x: snapToGrid(n.position.x), y: snapToGrid(n.position.y)}} : n);
+            onUpdate({nodes: updatedNodes});
+        }
+        setDraggingState(null);
+        if (svgRef.current) svgRef.current.style.cursor = 'grab';
+    }
   };
+
+  const handleNodeSelect = (e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    setSelectedNodeId(nodeId);
+  }
 
   return (
     <Panel title="Game Flow Editor" className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
@@ -177,7 +227,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
       </div>
       <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
-        <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : 'grab' }}>
+        <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
           <defs>
             <pattern id="gridPattern" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse"><path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/></pattern>
             <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="hsl(150, 50%, 60%)" /></marker>
@@ -192,8 +242,9 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               return <path key={conn.id} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
           })}
           {nodes.map(node => (
-            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={setSelectedNodeId} />
+            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} />
           ))}
+          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - NODE_HEIGHT/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} /></g>}
           {linkingState && mousePosition && (() => {
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;

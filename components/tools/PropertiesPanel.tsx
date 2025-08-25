@@ -124,6 +124,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const [localEffectZoneMask, setLocalEffectZoneMask] = useState(effectZone?.mask || 0);
   const [localEffectZoneDesc, setLocalEffectZoneDesc] = useState(effectZone?.description || "");
   
+  useEffect(() => {
+    console.log("PropertiesPanel gameFlowNode updated:", gameFlowNode);
+  }, [gameFlowNode]);
+
   const [assetPickerState, setAssetPickerState] = useState<{
     isOpen: boolean;
     assetTypeToPick: ProjectAsset['type'] | null;
