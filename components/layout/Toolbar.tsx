@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
 import { ProjectAsset, DataFormat, EditorType } from '../../types'; 
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon } from '../icons/MsxIcons';
+import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon } from '../icons/MsxIcons';
 
 // --- PROPS INTERFACE ---
 interface ToolbarProps {
@@ -178,7 +178,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon/>}>Boss</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('screenmap')} icon={<MapIcon/>}>Screen Map</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon/>}>World Map</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon/>}>Game Flow</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon/>}>Component Definition</DropdownItem>
         <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon/>}>Entity Template</DropdownItem>

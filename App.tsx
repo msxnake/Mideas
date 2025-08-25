@@ -10,8 +10,7 @@ import {
   EntityInstance, MockEntityType, HelpDocSection, BehaviorScript, TileLogicalProperties,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, BossPhase, Point, HistoryState, HistoryAction, HistoryActionType, CopiedTileData, WaypointPickerState, MainMenuConfig,
-  GameFlowGraph, GameFlowNode
+  Boss, BossPhase, Point, HistoryState, HistoryAction, HistoryActionType, CopiedTileData, WaypointPickerState, MainMenuConfig
 } from './types';
 import { 
   MSX_SCREEN5_PALETTE, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, 
@@ -31,7 +30,7 @@ import { generateFontPatternBinaryData, generateFontColorBinaryData } from './co
 import { generateTemplatesASM } from './components/utils/ecsUtils';
 import { createDefaultTrackerPattern as createDefaultPT3Pattern } from './components/utils/trackerUtils';
 import { resolveSnippetPlaceholders } from './components/utils/snippetResolver'; 
-import { TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, MAIN_MENU_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './components/tools/FileExplorerPanel';
+import { TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, MAIN_MENU_SYSTEM_ASSET_ID } from './components/tools/FileExplorerPanel';
 import { msxFontJsonString } from './data/msxFontData';
 import { AppUI } from './components/AppUI';
 import { deepCopy, getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from './utils/projectUtils';
@@ -63,7 +62,6 @@ const App: React.FC = () => {
   const [currentEntityTypeToPlace, setCurrentEntityTypeToPlace] = useState<EntityTemplate | null>(null); 
   const [selectedEntityInstanceId, setSelectedEntityInstanceId] = useState<string | null>(null); 
   const [selectedEffectZoneId, setSelectedEffectZoneId] = useState<string | null>(null); 
-  const [selectedGameFlowNodeId, setSelectedGameFlowNodeId] = useState<string | null>(null);
 
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [assetToRenameInfo, setAssetToRenameInfo] = useState<{ id: string; currentName: string; type: ProjectAsset['type'] } | null>(null);
@@ -499,7 +497,7 @@ const App: React.FC = () => {
         if (asset.id === assetId) {
           let newAssetData: ProjectAsset['data'] = asset.data;
           switch (asset.type) {
-            case 'tile': case 'sprite': case 'boss': case 'screenmap': case 'worldmap': case 'gameflow': case 'sound': case 'track': case 'behavior': case 'componentdefinition': case 'entitytemplate':
+            case 'tile': case 'sprite': case 'boss': case 'screenmap': case 'worldmap': case 'sound': case 'track': case 'behavior': case 'componentdefinition': case 'entitytemplate':
               if (asset.data && typeof asset.data === 'object' && typeof updatedData === 'object') {
                 newAssetData = { ...asset.data, ...updatedData } as any;
               }
@@ -613,15 +611,6 @@ const App: React.FC = () => {
         break;
       case 'screenmap': const mapW = DEFAULT_SCREEN_WIDTH_TILES; const mapH = DEFAULT_SCREEN_HEIGHT_TILES; const emptyLayer: ScreenLayerData = Array(mapH).fill(null).map(() => Array(mapW).fill({ tileId: null })); newAssetData = { id, name: defaultName, width: mapW, height: mapH, layers: { background: emptyLayer, collision: [...emptyLayer.map(r => r.map(c => ({...c})))], effects: [...emptyLayer.map(r => r.map(c => ({...c})))], entities: [] }, effectZones: [], activeAreaX: 0, activeAreaY: 0, activeAreaWidth: mapW, activeAreaHeight: mapH, hudConfiguration: { elements: [] } } as ScreenMap; newEditorType = EditorType.Screen; break;
       case 'worldmap': newAssetData = { id, name: defaultName, nodes: [], connections: [], startScreenNodeId: null, gridSize: 40, zoomLevel: 1, panOffset: {x:0, y:0} } as WorldMapGraph; newEditorType = EditorType.WorldMap; break;
-      case 'gameflow':
-        const startNodeId = `gf_start_${Date.now()}`;
-        const startNode: GameFlowNode = { id: startNodeId, type: 'Start', position: { x: 50, y: 50 } };
-        newAssetData = {
-          id, name: defaultName, nodes: [startNode], connections: [], startNodeId: startNodeId,
-          panOffset: {x:0, y:0}, zoomLevel: 1
-        } as GameFlowGraph;
-        newEditorType = EditorType.GameFlow;
-        break;
       case 'sound': const defaultChannelState: PSGSoundChannelState = { id: 'A', steps: [ { id: `step_${Date.now()}`, tonePeriod: 257, volume: 10, toneEnabled: true, noiseEnabled: false, useEnvelope: false, durationMs: 200 } ], loop: false }; newAssetData = { id, name: defaultName, tempoBPM: 120, channels: [defaultChannelState, { ...defaultChannelState, id: 'B', steps: [] }, { ...defaultChannelState, id: 'C', steps: [] }], noisePeriod: 16, envelopePeriod: 256, envelopeShape: 0b1000, masterVolume: 1.0, } as PSGSoundData; newEditorType = EditorType.Sound; break;
       case 'track': const initialPattern = createDefaultPT3Pattern(`initial_${Date.now()}`); newAssetData = { id, name: defaultName, bpm: DEFAULT_PT3_BPM, speed: DEFAULT_PT3_SPEED, globalVolume: 15, patterns: [initialPattern], order: [0], lengthInPatterns: 1, restartPosition: 0, instruments: [], ornaments: [], currentPatternIndexInOrder: 0, currentPatternId: initialPattern.id, } as TrackerSongData; newEditorType = EditorType.Track; break;
       case 'behavior': defaultName = "NewBehaviorScript.asm"; newAssetData = { id, name: defaultName, code: Z80_BEHAVIOR_SNIPPETS[0]?.code || "; New Behavior Script\n\nentity_update:\n    ret\n" } as BehaviorScript; newEditorType = EditorType.BehaviorEditor; break;
@@ -671,21 +660,9 @@ const App: React.FC = () => {
     else if (assetId === COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.ComponentDefinitionEditor); setStatusBarMessage("Opened Component Definition Editor."); }
     else if (assetId === ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.EntityTemplateEditor); setStatusBarMessage("Opened Entity Template Editor."); }
     else if (assetId === WORLD_VIEW_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.WorldView); setStatusBarMessage("Opened World View."); }
-    else if (assetId === GAME_FLOW_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.GameFlow); setStatusBarMessage("Opened Game Flow Editor."); }
     else if (assetId === MAIN_MENU_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.MainMenu); setStatusBarMessage("Opened Main Menu Editor."); }
-    else if (assetId) {
-      const asset = assets.find(a => a.id === assetId);
-      if (asset) {
-        if (asset.type !== 'gameflow') setSelectedGameFlowNodeId(null);
-        setCurrentEditor( asset.type === 'tile' ? EditorType.Tile : asset.type === 'sprite' ? EditorType.Sprite : asset.type === 'screenmap' ? EditorType.Screen : asset.type === 'worldmap' ? EditorType.WorldMap : asset.type === 'gameflow' ? EditorType.GameFlow : asset.type === 'sound' ? EditorType.Sound : asset.type === 'track' ? EditorType.Track : asset.type === 'behavior' ? EditorType.BehaviorEditor : asset.type === 'code' ? EditorType.Code : asset.type === 'boss' ? EditorType.Boss : EditorType.None );
-        setStatusBarMessage(`Selected ${asset.name}.`);
-      }
-    }
-    else {
-      setCurrentEditor(EditorType.None);
-      setSelectedGameFlowNodeId(null);
-      setStatusBarMessage("No asset selected.");
-    }
+    else if (assetId) { const asset = assets.find(a => a.id === assetId); if (asset) { setCurrentEditor( asset.type === 'tile' ? EditorType.Tile : asset.type === 'sprite' ? EditorType.Sprite : asset.type === 'screenmap' ? EditorType.Screen : asset.type === 'worldmap' ? EditorType.WorldMap : asset.type === 'sound' ? EditorType.Sound : asset.type === 'track' ? EditorType.Track : asset.type === 'behavior' ? EditorType.BehaviorEditor : asset.type === 'code' ? EditorType.Code : asset.type === 'boss' ? EditorType.Boss : EditorType.None ); setStatusBarMessage(`Selected ${asset.name}.`); }}
+    else { setCurrentEditor(EditorType.None); setStatusBarMessage("No asset selected.");}
   }, [assets]);
 
   const memoizedOnRequestRename = useCallback((assetId: string, currentName: string, assetType: ProjectAsset['type']) => { setAssetToRenameInfo({ id: assetId, currentName, type: assetType }); setIsRenameModalOpen(true);}, []);
@@ -1169,7 +1146,7 @@ const App: React.FC = () => {
   }, [previousEditorContext, currentEditor, selectedAssetId]);
 
   const allPassedProps = {
-    currentEditor, setCurrentEditor, assets, setAssets, selectedAssetId, setSelectedAssetId, currentProjectName, setCurrentProjectName, currentScreenMode, setCurrentScreenMode, statusBarMessage, setStatusBarMessage, selectedColor, setSelectedColor, screenEditorSelectedTileId, setScreenEditorSelectedTileId, currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer, componentDefinitions, setComponentDefinitions, entityTemplates, setEntityTemplates, currentEntityTypeToPlace, setCurrentEntityTypeToPlace, selectedEntityInstanceId, setSelectedEntityInstanceId, selectedEffectZoneId, setSelectedEffectZoneId, selectedGameFlowNodeId, setSelectedGameFlowNodeId, isRenameModalOpen, setIsRenameModalOpen, assetToRenameInfo, setAssetToRenameInfo, isSaveAsModalOpen, setIsSaveAsModalOpen, isNewProjectModalOpen, setIsNewProjectModalOpen, isAboutModalOpen, setIsAboutModalOpen, isConfirmModalOpen, setIsConfirmModalOpen, confirmModalProps, setConfirmModalProps, tileBanks, setTileBanks, msxFont, setMsxFont, msxFontColorAttributes, setMsxFontColorAttributes, currentLoadedFontName, setCurrentLoadedFontName, helpDocsData, setHelpDocsData, dataOutputFormat, setDataOutputFormat, autosaveEnabled, setAutosaveEnabled, snippetsEnabled, setSnippetsEnabled, syntaxHighlightingEnabled, setSyntaxHighlightingEnabled, isConfigModalOpen, setIsConfigModalOpen, isSpriteSheetModalOpen, setIsSpriteSheetModalOpen, isSpriteFramesModalOpen, setIsSpriteFramesModalOpen, spriteForFramesModal, setSpriteForFramesModal, snippetToInsert, setSnippetToInsert, userSnippets, setUserSnippets, isSnippetEditorModalOpen, setIsSnippetEditorModalOpen, editingSnippet, setEditingSnippet, isAutosaving, setIsAutosaving, history, setHistory, copiedScreenBuffer, setCopiedScreenBuffer, copiedTileData, setCopiedTileData, copiedLayerBuffer, setCopiedLayerBuffer, contextMenu, setContextMenu, waypointPickerState, setWaypointPickerState, mainMenuConfig, onUpdateMainMenuConfig: setMainMenuConfig, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, playAutosaveSound, pushToHistory, clearAllHistory, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleUpdateScreenMode, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
+    currentEditor, setCurrentEditor, assets, setAssets, selectedAssetId, setSelectedAssetId, currentProjectName, setCurrentProjectName, currentScreenMode, setCurrentScreenMode, statusBarMessage, setStatusBarMessage, selectedColor, setSelectedColor, screenEditorSelectedTileId, setScreenEditorSelectedTileId, currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer, componentDefinitions, setComponentDefinitions, entityTemplates, setEntityTemplates, currentEntityTypeToPlace, setCurrentEntityTypeToPlace, selectedEntityInstanceId, setSelectedEntityInstanceId, selectedEffectZoneId, setSelectedEffectZoneId, isRenameModalOpen, setIsRenameModalOpen, assetToRenameInfo, setAssetToRenameInfo, isSaveAsModalOpen, setIsSaveAsModalOpen, isNewProjectModalOpen, setIsNewProjectModalOpen, isAboutModalOpen, setIsAboutModalOpen, isConfirmModalOpen, setIsConfirmModalOpen, confirmModalProps, setConfirmModalProps, tileBanks, setTileBanks, msxFont, setMsxFont, msxFontColorAttributes, setMsxFontColorAttributes, currentLoadedFontName, setCurrentLoadedFontName, helpDocsData, setHelpDocsData, dataOutputFormat, setDataOutputFormat, autosaveEnabled, setAutosaveEnabled, snippetsEnabled, setSnippetsEnabled, syntaxHighlightingEnabled, setSyntaxHighlightingEnabled, isConfigModalOpen, setIsConfigModalOpen, isSpriteSheetModalOpen, setIsSpriteSheetModalOpen, isSpriteFramesModalOpen, setIsSpriteFramesModalOpen, spriteForFramesModal, setSpriteForFramesModal, snippetToInsert, setSnippetToInsert, userSnippets, setUserSnippets, isSnippetEditorModalOpen, setIsSnippetEditorModalOpen, editingSnippet, setEditingSnippet, isAutosaving, setIsAutosaving, history, setHistory, copiedScreenBuffer, setCopiedScreenBuffer, copiedTileData, setCopiedTileData, copiedLayerBuffer, setCopiedLayerBuffer, contextMenu, setContextMenu, waypointPickerState, setWaypointPickerState, mainMenuConfig, onUpdateMainMenuConfig: setMainMenuConfig, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, playAutosaveSound, pushToHistory, clearAllHistory, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleUpdateScreenMode, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
     isCompressDataModalOpen, setIsCompressDataModalOpen,
     isToggleEditorDisabled: previousEditorContext === null,
     onToggleEditor: handleToggleEditor,
