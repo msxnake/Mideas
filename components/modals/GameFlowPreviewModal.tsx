@@ -262,11 +262,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 const now = performance.now();
                 if (now - lastFrameUpdateTime > ANIMATION_SPEED_MS) {
-                    entity.currentFrame = (entity.currentFrame + 1) % entity.frameImages.length;
-                    entity.lastFrameUpdateTime = now;
+                    currentFrame = (currentFrame + 1) % entity.frameImages.length;
+                    lastFrameUpdateTime = now;
                 }
 
-                let imageToDraw = entity.frameImages[entity.currentFrame];
+                let imageToDraw = entity.frameImages[currentFrame];
                 if (entity.sprite.facingDirection === 'right' && vx < 0 && entity.mirroredFrameImages) {
                     imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
                 } else if (entity.sprite.facingDirection === 'left' && vx > 0 && entity.mirroredFrameImages) {
