@@ -248,6 +248,20 @@ export const DEFAULT_MAIN_MENU_CONFIG: MainMenuConfig = {
 };
 // --- End Main Menu Constants ---
 
+// --- Game Flow Constants ---
+export const DEFAULT_GAME_FLOW: GameFlow = {
+  nodes: [
+    { id: 'root', position: { x: 50, y: 50 }, link: { type: 'Unlinked' } }
+  ],
+  submenus: [],
+  rootNodeId: 'root',
+  view: {
+    panOffset: { x: 0, y: 0 },
+    zoomLevel: 1,
+  }
+};
+// --- End Game Flow Constants ---
+
 // --- Effect Zone Constants ---
 // Re-export EFFECT_ZONE_FLAGS from types.ts for easier access
 export const EFFECT_ZONE_FLAGS = EFFECT_ZONE_FLAGS_TYPE;

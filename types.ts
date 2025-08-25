@@ -422,29 +422,6 @@ export interface Boss {
 }
 
 // --- Main Menu Types ---
-
-export interface StageNode {
-  id: string;
-  position: { x: number; y: number };
-  type: 'SubMenu' | 'WorldLink';
-  name?: string;
-  options?: MainMenuOption[];
-  worldAssetId?: string;
-}
-
-export interface StageConnection {
-  id: string;
-  fromOptionId: string;
-  toNodeId: string;
-}
-
-export interface StagesGraph {
-  nodes: StageNode[];
-  connections: StageConnection[];
-  panOffset: { x: number; y: number };
-  zoomLevel: number;
-}
-
 export interface MainMenuOption {
   id: string;
   label: string;
@@ -483,7 +460,6 @@ export interface MainMenuConfig {
   introScreen: MainMenuIntroScreen;
   menuScreenAssetId: string | null;
   cursorSpriteAssetId: string | null;
-  stagesGraph?: StagesGraph;
   menuColors: {
     text: MSX1ColorValue;
     background: MSX1ColorValue;
@@ -493,6 +469,41 @@ export interface MainMenuConfig {
   };
 }
 // --- End Main Menu Types ---
+
+
+// --- Game Flow Types ---
+export interface GameFlowNode {
+  id: string;
+  position: { x: number; y: number };
+  link:
+    | { type: 'Unlinked' }
+    | { type: 'World'; worldAssetId: string; onCompleteNodeId: string; }
+    | { type: 'SubMenu'; submenuId: string; };
+}
+
+export interface SubMenu {
+  id: string;
+  name: string;
+  options: SubMenuOption[];
+}
+
+export interface SubMenuOption {
+  id:string;
+  label: string;
+  nextNodeId: string;
+}
+
+export interface GameFlow {
+  nodes: GameFlowNode[];
+  submenus: SubMenu[];
+  rootNodeId: string | null;
+  view: {
+    panOffset: { x: number; y: number };
+    zoomLevel: number;
+  }
+}
+// --- End Game Flow Types ---
+
 
 export enum EditorType {
   None = "None", Tile = "Tile", Sprite = "Sprite", Screen = "Screen", Code = "Code",
@@ -504,6 +515,7 @@ export enum EditorType {
   Boss = "Boss",
   WorldView = "WorldView",
   MainMenu = "MainMenu",
+  GameFlow = "GameFlow",
 }
 
 export interface ProjectAsset {
@@ -661,7 +673,7 @@ export interface WaypointPickerState {
 }
 
 // --- Centralized History System ---
-export type HistoryActionType = 'ASSETS_UPDATE' | 'TILE_BANKS_UPDATE' | 'FONT_UPDATE' | 'FONT_COLOR_UPDATE' | 'COMPONENT_DEFINITIONS_UPDATE' | 'ENTITY_TEMPLATES_UPDATE' | 'MAIN_MENU_UPDATE';
+export type HistoryActionType = 'ASSETS_UPDATE' | 'TILE_BANKS_UPDATE' | 'FONT_UPDATE' | 'FONT_COLOR_UPDATE' | 'COMPONENT_DEFINITIONS_UPDATE' | 'ENTITY_TEMPLATES_UPDATE' | 'MAIN_MENU_UPDATE' | 'GAME_FLOW_UPDATE';
 
 export interface HistoryAction {
     type: HistoryActionType;

@@ -10,7 +10,7 @@ import {
   EntityInstance, MockEntityType, HelpDocSection, BehaviorScript, TileLogicalProperties,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
-  Boss, BossPhase, Point, HistoryState, HistoryAction, HistoryActionType, CopiedTileData, WaypointPickerState, MainMenuConfig
+  Boss, BossPhase, Point, HistoryState, HistoryAction, HistoryActionType, CopiedTileData, WaypointPickerState, MainMenuConfig, GameFlow
 } from './types';
 import { 
   MSX_SCREEN5_PALETTE, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, 
@@ -20,7 +20,7 @@ import {
   DEFAULT_TILE_BANKS_CONFIG, Z80_SNIPPETS as DEFAULT_Z80_SNIPPETS, Z80_BEHAVIOR_SNIPPETS,
   EDITOR_BASE_TILE_DIM_S2,
   DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED,
-  DEFAULT_HELP_DOCS_DATA, HELP_DOCS_SYSTEM_ASSET_ID, MAX_HISTORY_LENGTH, DEFAULT_MAIN_MENU_CONFIG
+  DEFAULT_HELP_DOCS_DATA, HELP_DOCS_SYSTEM_ASSET_ID, MAX_HISTORY_LENGTH, DEFAULT_MAIN_MENU_CONFIG, DEFAULT_GAME_FLOW
 } from './constants';
 import { DEFAULT_MSX_FONT, EDITABLE_CHAR_CODES_SUBSET } from './components/utils/msxFontRenderer'; 
 import { createDefaultLineAttributes, generateTilePatternBytes, generateTileColorBytes } from './components/utils/tileUtils'; 
@@ -59,6 +59,7 @@ const App: React.FC = () => {
   const [componentDefinitions, setComponentDefinitionsState] = useState<ComponentDefinition[]>(DEFAULT_COMPONENT_DEFINITIONS);
   const [entityTemplates, setEntityTemplatesState] = useState<EntityTemplate[]>(DEFAULT_ENTITY_TEMPLATES);
   const [mainMenuConfig, setMainMenuConfigState] = useState<MainMenuConfig>(DEFAULT_MAIN_MENU_CONFIG);
+  const [gameFlow, setGameFlowState] = useState<GameFlow>(DEFAULT_GAME_FLOW);
   const [currentEntityTypeToPlace, setCurrentEntityTypeToPlace] = useState<EntityTemplate | null>(null); 
   const [selectedEntityInstanceId, setSelectedEntityInstanceId] = useState<string | null>(null); 
   const [selectedEffectZoneId, setSelectedEffectZoneId] = useState<string | null>(null); 
@@ -475,6 +476,14 @@ const App: React.FC = () => {
     });
   }, [pushToHistory]);
 
+  const setGameFlow = useCallback((updater: GameFlow | ((prev: GameFlow) => GameFlow)) => {
+    setGameFlowState(prevFlow => {
+        const newFlow = typeof updater === 'function' ? (updater as (prev: GameFlow) => GameFlow)(prevFlow) : updater;
+        pushToHistory('GAME_FLOW_UPDATE', prevFlow, newFlow);
+        return newFlow;
+    });
+  }, [pushToHistory]);
+
   const handleUpdateAsset = useCallback((assetId: string, updatedData: any, newAssetsToCreate?: ProjectAsset[]) => {
     setAssetsWithHistory(prevAssets => {
       let intermediateAssets = prevAssets;
@@ -546,6 +555,7 @@ const App: React.FC = () => {
         setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
         setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
         setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
+        setGameFlowState(DEFAULT_GAME_FLOW);
         clearAllHistory(); 
         setCopiedScreenBuffer(null); 
         setCopiedTileData(null);
@@ -661,6 +671,7 @@ const App: React.FC = () => {
     else if (assetId === ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.EntityTemplateEditor); setStatusBarMessage("Opened Entity Template Editor."); }
     else if (assetId === WORLD_VIEW_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.WorldView); setStatusBarMessage("Opened World View."); }
     else if (assetId === MAIN_MENU_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.MainMenu); setStatusBarMessage("Opened Main Menu Editor."); }
+    else if (assetId === GAME_FLOW_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.GameFlow); setStatusBarMessage("Opened Game Flow Editor."); }
     else if (assetId) { const asset = assets.find(a => a.id === assetId); if (asset) { setCurrentEditor( asset.type === 'tile' ? EditorType.Tile : asset.type === 'sprite' ? EditorType.Sprite : asset.type === 'screenmap' ? EditorType.Screen : asset.type === 'worldmap' ? EditorType.WorldMap : asset.type === 'sound' ? EditorType.Sound : asset.type === 'track' ? EditorType.Track : asset.type === 'behavior' ? EditorType.BehaviorEditor : asset.type === 'code' ? EditorType.Code : asset.type === 'boss' ? EditorType.Boss : EditorType.None ); setStatusBarMessage(`Selected ${asset.name}.`); }} 
     else { setCurrentEditor(EditorType.None); setStatusBarMessage("No asset selected.");}
   }, [assets]);
@@ -731,7 +742,7 @@ const App: React.FC = () => {
         userSnippets, helpDocsData,
         currentProjectName, 
         componentDefinitions, entityTemplates, 
-        mainMenuConfig,
+        mainMenuConfig, gameFlow,
         selectedEntityInstanceId, selectedEffectZoneId, 
     }; 
     const dataStr = JSON.stringify(projectData, null, 2); 
@@ -815,6 +826,7 @@ const App: React.FC = () => {
           if (Array.isArray(projectData.componentDefinitions)) setComponentDefinitionsState(projectData.componentDefinitions); else setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
           if (Array.isArray(projectData.entityTemplates)) setEntityTemplatesState(projectData.entityTemplates); else setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
           if (projectData.mainMenuConfig) setMainMenuConfigState(projectData.mainMenuConfig); else setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
+          if (projectData.gameFlow) setGameFlowState(projectData.gameFlow); else setGameFlowState(DEFAULT_GAME_FLOW);
 
           setSelectedEntityInstanceId(projectData.selectedEntityInstanceId || null);
           setSelectedEffectZoneId(projectData.selectedEffectZoneId || null);
@@ -1146,7 +1158,7 @@ const App: React.FC = () => {
   }, [previousEditorContext, currentEditor, selectedAssetId]);
 
   const allPassedProps = {
-    currentEditor, setCurrentEditor, assets, setAssets, selectedAssetId, setSelectedAssetId, currentProjectName, setCurrentProjectName, currentScreenMode, setCurrentScreenMode, statusBarMessage, setStatusBarMessage, selectedColor, setSelectedColor, screenEditorSelectedTileId, setScreenEditorSelectedTileId, currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer, componentDefinitions, setComponentDefinitions, entityTemplates, setEntityTemplates, currentEntityTypeToPlace, setCurrentEntityTypeToPlace, selectedEntityInstanceId, setSelectedEntityInstanceId, selectedEffectZoneId, setSelectedEffectZoneId, isRenameModalOpen, setIsRenameModalOpen, assetToRenameInfo, setAssetToRenameInfo, isSaveAsModalOpen, setIsSaveAsModalOpen, isNewProjectModalOpen, setIsNewProjectModalOpen, isAboutModalOpen, setIsAboutModalOpen, isConfirmModalOpen, setIsConfirmModalOpen, confirmModalProps, setConfirmModalProps, tileBanks, setTileBanks, msxFont, setMsxFont, msxFontColorAttributes, setMsxFontColorAttributes, currentLoadedFontName, setCurrentLoadedFontName, helpDocsData, setHelpDocsData, dataOutputFormat, setDataOutputFormat, autosaveEnabled, setAutosaveEnabled, snippetsEnabled, setSnippetsEnabled, syntaxHighlightingEnabled, setSyntaxHighlightingEnabled, isConfigModalOpen, setIsConfigModalOpen, isSpriteSheetModalOpen, setIsSpriteSheetModalOpen, isSpriteFramesModalOpen, setIsSpriteFramesModalOpen, spriteForFramesModal, setSpriteForFramesModal, snippetToInsert, setSnippetToInsert, userSnippets, setUserSnippets, isSnippetEditorModalOpen, setIsSnippetEditorModalOpen, editingSnippet, setEditingSnippet, isAutosaving, setIsAutosaving, history, setHistory, copiedScreenBuffer, setCopiedScreenBuffer, copiedTileData, setCopiedTileData, copiedLayerBuffer, setCopiedLayerBuffer, contextMenu, setContextMenu, waypointPickerState, setWaypointPickerState, mainMenuConfig, onUpdateMainMenuConfig: setMainMenuConfig, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, playAutosaveSound, pushToHistory, clearAllHistory, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleUpdateScreenMode, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
+    currentEditor, setCurrentEditor, assets, setAssets, selectedAssetId, setSelectedAssetId, currentProjectName, setCurrentProjectName, currentScreenMode, setCurrentScreenMode, statusBarMessage, setStatusBarMessage, selectedColor, setSelectedColor, screenEditorSelectedTileId, setScreenEditorSelectedTileId, currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer, componentDefinitions, setComponentDefinitions, entityTemplates, setEntityTemplates, currentEntityTypeToPlace, setCurrentEntityTypeToPlace, selectedEntityInstanceId, setSelectedEntityInstanceId, selectedEffectZoneId, setSelectedEffectZoneId, isRenameModalOpen, setIsRenameModalOpen, assetToRenameInfo, setAssetToRenameInfo, isSaveAsModalOpen, setIsSaveAsModalOpen, isNewProjectModalOpen, setIsNewProjectModalOpen, isAboutModalOpen, setIsAboutModalOpen, isCompressDataModalOpen, setIsCompressDataModalOpen, isConfirmModalOpen, setIsConfirmModalOpen, confirmModalProps, setConfirmModalProps, tileBanks, setTileBanks, msxFont, setMsxFont, msxFontColorAttributes, setMsxFontColorAttributes, currentLoadedFontName, setCurrentLoadedFontName, helpDocsData, setHelpDocsData, dataOutputFormat, setDataOutputFormat, autosaveEnabled, setAutosaveEnabled, snippetsEnabled, setSnippetsEnabled, syntaxHighlightingEnabled, setSyntaxHighlightingEnabled, isConfigModalOpen, setIsConfigModalOpen, isSpriteSheetModalOpen, setIsSpriteSheetModalOpen, isSpriteFramesModalOpen, setIsSpriteFramesModalOpen, spriteForFramesModal, setSpriteForFramesModal, snippetToInsert, setSnippetToInsert, userSnippets, setUserSnippets, isSnippetEditorModalOpen, setIsSnippetEditorModalOpen, editingSnippet, setEditingSnippet, isAutosaving, setIsAutosaving, history, setHistory, copiedScreenBuffer, setCopiedScreenBuffer, copiedTileData, setCopiedTileData, copiedLayerBuffer, setCopiedLayerBuffer, contextMenu, setContextMenu, waypointPickerState, setWaypointPickerState, mainMenuConfig, onUpdateMainMenuConfig: setMainMenuConfig, gameFlow, onUpdateGameFlow: setGameFlow, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, playAutosaveSound, pushToHistory, clearAllHistory, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleUpdateScreenMode, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
     isCompressDataModalOpen, setIsCompressDataModalOpen,
     isToggleEditorDisabled: previousEditorContext === null,
     onToggleEditor: handleToggleEditor,
