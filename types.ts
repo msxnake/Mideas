@@ -470,6 +470,62 @@ export interface MainMenuConfig {
 }
 // --- End Main Menu Types ---
 
+// --- Game Flow Types ---
+
+export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End';
+
+export interface GameFlowNode_Base {
+  id: string;
+  type: GameFlowNodeType;
+  position: { x: number; y: number };
+}
+
+export interface GameFlowStartNode extends GameFlowNode_Base {
+  type: 'Start';
+}
+
+export interface GameFlowSubMenuOption {
+  id: string;
+  text: string;
+}
+
+export interface GameFlowSubMenuNode extends GameFlowNode_Base {
+  type: 'SubMenu';
+  title: string;
+  options: GameFlowSubMenuOption[];
+}
+
+export interface GameFlowWorldLinkNode extends GameFlowNode_Base {
+  type: 'WorldLink';
+  worldAssetId: string;
+}
+
+export interface GameFlowEndNode extends GameFlowNode_Base {
+  type: 'End';
+  endType: 'Victory' | 'GameOver';
+  message: string;
+}
+
+export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode;
+
+export interface GameFlowConnection {
+  id: string;
+  from: { nodeId: string; sourceId?: string }; // sourceId can be a submenu option id or a world completion event
+  to: { nodeId: string; };
+}
+
+export interface GameFlowGraph {
+  id: string;
+  name: string;
+  nodes: GameFlowNode[];
+  connections: GameFlowConnection[];
+  startNodeId: string;
+  panOffset: { x: number; y: number };
+  zoomLevel: number;
+}
+// --- End Game Flow Types ---
+
+
 export enum EditorType {
   None = "None", Tile = "Tile", Sprite = "Sprite", Screen = "Screen", Code = "Code",
   Attributes = "Attributes", Sound = "Sound", Platformer = "Platformer", WorldMap = "WorldMap",
@@ -486,8 +542,8 @@ export enum EditorType {
 export interface ProjectAsset {
   id: string;
   name: string;
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate';
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss;
+  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow';
+  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph;
 }
 
 export interface Point { x: number; y: number; }

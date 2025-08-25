@@ -31,6 +31,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'boss': return <BugIcon className={`${iconClass} text-msx-danger group-hover:text-msx-accent`} />;
     case 'screenmap': return <MapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'worldmap': return <WorldMapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
+    case 'gameflow': return <GameFlowIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'code': return <CodeIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'sound': return <SoundIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'track': return <MusicNoteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -43,19 +44,19 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'componentdefinitioneditor': return <PuzzlePieceIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'entitytemplateeditor': return <SpriteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'worldview': return <WorldViewIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
-    case 'gameflow': return <GameFlowIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'mainmenu': return <ListBulletIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />; // Added Main Menu icon
     default: return <PlaceholderIcon className={`${iconClass} text-msx-textsecondary`} />;
   }
 };
 
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['tile', 'sprite', 'boss', 'screenmap', 'worldmap', 'sound', 'track', 'behavior', 'componentdefinition', 'entitytemplate', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['tile', 'sprite', 'boss', 'screenmap', 'worldmap', 'gameflow', 'sound', 'track', 'behavior', 'componentdefinition', 'entitytemplate', 'code'];
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   tile: "Tiles",
   sprite: "Sprites",
   boss: "Bosses",
   screenmap: "Screen Maps",
   worldmap: "World Maps",
+  gameflow: "Game Flows",
   sound: "Sound FX",
   track: "Music Tracks",
   behavior: "Behavior Scripts",
