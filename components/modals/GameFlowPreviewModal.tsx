@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { GameFlowGraph, ProjectAsset, GameFlowNode, GameFlowSubMenuNode, GameFlowWorldLinkNode } from '../../types';
+import { GameFlowGraph, ProjectAsset, GameFlowNode, GameFlowSubMenuNode, GameFlowWorldLinkNode, MSXFont, MSXFontColorAttributes } from '../../types';
 import { Button } from '../common/Button';
+import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFontRenderer';
 
 interface GameFlowPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   graphData: GameFlowGraph;
   allAssets: ProjectAsset[];
+  msxFont: MSXFont;
+  msxFontColorAttributes: MSXFontColorAttributes;
 }
 
 const PREVIEW_WIDTH = 256;
@@ -17,6 +20,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
   onClose,
   graphData,
   allAssets,
+  msxFont,
+  msxFontColorAttributes,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -102,14 +107,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 
-    ctx.font = '16px "MSX-Gothic", monospace';
-    ctx.textAlign = 'center';
+    const drawText = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes) => {
+        const textImg = new Image();
+        textImg.onload = () => {
+            ctx.drawImage(textImg, x, y);
+        };
+        textImg.src = renderMSX1TextToDataURL(text, msxFont, colorAttrs, 1, 1);
+    };
 
     switch (currentNode.type) {
         case 'Start':
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillText('Game Start', PREVIEW_WIDTH / 2, PREVIEW_HEIGHT / 2);
-            // Automatically move to the next node after a delay
+            const startText = 'Game Start';
+            const startDims = getTextDimensionsMSX1(startText, 1);
+            drawText(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
+
             setTimeout(() => {
                 const conn = connections.find(c => c.from.nodeId === currentNode.id);
                 if (conn) setCurrentNodeId(conn.to.nodeId);
@@ -117,31 +128,46 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             break;
         case 'SubMenu':
             const subMenuNode = currentNode as GameFlowSubMenuNode;
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillText(subMenuNode.title, PREVIEW_WIDTH / 2, 40);
+            const titleDims = getTextDimensionsMSX1(subMenuNode.title, 1);
+            drawText(subMenuNode.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes);
 
             subMenuNode.options.forEach((option, index) => {
-                ctx.fillStyle = index === selectedOptionIndex ? '#FFFF00' : '#FFFFFF';
-                ctx.fillText(option.text, PREVIEW_WIDTH / 2, 80 + index * 20);
+                const optionText = option.text;
+                const optionDims = getTextDimensionsMSX1(optionText, 1);
+
+                const tempColorAttrs: MSXFontColorAttributes = JSON.parse(JSON.stringify(msxFontColorAttributes));
+                if (index === selectedOptionIndex) {
+                    for(let i=0; i<optionText.length; i++){
+                        tempColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
+                    }
+                }
+
+                drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, tempColorAttrs);
             });
             break;
         case 'WorldLink':
             const worldLinkNode = currentNode as GameFlowWorldLinkNode;
             const asset = allAssets.find(a => a.id === worldLinkNode.worldAssetId);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillText('Loading World:', PREVIEW_WIDTH / 2, PREVIEW_HEIGHT / 2 - 10);
-            ctx.fillText(asset ? asset.name : 'Unknown', PREVIEW_WIDTH / 2, PREVIEW_HEIGHT / 2 + 10);
-            ctx.font = '12px "MSX-Gothic", monospace';
-            ctx.fillStyle = '#AAAAAA';
-            ctx.fillText('(Cannot go back from here)', PREVIEW_WIDTH / 2, PREVIEW_HEIGHT - 20);
+            const worldText1 = 'Loading World:';
+            const worldText2 = asset ? asset.name : 'Unknown';
+            const worldDims1 = getTextDimensionsMSX1(worldText1, 1);
+            const worldDims2 = getTextDimensionsMSX1(worldText2, 1);
+
+            drawText(worldText1, (PREVIEW_WIDTH - worldDims1.width) / 2, PREVIEW_HEIGHT / 2 - 10, msxFontColorAttributes);
+            drawText(worldText2, (PREVIEW_WIDTH - worldDims2.width) / 2, PREVIEW_HEIGHT / 2 + 10, msxFontColorAttributes);
+
+            const noBackText = '(Cannot go back from here)';
+            const noBackDims = getTextDimensionsMSX1(noBackText, 1);
+            drawText(noBackText, (PREVIEW_WIDTH - noBackDims.width) / 2, PREVIEW_HEIGHT - 20, msxFontColorAttributes);
             break;
         case 'End':
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillText('Game Over', PREVIEW_WIDTH / 2, PREVIEW_HEIGHT / 2);
+            const endText = 'Game Over';
+            const endDims = getTextDimensionsMSX1(endText, 1);
+            drawText(endText, (PREVIEW_WIDTH - endDims.width) / 2, (PREVIEW_HEIGHT - endDims.height) / 2, msxFontColorAttributes);
             break;
     }
 
-  }, [isOpen, currentNode, selectedOptionIndex, allAssets, connections]);
+  }, [isOpen, currentNode, selectedOptionIndex, allAssets, connections, msxFont, msxFontColorAttributes]);
 
   if (!isOpen) return null;
 

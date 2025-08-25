@@ -358,6 +358,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               selectedNodeId={selectedGameFlowNodeId}
               setSelectedNodeId={setSelectedGameFlowNodeId}
               onShowContextMenu={showContextMenu}
+              msxFont={msxFont}
+              msxFontColorAttributes={msxFontColorAttributes}
             />
           )}
           
