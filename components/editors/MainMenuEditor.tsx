@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import { MainMenuConfig, MainMenuOption, MainMenuKeyMapping, ProjectAsset, MSX1ColorValue } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
@@ -13,13 +14,14 @@ import { MSX1_PALETTE } from '../../constants';
 interface MainMenuEditorProps {
     mainMenuConfig: MainMenuConfig;
     onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
+    onSaveMenu: (menu: any) => void;
     allAssets: ProjectAsset[];
     msxFont: any;
     msxFontColorAttributes: any;
     currentScreenMode: string;
 }
 
-type MainMenuTab = 'Design' | 'Appearance' | 'Keys' | 'Settings' | 'Continue' | 'Intro';
+type MainMenuTab = 'Design' | 'Appearance' | 'Keys' | 'Settings' | 'Continue' | 'Intro' | 'Add Asset';
 
 const KeyInput: React.FC<{ label: string; value: string; onSet: () => void; isListening: boolean }> = ({ label, value, onSet, isListening }) => (
     <div className="flex items-center justify-between p-2 bg-msx-bgcolor rounded">
@@ -73,9 +75,10 @@ const InlineColorPicker: React.FC<{ label: string, color: MSX1ColorValue; onChan
     );
 };
 
-export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, onUpdateMainMenuConfig, allAssets, msxFont, msxFontColorAttributes, currentScreenMode }) => {
+export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, onUpdateMainMenuConfig, onSaveMenu, allAssets, msxFont, msxFontColorAttributes, currentScreenMode }) => {
     const [activeTab, setActiveTab] = useState<MainMenuTab>('Design');
     const [listeningForKey, setListeningForKey] = useState<keyof MainMenuKeyMapping | null>(null);
+    const [menuName, setMenuName] = useState('Mi Menú Principal');
 
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean;
@@ -161,6 +164,33 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
         setIsExportAsmModalOpen(true);
     };
 
+    const handleSave = () => {
+        if (!menuName.trim()) {
+          alert('Por favor, introduce un nombre para el menú.');
+          return;
+        }
+
+        const menuId = uuidv4();
+
+        const menuAsset = {
+          id: menuId,
+          name: menuName,
+          ...mainMenuConfig,
+        };
+
+        onSaveMenu(menuAsset);
+
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(
+          JSON.stringify(menuAsset, null, 2)
+        )}`;
+        const link = document.createElement('a');
+        link.href = jsonString;
+        link.download = `${menuName.replace(/\s+/g, '_').toLowerCase()}.json`;
+        link.click();
+
+        alert(`¡Menú "${menuName}" guardado con éxito!`);
+      };
+
     const renderTabContent = () => {
         switch (activeTab) {
             case 'Design': return (
@@ -237,6 +267,21 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
                         </div>
                     </div>
                 );
+            case 'Add Asset':
+                return (
+                    <div>
+                      <h2>Guardar Menú como Asset</h2>
+                      <input
+                        type="text"
+                        value={menuName}
+                        onChange={(e) => setMenuName(e.target.value)}
+                        placeholder="Nombre del Menú"
+                        style={{ marginRight: '10px' }}
+                        className="p-1 bg-msx-panelbg border border-msx-border rounded"
+                      />
+                      <Button onClick={handleSave}>Guardar y Exportar JSON</Button>
+                    </div>
+                );
         }
     };
     
@@ -244,7 +289,7 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
         <Panel title="Main Menu Editor" icon={<ListBulletIcon/>} className="flex-grow flex flex-col !p-0">
             <div className="p-2 border-b border-msx-border flex items-center justify-between">
                 <div className="flex space-x-1">
-                    {(['Design', 'Appearance', 'Keys', 'Settings', 'Continue', 'Intro'] as MainMenuTab[]).map(tab => (
+                    {(['Design', 'Appearance', 'Keys', 'Settings', 'Continue', 'Intro', 'Add Asset'] as MainMenuTab[]).map(tab => (
                         <Button key={tab} onClick={() => setActiveTab(tab)} variant={activeTab === tab ? 'primary' : 'ghost'} size="sm">{tab}</Button>
                     ))}
                 </div>

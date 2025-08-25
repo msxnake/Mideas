@@ -68,6 +68,7 @@ interface AppUIProps {
   componentDefinitions: ComponentDefinition[];
   entityTemplates: EntityTemplate[];
   mainMenuConfig: MainMenuConfig;
+  savedMenus: any[];
   currentEntityTypeToPlace: EntityTemplate | null;
   selectedEntityInstanceId: string | null;
   selectedEffectZoneId: string | null;
@@ -105,6 +106,7 @@ interface AppUIProps {
   waypointPickerState: WaypointPickerState;
 
   onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
+  onSaveMenu: (menu: any) => void;
 
   // Setters and handlers
   setCurrentEditor: React.Dispatch<React.SetStateAction<EditorType>>;
@@ -187,9 +189,9 @@ interface AppUIProps {
 
 export const AppUI: React.FC<AppUIProps> = (props) => {
     const {
-        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, contextMenu, waypointPickerState,
+        currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, savedMenus, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, contextMenu, waypointPickerState,
         
-        setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
+        setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, onSaveMenu, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
         isToggleEditorDisabled, onToggleEditor
     } = props;
 
@@ -325,10 +327,11 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       <input id="project-loader-input" type="file" accept=".json" ref={fileLoadInputRef} onChange={handleLoadProject} style={{ display: 'none' }} />
 
       <div className="flex-grow flex overflow-hidden">
-        <FileExplorerPanel 
-            className="w-60 flex-shrink-0"
-            assets={assets} 
-            selectedAssetId={selectedAssetId} 
+        <div className="w-60 flex-shrink-0 flex flex-col">
+            <div className="flex-grow overflow-y-auto">
+                <FileExplorerPanel
+                assets={assets}
+                selectedAssetId={selectedAssetId}
             onSelectAsset={memoizedHandleSelectAsset} 
             onRequestRename={memoizedOnRequestRename} 
             showTileBanksEntry={currentScreenMode === "SCREEN 2 (Graphics I)"} 
@@ -340,7 +343,22 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             isWorldViewActive={currentEditor === EditorType.WorldView}
             isMainMenuActive={currentEditor === EditorType.MainMenu}
             onRequestDelete={handleDeleteAsset} 
-        />
+                />
+            </div>
+            <div className="flex-shrink-0 border-t-2 border-msx-border">
+                <Panel title="Menus">
+                    {savedMenus.length > 0 ? (
+                      <ul>
+                        {savedMenus.map(menu => (
+                          <li key={menu.id} className="p-1 text-msx-textprimary truncate">{menu.name}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="p-2 text-msx-textsecondary">No hay menús guardados.</p>
+                    )}
+                </Panel>
+            </div>
+        </div>
         
         <div className="flex-grow flex flex-col" role="main">
           {currentEditor === EditorType.None && <Panel title="Welcome to MSX Retro IDE"><p className="p-4 text-center text-msx-textsecondary">Select an asset or create a new one to start editing.</p></Panel>}
@@ -365,6 +383,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
              <MainMenuEditor
                 mainMenuConfig={mainMenuConfig}
                 onUpdateMainMenuConfig={onUpdateMainMenuConfig}
+                onSaveMenu={onSaveMenu}
                 allAssets={assets}
                 msxFont={msxFont}
                 msxFontColorAttributes={msxFontColorAttributes}
