@@ -128,7 +128,7 @@ export const StagesEditor: React.FC<StagesEditorProps> = ({ mainMenuConfig, onUp
 
     return (
         <div
-            className="w-full h-full bg-msx-panelbg-dark border border-msx-border rounded-lg relative overflow-hidden"
+            className="w-full h-full min-h-[600px] bg-msx-panelbg-dark border border-msx-border rounded-lg relative overflow-hidden"
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
         >

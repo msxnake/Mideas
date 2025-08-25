@@ -262,7 +262,7 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
                     <Button variant="secondary" size="sm" icon={<CodeIcon/>} onClick={handleExportAsm}>Export ASM</Button>
                 </div>
             </div>
-            <div className="flex-grow p-3 overflow-y-auto" style={{ userSelect: 'none' }}>
+            <div className="flex-grow p-3 overflow-y-auto" data-testid="tab-content-panel" style={{ userSelect: 'none' }}>
                 {renderTabContent()}
             </div>
              {assetPickerState?.isOpen && (
