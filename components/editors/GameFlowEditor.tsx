@@ -22,10 +22,10 @@ interface GameFlowEditorProps {
 const getPortPosition = (node: GameFlowNode, portId: string): Point => {
     const basePos = node.position;
     if (portId === 'in') {
-        return { x: basePos.x + NODE_WIDTH / 2, y: basePos.y };
+        return { x: basePos.x, y: basePos.y + NODE_HEIGHT / 2 };
     }
     if (portId === 'out') {
-        return { x: basePos.x + NODE_WIDTH / 2, y: basePos.y + NODE_HEIGHT };
+        return { x: basePos.x + NODE_WIDTH, y: basePos.y + NODE_HEIGHT / 2 };
     }
     if (node.type === 'SubMenu' && node.options) {
         const optionIndex = node.options.findIndex(opt => opt.id === portId);
@@ -34,7 +34,7 @@ const getPortPosition = (node: GameFlowNode, portId: string): Point => {
             return { x: basePos.x + NODE_WIDTH, y: basePos.y + yOffset };
         }
     }
-    return { x: basePos.x + NODE_WIDTH / 2, y: basePos.y + NODE_HEIGHT };
+    return { x: basePos.x + NODE_WIDTH, y: basePos.y + NODE_HEIGHT / 2 };
 };
 
 const GameFlowNodeComponent: React.FC<{
@@ -71,9 +71,12 @@ const GameFlowNodeComponent: React.FC<{
       <rect width={NODE_WIDTH} height={NODE_HEIGHT} fill={nodeColor} stroke={strokeColor} strokeWidth={isSelected ? 2.5 : 1.5} rx={5} ry={5} style={{ cursor: 'grab' }} />
       <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" fill="white" fontSize="10px" className="pixel-font select-none pointer-events-none">{node.type}</text>
       <text x={NODE_WIDTH / 2} y={35} textAnchor="middle" fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none">{nodeName}</text>
-      {hasInput && <rect x={NODE_WIDTH / 2 - PORT_SIZE / 2} y={-PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(200, 60%, 50%)" stroke="hsl(200, 80%, 70%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}/>}
-      {node.type === 'Start' && <rect x={NODE_WIDTH / 2 - PORT_SIZE/2} y={NODE_HEIGHT - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
-      {node.type === 'WorldLink' && <rect x={NODE_WIDTH / 2 - PORT_SIZE/2} y={NODE_HEIGHT - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
+
+      {hasInput && <rect x={-PORT_SIZE/2} y={NODE_HEIGHT/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(200, 80%, 60%)" stroke="hsl(200, 80%, 70%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}/>}
+
+      {node.type === 'Start' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={NODE_HEIGHT/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
+      {node.type === 'WorldLink' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={NODE_HEIGHT/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
+
       {node.type === 'SubMenu' && node.options.map((option, index) => {
           const yOffset = (NODE_HEIGHT / (node.options.length + 1)) * (index + 1);
           return (
