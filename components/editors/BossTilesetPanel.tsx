@@ -21,7 +21,7 @@ export const BossTilesetPanel: React.FC<BossTilesetPanelProps> = ({
   const isEraserSelected = selectedTileId === null;
 
   return (
-    <div className="w-64 p-2 border-l border-msx-border overflow-y-auto flex-shrink-0">
+    <div className="w-64 p-2 border-l border-msx-border overflow-y-auto flex-shrink-0 h-[800px]">
       <h4 className="text-sm pixel-font text-msx-highlight mb-2">All Tiles (8x8)</h4>
 
       {allTiles.length === 0 ? (
