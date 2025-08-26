@@ -19,6 +19,8 @@ interface BossEditorProps {
     onNavigateToAsset: (assetId: string | null, editorTypeOverride?: EditorType) => void;
     onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
     currentScreenMode: string;
+    zoomLevel: number;
+    onZoomChange: (level: number) => void;
 }
 
 const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[] }> = ({ spriteAssetId, allAssets }) => {
@@ -47,12 +49,11 @@ const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[]
 
 type BossEditMode = 'tiles' | 'collision' | 'weakpoints';
 
-export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onNavigateToAsset, onShowContextMenu, currentScreenMode }) => {
+export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoomLevel, onZoomChange }) => {
     
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
     const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
-    const [zoomLevel, setZoomLevel] = useState(1);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -295,7 +296,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                     max="2"
                                     step="0.1"
                                     value={zoomLevel}
-                                    onChange={e => setZoomLevel(parseFloat(e.target.value))}
+                                    onChange={e => onZoomChange(parseFloat(e.target.value))}
                                     className="w-32"
                                 />
                                 <span className="w-8 text-center">{Math.round(zoomLevel * 100)}%</span>
