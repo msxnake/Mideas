@@ -10,6 +10,7 @@ interface BossMovementControllerProps {
     editMode: BossEditMode;
     onGridClick: (x: number, y: number) => void;
     onGridContextMenu: (event: React.MouseEvent, x: number, y: number) => void;
+    zoom: number;
 }
 
 export const BossMovementController: React.FC<BossMovementControllerProps> = ({
@@ -17,7 +18,8 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
     tileset,
     editMode,
     onGridClick,
-    onGridContextMenu
+    onGridContextMenu,
+    zoom = 1,
 }) => {
     if (!phase || !phase.dimensions) {
         return <div className="p-4 text-msx-textsecondary">No phase selected or phase has no dimensions.</div>;
@@ -27,7 +29,14 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
 
     return (
         <div className="flex flex-col items-center space-y-2" style={{ userSelect: 'none' }}>
-            <div className="aspect-square bg-msx-bgcolor border border-msx-border rounded-md overflow-auto p-1" style={{ width: 'min-content' }}>
+            <div
+                className="aspect-square bg-msx-bgcolor border border-msx-border rounded-md overflow-auto p-1"
+                style={{
+                    width: 'min-content',
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left'
+                }}
+            >
                 <div className="grid" style={{ gridTemplateColumns: `repeat(${width}, 32px)` }}>
                     {Array.from({ length: height * width }).map((_, i) => {
                         const x = i % width;
