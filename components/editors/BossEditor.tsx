@@ -52,6 +52,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
     const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+    const [zoomLevel, setZoomLevel] = useState(1);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -263,15 +264,31 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     return (
         <Panel title={`Boss Editor: ${boss.name}`} className="flex-grow flex flex-col !p-0">
             <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
-                <div className="flex-grow p-3 flex items-center justify-center">
+                <div className="flex-grow p-3 flex flex-col items-center justify-center">
                     {selectedPhase && selectedPhase.buildType === 'tile' ? (
-                        <BossMovementController
-                            phase={selectedPhase}
-                            tileset={tileset}
-                            editMode={editMode}
-                            onGridClick={handleGridClick}
-                            onGridContextMenu={handleGridContextMenu}
-                        />
+                        <div className="flex flex-col items-center space-y-2">
+                            <BossMovementController
+                                phase={selectedPhase}
+                                tileset={tileset}
+                                editMode={editMode}
+                                onGridClick={handleGridClick}
+                                onGridContextMenu={handleGridContextMenu}
+                                zoomLevel={zoomLevel}
+                            />
+                            <div className="flex items-center space-x-2 text-xs">
+                                <label>Zoom:</label>
+                                <input
+                                    type="range"
+                                    min="0.5"
+                                    max="2"
+                                    step="0.1"
+                                    value={zoomLevel}
+                                    onChange={e => setZoomLevel(parseFloat(e.target.value))}
+                                    className="w-32"
+                                />
+                                <span className="w-8 text-center">{Math.round(zoomLevel * 100)}%</span>
+                            </div>
+                        </div>
                     ) : selectedPhase && selectedPhase.buildType === 'sprite' ? (
                         <div className="flex flex-col items-center space-y-2">
                             {selectedPhase.spriteAssetId && <SpritePreview spriteAssetId={selectedPhase.spriteAssetId} allAssets={allAssets} />}
