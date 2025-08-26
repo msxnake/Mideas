@@ -246,7 +246,8 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         if (!selectedPhase || !selectedPhase.tileBankId) return [];
         const bank = tileBanks.find(b => b.id === selectedPhase.tileBankId);
         if (!bank) return [];
-        return Object.keys(bank.assignedTiles).map(tileId => tileset.find(t => t.id === tileId)).filter(Boolean) as Tile[];
+        const allTilesInBank = Object.keys(bank.assignedTiles).map(tileId => tileset.find(t => t.id === tileId)).filter(Boolean) as Tile[];
+        return allTilesInBank.filter(tile => tile.width === 8 && tile.height === 8);
     }, [selectedPhase, tileBanks, tileset]);
 
     const handleUpdateAttack = (attackId: string, field: keyof BossAttack, value: any) => {
