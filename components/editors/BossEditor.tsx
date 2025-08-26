@@ -9,6 +9,7 @@ import { EDITOR_BASE_TILE_DIM_S2, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, DEFAU
 import { createDefaultLineAttributes } from '../utils/tileUtils';
 import { BossMovementController } from './BossMovementController';
 import { BossTilesetPanel } from './BossTilesetPanel';
+import { BossPreviewModal } from '../modals/BossPreviewModal';
 
 
 interface BossEditorProps {
@@ -61,6 +62,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
     const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
     const [copiedPhaseGrid, setCopiedPhaseGrid] = useState<CopiedGridData | null>(null);
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -310,141 +312,156 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     };
 
     return (
-        <Panel title={`Boss Editor: ${boss.name}`} className="flex-grow flex flex-col !p-0">
-            <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
-                <div className="flex-grow p-3 flex flex-col items-center justify-center">
-                    {selectedPhase && selectedPhase.buildType === 'tile' ? (
-                        <div className="flex flex-col items-center space-y-2">
-                            <BossMovementController
-                                phase={selectedPhase}
-                                tileset={tileset}
-                                editMode={editMode}
-                                onGridClick={handleGridClick}
-                                onGridContextMenu={handleGridContextMenu}
-                                zoomLevel={zoomLevel}
-                            />
-                            <div className="flex items-center space-x-2 text-xs">
-                                <label>Zoom:</label>
-                                <input
-                                    type="range"
-                                    min="0.5"
-                                    max="2"
-                                    step="0.1"
-                                    value={zoomLevel}
-                                    onChange={e => onZoomChange(parseFloat(e.target.value))}
-                                    className="w-32"
+        <>
+            <Panel
+                title={`Boss Editor: ${boss.name}`}
+                className="flex-grow flex flex-col !p-0"
+                headerButtons={<Button onClick={() => setIsPreviewModalOpen(true)} size="sm" variant="secondary">Preview</Button>}
+            >
+                <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
+                    <div className="flex-grow p-3 flex flex-col items-center justify-center">
+                        {selectedPhase && selectedPhase.buildType === 'tile' ? (
+                            <div className="flex flex-col items-center space-y-2">
+                                <BossMovementController
+                                    phase={selectedPhase}
+                                    tileset={tileset}
+                                    editMode={editMode}
+                                    onGridClick={handleGridClick}
+                                    onGridContextMenu={handleGridContextMenu}
+                                    zoomLevel={zoomLevel}
                                 />
-                                <span className="w-8 text-center">{Math.round(zoomLevel * 100)}%</span>
+                                <div className="flex items-center space-x-2 text-xs">
+                                    <label>Zoom:</label>
+                                    <input
+                                        type="range"
+                                        min="0.5"
+                                        max="2"
+                                        step="0.1"
+                                        value={zoomLevel}
+                                        onChange={e => onZoomChange(parseFloat(e.target.value))}
+                                        className="w-32"
+                                    />
+                                    <span className="w-8 text-center">{Math.round(zoomLevel * 100)}%</span>
+                                </div>
+                                {showUnassignedTilesWarning && (
+                                    <p className="text-xs text-msx-danger mt-2">Warning: Some 8x8 tiles are not assigned to the selected Tile Bank.</p>
+                                )}
                             </div>
-                            {showUnassignedTilesWarning && (
-                                <p className="text-xs text-msx-danger mt-2">Warning: Some 8x8 tiles are not assigned to the selected Tile Bank.</p>
-                            )}
-                        </div>
-                    ) : selectedPhase && selectedPhase.buildType === 'sprite' ? (
-                        <div className="flex flex-col items-center space-y-2">
-                            {selectedPhase.spriteAssetId && <SpritePreview spriteAssetId={selectedPhase.spriteAssetId} allAssets={allAssets} />}
-                            <p className="text-xs text-msx-textsecondary">Sprite-based phase. Edit sprite asset directly.</p>
-                        </div>
-                    ) : (
-                        <p className="text-msx-textsecondary">Select a phase to begin editing.</p>
+                        ) : selectedPhase && selectedPhase.buildType === 'sprite' ? (
+                            <div className="flex flex-col items-center space-y-2">
+                                {selectedPhase.spriteAssetId && <SpritePreview spriteAssetId={selectedPhase.spriteAssetId} allAssets={allAssets} />}
+                                <p className="text-xs text-msx-textsecondary">Sprite-based phase. Edit sprite asset directly.</p>
+                            </div>
+                        ) : (
+                            <p className="text-msx-textsecondary">Select a phase to begin editing.</p>
+                        )}
+                    </div>
+
+                    {selectedPhase && selectedPhase.buildType === 'tile' && editMode === 'tiles' && (
+                        <BossTilesetPanel
+                            tileset={tilesForBank}
+                            selectedTileId={selectedTileId}
+                            onSelectTile={setSelectedTileId}
+                            currentScreenMode={currentScreenMode}
+                        />
                     )}
-                </div>
 
-                {selectedPhase && selectedPhase.buildType === 'tile' && editMode === 'tiles' && (
-                    <BossTilesetPanel
-                        tileset={tilesForBank}
-                        selectedTileId={selectedTileId}
-                        onSelectTile={setSelectedTileId}
-                        currentScreenMode={currentScreenMode}
-                    />
-                )}
-
-                 <div className="w-80 border-l border-msx-border p-2 overflow-y-auto space-y-4 flex-shrink-0">
-                    <Panel title="General">
-                        <div className="space-y-2 text-xs">
-                             <div>
-                                <label className="block text-msx-textsecondary">Boss Name:</label>
-                                <input type="text" value={boss.name} onChange={e => handleUpdateField('name', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
-                            </div>
-                            <div>
-                                <label className="block text-msx-textsecondary">Total Health:</label>
-                                <input type="number" value={boss.totalHealth} onChange={e => handleUpdateField('totalHealth', parseInt(e.target.value) || 0)} min="1" className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
-                            </div>
-                        </div>
-                    </Panel>
-                    <Panel title="Phase / Movement Properties">
-                        {selectedPhase ? (
+                     <div className="w-80 border-l border-msx-border p-2 overflow-y-auto space-y-4 flex-shrink-0">
+                        <Panel title="General">
                             <div className="space-y-2 text-xs">
                                  <div>
-                                    <label className="block text-msx-textsecondary">Phase Name:</label>
-                                    <input type="text" value={selectedPhase.name} onChange={e => handleUpdatePhase(selectedPhaseId!, 'name', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                    <label className="block text-msx-textsecondary">Boss Name:</label>
+                                    <input type="text" value={boss.name} onChange={e => handleUpdateField('name', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                     <div>
-                                        <label className="block text-msx-textsecondary">Health Threshold:</label>
-                                        <input type="number" value={selectedPhase.healthThreshold} onChange={e => handleUpdatePhase(selectedPhaseId!, 'healthThreshold', parseInt(e.target.value) || 0)} min="0" className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
-                                    </div>
-                                    <div>
-                                        <label className="block text-msx-textsecondary mb-1">Build Type:</label>
-                                        <select value={selectedPhase.buildType} onChange={e => handleUpdatePhase(selectedPhaseId!, 'buildType', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
-                                            <option value="tile">Tile-based</option>
-                                            <option value="sprite">Sprite-based</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                {selectedPhase.buildType === 'tile' && (
-                                     <>
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                            <div><label>Width (tiles):</label><input type="number" value={selectedPhase.dimensions?.width || 8} onChange={e => handleUpdatePhase(selectedPhaseId!, 'dimensions', {...selectedPhase.dimensions, width: parseInt(e.target.value) || 1})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/></div>
-                                            <div><label>Height (tiles):</label><input type="number" value={selectedPhase.dimensions?.height || 8} onChange={e => handleUpdatePhase(selectedPhaseId!, 'dimensions', {...selectedPhase.dimensions, height: parseInt(e.target.value) || 1})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/></div>
-                                        </div>
-                                         <div>
-                                            <label className="block text-xs text-msx-textsecondary mb-1">Tile Bank:</label>
-                                            <select value={selectedPhase.tileBankId || ''} onChange={e => handleUpdatePhase(selectedPhaseId!, 'tileBankId', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
-                                                <option value="">Select Bank...</option>
-                                                {tileBanks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                            </select>
-                                        </div>
-                                    </>
-                                )}
-                                 <div className="flex items-center space-x-1 pt-2 border-t border-msx-border/30">
-                                    <span className="text-msx-textsecondary">Mode:</span>
-                                    <Button onClick={() => setEditMode('tiles')} variant={editMode === 'tiles' ? 'secondary' : 'ghost'} size="sm">Graphic</Button>
-                                    <Button onClick={() => setEditMode('collision')} variant={editMode === 'collision' ? 'secondary' : 'ghost'} size="sm">Collision</Button>
-                                    <Button onClick={() => setEditMode('weakpoints')} variant={editMode === 'weakpoints' ? 'secondary' : 'ghost'} size="sm">Weak Points</Button>
+                                <div>
+                                    <label className="block text-msx-textsecondary">Total Health:</label>
+                                    <input type="number" value={boss.totalHealth} onChange={e => handleUpdateField('totalHealth', parseInt(e.target.value) || 0)} min="1" className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                                 </div>
                             </div>
-                        ) : <p className="text-xs text-msx-textsecondary italic">Select a phase to see properties.</p>}
-                     </Panel>
-                    <Panel title="Phases / Movements">
-                        <Button onClick={handleAddPhase} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="w-full mb-2">Add Phase</Button>
-                        <div className="grid grid-cols-2 gap-2 mb-2">
-                            <Button onClick={handleCopyGrid} size="sm" variant="secondary" disabled={!selectedPhase || selectedPhase.buildType !== 'tile'}>Copy Grid</Button>
-                            <Button onClick={handlePasteGrid} size="sm" variant="secondary" disabled={!selectedPhase || !copiedPhaseGrid}>Paste Grid</Button>
-                        </div>
-                        <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                            {boss.phases.map(phase => (
-                                <button key={phase.id} onClick={() => setSelectedPhaseId(phase.id)} className={`w-full text-left p-1.5 rounded text-xs truncate ${selectedPhaseId === phase.id ? 'bg-msx-accent text-white' : 'hover:bg-msx-border'}`}>
-                                    {phase.name}
-                                </button>
-                            ))}
-                        </div>
-                    </Panel>
+                        </Panel>
+                        <Panel title="Phase / Movement Properties">
+                            {selectedPhase ? (
+                                <div className="space-y-2 text-xs">
+                                     <div>
+                                        <label className="block text-msx-textsecondary">Phase Name:</label>
+                                        <input type="text" value={selectedPhase.name} onChange={e => handleUpdatePhase(selectedPhaseId!, 'name', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                         <div>
+                                            <label className="block text-msx-textsecondary">Health Threshold:</label>
+                                            <input type="number" value={selectedPhase.healthThreshold} onChange={e => handleUpdatePhase(selectedPhaseId!, 'healthThreshold', parseInt(e.target.value) || 0)} min="0" className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                        </div>
+                                        <div>
+                                            <label className="block text-msx-textsecondary mb-1">Build Type:</label>
+                                            <select value={selectedPhase.buildType} onChange={e => handleUpdatePhase(selectedPhaseId!, 'buildType', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
+                                                <option value="tile">Tile-based</option>
+                                                <option value="sprite">Sprite-based</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    {selectedPhase.buildType === 'tile' && (
+                                         <>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <div><label>Width (tiles):</label><input type="number" value={selectedPhase.dimensions?.width || 8} onChange={e => handleUpdatePhase(selectedPhaseId!, 'dimensions', {...selectedPhase.dimensions, width: parseInt(e.target.value) || 1})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/></div>
+                                                <div><label>Height (tiles):</label><input type="number" value={selectedPhase.dimensions?.height || 8} onChange={e => handleUpdatePhase(selectedPhaseId!, 'dimensions', {...selectedPhase.dimensions, height: parseInt(e.target.value) || 1})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/></div>
+                                            </div>
+                                             <div>
+                                                <label className="block text-xs text-msx-textsecondary mb-1">Tile Bank:</label>
+                                                <select value={selectedPhase.tileBankId || ''} onChange={e => handleUpdatePhase(selectedPhaseId!, 'tileBankId', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
+                                                    <option value="">Select Bank...</option>
+                                                    {tileBanks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                                </select>
+                                            </div>
+                                        </>
+                                    )}
+                                     <div className="flex items-center space-x-1 pt-2 border-t border-msx-border/30">
+                                        <span className="text-msx-textsecondary">Mode:</span>
+                                        <Button onClick={() => setEditMode('tiles')} variant={editMode === 'tiles' ? 'secondary' : 'ghost'} size="sm">Graphic</Button>
+                                        <Button onClick={() => setEditMode('collision')} variant={editMode === 'collision' ? 'secondary' : 'ghost'} size="sm">Collision</Button>
+                                        <Button onClick={() => setEditMode('weakpoints')} variant={editMode === 'weakpoints' ? 'secondary' : 'ghost'} size="sm">Weak Points</Button>
+                                    </div>
+                                </div>
+                            ) : <p className="text-xs text-msx-textsecondary italic">Select a phase to see properties.</p>}
+                         </Panel>
+                        <Panel title="Phases / Movements">
+                            <Button onClick={handleAddPhase} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="w-full mb-2">Add Phase</Button>
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                                <Button onClick={handleCopyGrid} size="sm" variant="secondary" disabled={!selectedPhase || selectedPhase.buildType !== 'tile'}>Copy Grid</Button>
+                                <Button onClick={handlePasteGrid} size="sm" variant="secondary" disabled={!selectedPhase || !copiedPhaseGrid}>Paste Grid</Button>
+                            </div>
+                            <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                                {boss.phases.map(phase => (
+                                    <button key={phase.id} onClick={() => setSelectedPhaseId(phase.id)} className={`w-full text-left p-1.5 rounded text-xs truncate ${selectedPhaseId === phase.id ? 'bg-msx-accent text-white' : 'hover:bg-msx-border'}`}>
+                                        {phase.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </Panel>
+                    </div>
                 </div>
-            </div>
-            {assetPickerState.isOpen && (
-                <AssetPickerModal
-                    isOpen={assetPickerState.isOpen}
-                    onClose={() => setAssetPickerState({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null })}
-                    onSelectAsset={(assetId) => {
-                        assetPickerState.onSelect?.(assetId);
-                        setAssetPickerState({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null });
-                    }}
-                    assetTypeToPick={assetPickerState.assetTypeToPick!}
+                {assetPickerState.isOpen && (
+                    <AssetPickerModal
+                        isOpen={assetPickerState.isOpen}
+                        onClose={() => setAssetPickerState({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null })}
+                        onSelectAsset={(assetId) => {
+                            assetPickerState.onSelect?.(assetId);
+                            setAssetPickerState({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null });
+                        }}
+                        assetTypeToPick={assetPickerState.assetTypeToPick!}
+                        allAssets={allAssets}
+                        currentSelectedId={assetPickerState.currentValue}
+                    />
+                )}
+            </Panel>
+            {isPreviewModalOpen && (
+                <BossPreviewModal
+                    isOpen={isPreviewModalOpen}
+                    onClose={() => setIsPreviewModalOpen(false)}
+                    boss={boss}
                     allAssets={allAssets}
-                    currentSelectedId={assetPickerState.currentValue}
+                    currentScreenMode={currentScreenMode}
                 />
             )}
-        </Panel>
+        </>
     );
 };
