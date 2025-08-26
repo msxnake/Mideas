@@ -10,7 +10,6 @@ interface BossMovementControllerProps {
     editMode: BossEditMode;
     onGridClick: (x: number, y: number) => void;
     onGridContextMenu: (event: React.MouseEvent, x: number, y: number) => void;
-    zoomLevel: number;
 }
 
 export const BossMovementController: React.FC<BossMovementControllerProps> = ({
@@ -18,21 +17,18 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
     tileset,
     editMode,
     onGridClick,
-    onGridContextMenu,
-    zoomLevel
+    onGridContextMenu
 }) => {
     if (!phase || !phase.dimensions) {
         return <div className="p-4 text-msx-textsecondary">No phase selected or phase has no dimensions.</div>;
     }
 
     const { width, height } = phase.dimensions;
-    const TILE_SIZE = 32;
-    const zoomedSize = TILE_SIZE * zoomLevel;
 
     return (
         <div className="flex flex-col items-center space-y-2" style={{ userSelect: 'none' }}>
             <div className="aspect-square bg-msx-bgcolor border border-msx-border rounded-md overflow-auto p-1" style={{ width: 'min-content' }}>
-                <div className="grid" style={{ gridTemplateColumns: `repeat(${width}, ${zoomedSize}px)` }}>
+                <div className="grid" style={{ gridTemplateColumns: `repeat(${width}, 32px)` }}>
                     {Array.from({ length: height * width }).map((_, i) => {
                         const x = i % width;
                         const y = Math.floor(i / width);
@@ -46,11 +42,10 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                                 key={i}
                                 onClick={() => onGridClick(x, y)}
                                 onContextMenu={(e) => onGridContextMenu(e, x, y)}
-                                className="border border-msx-border/20 relative cursor-pointer"
-                                style={{ width: `${zoomedSize}px`, height: `${zoomedSize}px` }}
+                                className="w-8 h-8 border border-msx-border/20 relative cursor-pointer"
                             >
                                 {tile ? (
-                                    <img src={createTileDataURL(tile, 0, 0, zoomedSize, zoomedSize, tile.width, 'SCREEN 2 (Graphics I)')} alt={tile.name} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
+                                    <img src={createTileDataURL(tile, 0, 0, 32, 32, tile.width, 'SCREEN 2 (Graphics I)')} alt={tile.name} className="w-full h-full" style={{ imageRendering: 'pixelated' }} />
                                 ) : (
                                      editMode === 'tiles' && <div className="w-full h-full opacity-50 hover:bg-msx-highlight/30 bg-stripes"></div>
                                 )}
