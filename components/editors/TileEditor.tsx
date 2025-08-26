@@ -909,6 +909,8 @@ interface TileEditorProps {
   copiedTileData: CopiedTileBuffer | null;
   onCopyTileData: (tile: Tile) => void;
   setStatusBarMessage: (message: string) => void;
+  zoom: number;
+  setZoom: (zoom: number) => void;
 }
 
 const defaultLogicalProps: TileLogicalProperties = {
@@ -920,9 +922,9 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     currentTile: tile, onUpdateCurrentTile: onUpdate, 
     allTileAssets, onUpdateAllTileAssets,
     selectedColor, currentScreenMode,
-    dataOutputFormat, copiedTileData, onCopyTileData, setStatusBarMessage
+    dataOutputFormat, copiedTileData, onCopyTileData, setStatusBarMessage,
+    zoom, setZoom
 }) => {
-  const [zoom, setZoom] = useState(20); 
   const [showCenterGuide, setShowCenterGuide] = useState(true); 
   const [copiedAttribute, setCopiedAttribute] = useState<LineColorAttribute | null>(null);
   const [symmetrySettings, setSymmetrySettings] = useState<SymmetrySettings>({
