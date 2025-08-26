@@ -49,11 +49,18 @@ const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[]
 
 type BossEditMode = 'tiles' | 'collision' | 'weakpoints';
 
+type CopiedGridData = {
+    dimensions: { width: number; height: number; };
+    tileMatrix: (string | null)[][];
+    collisionMatrix: boolean[][];
+};
+
 export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoomLevel, onZoomChange }) => {
     
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
     const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+    const [copiedPhaseGrid, setCopiedPhaseGrid] = useState<CopiedGridData | null>(null);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -274,6 +281,34 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         onUpdate({ attacks: [...boss.attacks, newAttack] });
     };
 
+    const handleCopyGrid = () => {
+        const phaseToCopy = boss.phases.find(p => p.id === selectedPhaseId);
+        if (phaseToCopy && phaseToCopy.buildType === 'tile') {
+            setCopiedPhaseGrid({
+                dimensions: phaseToCopy.dimensions,
+                tileMatrix: JSON.parse(JSON.stringify(phaseToCopy.tileMatrix)),
+                collisionMatrix: JSON.parse(JSON.stringify(phaseToCopy.collisionMatrix)),
+            });
+        }
+    };
+
+    const handlePasteGrid = () => {
+        if (!copiedPhaseGrid || !selectedPhaseId) return;
+
+        const updatedPhases = boss.phases.map(p => {
+            if (p.id === selectedPhaseId) {
+                return {
+                    ...p,
+                    dimensions: JSON.parse(JSON.stringify(copiedPhaseGrid.dimensions)),
+                    tileMatrix: JSON.parse(JSON.stringify(copiedPhaseGrid.tileMatrix)),
+                    collisionMatrix: JSON.parse(JSON.stringify(copiedPhaseGrid.collisionMatrix)),
+                };
+            }
+            return p;
+        });
+        onUpdate({ phases: updatedPhases });
+    };
+
     return (
         <Panel title={`Boss Editor: ${boss.name}`} className="flex-grow flex flex-col !p-0">
             <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
@@ -383,6 +418,10 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                      </Panel>
                     <Panel title="Phases / Movements">
                         <Button onClick={handleAddPhase} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="w-full mb-2">Add Phase</Button>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                            <Button onClick={handleCopyGrid} size="sm" variant="secondary" disabled={!selectedPhase || selectedPhase.buildType !== 'tile'}>Copy Grid</Button>
+                            <Button onClick={handlePasteGrid} size="sm" variant="secondary" disabled={!selectedPhase || !copiedPhaseGrid}>Paste Grid</Button>
+                        </div>
                         <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                             {boss.phases.map(phase => (
                                 <button key={phase.id} onClick={() => setSelectedPhaseId(phase.id)} className={`w-full text-left p-1.5 rounded text-xs truncate ${selectedPhaseId === phase.id ? 'bg-msx-accent text-white' : 'hover:bg-msx-border'}`}>
