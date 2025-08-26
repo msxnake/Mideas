@@ -244,6 +244,29 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const tileset = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
     const allTiles = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
 
+    const showUnassignedTilesWarning = useMemo(() => {
+        const assignedTileIds = new Set<string>();
+        tileBanks.forEach(bank => {
+            if (bank.assignedTiles) {
+                Object.keys(bank.assignedTiles).forEach(tileId => {
+                    assignedTileIds.add(tileId);
+                });
+            }
+        });
+
+        const hasUnassigned8x8Tile = allAssets.some(asset => {
+            if (asset.type === 'tile') {
+                const tile = asset.data as Tile;
+                if (tile.width === 8 && tile.height === 8) {
+                    return !assignedTileIds.has(tile.id);
+                }
+            }
+            return false;
+        });
+
+        return hasUnassigned8x8Tile;
+    }, [allAssets, tileBanks]);
+
     const handleUpdateAttack = (attackId: string, field: keyof BossAttack, value: any) => {
         const updatedAttacks = boss.attacks.map(a => a.id === attackId ? { ...a, [field]: value } : a);
         onUpdate({ attacks: updatedAttacks });
@@ -268,6 +291,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                             onGridClick={handleGridClick}
                             onGridContextMenu={handleGridContextMenu}
                             zoom={zoom}
+                            showUnassignedTilesWarning={showUnassignedTilesWarning}
                         />
                     ) : selectedPhase && selectedPhase.buildType === 'sprite' ? (
                         <div className="flex flex-col items-center space-y-2">
