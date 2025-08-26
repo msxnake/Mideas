@@ -258,7 +258,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     return (
         <Panel title={`Boss Editor: ${boss.name}`} className="flex-grow flex flex-col !p-0">
             <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
-                <div className="flex-grow p-3 flex items-center justify-center">
+                <div className="flex-grow p-3 flex items-start justify-center">
                     {selectedPhase && selectedPhase.buildType === 'tile' ? (
                         <BossMovementController
                             phase={selectedPhase}
@@ -276,13 +276,6 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                         <p className="text-msx-textsecondary">Select a phase to begin editing.</p>
                     )}
                 </div>
-
-                <BossTilesetPanel
-                    allTiles={allTiles}
-                    selectedTileId={selectedTileId}
-                    onSelectTile={setSelectedTileId}
-                    currentScreenMode={currentScreenMode}
-                />
 
                  <div className="w-80 border-l border-msx-border p-2 overflow-y-auto space-y-4 flex-shrink-0">
                     <Panel title="General">
@@ -352,6 +345,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                         </div>
                     </Panel>
                 </div>
+
+                <BossTilesetPanel
+                    allTiles={allTiles}
+                    selectedTileId={selectedTileId}
+                    onSelectTile={setSelectedTileId}
+                    currentScreenMode={currentScreenMode}
+                />
             </div>
             {assetPickerState.isOpen && (
                 <AssetPickerModal
