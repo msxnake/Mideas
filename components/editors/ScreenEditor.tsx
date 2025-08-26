@@ -54,6 +54,8 @@ interface ScreenEditorProps {
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
   waypointPickerState: { isPicking: boolean; waypointPrefix: 'waypoint1' | 'waypoint2'; };
   onWaypointPicked: (point: Point) => void;
+  zoom: number;
+  setZoom: (zoom: number) => void;
 }
 
 
@@ -64,10 +66,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     copiedScreenBuffer, setCopiedScreenBuffer, allProjectAssets,
     copiedLayerBuffer, setCopiedLayerBuffer, setStatusBarMessage,
     onActiveLayerChange, componentDefinitions, entityTemplates, onShowMapFile,
-    onNavigateToAsset, onShowContextMenu, waypointPickerState, onWaypointPicked
+    onNavigateToAsset, onShowContextMenu, waypointPickerState, onWaypointPicked,
+    zoom, setZoom
 }) => {
   const [activeLayer, setActiveLayerInternal] = useState<ScreenEditorLayerName>('background');
-  const [zoom, setZoom] = useState(16);
   const [lastClickedCell, setLastClickedCell] = useState<Point | null>(null);
 
   const EDITOR_BASE_TILE_DIM = currentScreenMode === "SCREEN 2 (Graphics I)" ? CONST_EDITOR_BASE_TILE_DIM_S2 : SCREEN_EDITOR_BASE_TILE_DIM_OTHER;
