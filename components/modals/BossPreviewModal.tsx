@@ -31,24 +31,28 @@ const BossPhaseDisplay: React.FC<{ phase: Boss['phases'][0], tileset: Tile[], cu
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         const { width: bossWidth, height: bossHeight } = phase.dimensions;
-        const tileW = tileset[0]?.width || 8;
-        const tileH = tileset[0]?.height || 8;
+        const TILE_DIM = 8; // MSX tiles are 8x8
 
-        const totalBossWidth = bossWidth * tileW;
-        const totalBossHeight = bossHeight * tileH;
+        const totalBossPixelWidth = bossWidth * TILE_DIM;
+        const totalBossPixelHeight = bossHeight * TILE_DIM;
 
-        const startX = Math.floor((PREVIEW_WIDTH - totalBossWidth) / 2);
-        const startY = Math.floor((PREVIEW_HEIGHT - totalBossHeight) / 2);
+        const startX = Math.floor((PREVIEW_WIDTH - totalBossPixelWidth) / 2);
+        const startY = Math.floor((PREVIEW_HEIGHT - totalBossPixelHeight) / 2);
 
         for (let y = 0; y < bossHeight; y++) {
             for (let x = 0; x < bossWidth; x++) {
                 const tileId = phase.tileMatrix?.[y]?.[x];
-                const tile = tileId ? tileset.find(t => t.id === tileId) : null;
-                if (tile) {
-                    const img = new Image();
-                    img.src = createTileDataURL(tile, 0, 0, tile.width, tile.height, tile.width, currentScreenMode);
-                    img.onload = () => {
-                        ctx.drawImage(img, startX + x * tileW, startY + y * tileH);
+                const tileAsset = tileId ? tileset.find(t => t.id === tileId) : null;
+
+                if (tileAsset?.data) {
+                    for (let py = 0; py < TILE_DIM; py++) {
+                        for (let px = 0; px < TILE_DIM; px++) {
+                            const color = tileAsset.data[py]?.[px];
+                            if (color) {
+                                ctx.fillStyle = color;
+                                ctx.fillRect(startX + x * TILE_DIM + px, startY + y * TILE_DIM + py, 1, 1);
+                            }
+                        }
                     }
                 }
             }
