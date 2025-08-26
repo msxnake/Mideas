@@ -9,6 +9,7 @@ import { EDITOR_BASE_TILE_DIM_S2, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, DEFAU
 import { createDefaultLineAttributes } from '../utils/tileUtils';
 import { BossMovementController } from './BossMovementController';
 import { BossTilesetPanel } from './BossTilesetPanel';
+import { BossPreviewModal } from '../modals/BossPreviewModal';
 
 
 interface BossEditorProps {
@@ -54,6 +55,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
     const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -372,6 +374,9 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                     />
                                     <span className="text-xs w-10 text-right font-mono">{zoom.toFixed(1)}x</span>
                                 </div>
+                                <div className="pt-2 border-t border-msx-border/30">
+                                    <Button onClick={() => setIsPreviewOpen(true)} variant="secondary" className="w-full">Preview Animation</Button>
+                                </div>
                             </div>
                         ) : <p className="text-xs text-msx-textsecondary italic">Select a phase to see properties.</p>}
                      </Panel>
@@ -405,6 +410,14 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                     assetTypeToPick={assetPickerState.assetTypeToPick!}
                     allAssets={allAssets}
                     currentSelectedId={assetPickerState.currentValue}
+                />
+            )}
+            {isPreviewOpen && (
+                <BossPreviewModal
+                    isOpen={isPreviewOpen}
+                    onClose={() => setIsPreviewOpen(false)}
+                    boss={boss}
+                    tileset={tileset}
                 />
             )}
         </Panel>
