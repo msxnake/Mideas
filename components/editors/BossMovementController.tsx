@@ -11,6 +11,7 @@ interface BossMovementControllerProps {
     onGridClick: (x: number, y: number) => void;
     onGridContextMenu: (event: React.MouseEvent, x: number, y: number) => void;
     zoom: number;
+    showUnassignedTilesWarning: boolean;
 }
 
 export const BossMovementController: React.FC<BossMovementControllerProps> = ({
@@ -20,6 +21,7 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
     onGridClick,
     onGridContextMenu,
     zoom = 1,
+    showUnassignedTilesWarning,
 }) => {
     if (!phase || !phase.dimensions) {
         return <div className="p-4 text-msx-textsecondary">No phase selected or phase has no dimensions.</div>;
@@ -29,6 +31,11 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
 
     return (
         <div className="flex flex-col items-center space-y-2" style={{ userSelect: 'none' }}>
+            {showUnassignedTilesWarning && (
+                <p className="text-lg text-msx-danger animate-pulse">
+                    Warning: TileBanks not assigned
+                </p>
+            )}
             <div
                 className="aspect-square bg-msx-bgcolor border border-msx-border rounded-md overflow-auto p-1"
                 style={{

@@ -21,8 +21,8 @@ export const BossTilesetPanel: React.FC<BossTilesetPanelProps> = ({
   const isEraserSelected = selectedTileId === null;
 
   return (
-    <div className="w-48 p-2 border-l border-msx-border overflow-y-auto flex-shrink-0">
-      <h4 className="text-sm pixel-font text-msx-highlight mb-2">All Tiles</h4>
+    <div className="w-64 p-2 border-l border-msx-border overflow-y-auto flex-shrink-0 h-[800px]">
+      <h4 className="text-sm pixel-font text-msx-highlight mb-2">All Tiles (8x8)</h4>
 
       {allTiles.length === 0 ? (
         <p className="text-xs text-msx-textsecondary">No tiles available in the project.</p>
@@ -38,9 +38,9 @@ export const BossTilesetPanel: React.FC<BossTilesetPanelProps> = ({
                 title={`${tile.name} - Click to select`}
               >
                 <img
-                  src={createTileDataURL(tile, 0, 0, Math.min(16, tile.width), Math.min(16, tile.height), tile.width, currentScreenMode)}
+                  src={createTileDataURL(tile, 0, 0, Math.min(32, tile.width), Math.min(32, tile.height), tile.width, currentScreenMode)}
                   alt={tile.name}
-                  className="w-4 h-4 object-contain border border-msx-border flex-shrink-0"
+                  className="w-8 h-8 object-contain border border-msx-border flex-shrink-0"
                   style={{ imageRendering: 'pixelated' }}
                 />
                 <span className="truncate flex-grow">{tile.name}</span>
