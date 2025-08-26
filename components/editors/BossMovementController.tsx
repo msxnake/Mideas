@@ -31,6 +31,11 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
 
     return (
         <div className="flex flex-col items-center space-y-2" style={{ userSelect: 'none' }}>
+            {showUnassignedTilesWarning && (
+                <p className="text-lg text-msx-danger animate-pulse">
+                    Warning: TileBanks not assigned
+                </p>
+            )}
             <div
                 className="aspect-square bg-msx-bgcolor border border-msx-border rounded-md overflow-auto p-1"
                 style={{
@@ -80,11 +85,6 @@ export const BossMovementController: React.FC<BossMovementControllerProps> = ({
                  editMode === 'collision' ? "Click to toggle collision blocks." : 
                  "Click to toggle weak points."}
             </p>
-            {showUnassignedTilesWarning && (
-                <p className="text-sm text-msx-danger animate-pulse">
-                    Warning: TileBanks not assigned
-                </p>
-            )}
         </div>
     );
 };
