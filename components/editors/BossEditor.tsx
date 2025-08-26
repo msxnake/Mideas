@@ -250,6 +250,17 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         return allTilesInBank.filter(tile => tile.width === 8 && tile.height === 8);
     }, [selectedPhase, tileBanks, tileset]);
 
+    const showUnassignedTilesWarning = useMemo(() => {
+        if (!selectedPhase || !selectedPhase.tileBankId) return false;
+        const currentBank = tileBanks.find(b => b.id === selectedPhase.tileBankId);
+        if (!currentBank) return false;
+
+        const all8x8Tiles = allAssets.filter(a => a.type === 'tile' && a.data.width === 8 && a.data.height === 8).map(a => a.id);
+        const assignedTileIds = new Set(Object.keys(currentBank.assignedTiles));
+
+        return all8x8Tiles.some(tileId => !assignedTileIds.has(tileId));
+    }, [selectedPhase, tileBanks, allAssets]);
+
     const handleUpdateAttack = (attackId: string, field: keyof BossAttack, value: any) => {
         const updatedAttacks = boss.attacks.map(a => a.id === attackId ? { ...a, [field]: value } : a);
         onUpdate({ attacks: updatedAttacks });
@@ -289,6 +300,9 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                 />
                                 <span className="w-8 text-center">{Math.round(zoomLevel * 100)}%</span>
                             </div>
+                            {showUnassignedTilesWarning && (
+                                <p className="text-xs text-msx-danger mt-2">Warning: Some 8x8 tiles are not assigned to the selected Tile Bank.</p>
+                            )}
                         </div>
                     ) : selectedPhase && selectedPhase.buildType === 'sprite' ? (
                         <div className="flex flex-col items-center space-y-2">
