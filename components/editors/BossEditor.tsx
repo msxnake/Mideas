@@ -277,13 +277,6 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                     )}
                 </div>
 
-                <BossTilesetPanel
-                    allTiles={allTiles}
-                    selectedTileId={selectedTileId}
-                    onSelectTile={setSelectedTileId}
-                    currentScreenMode={currentScreenMode}
-                />
-
                  <div className="w-80 border-l border-msx-border p-2 overflow-y-auto space-y-4 flex-shrink-0">
                     <Panel title="General">
                         <div className="space-y-2 text-xs">
@@ -352,6 +345,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                         </div>
                     </Panel>
                 </div>
+
+                <BossTilesetPanel
+                    allTiles={allTiles}
+                    selectedTileId={selectedTileId}
+                    onSelectTile={setSelectedTileId}
+                    currentScreenMode={currentScreenMode}
+                />
             </div>
             {assetPickerState.isOpen && (
                 <AssetPickerModal

@@ -28,22 +28,23 @@ export const BossTilesetPanel: React.FC<BossTilesetPanelProps> = ({
         <p className="text-xs text-msx-textsecondary">No tiles available in the project.</p>
       ) : (
         <>
-          <div className="grid grid-cols-4 gap-1">
+          <div className="space-y-1">
             {allTiles.map(tile => (
-              <div
+              <button
                 key={tile.id}
                 onClick={() => onSelectTile(tile.id)}
-                className={`p-0.5 border-2 rounded cursor-pointer
-                            ${selectedTileId === tile.id ? 'border-msx-accent bg-msx-accent/30' : 'border-transparent hover:border-msx-highlight'}`}
+                className={`w-full text-left p-1 rounded flex items-center space-x-2 text-xs
+                            ${selectedTileId === tile.id ? 'bg-msx-accent text-white' : 'hover:bg-msx-border'}`}
                 title={`${tile.name} - Click to select`}
               >
                 <img
-                  src={createTileDataURL(tile, 0, 0, Math.min(32, tile.width), Math.min(32, tile.height), tile.width, currentScreenMode)}
+                  src={createTileDataURL(tile, 0, 0, Math.min(16, tile.width), Math.min(16, tile.height), tile.width, currentScreenMode)}
                   alt={tile.name}
-                  className="w-full h-auto object-contain"
-                  style={{ imageRendering: 'pixelated', maxWidth: '32px', maxHeight: '32px' }}
+                  className="w-4 h-4 object-contain border border-msx-border flex-shrink-0"
+                  style={{ imageRendering: 'pixelated' }}
                 />
-              </div>
+                <span className="truncate flex-grow">{tile.name}</span>
+              </button>
             ))}
           </div>
           <Button
