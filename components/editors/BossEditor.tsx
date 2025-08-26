@@ -52,6 +52,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
     const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+    const [zoom, setZoom] = useState(1);
     
     const [assetPickerState, setAssetPickerState] = useState<{
         isOpen: boolean; assetTypeToPick: ProjectAsset['type'] | null;
@@ -266,6 +267,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                             editMode={editMode}
                             onGridClick={handleGridClick}
                             onGridContextMenu={handleGridContextMenu}
+                            zoom={zoom}
                         />
                     ) : selectedPhase && selectedPhase.buildType === 'sprite' ? (
                         <div className="flex flex-col items-center space-y-2">
@@ -330,6 +332,20 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                     <Button onClick={() => setEditMode('tiles')} variant={editMode === 'tiles' ? 'secondary' : 'ghost'} size="sm">Graphic</Button>
                                     <Button onClick={() => setEditMode('collision')} variant={editMode === 'collision' ? 'secondary' : 'ghost'} size="sm">Collision</Button>
                                     <Button onClick={() => setEditMode('weakpoints')} variant={editMode === 'weakpoints' ? 'secondary' : 'ghost'} size="sm">Weak Points</Button>
+                                </div>
+                                <div className="flex items-center space-x-2 pt-2 border-t border-msx-border/30">
+                                    <label htmlFor="boss-zoom" className="text-msx-textsecondary text-xs whitespace-nowrap">Zoom:</label>
+                                    <input
+                                        id="boss-zoom"
+                                        type="range"
+                                        min="0.5"
+                                        max="4"
+                                        step="0.1"
+                                        value={zoom}
+                                        onChange={e => setZoom(parseFloat(e.target.value))}
+                                        className="w-full h-2 bg-msx-border rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <span className="text-xs w-10 text-right font-mono">{zoom.toFixed(1)}x</span>
                                 </div>
                             </div>
                         ) : <p className="text-xs text-msx-textsecondary italic">Select a phase to see properties.</p>}
