@@ -5,14 +5,14 @@ import { Button } from '../common/Button';
 import { EraserIcon } from '../icons/MsxIcons';
 
 interface BossTilesetPanelProps {
-  tileset: Tile[];
+  allTiles: Tile[];
   selectedTileId: string | null;
   onSelectTile: (id: string | null) => void;
   currentScreenMode: string;
 }
 
 export const BossTilesetPanel: React.FC<BossTilesetPanelProps> = ({
-  tileset,
+  allTiles,
   selectedTileId,
   onSelectTile,
   currentScreenMode,
@@ -22,14 +22,14 @@ export const BossTilesetPanel: React.FC<BossTilesetPanelProps> = ({
 
   return (
     <div className="w-48 p-2 border-l border-msx-border overflow-y-auto flex-shrink-0">
-      <h4 className="text-sm pixel-font text-msx-highlight mb-2">Tileset</h4>
+      <h4 className="text-sm pixel-font text-msx-highlight mb-2">All Tiles</h4>
 
-      {tileset.length === 0 ? (
-        <p className="text-xs text-msx-textsecondary">No tiles available in the selected bank. Assign tiles in the Tile Bank Editor.</p>
+      {allTiles.length === 0 ? (
+        <p className="text-xs text-msx-textsecondary">No tiles available in the project.</p>
       ) : (
         <>
           <div className="grid grid-cols-4 gap-1">
-            {tileset.map(tile => (
+            {allTiles.map(tile => (
               <div
                 key={tile.id}
                 onClick={() => onSelectTile(tile.id)}
