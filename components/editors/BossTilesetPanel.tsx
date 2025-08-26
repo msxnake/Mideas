@@ -29,7 +29,7 @@ export const BossTilesetPanel: React.FC<BossTilesetPanelProps> = ({
       ) : (
         <>
           <div className="space-y-1">
-            {allTiles.map(tile => (
+            {allTiles.filter(tile => tile.width === 8 && tile.height === 8).map(tile => (
               <button
                 key={tile.id}
                 onClick={() => onSelectTile(tile.id)}

@@ -258,7 +258,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     return (
         <Panel title={`Boss Editor: ${boss.name}`} className="flex-grow flex flex-col !p-0">
             <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
-                <div className="flex-grow p-3 flex items-center justify-center">
+                <div className="flex-grow p-3 flex items-start justify-center">
                     {selectedPhase && selectedPhase.buildType === 'tile' ? (
                         <BossMovementController
                             phase={selectedPhase}
