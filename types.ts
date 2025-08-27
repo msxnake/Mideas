@@ -420,6 +420,7 @@ export interface Boss {
   attacks: BossAttack[];
   deathExplosionSpriteId?: string;
   deathSoundId?: string;
+  linkedScreenId?: string | null;
 }
 
 // --- Main Menu Types ---

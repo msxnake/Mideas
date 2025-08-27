@@ -613,6 +613,7 @@ const App: React.FC = () => {
             phases: [defaultPhase],
             phasesEnabled: [true],
             attacks: [],
+            linkedScreenId: null,
         } as Boss;
         newEditorType = EditorType.Boss;
         break;

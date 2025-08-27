@@ -328,6 +328,21 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                 <label className="block text-msx-textsecondary">Total Health:</label>
                                 <input type="number" value={boss.totalHealth} onChange={e => handleUpdateField('totalHealth', parseInt(e.target.value) || 0)} min="1" className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                             </div>
+                            <div>
+                                <label className="block text-msx-textsecondary mt-2">Preview Screen:</label>
+                                <select
+                                    value={boss.linkedScreenId || ''}
+                                    onChange={e => handleUpdateField('linkedScreenId', e.target.value || null)}
+                                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                                >
+                                    <option value="">None</option>
+                                    {allAssets.filter(a => a.type === 'screenmap').map(screen => (
+                                        <option key={screen.id} value={screen.id}>
+                                            {screen.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </Panel>
                     <Panel title="Phase / Movement Properties">
@@ -437,6 +452,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                     onClose={() => setIsPreviewOpen(false)}
                     boss={boss}
                     tileset={tileset}
+                    allAssets={allAssets}
                 />
             )}
         </Panel>
