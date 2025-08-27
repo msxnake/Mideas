@@ -106,6 +106,9 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     'entitytemplate': true,
     'code': true,
   });
+  const [tileSortOrder, setTileSortOrder] = useState<'default' | 'alpha'>('default');
+  const [tileFilterChar, setTileFilterChar] = useState<string>('');
+
 
   const toggleFolder = (folderType: ProjectAsset['type']) => {
     setExpandedFolders(prev => ({ ...prev, [folderType]: !prev[folderType] }));
@@ -182,6 +185,21 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
           const assetsInFolder = groupedAssets[folderType] || [];
           const isExpanded = !!expandedFolders[folderType];
 
+          let processedAssets = assetsInFolder;
+          if (folderType === 'tile') {
+            let tempAssets = [...assetsInFolder]; // Work with a copy
+            if (tileSortOrder === 'alpha') {
+                tempAssets.sort((a, b) => a.name.localeCompare(b.name));
+            }
+            if (tileFilterChar) {
+                tempAssets = tempAssets.filter(asset =>
+                    asset.name.toLowerCase().startsWith(tileFilterChar.toLowerCase())
+                );
+            }
+            processedAssets = tempAssets;
+          }
+
+
           return (
             <li key={folderType}>
               <button
@@ -195,10 +213,34 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                 <span className="font-medium truncate">{FOLDER_DISPLAY_NAMES[folderType]}</span>
                 <span className="ml-auto text-xs text-msx-textsecondary">({assetsInFolder.length})</span>
               </button>
+              {isExpanded && folderType === 'tile' && (
+                <div className="pl-4 pt-1 pb-2 flex items-center gap-2 text-xs">
+                    <button
+                        onClick={() => setTileSortOrder(prev => prev === 'alpha' ? 'default' : 'alpha')}
+                        className="px-2 py-1 rounded bg-msx-border hover:bg-msx-highlight text-msx-textprimary transition-colors"
+                        title={tileSortOrder === 'alpha' ? "Restore default order" : "Sort alphabetically"}
+                    >
+                        Sort ({tileSortOrder === 'alpha' ? 'A-Z' : 'Default'})
+                    </button>
+                    <div className="flex items-center gap-1">
+                        <label htmlFor="tile-filter" className="text-msx-textsecondary">Filter:</label>
+                        <select
+                            id="tile-filter"
+                            value={tileFilterChar}
+                            onChange={e => setTileFilterChar(e.target.value)}
+                            className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 text-xs focus:ring-msx-accent focus:border-msx-accent"
+                        >
+                            <option value="">All</option>
+                            {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(char => <option key={char} value={char}>{char}</option>)}
+                        </select>
+                    </div>
+                </div>
+              )}
               {isExpanded && (
                 <ul id={`folder-content-${folderType}`} className="pl-4 mt-0.5 space-y-0.5">
                   {assetsInFolder.length === 0 && <li className="px-2 py-1 text-xs text-msx-textsecondary italic">No {FOLDER_DISPLAY_NAMES[folderType].toLowerCase()} yet.</li>}
-                  {assetsInFolder.map(asset => (
+                  {assetsInFolder.length > 0 && processedAssets.length === 0 && folderType === 'tile' && <li className="px-2 py-1 text-xs text-msx-textsecondary italic">No tiles match filter.</li>}
+                  {processedAssets.map(asset => (
                     <li key={asset.id} 
                         className={`flex items-center justify-between group w-full rounded-sm
                                     ${selectedAssetId === asset.id ? '' : 'hover:bg-msx-border/70'}`}
