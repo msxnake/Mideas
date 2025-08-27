@@ -611,6 +611,7 @@ const App: React.FC = () => {
             id, name: defaultName,
             totalHealth: 100,
             phases: [defaultPhase],
+            phasesEnabled: [true],
             attacks: [],
         } as Boss;
         newEditorType = EditorType.Boss;

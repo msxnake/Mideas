@@ -83,8 +83,19 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
             collisionMatrix: Array(8).fill(null).map(() => Array(8).fill(false)),
             weakPoints: [], attackSequence: []
         };
-        onUpdate({ phases: [...boss.phases, newPhase] });
+        const currentPhasesEnabled = boss.phasesEnabled || Array(boss.phases.length).fill(true);
+        onUpdate({
+            phases: [...boss.phases, newPhase],
+            phasesEnabled: [...currentPhasesEnabled, true]
+        });
         setSelectedPhaseId(newPhase.id);
+    };
+
+    const handleTogglePhaseEnabled = (index: number) => {
+        const currentPhasesEnabled = boss.phasesEnabled || Array(boss.phases.length).fill(true);
+        const newPhasesEnabled = [...currentPhasesEnabled];
+        newPhasesEnabled[index] = !newPhasesEnabled[index];
+        onUpdate({ phasesEnabled: newPhasesEnabled });
     };
 
     const handleUpdatePhase = (phaseId: string, field: keyof BossPhase, value: any) => {
@@ -383,10 +394,18 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                     <Panel title="Phases / Movements">
                         <Button onClick={handleAddPhase} size="sm" variant="secondary" icon={<PlusCircleIcon/>} className="w-full mb-2">Add Phase</Button>
                         <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                            {boss.phases.map(phase => (
-                                <button key={phase.id} onClick={() => setSelectedPhaseId(phase.id)} className={`w-full text-left p-1.5 rounded text-xs truncate ${selectedPhaseId === phase.id ? 'bg-msx-accent text-white' : 'hover:bg-msx-border'}`}>
-                                    {phase.name}
-                                </button>
+                            {boss.phases.map((phase, index) => (
+                                <div key={phase.id} className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={boss.phasesEnabled?.[index] ?? true}
+                                        onChange={() => handleTogglePhaseEnabled(index)}
+                                        className="form-checkbox h-4 w-4 text-msx-accent bg-msx-bgcolor border-msx-border rounded focus:ring-msx-accent"
+                                    />
+                                    <button onClick={() => setSelectedPhaseId(phase.id)} className={`flex-grow text-left p-1.5 rounded text-xs truncate ${selectedPhaseId === phase.id ? 'bg-msx-accent text-white' : 'hover:bg-msx-border'}`}>
+                                        {phase.name}
+                                    </button>
+                                </div>
                             ))}
                         </div>
                     </Panel>
