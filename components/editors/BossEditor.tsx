@@ -115,44 +115,17 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
     const handlePastePhase = () => {
         if (!selectedPhase || !copiedBossPhase) return;
 
-        const newTilesToCreate: ProjectAsset[] = [];
-        const oldToNewIdMap = new Map<string, string>();
-        const uniqueTileIds = new Set(copiedBossPhase.tileMatrix.flat().filter(Boolean));
-
-        uniqueTileIds.forEach(oldId => {
-            const originalTileAsset = allAssets.find(a => a.id === oldId && a.type === 'tile');
-            if (originalTileAsset) {
-                const newTileId = `tile_pasted_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-                oldToNewIdMap.set(oldId, newTileId);
-
-                const newTileData = JSON.parse(JSON.stringify(originalTileAsset.data));
-                newTileData.id = newTileId;
-                newTileData.name = `${newTileData.name}_copy`;
-
-                newTilesToCreate.push({
-                    id: newTileId,
-                    name: newTileData.name,
-                    type: 'tile',
-                    data: newTileData,
-                });
-            }
-        });
-
-        const newTileMatrix = copiedBossPhase.tileMatrix.map(row =>
-            row.map(oldId => oldId ? oldToNewIdMap.get(oldId) || oldId : null)
-        );
-
         const updatedPhaseData = {
-            tileMatrix: newTileMatrix,
-            collisionMatrix: JSON.parse(JSON.stringify(copiedBossPhase.collisionMatrix)),
-            dimensions: { ...copiedBossPhase.dimensions },
+            tileMatrix: copiedBossPhase.tileMatrix,
+            collisionMatrix: copiedBossPhase.collisionMatrix,
+            dimensions: copiedBossPhase.dimensions,
         };
 
         const updatedPhases = boss.phases.map(p =>
             p.id === selectedPhaseId ? { ...p, ...updatedPhaseData } : p
         );
 
-        onUpdate({ phases: updatedPhases }, newTilesToCreate);
+        onUpdate({ phases: updatedPhases });
     };
 
     const handleUpdatePhase = (phaseId: string, field: keyof BossPhase, value: any) => {
