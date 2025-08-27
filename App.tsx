@@ -171,6 +171,7 @@ const App: React.FC = () => {
 
   const [bossEditorZoom, setBossEditorZoom] = useState(1);
   const [tileEditorZoom, setTileEditorZoom] = useState(20);
+  const [screenEditorZoom, setScreenEditorZoom] = useState(16);
 
   const handleUpdateSpriteOrder = (reorderedSpriteAssets: ProjectAsset[]) => {
     setAssetsWithHistory(prevAssets => {
@@ -610,6 +611,7 @@ const App: React.FC = () => {
             id, name: defaultName,
             totalHealth: 100,
             phases: [defaultPhase],
+            phasesEnabled: [true],
             attacks: [],
         } as Boss;
         newEditorType = EditorType.Boss;
@@ -1176,6 +1178,7 @@ const App: React.FC = () => {
     isCompressDataModalOpen, setIsCompressDataModalOpen,
     bossEditorZoom, setBossEditorZoom,
     tileEditorZoom, setTileEditorZoom,
+    screenEditorZoom, setScreenEditorZoom,
     isToggleEditorDisabled: previousEditorContext === null,
     onToggleEditor: handleToggleEditor,
   };

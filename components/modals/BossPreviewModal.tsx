@@ -1,167 +1,115 @@
-import React, { useEffect, useRef } from 'react';
-import { Boss, BossPhase, Tile } from '../../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Boss, Tile, MSXColorValue } from '../../types';
 import { Button } from '../common/Button';
 import { createTileDataURL } from '../utils/screenUtils';
-
-const PREVIEW_WIDTH = 256;
-const PREVIEW_HEIGHT = 192;
-const TILE_SIZE = 8; // Tiles are 8x8 in this context
+import { MSX_SCREEN5_PALETTE } from '../../constants';
 
 interface BossPreviewModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  boss: Boss;
-  tileset: Tile[];
+    isOpen: boolean;
+    onClose: () => void;
+    boss: Boss;
+    tileset: Tile[];
 }
 
-export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({
-  isOpen,
-  onClose,
-  boss,
-  tileset,
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationFrameId = useRef<number>();
-  const bossStateRef = useRef({ x: 0, y: 0, vx: 1, vy: 0.5 });
-  const tileImageCache = useRef(new Map<string, HTMLImageElement>());
+const Modal: React.FC<{isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode}> = ({isOpen, onClose, title, children}) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4" onClick={onClose}>
+            <div className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">{title}</h2>
+                {children}
+                <Button onClick={onClose} variant="primary" size="md" className="mt-4">Close</Button>
+            </div>
+        </div>
+    );
+}
 
-  useEffect(() => {
-    if (!isOpen) {
-        if (animationFrameId.current) {
-            cancelAnimationFrame(animationFrameId.current);
+
+export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onClose, boss, tileset }) => {
+    const [frameDelay, setFrameDelay] = useState(200);
+    const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);
+
+    const enabledPhases = useMemo(() => {
+        const phasesEnabled = boss.phasesEnabled ?? Array(boss.phases.length).fill(true);
+        const enabled = boss.phases.filter((_, index) => phasesEnabled[index]);
+        return enabled.length > 0 ? enabled : boss.phases; // If no phases are enabled, show all as a fallback
+    }, [boss.phases, boss.phasesEnabled]);
+
+    useEffect(() => {
+        if (!isOpen || enabledPhases.length === 0) {
+            setCurrentPhaseIndex(0);
+            return;
         }
-        return;
-    }
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.imageSmoothingEnabled = false;
+        const timer = setTimeout(() => {
+            setCurrentPhaseIndex((prevIndex) => (prevIndex + 1) % enabledPhases.length);
+        }, frameDelay);
 
-    const phase = boss.phases[0];
-    if (!phase || phase.buildType !== 'tile' || !phase.tileMatrix) {
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px "MSX-Gothic"';
-        ctx.fillText("No tile-based phase to preview.", 10, 20);
-        return;
-    }
+        return () => clearTimeout(timer);
+    }, [isOpen, currentPhaseIndex, frameDelay, enabledPhases]);
 
-    const bossWidth = (phase.dimensions?.width || 0) * TILE_SIZE;
-    const bossHeight = (phase.dimensions?.height || 0) * TILE_SIZE;
+    if (!isOpen) return null;
 
-    // Initialize boss state
-    bossStateRef.current = {
-        x: Math.floor((PREVIEW_WIDTH - bossWidth) / 2),
-        y: Math.floor((PREVIEW_HEIGHT - bossHeight) / 2),
-        vx: 1,
-        vy: 0.5,
-    };
+    const currentPhase = enabledPhases[currentPhaseIndex];
+    if (!currentPhase) return null;
 
-    const uniqueTileIds = new Set(phase.tileMatrix.flat().filter(Boolean));
-    let tilesToLoad = uniqueTileIds.size;
+    const phaseGridWidth = currentPhase.dimensions?.width || 8;
+    const phaseGridHeight = currentPhase.dimensions?.height || 8;
+    const tileSize = 16;
 
-    const startAnimation = () => {
-        if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+    const tilesById = useMemo(() => new Map(tileset.map(t => [t.id, t])), [tileset]);
 
-        const animate = () => {
-            let { x, y, vx, vy } = bossStateRef.current;
-            x += vx;
-            y += vy;
+    // This is a placeholder. In a real scenario, you'd get this from the screen mode context.
+    const palette: MSXColor[] = MSX_SCREEN5_PALETTE;
 
-            if (x <= 0 || x + bossWidth >= PREVIEW_WIDTH) vx = -vx;
-            if (y <= 0 || y + bossHeight >= PREVIEW_HEIGHT) vy = -vy;
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Boss Animation Preview">
+            <div className="bg-msx-bgcolor p-4 rounded-lg flex flex-col space-y-4">
+                <div
+                    className="grid bg-msx-checkerboard border-2 border-msx-border"
+                    style={{
+                        gridTemplateColumns: `repeat(${phaseGridWidth}, ${tileSize}px)`,
+                        gridTemplateRows: `repeat(${phaseGridHeight}, ${tileSize}px)`,
+                        width: `${phaseGridWidth * tileSize}px`,
+                        height: `${phaseGridHeight * tileSize}px`,
+                        imageRendering: 'pixelated',
+                    }}
+                >
+                    {currentPhase.tileMatrix?.flat().map((tileId, index) => {
+                        const tile = tileId ? tilesById.get(tileId) : null;
+                        // Assuming createTileDataURL can work without a full palette if colors are hex strings
+                        const dataUrl = tile ? createTileDataURL(tile, 0, 0, tile.width, tile.height, tile.width, "SCREEN 5 (Graphics IV)") : null;
+                        return (
+                            <div
+                                key={index}
+                                className="w-full h-full"
+                                style={{
+                                    backgroundImage: dataUrl ? `url(${dataUrl})` : 'none',
+                                    backgroundSize: 'cover',
+                                }}
+                            />
+                        );
+                    })}
+                </div>
 
-            bossStateRef.current = { x, y, vx, vy };
-
-            renderBoss(x, y);
-            animationFrameId.current = requestAnimationFrame(animate);
-        };
-        animationFrameId.current = requestAnimationFrame(animate);
-    };
-
-    const renderBoss = (x: number, y: number) => {
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-        for (let row = 0; row < (phase.dimensions?.height || 0); row++) {
-            for (let col = 0; col < (phase.dimensions?.width || 0); col++) {
-                const tileId = phase.tileMatrix?.[row]?.[col];
-                if (tileId) {
-                    const tileImage = tileImageCache.current.get(tileId);
-                    if (tileImage) {
-                        ctx.drawImage(tileImage, x + col * TILE_SIZE, y + row * TILE_SIZE);
-                    }
-                }
-            }
-        }
-    };
-
-    if (uniqueTileIds.size === 0) {
-        startAnimation();
-        return;
-    }
-
-    uniqueTileIds.forEach(tileId => {
-        if (tileImageCache.current.has(tileId)) {
-            tilesToLoad--;
-        } else {
-            const tile = tileset.find(t => t.id === tileId);
-            if (tile) {
-                const img = new Image();
-                img.src = createTileDataURL(tile, 0, 0, TILE_SIZE, TILE_SIZE, tile.width, "SCREEN 2 (Graphics I)");
-                img.onload = () => {
-                    tileImageCache.current.set(tileId, img);
-                    tilesToLoad--;
-                    if (tilesToLoad === 0) startAnimation();
-                };
-                img.onerror = () => {
-                    tilesToLoad--;
-                    if (tilesToLoad === 0) startAnimation();
-                };
-            } else {
-                tilesToLoad--;
-            }
-        }
-    });
-
-    if (tilesToLoad === 0) {
-        startAnimation();
-    }
-
-    return () => {
-        if (animationFrameId.current) {
-            cancelAnimationFrame(animationFrameId.current);
-        }
-    };
-  }, [isOpen, boss, tileset]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div
-        className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4"
-        onClick={onClose}
-    >
-      <div
-        className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn flex flex-col items-center"
-        onClick={e => e.stopPropagation()}
-      >
-        <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Boss Preview</h2>
-        <canvas
-            ref={canvasRef}
-            width={PREVIEW_WIDTH}
-            height={PREVIEW_HEIGHT}
-            className="border-2 border-msx-border"
-            style={{
-                width: PREVIEW_WIDTH * 2,
-                height: PREVIEW_HEIGHT * 2,
-                imageRendering: 'pixelated'
-            }}
-        />
-        <Button onClick={onClose} variant="primary" size="md" className="mt-4">Close</Button>
-      </div>
-    </div>
-  );
+                <div className="flex items-center space-x-2 text-xs w-full max-w-xs">
+                    <label htmlFor="frame-delay" className="text-msx-textsecondary whitespace-nowrap">Delay:</label>
+                    <input
+                        id="frame-delay"
+                        type="range"
+                        min="50"
+                        max="2000"
+                        step="50"
+                        value={frameDelay}
+                        onChange={(e) => setFrameDelay(Number(e.target.value))}
+                        className="w-full h-2 bg-msx-border rounded-lg appearance-none cursor-pointer"
+                    />
+                    <span className="font-mono w-12 text-right">{frameDelay}ms</span>
+                </div>
+                <div className="text-center text-xs text-msx-textsecondary h-4">
+                    {currentPhase.name} ({currentPhaseIndex + 1} / {enabledPhases.length})
+                </div>
+            </div>
+        </Modal>
+    );
 };

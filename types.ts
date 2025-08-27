@@ -416,6 +416,7 @@ export interface Boss {
   name: string;
   totalHealth: number;
   phases: BossPhase[];
+  phasesEnabled: boolean[];
   attacks: BossAttack[];
   deathExplosionSpriteId?: string;
   deathSoundId?: string;
