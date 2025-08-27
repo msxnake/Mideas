@@ -687,6 +687,12 @@ export interface CopiedTileData {
   height: number;
 }
 
+export interface CopiedBossPhaseData {
+  tileMatrix: (string | null)[][];
+  collisionMatrix: (boolean)[][];
+  dimensions: { width: number; height: number };
+}
+
 
 export interface WaypointPickerState {
   isPicking: boolean;
