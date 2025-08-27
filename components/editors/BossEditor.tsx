@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Boss, BossPhase, ProjectAsset, Sprite, Tile, TileBank, BossAttack, BossPhaseWeakPoint, ContextMenuItem, EditorType, TileLogicalProperties, LineColorAttribute, MSXColorValue } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, SpriteIcon, TilesetIcon, PencilIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, SpriteIcon, TilesetIcon, PencilIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { createTileDataURL } from '../utils/screenUtils';
 import { EDITOR_BASE_TILE_DIM_S2, DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, DEFAULT_SCREEN2_FG_COLOR, MSX_SCREEN5_PALETTE, DEFAULT_SCREEN2_BG_COLOR } from '../../constants';
@@ -252,6 +252,13 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         const tileAssetAtCell = tileIdAtCell ? tileset.find(t => t.id === tileIdAtCell) : null;
         
         const menuItems: ContextMenuItem[] = [
+            {
+                label: 'Select Current Tile',
+                icon: <ViewfinderCircleIcon className="w-4 h-4" />,
+                onClick: () => { if (tileIdAtCell) setSelectedTileId(tileIdAtCell); },
+                disabled: !tileIdAtCell
+            },
+            { isSeparator: true },
             {
                 label: 'Create New Tile...',
                 icon: <PlusCircleIcon className="w-4 h-4" />,
