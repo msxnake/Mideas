@@ -715,7 +715,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           selectedEffectZoneId={selectedEffectZoneId}
           onSelectEffectZone={onSelectEffectZone}
         />
-        <div className="flex-grow p-2 overflow-auto flex items-center justify-center relative">
+        <div className="flex-grow p-2 overflow-auto flex items-start justify-start relative">
           {waypointPickerState.isPicking && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50 pointer-events-none">
               <p className="text-white pixel-font text-lg p-3 bg-msx-accent rounded shadow-lg">
