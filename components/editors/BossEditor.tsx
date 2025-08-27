@@ -12,6 +12,8 @@ import { BossTilesetPanel } from './BossTilesetPanel';
 import { BossPreviewModal } from '../modals/BossPreviewModal';
 
 
+import { CopiedBossPhaseData } from '../../types';
+
 interface BossEditorProps {
     boss: Boss;
     onUpdate: (data: Partial<Boss>, newAssetsToCreate?: ProjectAsset[]) => void;
@@ -22,6 +24,8 @@ interface BossEditorProps {
     currentScreenMode: string;
     zoom: number;
     setZoom: (zoom: number) => void;
+    copiedBossPhase: CopiedBossPhaseData | null;
+    setCopiedBossPhase: (data: CopiedBossPhaseData | null) => void;
 }
 
 const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[] }> = ({ spriteAssetId, allAssets }) => {
@@ -50,7 +54,7 @@ const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[]
 
 type BossEditMode = 'tiles' | 'collision' | 'weakpoints';
 
-export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoom, setZoom }) => {
+export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoom, setZoom, copiedBossPhase, setCopiedBossPhase }) => {
     
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);
     const [editMode, setEditMode] = useState<BossEditMode>('tiles');
@@ -96,6 +100,32 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
         const newPhasesEnabled = [...currentPhasesEnabled];
         newPhasesEnabled[index] = !newPhasesEnabled[index];
         onUpdate({ phasesEnabled: newPhasesEnabled });
+    };
+
+    const handleCopyPhase = () => {
+        if (!selectedPhase) return;
+        const dataToCopy: CopiedBossPhaseData = {
+            tileMatrix: JSON.parse(JSON.stringify(selectedPhase.tileMatrix || [])),
+            collisionMatrix: JSON.parse(JSON.stringify(selectedPhase.collisionMatrix || [])),
+            dimensions: { ...(selectedPhase.dimensions || { width: 8, height: 8 }) },
+        };
+        setCopiedBossPhase(dataToCopy);
+    };
+
+    const handlePastePhase = () => {
+        if (!selectedPhase || !copiedBossPhase) return;
+
+        const updatedPhaseData = {
+            tileMatrix: copiedBossPhase.tileMatrix,
+            collisionMatrix: copiedBossPhase.collisionMatrix,
+            dimensions: copiedBossPhase.dimensions,
+        };
+
+        const updatedPhases = boss.phases.map(p =>
+            p.id === selectedPhaseId ? { ...p, ...updatedPhaseData } : p
+        );
+
+        onUpdate({ phases: updatedPhases });
     };
 
     const handleUpdatePhase = (phaseId: string, field: keyof BossPhase, value: any) => {
@@ -402,6 +432,10 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                                 </div>
                                 <div className="pt-2 border-t border-msx-border/30">
                                     <Button onClick={() => setIsPreviewOpen(true)} variant="secondary" className="w-full">Preview Animation</Button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-msx-border/30">
+                                    <Button onClick={handleCopyPhase} variant="secondary" size="sm" disabled={!selectedPhase}>Copy Phase</Button>
+                                    <Button onClick={handlePastePhase} variant="secondary" size="sm" disabled={!selectedPhase || !copiedBossPhase}>Paste Phase</Button>
                                 </div>
                             </div>
                         ) : <p className="text-xs text-msx-textsecondary italic">Select a phase to see properties.</p>}
