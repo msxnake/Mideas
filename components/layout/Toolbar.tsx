@@ -5,6 +5,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
 import { ProjectAsset, DataFormat, EditorType } from '../../types'; 
 import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon } from '../icons/MsxIcons';
+import { APP_VERSION } from '../../constants';
 
 // --- PROPS INTERFACE ---
 interface ToolbarProps {
@@ -234,6 +235,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </Button>
       
       <div className="flex-grow"></div>
+
+       <div
+        className="bg-white text-red-600 text-xs font-bold px-2 py-1 rounded-sm shadow-md"
+        title={`Version ${APP_VERSION}`}
+      >
+        v{APP_VERSION}
+      </div>
       
       {isAutosaving && (
         <div className="absolute top-1.5 right-1.5 w-3 h-3 bg-msx-danger rounded-full blinking-dot-indicator" title="Autosaving project..." aria-live="polite" aria-label="Autosaving project"/>

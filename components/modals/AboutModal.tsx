@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Button } from '../common/Button';
+import { APP_VERSION } from '../../constants';
 
 interface AboutModalProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
 
            
 
-            <p>Version: 0.15 (Conceptual Mockup)</p>
+            <p>Version: {APP_VERSION} (Conceptual Mockup)</p>
 
             <p>This tool showcases key UI/UX elements for retro game creation.</p>
         </div>
