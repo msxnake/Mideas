@@ -1,6 +1,4 @@
-
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ProjectAsset, EditorType } from '../../types'; // Added EditorType
 import { Panel } from '../common/Panel';
 import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon } from '../icons/MsxIcons'; // Added SparklesIcon
@@ -93,22 +91,19 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     isMainMenuActive = false, // New prop
     className = '',
 }) => {
-  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
-    'sound': true, 
-    'track': true,
-    'tile': true, 
-    'sprite': true,
-    'boss': true,
-    'screenmap': true,
-    'gameflow': true,
-    'behavior': true, 
-    'componentdefinition': true,
-    'entitytemplate': true,
-    'code': true,
-  });
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
   const [tileSortOrder, setTileSortOrder] = useState<'default' | 'alpha'>('default');
   const [tileFilterChar, setTileFilterChar] = useState<string>('');
 
+  // Collapse all folders when assets change (e.g., a new project is loaded)
+  useEffect(() => {
+    setExpandedFolders({});
+  }, [assets]);
+
+  // Ensure all folders are collapsed on initial mount
+  useEffect(() => {
+    setExpandedFolders({});
+  }, []);
 
   const toggleFolder = (folderType: ProjectAsset['type']) => {
     setExpandedFolders(prev => ({ ...prev, [folderType]: !prev[folderType] }));

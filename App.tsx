@@ -138,6 +138,7 @@ const App: React.FC = () => {
   const [autosaveEnabled, setAutosaveEnabled] = useState<boolean>(true);
   const [snippetsEnabled, setSnippetsEnabled] = useState<boolean>(true);
   const [syntaxHighlightingEnabled, setSyntaxHighlightingEnabled] = useState<boolean>(true);
+  const [worldViewGridVisible, setWorldViewGridVisible] = useState<boolean>(false); // Default to false
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [isSpriteSheetModalOpen, setIsSpriteSheetModalOpen] = useState(false);
   const [isSpriteFramesModalOpen, setIsSpriteFramesModalOpen] = useState(false);
@@ -535,7 +536,7 @@ const App: React.FC = () => {
   }, [assets, tileBanks]);
 
   useEffect(() => { const savedConfig = localStorage.getItem('ideConfig'); if (savedConfig) { try { const parsed = JSON.parse(savedConfig); if (parsed.dataOutputFormat) setDataOutputFormat(parsed.dataOutputFormat); if (typeof parsed.autosaveEnabled === 'boolean') setAutosaveEnabled(parsed.autosaveEnabled); if (typeof parsed.snippetsEnabled === 'boolean') setSnippetsEnabled(parsed.snippetsEnabled); if (typeof parsed.syntaxHighlightingEnabled === 'boolean') setSyntaxHighlightingEnabled(parsed.syntaxHighlightingEnabled); } catch (e) { console.error("Failed to load IDE config from localStorage", e); }}}, []);
-  const saveIdeConfig = () => { const configToSave = { dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled }; localStorage.setItem('ideConfig', JSON.stringify(configToSave)); setStatusBarMessage("IDE configuration saved to browser.");};
+  const saveIdeConfig = () => { const configToSave = { dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, worldViewGridVisible }; localStorage.setItem('ideConfig', JSON.stringify(configToSave)); setStatusBarMessage("IDE configuration saved to browser.");};
   const resetIdeConfig = () => { setDataOutputFormat('hex'); setAutosaveEnabled(true); setSnippetsEnabled(true); setSyntaxHighlightingEnabled(true); localStorage.removeItem('ideConfig'); setStatusBarMessage("IDE configuration reset to defaults.");};
   useEffect(() => { localStorage.setItem('tileBanksConfig', JSON.stringify(tileBanks));}, [tileBanks]);
   const handleOpenNewProjectModal = () => setIsNewProjectModalOpen(true);
@@ -562,7 +563,7 @@ const App: React.FC = () => {
         const formattedDate = getFormattedDate();
         const createdAssets: ProjectAsset[] = [];
         let mainAsmAssetId: string | null = null;
-        newProjectFiles.forEach(filename => { const fileContent = filename === "main.asm" ? generateMainAsmContent(projectNameFromModal, formattedDate) : generateAsmFileHeader(projectNameFromModal, formattedDate, filename); const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\//g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2,7)}`; const newAsset: ProjectAsset = { id: assetId, name: filename, type: 'code', data: fileContent }; createdAssets.push(newAsset); if (filename === "main.asm") { mainAsmAssetId = assetId; }});
+        newProjectFiles.forEach(filename => { const fileContent = filename === "main.asm" ? generateMainAsmContent(projectNameFromModal, formattedDate) : generateAsmFileHeader(projectNameFromModal, formattedDate, filename); const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\\/g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2,7)}`; const newAsset: ProjectAsset = { id: assetId, name: filename, type: 'code', data: fileContent }; createdAssets.push(newAsset); if (filename === "main.asm") { mainAsmAssetId = assetId; }});
         setAssets(createdAssets);
         if (mainAsmAssetId) { setSelectedAssetId(mainAsmAssetId); setCurrentEditor(EditorType.Code); setStatusBarMessage(`Project "${projectNameFromModal}" created. main.asm opened.`);} else { setStatusBarMessage(`Project "${projectNameFromModal}" created.`);}
         setIsNewProjectModalOpen(false); setIsConfirmModalOpen(false);
@@ -722,9 +723,9 @@ const App: React.FC = () => {
       if (assetToDelete) { 
           setConfirmModalProps({ 
               title: "Delete Asset", 
-              message: `Are you sure you want to delete asset "${assetToDelete.name}"? This cannot be undone from the history.`, 
+              message: `Are you sure you want to delete asset "${assetToDelete.name}"? This action can be undone.`, 
               onConfirm: () => { 
-                  setAssets(prevAssets => prevAssets.filter(a => a.id !== assetId));
+                  setAssetsWithHistory(prevAssets => prevAssets.filter(a => a.id !== assetId));
                   if (selectedAssetId === assetId) { 
                       setSelectedAssetId(null); 
                       setCurrentEditor(EditorType.None); 
@@ -744,7 +745,7 @@ const App: React.FC = () => {
   
   const handleOpenSaveAsModal = () => { setIsSaveAsModalOpen(true); };
 
-  const handleSaveProject = useCallback((filenameToSave?: string, isManualSaveOperation: boolean = true) => {
+  const handleSaveProject = useCallback((filenameToSave?: string, isManualSaveOperation: boolean = true) => { 
     let effectiveFilename = filenameToSave;
     if (!effectiveFilename) { 
       if (currentProjectName) {
@@ -769,7 +770,7 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob); 
     const a = document.createElement('a'); 
     a.href = url; 
-    a.download = effectiveFilename; 
+    a.download = effectiveFilename;
     document.body.appendChild(a); 
     a.click(); 
     document.body.removeChild(a); 
@@ -1049,7 +1050,7 @@ const App: React.FC = () => {
             const allColorsBytesArrays: Uint8Array[] = []; 
             tileAssetsAll.forEach(asset => {
                 const tile = asset.data as Tile;
-                const colorBytes = generateTileColorBytes(tile);
+                const colorBytes = generateTileColorBytes(tile); 
                 if (colorBytes) allColorsBytesArrays.push(colorBytes); 
             });
             if (allColorsBytesArrays.length > 0) {
@@ -1148,10 +1149,7 @@ const App: React.FC = () => {
     } else {
         const id = `code_tpl_asm_${Date.now()}`;
         const newAsset: ProjectAsset = {
-            id,
-            name: asmFilename,
-            type: 'code',
-            data: asmCode
+            id, name: asmFilename, type: 'code', data: asmCode
         };
         setAssetsWithHistory(prev => [...prev, newAsset]);
         setStatusBarMessage(`Created ${asmFilename} with template data.`);
