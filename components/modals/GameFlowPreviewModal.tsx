@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GameFlowGraph, ProjectAsset, GameFlowNode, GameFlowSubMenuNode, GameFlowWorldLinkNode, MSXFont, MSXFontColorAttributes, EntityTemplate, ScreenMap, Tile, WorldMapGraph, EntityInstance, WorldMapConnection } from '../../types';
+import { GameFlowGraph, ProjectAsset, GameFlowNode, GameFlowSubMenuNode, GameFlowWorldLinkNode, MSXFont, MSXFontColorAttributes, EntityTemplate, ScreenMap, Tile, WorldMapGraph, EntityInstance, WorldMapConnection, Sprite } from '../../types';
 import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFontRenderer';
-import { renderScreenToCanvas } from '../utils/screenUtils';
+import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons/MsxIcons';
+import { ScreenGrid } from '../screen_editor/ScreenGrid';
 
 const TILE_SIZE = 8;
 const PREVIEW_WIDTH = 256;
@@ -169,6 +170,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         setCurrentScreenMap(screenMap);
     }
 
+    const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
+    const bgAsset = subMenuNode?.appearance?.backgroundScreenAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.backgroundScreenAssetId) : null;
+
     const draw = async () => {
         if (!canvas || !ctx) return;
         ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
@@ -177,8 +181,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
             renderScreenToCanvas(canvas, currentScreenMap, tileset, currentScreenMode, TILE_SIZE);
         } else if (currentNode) {
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            if (!bgAsset) {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            }
             
             const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes) => {
                 return new Promise<void>((resolve) => {
@@ -269,6 +275,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
       }
   };
 
+  const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
+  const bgAsset = subMenuNode?.appearance?.backgroundScreenAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.backgroundScreenAssetId) : null;
+  const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
+
   return (
     <div
         ref={modalRef}
@@ -283,18 +293,62 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
       >
         <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Game Flow Preview</h2>
         <p className="text-xs text-msx-textsecondary mb-2">Use Arrows, Enter/Space, and Escape to navigate.</p>
-        <div className="relative">
+        <div className="relative" style={{ width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}>
+            {bgAsset && (
+                <ScreenGrid
+                    mapData={bgAsset.data as ScreenMap}
+                    tileset={allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile)}
+                    sprites={[]}
+                    activeLayer="background"
+                    onTilePlace={() => {}}
+                    onEntityPlace={() => {}}
+                    onEntitySelect={() => {}}
+                    onEffectZoneSelect={() => {}}
+                    onTileContextMenu={() => {}}
+                    gridPixelSize={TILE_SIZE * 2}
+                    baseCellPixelWidth={TILE_SIZE}
+                    baseCellPixelHeight={TILE_SIZE}
+                    currentScreenMode={currentScreenMode}
+                    editorBaseTileDim={TILE_SIZE}
+                    msxFont={msxFont}
+                    msxFontColorAttributes={msxFontColorAttributes}
+                    selectedEntityInstanceId={null}
+                    effectZones={[]}
+                    selectedEffectZoneId={null}
+                    currentScreenTool="draw"
+                    selectionRect={null}
+                    onSelectionChange={() => {}}
+                    componentDefinitions={[]}
+                    entityTemplates={entityTemplates}
+                    waypointPickerState={{ isPicking: false }}
+                    onWaypointPicked={() => {}}
+                />
+            )}
             <canvas
                 ref={canvasRef}
                 width={PREVIEW_WIDTH}
                 height={PREVIEW_HEIGHT}
-                className="border-2 border-msx-border"
+                className={`absolute top-0 left-0 border-2 border-msx-border ${bgAsset ? 'bg-transparent' : ''}`}
                 style={{
                     width: PREVIEW_WIDTH * 2,
                     height: PREVIEW_HEIGHT * 2,
                     imageRendering: 'pixelated'
                 }}
             />
+            {cursorAsset && subMenuNode && (
+                <img 
+                    src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
+                    alt="cursor"
+                    className="absolute pointer-events-none"
+                    style={{
+                        left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(subMenuNode.options[selectedOptionIndex].text, 1).width) / 2 - 16) * 2,
+                        top: (80 + selectedOptionIndex * 12) * 2,
+                        imageRendering: 'pixelated',
+                        width: (cursorAsset.data as Sprite).size.width * 2,
+                        height: (cursorAsset.data as Sprite).size.height * 2,
+                    }}
+                />
+            )}
             {currentScreenMap && (
                 <>
                     {northExits.map((conn, index) => (
