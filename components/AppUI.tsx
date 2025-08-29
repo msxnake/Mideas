@@ -399,6 +399,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                 msxFont={msxFont}
                 msxFontColorAttributes={msxFontColorAttributes}
                 currentScreenMode={currentScreenMode}
+                gameData={{ assets, tileBanks, componentDefinitions, entityTemplates, mainMenuConfig }}
+                setScreenToEdit={(screen) => memoizedHandleSelectAsset(screen.id, EditorType.Screen)}
              />
            )}
         </div>

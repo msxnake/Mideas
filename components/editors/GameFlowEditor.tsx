@@ -6,8 +6,9 @@ import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
-import AppearanceEditor from './AppearanceEditor';
+import { SubMenuAppearanceEditor } from './SubMenuAppearanceEditor';
 import { Modal } from '../modals/Modal';
+import { DEFAULT_MAIN_MENU_CONFIG } from '../../constants';
 
 const NODE_WIDTH = 150;
 const NODE_HEIGHT = 100;
@@ -28,8 +29,6 @@ interface GameFlowEditorProps {
   msxFontColorAttributes: MSXFontColorAttributes;
   entityTemplates: EntityTemplate[];
   currentScreenMode: string;
-  gameData: GameData;
-  setScreenToEdit: (screen: GameScreen) => void;
 }
 
 const getPortPosition = (node: GameFlowNode, portId: string): Point => {
@@ -49,8 +48,6 @@ const getPortPosition = (node: GameFlowNode, portId: string): Point => {
     }
     return { x: basePos.x + NODE_WIDTH, y: basePos.y + NODE_HEIGHT / 2 };
 };
-
-import { Button } from '../common/Button';
 
 const GameFlowNodeComponent: React.FC<{
     node: GameFlowNode;
@@ -124,7 +121,7 @@ const GameFlowNodeComponent: React.FC<{
 };
 
 
-export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, gameData, setScreenToEdit }) => {
+export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
@@ -368,11 +365,14 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       )}
       {isSubMenuModalOpen && editingSubMenu && (
         <Modal isOpen={isSubMenuModalOpen} onClose={handleCloseSubMenuModal} title="Edit Submenu Appearance">
-          <AppearanceEditor 
-            appearance={editingSubMenu.appearance} 
+          <SubMenuAppearanceEditor 
+            appearance={editingSubMenu.appearance || {
+                colors: DEFAULT_MAIN_MENU_CONFIG.menuColors,
+                backgroundScreenAssetId: null,
+                cursorSpriteAssetId: null,
+            }} 
             onAppearanceChange={handleAppearanceChange} 
-            gameData={gameData}
-            setScreenToEdit={setScreenToEdit}
+            allAssets={allAssets}
           />
           <div className="flex justify-end p-4">
             <Button onClick={handleSaveSubMenu}>Save</Button>

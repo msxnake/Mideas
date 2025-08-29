@@ -21,11 +21,26 @@ interface MainMenuEditorProps {
 
 type MainMenuTab = 'Design' | 'Appearance' | 'Keys' | 'Settings' | 'Continue' | 'Intro';
 
+import { MSX1_PALETTE } from '../../constants';
+import { InlineColorPicker } from '../common/InlineColorPicker';
+
+
+interface MainMenuEditorProps {
+    mainMenuConfig: MainMenuConfig;
+    onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
+    allAssets: ProjectAsset[];
+    msxFont: any;
+    msxFontColorAttributes: any;
+    currentScreenMode: string;
+}
+
+type MainMenuTab = 'Design' | 'Appearance' | 'Keys' | 'Settings' | 'Continue' | 'Intro';
+
 const KeyInput: React.FC<{ label: string; value: string; onSet: () => void; isListening: boolean }> = ({ label, value, onSet, isListening }) => (
-    <div className="flex items-center justify-between p-2 bg-msx-bgcolor rounded">
-        <span className="text-msx-textprimary">{label}:</span>
-        <div className="flex items-center space-x-2">
-            <span className="text-msx-cyan font-mono w-24 text-center border border-msx-border rounded px-2 py-1">
+    <div class="flex items-center justify-between p-2 bg-msx-bgcolor rounded">
+        <span class="text-msx-textprimary">{label}:</span>
+        <div class="flex items-center space-x-2">
+            <span class="text-msx-cyan font-mono w-24 text-center border border-msx-border rounded px-2 py-1">
                 {isListening ? '...' : value}
             </span>
             <Button onClick={onSet} size="sm" variant="secondary">{isListening ? 'Listening...' : 'Set Key'}</Button>

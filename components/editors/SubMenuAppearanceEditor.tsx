@@ -1,85 +1,86 @@
-import React from 'react';
-import { GameFlowSubMenuNode, ProjectAsset } from '../../types';
+import React, { useState } from 'react';
+import { MainMenuAppearance, ProjectAsset } from '../../types';
+import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { AssetPickerModal } from '../modals/AssetPickerModal';
+import { InlineColorPicker } from '../common/InlineColorPicker';
 
 interface SubMenuAppearanceEditorProps {
-  node: GameFlowSubMenuNode;
-  onUpdate: (data: Partial<GameFlowSubMenuNode>) => void;
+  appearance: MainMenuAppearance;
+  onAppearanceChange: (newAppearance: MainMenuAppearance) => void;
   allAssets: ProjectAsset[];
-  openAssetPicker: (assetType: 'screenmap' | 'sprite', onSelect: (assetId: string) => void) => void;
 }
 
-export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = ({ node, onUpdate, allAssets, openAssetPicker }) => {
-  const appearance = node.appearance || {
-    colors: {
-      text: '#FFFFFF',
-      background: '#5455ED',
-      highlightText: '#E6CE60',
-      highlightBackground: '#7D78FC',
-      border: '#FFFFFF',
-    },
+export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = ({
+  appearance,
+  onAppearanceChange,
+  allAssets,
+}) => {
+  const [assetPickerState, setAssetPickerState] = useState<{
+    isOpen: boolean;
+    assetType: 'screenmap' | 'sprite';
+    onSelect: (assetId: string) => void;
+  } | null>(null);
+
+  const handleConfigChange = (field: keyof MainMenuAppearance, value: any) => {
+    onAppearanceChange({ ...appearance, [field]: value });
   };
 
-  const handleColorChange = (field: keyof typeof appearance.colors, value: string) => {
-    const newAppearance = {
+  const handleColorChange = (field: keyof MainMenuAppearance['colors'], value: any) => {
+    onAppearanceChange({
       ...appearance,
       colors: {
         ...appearance.colors,
         [field]: value,
       },
-    };
-    onUpdate({ appearance: newAppearance });
+    });
   };
 
-  const handleAssetSelect = (field: 'backgroundScreenAssetId' | 'cursorSpriteAssetId', assetId: string) => {
-    const newAppearance = {
-      ...appearance,
-      [field]: assetId,
-    };
-    onUpdate({ appearance: newAppearance });
+  const openAssetPicker = (assetType: 'screenmap' | 'sprite', onSelect: (assetId: string) => void) => {
+    setAssetPickerState({ isOpen: true, assetType, onSelect });
   };
 
-  const backgroundScreenName = allAssets.find(a => a.id === appearance.backgroundScreenAssetId)?.name || 'None';
-  const cursorSpriteName = allAssets.find(a => a.id === appearance.cursorSpriteAssetId)?.name || 'None';
+  const bgAsset = allAssets.find(a => a.id === appearance.backgroundScreenAssetId);
+  const cursorAsset = allAssets.find(a => a.id === appearance.cursorSpriteAssetId);
 
   return (
-    <div className="space-y-4 p-2 border-t border-msx-border">
-      <h3 className="text-sm font-bold text-msx-highlight">Appearance</h3>
-      
-      {/* Visuals Section */}
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold text-msx-textsecondary">Visuals</h4>
-        <div>
-          <label className="block text-xs text-msx-textsecondary mb-1">Select Background Screen</label>
-          <Button onClick={() => openAssetPicker('screenmap', (assetId) => handleAssetSelect('backgroundScreenAssetId', assetId))}>
-            {backgroundScreenName}
+    <div className="space-y-3 p-4">
+      <Panel title="Visuals">
+        <div className="flex items-center space-x-2">
+          <Button onClick={() => openAssetPicker('screenmap', (id) => handleConfigChange('backgroundScreenAssetId', id))} variant="secondary" size="sm">
+            Select Background Screen
           </Button>
+          <span className="text-msx-textsecondary truncate">
+            Selected: {bgAsset ? `${bgAsset.name}` : 'None'}
+          </span>
         </div>
-        <div>
-          <label className="block text-xs text-msx-textsecondary mb-1">Select Cursor Sprite</label>
-          <Button onClick={() => openAssetPicker('sprite', (assetId) => handleAssetSelect('cursorSpriteAssetId', assetId))}>
-            {cursorSpriteName}
+        <div className="flex items-center space-x-2 mt-2">
+          <Button onClick={() => openAssetPicker('sprite', (id) => handleConfigChange('cursorSpriteAssetId', id))} variant="secondary" size="sm">
+            Select Cursor Sprite
           </Button>
+          <span className="text-msx-textsecondary truncate">
+            Selected: {cursorAsset ? `${cursorAsset.name}` : 'None'}
+          </span>
         </div>
-      </div>
+      </Panel>
+      <Panel title="Colors">
+        <InlineColorPicker label="Text" color={appearance.colors.text} onChange={color => handleColorChange('text', color)} />
+        <InlineColorPicker label="Background" color={appearance.colors.background} onChange={color => handleColorChange('background', color)} />
+        <InlineColorPicker label="Highlight Text" color={appearance.colors.highlightText} onChange={color => handleColorChange('highlightText', color)} />
+        <InlineColorPicker label="Highlight BG" color={appearance.colors.highlightBackground} onChange={color => handleColorChange('highlightBackground', color)} />
+        <InlineColorPicker label="Border" color={appearance.colors.border || 'transparent'} onChange={color => handleColorChange('border', color)} />
+      </Panel>
 
-      {/* Colors Section */}
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold text-msx-textsecondary">Colors</h4>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(appearance.colors).map(([key, value]) => (
-            <div key={key}>
-              <label className="block text-xs text-msx-textsecondary mb-1">{key.charAt(0).toUpperCase() + key.slice(1)}</label>
-              <input
-                type="color"
-                value={value}
-                onChange={(e) => handleColorChange(key as keyof typeof appearance.colors, e.target.value)}
-                className="w-full h-8 p-0 border-none rounded cursor-pointer"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
+      {assetPickerState?.isOpen && (
+        <AssetPickerModal
+          isOpen={assetPickerState.isOpen}
+          onClose={() => setAssetPickerState(null)}
+          onSelectAsset={assetPickerState.onSelect}
+          assetTypeToPick={assetPickerState.assetType}
+          allAssets={allAssets}
+          currentSelectedId={appearance.backgroundScreenAssetId || appearance.cursorSpriteAssetId || null}
+        />
+      )}
     </div>
   );
 };
