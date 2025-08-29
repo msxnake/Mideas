@@ -1,6 +1,6 @@
 import { MSXColor, MSX1Color, MSX1ColorValue, TileBank, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_FLAGS as EFFECT_ZONE_FLAGS_TYPE, MainMenuConfig } from './types';
 
-export const APP_VERSION = "0.16";
+export const APP_VERSION = "0.17";
 
 export const MSX_SCREEN5_PALETTE: MSXColor[] = [
   { name: 'Transparent', hex: 'rgba(0,0,0,0)' }, 
