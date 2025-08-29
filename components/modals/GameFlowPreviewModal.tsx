@@ -214,6 +214,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             for(let i=0; i<optionText.length; i++){
                                 tempColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
                             }
+                            // Create a specific color attribute object for highlighted text
+                            // instead of deep-cloning and modifying the base one.
+                            const highlightedColorAttrs = { ...msxFontColorAttributes, default: { fg: '#FFFF00', bg: '#000000' } };
+                            drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, highlightedColorAttrs);
+                        } else {
+                            drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, msxFontColorAttributes);
                         }
                         drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, tempColorAttrs);
                     });

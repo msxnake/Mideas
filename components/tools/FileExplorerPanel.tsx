@@ -136,13 +136,13 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
   const systemTools = [
     { id: WORLD_VIEW_SYSTEM_ASSET_ID, name: "World View", iconType: "worldview" as const, editorType: EditorType.WorldView, isActive: isWorldViewActive, title: "View Composite World Map" },
-    { id: GAME_FLOW_SYSTEM_ASSET_ID, name: "Game Flow", iconType: "gameflow" as const, editorType: EditorType.GameFlow, isActive: isGameFlowActive, title: "Manage the game flow" },
+    // { id: GAME_FLOW_SYSTEM_ASSET_ID, name: "Game Flow", iconType: "gameflow" as const, editorType: EditorType.GameFlow, isActive: isGameFlowActive, title: "Manage the game flow" },
     { id: MAIN_MENU_SYSTEM_ASSET_ID, name: "Main Menu", iconType: "mainmenu" as const, editorType: EditorType.MainMenu, isActive: isMainMenuActive, title: "Configure the game's main menu" },
     { id: COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, name: "Component Definitions", iconType: "componentdefinitioneditor" as const, editorType: EditorType.ComponentDefinitionEditor, isActive: isComponentDefEditorActive, title: "Manage Component Definitions" },
     { id: ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, name: "Entity Templates", iconType: "entitytemplateeditor" as const, editorType: EditorType.EntityTemplateEditor, isActive: isEntityTemplateEditorActive, title: "Manage Entity Templates" },
     ...(showTileBanksEntry ? [{ id: TILE_BANKS_SYSTEM_ASSET_ID, name: "Tile Banks", iconType: "tilebanks" as const, editorType: EditorType.TileBanks, isActive: isTileBanksActive, title: "Manage Tile Banks (Screen 2)" }] : []),
     { id: FONT_EDITOR_SYSTEM_ASSET_ID, name: "Font Editor", iconType: "fonteditor" as const, editorType: EditorType.Font, isActive: isFontEditorActive, title: "Edit MSX1 Font Characters" },
-    { id: HELP_DOCS_SYSTEM_ASSET_ID, name: "Help & Tutorials", iconType: "helpdocs" as const, editorType: EditorType.HelpDocs, isActive: isHelpDocsActive, title: "View Help & Tutorials" },
+   // { id: HELP_DOCS_SYSTEM_ASSET_ID, name: "Help & Tutorials", iconType: "helpdocs" as const, editorType: EditorType.HelpDocs, isActive: isHelpDocsActive, title: "View Help & Tutorials" },
   ];
 
 
