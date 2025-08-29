@@ -1,11 +1,13 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, ContextMenuItem } from '../../types';
+import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, ContextMenuItem, MainMenuAppearance, GameScreen, GameData } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
+import AppearanceEditor from './AppearanceEditor';
+import { Modal } from '../modals/Modal';
 
 const NODE_WIDTH = 150;
 const NODE_HEIGHT = 100;
@@ -26,6 +28,8 @@ interface GameFlowEditorProps {
   msxFontColorAttributes: MSXFontColorAttributes;
   entityTemplates: EntityTemplate[];
   currentScreenMode: string;
+  gameData: GameData;
+  setScreenToEdit: (screen: GameScreen) => void;
 }
 
 const getPortPosition = (node: GameFlowNode, portId: string): Point => {
@@ -46,6 +50,8 @@ const getPortPosition = (node: GameFlowNode, portId: string): Point => {
     return { x: basePos.x + NODE_WIDTH, y: basePos.y + NODE_HEIGHT / 2 };
 };
 
+import { Button } from '../common/Button';
+
 const GameFlowNodeComponent: React.FC<{
     node: GameFlowNode;
     allAssets: ProjectAsset[];
@@ -54,7 +60,8 @@ const GameFlowNodeComponent: React.FC<{
     onSelect: (e: React.MouseEvent, nodeId: string) => void;
     onMouseDown: (e: React.MouseEvent, nodeId: string) => void;
     onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
-}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu }) => {
+    onEditAppearance: (node: GameFlowSubMenuNode) => void;
+}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance }) => {
   const [isHovered, setIsHovered] = useState(false);
   const nodeColor =
       node.type === 'Start' ? 'hsl(120, 30%, 40%)'
@@ -96,21 +103,28 @@ const GameFlowNodeComponent: React.FC<{
       {node.type === 'Start' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={NODE_HEIGHT/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
       {node.type === 'WorldLink' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={NODE_HEIGHT/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
 
-      {node.type === 'SubMenu' && node.options.map((option, index) => {
-          const yOffset = (NODE_HEIGHT / (node.options.length + 1)) * (index + 1);
-          return (
-              <g key={option.id}>
-                  <text x={10} y={yOffset + 4} fill="white" fontSize="10px">{option.text}</text>
-                  <rect x={NODE_WIDTH - PORT_SIZE/2} y={yOffset - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, option.id); }}/>
-              </g>
-          )
-      })}
+      {node.type === 'SubMenu' && (
+        <>
+          {node.options.map((option, index) => {
+              const yOffset = (NODE_HEIGHT / (node.options.length + 1)) * (index + 1);
+              return (
+                  <g key={option.id}>
+                      <text x={10} y={yOffset + 4} fill="white" fontSize="10px">{option.text}</text>
+                      <rect x={NODE_WIDTH - PORT_SIZE/2} y={yOffset - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, option.id); }}/>
+                  </g>
+              )
+          })}
+          <foreignObject x="10" y="70" width="130" height="25">
+            <Button onClick={() => onEditAppearance(node as GameFlowSubMenuNode)} size="xs">Edit Appearance</Button>
+          </foreignObject>
+        </>
+      )}
     </g>
   );
 };
 
 
-export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode }) => {
+export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, gameData, setScreenToEdit }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
@@ -121,6 +135,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [nodeToPlace, setNodeToPlace] = useState<NodeToPlace | null>(null);
   const [draggingState, setDraggingState] = useState<{ nodeId: string, offset: Point } | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [isSubMenuModalOpen, setIsSubMenuModalOpen] = useState(false);
+  const [editingSubMenu, setEditingSubMenu] = useState<GameFlowSubMenuNode | null>(null);
 
   const { nodes, connections, gridSize, zoomLevel, panOffset } = { ...gameFlowGraph, gridSize: gameFlowGraph.gridSize || 40, zoomLevel: gameFlowGraph.zoomLevel || 1, panOffset: gameFlowGraph.panOffset || { x: 0, y: 0 } };
 
@@ -161,6 +177,33 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     onShowContextMenu({ x: e.clientX, y: e.clientY }, menuItems);
   };
 
+  const handleOpenSubMenuModal = (node: GameFlowSubMenuNode) => {
+    setEditingSubMenu(node);
+    setIsSubMenuModalOpen(true);
+  };
+
+  const handleCloseSubMenuModal = () => {
+    setEditingSubMenu(null);
+    setIsSubMenuModalOpen(false);
+  };
+
+  const handleSaveSubMenu = () => {
+    if (editingSubMenu) {
+      const newNodes = nodes.map(n => n.id === editingSubMenu.id ? editingSubMenu : n);
+      onUpdate({ nodes: newNodes });
+    }
+    handleCloseSubMenuModal();
+  };
+
+  const handleAppearanceChange = (newAppearance: MainMenuAppearance) => {
+    if (editingSubMenu) {
+      setEditingSubMenu({
+        ...editingSubMenu,
+        appearance: newAppearance
+      });
+    }
+  };
+
   // ... (all other handler functions remain the same)
   const handlePortClick = (nodeId: string, portId: string) => {
       if (!linkingState) {
@@ -176,7 +219,20 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'End') => {
     let newNodeData: NodeToPlace;
     if (type === 'SubMenu') {
-        newNodeData = { type: 'SubMenu', title: 'Nuevo Menú', options: [{ id: 'opt_1', text: 'Opción 1' }] };
+        newNodeData = { 
+            type: 'SubMenu', 
+            title: 'Nuevo Menú', 
+            options: [{ id: 'opt_1', text: 'Opción 1' }],
+            appearance: {
+                colors: {
+                    text: '#FFFFFF',
+                    background: '#000000',
+                    highlightText: '#FFFF00',
+                    highlightBG: '#0000FF',
+                    border: '#FFFFFF',
+                }
+            }
+        };
         setNodeToPlace(newNodeData);
     } else if (type === 'WorldLink') {
         setAssetPickerState({ isOpen: true, onSelect: (worldAssetId) => {
@@ -296,9 +352,9 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               return <path key={conn.id} data-testid={`connection-${conn.id}`} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
           })}
           {nodes.map(node => (
-            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} />
+            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} />
           ))}
-          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - NODE_HEIGHT/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} /></g>}
+          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - NODE_HEIGHT/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} /></g>}
           {linkingState && mousePosition && (() => {
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;
@@ -309,6 +365,19 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       </div>
       {assetPickerState.isOpen && (
         <AssetPickerModal isOpen={assetPickerState.isOpen} onClose={() => setAssetPickerState({ isOpen: false, onSelect: null })} onSelectAsset={(assetId) => { assetPickerState.onSelect?.(assetId); setAssetPickerState({ isOpen: false, onSelect: null }); }} assetTypeToPick={'worldmap'} allAssets={allAssets} currentSelectedId={null}/>
+      )}
+      {isSubMenuModalOpen && editingSubMenu && (
+        <Modal isOpen={isSubMenuModalOpen} onClose={handleCloseSubMenuModal} title="Edit Submenu Appearance">
+          <AppearanceEditor 
+            appearance={editingSubMenu.appearance} 
+            onAppearanceChange={handleAppearanceChange} 
+            gameData={gameData}
+            setScreenToEdit={setScreenToEdit}
+          />
+          <div className="flex justify-end p-4">
+            <Button onClick={handleSaveSubMenu}>Save</Button>
+          </div>
+        </Modal>
       )}
       {isPreviewModalOpen && (
         <GameFlowPreviewModal

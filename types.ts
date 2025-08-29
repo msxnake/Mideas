@@ -495,6 +495,17 @@ export interface GameFlowSubMenuNode extends GameFlowNode_Base {
   type: 'SubMenu';
   title: string;
   options: GameFlowSubMenuOption[];
+  appearance?: {
+    backgroundScreenAssetId?: string;
+    cursorSpriteAssetId?: string;
+    colors: {
+      text: string;
+      background: string;
+      highlightText: string;
+      highlightBackground: string;
+      border: string;
+    };
+  };
 }
 
 export interface GameFlowWorldLinkNode extends GameFlowNode_Base {
