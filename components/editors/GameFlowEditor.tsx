@@ -11,8 +11,14 @@ import { Modal } from '../modals/Modal';
 import { DEFAULT_MAIN_MENU_CONFIG } from '../../constants';
 
 const NODE_WIDTH = 150;
-const NODE_HEIGHT = 100;
 const PORT_SIZE = 20;
+
+const getNodeHeight = (node: GameFlowNode | NodeToPlace): number => {
+    if (node.type === 'SubMenu' && node.options) {
+        return 60 + (node.options.length * 15) + 30;
+    }
+    return 100;
+};
 
 type NodeToPlace = Omit<GameFlowNode, 'position' | 'id'> & { id?: string };
 
@@ -32,21 +38,22 @@ interface GameFlowEditorProps {
 }
 
 const getPortPosition = (node: GameFlowNode, portId: string): Point => {
+    const nodeHeight = getNodeHeight(node);
     const basePos = node.position;
     if (portId === 'in') {
-        return { x: basePos.x, y: basePos.y + NODE_HEIGHT / 2 };
+        return { x: basePos.x, y: basePos.y + nodeHeight / 2 };
     }
     if (portId === 'out') {
-        return { x: basePos.x + NODE_WIDTH, y: basePos.y + NODE_HEIGHT / 2 };
+        return { x: basePos.x + NODE_WIDTH, y: basePos.y + nodeHeight / 2 };
     }
     if (node.type === 'SubMenu' && node.options) {
         const optionIndex = node.options.findIndex(opt => opt.id === portId);
         if (optionIndex !== -1) {
-            const yOffset = (NODE_HEIGHT / (node.options.length + 1)) * (optionIndex + 1);
+            const yOffset = (nodeHeight / (node.options.length + 1)) * (optionIndex + 1);
             return { x: basePos.x + NODE_WIDTH, y: basePos.y + yOffset };
         }
     }
-    return { x: basePos.x + NODE_WIDTH, y: basePos.y + NODE_HEIGHT / 2 };
+    return { x: basePos.x + NODE_WIDTH, y: basePos.y + nodeHeight / 2 };
 };
 
 const GameFlowNodeComponent: React.FC<{
@@ -60,6 +67,7 @@ const GameFlowNodeComponent: React.FC<{
     onEditAppearance: (node: GameFlowSubMenuNode) => void;
 }> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const nodeHeight = getNodeHeight(node);
   const nodeColor =
       node.type === 'Start' ? 'hsl(120, 30%, 40%)'
     : node.type === 'SubMenu' ? 'hsl(220, 30%, 40%)'
@@ -91,19 +99,19 @@ const GameFlowNodeComponent: React.FC<{
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <rect width={NODE_WIDTH} height={NODE_HEIGHT} fill={nodeColor} stroke={strokeColor} strokeWidth={isSelected ? 2.5 : 1.5} rx={5} ry={5} style={{ cursor: 'grab' }} />
+      <rect width={NODE_WIDTH} height={nodeHeight} fill={nodeColor} stroke={strokeColor} strokeWidth={isSelected ? 2.5 : 1.5} rx={5} ry={5} style={{ cursor: 'grab' }} />
       <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" fill="white" fontSize="10px" className="pixel-font select-none pointer-events-none">{node.type}</text>
       <text x={NODE_WIDTH / 2} y={35} textAnchor="middle" fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none">{nodeName}</text>
 
-      {hasInput && <rect x={-PORT_SIZE/2} y={NODE_HEIGHT/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(200, 80%, 60%)" stroke="hsl(200, 80%, 70%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}/>}
+      {hasInput && <rect x={-PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(200, 80%, 60%)" stroke="hsl(200, 80%, 70%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}/>}
 
-      {node.type === 'Start' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={NODE_HEIGHT/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
-      {node.type === 'WorldLink' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={NODE_HEIGHT/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
+      {node.type === 'Start' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
+      {node.type === 'WorldLink' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
 
       {node.type === 'SubMenu' && (
         <>
           {node.options.map((option, index) => {
-              const yOffset = (NODE_HEIGHT / (node.options.length + 1)) * (index + 1);
+              const yOffset = 50 + (index * 15);
               return (
                   <g key={option.id}>
                       <text x={10} y={yOffset + 4} fill="white" fontSize="10px">{option.text}</text>
@@ -111,7 +119,7 @@ const GameFlowNodeComponent: React.FC<{
                   </g>
               )
           })}
-          <foreignObject x="10" y="70" width="130" height="25">
+          <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
             <Button onClick={() => onEditAppearance(node as GameFlowSubMenuNode)} size="xs">Edit Appearance</Button>
           </foreignObject>
         </>
@@ -266,7 +274,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
             const newNode: GameFlowNode = {
                 ...nodeToPlace,
                 id: `gfn_${Date.now()}`,
-                position: { x: snapToGrid(pos.x - NODE_WIDTH / 2), y: snapToGrid(pos.y - NODE_HEIGHT / 2) }
+                position: { x: snapToGrid(pos.x - NODE_WIDTH / 2), y: snapToGrid(pos.y - getNodeHeight(nodeToPlace) / 2) }
             };
             onUpdate({ nodes: [...nodes, newNode] });
             setNodeToPlace(null);
@@ -351,7 +359,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           {nodes.map(node => (
             <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} />
           ))}
-          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - NODE_HEIGHT/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} /></g>}
+          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} /></g>}
           {linkingState && mousePosition && (() => {
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;
