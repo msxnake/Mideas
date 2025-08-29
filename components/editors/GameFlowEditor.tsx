@@ -22,7 +22,7 @@ const getNodeHeight = (node: GameFlowNode | NodeToPlace): number => {
 
 type NodeToPlace = Omit<GameFlowNode, 'position' | 'id'> & { id?: string };
 
-import { MSXFont, MSXFontColorAttributes, EntityTemplate } from '../../types';
+import { MSXFont, MSXFontColorAttributes, EntityTemplate, ComponentDefinition } from '../../types';
 
 interface GameFlowEditorProps {
   gameFlowGraph: GameFlowGraph;
@@ -35,6 +35,7 @@ interface GameFlowEditorProps {
   msxFontColorAttributes: MSXFontColorAttributes;
   entityTemplates: EntityTemplate[];
   currentScreenMode: string;
+  componentDefinitions: ComponentDefinition[];
 }
 
 const getPortPosition = (node: GameFlowNode, portId: string): Point => {
@@ -129,7 +130,7 @@ const GameFlowNodeComponent: React.FC<{
 };
 
 
-export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode }) => {
+export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, componentDefinitions }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
@@ -340,6 +341,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
         <div className="flex-grow" />
         <Button size="sm" variant="primary" onClick={() => setIsPreviewModalOpen(true)}>Preview</Button>
+        <Button size="sm" variant="secondary" onClick={() => {}}>Play Game</Button>
       </div>
       <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
         <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
@@ -397,6 +399,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           msxFontColorAttributes={msxFontColorAttributes}
           entityTemplates={entityTemplates}
           currentScreenMode={currentScreenMode}
+          componentDefinitions={componentDefinitions}
         />
       )}
     </Panel>
