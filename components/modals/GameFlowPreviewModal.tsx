@@ -36,7 +36,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
-  const animationFrameId = useRef<number>();
 
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
   const [navigationStack, setNavigationStack] = useState<string[]>([]);
@@ -143,10 +142,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
   }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack]);
 
   useEffect(() => {
-    if (!isOpen) {
-        if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-        return;
-    }
+    if (!isOpen) return;
 
     const canvas = canvasRef.current;
     if (!canvas || !currentNode) return;
@@ -154,8 +150,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     if (!ctx) return;
 
     ctx.imageSmoothingEnabled = false;
-
-    if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
 
     if (currentNode.type === 'WorldLink' && !currentScreenMap) {
         const worldMapAsset = allAssets.find(a => a.id === (currentNode as GameFlowWorldLinkNode).worldAssetId && a.type === 'worldmap');
@@ -175,7 +169,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         setCurrentScreenMap(screenMap);
     }
 
-    const animate = () => {
+    const draw = async () => {
         if (!canvas || !ctx) return;
         ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 
@@ -185,17 +179,23 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         } else if (currentNode) {
             ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-            const drawText = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes) => {
-                const textImg = new Image();
-                textImg.onload = () => ctx.drawImage(textImg, x, y);
-                textImg.src = renderMSX1TextToDataURL(text, msxFont, colorAttrs, 1, 1);
+            
+            const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes) => {
+                return new Promise<void>((resolve) => {
+                    const textImg = new Image();
+                    textImg.onload = () => {
+                        ctx.drawImage(textImg, x, y);
+                        resolve();
+                    };
+                    textImg.src = renderMSX1TextToDataURL(text, msxFont, colorAttrs, 1, 1);
+                });
             };
 
             switch (currentNode.type) {
                 case 'Start':
                     const startText = 'Game Start';
                     const startDims = getTextDimensionsMSX1(startText, 1);
-                    drawText(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
+                    await drawTextAsync(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
                     setTimeout(() => {
                         const conn = connections.find(c => c.from.nodeId === currentNode.id);
                         if (conn) setCurrentNodeId(conn.to.nodeId);
@@ -204,43 +204,35 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 case 'SubMenu':
                     const subMenuNode = currentNode as GameFlowSubMenuNode;
                     const titleDims = getTextDimensionsMSX1(subMenuNode.title, 1);
-                    drawText(subMenuNode.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes);
+                    await drawTextAsync(subMenuNode.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes);
 
-                    subMenuNode.options.forEach((option, index) => {
+                    for (const [index, option] of subMenuNode.options.entries()) {
                         const optionText = option.text;
                         const optionDims = getTextDimensionsMSX1(optionText, 1);
-                        const tempColorAttrs: MSXFontColorAttributes = JSON.parse(JSON.stringify(msxFontColorAttributes));
-                        if (index === selectedOptionIndex) {
+                        const isSelected = index === selectedOptionIndex;
+                        
+                        let colorAttrs = msxFontColorAttributes;
+                        if (isSelected) {
+                            const highlightedColorAttrs = JSON.parse(JSON.stringify(msxFontColorAttributes));
                             for(let i=0; i<optionText.length; i++){
-                                tempColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
+                                highlightedColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
                             }
-                            // Create a specific color attribute object for highlighted text
-                            // instead of deep-cloning and modifying the base one.
-                            const highlightedColorAttrs = { ...msxFontColorAttributes, default: { fg: '#FFFF00', bg: '#000000' } };
-                            drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, highlightedColorAttrs);
-                        } else {
-                            drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, msxFontColorAttributes);
+                            colorAttrs = highlightedColorAttrs;
                         }
-                        drawText(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, tempColorAttrs);
-                    });
+
+                        await drawTextAsync(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, colorAttrs);
+                    }
                     break;
                 case 'End':
                     const endText = 'Game Over';
                     const endDims = getTextDimensionsMSX1(endText, 1);
-                    drawText(endText, (PREVIEW_WIDTH - endDims.width) / 2, (PREVIEW_HEIGHT - endDims.height) / 2, msxFontColorAttributes);
+                    await drawTextAsync(endText, (PREVIEW_WIDTH - endDims.width) / 2, (PREVIEW_HEIGHT - endDims.height) / 2, msxFontColorAttributes);
                     break;
             }
         }
-        animationFrameId.current = requestAnimationFrame(animate);
     };
 
-    animate();
-
-    return () => {
-        if (animationFrameId.current) {
-            cancelAnimationFrame(animationFrameId.current);
-        }
-    };
+    draw();
 
   }, [isOpen, currentNode, selectedOptionIndex, allAssets, connections, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, currentScreenMap, handleKeyDown]);
 
