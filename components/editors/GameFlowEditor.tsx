@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, ContextMenuItem } from '../../types';
 import { Panel } from '../common/Panel';
@@ -8,7 +9,7 @@ import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
 
 const NODE_WIDTH = 150;
 const NODE_HEIGHT = 100;
-const PORT_SIZE = 10;
+const PORT_SIZE = 20;
 
 type NodeToPlace = Omit<GameFlowNode, 'position' | 'id'> & { id?: string };
 
@@ -54,6 +55,7 @@ const GameFlowNodeComponent: React.FC<{
     onMouseDown: (e: React.MouseEvent, nodeId: string) => void;
     onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
 }> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu }) => {
+  const [isHovered, setIsHovered] = useState(false);
   const nodeColor =
       node.type === 'Start' ? 'hsl(120, 30%, 40%)'
     : node.type === 'SubMenu' ? 'hsl(220, 30%, 40%)'
@@ -61,6 +63,7 @@ const GameFlowNodeComponent: React.FC<{
     : 'hsl(260, 30%, 40%)';
 
   const strokeColor = isSelected ? 'hsl(50, 100%, 70%)' :
+      isHovered ? 'hsl(50, 100%, 85%)' :
       node.type === 'Start' ? 'hsl(120, 50%, 70%)'
     : node.type === 'SubMenu' ? 'hsl(220, 50%, 70%)'
     : node.type === 'WorldLink' ? 'hsl(340, 50%, 70%)'
@@ -76,7 +79,14 @@ const GameFlowNodeComponent: React.FC<{
   const hasInput = node.type !== 'Start';
 
   return (
-    <g transform={`translate(${node.position.x}, ${node.position.y})`} onMouseDown={(e) => onMouseDown(e, node.id)} onClick={(e) => onSelect(e, node.id)} onContextMenu={(e) => onContextMenu(e, node.id)}>
+    <g 
+      transform={`translate(${node.position.x}, ${node.position.y})`} 
+      onMouseDown={(e) => onMouseDown(e, node.id)} 
+      onClick={(e) => onSelect(e, node.id)} 
+      onContextMenu={(e) => onContextMenu(e, node.id)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <rect width={NODE_WIDTH} height={NODE_HEIGHT} fill={nodeColor} stroke={strokeColor} strokeWidth={isSelected ? 2.5 : 1.5} rx={5} ry={5} style={{ cursor: 'grab' }} />
       <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" fill="white" fontSize="10px" className="pixel-font select-none pointer-events-none">{node.type}</text>
       <text x={NODE_WIDTH / 2} y={35} textAnchor="middle" fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none">{nodeName}</text>
@@ -98,6 +108,7 @@ const GameFlowNodeComponent: React.FC<{
     </g>
   );
 };
+
 
 export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
