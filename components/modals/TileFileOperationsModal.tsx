@@ -16,6 +16,8 @@ interface TileFileOperationsModalProps {
   currentTile: Tile | null; 
   currentScreenMode: string; 
   dataOutputFormat: DataFormat;
+  onSaveTile: () => void;
+  onLoadTile: () => void;
 }
 
 const MODAL_DEFAULT_FONT_SIZE = 13;
@@ -29,6 +31,8 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
   currentTile,
   currentScreenMode,
   dataOutputFormat,
+  onSaveTile,
+  onLoadTile,
 }) => {
   const [tilesetFilename, setTilesetFilename] = useState<string>('custom_tileset.json');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -358,7 +362,13 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
               </div>
               <div className="flex space-x-2">
                 <Button onClick={handleSaveTileset} variant="primary" size="sm" className="flex-1">Save All Tiles</Button>
-                <Button onClick={handleLoadTilesetClick} variant="secondary" size="sm" className="flex-1">Load Tiles</Button>
+                <Button onClick={handleLoadTilesetClick}>Load Tileset</Button>
+          <Button onClick={onSaveTile} disabled={!currentTile}>
+            Save Selected Tile
+          </Button>
+          <Button onClick={onLoadTile} disabled={!onLoadTile}>
+            Load Selected Tile
+          </Button>
                 <input type="file" accept=".json" ref={fileInputRef} onChange={handleFileSelected} className="hidden" />
               </div>
               <p className="text-[0.65rem] text-msx-textsecondary mt-1">Saves/Loads all tiles in the current project. Loading replaces existing tiles.</p>

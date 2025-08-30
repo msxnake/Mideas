@@ -230,7 +230,7 @@ const LineAttributeEditorPanel: React.FC<LineAttributeEditorPanelProps> = ({
     <Panel title="SCREEN 2 Line Color Attributes" className="flex-grow flex flex-col overflow-y-auto">
       <p className="text-xs text-msx-textsecondary mb-2 p-1">
         Define 2 colors (Foreground/Background) for each 8-pixel segment of each row.
-        Selected palette color <div className="inline-block w-3 h-3 border border-msx-border" style={{backgroundColor: selectedPaletteColor}}></div> will be used.
+        Selected palette color <span className="inline-block w-3 h-3 border border-msx-border align-middle" style={{backgroundColor: selectedPaletteColor}}></span> will be used.
       </p>
       <div className="flex space-x-2 mb-2 px-1">
           <Button onClick={() => onFillAllFg(selectedPaletteColor)} size="sm" variant="secondary" className="flex-1 text-xs" title="Set the Foreground color of all segments to the selected palette color">
@@ -1500,6 +1500,54 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   const handleMirrorHorizontal = () => onUpdate({ data: mirrorTileDataHorizontal(tile.data, tile.lineAttributes, currentScreenMode) });
   const handleMirrorVertical = () => onUpdate({ data: mirrorTileDataVertical(tile.data, tile.lineAttributes, currentScreenMode) });
 
+  const handleSaveTile = useCallback(() => {
+    try {
+      const tileJson = JSON.stringify(tile, null, 2);
+      const blob = new Blob([tileJson], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${tile.name}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatusBarMessage(`Tile '${tile.name}' saved as JSON.`);
+    } catch (error) {
+      console.error("Failed to save tile as JSON:", error);
+      setStatusBarMessage("Error saving tile as JSON.");
+    }
+  }, [tile, setStatusBarMessage]);
+
+  const handleLoadTile = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (event: Event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const loadedTile: Tile = JSON.parse(e.target?.result as string);
+            // Basic validation to ensure it's a tile object
+            if (loadedTile && loadedTile.id && loadedTile.name && loadedTile.data) {
+              onUpdate(loadedTile);
+              setStatusBarMessage(`Tile '${loadedTile.name}' loaded successfully.`);
+            } else {
+              throw new Error("Invalid tile JSON structure.");
+            }
+          } catch (error) {
+            console.error("Failed to load tile from JSON:", error);
+            setStatusBarMessage("Error loading tile from JSON. Invalid file format?");
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  }, [onUpdate, setStatusBarMessage]);
+
   const handleFillAll = (type: 'fg' | 'bg', newColor: MSX1ColorValue) => {
     if (!tile.lineAttributes) return;
 
@@ -1622,6 +1670,19 @@ export const TileEditor: React.FC<TileEditorProps> = ({
               )}
               <Button onClick={() => setIsFileModalOpen(true)} size="sm" variant="secondary" icon={<SaveFloppyIcon/>} className="ml-auto">File Ops</Button>
             </div>
+            {isFileModalOpen && (
+              <TileFileOperationsModal 
+                  isOpen={isFileModalOpen} 
+                  onClose={() => setIsFileModalOpen(false)} 
+                  allTileAssets={allTileAssets}
+                  onUpdateAllTileAssets={onUpdateAllTileAssets}
+                  currentTile={tile}
+                  currentScreenMode={currentScreenMode}
+                  dataOutputFormat={dataOutputFormat}
+                  onSaveTile={handleSaveTile}
+                  onLoadTile={handleLoadTile}
+              />
+            )}
             {/* --- Tile Manipulation Tools --- */}
             <div
               className="p-1 bg-msx-panelbg rounded border border-msx-border flex flex-row gap-2 items-center"
@@ -1696,17 +1757,6 @@ export const TileEditor: React.FC<TileEditorProps> = ({
           </>
         }
       />
-      {isFileModalOpen && (
-        <TileFileOperationsModal 
-            isOpen={isFileModalOpen} 
-            onClose={() => setIsFileModalOpen(false)} 
-            allTileAssets={allTileAssets}
-            onUpdateAllTileAssets={onUpdateAllTileAssets}
-            currentTile={tile}
-            currentScreenMode={currentScreenMode}
-            dataOutputFormat={dataOutputFormat}
-        />
-      )}
       {isGeneratorModalOpen && (
           <TextureGeneratorModal
             isOpen={isGeneratorModalOpen}
