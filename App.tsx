@@ -663,18 +663,18 @@ const App: React.FC = () => {
 
 
   const memoizedHandleSelectAsset = useCallback((assetId: string | null, editorTypeOverride?: EditorType) => {
-    setSelectedAssetId(assetId); 
-    setSelectedEntityInstanceId(null); 
-    setSelectedEffectZoneId(null); 
-    
-    if (editorTypeOverride) { 
+    setSelectedAssetId(assetId);
+    setSelectedEntityInstanceId(null);
+    setSelectedEffectZoneId(null);
+
+    if (editorTypeOverride) {
       setCurrentEditor(editorTypeOverride);
       if (assetId) setStatusBarMessage(`Opened ${EditorType[editorTypeOverride]} Editor.`);
       return;
     }
 
-    if (assetId === TILE_BANKS_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.TileBanks); setStatusBarMessage("Opened Tile Banks Editor."); } 
-    else if (assetId === FONT_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.Font); setStatusBarMessage("Opened Font Editor."); } 
+    if (assetId === TILE_BANKS_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.TileBanks); setStatusBarMessage("Opened Tile Banks Editor."); }
+    else if (assetId === FONT_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.Font); setStatusBarMessage("Opened Font Editor."); }
     else if (assetId === HELP_DOCS_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.HelpDocs); setStatusBarMessage("Opened Help & Tutorials."); }
     else if (assetId === COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.ComponentDefinitionEditor); setStatusBarMessage("Opened Component Definition Editor."); }
     else if (assetId === ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.EntityTemplateEditor); setStatusBarMessage("Opened Entity Template Editor."); }
@@ -694,7 +694,7 @@ const App: React.FC = () => {
       setSelectedGameFlowNodeId(null);
       setStatusBarMessage("No asset selected.");
     }
-  }, [assets]);
+  }, [assets, selectedAssetId]);
 
   const memoizedOnRequestRename = useCallback((assetId: string, currentName: string, assetType: ProjectAsset['type']) => { setAssetToRenameInfo({ id: assetId, currentName, type: assetType }); setIsRenameModalOpen(true);}, []);
   
@@ -1157,6 +1157,68 @@ const App: React.FC = () => {
     }
   }, [entityTemplates, componentDefinitions, assets, setAssetsWithHistory, memoizedHandleSelectAsset]);
 
+  const handleRequestSaveTile = (assetId: string) => {
+    const asset = assets.find(a => a.id === assetId && a.type === 'tile');
+    if (asset) {
+      const tileData = JSON.stringify(asset.data, null, 2);
+      const blob = new Blob([tileData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${asset.name}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatusBarMessage(`Tile "${asset.name}" saved.`);
+    }
+  };
+
+  const handleRequestLoadTile = (assetId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const newTileData = JSON.parse(event.target?.result as string) as Tile;
+            handleUpdateAsset(assetId, newTileData);
+            setStatusBarMessage(`Tile data loaded from "${file.name}".`);
+          } catch (error) {
+            setStatusBarMessage(`Error loading tile: ${error}`);
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+
+  const handleRequestSaveSelectedTiles = (assetIds: string[]) => {
+    const tilesToSave = assets.filter(a => assetIds.includes(a.id) && a.type === 'tile');
+    if (tilesToSave.length > 0) {
+      setConfirmModalProps({
+        title: "Save Selected Tiles",
+        message: `Are you sure you want to save ${tilesToSave.length} selected tiles to a single JSON file?`,
+        onConfirm: () => {
+          const data = tilesToSave.map(a => a.data);
+          const jsonData = JSON.stringify(data, null, 2);
+          const blob = new Blob([jsonData], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `selected_tiles_${getFormattedDate()}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          setStatusBarMessage(`${tilesToSave.length} tiles saved.`);
+          setIsConfirmModalOpen(false);
+        },
+      });
+      setIsConfirmModalOpen(true);
+    }
+  };
+
   useEffect(() => {
     if (prevValuesRef.current && prevValuesRef.current.editor !== currentEditor) {
       setPreviousEditorContext(prevValuesRef.current);
@@ -1175,6 +1237,9 @@ const App: React.FC = () => {
 
   const allPassedProps = {
     currentEditor, setCurrentEditor, assets, setAssets, selectedAssetId, setSelectedAssetId, currentProjectName, setCurrentProjectName, currentScreenMode, setCurrentScreenMode, statusBarMessage, setStatusBarMessage, selectedColor, setSelectedColor, screenEditorSelectedTileId, setScreenEditorSelectedTileId, currentScreenEditorActiveLayer, setCurrentScreenEditorActiveLayer, componentDefinitions, setComponentDefinitions, entityTemplates, setEntityTemplates, currentEntityTypeToPlace, setCurrentEntityTypeToPlace, selectedEntityInstanceId, setSelectedEntityInstanceId, selectedEffectZoneId, setSelectedEffectZoneId, selectedGameFlowNodeId, setSelectedGameFlowNodeId, isRenameModalOpen, setIsRenameModalOpen, assetToRenameInfo, setAssetToRenameInfo, isSaveAsModalOpen, setIsSaveAsModalOpen, isNewProjectModalOpen, setIsNewProjectModalOpen, isAboutModalOpen, setIsAboutModalOpen, isConfirmModalOpen, setIsConfirmModalOpen, confirmModalProps, setConfirmModalProps, tileBanks, setTileBanks, msxFont, setMsxFont, msxFontColorAttributes, setMsxFontColorAttributes, currentLoadedFontName, setCurrentLoadedFontName, helpDocsData, setHelpDocsData, dataOutputFormat, setDataOutputFormat, autosaveEnabled, setAutosaveEnabled, snippetsEnabled, setSnippetsEnabled, syntaxHighlightingEnabled, setSyntaxHighlightingEnabled, isConfigModalOpen, setIsConfigModalOpen, isSpriteSheetModalOpen, setIsSpriteSheetModalOpen, isSpriteFramesModalOpen, setIsSpriteFramesModalOpen, spriteForFramesModal, setSpriteForFramesModal, snippetToInsert, setSnippetToInsert, userSnippets, setUserSnippets, isSnippetEditorModalOpen, setIsSnippetEditorModalOpen, editingSnippet, setEditingSnippet, isAutosaving, setIsAutosaving, history, setHistory, copiedScreenBuffer, setCopiedScreenBuffer, copiedTileData, setCopiedTileData, copiedLayerBuffer, setCopiedLayerBuffer, copiedBossPhase, setCopiedBossPhase, contextMenu, setContextMenu, waypointPickerState, setWaypointPickerState, mainMenuConfig, onUpdateMainMenuConfig: setMainMenuConfig, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, playAutosaveSound, pushToHistory, clearAllHistory, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleUpdateScreenMode, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
+    onRequestSaveTile: handleRequestSaveTile,
+    onRequestLoadTile: handleRequestLoadTile,
+    onRequestSaveSelectedTiles: handleRequestSaveSelectedTiles,
     isCompressDataModalOpen, setIsCompressDataModalOpen,
     bossEditorZoom, setBossEditorZoom,
     tileEditorZoom, setTileEditorZoom,
