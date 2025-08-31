@@ -5,8 +5,12 @@ import { StateMachineState, StateMachineStateName } from '../../../statemachine.
 import { TrashIcon } from '../../icons/MsxIcons';
 
 const PRESET_STATES: StateMachineStateName[] = [
-  'Idle', 'Walking', 'Running', 'Jumping', 'Swimming', 'Patrolling',
-  'Attacking', 'Shooting', 'Falling', 'Hurt', 'Take'
+  'Quieto', 'Caminando', 'Corriendo', 'Saltando', 'Cayendo', 'Aterrizando', 'Agachado', 'Escalando', 'Nadando', 'Deslizándose', 'Impulso rápido', 'Planeando',
+  'Ejecutando un ataque', 'Cargando un ataque especial', 'Lanzando un objeto', 'Disparando', 'Defendiendo', 'Contrarrestando un ataque', 'Recibiendo daño', 'Herido', 'Temporalmente invulnerable', 'Muerto', 'Reapareciendo',
+  'Interactuando', 'En diálogo', 'Usando un objeto', 'Cambiando de forma', 'Desplazamiento instantáneo', 'En pausa', 'En cinemática', 'Navegando por el menú', 'Guardando progreso', 'Cargando nivel',
+  'Congelado', 'En llamas', 'Envenenado', 'Aturdido', 'Movimiento invertido', 'No visible para enemigos', 'Movimiento reducido', 'Velocidad aumentada',
+  'Lanzando hechizo', 'Volando', 'Protegido por escudo', 'Tiempo detenido',
+  'Patrullando', 'Persiguiendo', 'Buscando', 'En alerta', 'Dormido', 'Huyendo', 'Protegiendo una zona', 'Inactivo'
 ];
 
 interface StatesPanelProps {
