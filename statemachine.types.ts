@@ -28,8 +28,13 @@ export interface StateMachineState {
 export interface StateMachineEvent {
   id: string;
   name: StateMachineEventName;
+}
+
+export interface StateMachineTransition {
+  id: string;
   fromStateId: string;
   toStateId: string;
+  eventId: string;
 }
 
 export interface StateMachine {
@@ -37,5 +42,6 @@ export interface StateMachine {
   name: string;
   states: StateMachineState[];
   events: StateMachineEvent[];
+  transitions: StateMachineTransition[];
   initialStateId: string | null;
 }

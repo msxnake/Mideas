@@ -2,7 +2,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import JSZip from 'jszip'; 
 import { StateMachine } from './statemachine.types';
-import { StateMachineEditorModal } from './components/modals/StateMachineEditorModal';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, ScreenMap, MSXColorValue, SpriteFrame, PixelData, 
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, PSGSoundChannelState, 
@@ -74,7 +73,6 @@ const App: React.FC = () => {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false); 
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false); 
   const [isCompressDataModalOpen, setIsCompressDataModalOpen] = useState(false);
-  const [isStateMachineModalOpen, setIsStateMachineModalOpen] = useState(false);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmModalProps, setConfirmModalProps] = useState<{
@@ -575,28 +573,7 @@ const App: React.FC = () => {
     setIsConfirmModalOpen(true);
   };
 
-  const handleCreateStateMachine = (data: Omit<StateMachine, 'id'>) => {
-    const id = `statemachine_${Date.now()}`;
-    const newAsset: ProjectAsset = {
-      id,
-      name: data.name,
-      type: 'statemachine',
-      data: { ...data, id },
-    };
-    setAssetsWithHistory(prev => [...prev, newAsset]);
-    setSelectedAssetId(id);
-    // Optionally, set a new editor type for state machines
-    // setCurrentEditor(EditorType.StateMachine);
-    setStatusBarMessage(`State machine "${data.name}" created.`);
-    setIsStateMachineModalOpen(false);
-  };
-
   const handleNewAsset = (type: ProjectAsset['type']) => {
-    if (type === 'statemachine') {
-      setIsStateMachineModalOpen(true);
-      return;
-    }
-
     const id = `${type}_${Date.now()}`;
     let newAssetData: any;
     let defaultName = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
@@ -658,6 +635,18 @@ const App: React.FC = () => {
       case 'track': const initialPattern = createDefaultPT3Pattern(`initial_${Date.now()}`); newAssetData = { id, name: defaultName, bpm: DEFAULT_PT3_BPM, speed: DEFAULT_PT3_SPEED, globalVolume: 15, patterns: [initialPattern], order: [0], lengthInPatterns: 1, restartPosition: 0, instruments: [], ornaments: [], currentPatternIndexInOrder: 0, currentPatternId: initialPattern.id, } as TrackerSongData; newEditorType = EditorType.Track; break;
       case 'behavior': defaultName = "NewBehaviorScript.asm"; newAssetData = { id, name: defaultName, code: Z80_BEHAVIOR_SNIPPETS[0]?.code || "; New Behavior Script\n\nentity_update:\n    ret\n" } as BehaviorScript; newEditorType = EditorType.BehaviorEditor; break;
       case 'code': const formattedDate = getFormattedDate(); let projectNameForHeader = currentProjectName || "UntitledProject"; defaultName = "NewCodeFile.asm"; newAssetData = generateAsmFileHeader(projectNameForHeader, formattedDate, defaultName); newEditorType = EditorType.Code; break;
+      case 'statemachine':
+        const idleState = { id: 'state_idle', name: 'Idle' };
+        newAssetData = {
+          id,
+          name: defaultName,
+          states: [idleState],
+          events: [],
+          transitions: [],
+          initialStateId: idleState.id,
+        } as StateMachine;
+        newEditorType = EditorType.StateMachine;
+        break;
       default: setStatusBarMessage(`Asset type ${type} creation not implemented for this flow.`); return;
     }
     const newAsset: ProjectAsset = { id, name: defaultName, type, data: newAssetData };
@@ -1275,11 +1264,6 @@ const App: React.FC = () => {
   return (
     <ThemeProvider>
         <AppUI {...allPassedProps} />
-        <StateMachineEditorModal
-          isOpen={isStateMachineModalOpen}
-          onConfirm={handleCreateStateMachine}
-          onClose={() => setIsStateMachineModalOpen(false)}
-        />
     </ThemeProvider>
   );
 };
