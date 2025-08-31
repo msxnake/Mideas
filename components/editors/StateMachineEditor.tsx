@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
+import { Button } from '../common/Button';
 import { StateMachine, StateMachineState, StateMachineStateName, StateMachineEvent, StateMachineEventName, StateMachineTransition, StateMachineInputType } from '../../statemachine.types';
 import { StatesPanel } from './statemachine/StatesPanel';
 import { EventsPanel } from './statemachine/EventsPanel';
@@ -15,6 +16,7 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
   currentAsset,
   onUpdateAsset,
 }) => {
+  const [language, setLanguage] = useState<'en' | 'es'>('en');
   const stateMachine = currentAsset.data as StateMachine;
 
   if (!stateMachine) {
@@ -71,13 +73,34 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
   };
 
   return (
-    <Panel title={`State Machine Editor: ${stateMachine.name}`}>
+    <Panel
+      title={`State Machine Editor: ${stateMachine.name}`}
+      headerButtons={
+        <div className="flex items-center space-x-2 text-xs">
+          <span className={language === 'en' ? 'font-bold' : ''}>EN</span>
+          <Button
+            onClick={() => setLanguage(lang => lang === 'en' ? 'es' : 'en')}
+            variant="ghost"
+            size="sm"
+            className="p-1"
+          >
+            <div className="w-8 h-4 bg-gray-600 rounded-full flex items-center px-0.5">
+              <div
+                className={`w-3 h-3 bg-white rounded-full transform transition-transform ${language === 'es' ? 'translate-x-4' : ''}`}
+              />
+            </div>
+          </Button>
+          <span className={language === 'es' ? 'font-bold' : ''}>ES</span>
+        </div>
+      }
+    >
       <div className="p-4 flex space-x-4">
         <div className="w-1/4 space-y-4">
           <StatesPanel
             states={stateMachine.states}
             onAddState={handleAddState}
             onDeleteState={handleDeleteState}
+            language={language}
           />
           <EventsPanel
             events={stateMachine.events}
