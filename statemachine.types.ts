@@ -25,9 +25,12 @@ export interface StateMachineState {
   position?: { x: number; y: number };
 }
 
+export type StateMachineInputType = 'key' | 'system_action' | 'collision';
+
 export interface StateMachineEvent {
   id: string;
   name: StateMachineEventName;
+  type: StateMachineInputType;
 }
 
 export interface StateMachineTransition {

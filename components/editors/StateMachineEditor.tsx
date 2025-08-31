@@ -1,7 +1,7 @@
 import React from 'react';
 import { ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
-import { StateMachine, StateMachineState, StateMachineStateName, StateMachineEvent, StateMachineEventName, StateMachineTransition } from '../../statemachine.types';
+import { StateMachine, StateMachineState, StateMachineStateName, StateMachineEvent, StateMachineEventName, StateMachineTransition, StateMachineInputType } from '../../statemachine.types';
 import { StatesPanel } from './statemachine/StatesPanel';
 import { EventsPanel } from './statemachine/EventsPanel';
 import { TransitionsEditor } from './statemachine/TransitionsEditor';
@@ -37,10 +37,11 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
     });
   };
 
-  const handleCreateEvent = (name: string) => {
+  const handleCreateEvent = (name: string, type: StateMachineInputType) => {
     const newEvent: StateMachineEvent = {
       id: `event_${Date.now()}`,
       name: name as StateMachineEventName, // This is a bit of a hack, we should validate the name
+      type,
     };
     onUpdateAsset({ events: [...stateMachine.events, newEvent] });
   };
