@@ -647,14 +647,13 @@ const App: React.FC = () => {
       case 'behavior': defaultName = "NewBehaviorScript.asm"; newAssetData = { id, name: defaultName, code: Z80_BEHAVIOR_SNIPPETS[0]?.code || "; New Behavior Script\n\nentity_update:\n    ret\n" } as BehaviorScript; newEditorType = EditorType.BehaviorEditor; break;
       case 'code': const formattedDate = getFormattedDate(); let projectNameForHeader = currentProjectName || "UntitledProject"; defaultName = "NewCodeFile.asm"; newAssetData = generateAsmFileHeader(projectNameForHeader, formattedDate, defaultName); newEditorType = EditorType.Code; break;
       case 'statemachine':
-        const idleState = { id: 'state_idle', name: 'Idle' };
         newAssetData = {
           id,
           name: defaultName,
-          states: [idleState],
+          states: [],
           events: [],
           transitions: [],
-          initialStateId: idleState.id,
+          initialStateId: null,
         } as StateMachine;
         newEditorType = EditorType.StateMachine;
         break;

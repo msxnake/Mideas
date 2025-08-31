@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
 import { StateMachine, StateMachineState, StateMachineEvent, StateMachineTransition } from '../../../statemachine.types';
@@ -20,6 +20,22 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({ stateMachi
   // Create maps for quick lookup
   const stateMap = new Map(states.map(s => [s.id, s.name]));
   const eventMap = new Map(events.map(e => [e.id, e.name]));
+
+  useEffect(() => {
+    // If the currently selected state/event is no longer valid or not set, reset to the first one.
+    if (!states.find(s => s.id === fromState)) {
+      setFromState(states[0]?.id || '');
+    }
+    if (!states.find(s => s.id === toState)) {
+      setToState(states[0]?.id || '');
+    }
+  }, [states, fromState, toState]);
+
+  useEffect(() => {
+    if (!events.find(e => e.id === event)) {
+      setEvent(events[0]?.id || '');
+    }
+  }, [events, event]);
 
   const handleAddClick = () => {
     if (fromState && event && toState) {
