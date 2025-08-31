@@ -1,6 +1,8 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import JSZip from 'jszip'; 
+import { StateMachine } from './statemachine.types';
+import { StateMachineEditorModal } from './components/modals/StateMachineEditorModal';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, ScreenMap, MSXColorValue, SpriteFrame, PixelData, 
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, PSGSoundChannelState, 
@@ -72,6 +74,7 @@ const App: React.FC = () => {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false); 
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false); 
   const [isCompressDataModalOpen, setIsCompressDataModalOpen] = useState(false);
+  const [isStateMachineModalOpen, setIsStateMachineModalOpen] = useState(false);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmModalProps, setConfirmModalProps] = useState<{
@@ -572,7 +575,28 @@ const App: React.FC = () => {
     setIsConfirmModalOpen(true);
   };
 
+  const handleCreateStateMachine = (data: Omit<StateMachine, 'id'>) => {
+    const id = `statemachine_${Date.now()}`;
+    const newAsset: ProjectAsset = {
+      id,
+      name: data.name,
+      type: 'statemachine',
+      data: { ...data, id },
+    };
+    setAssetsWithHistory(prev => [...prev, newAsset]);
+    setSelectedAssetId(id);
+    // Optionally, set a new editor type for state machines
+    // setCurrentEditor(EditorType.StateMachine);
+    setStatusBarMessage(`State machine "${data.name}" created.`);
+    setIsStateMachineModalOpen(false);
+  };
+
   const handleNewAsset = (type: ProjectAsset['type']) => {
+    if (type === 'statemachine') {
+      setIsStateMachineModalOpen(true);
+      return;
+    }
+
     const id = `${type}_${Date.now()}`;
     let newAssetData: any;
     let defaultName = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
@@ -1251,6 +1275,11 @@ const App: React.FC = () => {
   return (
     <ThemeProvider>
         <AppUI {...allPassedProps} />
+        <StateMachineEditorModal
+          isOpen={isStateMachineModalOpen}
+          onConfirm={handleCreateStateMachine}
+          onClose={() => setIsStateMachineModalOpen(false)}
+        />
     </ThemeProvider>
   );
 };

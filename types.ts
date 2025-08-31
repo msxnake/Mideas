@@ -1,5 +1,7 @@
 
 
+import { StateMachine } from './statemachine.types';
+
 export type MSXColorValue = string; // Hex string
 export type MSX1ColorValue = string; // Hex string for MSX1 palette colors
 
@@ -555,8 +557,8 @@ export enum EditorType {
 export interface ProjectAsset {
   id: string;
   name: string;
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow';
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph;
+  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine';
+  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine;
 }
 
 export interface Point { x: number; y: number; }
