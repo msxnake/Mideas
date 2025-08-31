@@ -1,0 +1,62 @@
+
+Versión 0.18 - 31/8/2025
+- feat: Implemented tile selection and context menu
+- save individual tiles
+- mode Dinamic en Preview
+- submenu adaptable alt
+- mejoras de bugs
+- submenu appearance ok
+- game flow new features
+- Game flow bugs
+- modifica 2
+- limpiar opciones menu vertical izquierda
+- millores colapsar pestañes
+- Feat: Add app version to main menu toolbar
+- Merge branch 'main' into feat/boss-editor-select-tile
+- feat: Add sorting and filtering to tile assets panel
+- feat(boss-editor): Add 'Select Current Tile' option to context menu
+- Add files via upload
+- fix: Revert Boss Phase paste to a shallow copy
+- fix: Implement deep copy for Boss Editor phase paste
+- feat: Add Copy/Paste functionality for Boss Editor phases
+- feat: Link Boss to screen for preview and update version
+- feat: Align ScreenEditor grid and update version
+- feat: Implement Boss Editor animation preview and persistent zoom
+- feat(screen-editor): Add zoom memory persistence
+- feat(tile-editor): Add zoom memory persistence
+- fix(boss-editor): Adjust grid layout and scrolling
+- feat(boss-editor): Add animated preview modal
+- fix(boss-editor): Set fixed height for tileset panel
+- fix(boss-editor): Enlarge tileset panel and previews
+
+Versión 0.19 - 31/8/2025
+- fix: Implement multi-language presets for State Machine editor
+- feat: Expand preset states list in State Machine editor
+- fix: Adjust default state machine and improve editor
+- feat: Add input type to State Machine events
+- fix: Fix UI not updating and add preset selectors
+- fix: Fix re-rendering bug and add preset selectors
+- feat: Implement State Machine editor functionality
+- feat: Add State Machine editor UI
+- feat: Add State Machine asset type
+- feat: Implemented tile selection and context menu
+- save individual tiles
+- mode Dinamic en Preview
+- submenu adaptable alt
+- mejoras de bugs
+- submenu appearance ok
+- game flow new features
+- Game flow bugs
+- modifica 2
+- limpiar opciones menu vertical izquierda
+- millores colapsar pestañes
+- Feat: Add app version to main menu toolbar
+- Merge branch 'main' into feat/boss-editor-select-tile
+- feat: Add sorting and filtering to tile assets panel
+- feat(boss-editor): Add 'Select Current Tile' option to context menu
+- Add files via upload
+- fix: Revert Boss Phase paste to a shallow copy
+- fix: Implement deep copy for Boss Editor phase paste
+- feat: Add Copy/Paste functionality for Boss Editor phases
+- feat: Link Boss to screen for preview and update version
+- feat: Align ScreenEditor grid and update version

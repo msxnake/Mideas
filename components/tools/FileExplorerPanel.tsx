@@ -153,25 +153,11 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     event.preventDefault();
     handleCloseContextMenu();
 
-    const isAlreadyInSelection = selectedTileIds.includes(assetId);
-
-    // This is the only case where we DON'T show the menu.
-    if (isAlreadyInSelection && selectedTileIds.length > 1) {
-      // Deselect it.
-      setSelectedTileIds(prev => prev.filter(id => id !== assetId));
-
-      // If it was the main active asset, deactivate it.
-      if (selectedAssetId === assetId) {
-        onSelectAsset(null);
-      }
-    } else {
-      // In all other cases (unselected, or single selection), show the menu.
-      setContextMenu({
-        isOpen: true,
-        position: { x: event.clientX, y: event.clientY },
-        assetId: assetId,
-      });
-    }
+    setContextMenu({
+      isOpen: true,
+      position: { x: event.clientX, y: event.clientY },
+      assetId: assetId,
+    });
   };
 
   const groupedAssets = assets.reduce((acc, asset) => {
@@ -213,20 +199,6 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
         }
       },
     },
-    { isSeparator: true },
-    {
-      label: "Select",
-      icon: <CheckCircleIcon className="w-3.5 h-3.5" />,
-      onClick: () => {
-        if (contextMenu.assetId) {
-          if (!selectedTileIds.includes(contextMenu.assetId)) {
-            setSelectedTileIds(prev => [...prev, contextMenu.assetId as string]);
-          }
-          onSelectAsset(contextMenu.assetId);
-        }
-      },
-      disabled: selectedTileIds.includes(contextMenu.assetId as string),
-    }
   ] : [];
 
   return (
@@ -340,10 +312,18 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                                     ${isSelected ? '' : 'hover:bg-msx-border/70'}`}
                       >
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
                             if (folderType === 'tile') {
-                              setSelectedTileIds([asset.id]);
-                              onSelectAsset(asset.id);
+                              if (e.ctrlKey) {
+                                setSelectedTileIds(prev => 
+                                  prev.includes(asset.id) 
+                                    ? prev.filter(id => id !== asset.id)
+                                    : [...prev, asset.id]
+                                );
+                              } else {
+                                setSelectedTileIds([asset.id]);
+                                onSelectAsset(asset.id);
+                              }
                             } else {
                               onSelectAsset(asset.id);
                             }
