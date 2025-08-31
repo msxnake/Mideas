@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
-import { StateMachineState } from '../../../statemachine.types';
+import { StateMachineState, StateMachineStateName } from '../../../statemachine.types';
 import { TrashIcon } from '../../icons/MsxIcons';
+
+const PRESET_STATES: StateMachineStateName[] = [
+  'Idle', 'Walking', 'Running', 'Jumping', 'Swimming', 'Patrolling',
+  'Attacking', 'Shooting', 'Falling', 'Hurt', 'Take'
+];
 
 interface StatesPanelProps {
   states: StateMachineState[];
@@ -17,6 +22,12 @@ export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, on
     if (newStateName.trim()) {
       onAddState(newStateName.trim());
       setNewStateName('');
+    }
+  };
+
+  const handlePresetAdd = (name: StateMachineStateName) => {
+    if (name) {
+      onAddState(name);
     }
   };
 
@@ -42,13 +53,23 @@ export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, on
             type="text"
             value={newStateName}
             onChange={(e) => setNewStateName(e.target.value)}
-            placeholder="New state name..."
+            placeholder="Custom state name..."
             className="w-full p-1 text-sm bg-msx-bgcolor border border-msx-border rounded"
             onKeyDown={(e) => e.key === 'Enter' && handleAddClick()}
           />
           <Button onClick={handleAddClick} variant="secondary" size="sm">
             Add
           </Button>
+        </div>
+        <div className="flex space-x-1 mt-2">
+          <select
+            onChange={(e) => handlePresetAdd(e.target.value as StateMachineStateName)}
+            className="w-full p-1 text-sm bg-msx-bgcolor border border-msx-border rounded"
+            value=""
+          >
+            <option value="">Add from preset...</option>
+            {PRESET_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
       </div>
     </Panel>

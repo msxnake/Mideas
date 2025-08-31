@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
-import { StateMachineEvent } from '../../../statemachine.types';
+import { StateMachineEvent, StateMachineEventName } from '../../../statemachine.types';
 import { TrashIcon } from '../../icons/MsxIcons';
+
+const PRESET_EVENTS: StateMachineEventName[] = [
+  'walk', 'run', 'jump', 'attack', 'shoot', 'fall'
+];
 
 interface EventsPanelProps {
   events: StateMachineEvent[];
@@ -17,6 +21,12 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ events, onCreateEvent,
     if (newEventName.trim()) {
       onCreateEvent(newEventName.trim());
       setNewEventName('');
+    }
+  };
+
+  const handlePresetAdd = (name: StateMachineEventName) => {
+    if (name) {
+      onCreateEvent(name);
     }
   };
 
@@ -42,13 +52,23 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ events, onCreateEvent,
             type="text"
             value={newEventName}
             onChange={(e) => setNewEventName(e.target.value)}
-            placeholder="New event name..."
+            placeholder="Custom event name..."
             className="w-full p-1 text-sm bg-msx-bgcolor border border-msx-border rounded"
             onKeyDown={(e) => e.key === 'Enter' && handleAddClick()}
           />
           <Button onClick={handleAddClick} variant="secondary" size="sm">
             Add
           </Button>
+        </div>
+        <div className="flex space-x-1 mt-2">
+          <select
+            onChange={(e) => handlePresetAdd(e.target.value as StateMachineEventName)}
+            className="w-full p-1 text-sm bg-msx-bgcolor border border-msx-border rounded"
+            value=""
+          >
+            <option value="">Add from preset...</option>
+            {PRESET_EVENTS.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
         </div>
       </div>
     </Panel>
