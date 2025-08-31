@@ -1,6 +1,6 @@
 import React from 'react';
-import { Panel } from '../../../common/Panel';
-import { StateMachine, StateMachineState, StateMachineEvent } from '../../../../statemachine.types';
+import { Panel } from '../../common/Panel';
+import { StateMachine, StateMachineState, StateMachineEvent } from '../../../statemachine.types';
 
 interface TransitionsEditorProps {
   stateMachine: StateMachine;

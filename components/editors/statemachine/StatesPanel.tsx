@@ -1,7 +1,7 @@
 import React from 'react';
-import { Panel } from '../../../common/Panel';
-import { Button } from '../../../common/Button';
-import { StateMachineState } from '../../../../statemachine.types';
+import { Panel } from '../../common/Panel';
+import { Button } from '../../common/Button';
+import { StateMachineState } from '../../../statemachine.types';
 
 interface StatesPanelProps {
   states: StateMachineState[];

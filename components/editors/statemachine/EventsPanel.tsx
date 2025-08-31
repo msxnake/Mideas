@@ -1,7 +1,7 @@
 import React from 'react';
-import { Panel } from '../../../common/Panel';
-import { Button } from '../../../common/Button';
-import { StateMachineEvent } from '../../../../statemachine.types';
+import { Panel } from '../../common/Panel';
+import { Button } from '../../common/Button';
+import { StateMachineEvent } from '../../../statemachine.types';
 
 interface EventsPanelProps {
   events: StateMachineEvent[];
