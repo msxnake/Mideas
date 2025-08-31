@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import JSZip from 'jszip'; 
+import { StateMachine } from './statemachine.types';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, ScreenMap, MSXColorValue, SpriteFrame, PixelData, 
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, PSGSoundChannelState, 
@@ -505,7 +506,18 @@ const App: React.FC = () => {
         if (asset.id === assetId) {
           let newAssetData: ProjectAsset['data'] = asset.data;
           switch (asset.type) {
-            case 'tile': case 'sprite': case 'boss': case 'screenmap': case 'worldmap': case 'gameflow': case 'sound': case 'track': case 'behavior': case 'componentdefinition': case 'entitytemplate':
+            case 'tile':
+            case 'sprite':
+            case 'boss':
+            case 'screenmap':
+            case 'worldmap':
+            case 'gameflow':
+            case 'sound':
+            case 'track':
+            case 'behavior':
+            case 'componentdefinition':
+            case 'entitytemplate':
+            case 'statemachine':
               if (asset.data && typeof asset.data === 'object' && typeof updatedData === 'object') {
                 newAssetData = { ...asset.data, ...updatedData } as any;
               }
@@ -634,6 +646,17 @@ const App: React.FC = () => {
       case 'track': const initialPattern = createDefaultPT3Pattern(`initial_${Date.now()}`); newAssetData = { id, name: defaultName, bpm: DEFAULT_PT3_BPM, speed: DEFAULT_PT3_SPEED, globalVolume: 15, patterns: [initialPattern], order: [0], lengthInPatterns: 1, restartPosition: 0, instruments: [], ornaments: [], currentPatternIndexInOrder: 0, currentPatternId: initialPattern.id, } as TrackerSongData; newEditorType = EditorType.Track; break;
       case 'behavior': defaultName = "NewBehaviorScript.asm"; newAssetData = { id, name: defaultName, code: Z80_BEHAVIOR_SNIPPETS[0]?.code || "; New Behavior Script\n\nentity_update:\n    ret\n" } as BehaviorScript; newEditorType = EditorType.BehaviorEditor; break;
       case 'code': const formattedDate = getFormattedDate(); let projectNameForHeader = currentProjectName || "UntitledProject"; defaultName = "NewCodeFile.asm"; newAssetData = generateAsmFileHeader(projectNameForHeader, formattedDate, defaultName); newEditorType = EditorType.Code; break;
+      case 'statemachine':
+        newAssetData = {
+          id,
+          name: defaultName,
+          states: [],
+          events: [],
+          transitions: [],
+          initialStateId: null,
+        } as StateMachine;
+        newEditorType = EditorType.StateMachine;
+        break;
       default: setStatusBarMessage(`Asset type ${type} creation not implemented for this flow.`); return;
     }
     const newAsset: ProjectAsset = { id, name: defaultName, type, data: newAssetData };
@@ -685,7 +708,7 @@ const App: React.FC = () => {
       const asset = assets.find(a => a.id === assetId);
       if (asset) {
         if (asset.type !== 'gameflow') setSelectedGameFlowNodeId(null);
-        setCurrentEditor( asset.type === 'tile' ? EditorType.Tile : asset.type === 'sprite' ? EditorType.Sprite : asset.type === 'screenmap' ? EditorType.Screen : asset.type === 'worldmap' ? EditorType.WorldMap : asset.type === 'gameflow' ? EditorType.GameFlow : asset.type === 'sound' ? EditorType.Sound : asset.type === 'track' ? EditorType.Track : asset.type === 'behavior' ? EditorType.BehaviorEditor : asset.type === 'code' ? EditorType.Code : asset.type === 'boss' ? EditorType.Boss : EditorType.None );
+        setCurrentEditor( asset.type === 'tile' ? EditorType.Tile : asset.type === 'sprite' ? EditorType.Sprite : asset.type === 'screenmap' ? EditorType.Screen : asset.type === 'worldmap' ? EditorType.WorldMap : asset.type === 'gameflow' ? EditorType.GameFlow : asset.type === 'sound' ? EditorType.Sound : asset.type === 'track' ? EditorType.Track : asset.type === 'behavior' ? EditorType.BehaviorEditor : asset.type === 'code' ? EditorType.Code : asset.type === 'boss' ? EditorType.Boss : asset.type === 'statemachine' ? EditorType.StateMachine : EditorType.None );
         setStatusBarMessage(`Selected ${asset.name}.`);
       }
     }

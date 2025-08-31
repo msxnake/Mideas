@@ -35,6 +35,7 @@ import { ComponentDefinitionEditor } from './editors/ComponentDefinitionEditor';
 import { EntityTemplateEditor } from './editors/EntityTemplateEditor';
 import { MainMenuEditor } from './editors/MainMenuEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
+import { StateMachineEditor } from './editors/StateMachineEditor';
 import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, MAIN_MENU_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
 import { PropertiesPanel } from './tools/PropertiesPanel';
 import { PalettePanel } from './tools/PalettePanel';
@@ -409,6 +410,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                 setScreenToEdit={(screen) => memoizedHandleSelectAsset(screen.id, EditorType.Screen)}
              />
            )}
+          {currentEditor === EditorType.StateMachine && activeAsset?.type === 'statemachine' && ( <StateMachineEditor currentAsset={activeAsset} onUpdateAsset={(data) => handleUpdateAsset(activeAsset.id, data)} /> )}
         </div>
 
         <div className="w-64 flex-shrink-0 flex flex-col">

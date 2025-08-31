@@ -174,6 +174,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* New Asset Menu */}
       <DropdownMenu label="New Asset">
+        <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon/>}>State Machine</DropdownItem>
+        <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon/>}>Tile</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon/>}>Sprite</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon/>}>Boss</DropdownItem>
