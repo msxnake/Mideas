@@ -1,5 +1,5 @@
 
-versión 0.18
+versión 0.19
 
 # Run and deploy your AI Studio app
 

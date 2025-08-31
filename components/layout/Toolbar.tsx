@@ -236,13 +236,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         Last Editor
       </Button>
       
-1      <div className="flex-grow text-right pr-4">
-        <div
-          className="bg-white text-red-600 text-xs font-bold px-2 py-1 rounded-sm shadow-md inline-block"
-          title={`Version ${APP_VERSION}`}
-        >
-          v{APP_VERSION}
-        </div>
+      <div className="flex-grow" />
+      <div style={{color: 'red', backgroundColor: 'white', padding: '2px 5px', marginRight: '10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '3px'}}>
+        v{APP_VERSION}
       </div>
       
       {isAutosaving && (
