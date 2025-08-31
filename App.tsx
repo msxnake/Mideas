@@ -709,7 +709,7 @@ const App: React.FC = () => {
       const asset = assets.find(a => a.id === assetId);
       if (asset) {
         if (asset.type !== 'gameflow') setSelectedGameFlowNodeId(null);
-        setCurrentEditor( asset.type === 'tile' ? EditorType.Tile : asset.type === 'sprite' ? EditorType.Sprite : asset.type === 'screenmap' ? EditorType.Screen : asset.type === 'worldmap' ? EditorType.WorldMap : asset.type === 'gameflow' ? EditorType.GameFlow : asset.type === 'sound' ? EditorType.Sound : asset.type === 'track' ? EditorType.Track : asset.type === 'behavior' ? EditorType.BehaviorEditor : asset.type === 'code' ? EditorType.Code : asset.type === 'boss' ? EditorType.Boss : EditorType.None );
+        setCurrentEditor( asset.type === 'tile' ? EditorType.Tile : asset.type === 'sprite' ? EditorType.Sprite : asset.type === 'screenmap' ? EditorType.Screen : asset.type === 'worldmap' ? EditorType.WorldMap : asset.type === 'gameflow' ? EditorType.GameFlow : asset.type === 'sound' ? EditorType.Sound : asset.type === 'track' ? EditorType.Track : asset.type === 'behavior' ? EditorType.BehaviorEditor : asset.type === 'code' ? EditorType.Code : asset.type === 'boss' ? EditorType.Boss : asset.type === 'statemachine' ? EditorType.StateMachine : EditorType.None );
         setStatusBarMessage(`Selected ${asset.name}.`);
       }
     }

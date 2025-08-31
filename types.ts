@@ -552,6 +552,7 @@ export enum EditorType {
   WorldView = "WorldView",
   GameFlow = "GameFlow",
   MainMenu = "MainMenu",
+  StateMachine = "StateMachine",
 }
 
 export interface ProjectAsset {
