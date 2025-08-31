@@ -506,7 +506,18 @@ const App: React.FC = () => {
         if (asset.id === assetId) {
           let newAssetData: ProjectAsset['data'] = asset.data;
           switch (asset.type) {
-            case 'tile': case 'sprite': case 'boss': case 'screenmap': case 'worldmap': case 'gameflow': case 'sound': case 'track': case 'behavior': case 'componentdefinition': case 'entitytemplate': case 'statemachine':
+            case 'tile':
+            case 'sprite':
+            case 'boss':
+            case 'screenmap':
+            case 'worldmap':
+            case 'gameflow':
+            case 'sound':
+            case 'track':
+            case 'behavior':
+            case 'componentdefinition':
+            case 'entitytemplate':
+            case 'statemachine':
               if (asset.data && typeof asset.data === 'object' && typeof updatedData === 'object') {
                 newAssetData = { ...asset.data, ...updatedData } as any;
               }
