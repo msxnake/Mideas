@@ -20,12 +20,24 @@ export type StateMachineEventName =
   | 'jump'
   | 'attack'
   | 'shoot'
-  | 'fall';
+  | 'fall'
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | 'stop'
+  | 'collision_wall'
+  | 'collision';
 
 export interface StateMachineState {
   id: string;
   name: StateMachineStateName;
   position?: { x: number; y: number };
+  properties?: {
+    velocityX?: number;
+    velocityY?: number;
+    animationName?: string;
+  };
 }
 
 export type StateMachineInputType = 'key' | 'system_action' | 'collision';

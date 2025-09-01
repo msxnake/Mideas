@@ -163,6 +163,20 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "maxBounces", type: 'byte', defaultValue: '255', description: "Maximum number of bounces before stopping (255 for infinite)." },
       { name: "bounceSoundId", type: 'sound_ref', defaultValue: '', description: "ID of the sound asset to play on bounce." }
     ],
+  },
+  {
+    id: "comp_cursors", name: "Cursors",
+    properties: [
+      { name: "inputEnabled", type: "boolean", defaultValue: "true", description: "Is input processing active for this entity." }
+    ],
+    description: "A marker component indicating the entity responds to player cursor controls."
+  },
+  {
+    id: "comp_statemachine", name: "StateMachineController",
+    properties: [
+      { name: "stateMachineAssetId", type: "statemachine_ref", defaultValue: "", description: "ID of the state machine asset to run" }
+    ],
+    description: "Attaches a state machine to an entity."
   }
 ];
 
@@ -204,5 +218,17 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_collectible", defaultValues: { itemType: "key", itemValue: 1, autoCollectRadius: 12, collectionSoundRef: "sfx_collect_key" }}
     ],
     description: "A key item to be collected."
+  },
+  {
+    id: "tpl_hero", name: "Hero", icon: "🦸",
+    components: [
+      { definitionId: "comp_pos", defaultValues: {x: 32, y: 100}},
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_hero", isVisible: true, layer: 1 } },
+      { definitionId: "comp_cursors", defaultValues: { inputEnabled: true } },
+      { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "placeholder_sm_hero"} },
+      { definitionId: "comp_health", defaultValues: { current: 5, max: 5 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 2 }}
+    ],
+    description: "The main hero character, controlled by the player."
   },
 ];
