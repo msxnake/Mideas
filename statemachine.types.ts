@@ -20,7 +20,12 @@ export type StateMachineEventName =
   | 'jump'
   | 'attack'
   | 'shoot'
-  | 'fall';
+  | 'fall'
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | 'stop';
 
 export interface StateMachineState {
   id: string;

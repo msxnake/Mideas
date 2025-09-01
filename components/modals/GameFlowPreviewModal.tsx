@@ -23,6 +23,7 @@ import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFont
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons/MsxIcons';
+import { StateMachine } from '../../statemachine.types';
 
 const TILE_SIZE = 8;
 const PREVIEW_WIDTH = 256;
@@ -42,6 +43,8 @@ interface AnimatedEntity {
     mirroredFrameImages?: HTMLImageElement[];
     currentFrame: number;
     lastFrameUpdateTime: number;
+    stateMachine?: StateMachine;
+    currentState?: string;
 }
 
 // Interface for component props
@@ -55,6 +58,7 @@ interface GameFlowPreviewModalProps {
     entityTemplates: EntityTemplate[];
     currentScreenMode: string;
     componentDefinitions: ComponentDefinition[];
+    initialIsDynamic?: boolean;
 }
 
 // Interface to enrich connection data with the target node ID
@@ -72,21 +76,44 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     entityTemplates,
     currentScreenMode,
     componentDefinitions,
+    initialIsDynamic = false,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
     const animationFrameId = useRef<number>();
     const entitiesRef = useRef<AnimatedEntity[]>([]);
+    const heroRef = useRef<AnimatedEntity | null>(null);
+    const pressedKeys = useRef<Set<string>>(new Set());
 
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
     const [currentScreenMap, setCurrentScreenMap] = useState<ScreenMap | null>(null);
     const [currentWorldMapGraph, setCurrentWorldMapGraph] = useState<WorldMapGraph | null>(null);
-    const [isDynamic, setIsDynamic] = useState(false);
+    const [isDynamic, setIsDynamic] = useState(initialIsDynamic);
 
     const { nodes, connections } = graphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
+
+    const triggerEvent = (entityId: string, eventName: string) => {
+        const entity = entitiesRef.current.find(e => e.instance.id === entityId);
+        if (!entity || !entity.stateMachine || !entity.currentState) return;
+
+        const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
+        if (!currentStateDef) return;
+
+        const eventDef = entity.stateMachine.events.find(e => e.name === eventName);
+        if (!eventDef) return;
+
+        const transition = entity.stateMachine.transitions.find(t => t.fromStateId === currentStateDef.id && t.eventId === eventDef.id);
+        if (transition) {
+            const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
+            if (nextState) {
+                entity.currentState = nextState.name;
+                console.log(`Entity ${entity.instance.name} transitioned from ${currentStateDef.name} to ${nextState.name}`);
+            }
+        }
+    };
 
     // Effect to initialize or reset state when the modal is opened/closed
     useEffect(() => {
@@ -100,6 +127,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             setSelectedOptionIndex(0);
             setCurrentScreenMap(null);
             setCurrentWorldMapGraph(null);
+            heroRef.current = null;
+            pressedKeys.current.clear();
         } else {
              if (animationFrameId.current) {
                 cancelAnimationFrame(animationFrameId.current);
@@ -148,6 +177,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         setCurrentScreenMap(nextScreenMap);
     }, [currentWorldMapGraph, allAssets]);
 
+    const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+        if (heroRef.current && pressedKeys.current.has(e.key)) {
+            pressedKeys.current.delete(e.key);
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                triggerEvent(heroRef.current.instance.id, 'stop');
+            }
+        }
+    }, []);
+
     // Handles keyboard inputs for navigation
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         e.preventDefault();
@@ -171,6 +209,22 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     break;
             }
         } else if (currentNode.type === 'WorldLink') {
+            if (heroRef.current) {
+                if (!pressedKeys.current.has(e.key)) {
+                    pressedKeys.current.add(e.key);
+                    switch (e.key) {
+                        case 'ArrowUp': triggerEvent(heroRef.current.instance.id, 'up'); break;
+                        case 'ArrowDown': triggerEvent(heroRef.current.instance.id, 'down'); break;
+                        case 'ArrowLeft': triggerEvent(heroRef.current.instance.id, 'left'); break;
+                        case 'ArrowRight': triggerEvent(heroRef.current.instance.id, 'right'); break;
+                    }
+                }
+                 if (e.key === 'Escape') {
+                    handleGoBack();
+                }
+                return;
+            }
+
             const currentScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === currentScreenMap?.id);
             if (!currentScreenNode || !currentWorldMapGraph) return;
 
@@ -221,6 +275,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     useEffect(() => {
         if (!isOpen || !currentScreenMap) {
             entitiesRef.current = [];
+            heroRef.current = null;
             return;
         };
 
@@ -239,16 +294,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             let spriteAssetId: string | undefined;
             if (instance.componentOverrides) {
                 for (const compId in instance.componentOverrides) {
-                    if (instance.componentOverrides[compId]?.spriteAssetId) {
-                        spriteAssetId = instance.componentOverrides[compId].spriteAssetId;
+                    const compDef = componentDefinitions.find(c => c.id === compId);
+                    const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                    if (spriteProp && instance.componentOverrides[compId]?.[spriteProp.name]) {
+                        spriteAssetId = instance.componentOverrides[compId][spriteProp.name];
                         break;
                     }
                 }
             }
             if (!spriteAssetId) {
                 for (const comp of template.components) {
-                    if (comp.defaultValues?.spriteAssetId) {
-                        spriteAssetId = comp.defaultValues.spriteAssetId;
+                    const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                    const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                     if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                        spriteAssetId = comp.defaultValues[spriteProp.name];
                         break;
                     }
                 }
@@ -265,7 +324,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 return img;
             });
             
-            // Pre-render mirrored frame images if applicable
             let mirroredFrameImages: HTMLImageElement[] | undefined;
             if (['right', 'left'].includes(sprite.facingDirection)) {
                 mirroredFrameImages = sprite.frames.map(frame => {
@@ -274,13 +332,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
                     return img;
                 });
-            } else if (['up', 'down'].includes(sprite.facingDirection)) {
-                mirroredFrameImages = sprite.frames.map(frame => {
-                    const mirroredData = mirrorPixelDataVertically(frame.data as PixelData);
-                    const img = new Image();
-                    img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
-                    return img;
-                });
+            }
+
+            let stateMachine: StateMachine | undefined;
+            let currentState: string | undefined;
+            const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+            if (smc) {
+                const stateMachineAssetId = smc.defaultValues.stateMachineAssetId;
+                const stateMachineAsset = getAsset(stateMachineAssetId, 'statemachine');
+                stateMachine = stateMachineAsset?.data as StateMachine | undefined;
+                if (stateMachine?.initialStateId) {
+                    currentState = stateMachine.states.find(s => s.id === stateMachine.initialStateId)?.name;
+                }
             }
 
             // Setup patrol behavior
@@ -303,13 +366,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
             }
 
-            entitiesToAnimate.push({
+            const newAnimatedEntity: AnimatedEntity = {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
-            });
+                stateMachine, currentState
+            };
+            entitiesToAnimate.push(newAnimatedEntity);
+
+            if (template.components.some(c => c.definitionId === 'comp_cursors')) {
+                heroRef.current = newAnimatedEntity;
+            }
         });
         entitiesRef.current = entitiesToAnimate;
-    }, [isOpen, currentScreenMap, allAssets, entityTemplates]);
+    }, [isOpen, currentScreenMap, allAssets, entityTemplates, componentDefinitions]);
 
 
     // Main drawing and animation effect
@@ -394,6 +463,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             const now = performance.now();
             entitiesRef.current.forEach(entity => {
+                if (entity === heroRef.current) {
+                    const moveSpeed = 1.5;
+                    entity.vx = 0;
+                    entity.vy = 0;
+                    if (pressedKeys.current.has('ArrowLeft')) entity.vx = -moveSpeed;
+                    if (pressedKeys.current.has('ArrowRight')) entity.vx = moveSpeed;
+                    if (pressedKeys.current.has('ArrowUp')) entity.vy = -moveSpeed;
+                    if (pressedKeys.current.has('ArrowDown')) entity.vy = moveSpeed;
+                }
+
                 // Update position
                 entity.x += entity.vx;
                 entity.y += entity.vy;
@@ -425,8 +504,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                  if (entity.mirroredFrameImages) {
                     if (entity.sprite.facingDirection === 'right' && entity.vx < 0) imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
                     else if (entity.sprite.facingDirection === 'left' && entity.vx > 0) imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
-                    else if (entity.sprite.facingDirection === 'up' && entity.vy > 0) imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
-                    else if (entity.sprite.facingDirection === 'down' && entity.vy < 0) imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
                 }
 
                 if (imageToDraw) {
@@ -512,6 +589,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4 outline-none"
             onClick={onClose}
             onKeyDown={handleKeyDown}
+            onKeyUp={handleKeyUp}
             tabIndex={-1}
         >
             <div
