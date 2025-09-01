@@ -529,4 +529,112 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections,
         msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, triggerEvent
     ]);
->>>>>>> REPLACE
+
+
+    if (!isOpen) return null;
+
+    const currentScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === currentScreenMap?.id);
+    const getExitsForDirection = (direction: 'north' | 'south' | 'east' | 'west'): EnrichedConnection[] => {
+        if (!currentScreenNode || !currentWorldMapGraph) return [];
+        const outgoing = currentWorldMapGraph.connections
+            .filter(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === direction)
+            .map(c => ({ ...c, targetNodeId: c.toNodeId }));
+        const incoming = currentWorldMapGraph.connections
+            .filter(c => c.toNodeId === currentScreenNode.id && c.toDirection === direction)
+            .map(c => ({ ...c, targetNodeId: c.fromNodeId }));
+        return [...outgoing, ...incoming];
+    };
+
+    const northExits = getExitsForDirection('north');
+    const southExits = getExitsForDirection('south');
+    const eastExits = getExitsForDirection('east');
+    const westExits = getExitsForDirection('west');
+
+    const getButtonStyle = (direction: 'north' | 'south' | 'east' | 'west', index: number, total: number): React.CSSProperties => {
+        const offset = (index - (total - 1) / 2) * 32;
+        switch (direction) {
+            case 'north': return { top: 0, left: `calc(50% + ${offset}px)`, transform: 'translateX(-50%)' };
+            case 'south': return { bottom: 0, left: `calc(50% + ${offset}px)`, transform: 'translateX(-50%)' };
+            case 'west': return { left: 0, top: `calc(50% + ${offset}px)`, transform: 'translateY(-50%)' };
+            case 'east': return { right: 0, top: `calc(50% + ${offset}px)`, transform: 'translateY(-50%)' };
+        }
+    };
+
+    const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
+    const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
+
+    return (
+        <div
+            ref={modalRef}
+            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4 outline-none"
+            onClick={onClose}
+            onKeyDown={handleKeyDown}
+            onKeyUp={handleKeyUp}
+            tabIndex={-1}
+        >
+            <div
+                className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
+                onClick={e => e.stopPropagation()}
+            >
+                <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Game Flow Preview</h2>
+                <p className="text-xs text-msx-textsecondary mb-2">Use Arrows, Enter/Space, and Escape to navigate.</p>
+                <div className="relative" style={{ width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}>
+                    <canvas
+                        ref={canvasRef}
+                        width={PREVIEW_WIDTH}
+                        height={PREVIEW_HEIGHT}
+                        className={`border-2 border-msx-border`}
+                        style={{
+                            width: PREVIEW_WIDTH * 2,
+                            height: PREVIEW_HEIGHT * 2,
+                            imageRendering: 'pixelated',
+                            backgroundColor: 'black'
+                        }}
+                    />
+                    {cursorAsset && subMenuNode && (
+                        <img
+                            src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
+                            alt="cursor"
+                            className="absolute pointer-events-none"
+                            style={{
+                                left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(subMenuNode.options[selectedOptionIndex].text, 1).width) / 2 - 16) * 2,
+                                top: (80 + selectedOptionIndex * 12) * 2,
+                                imageRendering: 'pixelated',
+                                width: (cursorAsset.data as Sprite).size.width * 2,
+                                height: (cursorAsset.data as Sprite).size.height * 2,
+                            }}
+                        />
+                    )}
+                    {currentScreenMap && (
+                        <>
+                            {northExits.map((conn, index) => (
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('north', index, northExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                    <ArrowUpIcon className="w-6 h-6" />
+                                </button>
+                            ))}
+                            {southExits.map((conn, index) => (
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('south', index, southExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                    <ArrowDownIcon className="w-6 h-6" />
+                                </button>
+                            ))}
+                            {westExits.map((conn, index) => (
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('west', index, westExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                    <ArrowLeftIcon className="w-6 h-6" />
+                                </button>
+                            ))}
+                            {eastExits.map((conn, index) => (
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('east', index, eastExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                    <ArrowRightIcon className="w-6 h-6" />
+                                </button>
+                            ))}
+                        </>
+                    )}
+                </div>
+                <div className="flex items-center mt-4">
+                    <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
+                    <Button onClick={onClose} variant="primary" size="md">Close</Button>
+                </div>
+            </div>
+        </div>
+    );
+};
