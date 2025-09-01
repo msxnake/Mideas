@@ -118,7 +118,7 @@ export interface HUDConfiguration {
 // --- ECS Core Types ---
 export interface ComponentPropertyDefinition {
   name: string;
-  type: 'byte' | 'word' | 'boolean' | 'string' | 'color' | 'sprite_ref' | 'sound_ref' | 'behavior_script_ref' | 'entity_template_ref';
+  type: 'byte' | 'word' | 'boolean' | 'string' | 'color' | 'sprite_ref' | 'sound_ref' | 'behavior_script_ref' | 'entity_template_ref' | 'statemachine_ref';
   defaultValue?: any;
   description?: string;
 }
