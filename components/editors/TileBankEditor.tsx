@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { TileBank, Tile, ProjectAsset, MSX1Color, MSX1ColorValue } from '../../types';
 import { Panel } from '../common/Panel';
@@ -30,16 +29,13 @@ const calculateVramUsage = (bank: TileBank, tileAssets: ProjectAsset[]): { patte
       const heightInChars = Math.ceil(tileAsset.height / EDITOR_BASE_TILE_DIM_S2);
       totalCharsUsedByTiles += widthInChars * heightInChars;
     } else {
-      // Fallback if tile asset not found, assume 1 char (should ideally not happen)
       totalCharsUsedByTiles += 1; 
     }
   });
   
-  // VRAM usage is based on the bank's character range, not just assigned tiles,
-  // as the range is reserved irrespective of how many tiles fill it.
   const numCharsInBankRange = bank.charsetRangeEnd - bank.charsetRangeStart + 1;
-  const patternBytes = numCharsInBankRange * 8; // 8 bytes per character pattern
-  const colorBytes = numCharsInBankRange * 8;   // 8 bytes per character color attributes in Screen 2
+  const patternBytes = numCharsInBankRange * 8;
+  const colorBytes = numCharsInBankRange * 8;
   
   return { patternBytes, colorBytes, totalCharsUsedByTiles };
 };
@@ -66,6 +62,12 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     }
   }, [initialTileBanks, selectedBankId]);
 
+  useEffect(() => {
+      if (JSON.stringify(banks) !== JSON.stringify(initialTileBanks)) {
+          onUpdateBanks(banks);
+      }
+  }, [banks, initialTileBanks, onUpdateBanks]);
+
   const handleBankPropertyChange = (bankId: string, property: keyof TileBank | `screenZone.${keyof TileBank['screenZone']}`, value: any) => {
     setBanks(prevBanks => {
       let newBanks = prevBanks.map(bank => {
@@ -74,7 +76,6 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
           if (property.startsWith('screenZone.')) {
             const zoneKey = property.split('.')[1] as keyof TileBank['screenZone'];
             let numVal = parseInt(value,10) || 0;
-            // Basic validation for screen zone properties
             if (zoneKey === 'x') numVal = Math.max(0, Math.min(numVal, DEFAULT_SCREEN_WIDTH_TILES - updatedBank.screenZone.width));
             if (zoneKey === 'y') numVal = Math.max(0, Math.min(numVal, DEFAULT_SCREEN_HEIGHT_TILES - updatedBank.screenZone.height));
             if (zoneKey === 'width') numVal = Math.max(1, Math.min(numVal, DEFAULT_SCREEN_WIDTH_TILES - updatedBank.screenZone.x));
@@ -84,12 +85,11 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             (updatedBank as any)[property] = parseInt(value, 10) || 0;
           } else if (property === 'isLocked' || property === 'enabled') {
              (updatedBank as any)[property] = Boolean(value);
-          }
-           else {
+          } else {
             (updatedBank as any)[property] = value;
           }
 
-          if (property !== 'enabled') { // Range validation for non-enable toggles
+          if (property !== 'enabled') {
             if (property === 'charsetRangeStart' && updatedBank.charsetRangeStart > updatedBank.charsetRangeEnd) {
                 updatedBank.charsetRangeEnd = updatedBank.charsetRangeStart;
             }
@@ -112,10 +112,8 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         const mainGameBankIndex = newBanks.findIndex(b => b.id === 'bank_main_game');
         const hudBank = newBanks.find(b => b.id === 'bank_hud')!; 
         const statusBank = newBanks.find(b => b.id === 'bank_status_menu')!;
-
         const isHudEffectivelyEnabled = hudBank.enabled ?? true;
         const isStatusEffectivelyEnabled = statusBank.enabled ?? true;
-
         const defaultHudConf = DEFAULT_TILE_BANKS_CONFIG.find(b => b.id === 'bank_hud')!;
         const defaultMainConf = DEFAULT_TILE_BANKS_CONFIG.find(b => b.id === 'bank_main_game')!;
         const defaultStatusConf = DEFAULT_TILE_BANKS_CONFIG.find(b => b.id === 'bank_status_menu')!;
@@ -123,18 +121,10 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         if (mainGameBankIndex !== -1) {
             const mainGameBank = { ...newBanks[mainGameBankIndex] }; 
             mainGameBank.screenZone = { ...mainGameBank.screenZone }; 
-
-            mainGameBank.charsetRangeStart = isHudEffectivelyEnabled 
-                ? defaultMainConf.charsetRangeStart 
-                : defaultHudConf.charsetRangeStart;
-            
-            mainGameBank.charsetRangeEnd = isStatusEffectivelyEnabled
-                ? defaultMainConf.charsetRangeEnd
-                : defaultStatusConf.charsetRangeEnd;
-
+            mainGameBank.charsetRangeStart = isHudEffectivelyEnabled ? defaultMainConf.charsetRangeStart : defaultHudConf.charsetRangeStart;
+            mainGameBank.charsetRangeEnd = isStatusEffectivelyEnabled ? defaultMainConf.charsetRangeEnd : defaultStatusConf.charsetRangeEnd;
             let newMainGameY = defaultMainConf.screenZone.y;
             let newMainGameHeight = defaultMainConf.screenZone.height;
-
             if (!isHudEffectivelyEnabled) {
                 newMainGameY = defaultHudConf.screenZone.y;
                 newMainGameHeight += defaultHudConf.screenZone.height;
@@ -142,16 +132,13 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             if (!isStatusEffectivelyEnabled) { 
                 newMainGameHeight += defaultStatusConf.screenZone.height;
             }
-            
             mainGameBank.screenZone.y = newMainGameY;
             mainGameBank.screenZone.height = newMainGameHeight;
             mainGameBank.screenZone.width = defaultMainConf.screenZone.width;
             mainGameBank.screenZone.x = defaultMainConf.screenZone.x;
-
             newBanks[mainGameBankIndex] = mainGameBank;
         }
       }
-      onUpdateBanks(newBanks);
       return newBanks;
     });
   };
@@ -164,22 +151,18 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             alert(`Tile "${allTiles.find(t=>t.id === tileAssetId)?.name}" is already assigned to this bank.`);
             return bank;
           }
-          
           const tileAsset = allTiles.find(t => t.id === tileAssetId)?.data as Tile | undefined;
           if (!tileAsset) {
             alert(`Tile asset with ID ${tileAssetId} not found.`);
             return bank;
           }
-
           const widthInChars = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
           const heightInChars = Math.ceil(tileAsset.height / EDITOR_BASE_TILE_DIM_S2);
           const numCodesNeeded = widthInChars * heightInChars;
-
           if (numCodesNeeded === 0) {
             alert(`Tile "${tileAsset.name}" has zero dimensions in characters. Cannot assign.`);
             return bank;
           }
-
           const usedCharCodesInBank = new Set<number>();
           Object.entries(bank.assignedTiles).forEach(([assignedTileId, assignment]) => {
             const assignedAsset = allTiles.find(t => t.id === assignedTileId)?.data as Tile | undefined;
@@ -189,11 +172,10 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
               for (let i = 0; i < w * h; i++) {
                 usedCharCodesInBank.add(assignment.charCode + i);
               }
-            } else { // Fallback for potentially inconsistent data
+            } else {
                usedCharCodesInBank.add(assignment.charCode);
             }
           });
-          
           let foundBaseCharCode = -1;
           for (let charCodeAttempt = bank.charsetRangeStart; charCodeAttempt <= bank.charsetRangeEnd - numCodesNeeded + 1; charCodeAttempt++) {
             let blockAvailable = true;
@@ -208,18 +190,15 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
               break;
             }
           }
-
           if (foundBaseCharCode === -1) {
             alert(`Bank "${bank.name}" has no contiguous block of ${numCodesNeeded} free character codes in range [${bank.charsetRangeStart}-${bank.charsetRangeEnd}].`);
             return bank;
           }
-          
           const updatedBank = { ...bank, assignedTiles: { ...bank.assignedTiles, [tileAssetId]: { charCode: foundBaseCharCode } } };
           return updatedBank;
         }
         return bank;
       });
-      onUpdateBanks(newBanks);
       return newBanks;
     });
     setIsAssignTileModalOpen(false);
@@ -235,7 +214,6 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             }
             return bank;
         });
-        onUpdateBanks(newBanks);
         return newBanks;
     });
   };
@@ -254,12 +232,8 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     const { patternBytes, colorBytes, totalCharsUsedByTiles } = calculateVramUsage(bank, allTiles);
     const isBankEffectivelyEnabled = bank.enabled ?? true;
     const numCharsInBankRange = isBankEffectivelyEnabled ? (bank.charsetRangeEnd - bank.charsetRangeStart + 1) : 0;
-    // totalCharsUsedByTiles is now a better reflection of actual usage by assigned tiles
-    // const numAssignedTiles = Object.keys(bank.assignedTiles).length; // This counts assets, not char codes
-    
     const isHudOrStatusBank = bank.id === 'bank_hud' || bank.id === 'bank_status_menu';
     const isMainGameBank = bank.id === 'bank_main_game';
-
 
     return (
       <div key={bank.id} className={`p-3 border border-msx-border rounded-md bg-msx-panelbg/70 ${!isBankEffectivelyEnabled && isHudOrStatusBank ? 'opacity-60' : ''}`}>
