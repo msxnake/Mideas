@@ -180,7 +180,6 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
         'sound_ref': 'sound',
         'behavior_script_ref': 'behavior',
         'entity_template_ref': 'entitytemplate',
-        'statemachine_ref': 'statemachine',
     };
     const assetType = assetTypeMap[propertyType];
     if (!assetType) return;

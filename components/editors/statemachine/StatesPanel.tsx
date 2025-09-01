@@ -65,13 +65,11 @@ interface StatesPanelProps {
   states: StateMachineState[];
   onAddState: (name: string) => void;
   onDeleteState: (id: string) => void;
-  onUpdateState: (id: string, properties: Partial<StateMachineState['properties']>) => void;
   language: 'en' | 'es';
 }
 
-export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, onDeleteState, onUpdateState, language }) => {
+export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, onDeleteState, language }) => {
   const [newStateName, setNewStateName] = useState('');
-  const [selectedStateId, setSelectedStateId] = useState<string | null>(null);
 
   const handleAddClick = () => {
     if (newStateName.trim()) {
@@ -86,44 +84,20 @@ export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, on
     }
   };
 
-  const handlePropertyChange = (stateId: string, propName: keyof StateMachineState['properties'], value: string) => {
-    const parsedValue = propName === 'animationName' ? value : Number(value);
-    onUpdateState(stateId, { [propName]: parsedValue });
-  };
-
   return (
     <Panel title="States">
       <div className="p-2">
         <ul className="space-y-1 mb-2">
           {states.map(state => (
-            <li key={state.id} className="p-1 bg-msx-bgcolor rounded group">
-              <div className="flex items-center justify-between cursor-pointer" onClick={() => setSelectedStateId(selectedStateId === state.id ? null : state.id)}>
-                <span className="text-sm text-msx-textprimary">{state.name}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDeleteState(state.id); }}
-                  className="p-0.5 rounded-sm text-msx-danger opacity-0 group-hover:opacity-100"
-                  title={`Delete ${state.name}`}
-                >
-                  <TrashIcon className="w-3 h-3" />
-                </button>
-              </div>
-              {selectedStateId === state.id && (
-                <div className="mt-2 p-2 border-t border-msx-border space-y-2">
-                  <h4 className="text-xs text-msx-textsecondary">State Properties:</h4>
-                  <div>
-                    <label className="text-xs">velocityX:</label>
-                    <input type="number" value={state.properties?.velocityX ?? ''} onChange={(e) => handlePropertyChange(state.id, 'velocityX', e.target.value)} className="w-full p-1 text-sm bg-msx-bgcolor border border-msx-border rounded" />
-                  </div>
-                  <div>
-                    <label className="text-xs">velocityY:</label>
-                    <input type="number" value={state.properties?.velocityY ?? ''} onChange={(e) => handlePropertyChange(state.id, 'velocityY', e.target.value)} className="w-full p-1 text-sm bg-msx-bgcolor border border-msx-border rounded" />
-                  </div>
-                  <div>
-                    <label className="text-xs">animationName:</label>
-                    <input type="text" value={state.properties?.animationName ?? ''} onChange={(e) => handlePropertyChange(state.id, 'animationName', e.target.value)} className="w-full p-1 text-sm bg-msx-bgcolor border border-msx-border rounded" />
-                  </div>
-                </div>
-              )}
+            <li key={state.id} className="flex items-center justify-between p-1 bg-msx-bgcolor rounded group">
+              <span className="text-sm text-msx-textprimary">{state.name}</span>
+              <button
+                onClick={() => onDeleteState(state.id)}
+                className="p-0.5 rounded-sm text-msx-danger opacity-0 group-hover:opacity-100"
+                title={`Delete ${state.name}`}
+              >
+                <TrashIcon className="w-3 h-3" />
+              </button>
             </li>
           ))}
         </ul>

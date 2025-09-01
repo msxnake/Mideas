@@ -140,7 +140,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [mousePosition, setMousePosition] = useState<Point | null>(null);
   const [nodeToPlace, setNodeToPlace] = useState<NodeToPlace | null>(null);
   const [draggingState, setDraggingState] = useState<{ nodeId: string, offset: Point } | null>(null);
-  const [previewMode, setPreviewMode] = useState<'preview' | 'play' | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isSubMenuModalOpen, setIsSubMenuModalOpen] = useState(false);
   const [editingSubMenu, setEditingSubMenu] = useState<GameFlowSubMenuNode | null>(null);
 
@@ -340,8 +340,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('End')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add End</Button>
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
         <div className="flex-grow" />
-        <Button size="sm" variant="primary" onClick={() => setPreviewMode('preview')}>Preview</Button>
-        <Button size="sm" variant="secondary" onClick={() => setPreviewMode('play')}>Play Game</Button>
+        <Button size="sm" variant="primary" onClick={() => setIsPreviewModalOpen(true)}>Preview</Button>
+        <Button size="sm" variant="secondary" onClick={() => {}}>Play Game</Button>
       </div>
       <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
         <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
@@ -389,11 +389,10 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           </div>
         </Modal>
       )}
-      {previewMode && (
+      {isPreviewModalOpen && (
         <GameFlowPreviewModal
-          isOpen={!!previewMode}
-          onClose={() => setPreviewMode(null)}
-          initialIsDynamic={previewMode === 'play'}
+          isOpen={isPreviewModalOpen}
+          onClose={() => setIsPreviewModalOpen(false)}
           graphData={gameFlowGraph}
           allAssets={allAssets}
           msxFont={msxFont}

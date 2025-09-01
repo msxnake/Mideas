@@ -5,7 +5,7 @@ import { StateMachineEvent, StateMachineEventName, StateMachineInputType } from 
 import { TrashIcon } from '../../icons/MsxIcons';
 
 const PRESET_EVENTS: StateMachineEventName[] = [
-  'up', 'down', 'left', 'right', 'stop', 'collision_wall', 'collision', 'walk', 'run', 'jump', 'attack', 'shoot', 'fall'
+  'walk', 'run', 'jump', 'attack', 'shoot', 'fall'
 ];
 
 const INPUT_TYPES: StateMachineInputType[] = ['key', 'system_action', 'collision'];

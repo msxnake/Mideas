@@ -39,17 +39,6 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
     });
   };
 
-  const handleUpdateState = (id: string, properties: Partial<StateMachineState['properties']>) => {
-    onUpdateAsset({
-      states: stateMachine.states.map(s => {
-        if (s.id === id) {
-          return { ...s, properties: { ...s.properties, ...properties } };
-        }
-        return s;
-      }),
-    });
-  };
-
   const handleCreateEvent = (name: string, type: StateMachineInputType) => {
     const newEvent: StateMachineEvent = {
       id: `event_${Date.now()}`,
@@ -111,7 +100,6 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
             states={stateMachine.states}
             onAddState={handleAddState}
             onDeleteState={handleDeleteState}
-            onUpdateState={handleUpdateState}
             language={language}
           />
           <EventsPanel
