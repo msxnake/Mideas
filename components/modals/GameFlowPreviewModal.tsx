@@ -463,14 +463,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             const now = performance.now();
             entitiesRef.current.forEach(entity => {
-                if (entity === heroRef.current) {
-                    const moveSpeed = 1.5;
-                    entity.vx = 0;
-                    entity.vy = 0;
-                    if (pressedKeys.current.has('ArrowLeft')) entity.vx = -moveSpeed;
-                    if (pressedKeys.current.has('ArrowRight')) entity.vx = moveSpeed;
-                    if (pressedKeys.current.has('ArrowUp')) entity.vy = -moveSpeed;
-                    if (pressedKeys.current.has('ArrowDown')) entity.vy = moveSpeed;
+                if (entity.stateMachine && entity.currentState) {
+                    const stateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
+                    if (stateDef?.properties) {
+                        if (stateDef.properties.velocityX !== undefined) {
+                            entity.vx = stateDef.properties.velocityX;
+                        }
+                        if (stateDef.properties.velocityY !== undefined) {
+                            entity.vy = stateDef.properties.velocityY;
+                        }
+                    }
                 }
 
                 // Update position
