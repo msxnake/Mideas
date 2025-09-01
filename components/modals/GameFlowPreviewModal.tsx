@@ -341,8 +341,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const stateMachineAssetId = smc.defaultValues.stateMachineAssetId;
                 const stateMachineAsset = getAsset(stateMachineAssetId, 'statemachine');
                 stateMachine = stateMachineAsset?.data as StateMachine | undefined;
-                if (stateMachine?.initialStateId) {
-                    currentState = stateMachine.states.find(s => s.id === stateMachine.initialStateId)?.name;
+                if (stateMachine) {
+                    let initialState = stateMachine.states.find(s => s.id === stateMachine.initialStateId);
+                    if (!initialState) {
+                        // Fallback: try to find a state named 'Idle' or just take the first one.
+                        initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
+                    }
+                    currentState = initialState?.name;
                 }
             }
 
@@ -463,6 +468,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             const now = performance.now();
             entitiesRef.current.forEach(entity => {
+                if (entity === heroRef.current) {
+                    entity.vx = 0;
+                    entity.vy = 0;
+                }
+
                 if (entity.stateMachine && entity.currentState) {
                     const stateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
                     if (stateDef?.properties) {
