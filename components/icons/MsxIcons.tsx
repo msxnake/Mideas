@@ -392,3 +392,6 @@ export const CollapseAllIcon: React.FC<IconProps> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 9L3.75 3.75M9 9h4.5m0-4.5v4.5m0 0L20.25 3.75M9 15l-5.25 5.25M9 15h4.5m0 4.5v-4.5m0 0l6.25 5.25M3.75 9h4.5m11.25 0h-4.5m0 0v11.25" />
     </svg>
 );
+
+export const UploadIcon = LoadIcon;
+export const DownloadIcon = SaveIcon;
