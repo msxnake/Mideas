@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { EntityTemplate, ComponentDefinition, EntityTemplateComponent, ComponentPropertyDefinition, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, CaretRightIcon, SpriteIcon, CodeIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, CaretRightIcon, SpriteIcon, CodeIcon, DownloadIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 
@@ -180,6 +180,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
         'sound_ref': 'sound',
         'behavior_script_ref': 'behavior',
         'entity_template_ref': 'entitytemplate',
+        'statemachine_ref': 'statemachine',
     };
     const assetType = assetTypeMap[propertyType];
     if (!assetType) return;
@@ -190,6 +191,17 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
         onSelect: onSelectCallback,
         currentValue: currentValue,
     });
+  };
+
+  const handleExportTemplate = () => {
+    if (!editingTemplate) return;
+    const dataStr = JSON.stringify(editingTemplate, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = `${editingTemplate.name || 'template'}.json`;
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
   };
 
   const toggleComponentExpansion = (componentDefId: string) => {
@@ -308,6 +320,9 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
               <div className="flex justify-end space-x-2 mt-4">
                 <Button onClick={() => handleDeleteTemplate(editingTemplate as EntityTemplate)} variant="danger" disabled={!entityTemplates.find(t => t.id === editingTemplate?.id)}>
                   Delete Template
+                </Button>
+                <Button onClick={handleExportTemplate} variant="secondary" icon={<DownloadIcon />} disabled={!editingTemplate?.id}>
+                  Export json
                 </Button>
                 <Button onClick={handleSaveTemplate} variant="primary" icon={<SaveIcon/>}>
                   Save Template
