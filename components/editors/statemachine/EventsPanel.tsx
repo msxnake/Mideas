@@ -5,7 +5,7 @@ import { StateMachineEvent, StateMachineEventName, StateMachineInputType } from 
 import { TrashIcon } from '../../icons/MsxIcons';
 
 const PRESET_EVENTS: StateMachineEventName[] = [
-  'up', 'down', 'left', 'right', 'stop', 'collision_wall', 'collision', 'walk', 'run', 'jump', 'attack', 'shoot', 'fall'
+  'walk', 'run', 'jump', 'attack', 'shoot', 'fall'
 ];
 
 const INPUT_TYPES: StateMachineInputType[] = ['key', 'system_action', 'collision'];
@@ -29,6 +29,8 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ events, onCreateEvent,
 
   const handlePresetAdd = (name: StateMachineEventName) => {
     if (name) {
+      // For presets, we can default to a type, e.g., 'key' or make it selectable too.
+      // For now, let's default to 'key' for simplicity.
       onCreateEvent(name, 'key');
     }
   };

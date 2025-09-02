@@ -26,7 +26,7 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
   const handleAddState = (name: string) => {
     const newState: StateMachineState = {
       id: `state_${Date.now()}`,
-      name: name as StateMachineStateName,
+      name: name as StateMachineStateName, // This is a bit of a hack, we should validate the name
     };
     onUpdateAsset({ states: [...stateMachine.states, newState] });
   };
@@ -34,25 +34,15 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
   const handleDeleteState = (id: string) => {
     onUpdateAsset({
       states: stateMachine.states.filter(s => s.id !== id),
+      // Also delete transitions that use this state
       transitions: stateMachine.transitions.filter(t => t.fromStateId !== id && t.toStateId !== id),
-    });
-  };
-
-  const handleUpdateState = (id: string, properties: Partial<StateMachineState['properties']>) => {
-    onUpdateAsset({
-      states: stateMachine.states.map(s => {
-        if (s.id === id) {
-          return { ...s, properties: { ...s.properties, ...properties } };
-        }
-        return s;
-      }),
     });
   };
 
   const handleCreateEvent = (name: string, type: StateMachineInputType) => {
     const newEvent: StateMachineEvent = {
       id: `event_${Date.now()}`,
-      name: name as StateMachineEventName,
+      name: name as StateMachineEventName, // This is a bit of a hack, we should validate the name
       type,
     };
     onUpdateAsset({ events: [...stateMachine.events, newEvent] });
@@ -61,6 +51,7 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
   const handleDeleteEvent = (id: string) => {
     onUpdateAsset({
       events: stateMachine.events.filter(e => e.id !== id),
+      // Also delete transitions that use this event
       transitions: stateMachine.transitions.filter(t => t.eventId !== id),
     });
   };
@@ -109,7 +100,6 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
             states={stateMachine.states}
             onAddState={handleAddState}
             onDeleteState={handleDeleteState}
-            onUpdateState={handleUpdateState}
             language={language}
           />
           <EventsPanel

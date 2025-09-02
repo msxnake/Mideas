@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { ComponentDefinition, ComponentPropertyDefinition } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, UploadIcon, DownloadIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 
 interface ComponentDefinitionEditorProps {
@@ -12,7 +13,7 @@ interface ComponentDefinitionEditorProps {
 
 const PROPERTY_TYPES: ComponentPropertyDefinition['type'][] = [
   'byte', 'word', 'boolean', 'string', 'color', 
-  'sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref', 'statemachine_ref'
+  'sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref'
 ];
 
 export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps> = ({
@@ -23,24 +24,34 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
   const [editingDefinition, setEditingDefinition] = useState<Partial<ComponentDefinition> | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   const [definitionToDelete, setDefinitionToDelete] = useState<ComponentDefinition | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (selectedDefinitionId) {
+        // If editingDefinition already exists and matches the selected ID,
+        // AND this ID is not yet in the main componentDefinitions list (implying it's a new, unsaved definition),
+        // then we should not overwrite editingDefinition with null from the list.
         if (editingDefinition && editingDefinition.id === selectedDefinitionId && 
             !componentDefinitions.find(d => d.id === selectedDefinitionId)) {
+            // This means we are currently editing a *new* definition that hasn't been saved to the main list yet.
+            // Keep the current editingDefinition.
             return; 
         }
+
         const defFromList = componentDefinitions.find(d => d.id === selectedDefinitionId);
         if (defFromList) {
+            // If switching to an existing definition, or if an existing definition was updated in the main list.
             setEditingDefinition({ ...defFromList, properties: defFromList.properties.map(p => ({...p})) });
         } else {
+            // If selectedDefinitionId does not correspond to any existing definition in the list
+            // (e.g., after a delete, or if the ID is somehow invalid but not matching the current new unsaved one),
+            // clear the form.
             setEditingDefinition(null);
         }
     } else {
-        setEditingDefinition(null);
+        setEditingDefinition(null); // No selection, clear form.
     }
-  }, [selectedDefinitionId, componentDefinitions]);
+  }, [selectedDefinitionId, componentDefinitions]); // Note: `editingDefinition` is intentionally not in deps here to avoid loops with its own updates. The logic relies on `selectedDefinitionId` and the `componentDefinitions` prop.
+
 
   const handleSelectDefinition = (id: string) => {
     setSelectedDefinitionId(id);
@@ -54,6 +65,9 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
       description: '',
       properties: [],
     };
+    // Set editingDefinition directly *before* setSelectedDefinitionId,
+    // so the useEffect has a chance to see the new editingDefinition if it needs to compare.
+    // Or, rely on the useEffect's new logic to handle the "new unsaved" case correctly.
     setEditingDefinition(newDef); 
     setSelectedDefinitionId(newId);
   };
@@ -99,13 +113,17 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
       alert("Component ID and Name are required.");
       return;
     }
+    // Ensure property names are valid (e.g., no spaces, starts with letter) - basic check
     if (editingDefinition.properties?.some(p => !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(p.name))) {
         alert("Property names must be valid identifiers (letters, numbers, underscores, start with letter/underscore).");
         return;
     }
+
     const finalDefinition = { ...editingDefinition } as ComponentDefinition;
     const existingIndex = componentDefinitions.findIndex(d => d.id === finalDefinition.id);
+
     if (existingIndex > -1) {
+      // Check for name conflict if renaming
       if (componentDefinitions.some(d => d.name.toLowerCase() === finalDefinition.name.toLowerCase() && d.id !== finalDefinition.id)) {
         alert(`A component definition with the name "${finalDefinition.name}" already exists.`);
         return;
@@ -114,6 +132,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
       updated[existingIndex] = finalDefinition;
       onUpdateComponentDefinitions(updated);
     } else {
+      // Check for name conflict if adding new
        if (componentDefinitions.some(d => d.name.toLowerCase() === finalDefinition.name.toLowerCase())) {
         alert(`A component definition with the name "${finalDefinition.name}" already exists.`);
         return;
@@ -141,77 +160,15 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
     setDefinitionToDelete(null);
   };
 
-  const handleExport = () => {
-    const dataStr = JSON.stringify(componentDefinitions, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const exportFileDefaultName = 'components.json';
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
-  };
-
-  const handleImportClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target?.result;
-        if (typeof text !== 'string') throw new Error("File could not be read as text.");
-        const importedDefs = JSON.parse(text) as ComponentDefinition[];
-
-        if (!Array.isArray(importedDefs) || !importedDefs.every(def => def.id && def.name && Array.isArray(def.properties))) {
-            throw new Error("Invalid JSON structure for component definitions.");
-        }
-
-        const updatedDefsMap = new Map(componentDefinitions.map(def => [def.id, def]));
-
-        let importedCount = 0;
-        let overwrittenCount = 0;
-
-        importedDefs.forEach(importedDef => {
-            if (updatedDefsMap.has(importedDef.id)) {
-                overwrittenCount++;
-            } else {
-                importedCount++;
-            }
-            updatedDefsMap.set(importedDef.id, importedDef);
-        });
-
-        onUpdateComponentDefinitions(Array.from(updatedDefsMap.values()));
-        alert(`${importedCount} new components imported.\n${overwrittenCount} existing components overwritten.`);
-
-      } catch (error) {
-        console.error("Error parsing or processing component definitions file:", error);
-        alert(`Failed to import components: ${error.message}`);
-      } finally {
-        if(fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-      }
-    };
-    reader.readAsText(file);
-  };
 
   return (
     <Panel title="Component Definition Editor" icon={<PuzzlePieceIcon className="w-5 h-5 text-msx-textprimary" />} className="flex-grow flex flex-col !p-0">
       <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
+        {/* Left Panel: List of Component Definitions */}
         <div className="w-1/3 border-r border-msx-border p-2 overflow-y-auto">
           <Button onClick={handleAddNewDefinition} variant="secondary" size="sm" icon={<PlusCircleIcon />} className="w-full mb-2">
             Add New Component
           </Button>
-          <div className="flex space-x-2 mb-2">
-            <Button onClick={handleImportClick} variant="secondary" size="sm" icon={<UploadIcon />} className="flex-1">Import</Button>
-            <Button onClick={handleExport} variant="secondary" size="sm" icon={<DownloadIcon />} className="flex-1">Export</Button>
-          </div>
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" style={{ display: 'none' }} />
-
           {componentDefinitions.length === 0 && <p className="text-xs text-msx-textsecondary italic">No components defined.</p>}
           <ul className="space-y-1">
             {componentDefinitions.map(def => (
@@ -227,6 +184,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
           </ul>
         </div>
 
+        {/* Right Panel: Editor for Selected/New Definition */}
         <div className="w-2/3 p-3 overflow-y-auto">
           {!editingDefinition ? (
             <p className="text-msx-textsecondary text-center mt-10">Select a component definition to edit or add a new one.</p>
