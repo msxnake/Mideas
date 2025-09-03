@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
 import { StateMachineState, StateMachineStateName } from '../../../statemachine.types';
-import { TrashIcon } from '../../icons/MsxIcons';
+import { TrashIcon, CogIcon } from '../../icons/MsxIcons';
+import { StatePropertiesModal } from '../../modals/StatePropertiesModal';
 
 const PRESET_STATES = [
   { id: 'IDLE', en: 'Idle', es: 'Quieto' },
@@ -65,11 +66,24 @@ interface StatesPanelProps {
   states: StateMachineState[];
   onAddState: (name: string) => void;
   onDeleteState: (id: string) => void;
+  onUpdateState: (id: string, properties: { [key: string]: any }) => void;
   language: 'en' | 'es';
 }
 
-export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, onDeleteState, language }) => {
+export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, onDeleteState, onUpdateState, language }) => {
   const [newStateName, setNewStateName] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedState, setSelectedState] = useState<StateMachineState | null>(null);
+
+  const handleOpenPropertiesModal = (state: StateMachineState) => {
+    setSelectedState(state);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedState(null);
+    setIsModalOpen(false);
+  };
 
   const handleAddClick = () => {
     if (newStateName.trim()) {
@@ -91,13 +105,22 @@ export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, on
           {states.map(state => (
             <li key={state.id} className="flex items-center justify-between p-1 bg-msx-bgcolor rounded group">
               <span className="text-sm text-msx-textprimary">{state.name}</span>
-              <button
-                onClick={() => onDeleteState(state.id)}
-                className="p-0.5 rounded-sm text-msx-danger opacity-0 group-hover:opacity-100"
-                title={`Delete ${state.name}`}
-              >
-                <TrashIcon className="w-3 h-3" />
-              </button>
+              <div>
+                <button
+                  onClick={() => handleOpenPropertiesModal(state)}
+                  className="p-0.5 rounded-sm text-msx-textsecondary opacity-0 group-hover:opacity-100"
+                  title={`Edit properties of ${state.name}`}
+                >
+                  <CogIcon className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => onDeleteState(state.id)}
+                  className="p-0.5 rounded-sm text-msx-danger opacity-0 group-hover:opacity-100"
+                  title={`Delete ${state.name}`}
+                >
+                  <TrashIcon className="w-3 h-3" />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -125,6 +148,12 @@ export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, on
           </select>
         </div>
       </div>
+      <StatePropertiesModal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        state={selectedState}
+        onUpdateState={onUpdateState}
+      />
     </Panel>
   );
 };

@@ -15,17 +15,45 @@ export type StateMachineStateName =
   | 'Persiguiendo' | 'Buscando' | 'En alerta' | 'Dormido' | 'Huyendo' | 'Protegiendo una zona' | 'Inactivo';
 
 export type StateMachineEventName =
+  // Player Actions
   | 'walk'
   | 'run'
   | 'jump'
   | 'attack'
   | 'shoot'
-  | 'fall';
+  | 'fall'
+  // General purpose
+  | 'right'
+  | 'left'
+  | 'up'
+  | 'down'
+  | 'Spc'
+  | 'Enter'
+  | 'Tab'
+  | 'Shift'
+  | 'Ctrl'
+  | 'Alt'
+  // System Events
+  | 'collision_wall'
+  | 'collision_floor'
+  | 'collision_enemy'
+  | 'collision_item'
+  | 'timer_expired'
+  | 'animation_finished'
+  // Game Specific
+  | 'dialogue_finished'
+  | 'item_collected'
+  | 'enemy_defeated'
+  | 'level_complete'
+  | 'game_over'
+  | 'player_detected'
+  | 'patrol_point_reached';
 
 export interface StateMachineState {
   id: string;
   name: StateMachineStateName;
   position?: { x: number; y: number };
+  properties?: { [key: string]: any };
 }
 
 export type StateMachineInputType = 'key' | 'system_action' | 'collision';
@@ -37,7 +65,7 @@ export interface StateMachineEvent {
 }
 
 export interface StateMachineTransition {
-  id: string;
+  id:string;
   fromStateId: string;
   toStateId: string;
   eventId: string;
