@@ -1,14 +1,14 @@
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, ContextMenuItem, MainMenuAppearance, GameScreen, GameData } from '../../types';
+import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, ContextMenuItem } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, CodeIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
 import { SubMenuAppearanceEditor } from './SubMenuAppearanceEditor';
 import { Modal } from '../modals/Modal';
 import { DEFAULT_MAIN_MENU_CONFIG } from '../../constants';
+import { MSXFont, MSXFontColorAttributes, EntityTemplate, ComponentDefinition } from '../../types';
 
 const NODE_WIDTH = 150;
 const PORT_SIZE = 20;
@@ -21,8 +21,6 @@ const getNodeHeight = (node: GameFlowNode | NodeToPlace): number => {
 };
 
 type NodeToPlace = Omit<GameFlowNode, 'position' | 'id'> & { id?: string };
-
-import { MSXFont, MSXFontColorAttributes, EntityTemplate, ComponentDefinition } from '../../types';
 
 interface GameFlowEditorProps {
   gameFlowGraph: GameFlowGraph;
@@ -140,7 +138,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [mousePosition, setMousePosition] = useState<Point | null>(null);
   const [nodeToPlace, setNodeToPlace] = useState<NodeToPlace | null>(null);
   const [draggingState, setDraggingState] = useState<{ nodeId: string, offset: Point } | null>(null);
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'preview' | 'play' | null>(null);
   const [isSubMenuModalOpen, setIsSubMenuModalOpen] = useState(false);
   const [editingSubMenu, setEditingSubMenu] = useState<GameFlowSubMenuNode | null>(null);
 
@@ -149,11 +147,9 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const handleDeleteNode = (nodeId: string) => {
     const nodesToDelete = new Set<string>([nodeId]);
     const queue = [nodeId];
-
     while (queue.length > 0) {
       const currentId = queue.shift();
       if (!currentId) continue;
-
       const outgoingConnections = connections.filter(c => c.from.nodeId === currentId);
       for (const conn of outgoingConnections) {
         const targetNodeId = conn.to.nodeId;
@@ -163,10 +159,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         }
       }
     }
-
     const newNodes = nodes.filter(n => !nodesToDelete.has(n.id));
     const newConnections = connections.filter(c => !nodesToDelete.has(c.from.nodeId) && !nodesToDelete.has(c.to.nodeId));
-
     onUpdate({ nodes: newNodes, connections: newConnections });
   };
 
@@ -201,16 +195,12 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     handleCloseSubMenuModal();
   };
 
-  const handleAppearanceChange = (newAppearance: MainMenuAppearance) => {
+  const handleAppearanceChange = (newAppearance: any) => {
     if (editingSubMenu) {
-      setEditingSubMenu({
-        ...editingSubMenu,
-        appearance: newAppearance
-      });
+      setEditingSubMenu({ ...editingSubMenu, appearance: newAppearance });
     }
   };
 
-  // ... (all other handler functions remain the same)
   const handlePortClick = (nodeId: string, portId: string) => {
       if (!linkingState) {
           setLinkingState({ fromNodeId: nodeId, fromPortId: portId });
@@ -230,13 +220,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
             title: 'Nuevo Menú', 
             options: [{ id: 'opt_1', text: 'Opción 1' }],
             appearance: {
-                colors: {
-                    text: '#FFFFFF',
-                    background: '#000000',
-                    highlightText: '#FFFF00',
-                    highlightBG: '#0000FF',
-                    border: '#FFFFFF',
-                }
+                colors: DEFAULT_MAIN_MENU_CONFIG.menuColors,
             }
         };
         setNodeToPlace(newNodeData);
@@ -340,8 +324,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('End')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add End</Button>
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
         <div className="flex-grow" />
-        <Button size="sm" variant="primary" onClick={() => setIsPreviewModalOpen(true)}>Preview</Button>
-        <Button size="sm" variant="secondary" onClick={() => {}}>Play Game</Button>
+        <Button size="sm" variant="primary" onClick={() => setPreviewMode('preview')}>Preview</Button>
+        <Button size="sm" variant="secondary" onClick={() => setPreviewMode('play')}>Play Game</Button>
       </div>
       <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
         <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
@@ -378,8 +362,6 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           <SubMenuAppearanceEditor 
             appearance={editingSubMenu.appearance || {
                 colors: DEFAULT_MAIN_MENU_CONFIG.menuColors,
-                backgroundScreenAssetId: null,
-                cursorSpriteAssetId: null,
             }} 
             onAppearanceChange={handleAppearanceChange} 
             allAssets={allAssets}
@@ -389,10 +371,11 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           </div>
         </Modal>
       )}
-      {isPreviewModalOpen && (
+      {previewMode && (
         <GameFlowPreviewModal
-          isOpen={isPreviewModalOpen}
-          onClose={() => setIsPreviewModalOpen(false)}
+          isOpen={!!previewMode}
+          onClose={() => setPreviewMode(null)}
+          initialIsDynamic={previewMode === 'play'}
           graphData={gameFlowGraph}
           allAssets={allAssets}
           msxFont={msxFont}

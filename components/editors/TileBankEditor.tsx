@@ -124,10 +124,10 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             const mainGameBank = { ...newBanks[mainGameBankIndex] }; 
             mainGameBank.screenZone = { ...mainGameBank.screenZone }; 
 
-            mainGameBank.charsetRangeStart = isHudEffectivelyEnabled 
-                ? defaultMainConf.charsetRangeStart 
+            mainGameBank.charsetRangeStart = isHudEffectivelyEnabled
+                ? defaultMainConf.charsetRangeStart
                 : defaultHudConf.charsetRangeStart;
-            
+
             mainGameBank.charsetRangeEnd = isStatusEffectivelyEnabled
                 ? defaultMainConf.charsetRangeEnd
                 : defaultStatusConf.charsetRangeEnd;
@@ -142,7 +142,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             if (!isStatusEffectivelyEnabled) { 
                 newMainGameHeight += defaultStatusConf.screenZone.height;
             }
-            
+
             mainGameBank.screenZone.y = newMainGameY;
             mainGameBank.screenZone.height = newMainGameHeight;
             mainGameBank.screenZone.width = defaultMainConf.screenZone.width;
@@ -164,7 +164,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             alert(`Tile "${allTiles.find(t=>t.id === tileAssetId)?.name}" is already assigned to this bank.`);
             return bank;
           }
-          
+
           const tileAsset = allTiles.find(t => t.id === tileAssetId)?.data as Tile | undefined;
           if (!tileAsset) {
             alert(`Tile asset with ID ${tileAssetId} not found.`);
@@ -193,7 +193,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                usedCharCodesInBank.add(assignment.charCode);
             }
           });
-          
+
           let foundBaseCharCode = -1;
           for (let charCodeAttempt = bank.charsetRangeStart; charCodeAttempt <= bank.charsetRangeEnd - numCodesNeeded + 1; charCodeAttempt++) {
             let blockAvailable = true;
@@ -213,7 +213,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             alert(`Bank "${bank.name}" has no contiguous block of ${numCodesNeeded} free character codes in range [${bank.charsetRangeStart}-${bank.charsetRangeEnd}].`);
             return bank;
           }
-          
+
           const updatedBank = { ...bank, assignedTiles: { ...bank.assignedTiles, [tileAssetId]: { charCode: foundBaseCharCode } } };
           return updatedBank;
         }
@@ -256,7 +256,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     const numCharsInBankRange = isBankEffectivelyEnabled ? (bank.charsetRangeEnd - bank.charsetRangeStart + 1) : 0;
     // totalCharsUsedByTiles is now a better reflection of actual usage by assigned tiles
     // const numAssignedTiles = Object.keys(bank.assignedTiles).length; // This counts assets, not char codes
-    
+
     const isHudOrStatusBank = bank.id === 'bank_hud' || bank.id === 'bank_status_menu';
     const isMainGameBank = bank.id === 'bank_main_game';
 
