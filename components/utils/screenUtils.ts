@@ -16,7 +16,14 @@ const LZ_MAX_OFFSET = 255;       // Max offset encodable in one LZ command byte
 const LZ_MAX_MATCH_LENGTH_CHECK_AHEAD = 258; // How far to look ahead in input for potential LZ matches
 
 
-// Helper to find the best RLE match from the current index
+/**
+ * Finds the best run-length encoding (RLE) match from the current index in the data.
+ * @param data The input data array.
+ * @param currentIndex The current index to start searching from.
+ * @param maxCount The maximum number of repetitions for one RLE command.
+ * @param rleMarkerValue Optional value that cannot be part of an RLE sequence (for Pletter).
+ * @returns An object with the count of repetitions and the value that was repeated.
+ */
 const findBestRLEMatch = (
   data: number[],
   currentIndex: number,
@@ -40,7 +47,16 @@ const findBestRLEMatch = (
 };
 
 
-// Helper for the new overlapping LZ logic (SuperRLE)
+/**
+ * Finds the best Lempel-Ziv (LZ) match, allowing for overlapping copies.
+ * This is a key part of the SuperRLE compression algorithm.
+ * @param uncompressedChunkToMatch The chunk of data to find a match for.
+ * @param outputBufferHistory The history of the output buffer to search within.
+ * @param minMatchLen The minimum length of a valid match.
+ * @param maxMatchLenAllowedByCmd The maximum length of a match allowed by the command format.
+ * @param maxOffsetAllowedByCmd The maximum offset allowed by the command format.
+ * @returns An object with the length and offset of the best match found.
+ */
 const findBestOverlappingLZMatch = (
   uncompressedChunkToMatch: number[], 
   outputBufferHistory: ReadonlyArray<number>,    // Changed to ReadonlyArray
@@ -78,7 +94,16 @@ const findBestOverlappingLZMatch = (
 };
 
 
-// Helper to calculate literal run length
+/**
+ * Calculates the length of a literal run, stopping before a better compression opportunity (RLE or LZ).
+ * @param data The input data array.
+ * @param currentIndex The current index to start calculating from.
+ * @param maxLen The maximum length of a literal run.
+ * @param currentVirtualOutput The current state of the output buffer, for LZ lookbehind.
+ * @param compressionType The type of compression being used ('pletter' or 'superRLE').
+ * @param lzFinder A function to find the best LZ match.
+ * @returns The calculated length of the literal run.
+ */
 const calculateLiteralRunLength = (
   data: number[], 
   currentIndex: number,
@@ -119,10 +144,11 @@ const calculateLiteralRunLength = (
 /**
  * Generates raw byte array for a screen map layout.
  * @param screenMap The screen map object.
- * @param tileset Array of all tile assets.
- * @param tileBanks Optional array of tile banks for Screen 2.
- * @param currentScreenMode The current MSX screen mode.
- * @returns A Uint8Array of map layout bytes.
+ * @param screenMap The screen map object to generate the layout from.
+ * @param tileset An array of all available tile assets.
+ * @param tileBanks An optional array of tile banks, used for Screen 2 mode to map tiles to character codes.
+ * @param currentScreenMode A string identifying the current MSX screen mode (e.g., "SCREEN 2 (Graphics I)").
+ * @returns A Uint8Array containing the raw byte data for the screen map layout.
  */
 export const generateScreenMapLayoutBytes = (
   screenMap: ScreenMap,
@@ -197,10 +223,12 @@ export const generateScreenMapLayoutBytes = (
 };
 
 /**
- * Compresses screen data using an optimized RLE algorithm.
- * Packets are either literal (0-127 bytes) or repeat (2-127 repeats).
- * @param uncompressedBytes The raw byte array of the screen layout.
- * @returns A new array of bytes containing the compressed packets.
+ * Compresses data using an optimized RLE (Run-Length Encoding) algorithm.
+ * The format consists of literal and repetition packets.
+ * - Literal packet: [count], [byte1], [byte2], ... (count is 1-127)
+ * - Repetition packet: [0x80 | count], [byte] (count is 2-127)
+ * @param uncompressedBytes The raw byte array to compress.
+ * @returns A new array of bytes containing the RLE-compressed data.
  */
 export const generateOptimizedRLEData = (uncompressedBytes: number[]): number[] => {
     if (uncompressedBytes.length === 0) {
@@ -257,13 +285,15 @@ export const generateOptimizedRLEData = (uncompressedBytes: number[]): number[] 
 
 
 /**
- * Generates SuperRLE or Pletter compressed data for a screen map's background layer.
- * @param backgroundLayer The screen layer data to compress.
- * @param tileset Array of all tile assets in the project.
- * @param baseTileDim The base dimension of a tile cell (e.g., 8 for Screen 2).
- * @param tileBanks Optional array of tile bank configurations for Screen 2 mode.
- * @param compressionType 'pletter' or 'superRLE'
- * @returns SuperRLEExportData object or an error object.
+ * Compresses screen map data using either the Pletter or SuperRLE algorithm.
+ * This function first converts the tile-based screen map into a byte stream
+ * based on tile part references, then applies the chosen compression algorithm.
+ * @param backgroundLayer The screen layer data (2D array of ScreenTile) to compress.
+ * @param tileset An array of all available tile assets in the project.
+ * @param baseTileDim The base dimension of a single tile cell (e.g., 8 for Screen 2).
+ * @param tileBanks An optional array of tile bank configurations, primarily for Screen 2 mode.
+ * @param compressionType The compression algorithm to use, either 'pletter' or 'superRLE'.
+ * @returns A SuperRLEExportData object containing the compressed data and metadata, or an error object.
  */
 export const generateSuperRLEData = (
   backgroundLayer: ScreenLayerData,
@@ -457,10 +487,11 @@ export const generateSuperRLEData = (
 };
 
 /**
- * Deep compares two tile objects.
- * @param tile1 The first tile.
- * @param tile2 The second tile.
- * @returns True if tiles are identical in content, false otherwise.
+ * Performs a deep comparison of two tile objects to check for equality.
+ * It compares dimensions, pixel data, line attributes, and logical properties.
+ * @param tile1 The first tile object to compare.
+ * @param tile2 The second tile object to compare.
+ * @returns `true` if the tiles are identical in content, `false` otherwise.
  */
 export const deepCompareTiles = (tile1: Tile, tile2: Tile): boolean => {
   if (tile1.width !== tile2.width || tile1.height !== tile2.height) {
@@ -505,6 +536,18 @@ export const deepCompareTiles = (tile1: Tile, tile2: Tile): boolean => {
 };
 
 
+/**
+ * Creates a data URL for a specific part of a tile asset.
+ * This is used to render individual tile cells in the UI.
+ * @param fullTileAsset The full tile asset to extract the part from.
+ * @param subTileXCoord The x-coordinate of the sub-tile within the full asset.
+ * @param subTileYCoord The y-coordinate of the sub-tile within the full asset.
+ * @param outputCellPixelWidth The desired output width in pixels.
+ * @param outputCellPixelHeight The desired output height in pixels.
+ * @param baseSliceDim The base dimension of a slice (e.g., 8 for Screen 2).
+ * @param currentScreenMode The current MSX screen mode.
+ * @returns A data URL string representing the rendered tile part.
+ */
 export function createTileDataURL(
   fullTileAsset: Tile,
   subTileXCoord: number | undefined,
@@ -563,6 +606,13 @@ export function createTileDataURL(
   return scaledCanvas.toDataURL();
 }
 
+/**
+ * Creates a data URL for a sprite frame.
+ * @param spriteFrameData The pixel data for the sprite frame.
+ * @param spriteWidth The width of the sprite.
+ * @param spriteHeight The height of the sprite.
+ * @returns A data URL string representing the rendered sprite frame.
+ */
 export function createSpriteDataURL(
   spriteFrameData: SpriteFrame['data'],
   spriteWidth: number,
@@ -590,6 +640,14 @@ export function createSpriteDataURL(
   return canvas.toDataURL();
 }
 
+/**
+ * Renders a full screen map to a canvas element.
+ * @param canvas The HTMLCanvasElement to render to.
+ * @param screenMap The screen map to render.
+ * @param tileset An array of all available tile assets.
+ * @param currentScreenMode The current MSX screen mode.
+ * @param baseSliceDim The base dimension of a tile slice.
+ */
 export const renderScreenToCanvas = (
   canvas: HTMLCanvasElement,
   screenMap: ScreenMap,

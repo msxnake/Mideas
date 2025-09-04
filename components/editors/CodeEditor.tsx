@@ -6,11 +6,19 @@ import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 import { Z80_SNIPPETS } from '../../constants';
 import { ZoomInIcon, ZoomOutIcon, FolderOpenIcon, SaveFloppyIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the CodeEditor component.
+ */
 interface CodeEditorProps {
+  /** The code content to be displayed and edited. */
   code: string;
+  /** Callback function to update the code content. */
   onUpdate: (code: string) => void;
+  /** The programming language for syntax highlighting. */
   language: 'z80';
+  /** The name of the asset being edited, used for context. */
   assetName?: string;
+  /** A snippet of code to be inserted into the editor. */
   snippetToInsert: { code: string; timestamp: number } | null;
 }
 
@@ -20,6 +28,11 @@ const FONT_SIZE_STEP = 1;
 const DEFAULT_FONT_SIZE = 14;
 const LINE_HEIGHT_MULTIPLIER = 1.625;
 
+/**
+ * A code editor component with syntax highlighting for Z80 assembly.
+ * It features a textarea for input layered under a `pre` tag for highlighting,
+ * providing a seamless editing experience.
+ */
 export const CodeEditor: React.FC<CodeEditorProps> = ({ code: initialCode, onUpdate, language, assetName, snippetToInsert: propsSnippetToInsert }): JSX.Element => {
   const [code, setCode] = useState(initialCode);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

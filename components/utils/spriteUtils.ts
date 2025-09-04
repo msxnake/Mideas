@@ -1,8 +1,11 @@
 import { PixelData, Sprite } from '../../types';
 
 /**
- * Generates raw byte array for a sprite, concatenating all layers of all frames.
- * Each layer represents pixels matching one of the 4 sprite palette colors (excluding background).
+ * Generates a raw byte array for a sprite asset.
+ * It processes each frame, creating a separate byte layer for each color in the sprite's palette
+ * (excluding the background color). These layers are then concatenated.
+ * @param sprite The sprite object to serialize.
+ * @returns A Uint8Array containing the binary data for the sprite.
  */
 export const generateSpriteBinaryData = (sprite: Sprite): Uint8Array => {
   const allFramesBytes: number[][] = [];
@@ -50,10 +53,20 @@ export const generateSpriteBinaryData = (sprite: Sprite): Uint8Array => {
   return new Uint8Array(flatBytes);
 };
 
+/**
+ * Mirrors pixel data horizontally.
+ * @param pixelData The pixel data to mirror.
+ * @returns The horizontally mirrored pixel data.
+ */
 export const mirrorPixelDataHorizontally = (pixelData: PixelData): PixelData => {
   return pixelData.map(row => [...row].reverse());
 };
 
+/**
+ * Mirrors pixel data vertically.
+ * @param pixelData The pixel data to mirror.
+ * @returns The vertically mirrored pixel data.
+ */
 export const mirrorPixelDataVertically = (pixelData: PixelData): PixelData => {
   return [...pixelData].reverse();
 };

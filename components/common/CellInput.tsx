@@ -2,21 +2,40 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PT3_PIANO_KEY_LAYOUT } from '../../constants';
 
+/**
+ * Props for the CellInput component.
+ */
 export interface CellInputProps {
+    /** A unique identifier for the input field. */
     id: string;
+    /** The current value of the input field. */
     value: string; 
+    /** The placeholder text to display when the input is empty. */
     placeholder: string; 
+    /** The maximum number of characters allowed in the input. */
     maxLength: number;
+    /** An optional function to transform the input value (e.g., to uppercase). */
     transformInput?: (input: string) => string;
+    /** An optional regex pattern for allowed characters. */
     allowedCharsPattern?: RegExp; 
+    /** Callback function triggered when the input value changes and the field loses focus. */
     onChange: (newValue: string | null) => void; 
+    /** Optional callback for when the input gains focus. */
     onFocus?: () => void;
+    /** Optional callback for when the input loses focus. */
     onBlur?: () => void; 
+    /** Optional additional CSS classes to apply to the input element. */
     className?: string;
+    /** The ARIA label for accessibility. */
     ariaLabel: string;
+    /** A flag to indicate if this is a note field, to handle piano key input differently. */
     isNoteField?: boolean; 
 }
 
+/**
+ * A specialized input component for cells within a tracker or grid-based editor.
+ * It handles local state, input validation, transformation, and synchronization with parent state.
+ */
 export const CellInput: React.FC<CellInputProps> = React.memo(({ 
     id, value, placeholder, maxLength, transformInput, allowedCharsPattern,
     onChange, onFocus, onBlur, className, ariaLabel, isNoteField

@@ -2,14 +2,30 @@
 import React, { useEffect, useRef } from 'react';
 import { EntityInstance } from '../../../types';
 
+/**
+ * Props for the {@link PatrolPathLayer} component.
+ * @category ScreenEditor
+ */
 interface PatrolPathLayerProps {
+  /** The currently selected entity instance, or null if none is selected. */
   selectedEntity: EntityInstance | null;
+  /** The current zoom level of the grid. */
   gridZoom: number;
+  /** The size of a single grid cell in pixels. */
   gridCellSize: { width: number; height: number };
+  /** The total size of the grid in cells. */
   gridSize: { width: number; height: number };
+  /** Callback function to set or clear the patrol path for the selected entity. */
   onSetPatrolPath: (x: number | null, y: number | null) => void;
 }
 
+/**
+ * A React component that renders a layer to display and manage the patrol path for a selected entity.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category ScreenEditor
+ */
 export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
   selectedEntity,
   gridZoom,

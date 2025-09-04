@@ -13,20 +13,21 @@ const EDITOR_BASE_TILE_DIM_S2 = 8;
 
 /**
  * Sanitizes a string to be a valid Z80 assembly label.
+ * Replaces invalid characters with underscores and converts to uppercase.
  * @param name The string to sanitize.
- * @returns An uppercase string with invalid characters replaced by underscores.
+ * @returns The sanitized, uppercase assembly label.
  */
 const toAsmLabel = (name: string): string => {
     return name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
 };
 
 /**
- * Resolves a single placeholder of the format 'type.name.property'.
+ * Resolves a single placeholder of the format '{{type.name.property}}'.
  * @param type The asset type (e.g., 'tile', 'bank').
  * @param nameOrId The name or ID of the asset.
  * @param prop The property to retrieve (e.g., 'char_code', 'vram_pattern_start').
- * @param state The current project state containing assets and banks.
- * @returns The resolved value as a string, or an error comment string.
+ * @param state The current project state containing assets and tile banks.
+ * @returns The resolved value as a string, or an error comment string if resolution fails.
  */
 const resolveSimplePlaceholder = (type: string, nameOrId: string, prop: string, state: ProjectState): string | null => {
     nameOrId = nameOrId.replace(/\s+/g, '_'); // Normalize name from snippet
@@ -69,11 +70,11 @@ const resolveSimplePlaceholder = (type: string, nameOrId: string, prop: string, 
 };
 
 /**
- * Resolves a macro of the format 'MACRO_NAME(parameter)'.
+ * Resolves a macro of the format '{{MACRO_NAME(parameter)}}'.
  * @param macroName The name of the macro (e.g., 'BANK_TILE_DEFINITIONS').
  * @param param The parameter for the macro (e.g., a bank name).
- * @param state The current project state.
- * @returns The expanded assembly code string, or an error comment string.
+ * @param state The current project state containing assets and tile banks.
+ * @returns The expanded assembly code string, or an error comment string if resolution fails.
  */
 const resolveMacro = (macroName: string, param: string, state: ProjectState): string => {
     param = param.replace(/\s+/g, '_'); // Normalize param name
@@ -114,10 +115,11 @@ const resolveMacro = (macroName: string, param: string, state: ProjectState): st
 };
 
 /**
- * Takes a snippet's code and resolves any dynamic placeholders within it.
- * @param code The snippet code containing placeholders.
- * @param state The current project state.
- * @returns The code with all placeholders replaced with their resolved values.
+ * Takes a snippet's assembly code and resolves any dynamic placeholders and macros within it.
+ * Placeholders can be simple `{{type.name.property}}` style or macros like `{{MACRO(param)}}`.
+ * @param code The raw snippet code containing placeholders.
+ * @param state The current project state, including assets and tile banks, used for resolution.
+ * @returns The code with all placeholders and macros replaced with their resolved values.
  */
 export const resolveSnippetPlaceholders = (code: string, state: ProjectState): string => {
     if (!code) return '';

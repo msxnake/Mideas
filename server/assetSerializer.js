@@ -1,3 +1,11 @@
+/**
+ * @fileoverview This module provides functions to serialize project assets into binary formats suitable for MSX.
+ */
+
+/**
+ * The MSX color palette used for serialization.
+ * @type {string[]}
+ */
 const MSX_PALETTE = [
   '#000000', // 0: transparent (treated as black)
   '#010101', // 1: black
@@ -17,11 +25,22 @@ const MSX_PALETTE = [
   '#ffffff', // 15: white
 ];
 
-// A reverse map for quick lookups
+/**
+ * A reverse map from hex color to palette index for quick lookups.
+ * @type {Map<string, number>}
+ */
 const MSX_COLOR_TO_INDEX = new Map(MSX_PALETTE.map((hex, i) => [hex.toUpperCase(), i]));
-// Add some tolerance for near-black colors from different sources
 MSX_COLOR_TO_INDEX.set('#000000', 1);
 
+/**
+ * Serializes a tile asset into a binary buffer.
+ * Each pixel is represented by a 4-bit color index, and two pixels are packed into a single byte.
+ * @param {object} tile - The tile data object.
+ * @param {number[][]} tile.data - The 2D array of pixel data (hex color strings).
+ * @param {number} tile.width - The width of the tile in pixels.
+ * @param {number} tile.height - The height of the tile in pixels.
+ * @returns {Buffer} The serialized tile data as a Buffer.
+ */
 function serializeTile(tile) {
   if (!tile || !tile.data || !tile.width || !tile.height) {
     throw new Error('Invalid tile data provided for serialization.');
@@ -30,7 +49,6 @@ function serializeTile(tile) {
   const { width, height, data } = tile;
   const pixels = data.flat();
 
-  // Each pixel is a 4-bit index, so 2 pixels per byte.
   const bufferSize = (width * height) / 2;
   const buffer = Buffer.alloc(bufferSize);
 
@@ -38,11 +56,9 @@ function serializeTile(tile) {
     const hex1 = pixels[i].toUpperCase();
     const hex2 = pixels[i + 1].toUpperCase();
 
-    const index1 = MSX_COLOR_TO_INDEX.get(hex1) ?? 1; // Default to black if not found
+    const index1 = MSX_COLOR_TO_INDEX.get(hex1) ?? 1;
     const index2 = MSX_COLOR_TO_INDEX.get(hex2) ?? 1;
 
-    // Pack two 4-bit indices into a single byte.
-    // The first pixel goes into the high nibble, the second into the low nibble.
     const byte = (index1 << 4) | index2;
     buffer.writeUInt8(byte, i / 2);
   }
@@ -50,6 +66,14 @@ function serializeTile(tile) {
   return buffer;
 }
 
+/**
+ * Serializes a generic project asset based on its type.
+ * Currently supports 'tile' type, falling back to JSON stringification for others.
+ * @param {object} asset - The project asset object.
+ * @param {string} asset.type - The type of the asset (e.g., 'tile', 'sprite').
+ * @param {object} asset.data - The data associated with the asset.
+ * @returns {Buffer} The serialized asset data as a Buffer.
+ */
 function serializeAsset(asset) {
   if (!asset || !asset.type || !asset.data) {
     throw new Error('Invalid asset provided for serialization.');
@@ -58,18 +82,14 @@ function serializeAsset(asset) {
   switch (asset.type) {
     case 'tile':
       return serializeTile(asset.data);
-    // Add cases for other asset types here in the future
-    // case 'sprite':
-    //   return serializeSprite(asset.data);
-    // case 'screenmap':
-    //   return serializeScreenMap(asset.data);
     default:
-      // For now, for unknown types, we'll just stringify them as before.
-      // This maintains old behavior for asset types we don't handle yet.
       return Buffer.from(JSON.stringify(asset.data, null, 2));
   }
 }
 
+/**
+ * @module assetSerializer
+ */
 module.exports = {
   serializeAsset,
   serializeTile,

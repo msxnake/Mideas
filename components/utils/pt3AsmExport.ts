@@ -7,7 +7,11 @@ import { PT3_NOTE_NAMES, PT3_CHANNELS } from '../../constants'; // Removed PT3_E
 const ASM_NOTE_OFF = 255; // Represents '---'
 const ASM_NOTE_CUT = 254; // Represents '==='
 
-// Helper to convert "C-4" style note to a single byte (0-95, or special)
+/**
+ * Converts a tracker note string (e.g., "C-4") to a single byte representation.
+ * @param note The note string to convert.
+ * @returns A byte representing the note (0-95 for notes, 254 for cut, 255 for off).
+ */
 const noteStringToAsmByte = (note: string | null): number => {
     if (note === null || note === "---") return ASM_NOTE_OFF;
     if (note === "===") return ASM_NOTE_CUT;
@@ -26,6 +30,11 @@ const noteStringToAsmByte = (note: string | null): number => {
 
 // formatEffectForAsm removed as effects are removed
 
+/**
+ * Generates an assembly file string from tracker song data.
+ * @param songData The tracker song data to export.
+ * @returns A string containing the generated assembly code.
+ */
 export const generateTrackerSongASM = (songData: TrackerSongData): string => {
     let asm = `;; PT3 Song Export: ${songData.name}\n`;
     asm += `;; Title: ${songData.title || 'N/A'}\n`;

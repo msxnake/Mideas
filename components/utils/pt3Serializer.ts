@@ -8,6 +8,12 @@ const PATTERN_ORDER_TABLE_SIZE = 512; // 128 entries * 4 bytes
 const ORNAMENT_POINTER_TABLE_SIZE = 32; // 16 pointers * 2 bytes
 const INSTRUMENT_POINTER_TABLE_SIZE = 32; // 16 pointers * 2 bytes
 
+/**
+ * Serializes an envelope data array into a fixed-length Int8Array.
+ * @param envelope The envelope data array.
+ * @param length The desired length of the output array.
+ * @returns An Int8Array with the serialized envelope data.
+ */
 const serializeEnvelopeData = (envelope: number[] | undefined, length: number): Int8Array => {
   const envelopeBytes = new Int8Array(length);
   for (let i = 0; i < length; i++) {
@@ -23,7 +29,11 @@ const serializeEnvelopeData = (envelope: number[] | undefined, length: number): 
   return envelopeBytes;
 };
 
-// Helper to map tracker note string to PT3 0-11 value, or special markers
+/**
+ * Maps a tracker note string to its corresponding PT3 byte value.
+ * @param note The note string (e.g., "C-4", "---", "===").
+ * @returns The PT3 byte value for the note.
+ */
 const mapTrackerNoteToPt3ByteValue = (note: string | null): number => {
     if (note === null || note === "---") return 0xFF; // No note change / Keep previous
     if (note === "===") return 0xFE; // Note cut / Key off
@@ -43,6 +53,11 @@ const mapTrackerNoteToPt3ByteValue = (note: string | null): number => {
 
 // mapEffectCmdCharToCode function removed as it's no longer used.
 
+/**
+ * Serializes tracker song data into a PT3 file format ArrayBuffer.
+ * @param songData The tracker song data to serialize.
+ * @returns An ArrayBuffer containing the PT3 file data.
+ */
 export const serializePT3File = (songData: TrackerSongData): ArrayBuffer => {
   const textEncoder = new TextEncoder();
 

@@ -4,22 +4,45 @@ import { PT3Ornament } from '../../types';
 import { Button } from '../common/Button';
 import { PT3_MAX_ORNAMENTS, PT3_ORNAMENT_LENGTH } from '../../constants';
 
-// This mirrors the OrnamentModalBuffer type definition from TrackerComposer
+/**
+ * A buffer type for the ornament editor modal. It mirrors the PT3Ornament type
+ * but keeps the data as a string for easier editing in a text input.
+ * @internal
+ */
 interface OrnamentModalBuffer extends Omit<Partial<PT3Ornament>, 'data'> {
+    /** The ornament data as a comma-separated string of pitch offsets. */
     data?: string;
 }
 
+/**
+ * Props for the {@link OrnamentEditorModal} component.
+ * @category Tracker
+ */
 interface OrnamentEditorModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The ornament being edited, or null if creating a new one. */
   editingOrnament: PT3Ornament | null;
+  /** The buffer holding the current state of the ornament being edited. */
   ornamentModalBuffer: OrnamentModalBuffer;
+  /** Callback to update the ornament buffer. */
   onOrnamentModalBufferChange: (field: keyof OrnamentModalBuffer, value: any) => void;
+  /** Callback to submit the changes. */
   onSubmit: () => void;
 }
 
+/**
+ * The types of predefined ornaments available as templates.
+ * @internal
+ */
 type PredefinedOrnamentType = "Custom" | "Simple Vibrato" | "Fast Trill (Semitone)" | "Major Arpeggio Up" | "Quick Slide Up" | "Mordent (Upper)" | "Random";
 
+/**
+ * A record of predefined ornament templates.
+ * @constant
+ */
 const PREDEFINED_ORNAMENTS: Record<PredefinedOrnamentType, Partial<OrnamentModalBuffer>> = {
     "Custom": {}, // Placeholder for manual editing
     "Simple Vibrato": {
@@ -45,6 +68,11 @@ const PREDEFINED_ORNAMENTS: Record<PredefinedOrnamentType, Partial<OrnamentModal
     "Random": {} // Special case handled by generateRandomOrnamentData
 };
 
+/**
+ * Generates a set of random properties for a PT3 ornament.
+ * @returns A partial ornament buffer with randomized values.
+ * @internal
+ */
 const generateRandomOrnamentData = (): Partial<OrnamentModalBuffer> => {
     const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
     const randomBool = (probabilityTrue = 0.5) => Math.random() < probabilityTrue;
@@ -67,7 +95,13 @@ const generateRandomOrnamentData = (): Partial<OrnamentModalBuffer> => {
     };
 };
 
-
+/**
+ * A modal dialog for editing a PT3 ornament's properties.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tracker
+ */
 export const OrnamentEditorModal: React.FC<OrnamentEditorModalProps> = ({
   isOpen,
   onClose,

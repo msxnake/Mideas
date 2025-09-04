@@ -4,35 +4,70 @@ import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 
+/** The width of the preview canvas in pixels. @constant */
 const PREVIEW_WIDTH = 256;
+/** The height of the preview canvas in pixels. @constant */
 const PREVIEW_HEIGHT = 192;
+/** The size of a tile in pixels. @constant */
 const TILE_SIZE = 8;
 
+/**
+ * Props for the {@link ScreenPreviewModal} component.
+ * @category Modal
+ */
 interface ScreenPreviewModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The screen map data to preview. */
   screenMap: ScreenMap;
+  /** A list of all project assets. */
   allAssets: ProjectAsset[];
+  /** The current screen mode (e.g., 'screen2'). */
   currentScreenMode: string;
+  /** A list of all entity templates in the project. */
   entityTemplates: EntityTemplate[];
 }
 
-// State for animating entities
+/**
+ * Represents the state for an animating entity in the preview.
+ * @internal
+ */
 interface AnimatedEntity {
+  /** The entity instance from the screen map. */
   instance: EntityInstance;
+  /** The entity template. */
   template: EntityTemplate;
+  /** The sprite associated with the entity. */
   sprite: Sprite;
+  /** The current x position in pixels. */
   x: number;
+  /** The current y position in pixels. */
   y: number;
+  /** The current velocity on the x-axis. */
   vx: number;
+  /** The current velocity on the y-axis. */
   vy: number;
+  /** The pre-rendered frame images for the animation. */
   frameImages: HTMLImageElement[];
+  /** The pre-rendered mirrored frame images for the animation. */
   mirroredFrameImages?: HTMLImageElement[];
+  /** The index of the current animation frame. */
   currentFrame: number;
+  /** The timestamp of the last frame update. */
   lastFrameUpdateTime: number;
 }
-const ANIMATION_SPEED_MS = 200; // ms per frame
+/** The speed of the animation in milliseconds per frame. @constant */
+const ANIMATION_SPEED_MS = 200;
 
+/**
+ * A modal dialog for previewing a screen map with animated entities.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
   isOpen,
   onClose,

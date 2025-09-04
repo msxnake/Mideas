@@ -1,12 +1,27 @@
 import React, { useState } from 'react';
 import { Button } from '../common/Button';
 
+/**
+ * Props for the {@link RandomMapGeneratorModal} component.
+ * @category Modal
+ */
 interface RandomMapGeneratorModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** Callback function to generate and place the map. */
   onGenerateAndPlace: (data: { options: any; map: string[][] }) => void;
 }
 
+/**
+ * A modal dialog for generating a random map.
+ * It provides various options to customize the map generation process.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = ({ isOpen, onClose, onGenerateAndPlace }) => {
   const [numScreens, setNumScreens] = useState(10);
   const [numEnemies, setNumEnemies] = useState(5);
@@ -59,7 +74,12 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
     onClose();
   };
 
-  const generateMap = (options: any) => {
+  /**
+   * Generates a random map based on the provided options.
+   * @param options The options for map generation.
+   * @returns A 2D array representing the generated map.
+   */
+  const generateMap = (options: any): string[][] => {
     const { numScreens, numEnemies, numKeys, numSecretZones, numSpecialItems, hasFinalBoss, hasExitDoor, density, beginInCenter } = options;
 
     let screenTypes: string[] = [];
@@ -193,11 +213,11 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="randomMapModalTitle" className="text-xl text-msx-highlight mb-4">
-          Generar Mapa Aleatorio
+          Random Map Generator
         </h2>
         <div className="space-y-4 text-sm text-msx-textprimary mb-6">
           <div className="flex items-center justify-between">
-            <label>Número de pantallas:</label>
+            <label>Number of screens:</label>
             <input
               type="number"
               value={numScreens}
@@ -206,7 +226,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
             />
           </div>
           <div className="flex items-center justify-between">
-            <label>Número de enemigos:</label>
+            <label>Number of enemies:</label>
             <input
               type="number"
               value={numEnemies}
@@ -215,7 +235,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
             />
           </div>
           <div className="flex items-center justify-between">
-            <label>Número de llaves:</label>
+            <label>Number of keys:</label>
             <input
               type="number"
               value={numKeys}
@@ -224,7 +244,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
             />
           </div>
           <div className="flex items-center justify-between">
-            <label>Número de zonas secretas:</label>
+            <label>Number of secret zones:</label>
             <input
               type="number"
               value={numSecretZones}
@@ -233,7 +253,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
             />
           </div>
           <div className="flex items-center justify-between">
-            <label>Número de items especiales:</label>
+            <label>Number of special items:</label>
             <input
               type="number"
               value={numSpecialItems}
@@ -242,7 +262,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
             />
           </div>
           <div className="flex items-center justify-between">
-            <label>Jefe de final de fase:</label>
+            <label>Final Boss:</label>
             <input
               type="checkbox"
               checked={hasFinalBoss}
@@ -251,7 +271,7 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
             />
           </div>
           <div className="flex items-center justify-between">
-            <label>Puerta de salida de fase:</label>
+            <label>Exit Door:</label>
             <input
               type="checkbox"
               checked={hasExitDoor}
@@ -292,13 +312,13 @@ export const RandomMapGeneratorModal: React.FC<RandomMapGeneratorModalProps> = (
         </div>
         <div className="flex justify-end space-x-2">
           <Button onClick={onClose} variant="secondary">
-            Cancelar
+            Cancel
           </Button>
           <Button onClick={handleDownloadJson} variant="secondary">
-            Descargar JSON
+            Download JSON
           </Button>
           <Button onClick={handleGenerateAndPlaceClick} variant="primary">
-            Generar y Colocar
+            Generate and Place
           </Button>
         </div>
       </div>

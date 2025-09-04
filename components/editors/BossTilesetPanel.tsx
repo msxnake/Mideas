@@ -4,13 +4,24 @@ import { createTileDataURL } from '../utils/screenUtils';
 import { Button } from '../common/Button';
 import { EraserIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the BossTilesetPanel component.
+ */
 interface BossTilesetPanelProps {
+  /** A list of all available tile assets in the project. */
   allTiles: Tile[];
+  /** The ID of the currently selected tile. */
   selectedTileId: string | null;
+  /** Callback function to select a tile. */
   onSelectTile: (id: string | null) => void;
+  /** The current MSX screen mode. */
   currentScreenMode: string;
 }
 
+/**
+ * A panel that displays a list of available 8x8 tiles for building a boss.
+ * It allows the user to select a tile to place on the boss grid.
+ */
 export const BossTilesetPanel: React.FC<BossTilesetPanelProps> = ({
   allTiles,
   selectedTileId,

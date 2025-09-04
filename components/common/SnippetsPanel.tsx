@@ -7,15 +7,27 @@ import { Button } from './Button';
 import { CodeIcon, PlusCircleIcon, PencilIcon, TrashIcon } from '../icons/MsxIcons'; 
 import { Snippet } from '../../types'; // Import Snippet type
 
+/**
+ * Props for the SnippetsPanel component.
+ */
 interface SnippetsPanelProps {
+  /** The list of snippets to display. */
   snippets: Snippet[];
+  /** Callback function when a snippet is selected to be inserted. */
   onSnippetSelect: (snippet: Snippet) => void;
+  /** Callback function to open the snippet editor for a new snippet. */
   onAddSnippet: () => void;
+  /** Callback function to open the snippet editor for an existing snippet. */
   onEditSnippet: (snippet: Snippet) => void;
+  /** Callback function to delete a snippet. */
   onDeleteSnippet: (snippetId: string) => void;
+  /** Whether the snippets panel is enabled and should be visible. */
   isEnabled: boolean;
 }
 
+/**
+ * A panel that displays a list of code snippets, allowing for insertion, editing, and deletion.
+ */
 export const SnippetsPanel: React.FC<SnippetsPanelProps> = ({ 
   snippets, 
   onSnippetSelect, 

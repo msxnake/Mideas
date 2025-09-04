@@ -1,7 +1,12 @@
 
 import { EntityTemplate, ComponentDefinition, ProjectAsset } from '../../types';
 
-// Helper to sanitize names for ASM labels
+/**
+ * Sanitizes a string to be used as a valid assembly language label.
+ * @param name The string to sanitize.
+ * @param prefix An optional prefix to add to the label.
+ * @returns The sanitized assembly label.
+ */
 const toAsmLabel = (name: string, prefix: string = ''): string => {
     // Sanitize by replacing invalid characters, then make uppercase.
     // Removes extension like .asm from filenames.
@@ -10,6 +15,15 @@ const toAsmLabel = (name: string, prefix: string = ''): string => {
         .toUpperCase();
 }
 
+/**
+ * Generates an assembly file string for entity templates.
+ * This function creates the data structures needed by the game engine
+ * to instantiate entities based on defined templates.
+ * @param templates An array of entity templates.
+ * @param components An array of component definitions.
+ * @param allAssets An array of all project assets, used for resolving references.
+ * @returns A string containing the generated assembly code.
+ */
 export const generateTemplatesASM = (
     templates: EntityTemplate[], 
     components: ComponentDefinition[], 

@@ -2,12 +2,27 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../common/Button';
 
+/**
+ * Props for the {@link NewProjectModal} component.
+ * @category Modal
+ */
 interface NewProjectModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function when the user confirms the new project name. */
   onConfirm: (projectName: string) => void;
+  /** Callback function to close the modal. */
   onClose: () => void;
 }
 
+/**
+ * A modal dialog for creating a new project.
+ * It prompts the user to enter a name for the new project.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onConfirm, onClose }) => {
   const [projectName, setProjectName] = useState('');
   const [error, setError] = useState('');

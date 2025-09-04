@@ -4,13 +4,23 @@ import { HelpDocSection, HelpDocArticle } from '../../types';
 import { Panel } from '../common/Panel';
 import { QuestionMarkCircleIcon, CaretRightIcon, CaretDownIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the HelpSidebar component.
+ */
 interface HelpSidebarProps {
+  /** The sections of the help documentation to display. */
   sections: HelpDocSection[];
+  /** Callback function when an article is selected. */
   onSelectArticle: (articleId: string, sectionId: string) => void;
+  /** The ID of the currently active article. */
   activeArticleId: string | null;
+  /** The ID of the currently active section. */
   activeSectionId: string | null;
 }
 
+/**
+ * A sidebar component that displays a navigable list of help documentation sections and articles.
+ */
 const HelpSidebar: React.FC<HelpSidebarProps> = ({ sections, onSelectArticle, activeArticleId, activeSectionId }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
@@ -70,10 +80,17 @@ const HelpSidebar: React.FC<HelpSidebarProps> = ({ sections, onSelectArticle, ac
   );
 };
 
+/**
+ * Props for the ArticleViewer component.
+ */
 interface ArticleViewerProps {
+  /** The help article to display. */
   article: HelpDocArticle | null;
 }
 
+/**
+ * A component that displays the content of a single help article.
+ */
 const ArticleViewer: React.FC<ArticleViewerProps> = ({ article }) => {
   if (!article) {
     return (
@@ -95,10 +112,18 @@ const ArticleViewer: React.FC<ArticleViewerProps> = ({ article }) => {
 };
 
 
+/**
+ * Props for the HelpDocsViewer component.
+ */
 interface HelpDocsViewerProps {
+  /** The complete help documentation data, structured into sections and articles. */
   helpDocsData: HelpDocSection[];
 }
 
+/**
+ * A component that provides a viewer for help documentation,
+ * combining a sidebar for navigation and a content area for displaying articles.
+ */
 export const HelpDocsViewer: React.FC<HelpDocsViewerProps> = ({ helpDocsData }) => {
   const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);

@@ -15,12 +15,12 @@ const toHexByte = (num: number): string => {
 };
 
 /**
- * Generates ASM code for a single SCREEN 2 tile, including pattern and color attribute data.
- * Pattern data for all character blocks is output first, followed by color attribute data for all blocks.
- * @param tile The tile object.
- * @param tileName The name to use for labels in the ASM code.
- * @param dataFormat The format ('hex' or 'decimal') for numerical output.
- * @returns A string containing the ASM code.
+ * Generates assembly code for a single SCREEN 2 tile.
+ * The generated code includes pattern and color attribute data, formatted for use in an assembler.
+ * @param tile The tile object to generate code for.
+ * @param tileName The name to use for labels in the assembly code.
+ * @param dataFormat The format for numerical output ('hex' or 'decimal').
+ * @returns A string containing the generated assembly code.
  */
 export const generateTileASMCode = (
   tile: Tile,
@@ -127,12 +127,13 @@ export const generateTileASMCode = (
 };
 
 /**
- * Creates default line color attributes for a tile in SCREEN 2 mode.
+ * Creates a default set of line color attributes for a tile in SCREEN 2 mode.
+ * Each row is divided into segments, and each segment gets the specified default colors.
  * @param tileWidth The width of the tile in pixels.
  * @param tileHeight The height of the tile in pixels.
- * @param fgColor The default foreground color hex value.
- * @param bgColor The default background color hex value.
- * @returns A 2D array of LineColorAttribute objects.
+ * @param fgColor The default foreground color to apply.
+ * @param bgColor The default background color to apply.
+ * @returns A 2D array of LineColorAttribute objects representing the default color attributes.
  */
 export const createDefaultLineAttributes = (tileWidth: number, tileHeight: number, fgColor: MSX1ColorValue, bgColor: MSX1ColorValue): LineColorAttribute[][] => {
   const numSegmentsPerRow = Math.max(1, tileWidth / SCREEN2_PIXELS_PER_COLOR_SEGMENT); 
@@ -143,9 +144,13 @@ export const createDefaultLineAttributes = (tileWidth: number, tileHeight: numbe
 
 
 /**
- * Generates raw byte array for tile pattern data.
- * For SCREEN 2, uses lineAttributes to determine FG color for "on" pixels.
- * For other modes, treats any non-transparent color as "on".
+ * Generates a raw byte array for a tile's pattern data.
+ * The method of determining "on" pixels depends on the screen mode.
+ * In SCREEN 2, it's based on the foreground color of the line attribute.
+ * In other modes, any non-transparent pixel is considered "on".
+ * @param tile The tile to generate pattern data for.
+ * @param currentScreenMode The current MSX screen mode.
+ * @returns A Uint8Array containing the raw pattern data.
  */
 export const generateTilePatternBytes = (tile: Tile, currentScreenMode: string): Uint8Array => {
   const bytes: number[] = [];
@@ -227,8 +232,12 @@ const correctInvalidPixelsForScreen2 = (
 };
 
 /**
- * Rolls the tile data up by one pixel.
- * The top row is moved to the bottom.
+ * Rolls the tile's pixel data up by one pixel.
+ * The top row is moved to the bottom. For SCREEN 2, pixel colors are corrected if they become invalid in their new position.
+ * @param tileData The pixel data to shift.
+ * @param lineAttributes The line color attributes, used for SCREEN 2 color correction.
+ * @param screenMode The current MSX screen mode.
+ * @returns The shifted pixel data.
  */
 export const shiftTileDataUp = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
   const height = tileData.length;
@@ -244,8 +253,12 @@ export const shiftTileDataUp = (tileData: PixelData, lineAttributes: LineColorAt
 };
 
 /**
- * Rolls the tile data down by one pixel.
- * The bottom row is moved to the top.
+ * Rolls the tile's pixel data down by one pixel.
+ * The bottom row is moved to the top. For SCREEN 2, pixel colors are corrected if they become invalid in their new position.
+ * @param tileData The pixel data to shift.
+ * @param lineAttributes The line color attributes, used for SCREEN 2 color correction.
+ * @param screenMode The current MSX screen mode.
+ * @returns The shifted pixel data.
  */
 export const shiftTileDataDown = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
   const height = tileData.length;
@@ -261,8 +274,12 @@ export const shiftTileDataDown = (tileData: PixelData, lineAttributes: LineColor
 };
 
 /**
- * Rolls the tile data left by one pixel.
- * The leftmost column is moved to the right.
+ * Rolls the tile's pixel data left by one pixel.
+ * The leftmost column is moved to the right. For SCREEN 2, pixel colors are corrected if they become invalid in their new position.
+ * @param tileData The pixel data to shift.
+ * @param lineAttributes The line color attributes, used for SCREEN 2 color correction.
+ * @param screenMode The current MSX screen mode.
+ * @returns The shifted pixel data.
  */
 export const shiftTileDataLeft = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
   if (tileData.length === 0) return [];
@@ -281,8 +298,12 @@ export const shiftTileDataLeft = (tileData: PixelData, lineAttributes: LineColor
 };
 
 /**
- * Rolls the tile data right by one pixel.
- * The rightmost column is moved to the left.
+ * Rolls the tile's pixel data right by one pixel.
+ * The rightmost column is moved to the left. For SCREEN 2, pixel colors are corrected if they become invalid in their new position.
+ * @param tileData The pixel data to shift.
+ * @param lineAttributes The line color attributes, used for SCREEN 2 color correction.
+ * @param screenMode The current MSX screen mode.
+ * @returns The shifted pixel data.
  */
 export const shiftTileDataRight = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
   if (tileData.length === 0) return [];
@@ -302,7 +323,12 @@ export const shiftTileDataRight = (tileData: PixelData, lineAttributes: LineColo
 };
 
 /**
- * Mirrors the tile data horizontally (left to right).
+ * Mirrors the tile's pixel data horizontally (left to right).
+ * For SCREEN 2, pixel colors are corrected if they become invalid in their new position.
+ * @param tileData The pixel data to mirror.
+ * @param lineAttributes The line color attributes, used for SCREEN 2 color correction.
+ * @param screenMode The current MSX screen mode.
+ * @returns The mirrored pixel data.
  */
 export const mirrorTileDataHorizontal = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
   if (tileData.length === 0) return [];
@@ -316,7 +342,12 @@ export const mirrorTileDataHorizontal = (tileData: PixelData, lineAttributes: Li
 };
 
 /**
- * Mirrors the tile data vertically (top to bottom).
+ * Mirrors the tile's pixel data vertically (top to bottom).
+ * For SCREEN 2, pixel colors are corrected if they become invalid in their new position.
+ * @param tileData The pixel data to mirror.
+ * @param lineAttributes The line color attributes, used for SCREEN 2 color correction.
+ * @param screenMode The current MSX screen mode.
+ * @returns The mirrored pixel data.
  */
 export const mirrorTileDataVertical = (tileData: PixelData, lineAttributes: LineColorAttribute[][] | undefined, screenMode: string): PixelData => {
   if (tileData.length === 0) return [];
@@ -330,7 +361,10 @@ export const mirrorTileDataVertical = (tileData: PixelData, lineAttributes: Line
 };
 
 /**
- * Generates raw byte array for tile color attribute data (SCREEN 2 only).
+ * Generates a raw byte array for a tile's color attribute data (SCREEN 2 only).
+ * Each byte represents the foreground and background color for an 8-pixel segment of a row.
+ * @param tile The tile to generate color data for.
+ * @returns A Uint8Array containing the raw color attribute data, or null if the tile has no line attributes.
  */
 export const generateTileColorBytes = (tile: Tile): Uint8Array | null => {
   if (!tile.lineAttributes) return null;

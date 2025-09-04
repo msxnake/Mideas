@@ -4,13 +4,29 @@ import { MSXColor, MSXColorValue, MSX1Color } from '../../types';
 import { Panel } from '../common/Panel';
 // Fix: Import MSX1_PALETTE from ../../constants // Removed this line
 
+/**
+ * Props for the {@link PalettePanel} component.
+ * @category Tools
+ */
 interface PalettePanelProps {
-  palette: MSXColor[] | MSX1Color[]; // Can be MSX regular palette or MSX1 specific
+  /** The color palette to display (can be for SCREEN 2 or SCREEN 5). */
+  palette: MSXColor[] | MSX1Color[];
+  /** The currently selected color value. */
   selectedColor: MSXColorValue;
+  /** Callback function when a color is selected. */
   onColorSelect: (color: MSXColorValue) => void;
+  /** Whether the palette is for MSX1 (SCREEN 2). */
   isMsx1Palette?: boolean;
 }
 
+/**
+ * A panel that displays a color palette for selection.
+ * It can render either the 16-color MSX1 palette or the 4-color sprite palette.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tools
+ */
 export const PalettePanel: React.FC<PalettePanelProps> = ({ palette, selectedColor, onColorSelect, isMsx1Palette = false }) => {
   const title = isMsx1Palette ? "MSX1 Palette (SCREEN 2)" : "MSX Palette (SCREEN 5)";
   

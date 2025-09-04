@@ -31,20 +31,39 @@ import { OrnamentEditorModal } from '../tracker/OrnamentEditorModal';
 import { Panel } from '../common/Panel';
 
 
+/**
+ * Props for the {@link TrackerComposer} component.
+ * @category Editors
+ */
 interface TrackerComposerProps {
+  /** The song data object to be edited. */
   songData: TrackerSongData;
+  /** Callback function to update the song data. */
   onUpdate: (data: Partial<TrackerSongData>) => void;
 }
 
+/**
+ * A buffer for editing instrument data in a modal.
+ * @internal
+ */
 interface InstrumentModalBuffer extends Omit<Partial<PT3Instrument>, 'volumeEnvelope' | 'toneEnvelope'> {
     volumeEnvelope?: string;
     toneEnvelope?: string;
 }
 
+/**
+ * A buffer for editing ornament data in a modal.
+ * @internal
+ */
 interface OrnamentModalBuffer extends Omit<Partial<PT3Ornament>, 'data'> {
     data?: string;
 }
 
+/**
+ * Creates a sample song ("Ode to Joy") for demonstration purposes.
+ * @returns A complete TrackerSongData object for the sample song.
+ * @internal
+ */
 const createOdeToJoySampleSong = (): TrackerSongData => {
     const pianoInstrument: PT3Instrument = {
         id: 1,
@@ -146,6 +165,14 @@ const createOdeToJoySampleSong = (): TrackerSongData => {
 };
 
 
+/**
+ * The main component for the PT3-style music tracker editor.
+ * It orchestrates various sub-components for editing patterns, order lists, instruments, and ornaments.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Editors
+ */
 export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUpdate }) => {
   const [localSongName, setLocalSongName] = useState(songData.name);
   const [localSongTitle, setLocalSongTitle] = useState(songData.title || "");

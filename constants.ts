@@ -1,7 +1,12 @@
 import { MSXColor, MSX1Color, MSX1ColorValue, TileBank, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_FLAGS as EFFECT_ZONE_FLAGS_TYPE, MainMenuConfig } from './types';
 
+/** The current version of the application. */
 export const APP_VERSION = "0.19";
 
+/**
+ * The 16-color palette for MSX SCREEN 5.
+ * Used for sprite colors and general UI.
+ */
 export const MSX_SCREEN5_PALETTE: MSXColor[] = [
   { name: 'Transparent', hex: 'rgba(0,0,0,0)' }, 
   { name: 'Black', hex: '#000000' },
@@ -21,6 +26,10 @@ export const MSX_SCREEN5_PALETTE: MSXColor[] = [
   { name: 'White', hex: '#FFFFFF' },
 ];
 
+/**
+ * The 16-color palette for MSX1 (SCREEN 2).
+ * Each color has an associated index from 0 to 15.
+ */
 export const MSX1_PALETTE: MSX1Color[] = [
   { name: 'Transparent (Backdrop)', hex: 'rgba(0,0,0,0)', index: 0 }, 
   { name: 'Black', hex: '#000000', index: 1 },
@@ -41,19 +50,30 @@ export const MSX1_PALETTE: MSX1Color[] = [
 ];
 
 
+/** An array of allowed tile dimensions (width/height) in the tile editor. */
 export const EDITABLE_TILE_DIMENSIONS: number[] = [8, 16, 24, 32]; 
+/** The default width of a new tile. */
 export const DEFAULT_TILE_WIDTH = 16;
+/** The default height of a new tile. */
 export const DEFAULT_TILE_HEIGHT = 16;
 
+/** The default size (width and height) of a new sprite. */
 export const DEFAULT_SPRITE_SIZE = 16; 
+/** The default width of a new screen map, in tiles. */
 export const DEFAULT_SCREEN_WIDTH_TILES = 32; 
+/** The default height of a new screen map, in tiles. */
 export const DEFAULT_SCREEN_HEIGHT_TILES = 24;
-export const EDITOR_BASE_TILE_DIM_S2 = 8; // Added for Screen 2 character block size
-export const EMPTY_CELL_CHAR_CODE = 255; // Added this constant
+/** The base dimension (8x8) of a character block in SCREEN 2 mode. */
+export const EDITOR_BASE_TILE_DIM_S2 = 8;
+/** The character code used to represent an empty tile cell in exported data. */
+export const EMPTY_CELL_CHAR_CODE = 255;
 
+/** A list of available MSX screen modes. */
 export const SCREEN_MODES = ["SCREEN 0 (Text 40)", "SCREEN 1 (Text 32)", "SCREEN 2 (Graphics I)", "SCREEN 3 (Multicolor)", "SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)", "SCREEN 6 (Graphics IV)", "SCREEN 7 (Graphics V)", "SCREEN 8 (Graphics VI)"];
+/** The default screen mode for a new project. */
 export const DEFAULT_SCREEN_MODE = "SCREEN 2 (Graphics I)"; 
 
+/** A list of Z80 assembly mnemonics for syntax highlighting. */
 export const Z80_MNEMONICS = [
   "ADC", "ADD", "AND", "BIT", "CALL", "CCF", "CP", "CPD", "CPDR", "CPI", "CPIR",
   "CPL", "DAA", "DEC", "DI", "DJNZ", "EI", "EX", "EXX", "HALT", "IM", "IN", "INC",
@@ -62,13 +82,16 @@ export const Z80_MNEMONICS = [
   "RET", "RETI", "RETN", "RL", "RLA", "RLC", "RLCA", "RLD", "RR", "RRA", "RRC",
   "RRCA", "RRD", "RST", "SBC", "SCF", "SET", "SLA", "SLL", "SRA", "SRL", "SUB", "XOR"
 ];
+/** A list of Z80 registers for syntax highlighting. */
 export const Z80_REGISTERS = [
   "A", "F", "B", "C", "D", "E", "H", "L", "AF", "BC", "DE", "HL",
   "IXH", "IXL", "IYH", "IYL", "IX", "IY", "SP", "PC", "I", "R", "AF'"
 ];
+/** A list of Z80 condition codes for syntax highlighting. */
 export const Z80_CONDITIONS = [
   "NZ", "Z", "NC", "C", "PO", "PE", "P", "M"
 ];
+/** A list of Z80 assembler directives for syntax highlighting. */
 export const Z80_DIRECTIVES = [
   ".ORG", "ORG", "END", ".END", // Added variations for directives
   ".EQU", "EQU", 
@@ -85,45 +108,61 @@ export const Z80_DIRECTIVES = [
   ".ROM", ".MEGAROM", ".BASIC", ".CAS", ".WAV", ".MSXDOS" // Added asMSX output directives
 ];
 
-// The Z80 snippets are now located in the src/asm/snippets directory.
-// In a real application, you would likely have a build step or a dynamic loading
-// mechanism to populate these arrays from the file system.
+/** Default general-purpose Z80 snippets. This is populated dynamically. */
 export const Z80_SNIPPETS: Snippet[] = [];
+/** Default behavior-specific Z80 snippets. This is populated dynamically. */
 export const Z80_BEHAVIOR_SNIPPETS: Snippet[] = [];
 
 
+/** The width of a color segment in SCREEN 2 mode, in pixels. */
 export const SCREEN2_PIXELS_PER_COLOR_SEGMENT = 8;
+/** The default foreground color index for SCREEN 2. */
 export const DEFAULT_SCREEN2_FG_COLOR_INDEX = 15; // White
+/** The default background color index for SCREEN 2. */
 export const DEFAULT_SCREEN2_BG_COLOR_INDEX = 1;  // Black
+/** The default foreground color hex value for SCREEN 2. */
 export const DEFAULT_SCREEN2_FG_COLOR = MSX1_PALETTE.find(c => c.index === DEFAULT_SCREEN2_FG_COLOR_INDEX)?.hex || MSX1_PALETTE[15].hex;
+/** The default background color hex value for SCREEN 2. */
 export const DEFAULT_SCREEN2_BG_COLOR = MSX1_PALETTE.find(c => c.index === DEFAULT_SCREEN2_BG_COLOR_INDEX)?.hex || MSX1_PALETTE[1].hex;
 
-
+/** A Map from MSX1 color hex values to their MSX1Color object. */
 export const MSX1_PALETTE_MAP: Map<MSX1ColorValue, MSX1Color> = new Map(MSX1_PALETTE.map(c => [c.hex, c]));
+/** A Map from MSX1 color indices to their MSX1Color object. */
 export const MSX1_PALETTE_IDX_MAP: Map<number, MSX1Color> = new Map(MSX1_PALETTE.map(c => [c.index, c]));
+/** The default MSX1 color object (black). */
 export const MSX1_DEFAULT_COLOR: MSX1Color = MSX1_PALETTE[1]; // Default to black if lookup fails
 
 // --- PT3 Tracker Constants ---
-export const DEFAULT_PT3_ROWS_PER_PATTERN = 32; // Changed from 64 to 32
+/** The default number of rows for a new tracker pattern. */
+export const DEFAULT_PT3_ROWS_PER_PATTERN = 32;
+/** The default beats per minute for a new song. */
 export const DEFAULT_PT3_BPM = 125;
-export const DEFAULT_PT3_SPEED = 6; // Ticks per row
-export const PT3_MAX_PATTERNS = 100; // PT3 standard max patterns
+/** The default speed (ticks per row) for a new song. */
+export const DEFAULT_PT3_SPEED = 6;
+/** The maximum number of patterns allowed in a song. */
+export const PT3_MAX_PATTERNS = 100;
+/** The maximum number of instruments allowed in a song. */
 export const PT3_MAX_INSTRUMENTS = 31;
+/** The maximum number of ornaments allowed in a song. */
 export const PT3_MAX_ORNAMENTS = 15;
+/** The PSG channel identifiers. */
 export const PT3_CHANNELS = ['A', 'B', 'C'] as const;
 
+/** The names of notes in an octave for display. */
 export const PT3_NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
+/** A default vibrato table for instruments. */
 export const PT3_DEFAULT_VIBRATO_TABLE: number[] = [
   0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 
   7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0
 ];
-export const PT3_ORNAMENT_LENGTH = 32; // Bytes per ornament data block
-export const PT3_INSTRUMENT_DATA_SIZE = 68; // Bytes per instrument data block
+/** The fixed length of an ornament's data array. */
+export const PT3_ORNAMENT_LENGTH = 32;
+/** The size in bytes of a single instrument's data block in the PT3 format. */
+export const PT3_INSTRUMENT_DATA_SIZE = 68;
 
-// Keyboard mapping for piano-style input
-// Maps lowercase key character to { noteNameIndex (0-11 for C to B), baseOctave }
-// This layout is based on the final set of definitions from the original file,
-// resolving duplicate key errors by using the last specified mapping for each key.
+/**
+ * Defines the mapping of keyboard keys to musical notes for the tracker's piano input.
+ */
 export const PT3_PIANO_KEY_LAYOUT: Record<string, PianoKeyLayoutEntry> = {
   // Octave 5 (Q to P, then [, ])
   'q': { noteNameIndex: 0, baseOctave: 5}, 'w': {noteNameIndex: 1, baseOctave: 5}, 
@@ -159,11 +198,16 @@ export const PT3_PIANO_KEY_LAYOUT: Record<string, PianoKeyLayoutEntry> = {
 };
 
 
+/** The minimum and maximum allowed octave offset for the tracker keyboard. */
 export const PT3_KEYBOARD_OCTAVE_MIN_MAX = { min: -2, max: 2 };
 // --- End PT3 Tracker Constants ---
 
 
-// --- Tile Bank Constants (New) ---
+// --- Tile Bank Constants ---
+/**
+ * The default configuration for tile banks in a new project.
+ * Divides the screen into HUD, main game area, and status bar.
+ */
 export const DEFAULT_TILE_BANKS_CONFIG: TileBank[] = [
   {
     id: 'bank_hud',
@@ -211,6 +255,7 @@ export const DEFAULT_TILE_BANKS_CONFIG: TileBank[] = [
 // --- End Tile Bank Constants ---
 
 // --- Main Menu Constants ---
+/** The default configuration for the main menu editor. */
 export const DEFAULT_MAIN_MENU_CONFIG: MainMenuConfig = {
   isEnabled: true,
   options: [
@@ -251,14 +296,16 @@ export const DEFAULT_MAIN_MENU_CONFIG: MainMenuConfig = {
 // --- End Main Menu Constants ---
 
 // --- Effect Zone Constants ---
-// Re-export EFFECT_ZONE_FLAGS from types.ts for easier access
+/** Re-export of EFFECT_ZONE_FLAGS from `types.ts` for convenient access. */
 export const EFFECT_ZONE_FLAGS = EFFECT_ZONE_FLAGS_TYPE;
 // --- End Effect Zone Constants ---
 
 
 // --- Help & Documentation Constants ---
+/** System asset ID for the Help & Docs viewer. */
 export const HELP_DOCS_SYSTEM_ASSET_ID = "HELP_DOCS_SYSTEM_ASSET";
 
+/** The default content for the Help & Documentation viewer. */
 export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
   {
     id: "getting_started",
@@ -395,4 +442,5 @@ export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
 ];
 // --- End Help & Documentation Constants ---
 
+/** The maximum number of actions to store in the undo/redo history. */
 export const MAX_HISTORY_LENGTH = 50;

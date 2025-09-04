@@ -1,13 +1,24 @@
 import React from 'react';
 
+/**
+ * Props for the Button component.
+ */
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  /** The content of the button. */
   children: React.ReactNode;
+  /** The visual style of the button. */
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+  /** The size of the button. */
   size?: 'sm' | 'md' | 'lg';
+  /** An optional icon to display before the button text. */
   icon?: React.ReactNode;
+  /** The justification of the button's content. */
   justify?: 'start' | 'center' | 'end'; 
 }
 
+/**
+ * A customizable button component with different variants, sizes, and an optional icon.
+ */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(({ children, variant = 'primary', size = 'md', icon, className, justify = 'center', ...props }, ref) => {
   const baseStyle = "font-sans rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-msx-panelbg transition-all duration-150 ease-in-out flex items-center disabled:opacity-50 disabled:cursor-not-allowed";
   

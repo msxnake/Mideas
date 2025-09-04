@@ -5,17 +5,42 @@ import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 import { WorldMapGraph, ConnectionDirection, ScreenMap, DataFormat } from '../../types';
 
+/**
+ * Props for the {@link ExportWorldMapASMModal} component.
+ * @category Modal
+ */
 interface ExportWorldMapASMModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The world map graph data to be exported. */
   worldMapGraph: WorldMapGraph;
+  /** The list of available screen maps in the project. */
   availableScreenMaps: ScreenMap[];
+  /** The data format for the output ASM code (hex or decimal). */
   dataOutputFormat: DataFormat;
 }
 
+/**
+ * The default font size for the modal content.
+ * @constant
+ */
 const MODAL_DEFAULT_FONT_SIZE = 13;
+/**
+ * The line height multiplier for the modal content.
+ * @constant
+ */
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
+/**
+ * Generates Z80 assembly code for a world map graph.
+ *
+ * @param graph The world map graph data.
+ * @param availableScreenMaps The list of available screen maps.
+ * @param dataFormat The data format for the output (hex or decimal).
+ * @returns A string containing the generated assembly code.
+ */
 const generateWorldMapASMCode = (
   graph: WorldMapGraph,
   availableScreenMaps: ScreenMap[],
@@ -106,6 +131,15 @@ const generateWorldMapASMCode = (
 };
 
 
+/**
+ * A modal dialog for exporting a world map as Z80 assembly code.
+ * This component displays the generated assembly code for the world map data,
+ * provides options to copy the code to the clipboard or download it as a .asm file.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const ExportWorldMapASMModal: React.FC<ExportWorldMapASMModalProps> = ({
   isOpen,
   onClose,

@@ -2,13 +2,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../common/Button';
 
+/**
+ * Props for the {@link SaveAsModal} component.
+ * @category Modal
+ */
 interface SaveAsModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
-  currentName: string; // Default/current project name suggestion
+  /** The current name of the project, used as a suggestion. */
+  currentName: string;
+  /** Callback function when the user confirms the new filename. */
   onConfirm: (newFilename: string) => void;
+  /** Callback function to close the modal. */
   onClose: () => void;
 }
 
+/**
+ * A modal dialog for saving the project with a new filename.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const SaveAsModal: React.FC<SaveAsModalProps> = ({
   isOpen,
   currentName,

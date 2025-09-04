@@ -4,30 +4,70 @@ import { Button } from '../common/Button';
 import { MSXColorValue, SpriteFrame, PixelData, Sprite } from '../../types'; 
 import { MSX_SCREEN5_PALETTE } from '../../constants'; // Corrected import path
 
+/**
+ * Defines the configuration for importing a sprite.
+ */
 export interface SpriteImportConfig {
+  /** The width of a single frame in pixels. */
   frameWidth: number;
+  /** The height of a single frame in pixels. */
   frameHeight: number;
+  /** The 4-color palette selected for the sprite. */
   selectedPalette: MSXColorValue[];
+  /** The color from the palette to be treated as transparent. */
   transparentColor: MSXColorValue;
 }
 
+/**
+ * Props for the {@link SpriteImportConfigModal} component.
+ * @category Modal
+ */
 interface SpriteImportConfigModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The ImageData object of the image to be imported. */
   imageData: ImageData | null;
+  /** Callback function when the user confirms the import settings. */
   onImportConfirm: (newSpriteData: Omit<Sprite, 'id' | 'name'>) => void;
 }
 
-// Helper to convert RGB to Hex
+/**
+ * Helper function to convert RGB color values to a hex string.
+ * @param r - The red component (0-255).
+ * @param g - The green component (0-255).
+ * @param b - The blue component (0-255).
+ * @returns The hex color string (e.g., "#RRGGBB").
+ * @internal
+ */
 const rgbToHex = (r: number, g: number, b: number): string => {
   return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
 };
 
-// Simple Euclidean distance for color comparison
+/**
+ * Calculates the Euclidean distance between two RGB colors.
+ * @param r1 - Red component of the first color.
+ * @param g1 - Green component of the first color.
+ * @param b1 - Blue component of the first color.
+ * @param r2 - Red component of the second color.
+ * @param g2 - Green component of the second color.
+ * @param b2 - Blue component of the second color.
+ * @returns The distance between the two colors.
+ * @internal
+ */
 const colorDistance = (r1:number,g1:number,b1:number, r2:number,g2:number,b2:number) => {
     return Math.sqrt(Math.pow(r1-r2,2) + Math.pow(g1-g2,2) + Math.pow(b1-b2,2));
 };
 
+/**
+ * A modal dialog for configuring the import of a sprite from a PNG image.
+ * It allows the user to define frame sizes, select a 4-color palette, and choose a transparent color.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const SpriteImportConfigModal: React.FC<SpriteImportConfigModalProps> = ({
   isOpen,
   onClose,

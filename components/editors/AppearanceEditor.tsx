@@ -5,13 +5,24 @@ import { Button } from '../common/Button';
 import ColorPicker from '../theme_config/ColorPicker';
 import AssetPickerModal from '../modals/AssetPickerModal';
 
+/**
+ * Props for the AppearanceEditor component.
+ */
 interface AppearanceEditorProps {
+  /** The current appearance settings for the main menu. */
   appearance: MainMenuAppearance;
+  /** Callback function to update the appearance settings. */
   onAppearanceChange: (newAppearance: MainMenuAppearance) => void;
+  /** The entire game data object, used for asset picking. */
   gameData: GameData;
+  /** Callback function to set the current screen to be edited. */
   setScreenToEdit: (screen: GameScreen) => void;
 }
 
+/**
+ * A component for editing the visual appearance of the main menu,
+ * including background screen, cursor sprite, and colors.
+ */
 const AppearanceEditor: React.FC<AppearanceEditorProps> = ({
   appearance,
   onAppearanceChange,

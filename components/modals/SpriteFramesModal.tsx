@@ -3,13 +3,25 @@ import { ProjectAsset, Sprite } from '../../types';
 import { Button } from '../common/Button';
 import { createSpriteDataURL } from '../utils/screenUtils';
 
+/**
+ * Props for the {@link SpriteFramesModal} component.
+ * @category Modal
+ */
 interface SpriteFramesModalProps {
+    /** Whether the modal is currently open. */
     isOpen: boolean;
+    /** Callback function to close the modal. */
     onClose: () => void;
+    /** Callback function to split the sprite frames into individual sprite assets. */
     onSplit: (spriteAsset: ProjectAsset) => void;
+    /** The sprite asset whose frames are to be displayed. */
     spriteAsset: ProjectAsset | null;
 }
 
+/**
+ * A component to display a preview of a single sprite frame.
+ * @internal
+ */
 const FramePreview: React.FC<{ sprite: Sprite; frameIndex: number }> = ({ sprite, frameIndex }) => {
     const frame = sprite.frames[frameIndex];
     if (!frame) return null;
@@ -29,7 +41,13 @@ const FramePreview: React.FC<{ sprite: Sprite; frameIndex: number }> = ({ sprite
     );
 };
 
-
+/**
+ * A modal dialog for viewing all frames of a sprite and optionally splitting them into individual sprites.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const SpriteFramesModal: React.FC<SpriteFramesModalProps> = ({ isOpen, onClose, onSplit, spriteAsset }) => {
     if (!isOpen || !spriteAsset) return null;
 

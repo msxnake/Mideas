@@ -6,8 +6,13 @@ import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 
+/**
+ * Props for the ComponentDefinitionEditor component.
+ */
 interface ComponentDefinitionEditorProps {
+  /** The current list of component definitions. */
   componentDefinitions: ComponentDefinition[];
+  /** Callback to update the list of component definitions. */
   onUpdateComponentDefinitions: (updatedDefinitions: ComponentDefinition[]) => void;
 }
 
@@ -16,6 +21,10 @@ const PROPERTY_TYPES: ComponentPropertyDefinition['type'][] = [
   'sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref'
 ];
 
+/**
+ * A full-screen editor for creating, updating, and deleting component definitions.
+ * These definitions act as blueprints for components in an Entity-Component-System (ECS) architecture.
+ */
 export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps> = ({
   componentDefinitions,
   onUpdateComponentDefinitions,

@@ -3,9 +3,15 @@
 import React from 'react';
 import { Z80_MNEMONICS, Z80_REGISTERS, Z80_CONDITIONS, Z80_DIRECTIVES } from '../../constants';
 
+/**
+ * Props for the Z80SyntaxHighlighter component.
+ */
 interface Z80SyntaxHighlighterProps {
+  /** The Z80 assembly code to display. */
   code: string;
+  /** The font size for the editor. */
   editorFontSize: number;
+  /** The line height for the editor. */
   editorLineHeight: number;
 }
 
@@ -29,6 +35,11 @@ const registerOrAccumulatorRegexPart = `(?:${registersRegexStr}|A)`;
 const ioPattern1Regex = new RegExp(`\\b(OUT|IN)\\s*\\(\\s*(${portValueRegexPart})\\s*\\)\\s*,\\s*(${registerOrAccumulatorRegexPart})\\b`, 'gi');
 const ioPattern2Regex = new RegExp(`\\b(OUT|IN)\\s*(${registerOrAccumulatorRegexPart})\\s*,\\s*\\(\\s*(${portValueRegexPart})\\s*\\)\\b`, 'gi');
 
+/**
+ * Highlights a single line of Z80 assembly code by wrapping syntax elements in styled spans.
+ * @param segment The line of code to highlight.
+ * @returns An HTML string with syntax highlighting.
+ */
 const highlightSegment = (segment: string): string => {
   let line = segment.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -143,6 +154,10 @@ const highlightSegment = (segment: string): string => {
 };
 
 
+/**
+ * A component that provides syntax highlighting for Z80 assembly code.
+ * It uses regex to identify different parts of the code and wraps them in styled spans.
+ */
 export const Z80SyntaxHighlighter = React.forwardRef<HTMLPreElement, Z80SyntaxHighlighterProps>(
   ({ code, editorFontSize, editorLineHeight }, ref) => {
     const lines = code.split('\n');

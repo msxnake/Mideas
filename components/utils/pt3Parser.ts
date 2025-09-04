@@ -24,6 +24,14 @@ const createPlaceholderPattern = (index: number): TrackerPattern => ({
   rows: Array(DEFAULT_PT3_ROWS_PER_PATTERN).fill(null).map(() => createEmptyRow()),
 });
 
+/**
+ * Parses a PT3 file from an ArrayBuffer into a partial TrackerSongData object.
+ * This is a simplified parser focusing on basic structure and metadata.
+ * It creates placeholder data for instruments and ornaments.
+ * @param arrayBuffer The ArrayBuffer containing the PT3 file data.
+ * @returns A partial TrackerSongData object with the parsed information.
+ * @throws An error if the file is too small to be a valid PT3 file.
+ */
 export const parsePT3File = (arrayBuffer: ArrayBuffer): Partial<TrackerSongData> => {
   const view = new DataView(arrayBuffer);
   const textDecoder = new TextDecoder('ascii');

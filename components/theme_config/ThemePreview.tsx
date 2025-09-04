@@ -4,10 +4,22 @@ import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { TilesetIcon, PlayIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the {@link ThemePreview} component.
+ * @category Theme
+ */
 interface ThemePreviewProps {
+  /** A record of the effective color keys and their hex values. */
   effectiveColors: Record<ColorKeys, string>;
 }
 
+/**
+ * A component that displays a live preview of the current theme settings.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Theme
+ */
 const ThemePreview: React.FC<ThemePreviewProps> = ({ effectiveColors }) => {
   // Create a style object for the preview elements
   const previewStyle = {

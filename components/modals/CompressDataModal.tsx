@@ -3,13 +3,23 @@ import { Button } from '../common/Button';
 import { ProjectAsset } from '../../types';
 import ZX0CompressorUI from '../../src/components/compression/ZX0CompressorUI';
 
+/**
+ * Props for the CompressDataModal component.
+ */
 interface CompressDataModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The list of assets that can be compressed. */
   assets: ProjectAsset[];
+  /** Callback function when the compress button is clicked, passing the selected asset IDs. */
   onCompress: (selectedAssetIds: string[]) => void;
 }
 
+/**
+ * A modal dialog for selecting assets to compress using the ZX0 algorithm.
+ */
 export const CompressDataModal: React.FC<CompressDataModalProps> = ({
   isOpen,
   onClose,

@@ -14,20 +14,41 @@ import { BossPreviewModal } from '../modals/BossPreviewModal';
 
 import { CopiedBossPhaseData } from '../../types';
 
+/**
+ * Props for the BossEditor component.
+ */
 interface BossEditorProps {
+    /** The boss asset data being edited. */
     boss: Boss;
+    /** Callback to update the boss data. Can also create new assets, like tiles. */
     onUpdate: (data: Partial<Boss>, newAssetsToCreate?: ProjectAsset[]) => void;
+    /** A list of all project assets. */
     allAssets: ProjectAsset[];
+    /** A list of all configured tile banks. */
     tileBanks: TileBank[];
+    /** Callback to navigate to a different asset editor. */
     onNavigateToAsset: (assetId: string | null, editorTypeOverride?: EditorType) => void;
+    /** Callback to display a context menu. */
     onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
+    /** The current MSX screen mode. */
     currentScreenMode: string;
+    /** The current zoom level for the editor canvas. */
     zoom: number;
+    /** Callback to set the zoom level. */
     setZoom: (zoom: number) => void;
+    /** The currently copied boss phase data for paste operations. */
     copiedBossPhase: CopiedBossPhaseData | null;
+    /** Callback to set the copied boss phase data. */
     setCopiedBossPhase: (data: CopiedBossPhaseData | null) => void;
 }
 
+/**
+ * A small component to render a preview of a sprite's first frame.
+ * @param {object} props - The component props.
+ * @param {string} props.spriteAssetId - The ID of the sprite asset to preview.
+ * @param {ProjectAsset[]} props.allAssets - The list of all project assets to find the sprite from.
+ * @returns A React component displaying the sprite preview.
+ */
 const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[] }> = ({ spriteAssetId, allAssets }) => {
     const asset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
     if (!asset) return <div className="w-6 h-6 bg-msx-panelbg border border-dashed border-msx-border flex-shrink-0 flex items-center justify-center text-xs text-msx-danger">?</div>;
@@ -54,6 +75,11 @@ const SpritePreview: React.FC<{ spriteAssetId: string; allAssets: ProjectAsset[]
 
 type BossEditMode = 'tiles' | 'collision' | 'weakpoints';
 
+/**
+ * A comprehensive editor for creating and managing multi-phase boss entities.
+ * It includes a grid for tile-based construction, property editors for phases and attacks,
+ * and panels for managing the boss's structure and tileset.
+ */
 export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAssets, tileBanks, onNavigateToAsset, onShowContextMenu, currentScreenMode, zoom, setZoom, copiedBossPhase, setCopiedBossPhase }) => {
     
     const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(boss.phases[0]?.id || null);

@@ -5,8 +5,13 @@ import { PT3_NOTE_NAMES } from '../../constants';
 
 const AY_CLOCK_FREQUENCY = 3579545 / 2; // Approx 1.7897725 MHz for MSX
 
+/**
+ * Represents the state of a hardware envelope for a channel.
+ */
 interface HardwareEnvelopeState {
+    /** The envelope shape (0-15). */
     shape: number;
+    /** The envelope period setting. */
     periodSetting: number;
     periodCounter: number;
     stepCounter: number;
@@ -19,19 +24,36 @@ interface HardwareEnvelopeState {
     peakVolumeRatio: number; 
 }
 
+/**
+ * Represents the state of a software volume envelope for a channel.
+ */
 interface SoftwareVolumeEnvelopeState {
+    /** The volume envelope data points. */
     envelope: number[];
+    /** The loop position in the envelope. */
     loopPosition?: number;
+    /** The current step in the envelope. */
     currentStep: number;
 }
 
+/**
+ * Represents the state of an ornament for a channel.
+ */
 interface OrnamentState {
+    /** The ornament data. */
     ornament: PT3Ornament;
+    /** The current step in the ornament. */
     currentStep: number;
+    /** The tick counter for ornament speed. */
     tickCounter: number;
 }
 
 
+/**
+ * Emulates the AY-3-8910 sound chip to play tracker music in the browser.
+ * This class manages audio context, oscillators, noise generation, and envelopes
+ * to synthesize sound based on tracker data.
+ */
 export class AYSynthesizer {
     private audioContext: AudioContext | null = null;
     private masterGain: GainNode | null = null;
@@ -59,11 +81,18 @@ export class AYSynthesizer {
     private channelBaseVolumeForEffects: number[] = [15, 15, 15]; // Default full volume
     private channelActiveInstrument: (PT3Instrument | null)[] = [null, null, null]; // Tracks the last set instrument
 
-
+    /**
+     * Creates an instance of the AYSynthesizer.
+     * @param initialMasterVolume The initial master volume, a value between 0.0 and 1.0.
+     */
     constructor(initialMasterVolume: number = 0.5) {
         this.currentMasterVolume = Math.max(0, Math.min(initialMasterVolume, 1.0));
     }
 
+    /**
+     * Sets the tracker song data to be used by the synthesizer.
+     * @param songData The tracker song data.
+     */
     public setSongData(songData: TrackerSongData): void {
         this.songDataRef = songData;
     }
@@ -79,6 +108,11 @@ export class AYSynthesizer {
         return AY_CLOCK_FREQUENCY / (16 * period);
     }
 
+    /**
+     * Ensures the AudioContext is initialized and ready to play sound.
+     * This method should be called before any sound can be played.
+     * @returns A promise that resolves to true if the audio context is ready, false otherwise.
+     */
     public async ensureAudioContext(): Promise<boolean> {
         if (!this.isInitialized) {
             try {
@@ -210,7 +244,16 @@ export class AYSynthesizer {
         this.noiseSources[channel] = noiseSourceNode;
     }
 
-
+    /**
+     * Plays a note on a specific channel with the given parameters.
+     * This is the main method for triggering sounds in the synthesizer.
+     * @param channel The channel to play the note on (0, 1, or 2).
+     * @param noteStringFromCell The note to play (e.g., "C-4", "---" for keep, "===" for cut).
+     * @param instrumentIdFromCell The ID of the instrument to use.
+     * @param ornamentIdFromCell The ID of the ornament to use.
+     * @param volumeFromCell The volume to set (0-15).
+     * @returns A promise that resolves when the note has been processed.
+     */
     public async playNote(
         channel: 0 | 1 | 2, 
         noteStringFromCell: string | null,
@@ -450,6 +493,10 @@ export class AYSynthesizer {
         this.channelMainGains[channel]!.gain.setTargetAtTime(Math.max(0, Math.min(finalGainRatio, 1.0)), this.audioContext.currentTime, 0.005); 
     }
 
+    /**
+     * Sets the master volume for the synthesizer.
+     * @param volumeLevel The volume level, a value between 0.0 and 1.0.
+     */
     public setMasterVolume(volumeLevel: number): void {
         this.currentMasterVolume = Math.max(0, Math.min(volumeLevel, 1.0));
         if (this.masterGain && this.audioContext) {
@@ -457,6 +504,9 @@ export class AYSynthesizer {
         }
     }
 
+    /**
+     * Stops all currently playing notes on all channels.
+     */
     public stopAllNotes(): void {
         for (let i = 0; i < 3; i++) {
             const ch = i as 0 | 1 | 2;
@@ -477,6 +527,9 @@ export class AYSynthesizer {
         }
     }
 
+    /**
+     * Closes the audio context and releases all resources.
+     */
     public async closeContext(): Promise<void> {
         this.stopAllNotes();
         if (this.effectsUpdateIntervalId !== null) {

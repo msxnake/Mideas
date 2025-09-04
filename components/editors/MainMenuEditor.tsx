@@ -8,39 +8,37 @@ import { ExportMainMenuASMModal } from '../modals/ExportMainMenuASMModal';
 import { generateMainMenuASM } from '../utils/mainMenuUtils';
 import { MainMenuPreviewModal } from '../modals/MainMenuPreviewModal';
 import { MSX1_PALETTE } from '../../constants';
-
-
-interface MainMenuEditorProps {
-    mainMenuConfig: MainMenuConfig;
-    onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
-    allAssets: ProjectAsset[];
-    msxFont: any;
-    msxFontColorAttributes: any;
-    currentScreenMode: string;
-}
-
-type MainMenuTab = 'Design' | 'Appearance' | 'Keys' | 'Settings' | 'Continue' | 'Intro';
-
-import { MSX1_PALETTE } from '../../constants';
 import { InlineColorPicker } from '../common/InlineColorPicker';
 
 
+/**
+ * Props for the MainMenuEditor component.
+ */
 interface MainMenuEditorProps {
+    /** The current configuration of the main menu. */
     mainMenuConfig: MainMenuConfig;
+    /** Callback to update the main menu configuration. */
     onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
+    /** A list of all project assets. */
     allAssets: ProjectAsset[];
+    /** The MSX font data for rendering text previews. */
     msxFont: any;
+    /** The font color attributes for SCREEN 2 mode. */
     msxFontColorAttributes: any;
+    /** The current MSX screen mode. */
     currentScreenMode: string;
 }
 
 type MainMenuTab = 'Design' | 'Appearance' | 'Keys' | 'Settings' | 'Continue' | 'Intro';
 
+/**
+ * A component for capturing a key press for key mapping settings.
+ */
 const KeyInput: React.FC<{ label: string; value: string; onSet: () => void; isListening: boolean }> = ({ label, value, onSet, isListening }) => (
-    <div class="flex items-center justify-between p-2 bg-msx-bgcolor rounded">
-        <span class="text-msx-textprimary">{label}:</span>
-        <div class="flex items-center space-x-2">
-            <span class="text-msx-cyan font-mono w-24 text-center border border-msx-border rounded px-2 py-1">
+    <div className="flex items-center justify-between p-2 bg-msx-bgcolor rounded">
+        <span className="text-msx-textprimary">{label}:</span>
+        <div className="flex items-center space-x-2">
+            <span className="text-msx-cyan font-mono w-24 text-center border border-msx-border rounded px-2 py-1">
                 {isListening ? '...' : value}
             </span>
             <Button onClick={onSet} size="sm" variant="secondary">{isListening ? 'Listening...' : 'Set Key'}</Button>
@@ -48,46 +46,10 @@ const KeyInput: React.FC<{ label: string; value: string; onSet: () => void; isLi
     </div>
 );
 
-const InlineColorPicker: React.FC<{ label: string, color: MSX1ColorValue; onChange: (color: MSX1ColorValue) => void; }> = ({ label, color, onChange }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const pickerRef = useRef<HTMLDivElement>(null);
-  
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-          setIsOpen(false);
-        }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-  
-    return (
-        <div className="flex items-center justify-between p-2 bg-msx-bgcolor rounded relative">
-            <span className="text-msx-textprimary">{label}:</span>
-            <Button onClick={() => setIsOpen(o => !o)} size="sm" variant="ghost" className="flex items-center space-x-2">
-                <div className="w-5 h-5 rounded border border-msx-border" style={{ backgroundColor: color }}></div>
-                <span className="text-msx-textsecondary">{color}</span>
-            </Button>
-            {isOpen && (
-                <div ref={pickerRef} className="absolute z-20 top-full right-0 mt-1 bg-msx-panelbg border border-msx-border rounded shadow-lg p-2">
-                    <div className="grid grid-cols-8 gap-1">
-                        {MSX1_PALETTE.map(c => (
-                            <button
-                                key={c.index}
-                                className={`w-6 h-6 rounded border-2 ${color === c.hex ? 'border-white ring-1 ring-white' : 'border-transparent'}`}
-                                style={{ backgroundColor: c.hex }}
-                                onClick={() => { onChange(c.hex); setIsOpen(false); }}
-                                title={`${c.name} (${c.index})`}
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
+/**
+ * A comprehensive editor for configuring the game's main menu.
+ * It uses a tabbed interface to separate different aspects of the menu's configuration.
+ */
 export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, onUpdateMainMenuConfig, allAssets, msxFont, msxFontColorAttributes, currentScreenMode }) => {
     const [activeTab, setActiveTab] = useState<MainMenuTab>('Design');
     const [listeningForKey, setListeningForKey] = useState<keyof MainMenuKeyMapping | null>(null);

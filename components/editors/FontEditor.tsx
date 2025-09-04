@@ -18,18 +18,33 @@ const PIXEL_OFF_COLOR = '#000000';
 const PREVIEW_PIXEL_ON_COLOR = '#74D07D'; 
 const PREVIEW_PIXEL_OFF_COLOR = '#1A1A2E'; 
 
+/**
+ * Props for the FontEditor component.
+ */
 interface FontEditorProps {
+  /** The font data object, mapping char codes to pattern data. */
   fontData: MSXFont;
+  /** Callback to update the font pattern data. */
   onUpdateFont: (newFont: MSXFont) => void;
+  /** The font color attributes for SCREEN 2 mode. */
   fontColorAttributes: MSXFontColorAttributes;
+  /** Callback to update the font color attributes. */
   onUpdateFontColorAttributes: (newFontColors: MSXFontColorAttributes) => void;
+  /** The current MSX screen mode. */
   currentScreenMode: string;
-  selectedColor: MSX1ColorValue; // From the main MSX1Palette if in SCREEN 2
+  /** The currently selected color from the main palette. */
+  selectedColor: MSX1ColorValue;
+  /** The data format for exporting to ASM. */
   dataOutputFormat: DataFormat; 
 }
 
+/**
+ * A component that displays a scaled preview of a single character pattern.
+ */
 const SingleCharPreview: React.FC<{ 
+    /** The character pattern data to display. */
     pattern: MSXCharacterPattern | undefined; 
+    /** The scaling factor for the preview. */
     scale: number; 
     isSelected?: boolean;
     rowColors?: MSXFontRowColorAttributes; // Added for SCREEN 2

@@ -5,20 +5,42 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, CaretRightIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the {@link PatternOrderPanel} component.
+ * @category Tracker
+ */
 interface PatternOrderPanelProps {
+  /** The list of pattern indices that defines the song's order. */
   order: number[];
+  /** The list of all available patterns. */
   patterns: TrackerPattern[];
+  /** The index of the currently active step in the order list. */
   currentPatternIndexInOrder: number;
+  /** Callback function when a pattern in the order list is changed. */
   onOrderListChange: (orderIndex: number, newPatternArrayIndex: number) => void;
+  /** Callback function to change the currently active step in the order list. */
   onCurrentPatternIndexInOrderChange: (newIndex: number) => void;
+  /** Callback function to add a new step to the order list. */
   onAddPatternToOrder: () => void;
+  /** Callback function to remove a step from the order list. */
   onRemovePatternFromOrder: (orderIndex: number) => void;
+  /** The total length of the song in patterns. */
   lengthInPatterns: number;
+  /** Callback function to change the song length. */
   onLengthInPatternsChange: (value: number | string) => void;
+  /** The position in the order list where the song will loop back to. */
   restartPosition: number;
+  /** Callback function to change the restart position. */
   onRestartPositionChange: (value: number | string) => void;
 }
 
+/**
+ * A panel that displays and allows editing of the song's pattern order.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tracker
+ */
 export const PatternOrderPanel: React.FC<PatternOrderPanelProps> = ({
   order, patterns, currentPatternIndexInOrder,
   onOrderListChange, onCurrentPatternIndexInOrderChange,

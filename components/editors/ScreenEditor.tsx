@@ -23,42 +23,82 @@ import { ScreenPreviewModal } from '../modals/ScreenPreviewModal';
 
 const SCREEN_EDITOR_BASE_TILE_DIM_OTHER = 16;
 
+/**
+ * Props for the ScreenEditor component.
+ */
 interface ScreenEditorProps {
+  /** The screen map asset data to be edited. */
   screenMap: ScreenMap;
+  /** Callback to update the screen map data. Can also create new assets. */
   onUpdate: (data: Partial<ScreenMap>, newAssetsToCreate?: ProjectAsset[]) => void;
+  /** The tileset available for the editor. */
   tileset: Tile[];
+  /** A list of all sprite assets. */
   sprites: ProjectAsset[];
+  /** The ID of the currently selected tile for drawing. */
   selectedTileId: string | null;
+  /** Callback to set the selected tile ID. */
   setSelectedTileId: (id: string | null) => void;
+  /** The entity template currently selected for placement. */
   currentEntityTypeToPlace: EntityTemplate | null; 
+  /** The current MSX screen mode. */
   currentScreenMode: string;
+  /** The tile banks configuration for SCREEN 2 mode. */
   tileBanks?: TileBank[];
+  /** The MSX font data for rendering text elements. */
   msx1FontData: MSXFont;
+  /** The font color attributes for SCREEN 2 mode. */
   msxFontColorAttributes: MSXFontColorAttributes;
+  /** The data format for exporting to ASM. */
   dataOutputFormat: DataFormat;
+  /** The ID of the currently selected entity instance. */
   selectedEntityInstanceId: string | null;
+  /** Callback to set the selected entity instance ID. */
   onSelectEntityInstance: (id: string | null) => void;
+  /** The ID of the currently selected effect zone. */
   selectedEffectZoneId: string | null; 
+  /** Callback to set the selected effect zone ID. */
   onSelectEffectZone: (id: string | null) => void; 
+  /** The copied screen data buffer for paste operations. */
   copiedScreenBuffer: CopiedScreenData | null;
+  /** Callback to set the copied screen data buffer. */
   setCopiedScreenBuffer: (buffer: CopiedScreenData | null) => void;
+  /** A list of all project assets. */
   allProjectAssets: ProjectAsset[];
+  /** The copied layer data buffer for paste operations. */
   copiedLayerBuffer: CopiedLayerData | null; 
+  /** Callback to set the copied layer data buffer. */
   setCopiedLayerBuffer: (buffer: CopiedLayerData | null) => void; 
+  /** Callback to set a message in the status bar. */
   setStatusBarMessage: (message: string) => void; 
+  /** Optional callback when the active layer changes. */
   onActiveLayerChange?: (layer: ScreenEditorLayerName) => void;
+  /** The list of all component definitions. */
   componentDefinitions: ComponentDefinition[];
+  /** A list of all entity templates. */
   entityTemplates: EntityTemplate[];
+  /** Callback to show the generated map file. */
   onShowMapFile: () => void;
+  /** Callback to navigate to a different asset editor. */
   onNavigateToAsset: (assetId: string) => void;
+  /** Callback to show a context menu. */
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
+  /** The state of the waypoint picker. */
   waypointPickerState: { isPicking: boolean; waypointPrefix: 'waypoint1' | 'waypoint2'; };
+  /** Callback for when a waypoint is picked. */
   onWaypointPicked: (point: Point) => void;
+  /** The current zoom level of the editor. */
   zoom: number;
+  /** Callback to set the zoom level. */
   setZoom: (zoom: number) => void;
 }
 
 
+/**
+ * A comprehensive editor for creating and modifying screen maps.
+ * It integrates a grid for tile placement, a tileset panel, tool selection,
+ * and layer management for background, collision, and entities.
+ */
 export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     screenMap, onUpdate, tileset, sprites, selectedTileId, setSelectedTileId, currentEntityTypeToPlace,
     currentScreenMode, tileBanks, msx1FontData, msxFontColorAttributes, dataOutputFormat,

@@ -5,13 +5,28 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, PencilIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the {@link OrnamentsPanel} component.
+ * @category Tracker
+ */
 interface OrnamentsPanelProps {
+  /** The list of ornaments in the song. */
   ornaments: PT3Ornament[];
-  activeOrnamentId: number | null; // New prop
-  onSetActiveOrnamentId: (id: number | null) => void; // New prop
+  /** The ID of the currently active ornament. */
+  activeOrnamentId: number | null;
+  /** Callback function to set the active ornament. */
+  onSetActiveOrnamentId: (id: number | null) => void;
+  /** Callback function to open the ornament editor modal. */
   onOpenOrnamentModal: (ornament: PT3Ornament | null) => void;
 }
 
+/**
+ * A panel that displays the list of ornaments in a tracker song.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tracker
+ */
 export const OrnamentsPanel: React.FC<OrnamentsPanelProps> = ({
   ornaments, activeOrnamentId, onSetActiveOrnamentId, onOpenOrnamentModal
 }) => {

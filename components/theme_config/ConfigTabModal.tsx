@@ -5,11 +5,21 @@ import ThemePreview from './ThemePreview';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel'; // Re-using Panel for structure
 
+/**
+ * Props for the {@link ConfigTabModal} component.
+ * @category Theme
+ */
 interface ConfigTabModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
 }
 
+/**
+ * An array of objects representing the themeable color keys and their labels.
+ * @constant
+ */
 const THEMEABLE_COLOR_KEYS: { key: ColorKeys; label: string }[] = [
   { key: 'bgcolor', label: 'Main Background' },
   { key: 'panelbg', label: 'Panel Background' },
@@ -22,7 +32,15 @@ const THEMEABLE_COLOR_KEYS: { key: ColorKeys; label: string }[] = [
   { key: 'warning', label: 'Warning Color' },
 ];
 
-
+/**
+ * A modal dialog for configuring the application's theme.
+ * It allows switching between light, dark, and custom themes,
+ * customizing colors, and importing/exporting theme configurations.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Theme
+ */
 export const ConfigTabModal: React.FC<ConfigTabModalProps> = ({ isOpen, onClose }) => {
   const { config, setThemeMode, updateCustomColor, resetToDefault, loadConfig, getEffectiveColors } = useTheme();
   const fileInputRef = React.useRef<HTMLInputElement>(null);

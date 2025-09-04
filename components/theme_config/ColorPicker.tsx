@@ -1,18 +1,35 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+/**
+ * Props for the {@link ColorPicker} component.
+ * @category Theme
+ */
 interface ColorPickerProps {
+  /** The current color value (e.g., '#RRGGBB'). */
   color: string;
+  /** Callback function when the color changes. */
   onChange: (color: string) => void;
+  /** An optional label to display next to the color picker. */
   label?: string;
 }
 
+/**
+ * A list of preset colors for the color picker.
+ * @constant
+ */
 const PRESET_COLORS: string[] = [
   '#22272E', '#2D333B', '#58A6FF', '#3FB950', '#C9D1D9', '#8B949E', '#444C56', '#F85149', '#F0A832', // Dark theme defaults
   '#F3F4F6', '#FFFFFF', '#3B82F6', '#10B981', '#1F2937', '#6B7280', '#D1D5DB', // Light theme defaults
   '#EF4444', '#F59E0B', '#EC4899', '#8B5CF6', '#0EA5E9', '#6366F1' // Extra accents
 ];
 
-
+/**
+ * A color picker component with a text input, a color swatch, and a pop-up picker with presets.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Theme
+ */
 const ColorPicker: React.FC<ColorPickerProps> = ({ color, onChange, label }) => {
   const [inputValue, setInputValue] = useState(color);
   const [isPickerOpen, setIsPickerOpen] = useState(false);

@@ -8,21 +8,43 @@ import { createTileDataURL } from '../utils/screenUtils';
 import { Button } from '../common/Button';
 import { EraserIcon } from '../icons/MsxIcons';
 
-
+/**
+ * Props for the {@link ScreenTilesetPanel} component.
+ * @category ScreenEditor
+ */
 interface ScreenTilesetPanelProps {
+  /** The currently active layer in the editor. */
   activeLayer: 'background' | 'collision' | 'effects' | 'entities';
+  /** The tileset available for the screen. */
   tileset: Tile[];
+  /** The ID of the currently selected tile. */
   selectedTileId: string | null;
+  /** Callback function to set the selected tile ID. */
   setSelectedTileId: (id: string | null) => void;
+  /** The current screen mode. */
   currentScreenMode: string;
+  /** The base dimension of a tile in the editor. */
   editorBaseTileDim: number;
+  /** The currently active screen editor tool. */
   currentScreenTool: ScreenEditorTool;
+  /** Callback function to set the active screen editor tool. */
   onSetScreenTool: (tool: ScreenEditorTool) => void;
-  effectZones: EffectZone[]; // New prop
-  selectedEffectZoneId: string | null; // New prop
-  onSelectEffectZone: (id: string | null) => void; // New prop
+  /** An array of effect zones for the current screen. */
+  effectZones: EffectZone[];
+  /** The ID of the currently selected effect zone. */
+  selectedEffectZoneId: string | null;
+  /** Callback function to select an effect zone. */
+  onSelectEffectZone: (id: string | null) => void;
 }
 
+/**
+ * A panel that displays the tileset for the screen editor, allowing tile selection and tool activation.
+ * It also displays a list of effect zones when the 'effects' layer is active.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category ScreenEditor
+ */
 export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
   activeLayer,
   tileset,

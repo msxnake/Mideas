@@ -9,17 +9,37 @@ import {
     createEmptyCell
 } from '../utils/trackerUtils'; 
 
+/**
+ * Props for the {@link PatternEditorGrid} component.
+ * @category Tracker
+ */
 interface PatternEditorGridProps {
+  /** The pattern data to display and edit. */
   currentPattern: TrackerPattern;
+  /** The currently focused cell's coordinates, or null. */
   focusedCell: { rowIndex: number; channelId: PT3ChannelId; field: keyof TrackerCell } | null;
+  /** Whether the song is currently playing. */
   isPlaying: boolean;
+  /** The current row being highlighted during playback. */
   playbackRow: number;
+  /** Callback function when a cell's value changes. */
   onCellChange: (rowIndex: number, channelId: PT3ChannelId, field: keyof TrackerCell, inputValue: string | number | null) => void;
+  /** Callback function when a cell receives focus. */
   onCellFocus: (rowIndex: number, channelId: PT3ChannelId, field: keyof TrackerCell) => void;
+  /** Callback for keydown events on the grid. */
   onGridKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  /** A ref to the main grid container for focusing. */
   patternEditorRef: React.RefObject<HTMLDivElement>;
 }
 
+/**
+ * A grid component for editing a single pattern in the tracker.
+ * It displays rows of note, instrument, ornament, and volume data for each channel.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tracker
+ */
 export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
   currentPattern,
   focusedCell,

@@ -2,9 +2,10 @@
 import { MSXFont, MSXCharacterPattern, MSX1ColorValue, MSXFontColorAttributes, MSXFontRowColorAttributes } from '../../types';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants'; // Added MSX1_PALETTE for defaults
 
-// A very small sample MSX-like font.
-// In a real scenario, this would be loaded from the user's JSON file.
-// Character patterns are 8 bytes (8 rows of 8 pixels).
+/**
+ * A default MSX-style font for rendering text.
+ * This is a small sample and would typically be replaced by user-loaded font data.
+ */
 export const DEFAULT_MSX_FONT: MSXFont = {
   // ASCII Char Code: Pattern (Array of 8 bytes)
   32: [0, 0, 0, 0, 0, 0, 0, 0], // Space
@@ -29,12 +30,18 @@ export const DEFAULT_MSX_FONT: MSXFont = {
 const CHAR_WIDTH = 8;
 const CHAR_HEIGHT = 8;
 
+/**
+ * A subset of character codes that are easily editable in the UI.
+ */
 export const EDITABLE_CHAR_CODES_SUBSET: { code: number, display: string }[] = [
   { code: 32, display: 'Spc' },
   ...Array.from({ length: 10 }, (_, i) => ({ code: 48 + i, display: String(i) })), // 0-9
   ...Array.from({ length: 26 }, (_, i) => ({ code: 65 + i, display: String.fromCharCode(65 + i) })), // A-Z
 ];
 
+/**
+ * An array of all 256 character codes, suitable for use in a character selector UI.
+ */
 export const ALL_CHAR_CODES_FOR_SELECTOR = Array.from({ length: 256 }, (_, i) => {
     const editableEntry = EDITABLE_CHAR_CODES_SUBSET.find(ec => ec.code === i);
     return {

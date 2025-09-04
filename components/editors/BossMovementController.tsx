@@ -4,16 +4,30 @@ import { createTileDataURL } from '../utils/screenUtils';
 
 type BossEditMode = 'tiles' | 'collision' | 'weakpoints';
 
+/**
+ * Props for the BossMovementController component.
+ */
 interface BossMovementControllerProps {
+    /** The current boss phase being edited. */
     phase: BossPhase;
+    /** The tileset available for building the boss. */
     tileset: Tile[];
+    /** The current editing mode ('tiles', 'collision', or 'weakpoints'). */
     editMode: BossEditMode;
+    /** Callback for when a grid cell is clicked. */
     onGridClick: (x: number, y: number) => void;
+    /** Callback for when a grid cell is right-clicked. */
     onGridContextMenu: (event: React.MouseEvent, x: number, y: number) => void;
+    /** The current zoom level of the editor. */
     zoom: number;
+    /** Whether to show a warning about unassigned tiles. */
     showUnassignedTilesWarning: boolean;
 }
 
+/**
+ * A component that provides the main grid-based editor for constructing a boss phase.
+ * It handles the display of tiles, collision data, and weak points based on the current edit mode.
+ */
 export const BossMovementController: React.FC<BossMovementControllerProps> = ({
     phase,
     tileset,

@@ -3,15 +3,32 @@ import React from 'react';
 import VirtualPiano from '../common/VirtualPiano';
 import { Button } from '../common/Button';
 
+/**
+ * Props for the {@link TrackerPianoControls} component.
+ * @category Tracker
+ */
 interface TrackerPianoControlsProps {
+  /** A set of currently pressed keys to be highlighted on the virtual piano. */
   pressedKeys: Set<string>;
+  /** The current octave offset for keyboard input. */
   keyboardOctaveOffset: number;
+  /** Callback function when a key on the virtual piano is pressed. */
   onPianoKeyPress: (noteName: string) => void;
+  /** Callback function to change the octave offset. */
   onOctaveChange: (newOffset: number | ((prevOffset: number) => number)) => void;
+  /** The minimum allowed octave offset. */
   minOctave: number;
+  /** The maximum allowed octave offset. */
   maxOctave: number;
 }
 
+/**
+ * A component that provides a virtual piano and octave controls for the tracker.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tracker
+ */
 export const TrackerPianoControls: React.FC<TrackerPianoControlsProps> = ({
   pressedKeys, keyboardOctaveOffset, onPianoKeyPress, onOctaveChange, minOctave, maxOctave
 }) => {

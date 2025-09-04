@@ -8,14 +8,32 @@ import { normalizeImportedPT3Data } from '../utils/trackerUtils';
 import { generateTrackerSongASM } from '../utils/pt3AsmExport';
 import { SaveFloppyIcon, FolderOpenIcon, CodeIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the {@link PT3FileOperationsModal} component.
+ * @category Modal
+ */
 interface PT3FileOperationsModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The current song data. */
   songData: TrackerSongData;
+  /** Callback function to load new song data. */
   onLoadSongData: (newData: TrackerSongData, fileName?: string) => void;
+  /** The name of the current song. */
   currentSongName: string;
 }
 
+/**
+ * A modal dialog for handling file operations related to PT3 tracker songs.
+ * This includes saving and loading songs in JSON format, importing .pt3 files,
+ * and exporting the song data as assembly code.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const PT3FileOperationsModal: React.FC<PT3FileOperationsModalProps> = ({
   isOpen,
   onClose,

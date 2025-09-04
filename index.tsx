@@ -1,3 +1,7 @@
+/**
+ * @file The main entry point for the React application.
+ * This file is responsible for rendering the root `App` component into the DOM.
+ */
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';

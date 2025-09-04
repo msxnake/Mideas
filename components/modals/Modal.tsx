@@ -1,12 +1,27 @@
 import React, { useRef } from 'react';
 
+/**
+ * Props for the {@link Modal} component.
+ * @category Modal
+ */
 interface ModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The title of the modal. */
   title: string;
+  /** The content of the modal. */
   children: React.ReactNode;
 }
 
+/**
+ * A generic modal component.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 

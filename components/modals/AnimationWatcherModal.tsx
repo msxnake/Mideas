@@ -6,17 +6,32 @@ import { Panel } from '../common/Panel';
 import { createSpriteDataURL } from '../utils/screenUtils';
 import { MSX_SCREEN5_PALETTE, EDITOR_BASE_TILE_DIM_S2, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
 
+/**
+ * Props for the AnimationWatcherModal component.
+ */
 interface AnimationWatcherModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The sprite to be animated and watched. */
   sprite: Sprite;
+  /** A list of all project assets, used for background selection. */
   allAssets: ProjectAsset[];
+  /** The current MSX screen mode. */
   currentScreenMode: string;
 }
 
 const PREVIEW_WIDTH = 256;
 const PREVIEW_HEIGHT = 192;
 
+/**
+ * Renders a screen map to a data URL, suitable for use as a background image.
+ * @param screenMap The screen map to render.
+ * @param tileset The tileset to use for rendering.
+ * @param currentScreenMode The current MSX screen mode.
+ * @returns A data URL string representing the rendered screen.
+ */
 const renderScreenToDataURL = (screenMap: ScreenMap, tileset: Tile[], currentScreenMode: string): string => {
     const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
     const baseSliceDim = EDITOR_BASE_TILE_DIM_S2;
@@ -93,6 +108,10 @@ const renderScreenToDataURL = (screenMap: ScreenMap, tileset: Tile[], currentScr
 };
 
 
+/**
+ * A modal dialog for previewing sprite animations in a simulated environment.
+ * It provides controls for animation speed, movement, and background selection.
+ */
 export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
   isOpen,
   onClose,
