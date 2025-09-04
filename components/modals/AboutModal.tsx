@@ -3,11 +3,19 @@ import React from 'react';
 import { Button } from '../common/Button';
 import { APP_VERSION } from '../../constants';
 
+/**
+ * Props for the AboutModal component.
+ */
 interface AboutModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
 }
 
+/**
+ * A modal dialog that displays information about the application.
+ */
 export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 

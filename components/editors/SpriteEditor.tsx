@@ -13,15 +13,28 @@ import { SpriteImportConfigModal, SpriteImportConfig } from '../modals/SpriteImp
 import { AnimationWatcherModal } from '../modals/AnimationWatcherModal';
 
 
+/**
+ * Props for the {@link SpriteEditor} component.
+ * @category Editors
+ */
 interface SpriteEditorProps {
+  /** The sprite asset currently being edited. */
   sprite: Sprite;
+  /** Callback to update the sprite asset. */
   onUpdate: (data: Partial<Sprite>) => void;
+  /** Callback after a sprite is successfully imported from a PNG. */
   onSpriteImported: (newSpriteData: Omit<Sprite, 'id' | 'name'>) => void;
+  /** Callback to create a new sprite asset from a single frame of the current sprite. */
   onCreateSpriteFromFrame: (spriteAssetId: string, frameIndex: number) => void;
+  /** The color currently selected in the main MSX palette. */
   globalSelectedColor: MSXColorValue; 
+  /** The data format for ASM output. */
   dataOutputFormat: DataFormat; 
+  /** A list of all project assets. */
   allAssets: ProjectAsset[];
+  /** The current screen mode. */
   currentScreenMode: string;
+  /** Callback to open the sprite sheet reordering modal. */
   onOpenSpriteSheetModal: () => void;
 }
 
@@ -31,6 +44,10 @@ const createEmptySpriteFrameData = (width: number, height: number, fillColor: MS
   return Array(height).fill(null).map(() => Array(width).fill(fillColor));
 };
 
+/**
+ * Props for the {@link SpritePixelGrid} component.
+ * @internal
+ */
 interface SpritePixelGridProps {
   pixelData: PixelData;
   onPixelClick?: (point: Point, isRightClick: boolean) => void; 
@@ -43,10 +60,13 @@ interface SpritePixelGridProps {
   prevFrameData?: PixelData | null;
   nextFrameData?: PixelData | null;
   backgroundColor: MSXColorValue;
-  toolMode?: SpriteToolMode; // Added for tool-specific behavior
+  toolMode?: SpriteToolMode;
 }
 
-
+/**
+ * A component that renders a semi-transparent layer for onion skinning.
+ * @internal
+ */
 const OnionSkinLayer: React.FC<{ pixelData: PixelData; pixelSize: number; spriteWidth: number; spriteHeight: number; opacity: number; backgroundColor: MSXColorValue }> = ({ pixelData, pixelSize, spriteWidth, spriteHeight, opacity, backgroundColor }) => {
   if (!pixelData) return null;
   return (
@@ -80,6 +100,10 @@ const OnionSkinLayer: React.FC<{ pixelData: PixelData; pixelSize: number; sprite
 };
 
 
+/**
+ * An interactive pixel grid component for drawing sprites.
+ * @internal
+ */
 const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({ 
     pixelData, onPixelClick, pixelSize = 10, spriteWidth, spriteHeight, className = "",
     onionSkinEnabled, onionSkinOpacity = 0.3, prevFrameData, nextFrameData, backgroundColor,
@@ -193,6 +217,15 @@ interface ActiveFragment {
 }
 
 
+/**
+ * The main editor component for creating and modifying sprite assets.
+ * It includes a pixel grid for drawing, frame management tools, animation previews,
+ * and property editors for size, palette, and attributes.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Editors
+ */
 export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, onSpriteImported, onCreateSpriteFromFrame, globalSelectedColor, dataOutputFormat, allAssets, currentScreenMode, onOpenSpriteSheetModal }) => {
   const [localSpriteName, setLocalSpriteName] = useState(sprite.name);
   const [pixelSize, setPixelSize] = useState(sprite.size.width > 16 ? 10 : 16);

@@ -25,44 +25,92 @@ import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons/MsxIcons';
 import { StateMachine } from '../../statemachine.types';
 
+/** The size of a tile in pixels. @constant */
 const TILE_SIZE = 8;
+/** The width of the preview canvas in pixels. @constant */
 const PREVIEW_WIDTH = 256;
+/** The height of the preview canvas in pixels. @constant */
 const PREVIEW_HEIGHT = 192;
+/** The speed of the animation in milliseconds per frame. @constant */
 const ANIMATION_SPEED_MS = 200;
 
+/**
+ * Represents an entity being animated in the preview.
+ * @internal
+ */
 interface AnimatedEntity {
+    /** The entity instance from the screen map. */
     instance: EntityInstance;
+    /** The entity template. */
     template: EntityTemplate;
+    /** The sprite associated with the entity. */
     sprite: Sprite;
+    /** The current x position in pixels. */
     x: number;
+    /** The current y position in pixels. */
     y: number;
+    /** The current velocity on the x-axis. */
     vx: number;
+    /** The current velocity on the y-axis. */
     vy: number;
+    /** The pre-rendered frame images for the animation. */
     frameImages: HTMLImageElement[];
+    /** The pre-rendered mirrored frame images for the animation. */
     mirroredFrameImages?: HTMLImageElement[];
+    /** The index of the current animation frame. */
     currentFrame: number;
+    /** The timestamp of the last frame update. */
     lastFrameUpdateTime: number;
+    /** The state machine associated with the entity, if any. */
     stateMachine?: StateMachine;
+    /** The name of the current state in the state machine. */
     currentState?: string;
 }
 
+/**
+ * Props for the {@link GameFlowPreviewModal} component.
+ * @category Modal
+ */
 interface GameFlowPreviewModalProps {
+    /** Whether the modal is currently open. */
     isOpen: boolean;
+    /** Callback function to close the modal. */
     onClose: () => void;
+    /** The game flow graph data to preview. */
     graphData: GameFlowGraph;
+    /** A list of all project assets. */
     allAssets: ProjectAsset[];
+    /** The MSX font data. */
     msxFont: MSXFont;
+    /** The color attributes for the MSX font. */
     msxFontColorAttributes: MSXFontColorAttributes;
+    /** A list of all entity templates in the project. */
     entityTemplates: EntityTemplate[];
+    /** The current screen mode (e.g., 'screen2'). */
     currentScreenMode: string;
+    /** A list of all component definitions in the project. */
     componentDefinitions: ComponentDefinition[];
+    /** The initial state of the 'dynamic' toggle. */
     initialIsDynamic?: boolean;
 }
 
+/**
+ * Extends a world map connection with the target node ID for easier access.
+ * @internal
+ */
 interface EnrichedConnection extends WorldMapConnection {
     targetNodeId: string;
 }
 
+/**
+ * A modal dialog for previewing the game flow.
+ * This component provides an interactive simulation of the game's flow,
+ * allowing the user to navigate through menus and world maps.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     isOpen,
     onClose,

@@ -4,6 +4,9 @@ import { Button } from '../../common/Button';
 import { StateMachineEvent, StateMachineEventName, StateMachineInputType } from '../../../statemachine.types';
 import { TrashIcon } from '../../icons/MsxIcons';
 
+/**
+ * A list of preset event names for common state machine triggers.
+ */
 const PRESET_EVENTS: StateMachineEventName[] = [
   'walk', 'run', 'jump', 'attack', 'shoot', 'fall', 'right', 'left', 'up', 'down', 'Spc', 'Enter', 'Tab', 'Shift', 'Ctrl', 'Alt',
   'collision_wall', 'collision_floor', 'collision_enemy', 'collision_item', 'timer_expired', 'animation_finished',
@@ -12,12 +15,22 @@ const PRESET_EVENTS: StateMachineEventName[] = [
 
 const INPUT_TYPES: StateMachineInputType[] = ['key', 'system_action', 'collision'];
 
+/**
+ * Props for the EventsPanel component.
+ */
 interface EventsPanelProps {
+  /** The list of events in the state machine. */
   events: StateMachineEvent[];
+  /** Callback to create a new event. */
   onCreateEvent: (name: string, type: StateMachineInputType) => void;
+  /** Callback to delete an event by its ID. */
   onDeleteEvent: (id: string) => void;
 }
 
+/**
+ * A panel for managing the events of a state machine.
+ * It allows users to create new events (custom or from presets) and delete existing ones.
+ */
 export const EventsPanel: React.FC<EventsPanelProps> = ({ events, onCreateEvent, onDeleteEvent }) => {
   const [newEventName, setNewEventName] = useState('');
   const [newEventType, setNewEventType] = useState<StateMachineInputType>('key');

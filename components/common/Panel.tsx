@@ -1,14 +1,26 @@
 import React from 'react';
 
+/**
+ * Props for the Panel component.
+ */
 interface PanelProps {
+  /** The title displayed in the panel's header. */
   title: string;
+  /** The content to be displayed inside the panel. */
   children: React.ReactNode;
+  /** Optional additional CSS classes for the panel container. */
   className?: string;
+  /** Optional additional CSS classes for the panel title. */
   titleClassName?: string;
+  /** An optional icon to display next to the title. */
   icon?: React.ReactNode;
+  /** Optional buttons or other elements to display in the header. */
   headerButtons?: React.ReactNode;
 }
 
+/**
+ * A general-purpose panel component with a header and content area.
+ */
 export const Panel: React.FC<PanelProps> = ({ title, children, className = '', titleClassName = '', icon, headerButtons }) => {
   return (
     <div className={`bg-msx-panelbg border border-msx-border rounded-md shadow-lg flex flex-col ${className}`}>

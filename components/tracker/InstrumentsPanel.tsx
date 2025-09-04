@@ -5,13 +5,28 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, PencilIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the {@link InstrumentsPanel} component.
+ * @category Tracker
+ */
 interface InstrumentsPanelProps {
+  /** The list of instruments in the song. */
   instruments: PT3Instrument[];
+  /** The ID of the currently active instrument. */
   activeInstrumentId: number | null;
+  /** Callback function to set the active instrument. */
   onSetActiveInstrumentId: (id: number | null) => void;
+  /** Callback function to open the instrument editor modal. */
   onOpenInstrumentModal: (instrument: PT3Instrument | null) => void;
 }
 
+/**
+ * A panel that displays the list of instruments in a tracker song.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tracker
+ */
 export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
   instruments, activeInstrumentId, onSetActiveInstrumentId, onOpenInstrumentModal
 }) => {

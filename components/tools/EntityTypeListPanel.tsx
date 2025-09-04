@@ -4,12 +4,26 @@ import { Panel } from '../common/Panel';
 import { EntityTemplate } from '../../types'; // Changed from MockEntityType
 import { SpriteIcon } from '../icons/MsxIcons'; 
 
+/**
+ * Props for the {@link EntityTypeListPanel} component.
+ * @category Tools
+ */
 interface EntityTypeListPanelProps {
-  entityTypes: EntityTemplate[]; // Changed from MockEntityType[]
+  /** A list of all available entity templates. */
+  entityTypes: EntityTemplate[];
+  /** The ID of the currently selected entity template for placement. */
   selectedEntityTypeId: string | null;
-  onSelectEntityType: (entityType: EntityTemplate | null) => void; // Changed
+  /** Callback function when an entity template is selected for placement. */
+  onSelectEntityType: (entityType: EntityTemplate | null) => void;
 }
 
+/**
+ * A panel that displays a list of available entity templates for placement in the screen editor.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tools
+ */
 export const EntityTypeListPanel: React.FC<EntityTypeListPanelProps> = ({
   entityTypes,
   selectedEntityTypeId,

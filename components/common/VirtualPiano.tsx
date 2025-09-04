@@ -2,11 +2,18 @@
 import React from 'react';
 import { PT3_NOTE_NAMES } from '../../constants'; // Assuming PT3_NOTE_NAMES: ["C-", "C#", ..., "B-"]
 
+/**
+ * Props for the VirtualPiano component.
+ */
 interface VirtualPianoProps {
-  pressedKeys: Set<string>; // Set of note strings like "C-4", "C#4"
-  baseDisplayOctave?: number; // The starting octave to display (e.g., 3)
-  numOctavesToDisplay?: number; // How many octaves to show (e.g., 3)
-  onPianoKeyPress?: (noteName: string) => void; // Optional: For clickable piano
+  /** A set of note strings (e.g., "C-4") that are currently pressed. */
+  pressedKeys: Set<string>;
+  /** The starting octave to display on the piano. */
+  baseDisplayOctave?: number;
+  /** The number of octaves to display. */
+  numOctavesToDisplay?: number;
+  /** Optional callback function when a piano key is pressed. */
+  onPianoKeyPress?: (noteName: string) => void;
 }
 
 const WHITE_KEY_WIDTH = 30; // pixels
@@ -26,6 +33,9 @@ interface PianoKeyInfo {
   label: string; // e.g. "C", "C#"
 }
 
+/**
+ * A visual piano component that can display pressed keys and handle key presses.
+ */
 export const VirtualPiano: React.FC<VirtualPianoProps> = ({
   pressedKeys,
   baseDisplayOctave = 3,

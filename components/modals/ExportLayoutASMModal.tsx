@@ -5,14 +5,25 @@ import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter'; 
 import { DataFormat } from '../../types'; 
 
+/**
+ * Props for the ExportLayoutASMModal component.
+ */
 interface ExportLayoutASMModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The name of the map. */
   mapName: string;
+  /** The width of the map in tiles. */
   mapWidth: number;
+  /** The height of the map in tiles. */
   mapHeight: number;
+  /** The map layout data, as an array of tile indices. */
   mapIndices: number[];
+  /** Optional comments providing context for tile indices. */
   referenceComments: string[];
+  /** The data format for exporting to ASM. */
   dataFormat: DataFormat; 
 }
 
@@ -21,6 +32,16 @@ const MODAL_DEFAULT_FONT_SIZE = 13;
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
 
+/**
+ * Generates Z80 assembly code for a screen map layout.
+ * @param mapName The name of the map.
+ * @param mapWidth The width of the map in tiles.
+ * @param mapHeight The height of the map in tiles.
+ * @param mapIndices The map layout data, as an array of tile indices.
+ * @param referenceComments Optional comments providing context for tile indices.
+ * @param dataFormat The data format for exporting to ASM.
+ * @returns A string containing the generated assembly code.
+ */
 const generateASMCode = (
   mapName: string,
   mapWidth: number,
@@ -51,6 +72,9 @@ const generateASMCode = (
   return asmString;
 };
 
+/**
+ * A modal dialog for exporting a screen map layout as Z80 assembly code or a binary file.
+ */
 export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
   isOpen,
   onClose,

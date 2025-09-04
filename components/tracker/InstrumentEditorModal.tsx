@@ -4,23 +4,47 @@ import { PT3Instrument } from '../../types';
 import { Button } from '../common/Button';
 import { PT3_MAX_INSTRUMENTS, PT3_DEFAULT_VIBRATO_TABLE } from '../../constants';
 
-// This mirrors the InstrumentModalBuffer type definition from TrackerComposer
+/**
+ * A buffer type for the instrument editor modal. It mirrors the PT3Instrument type
+ * but keeps envelope data as strings for easier editing in text inputs.
+ * @internal
+ */
 interface InstrumentModalBuffer extends Omit<Partial<PT3Instrument>, 'volumeEnvelope' | 'toneEnvelope'> {
+    /** The volume envelope as a comma-separated string. */
     volumeEnvelope?: string;
+    /** The tone envelope as a comma-separated string. */
     toneEnvelope?: string;
 }
 
+/**
+ * Props for the {@link InstrumentEditorModal} component.
+ * @category Tracker
+ */
 interface InstrumentEditorModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The instrument being edited, or null if creating a new one. */
   editingInstrument: PT3Instrument | null;
+  /** The buffer holding the current state of the instrument being edited. */
   instrumentModalBuffer: InstrumentModalBuffer;
+  /** Callback to update the instrument buffer. */
   onInstrumentModalBufferChange: (field: keyof InstrumentModalBuffer, value: any) => void;
+  /** Callback to submit the changes. */
   onSubmit: () => void;
 }
 
+/**
+ * The types of predefined instruments available as templates.
+ * @internal
+ */
 type PredefinedInstrumentType = "Custom" | "Piano" | "Soft Piano" | "Banjo" | "Violin" | "Synth Lead" | "Bass" | "Random";
 
+/**
+ * A record of predefined instrument templates.
+ * @constant
+ */
 const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<InstrumentModalBuffer>> = {
     "Custom": {}, // Placeholder for manual editing
     "Piano": {
@@ -67,6 +91,11 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
 };
 
 
+/**
+ * Generates a set of random properties for a PT3 instrument.
+ * @returns A partial instrument buffer with randomized values.
+ * @internal
+ */
 const generateRandomInstrumentData = (): Partial<InstrumentModalBuffer> => {
     const randomInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
     const randomBool = (probabilityTrue = 0.5) => Math.random() < probabilityTrue;
@@ -98,7 +127,13 @@ const generateRandomInstrumentData = (): Partial<InstrumentModalBuffer> => {
     };
 };
 
-
+/**
+ * A modal dialog for editing a PT3 instrument's properties.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tracker
+ */
 export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
   isOpen,
   onClose,

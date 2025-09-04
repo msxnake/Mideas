@@ -3,19 +3,34 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 
+/**
+ * Props for the ExportPletterModal component.
+ */
 interface ExportPletterModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The name of the map. */
   mapName: string;
+  /** The width of the map in tiles. */
   mapWidth: number;
+  /** The height of the map in tiles. */
   mapHeight: number;
+  /** The compressed map data, as an array of bytes. */
   pletterDataBytes: number[];
+  /** A list of tile parts and their corresponding byte values. */
   tilePartReferences: { byteValue: number; tileId: string; subTileX?: number; subTileY?: number, name?: string }[];
 }
 
 const BYTES_PER_LINE = 16;
 const RLE_MARKER_PLETTER_DISPLAY = 201; // Decimal value for RLE marker (0xC9)
 
+/**
+ * Formats an array of bytes into a comma-separated string with line breaks.
+ * @param bytes The array of bytes to format.
+ * @returns A formatted string of decimal byte values.
+ */
 const formatDecimalBytesForDisplay = (bytes: number[]): string => {
   let decimalString = '';
   for (let i = 0; i < bytes.length; i += BYTES_PER_LINE) {
@@ -25,6 +40,15 @@ const formatDecimalBytesForDisplay = (bytes: number[]): string => {
   return decimalString;
 };
 
+/**
+ * Generates Z80 assembly code for a Pletter-compressed map.
+ * @param mapName The name of the map.
+ * @param mapWidth The width of the map in tiles.
+ * @param mapHeight The height of the map in tiles.
+ * @param pletterDataBytes The Pletter-compressed map data.
+ * @param tilePartReferences A list of tile parts and their corresponding byte values.
+ * @returns A string containing the generated assembly code.
+ */
 const generatePletterASMCode = (
   mapName: string,
   mapWidth: number,
@@ -61,6 +85,9 @@ const generatePletterASMCode = (
 };
 
 
+/**
+ * A simple component to highlight the Pletter RLE marker in the output.
+ */
 const PletterDataHighlighter: React.FC<{ code: string }> = ({ code }) => {
     const lines = code.split('\n');
     const rleMarkerDecimalString = RLE_MARKER_PLETTER_DISPLAY.toString();
@@ -85,6 +112,9 @@ const PletterDataHighlighter: React.FC<{ code: string }> = ({ code }) => {
     );
   };
 
+/**
+ * A modal dialog for exporting a map layout compressed with the Pletter algorithm.
+ */
 export const ExportPletterModal: React.FC<ExportPletterModalProps> = ({
   isOpen,
   onClose,

@@ -6,14 +6,25 @@ import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 import { MSXFont, MSXFontColorAttributes, MSXCharacterPattern } from '../../types'; // Added MSXFontColorAttributes
 import { generateFontPatternBinaryData, generateFontColorBinaryData } from '../utils/msxFontUtils'; // New imports
 
+/**
+ * Props for the ExportFontASMModal component.
+ */
 interface ExportFontASMModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The name of the font to be used in the exported code. */
   fontName: string;
+  /** The generated assembly code to display. */
   asmCode: string;
+  /** The font pattern data. */
   fontData: MSXFont; 
+  /** The font color attributes for SCREEN 2 mode. */
   fontColorAttributes: MSXFontColorAttributes; 
+  /** Whether to export only the editable character subset. */
   filterEditableCharsOnly: boolean; 
+  /** The current MSX screen mode. */
   currentScreenMode: string; 
 }
 
@@ -21,6 +32,9 @@ const MODAL_DEFAULT_FONT_SIZE = 13;
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
 
+/**
+ * A modal dialog for exporting font data as Z80 assembly code or binary files.
+ */
 export const ExportFontASMModal: React.FC<ExportFontASMModalProps> = ({
   isOpen,
   onClose,

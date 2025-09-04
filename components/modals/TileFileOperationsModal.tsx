@@ -8,21 +8,45 @@ import { generateTileASMCode, createDefaultLineAttributes, generateTilePatternBy
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 import { MSX_SCREEN5_PALETTE, DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
 
+/**
+ * Props for the {@link TileFileOperationsModal} component.
+ * @category Modal
+ */
 interface TileFileOperationsModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** A list of all tile assets in the project. */
   allTileAssets: ProjectAsset[]; 
+  /** Callback to update all tile assets after loading a tileset. */
   onUpdateAllTileAssets: (newTiles: ProjectAsset[]) => void;
+  /** The currently selected tile, for single-tile operations. */
   currentTile: Tile | null; 
+  /** The current screen mode, which affects data generation. */
   currentScreenMode: string; 
+  /** The data format for ASM output (hex or decimal). */
   dataOutputFormat: DataFormat;
+  /** Callback to save the currently selected tile. */
   onSaveTile: () => void;
+  /** Callback to load a tile. */
   onLoadTile: () => void;
 }
 
+/** The default font size for the ASM code viewer. @constant */
 const MODAL_DEFAULT_FONT_SIZE = 13;
+/** The line height multiplier for the ASM code viewer. @constant */
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
+/**
+ * A modal dialog for handling file operations for tiles and tilesets.
+ * This includes saving/loading tilesets as JSON, and exporting single tiles
+ * or the entire tileset to ASM or binary formats.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = ({
   isOpen,
   onClose,
@@ -50,6 +74,9 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
 
   if (!isOpen) return null;
 
+  /**
+   * Handles saving the entire tileset to a JSON file.
+   */
   const handleSaveTileset = () => {
     const tilesToSave: Tile[] = allTileAssets.filter(asset => asset.type === 'tile').map(asset => asset.data as Tile);
     if (tilesToSave.length === 0) {
@@ -73,6 +100,10 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
     fileInputRef.current?.click();
   };
 
+  /**
+   * Handles the selection of a JSON tileset file to load.
+   * @param event The file input change event.
+   */
   const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -187,6 +218,9 @@ export const TileFileOperationsModal: React.FC<TileFileOperationsModalProps> = (
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * Generates the assembly code for the entire tileset.
+   */
   const handleGenerateTilesetAsm = () => {
     if (currentScreenMode !== "SCREEN 2 (Graphics I)") {
         setTilesetAsmCode(";; Tileset ASM export is only available for SCREEN 2 mode.");

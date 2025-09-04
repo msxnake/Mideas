@@ -1,13 +1,24 @@
 import React, { useEffect, useRef } from 'react';
 import { ContextMenuItem } from '../../types';
 
+/**
+ * Props for the ContextMenu component.
+ */
 interface ContextMenuProps {
+  /** Whether the context menu is currently open. */
   isOpen: boolean;
+  /** The position (x, y) where the menu should appear. */
   position: { x: number; y: number };
+  /** An array of items to display in the menu. */
   items: ContextMenuItem[];
+  /** Callback function to close the menu. */
   onClose: () => void;
 }
 
+/**
+ * A generic context menu component that appears at a specified position.
+ * It closes automatically when clicking outside of it.
+ */
 export const ContextMenu: React.FC<ContextMenuProps> = ({ isOpen, position, items, onClose }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 

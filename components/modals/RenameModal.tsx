@@ -3,15 +3,32 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../common/Button';
 import { ProjectAsset } from '../../types';
 
+/**
+ * Props for the {@link RenameModal} component.
+ * @category Modal
+ */
 interface RenameModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** The ID of the asset being renamed. */
   assetId: string;
+  /** The current name of the asset. */
   currentName: string;
+  /** The type of the asset. */
   assetType: ProjectAsset['type'];
+  /** Callback function when the user confirms the new name. */
   onConfirm: (newName: string) => void;
+  /** Callback function to close the modal. */
   onClose: () => void;
 }
 
+/**
+ * A modal dialog for renaming a project asset.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const RenameModal: React.FC<RenameModalProps> = ({ 
   isOpen, 
   assetId, 

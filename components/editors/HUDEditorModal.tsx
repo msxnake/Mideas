@@ -6,21 +6,38 @@ import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants'; 
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer'; 
 
+/**
+ * Props for the HUDEditorModal component.
+ */
 interface HUDEditorModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The current HUD configuration object. */
   hudConfiguration: HUDConfiguration;
+  /** Callback to update the HUD configuration. */
   onUpdateHUDConfiguration: (newConfig: HUDConfiguration) => void;
+  /** The current MSX screen mode. */
   currentScreenMode: string;
+  /** The total width of the screen map in tiles. */
   screenMapWidth: number;
+  /** The total height of the screen map in tiles. */
   screenMapHeight: number;
+  /** The x-coordinate of the active game area. */
   screenMapActiveAreaX: number;
+  /** The y-coordinate of the active game area. */
   screenMapActiveAreaY: number;
+  /** The width of the active game area in tiles. */
   screenMapActiveAreaWidth: number;
+  /** The height of the active game area in tiles. */
   screenMapActiveAreaHeight: number;
+  /** The base dimension of a tile cell in pixels. */
   baseCellDimension: number; 
+  /** The MSX font data for rendering text. */
   msxFont: MSXFont; 
-  msxFontColorAttributes: MSXFontColorAttributes; // Added prop
+  /** The font color attributes for SCREEN 2 mode. */
+  msxFontColorAttributes: MSXFontColorAttributes;
 }
 
 type HudTab = "Basic Stats" | "Game Elements" | "Boss Battle" | "Custom";
@@ -33,6 +50,10 @@ const DEFAULT_HUD_ELEMENT_PROPS: Omit<HUDElementProperties_Base, 'name'> = {
   memoryAddress: "0xF000", 
 };
 
+/**
+ * A collection of predefined HUD element templates, categorized by tabs.
+ * Used to populate the "Add New" buttons in the HUD editor.
+ */
 const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; defaultText?: string; defaultDetails?: Record<string, any> }[]> = {
   "Basic Stats": [
     { type: HUDElementType.Score, name: "Score", defaultText: "SCORE: 000000", defaultDetails: { digits: 6, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent' } },
@@ -113,6 +134,10 @@ const PREVIEW_WIDTH_PX = 256;
 const PREVIEW_HEIGHT_PX = 192;
 
 
+/**
+ * A modal dialog for editing the Heads-Up Display (HUD) configuration.
+ * It provides a visual preview and property editors for various HUD elements.
+ */
 export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
   isOpen,
   onClose,

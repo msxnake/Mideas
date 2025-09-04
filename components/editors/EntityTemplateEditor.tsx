@@ -6,14 +6,26 @@ import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, Ca
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 
+/**
+ * Props for the EntityTemplateEditor component.
+ */
 interface EntityTemplateEditorProps {
+  /** The current list of entity templates. */
   entityTemplates: EntityTemplate[];
+  /** Callback to update the list of entity templates. */
   onUpdateEntityTemplates: (updatedTemplates: EntityTemplate[]) => void;
+  /** The list of all available component definitions. */
   componentDefinitions: ComponentDefinition[];
+  /** Callback to trigger the generation of assembly code for all templates. */
   onGenerateAsm: () => void;
+  /** A list of all project assets, used for asset reference picking. */
   allAssets: ProjectAsset[];
 }
 
+/**
+ * A full-screen editor for creating, updating, and deleting entity templates.
+ * Entity templates are pre-configured collections of components that define a type of entity in the game.
+ */
 export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   entityTemplates,
   onUpdateEntityTemplates,

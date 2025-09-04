@@ -5,19 +5,41 @@ import { renderScreenToCanvas } from '../utils/screenUtils';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFontRenderer';
 import { createSpriteDataURL } from '../utils/screenUtils';
 
+/**
+ * Props for the {@link MainMenuPreviewModal} component.
+ * @category Modal
+ */
 interface MainMenuPreviewModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The main menu configuration object. */
   config: MainMenuConfig;
+  /** A list of all project assets. */
   allAssets: ProjectAsset[];
+  /** The global MSX font data. */
   globalFont: MSXFont;
+  /** The global color attributes for the MSX font. */
   globalFontColorAttributes: MSXFontColorAttributes;
+  /** The current screen mode (e.g., 'screen2'). */
   currentScreenMode: string;
 }
 
+/** The width of the preview canvas in pixels. @constant */
 const PREVIEW_WIDTH = 256;
+/** The height of the preview canvas in pixels. @constant */
 const PREVIEW_HEIGHT = 192;
 
+/**
+ * A modal dialog for previewing the main menu.
+ * This component renders a static preview of the main menu based on the provided configuration,
+ * allowing the user to see how it will look and navigate the options.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const MainMenuPreviewModal: React.FC<MainMenuPreviewModalProps> = ({
   isOpen,
   onClose,

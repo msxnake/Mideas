@@ -1,3 +1,8 @@
+/**
+ * @file Vite configuration file.
+ * This file configures the Vite development server and build process.
+ * It sets up environment variables and path aliases.
+ */
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 

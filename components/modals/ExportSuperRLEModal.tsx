@@ -5,21 +5,53 @@ import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 import { SuperRLEExportData } from '../../types';
 
+/**
+ * Props for the {@link ExportSuperRLEModal} component.
+ * @category Modal
+ */
 interface ExportSuperRLEModalProps extends SuperRLEExportData {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
 }
 
+/**
+ * The number of bytes to display per line in the ASM output.
+ * @constant
+ */
 const ASM_BYTES_PER_LINE = 16;
+/**
+ * The default font size for the modal content.
+ * @constant
+ */
 const MODAL_DEFAULT_FONT_SIZE = 13;
+/**
+ * The line height multiplier for the modal content.
+ * @constant
+ */
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
-const RLE_MARKER_PLETTER_CONST = 0xC9; // Pletter's RLE marker
+/**
+ * Pletter's RLE marker.
+ * @constant
+ * @deprecated This is not used for SuperRLE compression.
+ */
+const RLE_MARKER_PLETTER_CONST = 0xC9;
 
+/**
+ * The assembly code to include for the SuperRLE decompression routine.
+ * @constant
+ */
 const SUPER_RLE_DECOMPRESSION_ROUTINE_ASM = `
   include "asm/rle_decompress.asm"
 `;
 
 
+/**
+ * Generates Z80 assembly code for a SuperRLE-compressed map.
+ * @param exportData The data to be exported, including compressed data and metadata.
+ * @returns A string containing the generated assembly code.
+ */
 const generateSuperRLE_ASMCode = (
   exportData: SuperRLEExportData
 ): string => {
@@ -58,6 +90,21 @@ const generateSuperRLE_ASMCode = (
   return asmString;
 };
 
+/**
+ * A modal dialog for exporting a map layout compressed with the SuperRLE algorithm.
+ * This component displays the generated assembly code for the compressed data,
+ * provides options to copy the code to the clipboard, download it as a .asm file,
+ * or download the raw compressed data as a .bin file.
+ *
+ * @param props The component props.
+ * @param props.isOpen Whether the modal is currently open.
+ * @param props.onClose Callback function to close the modal.
+ * @param props.mapName The name of the map being exported.
+ * @param props.superRLEDataBytes The compressed map data as an array of bytes.
+ * @param props.tilePartReferences References to the tile parts.
+ * @returns A React component.
+ * @category Modal
+ */
 export const ExportSuperRLEModal: React.FC<ExportSuperRLEModalProps> = (props) => {
   const { isOpen, onClose, mapName, superRLEDataBytes, tilePartReferences } = props; // Added tilePartReferences
   const [asmCode, setAsmCode] = useState('');

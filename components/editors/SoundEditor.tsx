@@ -15,18 +15,31 @@ type OscillatorCollection = { [key in 'A' | 'B' | 'C']?: OscillatorNode };
 type GainNodeCollection = { [key in 'A' | 'B' | 'C']?: GainNode };
 
 
+/**
+ * Props for the SoundEditor component.
+ */
 interface SoundEditorProps {
+  /** The sound data object to be edited. */
   soundData: PSGSoundData;
+  /** Callback function to update the sound data. */
   onUpdate: (data: Partial<PSGSoundData>) => void;
 }
 
-// Helper to calculate actual tone frequency from PSG 12-bit period value
+/**
+ * Calculates the actual tone frequency from a PSG 12-bit period value.
+ * @param tonePeriod The 12-bit tone period value (0-4095).
+ * @returns The calculated frequency in Hertz.
+ */
 const calculateFrequencyFromTonePeriod = (tonePeriod: number): number => {
   if (tonePeriod === 0 || tonePeriod > 4095) return 0; 
   return PSG_INPUT_CLOCK / (16 * tonePeriod);
 };
 
-// Helper to calculate characteristic frequency from PSG 5-bit noise period value
+/**
+ * Calculates the characteristic frequency from a PSG 5-bit noise period value.
+ * @param noisePeriod The 5-bit noise period value (0-31).
+ * @returns The calculated frequency in Hertz.
+ */
 const calculateFrequencyFromNoisePeriod = (noisePeriod: number): number => {
   const effectiveNP = (noisePeriod === 0) ? 1 : noisePeriod & 0x1F; // Ensure 5-bit, treat 0 as 1 (shortest period)
   return PSG_INPUT_CLOCK / (32 * effectiveNP);
@@ -54,6 +67,10 @@ const createDefaultStep = (isFirst: boolean): PSGSoundChannelStep => ({
 });
 
 
+/**
+ * An editor for creating and modifying PSG (Programmable Sound Generator) sound effects.
+ * It provides controls for editing sound channels, steps, and global sound properties.
+ */
 export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate }) => {
   const [localSoundName, setLocalSoundName] = useState(soundData.name);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);

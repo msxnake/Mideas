@@ -4,27 +4,53 @@ import { Panel } from '../common/Panel';
 import { ContextMenu } from '../common/ContextMenu';
 import { TilesetIcon, SpriteIcon, MapIcon, CodeIcon, SoundIcon, PlaceholderIcon, FolderOpenIcon, WorldMapIcon, CaretDownIcon, CaretRightIcon, MusicNoteIcon, ListBulletIcon, PencilIcon, TrashIcon, QuestionMarkCircleIcon, PuzzlePieceIcon, SparklesIcon, BugIcon, WorldViewIcon, GameFlowIcon, ExpandAllIcon, CollapseAllIcon, SaveIcon, LoadIcon, CheckCircleIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the {@link FileExplorerPanel} component.
+ * @category Tools
+ */
 interface FileExplorerPanelProps {
+  /** A list of all project assets. */
   assets: ProjectAsset[];
+  /** The ID of the currently selected asset. */
   selectedAssetId: string | null;
+  /** Callback function when an asset is selected. */
   onSelectAsset: (assetId: string | null, editorType?: EditorType) => void;
+  /** Callback function to request renaming an asset. */
   onRequestRename: (assetId: string, currentName: string, assetType: ProjectAsset['type']) => void;
+  /** Callback function to request deleting an asset. */
   onRequestDelete: (assetId: string) => void;
+  /** Callback function to request saving a single tile asset. */
   onRequestSaveTile: (assetId: string) => void;
+  /** Callback function to request loading a single tile asset. */
   onRequestLoadTile: (assetId: string) => void;
+  /** Callback function to request saving multiple selected tile assets. */
   onRequestSaveSelectedTiles: (assetIds: string[]) => void;
+  /** Whether to show the 'Tile Banks' entry. */
   showTileBanksEntry?: boolean;
+  /** Whether the 'Tile Banks' editor is currently active. */
   isTileBanksActive?: boolean;
+  /** Whether the 'Font Editor' is currently active. */
   isFontEditorActive?: boolean; 
+  /** Whether the 'Help & Docs' viewer is currently active. */
   isHelpDocsActive?: boolean; 
-  isComponentDefEditorActive?: boolean; // Added for Component Def Editor
-  isEntityTemplateEditorActive?: boolean; // Added for Entity Template Editor
+  /** Whether the 'Component Definitions' editor is currently active. */
+  isComponentDefEditorActive?: boolean;
+  /** Whether the 'Entity Templates' editor is currently active. */
+  isEntityTemplateEditorActive?: boolean;
+  /** Whether the 'World View' is currently active. */
   isWorldViewActive?: boolean;
+  /** Whether the 'Game Flow' editor is currently active. */
   isGameFlowActive?: boolean;
-  isMainMenuActive?: boolean; // Added for Main Menu Editor
+  /** Whether the 'Main Menu' editor is currently active. */
+  isMainMenuActive?: boolean;
+  /** Optional CSS class name for the panel. */
   className?: string;
 }
 
+/**
+ * A component that displays an icon corresponding to a given asset type.
+ * @internal
+ */
 const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'gameflow' | 'mainmenu'}> = ({ type }) => {
   const iconClass = "w-4 h-4 mr-2";
   switch (type) {
@@ -52,7 +78,9 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
   }
 };
 
+/** The order in which asset type folders should be displayed. @constant */
 const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'sprite', 'boss', 'screenmap', 'worldmap', 'gameflow', 'sound', 'track', 'behavior', 'componentdefinition', 'entitytemplate', 'code'];
+/** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
   tile: "Tiles",
@@ -70,16 +98,32 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
 };
 
 // Constants for special system asset IDs
+/** System asset ID for the Tile Banks editor. @constant */
 export const TILE_BANKS_SYSTEM_ASSET_ID = "TILE_BANKS_EDITOR";
+/** System asset ID for the Font editor. @constant */
 export const FONT_EDITOR_SYSTEM_ASSET_ID = "FONT_EDITOR";
+/** System asset ID for the Help & Docs viewer. @constant */
 export const HELP_DOCS_SYSTEM_ASSET_ID = "HELP_DOCS_SYSTEM_ASSET";
+/** System asset ID for the Component Definition editor. @constant */
 export const COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID = "COMPONENT_DEF_EDITOR_SYSTEM_ASSET";
+/** System asset ID for the Entity Template editor. @constant */
 export const ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID = "ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET";
+/** System asset ID for the World View. @constant */
 export const WORLD_VIEW_SYSTEM_ASSET_ID = "WORLD_VIEW_SYSTEM_ASSET";
+/** System asset ID for the Game Flow editor. @constant */
 export const GAME_FLOW_SYSTEM_ASSET_ID = "GAME_FLOW_SYSTEM_ASSET_ID";
-export const MAIN_MENU_SYSTEM_ASSET_ID = "MAIN_MENU_SYSTEM_ASSET"; // New system asset ID
+/** System asset ID for the Main Menu editor. @constant */
+export const MAIN_MENU_SYSTEM_ASSET_ID = "MAIN_MENU_SYSTEM_ASSET";
 
 
+/**
+ * A panel that displays a file explorer for all project assets, grouped by type.
+ * It also provides access to system-level editors and tools.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tools
+ */
 export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   assets,
   selectedAssetId,

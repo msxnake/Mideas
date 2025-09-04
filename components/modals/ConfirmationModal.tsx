@@ -1,17 +1,31 @@
 import React, { useEffect, useRef } from 'react';
 import { Button } from '../common/Button';
 
+/**
+ * Props for the ConfirmationModal component.
+ */
 interface ConfirmationModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** The title of the modal. */
   title: string;
+  /** The message to display in the modal. Can be a string or a React node. */
   message: string | React.ReactNode;
+  /** Callback function when the confirm button is clicked. */
   onConfirm: () => void;
+  /** Callback function when the cancel button is clicked or the modal is closed. */
   onCancel: () => void;
+  /** Optional text for the confirm button. */
   confirmText?: string;
+  /** Optional text for the cancel button. */
   cancelText?: string;
+  /** The visual style of the confirm button. */
   confirmButtonVariant?: 'primary' | 'danger' | 'secondary' | 'ghost';
 }
 
+/**
+ * A generic modal dialog for confirming a user action.
+ */
 export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   isOpen,
   title,

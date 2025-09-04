@@ -56,7 +56,13 @@ import { Panel } from './common/Panel';
 import { HUDEditorModal } from './editors/HUDEditorModal';
 import { ContextMenu } from './common/ContextMenu';
 
-// A massive props interface to pass everything down from the container App.tsx
+/**
+ * Props for the main AppUI component.
+ * This interface aggregates all the state and handlers from the main App container
+ * and passes them down to the various UI components. It includes the current editor,
+ * project assets, selected items, modal states, and all the callback functions
+ * for handling user interactions.
+ */
 interface AppUIProps {
   currentEditor: EditorType;
   assets: ProjectAsset[];
@@ -199,7 +205,13 @@ interface AppUIProps {
   setScreenEditorZoom: React.Dispatch<React.SetStateAction<number>>;
 }
 
-
+/**
+ * The main UI component for the MSX Retro IDE.
+ * This component is responsible for laying out the entire application interface,
+ * including the toolbar, file explorer, main editor area, properties panel,
+ * and all modals. It acts as a pure presentation component, receiving all
+ * state and event handlers as props from a container component.
+ */
 export const AppUI: React.FC<AppUIProps> = (props) => {
     const {
         currentEditor, assets, selectedAssetId, currentProjectName, currentScreenMode, statusBarMessage, selectedColor, screenEditorSelectedTileId, currentScreenEditorActiveLayer, componentDefinitions, entityTemplates, mainMenuConfig, currentEntityTypeToPlace, selectedEntityInstanceId, selectedEffectZoneId, selectedGameFlowNodeId, isRenameModalOpen, assetToRenameInfo, isSaveAsModalOpen, isNewProjectModalOpen, isAboutModalOpen, isCompressDataModalOpen, isConfirmModalOpen, confirmModalProps, tileBanks, msxFont, msxFontColorAttributes, currentLoadedFontName, helpDocsData, dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, isConfigModalOpen, isSpriteSheetModalOpen, isSpriteFramesModalOpen, spriteForFramesModal, snippetToInsert, userSnippets, isSnippetEditorModalOpen, editingSnippet, isAutosaving, history, copiedScreenBuffer, copiedTileData, copiedLayerBuffer, copiedBossPhase, contextMenu, waypointPickerState,

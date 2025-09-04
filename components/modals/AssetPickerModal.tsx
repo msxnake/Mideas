@@ -5,6 +5,9 @@ import { Button } from '../common/Button';
 import { createSpriteDataURL } from '../utils/screenUtils';
 import { SoundIcon, PuzzlePieceIcon, SpriteIcon as EntityIcon } from '../icons/MsxIcons';
 
+/**
+ * A component that renders a small preview of a sprite's first frame.
+ */
 const SpritePreview: React.FC<{ sprite: Sprite }> = ({ sprite }) => {
     const dataUrl = useMemo(() => {
         if (!sprite || !sprite.frames[0]) return '';
@@ -15,6 +18,9 @@ const SpritePreview: React.FC<{ sprite: Sprite }> = ({ sprite }) => {
     return <img src={dataUrl} alt={sprite.name} className="w-8 h-8 object-contain border border-msx-border bg-msx-panelbg flex-shrink-0" style={{ imageRendering: 'pixelated' }} />;
 };
 
+/**
+ * A component that displays an appropriate icon for a given asset type.
+ */
 const AssetTypeIcon: React.FC<{ type: ProjectAsset['type'] }> = ({ type }) => {
     const iconClass = "w-4 h-4 text-msx-textsecondary";
     switch (type) {
@@ -26,15 +32,28 @@ const AssetTypeIcon: React.FC<{ type: ProjectAsset['type'] }> = ({ type }) => {
     }
 };
 
+/**
+ * Props for the AssetPickerModal component.
+ */
 interface AssetPickerModalProps {
+    /** Whether the modal is currently open. */
     isOpen: boolean;
+    /** Callback function to close the modal. */
     onClose: () => void;
+    /** Callback function when an asset is selected. */
     onSelectAsset: (assetId: string) => void;
+    /** The type of asset to display in the picker. */
     assetTypeToPick: ProjectAsset['type'];
+    /** A list of all project assets to choose from. */
     allAssets: ProjectAsset[];
+    /** The ID of the currently selected asset, for highlighting. */
     currentSelectedId: string | null;
 }
 
+/**
+ * A modal dialog for selecting a project asset of a specific type.
+ * It includes a search filter and displays previews for certain asset types.
+ */
 export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
     isOpen,
     onClose,

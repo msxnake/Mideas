@@ -1,3 +1,7 @@
+/**
+ * A type representing the possible names for a state in the state machine.
+ * Includes common states for player characters, enemies, and system events.
+ */
 export type StateMachineStateName =
   // English
   | 'Idle' | 'Walking' | 'Running' | 'Jumping' | 'Falling' | 'Landing' | 'Crouching' | 'Climbing' | 'Swimming' | 'Sliding' | 'Dashing' | 'Gliding'
@@ -14,6 +18,10 @@ export type StateMachineStateName =
   | 'Lanzando hechizo' | 'Volando' | 'Protegido por escudo' | 'Tiempo detenido'
   | 'Persiguiendo' | 'Buscando' | 'En alerta' | 'Dormido' | 'Huyendo' | 'Protegiendo una zona' | 'Inactivo';
 
+/**
+ * A type representing the possible names for an event in the state machine.
+ * Includes player actions, system events, and game-specific events.
+ */
 export type StateMachineEventName =
   // Player Actions
   | 'walk'
@@ -49,33 +57,65 @@ export type StateMachineEventName =
   | 'player_detected'
   | 'patrol_point_reached';
 
+/**
+ * Represents a single state in a state machine.
+ */
 export interface StateMachineState {
+  /** A unique identifier for the state. */
   id: string;
+  /** The name of the state. */
   name: StateMachineStateName;
+  /** The position of the state node in the editor UI. */
   position?: { x: number; y: number };
+  /** A key-value map of custom properties for the state. */
   properties?: { [key: string]: any };
 }
 
+/**
+ * The type of input that can trigger a state machine event.
+ */
 export type StateMachineInputType = 'key' | 'system_action' | 'collision';
 
+/**
+ * Represents an event that can trigger a transition between states.
+ */
 export interface StateMachineEvent {
+  /** A unique identifier for the event. */
   id: string;
+  /** The name of the event. */
   name: StateMachineEventName;
+  /** The type of input that triggers the event. */
   type: StateMachineInputType;
 }
 
+/**
+ * Represents a transition between two states, triggered by an event.
+ */
 export interface StateMachineTransition {
+  /** A unique identifier for the transition. */
   id:string;
+  /** The ID of the state where the transition originates. */
   fromStateId: string;
+  /** The ID of the state where the transition leads. */
   toStateId: string;
+  /** The ID of the event that triggers this transition. */
   eventId: string;
 }
 
+/**
+ * Represents a complete state machine, including its states, events, and transitions.
+ */
 export interface StateMachine {
+  /** A unique identifier for the state machine asset. */
   id: string;
+  /** The name of the state machine asset. */
   name: string;
+  /** An array of all states in the machine. */
   states: StateMachineState[];
+  /** An array of all possible events in the machine. */
   events: StateMachineEvent[];
+  /** An array of all transitions between states. */
   transitions: StateMachineTransition[];
+  /** The ID of the initial state when the machine is activated. */
   initialStateId: string | null;
 }

@@ -12,12 +12,23 @@ import { TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 
 
+/**
+ * Props for the {@link PixelGridPreview} component.
+ * @internal
+ */
 interface PixelGridPreviewProps { 
+  /** The pixel data to render. */
   data: PixelData; 
+  /** Optional CSS class name for the grid container. */
   className?: string;
+  /** Optional fixed size for each pixel cell. If not provided, it's calculated automatically. */
   fixedCellSize?: number; 
 }
 
+/**
+ * A component to display a small preview of pixel data.
+ * @internal
+ */
 const PixelGridPreview: React.FC<PixelGridPreviewProps> = ({ data, className, fixedCellSize }) => {
   if (!data || data.length === 0 || !data[0] || data[0].length === 0) return null;
   const rows = data.length;
@@ -50,6 +61,10 @@ const PixelGridPreview: React.FC<PixelGridPreviewProps> = ({ data, className, fi
   );
 };
 
+/**
+ * A component to display a preview of SCREEN 2 line color attributes.
+ * @internal
+ */
 const LineAttributesPreview: React.FC<{lineAttributes: LineColorAttribute[][]; tileWidth: number; tileHeight: number}> = ({lineAttributes, tileWidth, tileHeight}) => {
   if (!lineAttributes || lineAttributes.length === 0) return null;
   const numSegmentsPerRow = tileWidth / SCREEN2_PIXELS_PER_COLOR_SEGMENT;
@@ -71,34 +86,67 @@ const LineAttributesPreview: React.FC<{lineAttributes: LineColorAttribute[][]; t
   );
 }
 
-
+/**
+ * Props for the {@link PropertiesPanel} component.
+ * @category Tools
+ */
 interface PropertiesPanelProps {
+  /** The currently selected asset, if any. */
   asset: ProjectAsset | undefined;
+  /** The currently selected entity instance in the screen editor, if any. */
   entityInstance?: EntityInstance | undefined; 
+  /** The currently selected effect zone in the screen editor, if any. */
   effectZone?: EffectZone | undefined; 
+  /** The currently selected node in the game flow editor, if any. */
   gameFlowNode?: GameFlowNode | undefined;
+  /** Callback to update an entity instance's properties. */
   onUpdateEntityInstance?: (id: string, data: Partial<EntityInstance>) => void; 
+  /** Callback to update an effect zone's properties. */
   onUpdateEffectZone?: (id: string, data: Partial<EffectZone>) => void; 
+  /** Callback to update a game flow node's properties. */
   onUpdateGameFlowNode?: (id: string, data: Partial<GameFlowNode>) => void;
+  /** Callback to delete an entity instance. */
   onDeleteEntityInstance?: (id: string) => void;
+  /** Callback to delete an effect zone. */
   onDeleteEffectZone?: (id: string) => void; 
+  /** The sprite to use for the animation preview. */
   spriteForPreview?: Sprite; 
+  /** A list of all project assets. */
   allAssets: ProjectAsset[];
+  /** A list of all component definitions. */
   componentDefinitions: ComponentDefinition[]; 
+  /** A list of all entity templates. */
   entityTemplates: EntityTemplate[];       
+  /** The current screen mode. */
   currentScreenMode: string;
+  /** The type of the currently active editor. */
   activeEditorType?: EditorType; 
+  /** The active layer in the screen editor. */
   screenEditorActiveLayer?: ScreenEditorLayerName; 
+  /** The name of the current MSX font. */
   msxFontName?: string; 
+  /** Statistics about the current MSX font. */
   msxFontStats?: { defined: number, editableTotal: number, editableDefined: number }; 
+  /** The ID of the selected tile in the screen editor. */
   screenEditorSelectedTileId?: string | null;
+  /** The tileset for the screen editor. */
   tilesetForScreenEditor?: Tile[];
+  /** The tile banks for the screen editor. */
   tileBanksForScreenEditor?: TileBank[];
+  /** The state of the waypoint picker tool. */
   waypointPickerState: { isPicking: boolean; };
+  /** Callback to set the state of the waypoint picker tool. */
   onSetWaypointPickerState: (state: { isPicking: boolean; entityInstanceId: string | null; componentDefId: string | null; waypointPrefix: 'waypoint1' | 'waypoint2'; }) => void;
 }
 
-
+/**
+ * A panel that displays properties for the currently selected item, which could be an asset,
+ * an entity instance, an effect zone, or a game flow node. It provides controls for editing these properties.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tools
+ */
 export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ 
   asset, entityInstance, effectZone, gameFlowNode,
   onUpdateEntityInstance, onUpdateEffectZone, onUpdateGameFlowNode,
@@ -275,6 +323,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     }
   }
 
+  /**
+   * Renders the properties for the currently selected asset.
+   * @returns A React node with the asset's properties.
+   */
   const renderAssetProperties = (): React.ReactNode => { 
     if (!asset) return <p className="text-msx-textsecondary">No asset selected.</p>;
     switch (asset.type) {
@@ -286,6 +338,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     }
   };
   
+  /**
+   * Renders the properties for the currently selected entity instance.
+   * @returns A React node with the entity instance's properties.
+   */
   const renderEntityInstanceProperties = (): React.ReactNode => {
     if (!entityInstance || !onUpdateEntityInstance) return null;
     const template = entityTemplates.find(t => t.id === entityInstance.entityTemplateId);
@@ -411,6 +467,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     );
   };
 
+  /**
+   * Renders the properties for the currently selected effect zone.
+   * @returns A React node with the effect zone's properties.
+   */
   const renderEffectZoneProperties = (): React.ReactNode => {
     if (!effectZone) return null;
     return (
@@ -470,6 +530,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   else if (effectZone && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'effects') panelTitle = "Effect Zone Properties";
   else if (asset && activeEditorType !== EditorType.BehaviorEditor && activeEditorType !== EditorType.Font && activeEditorType !== EditorType.HelpDocs && activeEditorType !== EditorType.ComponentDefinitionEditor && activeEditorType !== EditorType.EntityTemplateEditor) panelTitle = "Asset Properties";
 
+  /**
+   * Renders the properties for the currently selected game flow node.
+   * @returns A React node with the game flow node's properties.
+   */
   const renderGameFlowNodeProperties = (): React.ReactNode => {
     if (!gameFlowNode || !onUpdateGameFlowNode) return null;
     if (gameFlowNode.type === 'SubMenu') {

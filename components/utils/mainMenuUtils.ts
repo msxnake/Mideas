@@ -9,7 +9,12 @@ const toAsmLabel = (name: string, prefix: string = ''): string => {
         .toUpperCase();
 }
 
-// A simple mapping for common keys to example scancodes/ASCII
+/**
+ * Maps a key string to an example assembly value and comment.
+ * This is a helper for generating key mapping configuration.
+ * @param key The key string (e.g., "ArrowUp", "a", " ").
+ * @returns An object containing the assembly value and a descriptive comment.
+ */
 const keyToAsmValue = (key: string): { value: number; comment: string } => {
     if (key.length === 1) {
         const charCode = key.charCodeAt(0);
@@ -29,6 +34,13 @@ const keyToAsmValue = (key: string): { value: number; comment: string } => {
     }
 };
 
+/**
+ * Generates an assembly file string for the main menu configuration.
+ * This function creates the data and logic for the game's main menu.
+ * @param config The main menu configuration object.
+ * @param allAssets An array of all project assets, used for resolving references.
+ * @returns A string containing the generated assembly code for the main menu.
+ */
 export const generateMainMenuASM = (config: MainMenuConfig, allAssets: ProjectAsset[]): string => {
     let asm = `;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main Menu Configuration Data

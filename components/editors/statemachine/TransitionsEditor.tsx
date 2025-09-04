@@ -4,12 +4,22 @@ import { Button } from '../../common/Button';
 import { StateMachine, StateMachineState, StateMachineEvent, StateMachineTransition } from '../../../statemachine.types';
 import { TrashIcon } from '../../icons/MsxIcons';
 
+/**
+ * Props for the TransitionsEditor component.
+ */
 interface TransitionsEditorProps {
+  /** The state machine data, including states, events, and transitions. */
   stateMachine: StateMachine;
+  /** Callback to add a new transition. */
   onAddTransition: (fromStateId: string, eventId: string, toStateId: string) => void;
+  /** Callback to delete a transition by its ID. */
   onDeleteTransition: (id: string) => void;
 }
 
+/**
+ * An editor for managing the transitions between states in a state machine.
+ * It provides a table view of existing transitions and a form for adding new ones.
+ */
 export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({ stateMachine, onAddTransition, onDeleteTransition }) => {
   const { states, events, transitions } = stateMachine;
 

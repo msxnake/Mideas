@@ -8,23 +8,48 @@ import {
 } from '../icons/MsxIcons';
 import { ScreenSelectionRect, Tile, ScreenEditorTool } from '../../types';
 
+/**
+ * Props for the {@link ScreenSelectionToolsPanel} component.
+ * @category ScreenEditor
+ */
 interface ScreenSelectionToolsPanelProps {
+  /** The currently active screen editor tool. */
   currentScreenTool: ScreenEditorTool;
+  /** Callback function to set the active screen editor tool. */
   onSetScreenTool: (tool: ScreenEditorTool) => void;
+  /** The current selection rectangle, or null if no selection. */
   selectionRect: ScreenSelectionRect | null;
+  /** Callback function to clear the tiles within the selection. */
   onClearSelection: () => void;
+  /** Callback function to clear the selection rectangle itself. */
   onUnselect: () => void;
+  /** The ID of the currently selected tile for fill operations. */
   selectedTileId: string | null;
+  /** The base dimension of a tile in the editor. */
   editorBaseTileDim: number;
+  /** The tileset used in the screen. */
   tileset: Tile[];
-  activeLayerIsEditable: boolean; // True if current layer is background, collision, or effects
+  /** Whether the currently active layer is editable with selection tools. */
+  activeLayerIsEditable: boolean;
+  /** Callback function to fill the selection with the current tile. */
   onFillSelection: () => void;
+  /** Callback function to fill the selection with a zigzag pattern of the current tile. */
   onZigZagFillSelection: () => void;
-  onCopyScreen: () => void; // Renamed from "Copy Area" to "Clone Grid" in previous step, actual name in code is onCopyScreen
-  onPasteScreen: () => void; // "Paste Area" is onPasteScreen
+  /** Callback function to copy the screen data. */
+  onCopyScreen: () => void;
+  /** Callback function to paste screen data. */
+  onPasteScreen: () => void;
+  /** Whether the paste action should be disabled. */
   isPasteDisabled: boolean;
 }
 
+/**
+ * A panel containing tools for manipulating a selected area in the screen editor.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category ScreenEditor
+ */
 export const ScreenSelectionToolsPanel: React.FC<ScreenSelectionToolsPanelProps> = ({
   currentScreenTool,
   onSetScreenTool,

@@ -3,14 +3,25 @@ import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 import { OptimizedRLEExportData } from '../../types';
 
+/**
+ * Props for the ExportOptimizedRLEModal component.
+ */
 interface ExportOptimizedRLEModalProps extends OptimizedRLEExportData {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
 }
 
 const MODAL_DEFAULT_FONT_SIZE = 13;
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
+/**
+ * Generates Z80 assembly code for an optimized RLE-compressed map.
+ * @param exportData The data to be exported.
+ * @param fileName The name of the binary file to be included in the ASM code.
+ * @returns A string containing the generated assembly code.
+ */
 const generateOptimizedRLE_ASMCode = (
   exportData: OptimizedRLEExportData,
   fileName: string
@@ -32,6 +43,9 @@ const generateOptimizedRLE_ASMCode = (
   return asmString;
 };
 
+/**
+ * A modal dialog for exporting a map layout compressed with an optimized RLE algorithm.
+ */
 export const ExportOptimizedRLEModal: React.FC<ExportOptimizedRLEModalProps> = (props) => {
   const { isOpen, onClose, mapName, optimizedRLEPackets } = props;
   const [asmCode, setAsmCode] = useState('');

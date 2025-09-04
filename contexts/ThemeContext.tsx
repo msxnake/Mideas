@@ -1,7 +1,9 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
+/** Defines the available theme modes. */
 export type ThemeMode = 'light' | 'dark' | 'custom';
+/** Defines the keys for the themeable colors. */
 export type ColorKeys = 
   | 'bgcolor' 
   | 'panelbg' 
@@ -13,20 +15,38 @@ export type ColorKeys =
   | 'danger'
   | 'warning';
 
+/**
+ * Represents the structure of the theme configuration object.
+ */
 export interface ThemeConfig {
+  /** The current theme mode. */
   theme: ThemeMode;
+  /** A record of custom color values. */
   colors: Record<ColorKeys, string>;
 }
 
+/**
+ * Defines the shape of the Theme Context.
+ */
 interface ThemeContextType {
+  /** The current theme configuration. */
   config: ThemeConfig;
+  /** Function to set the theme mode. */
   setThemeMode: (theme: ThemeMode) => void;
+  /** Function to update a specific color in the custom theme. */
   updateCustomColor: (key: ColorKeys, value: string) => void;
+  /** Function to reset the theme to its default state. */
   resetToDefault: () => void;
+  /** Function to load a theme configuration from an object. */
   loadConfig: (loadedConfig: ThemeConfig) => void;
+  /** Function to get the currently effective set of colors based on the theme mode. */
   getEffectiveColors: () => Record<ColorKeys, string>;
 }
 
+/**
+ * The default colors for the dark theme.
+ * @constant
+ */
 const defaultDarkColors: Record<ColorKeys, string> = {
   bgcolor: '#22272E',
   panelbg: '#2D333B',
@@ -39,6 +59,10 @@ const defaultDarkColors: Record<ColorKeys, string> = {
   warning: '#F0A832',
 };
 
+/**
+ * The default colors for the light theme.
+ * @constant
+ */
 const defaultLightColors: Record<ColorKeys, string> = {
   bgcolor: '#F3F4F6', // gray-100
   panelbg: '#FFFFFF', // white
@@ -51,6 +75,10 @@ const defaultLightColors: Record<ColorKeys, string> = {
   warning: '#F59E0B', // amber-500
 };
 
+/**
+ * The initial theme configuration on first load.
+ * @constant
+ */
 const initialConfig: ThemeConfig = {
   theme: 'dark',
   colors: { ...defaultDarkColors }, // Initially, custom colors match dark theme
@@ -58,6 +86,11 @@ const initialConfig: ThemeConfig = {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+/**
+ * Provides the theme configuration to its children components.
+ * It handles loading the theme from localStorage, applying it to the document,
+ * and providing functions to update the theme.
+ */
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<ThemeConfig>(() => {
     try {
@@ -165,6 +198,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+/**
+ * A custom hook to access the theme context.
+ * @returns The theme context.
+ * @throws An error if used outside of a ThemeProvider.
+ */
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {

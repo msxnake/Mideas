@@ -7,18 +7,44 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../common/Button';
 import { Snippet, ProjectAsset, TileBank } from '../../types';
 
+/**
+ * Props for the {@link SnippetEditorModal} component.
+ * @category Modal
+ */
 interface SnippetEditorModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** Callback function to save the snippet. */
   onSave: (snippet: Snippet) => void;
+  /** The snippet being edited, or null if creating a new one. */
   editingSnippet: Snippet | null;
+  /** A list of all project assets, for the placeholder helper. */
   allAssets: ProjectAsset[];
+  /** A list of all tile banks, for the placeholder helper. */
   tileBanks: TileBank[];
 }
 
+/**
+ * The types of assets that can be used in placeholders.
+ * @constant
+ */
 const PLACEHOLDER_TYPES = ['tile', 'bank', 'screenmap'];
+/**
+ * The types of macros that can be used.
+ * @constant
+ */
 const MACRO_TYPES = ['BANK_TILE_DEFINITIONS'];
 
+/**
+ * A modal dialog for creating and editing code snippets.
+ * Includes helpers for inserting dynamic placeholders and macros.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const SnippetEditorModal: React.FC<SnippetEditorModalProps> = ({
   isOpen,
   onClose,
@@ -61,6 +87,9 @@ export const SnippetEditorModal: React.FC<SnippetEditorModalProps> = ({
     return null;
   }
 
+  /**
+   * Handles the save button click. Validates the form and calls the onSave callback.
+   */
   const handleSaveClick = () => {
     const trimmedName = name.trim();
     const trimmedCode = code.trim();
@@ -81,6 +110,11 @@ export const SnippetEditorModal: React.FC<SnippetEditorModalProps> = ({
     });
   };
   
+  /**
+   * Handles key down events for the input and textarea fields.
+   * Closes the modal on Escape and allows tabbing in the textarea.
+   * @param e The keyboard event.
+   */
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => {
     if (e.key === 'Escape') {
       onClose();
@@ -113,6 +147,9 @@ export const SnippetEditorModal: React.FC<SnippetEditorModalProps> = ({
     }
   };
   
+  /**
+   * Handles the insertion of a property placeholder into the code editor.
+   */
   const handleInsertPlaceholder = () => {
     if (!selectedPlaceholderType || !selectedAssetId || !selectedProperty) {
       alert("Please select a type, asset, and property.");
@@ -127,6 +164,9 @@ export const SnippetEditorModal: React.FC<SnippetEditorModalProps> = ({
     insertTextAtCursor(placeholderText);
   };
   
+  /**
+   * Handles the insertion of a macro placeholder into the code editor.
+   */
   const handleInsertMacro = () => {
     if (!selectedMacro || !selectedMacroAssetId) {
         alert("Please select a macro and a target asset.");

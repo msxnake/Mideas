@@ -24,7 +24,17 @@ import {
 import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
 
 
-// Helper to resize PixelData (Pattern)
+/**
+ * Resizes a 2D array of pixel data to new dimensions.
+ * @param oldData The original pixel data.
+ * @param oldWidth The original width.
+ * @param oldHeight The original height.
+ * @param newWidth The new width.
+ * @param newHeight The new height.
+ * @param defaultPixelColor The color to fill new cells with.
+ * @returns The resized pixel data.
+ * @internal
+ */
 const resizePixelPatternData = (oldData: PixelData, oldWidth: number, oldHeight: number, newWidth: number, newHeight: number, defaultPixelColor: MSXColorValue): PixelData => {
   const newData: PixelData = [];
   for (let y = 0; y < newHeight; y++) {
@@ -41,7 +51,18 @@ const resizePixelPatternData = (oldData: PixelData, oldWidth: number, oldHeight:
   return newData;
 };
 
-// Helper to resize LineAttributes
+/**
+ * Resizes a 2D array of line color attributes for SCREEN 2 mode.
+ * @param oldAttributes The original line attributes.
+ * @param oldWidth The original width.
+ * @param oldHeight The original height.
+ * @param newWidth The new width.
+ * @param newHeight The new height.
+ * @param defaultFg The default foreground color.
+ * @param defaultBg The default background color.
+ * @returns The resized line attributes.
+ * @internal
+ */
 const resizeLineAttributes = (
   oldAttributes: LineColorAttribute[][] | undefined, 
   oldWidth: number, oldHeight: number, 
@@ -66,7 +87,10 @@ const resizeLineAttributes = (
   return newAttrs;
 };
 
-
+/**
+ * Props for the {@link PixelGrid} component.
+ * @internal
+ */
 interface PixelGridProps { 
   pixelData: PixelData;
   tileWidth: number;
@@ -80,6 +104,10 @@ interface PixelGridProps {
   currentTool: DrawingTool;
 }
 
+/**
+ * The interactive pixel grid component for drawing tiles.
+ * @internal
+ */
 const PixelGrid: React.FC<PixelGridProps> = ({ 
   pixelData, tileWidth, tileHeight, lineAttributes, onGridInteraction, 
   pixelSize = 20, showCenterGuide, currentScreenMode, symmetrySettings, currentTool
@@ -198,6 +226,10 @@ const PixelGrid: React.FC<PixelGridProps> = ({
 };
 
 
+/**
+ * Props for the {@link LineAttributeEditorPanel} component.
+ * @internal
+ */
 interface LineAttributeEditorPanelProps {
   tile: Tile;
   onUpdateLineAttribute: (rowIndex: number, segmentIndex: number, newAttribute: LineColorAttribute) => void;
@@ -209,6 +241,10 @@ interface LineAttributeEditorPanelProps {
   onFillAllBg: (newColor: MSX1ColorValue) => void;
 }
 
+/**
+ * A panel for editing the line color attributes of a tile in SCREEN 2 mode.
+ * @internal
+ */
 const LineAttributeEditorPanel: React.FC<LineAttributeEditorPanelProps> = ({ 
   tile, onUpdateLineAttribute, selectedPaletteColor,
   onCopyAttributes, onPasteAttributes, copiedAttribute,
@@ -295,11 +331,19 @@ const LineAttributeEditorPanel: React.FC<LineAttributeEditorPanelProps> = ({
   );
 };
 
+/**
+ * Props for the {@link TechnicalPreviewPanel} component.
+ * @internal
+ */
 interface TechnicalPreviewPanelProps { 
   tile: Tile;
   dataFormat: DataFormat;
 }
 
+/**
+ * A panel that displays a technical preview of the tile's data for SCREEN 2 mode.
+ * @internal
+ */
 const TechnicalPreviewPanel: React.FC<TechnicalPreviewPanelProps> = ({tile, dataFormat}) => {
   if (!tile.lineAttributes) return null;
 
@@ -368,6 +412,10 @@ interface CopiedTileBuffer {
 
 // --- REWRITTEN TEXTURE GENERATOR ---
 
+/**
+ * Props for the {@link TextureGeneratorModal} component.
+ * @internal
+ */
 interface TextureGeneratorModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -378,6 +426,10 @@ interface TextureGeneratorModalProps {
     onParamsChange: (newParams: AllGeneratorParams) => void;
 }
 
+/**
+ * Props for the {@link PalettePicker} component used within the texture generator.
+ * @internal
+ */
 interface PalettePickerProps {
     label: string;
     selectedColor: MSXColorValue;
@@ -385,6 +437,10 @@ interface PalettePickerProps {
     palette: { name: string; hex: string; index?: number }[];
 }
 
+/**
+ * A reusable palette picker component for the texture generator modal.
+ * @internal
+ */
 const PalettePicker: React.FC<PalettePickerProps> = ({ label, selectedColor, onChange, palette }) => {
     const [isOpen, setIsOpen] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
@@ -434,6 +490,10 @@ const PalettePicker: React.FC<PalettePickerProps> = ({ label, selectedColor, onC
 };
 
 
+/**
+ * A modal dialog for procedurally generating textures for tiles.
+ * @internal
+ */
 const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, onClose, onGenerate, currentTile, currentScreenMode, params, onParamsChange }) => {
     const [generatorType, setGeneratorType] = useState<TextureGeneratorType>('Rock');
     const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -898,18 +958,34 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
 };
 
 
+/**
+ * Props for the {@link TileEditor} component.
+ * @category Editors
+ */
 interface TileEditorProps {
+  /** The tile asset currently being edited. */
   currentTile: Tile;
+  /** Callback to update the current tile asset. */
   onUpdateCurrentTile: (data: Partial<Tile>, newAssetsToCreate?: ProjectAsset[]) => void;
+  /** A list of all tile assets in the project. */
   allTileAssets: ProjectAsset[];
+  /** Callback to update the entire list of tile assets. */
   onUpdateAllTileAssets: (newTiles: ProjectAsset[]) => void;
+  /** The currently selected color from the palette. */
   selectedColor: MSXColorValue;
+  /** The current screen mode, which affects editing behavior. */
   currentScreenMode: string;
+  /** The data format for ASM output. */
   dataOutputFormat: DataFormat;
+  /** The tile data currently in the copy buffer. */
   copiedTileData: CopiedTileBuffer | null;
+  /** Callback to copy the current tile's data to the buffer. */
   onCopyTileData: (tile: Tile) => void;
+  /** Callback to set a message in the status bar. */
   setStatusBarMessage: (message: string) => void;
+  /** The current zoom level of the pixel grid. */
   zoom: number;
+  /** Callback to set the zoom level. */
   setZoom: (zoom: number) => void;
 }
 
@@ -918,6 +994,12 @@ const defaultLogicalProps: TileLogicalProperties = {
   isSolid: false, isBreakable: false, isMovable: false, causesDamage: false, isInteractiveSwitch: false,
 };
 
+/**
+ * The main editor component for creating and modifying tile assets.
+ * @param props The component props.
+ * @returns A React component.
+ * @category Editors
+ */
 export const TileEditor: React.FC<TileEditorProps> = ({ 
     currentTile: tile, onUpdateCurrentTile: onUpdate, 
     allTileAssets, onUpdateAllTileAssets,

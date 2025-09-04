@@ -22,20 +22,40 @@ const getNodeHeight = (node: GameFlowNode | NodeToPlace): number => {
 
 type NodeToPlace = Omit<GameFlowNode, 'position' | 'id'> & { id?: string };
 
+/**
+ * Props for the GameFlowEditor component.
+ */
 interface GameFlowEditorProps {
+  /** The game flow graph data to be edited. */
   gameFlowGraph: GameFlowGraph;
+  /** Callback to update the game flow graph data. */
   onUpdate: (data: Partial<GameFlowGraph>) => void;
+  /** A list of all project assets. */
   allAssets: ProjectAsset[];
+  /** The ID of the currently selected node. */
   selectedNodeId: string | null;
+  /** Callback to set the selected node ID. */
   setSelectedNodeId: (id: string | null) => void;
+  /** Callback to show a context menu. */
   onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
+  /** The MSX font data for rendering text. */
   msxFont: MSXFont;
+  /** The font color attributes for SCREEN 2 mode. */
   msxFontColorAttributes: MSXFontColorAttributes;
+  /** A list of all entity templates. */
   entityTemplates: EntityTemplate[];
+  /** The current MSX screen mode. */
   currentScreenMode: string;
+  /** The list of all component definitions. */
   componentDefinitions: ComponentDefinition[];
 }
 
+/**
+ * Calculates the absolute position of a port on a node.
+ * @param node The game flow node.
+ * @param portId The ID of the port ('in', 'out', or an option ID for submenus).
+ * @returns The x and y coordinates of the port.
+ */
 const getPortPosition = (node: GameFlowNode, portId: string): Point => {
     const nodeHeight = getNodeHeight(node);
     const basePos = node.position;
@@ -55,14 +75,25 @@ const getPortPosition = (node: GameFlowNode, portId: string): Point => {
     return { x: basePos.x + NODE_WIDTH, y: basePos.y + nodeHeight / 2 };
 };
 
+/**
+ * A component that renders a single node in the game flow graph.
+ */
 const GameFlowNodeComponent: React.FC<{
+    /** The node data to render. */
     node: GameFlowNode;
+    /** A list of all project assets, used for resolving names. */
     allAssets: ProjectAsset[];
+    /** Callback for when a port on the node is clicked. */
     onPortClick: (nodeId: string, portId: string) => void;
+    /** Whether the node is currently selected. */
     isSelected: boolean;
+    /** Callback for when the node is selected. */
     onSelect: (e: React.MouseEvent, nodeId: string) => void;
+    /** Callback for when the mouse is pressed down on the node (for dragging). */
     onMouseDown: (e: React.MouseEvent, nodeId: string) => void;
+    /** Callback for when the node is right-clicked. */
     onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
+    /** Callback to open the appearance editor for a submenu node. */
     onEditAppearance: (node: GameFlowSubMenuNode) => void;
 }> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -128,6 +159,10 @@ const GameFlowNodeComponent: React.FC<{
 };
 
 
+/**
+ * A node-based editor for creating and managing the game's flow and logic.
+ * It provides a canvas for placing nodes, connecting them, and editing their properties.
+ */
 export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, componentDefinitions }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });

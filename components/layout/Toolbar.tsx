@@ -7,43 +7,79 @@ import { ProjectAsset, DataFormat, EditorType } from '../../types';
 import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 
-// --- PROPS INTERFACE ---
+/**
+ * Props for the Toolbar component.
+ */
 interface ToolbarProps {
+  /** Callback to create a new project. */
   onNewProject: () => void;
+  /** Callback to create a new asset of a specific type. */
   onNewAsset: (type: ProjectAsset['type']) => void;
+  /** Callback to save the current project. */
   onSaveProject: () => void;
+  /** Callback to open the "Save As" dialog for the project. */
   onSaveProjectAs: () => void;
+  /** Callback to open the file dialog to load a project. */
   onLoadProject: () => void;
+  /** Callback to export all code files. */
   onExportAllCodeFiles: () => void;
+  /** Callback to compile the current code. */
   onCompile: () => void;
+  /** Callback for the debug action. */
   onDebug: () => void;
+  /** Callback to run the compiled project. */
   onRun: () => void;
+  /** Callback to open the help documentation viewer. */
   onOpenHelpDocs: () => void;
+  /** Callback to open the theme settings modal. */
   onOpenThemeSettings: () => void;
+  /** The current data format for ASM exports. */
   dataOutputFormat: DataFormat;
+  /** Callback to set the data output format. */
   setDataOutputFormat: (format: DataFormat) => void;
+  /** Whether autosave is currently enabled. */
   autosaveEnabled: boolean;
+  /** Callback to enable or disable autosave. */
   setAutosaveEnabled: (enabled: boolean) => void;
+  /** Callback to save the current IDE configuration. */
   onSaveConfig: () => void;
+  /** Callback to reset the IDE configuration to defaults. */
   onResetConfig: () => void;
+  /** A flag indicating if an autosave is in progress. */
   isAutosaving: boolean;
+  /** Callback for the undo action. */
   onUndo: () => void;
+  /** Callback for the redo action. */
   onRedo: () => void;
+  /** Whether the undo action is currently disabled. */
   isUndoDisabled: boolean;
+  /** Whether the redo action is currently disabled. */
   isRedoDisabled: boolean;
+  /** Callback to open the "About" modal. */
   onOpenAbout: () => void;
+  /** Callback to open the component definition editor. */
   onOpenComponentDefEditor: () => void;
+  /** Callback to open the entity template editor. */
   onOpenEntityTemplateEditor: () => void;
+  /** Callback to open the data compression modal. */
   onCompressAllDataFiles: () => void;
+  /** Callback for the "Compile and Run" action. */
   onCompileAndRun: () => void;
+  /** Callback for the "Compress, Export, Compile, Run" action. */
   onCompressExportCompileRun: () => void;
+  /** Callback to configure the ASM compiler. */
   onConfigureASM: () => void;
+  /** Callback to configure the emulator. */
   onConfigureEmulator: () => void;
+  /** Callback to toggle between the current and last active editor. */
   onToggleEditor: () => void;
+  /** Whether the editor toggle button is disabled. */
   isToggleEditorDisabled: boolean;
 }
 
-// --- REUSABLE DROPDOWN COMPONENTS ---
+/**
+ * A reusable dropdown menu component.
+ */
 const DropdownMenu: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -91,6 +127,9 @@ const DropdownMenu: React.FC<{ label: string; children: React.ReactNode }> = ({ 
   );
 };
 
+/**
+ * An item within a DropdownMenu.
+ */
 const DropdownItem: React.FC<{ onClick: () => void; children: React.ReactNode; icon?: React.ReactNode; disabled?: boolean; }> = ({ onClick, children, icon, disabled }) => {
   return (
     <button onClick={onClick} disabled={disabled} className="w-full text-left px-3 py-1.5 text-xs text-msx-textsecondary hover:bg-msx-accent hover:text-white flex items-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-msx-textsecondary">
@@ -100,13 +139,24 @@ const DropdownItem: React.FC<{ onClick: () => void; children: React.ReactNode; i
   );
 };
 
+/**
+ * A separator line within a DropdownMenu.
+ */
 const DropdownSeparator: React.FC = () => <div className="my-1 border-t border-msx-border opacity-50" />;
 
+/**
+ * A toggleable item within a DropdownMenu.
+ */
 const DropdownToggleItem: React.FC<{
+  /** The label for the toggle item. */
   label: string;
+  /** Whether the item is currently checked. */
   isChecked: boolean;
+  /** Callback function to toggle the item's state. */
   onToggle: () => void;
+  /** Optional text to display when the item is on. */
   onText?: string;
+  /** Optional text to display when the item is off. */
   offText?: string;
 }> = ({ label, isChecked, onToggle, onText = 'On', offText = 'Off' }) => {
   return (
@@ -118,7 +168,10 @@ const DropdownToggleItem: React.FC<{
 };
 
 
-// --- MAIN TOOLBAR COMPONENT ---
+/**
+ * The main toolbar component for the application.
+ * It contains dropdown menus for file operations, editing, running, configuration, and help.
+ */
 export const Toolbar: React.FC<ToolbarProps> = ({
   onNewProject, onNewAsset, onSaveProject, onSaveProjectAs, onLoadProject,
   onExportAllCodeFiles, onCompile, onDebug, onRun, onOpenHelpDocs,

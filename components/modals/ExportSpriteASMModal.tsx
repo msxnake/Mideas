@@ -6,10 +6,17 @@ import { Sprite, PixelData, MSXColorValue, DataFormat } from '../../types';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 import { generateSpriteBinaryData } from '../utils/spriteUtils'; // Updated import
 
+/**
+ * Props for the ExportSpriteASMModal component.
+ */
 interface ExportSpriteASMModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The sprite asset to be exported. */
   spriteToExport: Sprite;
+  /** The data format for exporting to ASM. */
   dataOutputFormat: DataFormat; 
 }
 
@@ -26,6 +33,17 @@ const toHexByte = (num: number): string => {
   return hex;
 };
 
+/**
+ * Generates Z80 assembly code for a single frame of a sprite.
+ * @param frameName The name of the frame, used for labels in the ASM code.
+ * @param frameData The pixel data for the frame.
+ * @param spritePalette The sprite's 4-color palette.
+ * @param backgroundColor The sprite's background color, which is not exported as a layer.
+ * @param spriteWidth The width of the sprite in pixels.
+ * @param spriteHeight The height of the sprite in pixels.
+ * @param dataFormat The data format for exporting to ASM.
+ * @returns A string containing the generated assembly code for the frame.
+ */
 const generateSingleFrameASMCode = (
   frameName: string, 
   frameData: PixelData,
@@ -104,6 +122,9 @@ const generateSingleFrameASMCode = (
 };
 
 
+/**
+ * A modal dialog for exporting sprite data as Z80 assembly code or a binary file.
+ */
 export const ExportSpriteASMModal: React.FC<ExportSpriteASMModalProps> = ({
   isOpen,
   onClose,

@@ -9,38 +9,78 @@ import { Button } from '../common/Button';
 import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, MapIcon, PlayIcon } from '../icons/MsxIcons';
 import { ScreenMap } from '../../types';
 
+/**
+ * Represents the name of a layer in the screen editor.
+ * @category ScreenEditor
+ */
 type LayerName = keyof ScreenMap['layers'] | 'entities' | 'effects';
 
+/**
+ * Props for the {@link ScreenEditorToolbar} component.
+ * @category ScreenEditor
+ */
 interface ScreenEditorToolbarProps {
+  /** The currently active layer. */
   activeLayer: LayerName;
+  /** Callback function when the active layer changes. */
   onLayerChange: (layer: LayerName) => void;
+  /** An array of available layer names. */
   layerNames: LayerName[];
+  /** The current zoom level. */
   zoom: number;
+  /** Callback function when the zoom level changes. */
   onZoomChange: (zoom: number) => void;
   
+  /** The x-coordinate of the active area. */
   activeAreaX: string;
+  /** The y-coordinate of the active area. */
   activeAreaY: string;
+  /** The width of the active area. */
   activeAreaWidth: string;
+  /** The height of the active area. */
   activeAreaHeight: string;
+  /** Callback function when an active area property changes. */
   onActiveAreaChange: (prop: 'activeAreaX' | 'activeAreaY' | 'activeAreaWidth' | 'activeAreaHeight', value: string) => void;
+  /** The maximum value for the active area's x-coordinate. */
   maxActiveAreaX: number;
+  /** The maximum value for the active area's y-coordinate. */
   maxActiveAreaY: number;
+  /** The maximum value for the active area's width. */
   maxActiveAreaWidth: number;
+  /** The maximum value for the active area's height. */
   maxActiveAreaHeight: number;
+  /** Callback function to open the HUD editor. */
   onOpenHudEditor: () => void;
+  /** Whether a HUD area is defined for the screen. */
   isHudAreaDefined: boolean;
+  /** Callback function to export the layout data. */
   onExportLayout: () => void; 
+  /** Callback function to export the behavior map. */
   onExportBehavior: () => void; 
+  /** Callback function to open the screen preview. */
   onPreview: () => void;
 
+  /** Callback function to copy the current layer. */
   onCopyLayer: () => void; 
+  /** Callback function to paste into the current layer. */
   onPasteLayer: () => void; 
+  /** Whether the copy layer button should be disabled. */
   isCopyLayerDisabled?: boolean; 
+  /** Whether the paste layer button should be disabled. */
   isPasteLayerDisabled?: boolean; 
+  /** Callback function to add a new effect zone. */
   onAddNewEffectZone: () => void;
+  /** Callback function to show the main map ASM file. */
   onShowMapFile: () => void;
 }
 
+/**
+ * A toolbar component for the screen editor, providing controls for layers, zoom, active area, and various actions.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category ScreenEditor
+ */
 export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   activeLayer, onLayerChange, layerNames, zoom, onZoomChange,
   activeAreaX, activeAreaY, activeAreaWidth, activeAreaHeight, onActiveAreaChange,

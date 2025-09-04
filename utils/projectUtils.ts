@@ -1,4 +1,10 @@
 
+/**
+ * Creates a deep copy of an object.
+ * @param data The object to deep copy.
+ * @returns A deep copy of the object.
+ * @template T
+ */
 export const deepCopy = <T,>(data: T): T => {
   if (data === null || typeof data !== 'object') {
     return data;
@@ -11,6 +17,10 @@ export const deepCopy = <T,>(data: T): T => {
   }
 };
 
+/**
+ * Gets the current date formatted as YYYY-MM-DD.
+ * @returns The formatted date string.
+ */
 export const getFormattedDate = (): string => {
   const date = new Date();
   const year = date.getFullYear();
@@ -19,6 +29,13 @@ export const getFormattedDate = (): string => {
   return `${year}-${month}-${day}`;
 };
 
+/**
+ * Generates a standard header for an assembly file.
+ * @param projectName The name of the project.
+ * @param formattedDate The formatted date string.
+ * @param filename The name of the file.
+ * @returns The generated assembly file header.
+ */
 export const generateAsmFileHeader = (projectName: string, formattedDate: string, filename: string): string => {
   const effectiveProjectName = projectName || "Untitled Project";
   const header = `;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -34,6 +51,12 @@ export const generateAsmFileHeader = (projectName: string, formattedDate: string
   return header + bodyComment;
 };
 
+/**
+ * Generates the content for the main assembly file.
+ * @param projectName The name of the project.
+ * @param formattedDate The formatted date string.
+ * @returns The generated content for the main assembly file.
+ */
 export const generateMainAsmContent = (projectName: string, formattedDate: string): string => {
   const header = `;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; ${projectName}

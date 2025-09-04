@@ -2,15 +2,24 @@ import React from 'react';
 import { Button } from '../common/Button';
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
 
+/**
+ * Props for the ExportMainMenuASMModal component.
+ */
 interface ExportMainMenuASMModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The generated assembly code to display. */
   asmCode: string;
 }
 
 const MODAL_DEFAULT_FONT_SIZE = 13;
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
+/**
+ * A modal dialog for displaying and exporting the main menu configuration as Z80 assembly code.
+ */
 export const ExportMainMenuASMModal: React.FC<ExportMainMenuASMModalProps> = ({
   isOpen,
   onClose,

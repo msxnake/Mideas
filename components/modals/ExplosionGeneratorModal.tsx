@@ -4,19 +4,33 @@ import { Button } from '../common/Button';
 import { ExplosionType, ExplosionSpriteSize, ExplosionParams, EXPLOSION_SPRITE_SIZES } from '../../types';
 
 
+/**
+ * Props for the ExplosionGeneratorModal component.
+ */
 interface ExplosionGeneratorModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** Callback function when the generate button is clicked, passing the explosion parameters. */
   onGenerate: (params: ExplosionParams) => void;
+  /** The initial sprite size for the explosion. */
   initialSpriteSize?: ExplosionSpriteSize;
 }
 
+/**
+ * Tooltips for the different explosion types.
+ */
 const explosionTypeTooltips: Record<ExplosionType, string> = {
   Radial: "Particles expand outwards in a circular pattern.",
   Fragmentada: "A few larger fragments burst outwards.",
   Implosión: "(Soon) Particles collapse inwards towards the center."
 };
 
+/**
+ * A modal dialog for generating procedural explosion sprite animations.
+ * It provides various parameters to customize the explosion effect.
+ */
 export const ExplosionGeneratorModal: React.FC<ExplosionGeneratorModalProps> = ({
   isOpen,
   onClose,

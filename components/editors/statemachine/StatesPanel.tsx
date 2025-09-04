@@ -5,6 +5,9 @@ import { StateMachineState, StateMachineStateName } from '../../../statemachine.
 import { TrashIcon, CogIcon } from '../../icons/MsxIcons';
 import { StatePropertiesModal } from '../../modals/StatePropertiesModal';
 
+/**
+ * A list of preset state names for common state machine states, with English and Spanish translations.
+ */
 const PRESET_STATES = [
   { id: 'IDLE', en: 'Idle', es: 'Quieto' },
   { id: 'WALKING', en: 'Walking', es: 'Caminando' },
@@ -62,14 +65,27 @@ const PRESET_STATES = [
   { id: 'TAKE', en: 'Take', es: 'Take' },
 ];
 
+/**
+ * Props for the StatesPanel component.
+ */
 interface StatesPanelProps {
+  /** The list of states in the state machine. */
   states: StateMachineState[];
+  /** Callback to add a new state. */
   onAddState: (name: string) => void;
+  /** Callback to delete a state by its ID. */
   onDeleteState: (id: string) => void;
+  /** Callback to update the properties of a state. */
   onUpdateState: (id: string, properties: { [key: string]: any }) => void;
+  /** The language to use for preset state names. */
   language: 'en' | 'es';
 }
 
+/**
+ * A panel for managing the states of a state machine.
+ * It allows users to create new states (custom or from presets), delete existing ones,
+ * and open a modal to edit their properties.
+ */
 export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, onDeleteState, onUpdateState, language }) => {
   const [newStateName, setNewStateName] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);

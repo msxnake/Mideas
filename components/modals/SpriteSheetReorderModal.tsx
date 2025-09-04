@@ -6,10 +6,16 @@ import { Button } from '../common/Button';
 import { createSpriteDataURL } from '../utils/screenUtils';
 import { AnimationWatcherModal } from './AnimationWatcherModal';
 
-// Thumbnail component (defined within the same file)
+/**
+ * A component to display a thumbnail preview of a sprite.
+ * @internal
+ */
 const SpriteThumbnail: React.FC<{
+    /** The sprite asset to display. */
     spriteAsset: ProjectAsset;
+    /** The index of the sprite in the list. */
     index: number;
+    /** Whether the sprite is currently being dragged. */
     isDragging: boolean;
 }> = ({ spriteAsset, index, isDragging }) => {
     const sprite = spriteAsset.data as Sprite;
@@ -40,17 +46,34 @@ const SpriteThumbnail: React.FC<{
     );
 };
 
-// Main Modal component
+/**
+ * Props for the {@link SpriteSheetReorderModal} component.
+ * @category Modal
+ */
 interface SpriteSheetReorderModalProps {
+    /** Whether the modal is currently open. */
     isOpen: boolean;
+    /** Callback function to close the modal. */
     onClose: () => void;
+    /** The list of sprite assets to reorder. */
     sprites: ProjectAsset[];
+    /** Callback function when the user saves the new order. */
     onUpdateOrder: (reorderedSprites: ProjectAsset[]) => void;
+    /** A list of all project assets (used for animation watcher). */
     allAssets: ProjectAsset[];
+    /** The current screen mode (used for animation watcher). */
     currentScreenMode: string;
+    /** Callback to open the sprite frames modal for a specific sprite. */
     onOpenFramesModal: (spriteAsset: ProjectAsset) => void;
 }
 
+/**
+ * A modal dialog for reordering sprites in a sprite sheet using drag and drop.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const SpriteSheetReorderModal: React.FC<SpriteSheetReorderModalProps> = ({
     isOpen,
     onClose,

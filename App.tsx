@@ -39,10 +39,17 @@ import { deepCopy, getFormattedDate, generateAsmFileHeader, generateMainAsmConte
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES, DEFAULT_MAP_ASM_CONTENT, DEFAULT_CONSTANTS_ASM_CONTENT } from './data/defaults';
 import { ThemeProvider } from './contexts/ThemeContext';
 
-
+/** The key used to store user snippets in localStorage. @constant */
 const SNIPPETS_STORAGE_KEY = 'msxIdeUserSnippets_v1';
+/** The interval for autosaving the project, in milliseconds. @constant */
 const AUTOSAVE_INTERVAL = 10 * 60 * 1000;
 
+/**
+ * The main root component of the application.
+ * This component manages the entire application state, including assets, editor states,
+ * project settings, and all business logic for creating, updating, loading, and saving data.
+ * It passes down state and callbacks to the `AppUI` component for rendering.
+ */
 const App: React.FC = () => {
   const [currentEditor, setCurrentEditor] = useState<EditorType>(EditorType.None);
   const [previousEditorContext, setPreviousEditorContext] = useState<{ editor: EditorType, assetId: string | null } | null>(null);

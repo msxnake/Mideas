@@ -8,17 +8,32 @@ import { Panel } from '../common/Panel';
 import { SnippetsPanel } from '../common/SnippetsPanel';
 import { Z80_BEHAVIOR_SNIPPETS } from '../../constants'; // Assuming specific snippets for behaviors
 
+/**
+ * Props for the BehaviorEditor component.
+ */
 interface BehaviorEditorProps {
+  /** The behavior script asset being edited. */
   behaviorScript: BehaviorScript;
+  /** Callback function to update the behavior script. */
   onUpdate: (data: Partial<BehaviorScript>) => void;
+  /** Callback function when a snippet is selected for insertion. */
   onSnippetSelect: (snippet: Snippet) => void;
+  /** The list of user-created snippets. */
   userSnippets: Snippet[];
+  /** Callback to open the snippet editor for a new snippet. */
   onAddSnippet: (snippet: Snippet | null) => void;
+  /** Callback to open the snippet editor for an existing snippet. */
   onEditSnippet: (snippet: Snippet) => void;
+  /** Callback to delete a user snippet. */
   onDeleteSnippet: (snippetId: string) => void;
+  /** Whether the snippets panel is enabled. */
   isSnippetsPanelEnabled: boolean;
 }
 
+/**
+ * An editor for creating and modifying entity behavior scripts.
+ * It combines a code editor with a snippets panel for reusability.
+ */
 export const BehaviorEditor: React.FC<BehaviorEditorProps> = ({
   behaviorScript,
   onUpdate,

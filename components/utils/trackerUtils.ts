@@ -2,7 +2,10 @@
 import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, PT3Ornament } from '../../types';
 import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, PT3_NOTE_NAMES } from '../../constants';
 
-// Cell Creation Helpers
+/**
+ * Creates an empty tracker cell with all fields initialized to null.
+ * @returns A new TrackerCell object.
+ */
 export const createEmptyCell = (): TrackerCell => ({
   note: null,
   instrument: null,
@@ -11,12 +14,22 @@ export const createEmptyCell = (): TrackerCell => ({
   // effectCmd and effectVal removed
 });
 
+/**
+ * Creates an empty tracker row with three empty cells (for channels A, B, and C).
+ * @returns A new TrackerRow object.
+ */
 export const createEmptyRow = (): TrackerRow => ({
   A: createEmptyCell(),
   B: createEmptyCell(),
   C: createEmptyCell(),
 });
 
+/**
+ * Creates a default tracker pattern with a specified number of empty rows.
+ * @param idSuffix A suffix to append to the pattern's ID.
+ * @param numRows The number of rows for the pattern. Defaults to DEFAULT_PT3_ROWS_PER_PATTERN.
+ * @returns A new TrackerPattern object.
+ */
 export const createDefaultTrackerPattern = (idSuffix: string, numRows: number = DEFAULT_PT3_ROWS_PER_PATTERN): TrackerPattern => ({
   id: `pattern_${idSuffix}`,
   name: `Pattern ${idSuffix.split('_').pop()?.padStart(2,'0') || '00'}`,
@@ -24,22 +37,32 @@ export const createDefaultTrackerPattern = (idSuffix: string, numRows: number = 
   rows: Array(numRows).fill(null).map(() => createEmptyRow()),
 });
 
-// Cell Width Constants (Tailwind class names)
+/** Tailwind CSS class for the width of the note cell. */
 export const CELL_WIDTH_NOTE = "w-10";
+/** Tailwind CSS class for the width of the instrument cell. */
 export const CELL_WIDTH_INSTR = "w-7";
+/** Tailwind CSS class for the width of the ornament cell. */
 export const CELL_WIDTH_ORN = "w-7";
+/** Tailwind CSS class for the width of the volume cell. */
 export const CELL_WIDTH_VOL = "w-7";
-// FX and FX_VAL widths removed
+/** Tailwind CSS class for centering text in cells. */
 export const CELL_TEXT_ALIGN = "text-center";
 
-// Input Validation Regex
+/** Regex for validating note input. */
 export const NOTE_REGEX = /^([A-G](?:#|-)?(?:[0-7])|---|===)$/i;
+/** Regex for validating instrument number input (0-31). */
 export const INSTRUMENT_REGEX = /^([0-9]|[1-2][0-9]|3[0-1])$/;
+/** Regex for validating ornament number input (0-15). */
 export const ORNAMENT_REGEX = /^(0|[1-9]|1[0-5])$/;
+/** Regex for validating volume input (0-F). */
 export const VOLUME_REGEX = /^[0-9A-F]$/i;
-// FX_CMD_REGEX and FX_VAL_REGEX removed
 
-// Cell Display and Input Helpers
+/**
+ * Formats a tracker cell's value for display in the UI.
+ * @param field The field of the cell to format (e.g., 'note', 'instrument').
+ * @param value The value of the field.
+ * @returns A formatted string for display.
+ */
 export const formatCellForDisplay = (field: keyof TrackerCell, value: string | number | null): string => {
     if (value === null || value === undefined) return "";
     switch (field) {
@@ -57,6 +80,11 @@ export const formatCellForDisplay = (field: keyof TrackerCell, value: string | n
     }
 };
 
+/**
+ * Gets the placeholder text for a given tracker cell field.
+ * @param field The field of the cell.
+ * @returns The placeholder string for the input field.
+ */
 export const getCellPlaceholder = (field: keyof TrackerCell): string => {
     switch(field) {
         case 'note': return "---";
@@ -70,6 +98,12 @@ export const getCellPlaceholder = (field: keyof TrackerCell): string => {
     }
 };
   
+/**
+ * Gets a function to transform the input value for a given cell field.
+ * For example, to convert note input to uppercase.
+ * @param field The field of the cell.
+ * @returns A transformation function, or undefined if no transformation is needed.
+ */
 export const getCellTransform = (field: keyof TrackerCell): ((input:string)=>string) | undefined => {
     if (field === 'note' || field === 'volume') {
         return (input: string) => input.toUpperCase();
@@ -77,6 +111,11 @@ export const getCellTransform = (field: keyof TrackerCell): ((input:string)=>str
     return undefined;
 };
 
+/**
+ * Gets a regex pattern for allowed characters in a given cell field.
+ * @param field The field of the cell.
+ * @returns A RegExp object for allowed characters, or undefined.
+ */
 export const getCellAllowedCharsPattern = (field: keyof TrackerCell): RegExp | undefined => {
     switch(field) {
         case 'note': return /^[A-G#\-=0-7]$/i;
@@ -89,6 +128,11 @@ export const getCellAllowedCharsPattern = (field: keyof TrackerCell): RegExp | u
     }
 };
 
+/**
+ * Gets the maximum input length for a given cell field.
+ * @param field The field of the cell.
+ * @returns The maximum number of characters allowed.
+ */
 export const getCellMaxLength = (field: keyof TrackerCell): number => {
     switch(field) {
         case 'note': return 3;
@@ -101,6 +145,13 @@ export const getCellMaxLength = (field: keyof TrackerCell): number => {
     }
 };
 
+/**
+ * Normalizes partially parsed PT3 song data into a complete TrackerSongData object.
+ * It fills in missing fields with defaults and ensures data consistency.
+ * @param parsedData The partial song data parsed from a PT3 file.
+ * @param fileName The name of the original file, used as a fallback for the song name.
+ * @returns A complete and consistent TrackerSongData object.
+ */
 export const normalizeImportedPT3Data = (parsedData: Partial<TrackerSongData>, fileName: string): TrackerSongData => {
   const baseSong: TrackerSongData = {
     id: `song_imported_${Date.now()}`,

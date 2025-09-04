@@ -2,12 +2,26 @@
 import React from 'react';
 import { Button } from '../common/Button';
 
+/**
+ * Props for the {@link LogModal} component.
+ * @category Modal
+ */
 interface LogModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** An array of log messages to display. */
   logs: string[];
 }
 
+/**
+ * A modal dialog for displaying log messages.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const LogModal: React.FC<LogModalProps> = ({ isOpen, onClose, logs }) => {
   if (!isOpen) return null;
 

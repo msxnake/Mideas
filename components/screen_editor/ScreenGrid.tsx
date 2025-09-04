@@ -5,39 +5,83 @@ import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, EFFECT_Z
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
 import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
 
+/**
+ * Represents the name of a layer in the screen editor.
+ * @category ScreenEditor
+ */
 type LayerName = keyof ScreenMap['layers'] | 'entities' | 'effects';
 
+/**
+ * Props for the {@link ScreenGrid} component.
+ * @category ScreenEditor
+ */
 export interface ScreenGridProps {
+  /** The screen map data to render. */
   mapData: ScreenMap;
+  /** The currently active layer being edited. */
   activeLayer: LayerName;
+  /** The tileset used for rendering tiles. */
   tileset: Tile[];
+  /** A list of all sprite assets in the project. */
   sprites: ProjectAsset[]; 
+  /** Callback function when a tile is placed or erased. */
   onTilePlace: (point: Point) => void;
+  /** Callback function when an entity is placed. */
   onEntityPlace: (point: Point) => void;
+  /** Callback function when an entity is selected. */
   onEntitySelect: (entityId: string) => void;
+  /** Callback function when an effect zone is selected. */
   onEffectZoneSelect: (zoneId: string | null) => void; 
+  /** Callback function for context menu events on tiles. */
   onTileContextMenu: (event: React.MouseEvent, tileId: string) => void;
+  /** The size of each grid cell in pixels. */
   gridPixelSize: number;
+  /** The base width of a cell in pixels (for scaling). */
   baseCellPixelWidth: number;
+  /** The base height of a cell in pixels (for scaling). */
   baseCellPixelHeight: number;
+  /** The current screen mode (e.g., 'screen2'). */
   currentScreenMode: string;
+  /** An array of HUD elements to display. */
   hudElements?: HUDElement[];
+  /** The base dimension of a tile in the editor. */
   editorBaseTileDim: number;
+  /** An array of tile banks for the current screen. */
   tileBanks?: TileBank[];
+  /** The MSX font data. */
   msxFont: MSXFont;
+  /** The color attributes for the MSX font. */
   msxFontColorAttributes: MSXFontColorAttributes;
+  /** The ID of the currently selected entity instance. */
   selectedEntityInstanceId: string | null;
+  /** An array of effect zones for the current screen. */
   effectZones: EffectZone[]; 
+  /** The ID of the currently selected effect zone. */
   selectedEffectZoneId: string | null; 
+  /** The currently active tool in the editor. */
   currentScreenTool: ScreenEditorTool;
+  /** The current selection rectangle, or null if no selection. */
   selectionRect: ScreenSelectionRect | null;
+  /** Callback function when the selection rectangle changes. */
   onSelectionChange: (rect: ScreenSelectionRect | null) => void;
+  /** A list of all component definitions in the project. */
   componentDefinitions: ComponentDefinition[]; 
+  /** A list of all entity templates in the project. */
   entityTemplates: EntityTemplate[]; 
+  /** The state of the waypoint picker. */
   waypointPickerState: { isPicking: boolean; };
+  /** Callback function when a waypoint is picked. */
   onWaypointPicked: (point: Point) => void;
 }
 
+/**
+ * The main grid component for the screen editor.
+ * It handles rendering of tiles, entities, HUD elements, and user interactions like placing, selecting, and drawing.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category ScreenEditor
+ */
 export const ScreenGrid: React.FC<ScreenGridProps> = ({
   mapData, activeLayer, tileset, sprites, onTilePlace, onEntityPlace, onEntitySelect, onEffectZoneSelect, onTileContextMenu,
   gridPixelSize, baseCellPixelWidth, baseCellPixelHeight, currentScreenMode,
@@ -65,6 +109,12 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     return null;
   };
   
+  /**
+   * Handles the mouse down event on the grid.
+   * This function determines the action to take based on the current tool and active layer,
+   * such as selecting an entity, starting a selection rectangle, or placing a tile/entity.
+   * @param event The mouse event.
+   */
   const handleMouseDown = (event: React.MouseEvent) => {
     if (event.button !== 0) return; // Only handle left-click for placing/selecting
     const point = getGridCoordinatesFromMouseEvent(event);
@@ -137,6 +187,11 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     }
   };
   
+  /**
+   * Handles the mouse move event on the grid.
+   * This is primarily used to update the selection rectangle when the user is dragging.
+   * @param event The mouse event.
+   */
   const handleMouseMove = (event: React.MouseEvent) => {
     if (!isMouseDown || !startSelectionPoint || currentScreenTool !== 'select' || activeLayer === 'effects' || activeLayer === 'entities') return;
     const currentPoint = getGridCoordinatesFromMouseEvent(event);
@@ -149,6 +204,10 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     onSelectionChange({ x: newRectX, y: newRectY, width: newRectWidth, height: newRectHeight });
   };
 
+  /**
+   * Handles the mouse up event on the grid.
+   * Resets the mouse down state and finalizes the selection.
+   */
   const handleMouseUp = () => {
     setIsMouseDown(false);
     if (currentScreenTool === 'select' && activeLayer !== 'effects' && activeLayer !== 'entities') {

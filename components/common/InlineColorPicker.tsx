@@ -4,13 +4,21 @@ import { MSX1ColorValue } from '../../types';
 import { MSX1_PALETTE } from '../../constants';
 import { Button } from './Button';
 
+/**
+ * An inline color picker component for selecting from the MSX1 palette.
+ * @param {object} props - The component props.
+ * @param {string} props.label - The label to display next to the color picker.
+ * @param {MSX1ColorValue} props.color - The currently selected color.
+ * @param {(color: MSX1ColorValue) => void} props.onChange - Callback function for when a new color is selected.
+ * @returns A React component.
+ */
 export const InlineColorPicker: React.FC<{ label: string, color: MSX1ColorValue; onChange: (color: MSX1ColorValue) => void; }> = ({ label, color, onChange }) => {
     const [isOpen, setIsOpen] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
   
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
-        if (pickerRef.current && !pickererRef.current.contains(event.target as Node)) {
+        if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
           setIsOpen(false);
         }
       };

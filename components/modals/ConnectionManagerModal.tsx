@@ -2,15 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { WorldMapScreenNode, WorldMapConnection, ConnectionDirection } from '../../types';
 
+/**
+ * Props for the ConnectionManagerModal component.
+ */
 interface ConnectionManagerModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The node for which to manage connections. */
   node: WorldMapScreenNode | null;
+  /** A list of all nodes in the world map. */
   allNodes: WorldMapScreenNode[];
+  /** The current list of connections in the world map. */
   connections: WorldMapConnection[];
+  /** Callback to update the connections. */
   onUpdateConnections: (connections: WorldMapConnection[]) => void;
 }
 
+/**
+ * A modal dialog for managing the connections of a world map node.
+ * It provides a simple interface for connecting and disconnecting a node in four directions.
+ */
 export const ConnectionManagerModal: React.FC<ConnectionManagerModalProps> = ({
   isOpen,
   onClose,

@@ -1,7 +1,8 @@
 
-// components/utils/noteFrequencies.ts
-
-// Standard Western chromatic scale note frequencies (A4 = 440 Hz)
+/**
+ * A map of note names to their corresponding frequencies in Hertz.
+ * Based on the standard Western chromatic scale with A4 = 440 Hz.
+ */
 export const NOTE_FREQUENCIES: { [note: string]: number } = {
   'C-0': 16.35,  'C#0': 17.32,  'D-0': 18.35,  'D#0': 19.45,  'E-0': 20.60,  'F-0': 21.83,  'F#0': 23.12,  'G-0': 24.50,  'G#0': 25.96,  'A-0': 27.50,  'A#0': 29.14,  'B-0': 30.87,
   'C-1': 32.70,  'C#1': 34.65,  'D-1': 36.71,  'D#1': 38.89,  'E-1': 41.20,  'F-1': 43.65,  'F#1': 46.25,  'G-1': 49.00,  'G#1': 51.91,  'A-1': 55.00,  'A#1': 58.27,  'B-1': 61.74,

@@ -4,14 +4,25 @@ import { Button } from '../common/Button';
 import { createTileDataURL, renderScreenToCanvas } from '../utils/screenUtils';
 import { MSX_SCREEN5_PALETTE, EDITOR_BASE_TILE_DIM_S2 } from '../../constants';
 
+/**
+ * Props for the BossPreviewModal component.
+ */
 interface BossPreviewModalProps {
+    /** Whether the modal is currently open. */
     isOpen: boolean;
+    /** Callback function to close the modal. */
     onClose: () => void;
+    /** The boss data to be previewed. */
     boss: Boss;
+    /** The tileset used by the boss. */
     tileset: Tile[];
-    allAssets: ProjectAsset[]; // Now receiving all assets
+    /** A list of all project assets, used for resolving the background screen. */
+    allAssets: ProjectAsset[];
 }
 
+/**
+ * A generic modal component.
+ */
 const Modal: React.FC<{isOpen: boolean, onClose: () => void, title: string, children: React.ReactNode}> = ({isOpen, onClose, title, children}) => {
     if (!isOpen) return null;
     return (
@@ -25,6 +36,10 @@ const Modal: React.FC<{isOpen: boolean, onClose: () => void, title: string, chil
     );
 }
 
+/**
+ * A modal dialog for previewing a boss's animation cycles.
+ * It displays the different phases of a boss animation in sequence.
+ */
 export const BossPreviewModal: React.FC<BossPreviewModalProps> = ({ isOpen, onClose, boss, tileset, allAssets }) => {
     const [frameDelay, setFrameDelay] = useState(200);
     const [currentPhaseIndex, setCurrentPhaseIndex] = useState(0);

@@ -5,14 +5,30 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, CaretDownIcon } from '../icons/MsxIcons';
 
+/**
+ * Props for the {@link PatternsPanel} component.
+ * @category Tracker
+ */
 interface PatternsPanelProps {
+  /** The list of all patterns in the song. */
   patterns: TrackerPattern[];
+  /** The ID of the currently active pattern. */
   activePatternId: string | null;
+  /** Callback function to set the active pattern. */
   onSetActivePatternId: (id: string) => void;
+  /** Callback function to add a new pattern. */
   onAddPattern: () => void;
+  /** Callback function to delete the currently active pattern. */
   onDeleteCurrentPattern: () => void;
 }
 
+/**
+ * A panel that displays the list of all patterns in a tracker song.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Tracker
+ */
 export const PatternsPanel: React.FC<PatternsPanelProps> = ({
   patterns, activePatternId, onSetActivePatternId, onAddPattern, onDeleteCurrentPattern
 }) => {

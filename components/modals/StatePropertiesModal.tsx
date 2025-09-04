@@ -3,13 +3,28 @@ import { Modal } from './Modal';
 import { Button } from '../common/Button';
 import { StateMachineState } from '../../statemachine.types';
 
+/**
+ * Props for the {@link StatePropertiesModal} component.
+ * @category Modal
+ */
 interface StatePropertiesModalProps {
+  /** Whether the modal is currently open. */
   isOpen: boolean;
+  /** Callback function to close the modal. */
   onClose: () => void;
+  /** The state whose properties are being edited. */
   state: StateMachineState | null;
+  /** Callback function to update the state's properties. */
   onUpdateState: (id: string, properties: { [key: string]: any }) => void;
 }
 
+/**
+ * A modal dialog for editing the key-value properties of a state machine state.
+ *
+ * @param props The component props.
+ * @returns A React component.
+ * @category Modal
+ */
 export const StatePropertiesModal: React.FC<StatePropertiesModalProps> = ({ isOpen, onClose, state, onUpdateState }) => {
   const [properties, setProperties] = useState<{ [key: string]: any }>({});
 
