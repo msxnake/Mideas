@@ -25,6 +25,12 @@ interface SoftwareVolumeEnvelopeState {
     currentStep: number;
 }
 
+interface SoftwareToneEnvelopeState {
+    envelope: number[];
+    loopPosition?: number;
+    currentStep: number;
+}
+
 interface OrnamentState {
     ornament: PT3Ornament;
     currentStep: number;
@@ -54,6 +60,7 @@ export class AYSynthesizer {
     
     private channelHardwareEnvelopeState: (HardwareEnvelopeState | null)[] = [null, null, null];
     private channelSoftwareVolumeEnvelopeState: (SoftwareVolumeEnvelopeState | null)[] = [null, null, null];
+    private channelSoftwareToneEnvelopeState: (SoftwareToneEnvelopeState | null)[] = [null, null, null];
     private channelOrnamentState: (OrnamentState | null)[] = [null, null, null];
     
     private channelBaseVolumeForEffects: number[] = [15, 15, 15]; // Default full volume
@@ -147,9 +154,11 @@ export class AYSynthesizer {
     private initializeEnvelopesForInstrument(channel: 0 | 1 | 2, instrument: PT3Instrument) {
         this.channelHardwareEnvelopeState[channel] = null;
         this.channelSoftwareVolumeEnvelopeState[channel] = null;
+        this.channelSoftwareToneEnvelopeState[channel] = null;
     
         const useHardwareEnv = instrument.ayEnvelopeShape !== undefined && instrument.ayEnvelopeShape >= 0 && instrument.ayEnvelopeShape <= 15;
-        const useSoftwareEnv = instrument.volumeEnvelope && instrument.volumeEnvelope.length > 0;
+        const useSoftwareVolEnv = instrument.volumeEnvelope && instrument.volumeEnvelope.length > 0;
+        const useSoftwareToneEnv = instrument.toneEnvelope && instrument.toneEnvelope.length > 0;
     
         if (useHardwareEnv && this.songDataRef) {
             const shape = instrument.ayEnvelopeShape!;
@@ -163,11 +172,20 @@ export class AYSynthesizer {
                 alternate: (shape & 0b0010) !== 0, repeat: (shape & 0b1000) !== 0,
                 finished: false, peakVolumeRatio: peakVolRatioForHwEnv,
             };
-        } else if (useSoftwareEnv) {
+        } else if (useSoftwareVolEnv) {
             const volLoop = instrument.volumeLoop;
             this.channelSoftwareVolumeEnvelopeState[channel] = {
                 envelope: instrument.volumeEnvelope!,
                 loopPosition: (volLoop !== undefined && volLoop >= 0 && volLoop < instrument.volumeEnvelope!.length) ? volLoop : undefined,
+                currentStep: 0,
+            };
+        }
+
+        if (useSoftwareToneEnv) {
+            const toneLoop = instrument.toneLoop;
+            this.channelSoftwareToneEnvelopeState[channel] = {
+                envelope: instrument.toneEnvelope!,
+                loopPosition: (toneLoop !== undefined && toneLoop >= 0 && toneLoop < instrument.toneEnvelope!.length) ? toneLoop : undefined,
                 currentStep: 0,
             };
         }
@@ -235,6 +253,7 @@ export class AYSynthesizer {
             this.channelActiveInstrument[channel] = null;
             this.channelHardwareEnvelopeState[channel] = null;
             this.channelSoftwareVolumeEnvelopeState[channel] = null;
+            this.channelSoftwareToneEnvelopeState[channel] = null;
             this.channelOrnamentState[channel] = null;
             this.channelBaseVolumeForEffects[channel] = 0;
             if (this.channelMainGains[channel]) { 
@@ -266,6 +285,7 @@ export class AYSynthesizer {
             // Envelopes and ornament state reset for new note, will be re-initialized if applicable
             this.channelHardwareEnvelopeState[channel] = null;
             this.channelSoftwareVolumeEnvelopeState[channel] = null;
+            this.channelSoftwareToneEnvelopeState[channel] = null;
             this.channelOrnamentState[channel] = null;
         }
 
@@ -386,6 +406,26 @@ export class AYSynthesizer {
             periodForFrequencyUpdate = baseFundamentalPeriod;
         }
         
+        let toneEnvelopeOffset = 0;
+        const toneEnvState = this.channelSoftwareToneEnvelopeState[channel];
+        if (toneEnvState && toneEnvState.envelope.length > 0) {
+            if (toneEnvState.currentStep < toneEnvState.envelope.length) {
+                toneEnvelopeOffset = toneEnvState.envelope[toneEnvState.currentStep];
+
+                toneEnvState.currentStep++;
+                if (toneEnvState.currentStep >= toneEnvState.envelope.length) {
+                    if (toneEnvState.loopPosition !== undefined && toneEnvState.loopPosition < toneEnvState.envelope.length) {
+                        toneEnvState.currentStep = toneEnvState.loopPosition;
+                    }
+                }
+            }
+        }
+
+        if (periodForFrequencyUpdate !== null) {
+            periodForFrequencyUpdate += toneEnvelopeOffset;
+            periodForFrequencyUpdate = Math.max(1, Math.min(4095, periodForFrequencyUpdate));
+        }
+        
         if (periodForFrequencyUpdate !== this.channelCurrentPeriod[channel]) {
             this.channelCurrentPeriod[channel] = periodForFrequencyUpdate;
         }
@@ -399,7 +439,7 @@ export class AYSynthesizer {
             }
         }
 
-        let finalVolume15: number;
+        let finalGainRatio: number;
         if (this.channelHardwareEnvelopeState[channel]) {
             const hwEnv = this.channelHardwareEnvelopeState[channel]!;
             if (!hwEnv.finished) {
@@ -425,11 +465,15 @@ export class AYSynthesizer {
                     }
                 }
             }
-            finalVolume15 = Math.round(hwEnv.currentLevel * hwEnv.peakVolumeRatio);
+            const finalVolume15 = Math.round(hwEnv.currentLevel * hwEnv.peakVolumeRatio);
+            finalGainRatio = finalVolume15 / 15.0;
+
         } else if (this.channelSoftwareVolumeEnvelopeState[channel]) {
             const swEnvState = this.channelSoftwareVolumeEnvelopeState[channel]!;
+            let volFromEnv = 0;
             if (swEnvState.currentStep < swEnvState.envelope.length) {
-                finalVolume15 = swEnvState.envelope[swEnvState.currentStep];
+                volFromEnv = swEnvState.envelope[swEnvState.currentStep];
+                
                 swEnvState.currentStep++;
                 if (swEnvState.currentStep >= swEnvState.envelope.length) { 
                     if (swEnvState.loopPosition !== undefined && swEnvState.loopPosition < swEnvState.envelope.length) {
@@ -437,17 +481,18 @@ export class AYSynthesizer {
                     }
                 }
             } else if (swEnvState.envelope.length > 0) {
-                finalVolume15 = swEnvState.envelope[swEnvState.envelope.length - 1];
-            } else {
-                finalVolume15 = 0;
+                volFromEnv = swEnvState.envelope[swEnvState.envelope.length - 1];
             }
+            
+            const baseVolumeRatio = this.channelBaseVolumeForEffects[channel] / 15.0;
+            finalGainRatio = (volFromEnv / 127.0) * baseVolumeRatio;
+
         } else {
-            finalVolume15 = this.channelBaseVolumeForEffects[channel]; 
+            finalGainRatio = this.channelBaseVolumeForEffects[channel] / 15.0; 
         }
 
-        finalVolume15 = Math.max(0, Math.min(15, Math.round(finalVolume15)));
-        const finalGainRatio = finalVolume15 / 15.0;
-        this.channelMainGains[channel]!.gain.setTargetAtTime(Math.max(0, Math.min(finalGainRatio, 1.0)), this.audioContext.currentTime, 0.005); 
+        finalGainRatio = Math.max(0, Math.min(1.0, finalGainRatio));
+        this.channelMainGains[channel]!.gain.setTargetAtTime(finalGainRatio, this.audioContext.currentTime, 0.005); 
     }
 
     public setMasterVolume(volumeLevel: number): void {
@@ -466,6 +511,7 @@ export class AYSynthesizer {
             this.channelActiveInstrument[ch] = null;
             this.channelHardwareEnvelopeState[ch] = null;
             this.channelSoftwareVolumeEnvelopeState[ch] = null;
+            this.channelSoftwareToneEnvelopeState[ch] = null;
             this.channelOrnamentState[ch] = null;
             this.channelBaseVolumeForEffects[ch] = 15;
              if (this.channelMainGains[ch] && this.audioContext) {
