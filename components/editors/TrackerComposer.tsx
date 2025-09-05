@@ -14,7 +14,6 @@ import {
     NOTE_REGEX, INSTRUMENT_REGEX, ORNAMENT_REGEX, VOLUME_REGEX,
     createEmptyCell
 } from '../utils/trackerUtils';
-import { PT3FileOperationsModal } from '../modals/PT3FileOperationsModal';
 import { LogModal } from '../modals/LogModal'; // Import the new LogModal
 
 // Import new modular components
@@ -204,7 +203,6 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const channelPendingNoteCutRef = useRef<boolean[]>([false, false, false]);
 
   const [editStepJump, setEditStepJump] = useState<number>(1);
-  const [isFileModalOpen, setIsFileModalOpen] = useState(false);
 
   // State for Log Modal
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -810,17 +808,6 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
   }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump]);
   
-  const handleLoadSongDataFromModal = useCallback((newSongData: TrackerSongData, newName?: string) => {
-    onUpdate(newSongData); 
-    if (newName) {
-        setLocalSongName(newSongData.name || newName); 
-        setLocalSongTitle(newSongData.title || "");
-        setLocalSongAuthor(newSongData.author || "");
-    }
-    setFocusedCell(null);
-    setIsFileModalOpen(false);
-  }, [onUpdate]);
-
   const handleOpenInstrumentModal = useCallback((instrument: PT3Instrument | null) => {
     if (instrument) {
       setEditingInstrument(instrument);
@@ -930,7 +917,6 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4">
             <p className="text-msx-textsecondary mb-4">No patterns in this song yet.</p>
             <Button onClick={handleAddPattern} variant="primary" icon={<PlusCircleIcon/>}>Create First Pattern</Button>
-             <Button onClick={() => setIsFileModalOpen(true)} variant="secondary" className="mt-2">File Operations</Button>
              <Button onClick={handleLoadSampleSong} variant="secondary" className="mt-2">Load Sample Song</Button>
         </Panel>
     );
@@ -949,7 +935,6 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         editStepJump={editStepJump} onEditStepJumpChange={setEditStepJump}
         globalVolume={songData.globalVolume} onGlobalVolumeChange={(val) => handleGlobalDataChange('globalVolume', val)}
         isPlaying={isPlaying} onPlayStop={handlePlayStop}
-        onOpenFileOperations={() => setIsFileModalOpen(true)}
         onLoadSampleSong={handleLoadSampleSong} 
         onSilenceAllChannels={handleSilenceAllChannels}
       />
@@ -1010,14 +995,6 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         editingOrnament={editingOrnament} ornamentModalBuffer={ornamentModalBuffer}
         onOrnamentModalBufferChange={handleOrnamentModalFieldChange} onSubmit={handleOrnamentModalSubmit}
       />
-
-      {isFileModalOpen && (
-        <PT3FileOperationsModal
-            isOpen={isFileModalOpen} onClose={() => setIsFileModalOpen(false)}
-            songData={songData} onLoadSongData={handleLoadSongDataFromModal}
-            currentSongName={localSongName}
-        />
-      )}
 
       <LogModal
         isOpen={isLogModalOpen}

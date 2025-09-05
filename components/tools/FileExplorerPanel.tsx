@@ -21,6 +21,9 @@ interface FileExplorerPanelProps {
   onRequestDelete: (assetId: string) => void;
   /** Callback function to request saving a single tile asset. */
   onRequestSaveTile: (assetId: string) => void;
+  /** Callback function to request saving a single track asset. */
+  onRequestSaveTrack: (assetId: string) => void;
+  onImportTrack: (trackData: any, fileName: string) => void;
   /** Callback function to request loading a single tile asset. */
   onRequestLoadTile: (assetId: string) => void;
   /** Callback function to request saving multiple selected tile assets. */
@@ -131,6 +134,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   onRequestRename,
   onRequestDelete,
   onRequestSaveTile,
+  onRequestSaveTrack,
+  onImportTrack,
   onRequestLoadTile,
   onRequestSaveSelectedTiles,
   showTileBanksEntry = false,
@@ -153,6 +158,31 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     position: { x: number; y: number };
     assetId: string | null;
   }>({ isOpen: false, position: { x: 0, y: 0 }, assetId: null });
+  const trackFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportTrackFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          const parsedJson = JSON.parse(text);
+          onImportTrack(parsedJson, file.name);
+        } catch (error) {
+          console.error("Error loading JSON song file:", error);
+          alert(`Failed to load JSON song: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+          if (trackFileInputRef.current) trackFileInputRef.current.value = "";
+        }
+      };
+      reader.onerror = () => {
+        alert("Error reading .json file.");
+        if (trackFileInputRef.current) trackFileInputRef.current.value = "";
+      };
+      reader.readAsText(file);
+    }
+  };
 
   useEffect(() => {
     setExpandedFolders({});
@@ -204,6 +234,17 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     });
   };
 
+  const handleTrackContextMenu = (event: React.MouseEvent, assetId: string) => {
+    event.preventDefault();
+    handleCloseContextMenu();
+
+    setContextMenu({
+      isOpen: true,
+      position: { x: event.clientX, y: event.clientY },
+      assetId: assetId,
+    });
+  };
+
   const groupedAssets = assets.reduce((acc, asset) => {
     (acc[asset.type] = acc[asset.type] || []).push(asset);
     return acc;
@@ -226,24 +267,47 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   ];
 
 
-  const contextMenuItems: ContextMenuItem[] = contextMenu.assetId ? [
-    {
-      label: "Load",
-      icon: <LoadIcon className="w-3.5 h-3.5" />,
-      onClick: () => onRequestLoadTile(contextMenu.assetId as string),
-    },
-    {
-      label: "Save",
-      icon: <SaveIcon className="w-3.5 h-3.5" />,
-      onClick: () => {
-        if (selectedTileIds.length > 1) {
-          onRequestSaveSelectedTiles(selectedTileIds);
-        } else {
-          onRequestSaveTile(contextMenu.assetId as string);
-        }
-      },
-    },
-  ] : [];
+  const getContextMenuItems = (): ContextMenuItem[] => {
+    if (!contextMenu.assetId) return [];
+
+    const asset = assets.find(a => a.id === contextMenu.assetId);
+    if (!asset) return [];
+
+    if (asset.type === 'tile') {
+      return [
+        {
+          label: "Load",
+          icon: <LoadIcon className="w-3.5 h-3.5" />,
+          onClick: () => onRequestLoadTile(contextMenu.assetId as string),
+        },
+        {
+          label: "Save",
+          icon: <SaveIcon className="w-3.5 h-3.5" />,
+          onClick: () => {
+            if (selectedTileIds.length > 1) {
+              onRequestSaveSelectedTiles(selectedTileIds);
+            } else {
+              onRequestSaveTile(contextMenu.assetId as string);
+            }
+          },
+        },
+      ];
+    }
+
+    if (asset.type === 'track') {
+      return [
+        {
+          label: "Export",
+          icon: <SaveIcon className="w-3.5 h-3.5" />,
+          onClick: () => onRequestSaveTrack(contextMenu.assetId as string),
+        },
+      ];
+    }
+
+    return [];
+  };
+
+  const contextMenuItems = getContextMenuItems();
 
   return (
     <Panel
@@ -341,6 +405,23 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
               )}
               {isExpanded && (
                 <ul id={`folder-content-${folderType}`} className="pl-4 mt-0.5 space-y-0.5">
+                  {folderType === 'track' && (
+                    <li className="pt-1">
+                      <input
+                        type="file"
+                        accept=".json"
+                        ref={trackFileInputRef}
+                        onChange={handleImportTrackFile}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => trackFileInputRef.current?.click()}
+                        className="w-full text-xs px-2 py-1 rounded bg-msx-border hover:bg-msx-highlight text-msx-textprimary transition-colors"
+                      >
+                        Import Track (.json)
+                      </button>
+                    </li>
+                  )}
                   {assetsInFolder.length === 0 && <li className="px-2 py-1 text-xs text-msx-textsecondary italic">No {FOLDER_DISPLAY_NAMES[folderType].toLowerCase()} yet.</li>}
                   {assetsInFolder.length > 0 && processedAssets.length === 0 && folderType === 'tile' && <li className="px-2 py-1 text-xs text-msx-textsecondary italic">No tiles match filter.</li>}
                   {processedAssets.map(asset => {
@@ -350,7 +431,11 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                     return (
                       <li
                         key={asset.id}
-                        onContextMenu={folderType === 'tile' ? (e) => handleTileContextMenu(e, asset.id) : undefined}
+                        onContextMenu={
+                          folderType === 'tile' ? (e) => handleTileContextMenu(e, asset.id) :
+                          folderType === 'track' ? (e) => handleTrackContextMenu(e, asset.id) :
+                          undefined
+                        }
                         className={`flex items-center justify-between group w-full rounded-sm
                                     ${isTileSelected && !isSelected ? 'hover:bg-msx-border/70' : ''}
                                     ${isSelected ? '' : 'hover:bg-msx-border/70'}`}

@@ -116,6 +116,8 @@ interface AppUIProps {
 
   onUpdateMainMenuConfig: (updater: MainMenuConfig | ((prev: MainMenuConfig) => MainMenuConfig)) => void;
   onRequestSaveTile: (assetId: string) => void;
+  onRequestSaveTrack: (assetId: string) => void;
+  onImportTrack: (trackData: any, fileName: string) => void;
   onRequestLoadTile: (assetId: string) => void;
   onRequestSaveSelectedTiles: (assetIds: string[]) => void;
 
@@ -218,7 +220,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         
         setCopiedBossPhase, setCurrentEditor, setSelectedAssetId, setStatusBarMessage, setSelectedColor, setScreenEditorSelectedTileId, setCurrentScreenEditorActiveLayer, setCurrentEntityTypeToPlace, setSelectedEntityInstanceId, setSelectedEffectZoneId, setSelectedGameFlowNodeId, setIsRenameModalOpen, setAssetToRenameInfo, setIsSaveAsModalOpen, setIsNewProjectModalOpen, setIsAboutModalOpen, setIsCompressDataModalOpen, setIsConfirmModalOpen, setConfirmModalProps, setComponentDefinitions, setEntityTemplates, onUpdateMainMenuConfig, setTileBanks, setMsxFont, setMsxFontColorAttributes, setDataOutputFormat, setAutosaveEnabled, setIsConfigModalOpen, setIsSpriteSheetModalOpen, setIsSpriteFramesModalOpen, setSpriteForFramesModal, setUserSnippets, setIsSnippetEditorModalOpen, setEditingSnippet, setCopiedScreenBuffer, setCopiedLayerBuffer, setContextMenu, setWaypointPickerState, handleUpdateSpriteOrder, handleOpenSpriteFramesModal, handleSplitFrames, handleCreateSpriteFromFrame, handleWaypointPicked, showContextMenu, closeContextMenu, setAssetsWithHistory, handleUpdateAsset, handleOpenSnippetEditor, handleSaveSnippet, handleDeleteSnippet, handleSnippetSelected, saveIdeConfig, resetIdeConfig, handleOpenNewProjectModal, handleConfirmNewProject, handleNewAsset, handleSpriteImported, memoizedHandleSelectAsset, memoizedOnRequestRename, handleConfirmRename, handleCancelRename, handleDeleteAsset, handleOpenSaveAsModal, handleSaveProject, handleConfirmSaveAsProjectAs, handleLoadProject, fileLoadInputRef, handleDeleteEntityInstance, handleShowMapFile, handleUndo, handleRedo, handleExportAllCodeFiles, handleCopyTileData, handleGenerateTemplatesAsm,
         isToggleEditorDisabled, onToggleEditor, bossEditorZoom, setBossEditorZoom, tileEditorZoom, setTileEditorZoom, screenEditorZoom, setScreenEditorZoom,
-        onRequestSaveTile, onRequestLoadTile, onRequestSaveSelectedTiles
+        onRequestSaveTile, onRequestSaveTrack, onImportTrack, onRequestLoadTile, onRequestSaveSelectedTiles
     } = props;
 
   const activeAsset = assets.find(a => a.id === selectedAssetId);
@@ -372,6 +374,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             isMainMenuActive={currentEditor === EditorType.MainMenu}
             onRequestDelete={handleDeleteAsset}
             onRequestSaveTile={onRequestSaveTile}
+            onRequestSaveTrack={onRequestSaveTrack}
+            onImportTrack={onImportTrack}
             onRequestLoadTile={onRequestLoadTile}
             onRequestSaveSelectedTiles={onRequestSaveSelectedTiles}
         />
