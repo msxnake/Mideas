@@ -45,8 +45,6 @@ interface TrackerHeaderProps {
   isPlaying: boolean;
   /** Callback to toggle playback. */
   onPlayStop: () => void;
-  /** Callback to open the file operations modal. */
-  onOpenFileOperations: () => void;
   /** Callback to load a sample song. */
   onLoadSampleSong: () => void;
   /** Callback to silence all channels. */
@@ -64,7 +62,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   songName, onSongNameChange, songTitle, onSongTitleChange, songAuthor, onSongAuthorChange,
   bpm, onBpmChange, speed, onSpeedChange, patternRows, onPatternRowsChange,
   editStepJump, onEditStepJumpChange, globalVolume, onGlobalVolumeChange,
-  isPlaying, onPlayStop, onOpenFileOperations, onLoadSampleSong, onSilenceAllChannels // Added onSilenceAllChannels
+  isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels // Added onSilenceAllChannels
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
 
@@ -92,7 +90,6 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
         <input type="text" value={songAuthor} onChange={e => onSongAuthorChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-28"/>
       </div>
       <div className="flex items-center space-x-1">
-        <Button onClick={onOpenFileOperations} size="sm" variant="ghost" icon={<ListBulletIcon/>} title="File Operations (Load/Save/Import)">File Ops</Button>
         <Button onClick={onLoadSampleSong} size="sm" variant="ghost" icon={<MusicNoteIcon />} title="Load 'Ode to Joy' Sample">Sample</Button> 
       </div>
       <span className="border-l border-msx-border h-5 mx-1"></span>

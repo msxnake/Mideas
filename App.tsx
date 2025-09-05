@@ -30,7 +30,7 @@ import { generateScreenMapLayoutBytes, deepCompareTiles } from './components/uti
 import { generateSpriteBinaryData } from './components/utils/spriteUtils';
 import { generateFontPatternBinaryData, generateFontColorBinaryData } from './components/utils/msxFontUtils'; 
 import { generateTemplatesASM } from './components/utils/ecsUtils';
-import { createDefaultTrackerPattern as createDefaultPT3Pattern } from './components/utils/trackerUtils';
+import { createDefaultTrackerPattern as createDefaultPT3Pattern, normalizeImportedPT3Data } from './components/utils/trackerUtils';
 import { resolveSnippetPlaceholders } from './components/utils/snippetResolver'; 
 import { TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, MAIN_MENU_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './components/tools/FileExplorerPanel';
 import { msxFontJsonString } from './data/msxFontData';
@@ -691,6 +691,33 @@ const App: React.FC = () => {
     setStatusBarMessage(`Sprite "${name}" imported successfully.`);
   };
 
+  const handleImportTrack = (trackData: any, fileName: string) => {
+    try {
+      const normalizedSongData = normalizeImportedPT3Data(trackData, fileName);
+      const id = `track_imported_${Date.now()}`;
+      const name = normalizedSongData.name || `Imported Track ${assets.filter(a => a.type === 'track').length + 1}`;
+
+      const newAsset: ProjectAsset = {
+        id,
+        name,
+        type: 'track',
+        data: {
+          ...normalizedSongData,
+          id,
+          name,
+        },
+      };
+
+      setAssetsWithHistory(prev => [...prev, newAsset]);
+      setSelectedAssetId(id);
+      setCurrentEditor(EditorType.Track);
+      setStatusBarMessage(`Track "${name}" imported successfully.`);
+    } catch (error) {
+      console.error("Error importing track:", error);
+      setStatusBarMessage(`Failed to import track: ${error instanceof Error ? error.message : "Invalid file format"}`);
+    }
+  };
+
 
   const memoizedHandleSelectAsset = useCallback((assetId: string | null, editorTypeOverride?: EditorType) => {
     setSelectedAssetId(assetId);
@@ -1270,6 +1297,21 @@ const App: React.FC = () => {
     onRequestSaveTile: handleRequestSaveTile,
     onRequestLoadTile: handleRequestLoadTile,
     onRequestSaveSelectedTiles: handleRequestSaveSelectedTiles,
+    onImportTrack: handleImportTrack,
+    onRequestSaveTrack: (assetId: string) => {
+      const asset = assets.find(a => a.id === assetId && a.type === 'track');
+      if (asset) {
+        const trackData = JSON.stringify(asset.data, null, 2);
+        const blob = new Blob([trackData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${asset.name}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setStatusBarMessage(`Track "${asset.name}" exported.`);
+      }
+    },
     isCompressDataModalOpen, setIsCompressDataModalOpen,
     bossEditorZoom, setBossEditorZoom,
     tileEditorZoom, setTileEditorZoom,
