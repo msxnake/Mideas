@@ -95,6 +95,14 @@ export class AYSynthesizer {
      */
     public setSongData(songData: TrackerSongData): void {
         this.songDataRef = songData;
+        for (let i = 0; i < 3; i++) {
+            const ch = i as 0 | 1 | 2;
+            if (this.channelActiveInstrument[ch]) {
+                const activeId = this.channelActiveInstrument[ch]!.id;
+                const newInstrument = this.songDataRef.instruments.find(instr => instr.id === activeId);
+                this.channelActiveInstrument[ch] = newInstrument || null;
+            }
+        }
     }
 
     private getNotePeriod(noteString: string | null): number | null {
