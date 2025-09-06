@@ -140,18 +140,74 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const { nodes, connections } = graphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
 
-    const triggerEvent = useCallback((entityId: string, eventName: string) => {
+    const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
         const entity = entitiesRef.current.find(e => e.instance.id === entityId);
-        if (!entity || !entity.stateMachine || !entity.currentState) return;
+        if (!entity) {
+            console.log(`Entity ${entityId} not found`);
+            return;
+        }
+        
+        if (!entity.stateMachine) {
+            // Fallback: directly set velocity for movement
+            const speed = 2;
+            switch (pressedKey) {
+                case 'ArrowUp': entity.vy = isKeyDown ? -speed : 0; break;
+                case 'ArrowDown': entity.vy = isKeyDown ? speed : 0; break;
+                case 'ArrowLeft': entity.vx = isKeyDown ? -speed : 0; break;
+                case 'ArrowRight': entity.vx = isKeyDown ? speed : 0; break;
+            }
+            return;
+        }
+        
+        if (!entity.currentState) {
+            console.log(`Entity ${entityId} has no current state`);
+            return;
+        }
+        
+        // Find current state
         const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
-        if (!currentStateDef) return;
-        const eventDef = entity.stateMachine.events.find(e => e.name === eventName);
-        if (!eventDef) return;
-        const transition = entity.stateMachine.transitions.find(t => t.fromStateId === currentStateDef.id && t.eventId === eventDef.id);
-        if (transition) {
-            const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
-            if (nextState) {
-                entity.currentState = nextState.name;
+        if (!currentStateDef) {
+            console.log(`Current state ${entity.currentState} not found in state machine`);
+            return;
+        }
+        
+        console.log(`Entity ${entityId}: Current state = ${entity.currentState}, Key = ${pressedKey}, KeyDown = ${isKeyDown}`);
+        
+        // Look for matching transitions from current state
+        for (const transition of entity.stateMachine.transitions) {
+            if (transition.fromStateId !== currentStateDef.id) continue;
+            
+            const condition = transition.conditions;
+            if (!condition) continue;
+            
+            let conditionMet = false;
+            
+            // Check if condition matches the key event
+            if (isKeyDown && condition.type === 'KEY_PRESSED' && condition.params?.key === pressedKey) {
+                conditionMet = true;
+            } else if (!isKeyDown && condition.type === 'KEY_RELEASED' && condition.params?.key === pressedKey) {
+                conditionMet = true;
+            }
+            
+            if (conditionMet) {
+                // Execute transition
+                const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
+                if (nextState) {
+                    console.log(`Transitioning from ${entity.currentState} to ${nextState.name}`);
+                    entity.currentState = nextState.name;
+                    
+                    // Execute actions
+                    if (transition.actions) {
+                        for (const action of transition.actions) {
+                            if (action.type === 'SET_VELOCITY') {
+                                entity.vx = action.params.x || 0;
+                                entity.vy = action.params.y || 0;
+                                console.log(`Setting velocity: x=${entity.vx}, y=${entity.vy}`);
+                            }
+                        }
+                    }
+                    return; // Exit after first matching transition
+                }
             }
         }
     }, []);
@@ -209,10 +265,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         if (heroRef.current && pressedKeys.current.has(e.key)) {
             pressedKeys.current.delete(e.key);
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                triggerEvent(heroRef.current.instance.id, 'stop');
+                checkKeyTransitions(heroRef.current.instance.id, e.key, false);
             }
         }
-    }, [triggerEvent]);
+    }, [checkKeyTransitions]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         e.preventDefault();
@@ -229,11 +285,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (heroRef.current) {
                 if (!pressedKeys.current.has(e.key)) {
                     pressedKeys.current.add(e.key);
-                    switch (e.key) {
-                        case 'ArrowUp': triggerEvent(heroRef.current.instance.id, 'up'); break;
-                        case 'ArrowDown': triggerEvent(heroRef.current.instance.id, 'down'); break;
-                        case 'ArrowLeft': triggerEvent(heroRef.current.instance.id, 'left'); break;
-                        case 'ArrowRight': triggerEvent(heroRef.current.instance.id, 'right'); break;
+                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                        checkKeyTransitions(heroRef.current.instance.id, e.key, true);
                     }
                 }
                 if (e.key === 'Escape') handleGoBack();
@@ -255,7 +308,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 case 'Escape': handleGoBack(); break;
             }
         }
-    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, triggerEvent]);
+    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions]);
 
     useEffect(() => {
         if (!isOpen || currentNode?.type !== 'WorldLink' || currentScreenMap) return;
@@ -325,9 +378,30 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
             let stateMachine: StateMachine | undefined;
             let currentState: string | undefined;
-            const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+            
+            // Check for standard state machine component
+            let smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+            let stateMachineAssetId: string | undefined;
+            
             if (smc) {
-                const stateMachineAssetId = smc.defaultValues.stateMachineAssetId;
+                stateMachineAssetId = smc.defaultValues?.stateMachineAssetId;
+            } else {
+                // Check for custom state machine component (like comp_def_1757139342862)
+                smc = template.components.find(c => 
+                    componentDefinitions.find(def => def.id === c.definitionId)?.properties.some(p => 
+                        p.type === 'statemachine_ref' || p.name === 'state_machine'
+                    )
+                );
+                if (smc) {
+                    // Try different field names for the asset ID
+                    stateMachineAssetId = smc.defaultValues?.stateMachineAssetId || 
+                                         smc.defaultValues?.state_machine ||
+                                         instance.componentOverrides?.[smc.definitionId]?.stateMachineAssetId ||
+                                         instance.componentOverrides?.[smc.definitionId]?.state_machine;
+                }
+            }
+            
+            if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
                 const stateMachineAsset = getAsset(stateMachineAssetId, 'statemachine');
                 stateMachine = stateMachineAsset?.data as StateMachine | undefined;
                 if (stateMachine) {
@@ -358,7 +432,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 stateMachine, currentState
             };
             entitiesToAnimate.push(newAnimatedEntity);
-            if (template.components.some(c => c.definitionId === 'comp_cursors')) {
+            
+            // Detect hero entity using multiple methods
+            if (template.components.some(c => c.definitionId === 'comp_cursors') ||
+                template.components.some(c => c.definitionId === 'comp_player_input') ||
+                template.name === 'Player') {
                 heroRef.current = newAnimatedEntity;
             }
         });
@@ -448,12 +526,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (entity.vx > 0) {
                 if (checkCollisionAt(hitbox.x + hitbox.width, hitbox.y) || checkCollisionAt(hitbox.x + hitbox.width, hitbox.y + hitbox.height - 1)) {
                     entity.x = Math.floor((hitbox.x + hitbox.width) / TILE_SIZE) * TILE_SIZE - hitbox.width - (entityCollisionProps.offsetX || 0);
-                    entity.vx = 0; triggerEvent(entity.instance.id, 'collision_wall');
+                    entity.vx = 0; // triggerEvent(entity.instance.id, 'collision_wall');
                 }
             } else if (entity.vx < 0) {
                 if (checkCollisionAt(hitbox.x, hitbox.y) || checkCollisionAt(hitbox.x, hitbox.y + hitbox.height - 1)) {
                     entity.x = Math.ceil(hitbox.x / TILE_SIZE) * TILE_SIZE - (entityCollisionProps.offsetX || 0);
-                    entity.vx = 0; triggerEvent(entity.instance.id, 'collision_wall');
+                    entity.vx = 0; // triggerEvent(entity.instance.id, 'collision_wall');
                 }
             }
             entity.y += entity.vy;
@@ -461,12 +539,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (entity.vy > 0) {
                  if (checkCollisionAt(hitbox.x, hitbox.y + hitbox.height) || checkCollisionAt(hitbox.x + hitbox.width - 1, hitbox.y + hitbox.height)) {
                     entity.y = Math.floor((hitbox.y + hitbox.height) / TILE_SIZE) * TILE_SIZE - hitbox.height - (entityCollisionProps.offsetY || 0);
-                    entity.vy = 0; triggerEvent(entity.instance.id, 'collision_wall');
+                    entity.vy = 0; // triggerEvent(entity.instance.id, 'collision_wall');
                 }
             } else if (entity.vy < 0) {
                 if (checkCollisionAt(hitbox.x, hitbox.y) || checkCollisionAt(hitbox.x + hitbox.width - 1, hitbox.y)) {
                     entity.y = Math.ceil(hitbox.y / TILE_SIZE) * TILE_SIZE - (entityCollisionProps.offsetY || 0);
-                    entity.vy = 0; triggerEvent(entity.instance.id, 'collision_wall');
+                    entity.vy = 0; // triggerEvent(entity.instance.id, 'collision_wall');
                 }
             }
         };
@@ -491,7 +569,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (screenMapToRender) renderScreenToCanvas(canvas, screenMapToRender, tileset, currentScreenMode, TILE_SIZE);
             const now = performance.now();
             entitiesRef.current.forEach((entityA, indexA) => {
-                if (entityA === heroRef.current) { entityA.vx = 0; entityA.vy = 0; }
+                if (entityA === heroRef.current && !entityA.stateMachine) { 
+                    // For hero without state machine, only reset velocity if no movement keys are pressed
+                    const isMoving = pressedKeys.current.has('ArrowUp') || pressedKeys.current.has('ArrowDown') || 
+                                   pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('ArrowRight');
+                    if (!isMoving) {
+                        entityA.vx = 0; 
+                        entityA.vy = 0; 
+                    }
+                }
                 if (entityA.stateMachine && entityA.currentState) {
                     const stateDef = entityA.stateMachine.states.find(s => s.name === entityA.currentState);
                     if (stateDef?.properties) {
@@ -533,8 +619,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             if ((collidesWithA & layerB) && (collidesWithB & layerA)) {
                                 const eventForA = `collision_with_${entityB.template.name.replace(/[^a-zA-Z0-9_]/g, '_')}`;
                                 const eventForB = `collision_with_${entityA.template.name.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-                                triggerEvent(entityA.instance.id, eventForA);
-                                triggerEvent(entityB.instance.id, eventForB);
+                                // triggerEvent(entityA.instance.id, eventForA);
+                                // triggerEvent(entityB.instance.id, eventForB);
                             }
                         }
                     }
@@ -585,7 +671,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         };
     }, [
         isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections,
-        msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, triggerEvent
+        msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions
     ]);
 
 

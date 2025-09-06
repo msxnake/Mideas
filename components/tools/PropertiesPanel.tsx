@@ -216,6 +216,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         'sound_ref': 'sound',
         'behavior_script_ref': 'behavior',
         'entity_template_ref': 'entitytemplate',
+        'statemachine_ref': 'statemachine',
     };
     const assetType = assetTypeMap[propertyType];
     if (!assetType) return;
@@ -436,12 +437,67 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                     const inputId = `override-${entityInstance.id}-${componentDef.id}-${propDef.name}`;
                     const isRefType = propDef.type.endsWith('_ref');
 
+                    // Special handling for StateMachine currentStateId property
+                    const isStateMachineCurrentStateProperty = (componentDef.name === 'StateMachineComponent' || componentDef.name === 'StateMachine') 
+                        && propDef.name === 'currentStateId';
+                    let availableStates: Array<{id: string, name: string}> = [];
+                    
+                    if (isStateMachineCurrentStateProperty) {
+                        // Get the state machine asset ID from the same component
+                        const stateMachineAssetIdProp = componentDef.properties.find(p => 
+                            p.name === 'stateMachineAssetId' || p.name === 'state_machine' || p.type === 'statemachine_ref');
+                        if (stateMachineAssetIdProp) {
+                            const stateMachineAssetId = localComponentOverrides[componentDef.id]?.[stateMachineAssetIdProp.name] 
+                                || templateComponent.defaultValues[stateMachineAssetIdProp.name] 
+                                || stateMachineAssetIdProp.defaultValue;
+                            
+                            if (stateMachineAssetId && stateMachineAssetId !== "0" && stateMachineAssetId !== "") {
+                                const stateMachineAsset = allAssets.find(asset => asset.id === stateMachineAssetId && asset.type === 'statemachine');
+                                if (stateMachineAsset && stateMachineAsset.data) {
+                                    availableStates = (stateMachineAsset.data as any).states || [];
+                                    
+                                    // Auto-select "Idle" state if no current state is set and "Idle" exists
+                                    if (!currentValue || currentValue === "") {
+                                        const idleState = availableStates.find(state => 
+                                            state.name.toLowerCase() === 'idle' || 
+                                            state.name.toLowerCase() === 'initial' ||
+                                            state.name.toLowerCase() === 'start'
+                                        );
+                                        if (idleState) {
+                                            // Auto-set the idle state
+                                            setTimeout(() => {
+                                                handleComponentOverrideChange(componentDef.id, propDef.name, idleState.id, propDef.type);
+                                            }, 0);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     return (
                         <div key={propDef.name} className="mb-1">
                             <label htmlFor={inputId} className="block text-[0.65rem] text-msx-textsecondary mb-0.5">
                                 {propDef.name} ({propDef.type}): <span className="italic">(Def: {String(definitionDefaultValue)})</span>
+                                {isStateMachineCurrentStateProperty && availableStates.length > 0 && (
+                                    <span className="text-msx-cyan ml-1">({availableStates.length} states available)</span>
+                                )}
                             </label>
-                            {isRefType ? (
+                            {isStateMachineCurrentStateProperty && availableStates.length > 0 ? (
+                                <select 
+                                    id={inputId} 
+                                    value={String(currentValue ?? '')} 
+                                    onChange={e => handleComponentOverrideChange(componentDef.id, propDef.name, e.target.value, propDef.type)}
+                                    className="w-full p-0.5 text-xs bg-msx-bgcolor border-msx-border rounded"
+                                >
+                                    <option value="">-- Select Initial State --</option>
+                                    {availableStates.map(state => (
+                                        <option key={state.id} value={state.id}>
+                                            {state.name} ({state.id})
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : isRefType ? (
                                 <div className="flex items-center space-x-1">
                                     <span className="p-1 text-xs bg-msx-bgcolor border border-msx-border/30 rounded flex-grow truncate" title={currentValue || "None"}>
                                         {allAssets.find(a => a.id === currentValue)?.name || "None"}

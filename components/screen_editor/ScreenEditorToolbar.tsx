@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Button } from '../common/Button';
-import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, MapIcon, PlayIcon } from '../icons/MsxIcons';
+import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, MapIcon, PlayIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
 import { ScreenMap } from '../../types';
 
 /**
@@ -59,6 +59,10 @@ interface ScreenEditorToolbarProps {
   onExportBehavior: () => void; 
   /** Callback function to open the screen preview. */
   onPreview: () => void;
+  /** Callback function to export screen map as JSON. */
+  onExportScreenMapJSON: () => void;
+  /** Callback function to import screen map from JSON. */
+  onImportScreenMapJSON: () => void;
 
   /** Callback function to copy the current layer. */
   onCopyLayer: () => void; 
@@ -87,6 +91,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   maxActiveAreaX, maxActiveAreaY, maxActiveAreaWidth, maxActiveAreaHeight,
   onOpenHudEditor, isHudAreaDefined,
   onExportLayout, onExportBehavior, onPreview,
+  onExportScreenMapJSON, onImportScreenMapJSON,
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
   onAddNewEffectZone, onShowMapFile
 }) => {
@@ -138,6 +143,8 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
         )}
         <Button onClick={onCopyLayer} size="sm" variant="ghost" title="Copy active area of current layer" icon={<CopyIcon className="w-3.5 h-3.5"/>} disabled={isCopyLayerDisabled}>Copy Layer</Button>
         <Button onClick={onPasteLayer} size="sm" variant="ghost" title="Paste copied layer data into active area of current layer" icon={<PasteIcon className="w-3.5 h-3.5"/>} disabled={isPasteLayerDisabled}>Paste Layer</Button>
+        <Button onClick={onExportScreenMapJSON} size="sm" variant="ghost" title="Export entire screen map as JSON" icon={<SaveIcon className="w-3.5 h-3.5"/>}>Export JSON</Button>
+        <Button onClick={onImportScreenMapJSON} size="sm" variant="ghost" title="Import screen map from JSON file" icon={<LoadIcon className="w-3.5 h-3.5"/>}>Import JSON</Button>
         <Button onClick={onShowMapFile} size="sm" variant="secondary" title="Show/Generate main map ASM file" icon={<MapIcon className="w-4 h-4"/>}> Map ASM </Button>
         <Button onClick={onExportLayout} size="sm" variant="secondary" title="Export active area layout as ASM data" icon={<ASMIcon className="w-4 h-4"/>}> Layout ASM </Button>
         <Button onClick={onExportBehavior} size="sm" variant="secondary" title="Export active area behavior map as ASM data" icon={<ASMIcon className="w-4 h-4"/>}> Behavior ASM </Button>

@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ComponentDefinition, ComponentPropertyDefinition } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, LoadIcon, DocumentPlusIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 
 /**
@@ -18,7 +18,7 @@ interface ComponentDefinitionEditorProps {
 
 const PROPERTY_TYPES: ComponentPropertyDefinition['type'][] = [
   'byte', 'word', 'boolean', 'string', 'color', 
-  'sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref'
+  'sprite_ref', 'sound_ref', 'behavior_script_ref', 'entity_template_ref', 'statemachine_ref'
 ];
 
 /**
@@ -33,6 +33,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
   const [editingDefinition, setEditingDefinition] = useState<Partial<ComponentDefinition> | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   const [definitionToDelete, setDefinitionToDelete] = useState<ComponentDefinition | null>(null);
+  const [importFileInput, setImportFileInput] = useState<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (selectedDefinitionId) {
@@ -169,6 +170,86 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
     setDefinitionToDelete(null);
   };
 
+  const handleExportComponents = () => {
+    const exportData = {
+      type: 'component_definitions',
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      data: componentDefinitions
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `component_definitions_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportComponents = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const importData = JSON.parse(event.target?.result as string);
+            
+            if (importData.type !== 'component_definitions' || !Array.isArray(importData.data)) {
+              alert('Invalid component definitions file format.');
+              return;
+            }
+
+            // Validate the imported data structure
+            const isValidComponentDef = (def: any): def is ComponentDefinition => {
+              return def && 
+                     typeof def.id === 'string' && 
+                     typeof def.name === 'string' && 
+                     Array.isArray(def.properties) &&
+                     def.properties.every((prop: any) => 
+                       prop && typeof prop.name === 'string' && typeof prop.type === 'string'
+                     );
+            };
+
+            const validDefinitions = importData.data.filter(isValidComponentDef);
+            
+            if (validDefinitions.length === 0) {
+              alert('No valid component definitions found in the file.');
+              return;
+            }
+
+            // Merge with existing definitions, handling ID conflicts
+            const existingIds = new Set(componentDefinitions.map(d => d.id));
+            const mergedDefinitions = [...componentDefinitions];
+            
+            validDefinitions.forEach((importedDef: ComponentDefinition) => {
+              if (existingIds.has(importedDef.id)) {
+                // Create new ID for conflicting definitions
+                const newId = `${importedDef.id}_imported_${Date.now()}`;
+                mergedDefinitions.push({ ...importedDef, id: newId });
+              } else {
+                mergedDefinitions.push(importedDef);
+              }
+            });
+
+            onUpdateComponentDefinitions(mergedDefinitions);
+            alert(`Successfully imported ${validDefinitions.length} component definition(s).`);
+          } catch (error) {
+            alert('Error reading component definitions file. Please ensure it\'s a valid JSON file.');
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+
 
   return (
     <Panel title="Component Definition Editor" icon={<PuzzlePieceIcon className="w-5 h-5 text-msx-textprimary" />} className="flex-grow flex flex-col !p-0">
@@ -178,6 +259,14 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
           <Button onClick={handleAddNewDefinition} variant="secondary" size="sm" icon={<PlusCircleIcon />} className="w-full mb-2">
             Add New Component
           </Button>
+          <div className="flex space-x-1 mb-2">
+            <Button onClick={handleExportComponents} variant="ghost" size="sm" icon={<SaveIcon />} className="flex-1" title="Export all component definitions">
+              Export
+            </Button>
+            <Button onClick={handleImportComponents} variant="ghost" size="sm" icon={<LoadIcon />} className="flex-1" title="Import component definitions">
+              Import
+            </Button>
+          </div>
           {componentDefinitions.length === 0 && <p className="text-xs text-msx-textsecondary italic">No components defined.</p>}
           <ul className="space-y-1">
             {componentDefinitions.map(def => (

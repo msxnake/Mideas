@@ -448,6 +448,81 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setIsExportBehaviorMapModalOpen(true);
   };
 
+  const handleExportScreenMapJSON = () => {
+    const exportData = {
+      type: 'screenmap',
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      screenMapName: screenMap.name || 'Untitled Screen',
+      data: screenMap
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${screenMap.name || 'screenmap'}_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setStatusBarMessage(`Screen map "${screenMap.name}" exported to JSON.`);
+  };
+
+  const handleImportScreenMapJSON = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const importData = JSON.parse(event.target?.result as string);
+            
+            if (importData.type !== 'screenmap' || !importData.data) {
+              setStatusBarMessage('Invalid screen map file format.');
+              return;
+            }
+
+            // Validate the imported data structure
+            const isValidScreenMap = (data: any): data is ScreenMap => {
+              return data && 
+                     typeof data.name === 'string' && 
+                     typeof data.width === 'number' && 
+                     typeof data.height === 'number' &&
+                     data.layers && typeof data.layers === 'object';
+            };
+
+            if (!isValidScreenMap(importData.data)) {
+              setStatusBarMessage('Invalid screen map data structure.');
+              return;
+            }
+
+            // Merge the imported data with current screen map, preserving structure
+            const importedScreenMap = importData.data as ScreenMap;
+            
+            // Validate layers exist
+            if (!importedScreenMap.layers.background || !importedScreenMap.layers.collision) {
+              setStatusBarMessage('Screen map missing required layers (background, collision).');
+              return;
+            }
+
+            // Update the screen map
+            onUpdate(importedScreenMap);
+            setStatusBarMessage(`Screen map "${importedScreenMap.name}" imported successfully.`);
+            
+          } catch (error) {
+            setStatusBarMessage('Error reading screen map file. Please ensure it\'s a valid JSON file.');
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+
   const handleUpdateHudConfiguration = (newHudConfig: HUDConfiguration) => { onUpdate({ hudConfiguration: newHudConfig }); };
   const openHudEditor = () => { if (!screenMap.hudConfiguration) { onUpdate({ hudConfiguration: { elements: [] } }); } setIsHudEditorModalOpen(true); };
   const isHudAreaDefined = (screenMap.activeAreaX ?? 0) > 0 || (screenMap.activeAreaY ?? 0) > 0 || (screenMap.activeAreaWidth ?? screenMap.width) < screenMap.width || (screenMap.activeAreaHeight ?? screenMap.height) < screenMap.height;
@@ -733,6 +808,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         onExportLayout={prepareAndOpenLayoutExportModal}
         onExportBehavior={handleExportBehaviorMapASM}
         onPreview={() => setIsPreviewModalOpen(true)}
+        onExportScreenMapJSON={handleExportScreenMapJSON}
+        onImportScreenMapJSON={handleImportScreenMapJSON}
         onCopyLayer={handleCopyActiveLayer}
         onPasteLayer={handlePasteLayer}
         isCopyLayerDisabled={activeLayer === 'entities' || activeLayer === 'effects'}

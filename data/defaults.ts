@@ -163,6 +163,23 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "maxBounces", type: 'byte', defaultValue: '255', description: "Maximum number of bounces before stopping (255 for infinite)." },
       { name: "bounceSoundId", type: 'sound_ref', defaultValue: '', description: "ID of the sound asset to play on bounce." }
     ],
+  },
+  {
+    id: "comp_statemachine", name: "StateMachine",
+    description: "Connects an entity to a state machine for behavior control.",
+    properties: [
+      { name: "stateMachineAssetId", type: 'statemachine_ref', defaultValue: '', description: "ID of the state machine asset to use." },
+      { name: "currentStateId", type: 'string', defaultValue: 'Idle', description: "ID of the current active state. Auto-selected from available states." },
+      { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether the state machine is currently active." }
+    ],
+  },
+  {
+    id: "comp_cursors", name: "Cursors",
+    description: "Marks an entity as player-controllable with cursor/arrow keys.",
+    properties: [
+      { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether cursor control is active." },
+      { name: "speed", type: 'byte', defaultValue: '2', description: "Movement speed in pixels per frame." }
+    ],
   }
 ];
 
@@ -177,7 +194,10 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "2" } }, 
       { definitionId: "comp_gravity", defaultValues: { strength: "80" } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8" } },
-      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 2 }} // Example player collision
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 2 }}, // Example player collision
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
+      { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", isEnabled: true }},
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 }}
     ],
     description: "The main player character."
   },

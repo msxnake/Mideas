@@ -64,21 +64,91 @@ interface OrnamentModalBuffer extends Omit<Partial<PT3Ornament>, 'data'> {
  * @internal
  */
 const createOdeToJoySampleSong = (): TrackerSongData => {
-    const pianoInstrument: PT3Instrument = {
-        id: 1,
-        name: "Piano",
-        volumeEnvelope: [127, 90, 60, 0], // Standard decay
-        toneEnvelope: [0, 0, 0],
-        ayEnvelopeShape: 0, // Fall, then Off
-        ayToneEnabled: true,
-        ayNoiseEnabled: false,
-    };
+    const instruments: PT3Instrument[] = [
+        {
+            id: 1,
+            name: "Bajo eléctrico (Bass)",
+            volumeEnvelope: [0,50,100,127,110,100,80],
+            volumeLoop: 3,
+            toneEnvelope: [0],
+            toneLoop: 255,
+            ayToneEnabled: true,
+            ayNoiseEnabled: false,
+            ayEnvelopeShape: 9,
+        },
+        {
+            id: 2,
+            name: "Caja / Snare Drum",
+            volumeEnvelope: [127,100,80,40,20,0],
+            volumeLoop: 255,
+            toneEnvelope: [0],
+            ayToneEnabled: false,
+            ayNoiseEnabled: true,
+            ayEnvelopeShape: 0,
+        },
+        {
+            id: 3,
+            name: "Bombo / Kick Drum",
+            volumeEnvelope: [127,90,70,50,20,0],
+            toneEnvelope: [10,9,8,7,6,5,4,3,2,1,0],
+            volumeLoop: 255,
+            toneLoop: 255,
+            ayToneEnabled: true,
+            ayNoiseEnabled: false,
+            ayEnvelopeShape: 0,
+        },
+        {
+            id: 4,
+            name: "Platillo / Hi-Hat",
+            volumeEnvelope: [80,70,60,40,20,0],
+            toneEnvelope: [0],
+            volumeLoop: 255,
+            toneLoop: 255,
+            ayToneEnabled: false,
+            ayNoiseEnabled: true,
+            ayEnvelopeShape: 0,
+        },
+        {
+            id: 5,
+            name: "Lead con vibrato",
+            volumeEnvelope: [0,30,80,127,110,100,90],
+            volumeLoop: 2,
+            toneEnvelope: [0,1,2,1,0,-1,-2,-1],
+            toneLoop: 0,
+            ayToneEnabled: true,
+            ayNoiseEnabled: false,
+            ayEnvelopeShape: 11,
+        },
+        {
+            id: 6,
+            name: "Arpegio rápido (Chip Chord)",
+            volumeEnvelope: [100,127,100,90,100,127,90,80],
+            volumeLoop: 0,
+            toneEnvelope: [0,4,7,12,7,4,0],
+            toneLoop: 0,
+            ayToneEnabled: true,
+            ayNoiseEnabled: false,
+            ayEnvelopeShape: 13,
+        },
+        {
+            id: 7,
+            name: "Organillo / Pad simple",
+            volumeEnvelope: [0,40,80,120,127,100,90,80,70,60],
+            volumeLoop: 4,
+            toneEnvelope: [0,0,1,1,0,0,1,1],
+            toneLoop: 0,
+            ayToneEnabled: true,
+            ayNoiseEnabled: false,
+            ayEnvelopeShape: 12,
+        }
+    ];
 
     const createPatternFromDetailedScore = (
         idSuffix: string,
         name: string,
-        melodyQuarterNotes: string[], // Array of 16 quarter notes for melody
-        bassQuarterNotes: string[], // Array of 16 quarter notes for bass
+        melodyQuarterNotes: { note: string, instrument: number }[],
+        bassQuarterNotes: { note: string, instrument: number }[],
+        percussionQuarterNotes: { note: string, instrument: number }[],
         numRowsPerPattern: number = 64
     ): TrackerPattern => {
         const pattern: TrackerPattern = {
@@ -88,78 +158,98 @@ const createOdeToJoySampleSong = (): TrackerSongData => {
             rows: Array(numRowsPerPattern).fill(null).map(() => createEmptyRow())
         };
 
-        const rowsPerQuarterNote = 4; // At speed 6, this fits 16 quarter notes in 64 rows
+        const rowsPerQuarterNote = 4;
 
-        for (let i = 0; i < melodyQuarterNotes.length; i++) {
-            const melodyNote = melodyQuarterNotes[i];
-            const bassNote = bassQuarterNotes[i] || null; // Use provided bass or null
-            const startRow = i * rowsPerQuarterNote;
+        const placeNotes = (notes: { note: string, instrument: number }[], channel: PT3ChannelId, defaultVolume: number) => {
+            for (let i = 0; i < notes.length; i++) {
+                const { note, instrument } = notes[i];
+                const startRow = i * rowsPerQuarterNote;
 
-            if (startRow < numRowsPerPattern) {
-                // Melody - Channel A
-                pattern.rows[startRow].A = {
-                    note: melodyNote,
-                    instrument: 1,
-                    ornament: null,
-                    volume: melodyNote === "===" ? 0 : 15 // Hex F
-                };
-                // Bass - Channel B
-                pattern.rows[startRow].B = {
-                    note: bassNote,
-                    instrument: 1,
-                    ornament: null,
-                    volume: bassNote === "===" || bassNote === null ? 0 : 12 // Hex C
-                };
-
-                // Fill subsequent rows for sustained notes with "---" (null note)
-                for (let r = 1; r < rowsPerQuarterNote; r++) {
-                    if (startRow + r < numRowsPerPattern) {
-                        pattern.rows[startRow + r].A = { note: null, instrument: null, ornament: null, volume: null };
-                        pattern.rows[startRow + r].B = { note: null, instrument: null, ornament: null, volume: null };
+                if (startRow < numRowsPerPattern) {
+                    pattern.rows[startRow][channel] = {
+                        note: note,
+                        instrument: instrument,
+                        ornament: null,
+                        volume: note === "===" ? 0 : defaultVolume
+                    };
+                    for (let r = 1; r < rowsPerQuarterNote; r++) {
+                        if (startRow + r < numRowsPerPattern) {
+                            pattern.rows[startRow + r][channel] = createEmptyCell();
+                        }
                     }
                 }
             }
-        }
-        // Ensure Channel C is silent
-        for (let r = 0; r < numRowsPerPattern; r++) {
-            pattern.rows[r].C = createEmptyCell();
-        }
+        };
+
+        placeNotes(melodyQuarterNotes, 'A', 15);
+        placeNotes(bassQuarterNotes, 'B', 12);
+        placeNotes(percussionQuarterNotes, 'C', 10);
+
         return pattern;
     };
     
-    // Measures 24-27 from score image
-    const melodyP0_score = ["E-4", "E-4", "F#4", "G-4",  "G-4", "F#4", "E-4", "D-4",  "C-4", "C-4", "D-4", "E-4",  "E-4", "D-4", "D-4", "D-4"];
-    const bassP0_score   = ["C-3", "C-3", "C-3", "C-3",  "G-2", "G-2", "G-2", "G-2",  "C-3", "C-3", "C-3", "C-3",  "G-2", "G-2", "G-2", "G-2"];
+    const melodyP0 = [
+        { note: "E-4", instrument: 5 }, { note: "E-4", instrument: 5 }, { note: "F#4", instrument: 5 }, { note: "G-4", instrument: 5 },
+        { note: "G-4", instrument: 5 }, { note: "F#4", instrument: 5 }, { note: "E-4", instrument: 5 }, { note: "D-4", instrument: 5 },
+        { note: "C-4", instrument: 5 }, { note: "C-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "E-4", instrument: 5 },
+        { note: "E-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "D-4", instrument: 5 }
+    ];
+    const bassP0 = [
+        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
+        { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 },
+        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
+        { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }
+    ];
+    const percussionP0 = [
+        { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+        { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+        { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+        { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "C-5", instrument: 2 }
+    ];
 
-    // Measures 28-31 from score image (assuming a common progression, might differ slightly from user's text example "Patrón 01")
-    // User text for P1 was: E E F# G G F# E D C C D E D C C C
-    const melodyP1_score = ["E-4", "E-4", "F#4", "G-4",  "G-4", "F#4", "E-4", "D-4",  "C-4", "C-4", "D-4", "E-4",  "D-4", "C-4", "C-4", "C-4"];
-    const bassP1_score   = ["C-3", "C-3", "C-3", "C-3",  "G-2", "G-2", "G-2", "G-2",  "C-3", "C-3", "C-3", "C-3",  "C-3", "C-3", "C-3", "C-3"];
+    const melodyP1 = [
+        { note: "E-4", instrument: 6 }, { note: "E-4", instrument: 6 }, { note: "F#4", instrument: 6 }, { note: "G-4", instrument: 6 },
+        { note: "G-4", instrument: 6 }, { note: "F#4", instrument: 6 }, { note: "E-4", instrument: 6 }, { note: "D-4", instrument: 6 },
+        { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "D-4", instrument: 6 }, { note: "E-4", instrument: 6 },
+        { note: "D-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }
+    ];
+    const bassP1 = [
+        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
+        { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 },
+        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
+        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }
+    ];
+    const percussionP1 = [
+        { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+        { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+        { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+        { note: "C-5", instrument: 4 }, { note: "C-5", instrument: 2 }, { note: "C-5", instrument: 2 }, { note: "===", instrument: 0 }
+    ];
 
     const patterns: TrackerPattern[] = [
-        createPatternFromDetailedScore("0", "Ode Pt1 (M24-27)", melodyP0_score, bassP0_score), // Index 0
-        createPatternFromDetailedScore("1", "Ode Pt2 (M28-31)", melodyP1_score, bassP1_score), // Index 1
+        createPatternFromDetailedScore("0", "Ode Pt1", melodyP0, bassP0, percussionP0),
+        createPatternFromDetailedScore("1", "Ode Pt2", melodyP1, bassP1, percussionP1),
     ];
 
     const order = [0, 1];
 
     return {
         id: `sample_song_detailed_${Date.now()}`,
-        name: "Ode to Joy (Detailed)",
-        title: "Ode to Joy (Measures 24-31)",
+        name: "Ode to Joy (MSX1)",
+        title: "Ode to Joy (Multi-Instrument)",
         author: "Beethoven / MSX IDE",
-        bpm: 97,  // Kept from original
-        speed: 6,   // Kept from original (4 rows per quarter note)
+        bpm: 110,
+        speed: 6,
         globalVolume: 15,
         patterns: patterns,
         order: order,
         lengthInPatterns: order.length,
         restartPosition: 0,
-        instruments: [pianoInstrument],
+        instruments: instruments,
         ornaments: [],
         currentPatternIndexInOrder: 0,
-        currentPatternId: patterns[0].id, // Start with the first pattern
-        ayHardwareEnvelopePeriod: 256, // Default value
+        currentPatternId: patterns[0].id,
+        ayHardwareEnvelopePeriod: 100,
     };
 };
 

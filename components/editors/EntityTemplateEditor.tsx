@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { EntityTemplate, ComponentDefinition, EntityTemplateComponent, ComponentPropertyDefinition, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, CaretRightIcon, SpriteIcon, CodeIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, CaretRightIcon, SpriteIcon, CodeIcon, LoadIcon, DocumentPlusIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 
@@ -182,6 +182,86 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     setTemplateToDelete(null);
   };
 
+  const handleExportEntityTemplates = () => {
+    const exportData = {
+      type: 'entity_templates',
+      version: '1.0',
+      timestamp: new Date().toISOString(),
+      data: entityTemplates
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `entity_templates_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportEntityTemplates = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const importData = JSON.parse(event.target?.result as string);
+            
+            if (importData.type !== 'entity_templates' || !Array.isArray(importData.data)) {
+              alert('Invalid entity templates file format.');
+              return;
+            }
+
+            // Validate the imported data structure
+            const isValidEntityTemplate = (template: any): template is EntityTemplate => {
+              return template && 
+                     typeof template.id === 'string' && 
+                     typeof template.name === 'string' && 
+                     Array.isArray(template.components) &&
+                     template.components.every((comp: any) => 
+                       comp && typeof comp.definitionId === 'string' && typeof comp.defaultValues === 'object'
+                     );
+            };
+
+            const validTemplates = importData.data.filter(isValidEntityTemplate);
+            
+            if (validTemplates.length === 0) {
+              alert('No valid entity templates found in the file.');
+              return;
+            }
+
+            // Merge with existing templates, handling ID conflicts
+            const existingIds = new Set(entityTemplates.map(t => t.id));
+            const mergedTemplates = [...entityTemplates];
+            
+            validTemplates.forEach((importedTemplate: EntityTemplate) => {
+              if (existingIds.has(importedTemplate.id)) {
+                // Create new ID for conflicting templates
+                const newId = `${importedTemplate.id}_imported_${Date.now()}`;
+                mergedTemplates.push({ ...importedTemplate, id: newId });
+              } else {
+                mergedTemplates.push(importedTemplate);
+              }
+            });
+
+            onUpdateEntityTemplates(mergedTemplates);
+            alert(`Successfully imported ${validTemplates.length} entity template(s).`);
+          } catch (error) {
+            alert('Error reading entity templates file. Please ensure it\'s a valid JSON file.');
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  };
+
   const openAssetPicker = (
     propertyType: ComponentPropertyDefinition['type'],
     currentValue: string,
@@ -192,6 +272,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
         'sound_ref': 'sound',
         'behavior_script_ref': 'behavior',
         'entity_template_ref': 'entitytemplate',
+        'statemachine_ref': 'statemachine',
     };
     const assetType = assetTypeMap[propertyType];
     if (!assetType) return;
@@ -226,6 +307,14 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
               <Button onClick={onGenerateAsm} variant="secondary" size="sm" icon={<CodeIcon />} className="flex-1" title="Generate Z80 assembly data from all templates">
                 Generate ASM
               </Button>
+          </div>
+          <div className="flex space-x-1 mb-2">
+            <Button onClick={handleExportEntityTemplates} variant="ghost" size="sm" icon={<SaveIcon />} className="flex-1" title="Export all entity templates">
+              Export
+            </Button>
+            <Button onClick={handleImportEntityTemplates} variant="ghost" size="sm" icon={<LoadIcon />} className="flex-1" title="Import entity templates">
+              Import
+            </Button>
           </div>
 
           {entityTemplates.length === 0 && <p className="text-xs text-msx-textsecondary italic">No templates defined.</p>}

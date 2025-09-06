@@ -2,12 +2,8 @@ import React, { useState } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
 import { StateMachineState, StateMachineStateName } from '../../../statemachine.types';
-import { TrashIcon, CogIcon } from '../../icons/MsxIcons';
-import { StatePropertiesModal } from '../../modals/StatePropertiesModal';
+import { TrashIcon } from '../../icons/MsxIcons';
 
-/**
- * A list of preset state names for common state machine states, with English and Spanish translations.
- */
 const PRESET_STATES = [
   { id: 'IDLE', en: 'Idle', es: 'Quieto' },
   { id: 'WALKING', en: 'Walking', es: 'Caminando' },
@@ -65,41 +61,17 @@ const PRESET_STATES = [
   { id: 'TAKE', en: 'Take', es: 'Take' },
 ];
 
-/**
- * Props for the StatesPanel component.
- */
 interface StatesPanelProps {
-  /** The list of states in the state machine. */
   states: StateMachineState[];
-  /** Callback to add a new state. */
+  selectedStateId: string | null;
+  onStateSelect: (id: string) => void;
   onAddState: (name: string) => void;
-  /** Callback to delete a state by its ID. */
   onDeleteState: (id: string) => void;
-  /** Callback to update the properties of a state. */
-  onUpdateState: (id: string, properties: { [key: string]: any }) => void;
-  /** The language to use for preset state names. */
   language: 'en' | 'es';
 }
 
-/**
- * A panel for managing the states of a state machine.
- * It allows users to create new states (custom or from presets), delete existing ones,
- * and open a modal to edit their properties.
- */
-export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, onDeleteState, onUpdateState, language }) => {
+export const StatesPanel: React.FC<StatesPanelProps> = ({ states, selectedStateId, onStateSelect, onAddState, onDeleteState, language }) => {
   const [newStateName, setNewStateName] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedState, setSelectedState] = useState<StateMachineState | null>(null);
-
-  const handleOpenPropertiesModal = (state: StateMachineState) => {
-    setSelectedState(state);
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setSelectedState(null);
-    setIsModalOpen(false);
-  };
 
   const handleAddClick = () => {
     if (newStateName.trim()) {
@@ -119,18 +91,15 @@ export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, on
       <div className="p-2">
         <ul className="space-y-1 mb-2">
           {states.map(state => (
-            <li key={state.id} className="flex items-center justify-between p-1 bg-msx-bgcolor rounded group">
+            <li 
+              key={state.id} 
+              className={`flex items-center justify-between p-1 rounded group cursor-pointer ${selectedStateId === state.id ? 'bg-msx-blue' : 'bg-msx-bgcolor'}`}
+              onClick={() => onStateSelect(state.id)}
+            >
               <span className="text-sm text-msx-textprimary">{state.name}</span>
               <div>
                 <button
-                  onClick={() => handleOpenPropertiesModal(state)}
-                  className="p-0.5 rounded-sm text-msx-textsecondary opacity-0 group-hover:opacity-100"
-                  title={`Edit properties of ${state.name}`}
-                >
-                  <CogIcon className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={() => onDeleteState(state.id)}
+                  onClick={(e) => { e.stopPropagation(); onDeleteState(state.id); }}
                   className="p-0.5 rounded-sm text-msx-danger opacity-0 group-hover:opacity-100"
                   title={`Delete ${state.name}`}
                 >
@@ -164,12 +133,6 @@ export const StatesPanel: React.FC<StatesPanelProps> = ({ states, onAddState, on
           </select>
         </div>
       </div>
-      <StatePropertiesModal
-        isOpen={isModalOpen}
-        onClose={handleCloseModal}
-        state={selectedState}
-        onUpdateState={onUpdateState}
-      />
     </Panel>
   );
 };
