@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
-import { StateMachine, Condition, StateMachineTransition, Action } from '../../../statemachine.types';
+import { StateMachine, Condition, StateMachineTransition, Action } from '../../../copia3';
 import { TrashIcon } from '../../icons/MsxIcons';
 import { ConditionBuilder } from './ConditionBuilder';
 import { ActionSequenceEditor } from './ActionSequenceEditor';

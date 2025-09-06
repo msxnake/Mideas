@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Condition, ConditionType, ConditionTypes } from '../../../statemachine.types';
+import { Condition, ConditionType, ConditionTypes } from '../../../copia3';
 import { Button } from '../../common/Button';
 
 interface ConditionBuilderProps {

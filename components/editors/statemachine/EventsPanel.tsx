@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
-import { StateMachineEvent, StateMachineEventName, StateMachineInputType } from '../../../statemachine.types';
+import { StateMachineEvent, StateMachineEventName, StateMachineInputType } from '../../../copia3';
 import { TrashIcon } from '../../icons/MsxIcons';
 
 /**

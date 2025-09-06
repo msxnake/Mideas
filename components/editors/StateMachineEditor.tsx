@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Connection } from '@xyflow/react';
-import { StateMachine, StateMachineState, StateMachineStateName, StateMachineTransition, Condition, Action, StateMachineEvent, StateMachineEventName, StateMachineInputType } from '../../statemachine.types';
+import { StateMachine, StateMachineState, StateMachineStateName, StateMachineTransition, Condition, Action, StateMachineEvent, StateMachineEventName, StateMachineInputType } from '../../copia3';
 import { ProjectAsset } from '../../types';
 import { StatesPanel } from './statemachine/StatesPanel';
 import { TransitionsEditor } from './statemachine/TransitionsEditor';

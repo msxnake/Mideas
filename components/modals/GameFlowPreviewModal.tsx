@@ -23,7 +23,7 @@ import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFont
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons/MsxIcons';
-import { StateMachine } from '../../statemachine.types';
+import { StateMachine } from '../../copia3';
 
 /** The size of a tile in pixels. @constant */
 const TILE_SIZE = 8;

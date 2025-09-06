@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { Button } from '../common/Button';
-import { StateMachineState } from '../../statemachine.types';
+import { StateMachineState } from '../../copia3';
 
 /**
  * Props for the {@link StatePropertiesModal} component.

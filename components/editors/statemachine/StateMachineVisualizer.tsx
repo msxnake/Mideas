@@ -11,7 +11,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
-import { StateMachine, StateMachineState } from '../../../statemachine.types';
+import { StateMachine, StateMachineState } from '../../../copia3';
 
 interface StateMachineVisualizerProps {
   stateMachine: StateMachine;

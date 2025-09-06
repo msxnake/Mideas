@@ -1,5 +1,5 @@
 import React from 'react';
-import { Action, ActionTypes, ActionType } from '../../../statemachine.types';
+import { Action, ActionTypes, ActionType } from '../../../copia3';
 import { Button } from '../../common/Button';
 import { TrashIcon } from '../../icons/MsxIcons';
 import { ActionParamsEditor } from './ActionParamsEditor';

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
-import { StateMachineState, StateMachineStateName } from '../../../statemachine.types';
+import { StateMachineState, StateMachineStateName } from '../../../copia3';
 import { TrashIcon } from '../../icons/MsxIcons';
 
 const PRESET_STATES = [

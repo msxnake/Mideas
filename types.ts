@@ -1,6 +1,6 @@
 
 
-import { StateMachine } from './statemachine.types';
+import { StateMachine } from './copia3';
 
 /** A string representing a color in hex format (e.g., "#RRGGBB"). */
 export type MSXColorValue = string;
