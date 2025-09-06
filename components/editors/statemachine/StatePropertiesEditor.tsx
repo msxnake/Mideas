@@ -1,5 +1,5 @@
 import React from 'react';
-import { StateMachineState } from '../../../copia3';
+import { StateMachineState } from '../../../statemachine.types';
 import { Button } from '../../common/Button';
 
 interface StatePropertiesEditorProps {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Action, ActionTypes } from '../../../copia3';
+import { Action, ActionTypes } from '../../../statemachine.types';
 
 interface ActionParamsEditorProps {
   action: Action;
