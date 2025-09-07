@@ -379,39 +379,28 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             let stateMachine: StateMachine | undefined;
             let currentState: string | undefined;
             
-            // Check for standard state machine component
-            let smc = template.components.find(c => c.definitionId === 'comp_statemachine');
-            let stateMachineAssetId: string | undefined;
-            
-            if (smc) {
-                stateMachineAssetId = smc.defaultValues?.stateMachineAssetId;
-            } else {
-                // Check for custom state machine component (like comp_def_1757139342862)
-                smc = template.components.find(c => 
-                    componentDefinitions.find(def => def.id === c.definitionId)?.properties.some(p => 
-                        p.type === 'statemachine_ref' || p.name === 'state_machine'
-                    )
-                );
-                if (smc) {
-                    // Try different field names for the asset ID
-                    stateMachineAssetId = smc.defaultValues?.stateMachineAssetId || 
-                                         smc.defaultValues?.state_machine ||
-                                         instance.componentOverrides?.[smc.definitionId]?.stateMachineAssetId ||
-                                         instance.componentOverrides?.[smc.definitionId]?.state_machine;
-                }
-            }
-            
+            const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+            const smcOverride = instance.componentOverrides?.['comp_statemachine'];
+            const stateMachineAssetId = smcOverride?.stateMachineAssetId || smc?.defaultValues?.stateMachineAssetId;
+
             if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
                 const stateMachineAsset = getAsset(stateMachineAssetId, 'statemachine');
                 stateMachine = stateMachineAsset?.data as StateMachine | undefined;
                 if (stateMachine) {
-                    let initialState = stateMachine.states.find(s => s.id === stateMachine.initialStateId);
+                    const startStateId = smcOverride?.currentStateId || smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
+                    let initialState = stateMachine.states.find(s => s.id === startStateId);
+
+                    if (!initialState && startStateId) {
+                        initialState = stateMachine.states.find(s => s.name === startStateId);
+                    }
+                    
                     if (!initialState) {
                         initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
                     }
                     currentState = initialState?.name;
                 }
             }
+
             const patrolComp = instance.componentOverrides?.comp_patrol;
             let vx = 0, vy = 0;
             let startX = instance.position.x * TILE_SIZE;
@@ -600,8 +589,29 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (hasCollisionComp && collisionCompDef && screenMapToRender) {
                     handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
                 } else {
+                    // Update position
                     entityA.x += entityA.vx;
                     entityA.y += entityA.vy;
+                    
+                    // Apply screen boundary constraints to prevent entities from disappearing
+                    const spriteWidth = entityA.sprite.size.width;
+                    const spriteHeight = entityA.sprite.size.height;
+                    
+                    if (entityA.x < 0) {
+                        entityA.x = 0;
+                        entityA.vx = 0;
+                    } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
+                        entityA.x = PREVIEW_WIDTH - spriteWidth;
+                        entityA.vx = 0;
+                    }
+                    
+                    if (entityA.y < 0) {
+                        entityA.y = 0;
+                        entityA.vy = 0;
+                    } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
+                        entityA.y = PREVIEW_HEIGHT - spriteHeight;
+                        entityA.vy = 0;
+                    }
                 }
 
                 if (hasCollisionComp) {
