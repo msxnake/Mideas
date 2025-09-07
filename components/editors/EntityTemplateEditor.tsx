@@ -5,6 +5,7 @@ import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, CaretRightIcon, SpriteIcon, CodeIcon, LoadIcon, DocumentPlusIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
+import { DEFAULT_ENTITY_TEMPLATES } from '../../data/defaults';
 
 /**
  * Props for the EntityTemplateEditor component.
@@ -39,6 +40,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
   const [templateToDelete, setTemplateToDelete] = useState<EntityTemplate | null>(null);
   const [expandedComponents, setExpandedComponents] = useState<Record<string,boolean>>({});
   const [isAddComponentModalOpen, setIsAddComponentModalOpen] = useState(false);
+  const [isConfirmLoadDefaultsModalOpen, setIsConfirmLoadDefaultsModalOpen] = useState(false);
   
   const [assetPickerState, setAssetPickerState] = useState<{
     isOpen: boolean;
@@ -262,6 +264,17 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     input.click();
   };
 
+  const handleLoadDefaults = () => {
+    setIsConfirmLoadDefaultsModalOpen(true);
+  };
+
+  const handleConfirmLoadDefaults = () => {
+    onUpdateEntityTemplates(DEFAULT_ENTITY_TEMPLATES);
+    setSelectedTemplateId(null);
+    setEditingTemplate(null);
+    setIsConfirmLoadDefaultsModalOpen(false);
+  };
+
   const openAssetPicker = (
     propertyType: ComponentPropertyDefinition['type'],
     currentValue: string,
@@ -314,6 +327,11 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
             </Button>
             <Button onClick={handleImportEntityTemplates} variant="ghost" size="sm" icon={<LoadIcon />} className="flex-1" title="Import entity templates">
               Import
+            </Button>
+          </div>
+          <div className="mb-2">
+            <Button onClick={handleLoadDefaults} variant="warning" size="sm" icon={<DocumentPlusIcon />} className="w-full" title="Load default entity templates">
+              Default entities
             </Button>
           </div>
 
@@ -459,6 +477,16 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
             onConfirm={confirmDelete}
             onCancel={() => setIsConfirmDeleteModalOpen(false)}
             confirmButtonVariant="danger"
+        />
+      )}
+      {isConfirmLoadDefaultsModalOpen && (
+        <ConfirmationModal
+            isOpen={isConfirmLoadDefaultsModalOpen}
+            title="Load Default Entities"
+            message="Are you sure? Your Entity Templates will be erased and replaced with default templates."
+            onConfirm={handleConfirmLoadDefaults}
+            onCancel={() => setIsConfirmLoadDefaultsModalOpen(false)}
+            confirmButtonVariant="warning"
         />
       )}
     </Panel>

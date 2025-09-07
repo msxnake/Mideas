@@ -5,6 +5,7 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, LoadIcon, DocumentPlusIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
+import { DEFAULT_COMPONENT_DEFINITIONS } from '../../data/defaults';
 
 /**
  * Props for the ComponentDefinitionEditor component.
@@ -34,6 +35,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   const [definitionToDelete, setDefinitionToDelete] = useState<ComponentDefinition | null>(null);
   const [importFileInput, setImportFileInput] = useState<HTMLInputElement | null>(null);
+  const [isConfirmLoadDefaultsModalOpen, setIsConfirmLoadDefaultsModalOpen] = useState(false);
 
   useEffect(() => {
     if (selectedDefinitionId) {
@@ -250,6 +252,20 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
     input.click();
   };
 
+  const handleLoadDefaults = () => {
+    setIsConfirmLoadDefaultsModalOpen(true);
+  };
+
+  const handleConfirmLoadDefaults = () => {
+    // Clear current selection and editing state
+    setSelectedDefinitionId(null);
+    setEditingDefinition(null);
+    
+    // Load default components
+    onUpdateComponentDefinitions([...DEFAULT_COMPONENT_DEFINITIONS]);
+    
+    setIsConfirmLoadDefaultsModalOpen(false);
+  };
 
   return (
     <Panel title="Component Definition Editor" icon={<PuzzlePieceIcon className="w-5 h-5 text-msx-textprimary" />} className="flex-grow flex flex-col !p-0">
@@ -267,6 +283,9 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
               Import
             </Button>
           </div>
+          <Button onClick={handleLoadDefaults} variant="secondary" size="sm" icon={<DocumentPlusIcon />} className="w-full mb-2" title="Load default component definitions">
+            Default components
+          </Button>
           {componentDefinitions.length === 0 && <p className="text-xs text-msx-textsecondary italic">No components defined.</p>}
           <ul className="space-y-1">
             {componentDefinitions.map(def => (
@@ -365,6 +384,21 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
             confirmButtonVariant="danger"
         />
       )}
+      
+      <ConfirmationModal
+        isOpen={isConfirmLoadDefaultsModalOpen}
+        title="Load Default Components"
+        message={
+          <>
+            <p>Are you sure you want to load the default components?</p>
+            <p className="text-msx-warning mt-2"><strong>Your current components will be erased</strong> and replaced with the preset default components.</p>
+          </>
+        }
+        onConfirm={handleConfirmLoadDefaults}
+        onCancel={() => setIsConfirmLoadDefaultsModalOpen(false)}
+        confirmText="Load Defaults"
+        confirmButtonVariant="danger"
+      />
     </Panel>
   );
 };
