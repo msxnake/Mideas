@@ -19,6 +19,7 @@ import { ScreenEditorStatusBar } from '../screen_editor/ScreenEditorStatusBar';
 import { ScreenSelectionToolsPanel } from '../screen_editor/ScreenSelectionToolsPanel';
 import { PatrolPathLayer } from '../screen_editor/PatrolPathLayer';
 import { ScreenPreviewModal } from '../modals/ScreenPreviewModal';
+import { ScreenPlayModal } from '../modals/ScreenPlayModal';
 
 
 const SCREEN_EDITOR_BASE_TILE_DIM_OTHER = 16;
@@ -123,6 +124,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
   const [isHudEditorModalOpen, setIsHudEditorModalOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [isPlayModalOpen, setIsPlayModalOpen] = useState(false);
 
   const [localActiveX, setLocalActiveX] = useState<string>((screenMap.activeAreaX ?? 0).toString());
   const [localActiveY, setLocalActiveY] = useState<string>((screenMap.activeAreaY ?? 0).toString());
@@ -808,6 +810,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         onExportLayout={prepareAndOpenLayoutExportModal}
         onExportBehavior={handleExportBehaviorMapASM}
         onPreview={() => setIsPreviewModalOpen(true)}
+        onPlay={() => setIsPlayModalOpen(true)}
         onExportScreenMapJSON={handleExportScreenMapJSON}
         onImportScreenMapJSON={handleImportScreenMapJSON}
         onCopyLayer={handleCopyActiveLayer}
@@ -942,6 +945,15 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         allAssets={allProjectAssets}
         currentScreenMode={currentScreenMode}
         entityTemplates={entityTemplates}
+      />
+      <ScreenPlayModal
+        isOpen={isPlayModalOpen}
+        onClose={() => setIsPlayModalOpen(false)}
+        screenMap={screenMap}
+        allAssets={allProjectAssets}
+        entityTemplates={entityTemplates}
+        componentDefinitions={componentDefinitions}
+        currentScreenMode={currentScreenMode}
       />
     </Panel>
   );
