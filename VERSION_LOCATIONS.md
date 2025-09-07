@@ -2,42 +2,42 @@
 
 This file documents all the locations where the version number needs to be updated when releasing a new version.
 
-## Current Version: 0.22
+## Current Version: 0.23
 
 ## Files to Update:
 
 ### 1. README.md
 - **Location**: Line 3
 - **Format**: `**Version X.XX**`
-- **Example**: `**Version 0.22**`
+- **Example**: `**Version 0.23**`
 
 ### 2. constants.ts
 - **Location**: Line 4
 - **Format**: `export const APP_VERSION = "X.XX";`
-- **Example**: `export const APP_VERSION = "0.22";`
+- **Example**: `export const APP_VERSION = "0.23";`
 - **Note**: This constant is used by:
   - `components/modals/AboutModal.tsx` - Shows version in About dialog
   - `components/layout/Toolbar.tsx` - Shows version in toolbar
 
 ## Quick Update Checklist:
 
-When updating to a new version (e.g., 0.23):
+When updating to a new version (e.g., 0.24):
 
-1. [ ] Update README.md: Change `**Version 0.22**` to `**Version 0.23**`
-2. [ ] Update constants.ts: Change `export const APP_VERSION = "0.22";` to `export const APP_VERSION = "0.23";`
-3. [ ] Update this file: Change "Current Version: 0.22" to "Current Version: 0.23"
+1. [ ] Update README.md: Change `**Version 0.23**` to `**Version 0.24**`
+2. [ ] Update constants.ts: Change `export const APP_VERSION = "0.23";` to `export const APP_VERSION = "0.24";`
+3. [ ] Update this file: Change "Current Version: 0.23" to "Current Version: 0.24"
 
 ## Automated Usage:
 
 You can use find/replace across the project:
-- Find: `0.22` 
-- Replace: `0.23`
+- Find: `0.23` 
+- Replace: `0.24`
 - Files to include: `README.md`, `constants.ts`, `VERSION_LOCATIONS.md`
 
 ## Version Increment Rules:
 
 **IMPORTANT**: When asked to "incrementar version" or "increment version":
-- Always increment by 0.01 (e.g., 0.22 → 0.23)
+- Always increment by 0.01 (e.g., 0.23 → 0.24)
 - This is the standard increment for this project
 
 ## Git Workflow:
@@ -47,7 +47,7 @@ After updating the version:
 2. **If user responds "sí" or "yes"**:
    - Create git commit with message: "Version X.XX - [brief description of changes]"
    - Push to GitHub automatically
-   - Format: `git commit -m "Version 0.23 - Added scroll to State Machine Editor and removed Main Menu option"`
+   - Format: `git commit -m "Version 0.24 - [brief description of changes]"`
 
 ## Notes:
 
