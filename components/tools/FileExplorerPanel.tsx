@@ -44,8 +44,6 @@ interface FileExplorerPanelProps {
   isWorldViewActive?: boolean;
   /** Whether the 'Game Flow' editor is currently active. */
   isGameFlowActive?: boolean;
-  /** Whether the 'Main Menu' editor is currently active. */
-  isMainMenuActive?: boolean;
   /** Optional CSS class name for the panel. */
   className?: string;
 }
@@ -54,7 +52,7 @@ interface FileExplorerPanelProps {
  * A component that displays an icon corresponding to a given asset type.
  * @internal
  */
-const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'gameflow' | 'mainmenu'}> = ({ type }) => {
+const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fonteditor' | 'helpdocs' | 'componentdefinitioneditor' | 'entitytemplateeditor' | 'worldview' | 'gameflow'}> = ({ type }) => {
   const iconClass = "w-4 h-4 mr-2";
   switch (type) {
     case 'tile': return <TilesetIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -76,7 +74,6 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'componentdefinitioneditor': return <PuzzlePieceIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'entitytemplateeditor': return <SpriteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'worldview': return <WorldViewIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
-    case 'mainmenu': return <ListBulletIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />; // Added Main Menu icon
     default: return <PlaceholderIcon className={`${iconClass} text-msx-textsecondary`} />;
   }
 };
@@ -115,8 +112,6 @@ export const ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID = "ENTITY_TEMPLATE_EDITOR_SY
 export const WORLD_VIEW_SYSTEM_ASSET_ID = "WORLD_VIEW_SYSTEM_ASSET";
 /** System asset ID for the Game Flow editor. @constant */
 export const GAME_FLOW_SYSTEM_ASSET_ID = "GAME_FLOW_SYSTEM_ASSET_ID";
-/** System asset ID for the Main Menu editor. @constant */
-export const MAIN_MENU_SYSTEM_ASSET_ID = "MAIN_MENU_SYSTEM_ASSET";
 
 
 /**
@@ -146,7 +141,6 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   isEntityTemplateEditorActive = false,
   isWorldViewActive = false,
   isGameFlowActive = false,
-  isMainMenuActive = false,
   className = '',
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -258,7 +252,6 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   const systemTools = [
     { id: WORLD_VIEW_SYSTEM_ASSET_ID, name: "World View", iconType: "worldview" as const, editorType: EditorType.WorldView, isActive: isWorldViewActive, title: "View Composite World Map" },
     // { id: GAME_FLOW_SYSTEM_ASSET_ID, name: "Game Flow", iconType: "gameflow" as const, editorType: EditorType.GameFlow, isActive: isGameFlowActive, title: "Manage the game flow" },
-    { id: MAIN_MENU_SYSTEM_ASSET_ID, name: "Main Menu", iconType: "mainmenu" as const, editorType: EditorType.MainMenu, isActive: isMainMenuActive, title: "Configure the game's main menu" },
     { id: COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, name: "Component Definitions", iconType: "componentdefinitioneditor" as const, editorType: EditorType.ComponentDefinitionEditor, isActive: isComponentDefEditorActive, title: "Manage Component Definitions" },
     { id: ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, name: "Entity Templates", iconType: "entitytemplateeditor" as const, editorType: EditorType.EntityTemplateEditor, isActive: isEntityTemplateEditorActive, title: "Manage Entity Templates" },
     ...(showTileBanksEntry ? [{ id: TILE_BANKS_SYSTEM_ASSET_ID, name: "Tile Banks", iconType: "tilebanks" as const, editorType: EditorType.TileBanks, isActive: isTileBanksActive, title: "Manage Tile Banks (Screen 2)" }] : []),

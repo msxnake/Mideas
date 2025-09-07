@@ -32,7 +32,7 @@ import { generateFontPatternBinaryData, generateFontColorBinaryData } from './co
 import { generateTemplatesASM } from './components/utils/ecsUtils';
 import { createDefaultTrackerPattern as createDefaultPT3Pattern, normalizeImportedPT3Data } from './components/utils/trackerUtils';
 import { resolveSnippetPlaceholders } from './components/utils/snippetResolver'; 
-import { TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, MAIN_MENU_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './components/tools/FileExplorerPanel';
+import { TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './components/tools/FileExplorerPanel';
 import { msxFontJsonString } from './data/msxFontData';
 import { AppUI } from './components/AppUI';
 import { deepCopy, getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from './utils/projectUtils';
@@ -737,7 +737,6 @@ const App: React.FC = () => {
     else if (assetId === ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.EntityTemplateEditor); setStatusBarMessage("Opened Entity Template Editor."); }
     else if (assetId === WORLD_VIEW_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.WorldView); setStatusBarMessage("Opened World View."); }
     else if (assetId === GAME_FLOW_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.GameFlow); setStatusBarMessage("Opened Game Flow Editor."); }
-    else if (assetId === MAIN_MENU_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.MainMenu); setStatusBarMessage("Opened Main Menu Editor."); }
     else if (assetId) {
       const asset = assets.find(a => a.id === assetId);
       if (asset) {

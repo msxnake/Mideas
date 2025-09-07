@@ -237,49 +237,51 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
         </div>
       }
     >
-      {view === 'list' ? (
-        <div className="p-4 flex space-x-4">
-          <div className="w-1/3 space-y-4">
-            <StatesPanel
-              states={stateMachine.states}
-              selectedStateId={selectedStateId}
-              onStateSelect={setSelectedStateId}
-              onAddState={handleAddState}
-              onDeleteState={(id) => {
-                if (selectedStateId === id) {
-                  setSelectedStateId(null);
-                }
-                handleDeleteState(id);
-              }}
-              language={language}
-            />
-            <EventsPanel
-              events={stateMachine.events || []}
-              onCreateEvent={handleCreateEvent}
-              onDeleteEvent={handleDeleteEvent}
-            />
+      <div className="max-h-[800px] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#4a5568 #2d3748' }}>
+        {view === 'list' ? (
+          <div className="p-4 flex space-x-4">
+            <div className="w-1/3 space-y-4">
+              <StatesPanel
+                states={stateMachine.states}
+                selectedStateId={selectedStateId}
+                onStateSelect={setSelectedStateId}
+                onAddState={handleAddState}
+                onDeleteState={(id) => {
+                  if (selectedStateId === id) {
+                    setSelectedStateId(null);
+                  }
+                  handleDeleteState(id);
+                }}
+                language={language}
+              />
+              <EventsPanel
+                events={stateMachine.events || []}
+                onCreateEvent={handleCreateEvent}
+                onDeleteEvent={handleDeleteEvent}
+              />
+            </div>
+            <div className="w-2/3">
+              <StateDetailView 
+                state={selectedState} 
+                onUpdateActions={handleUpdateStateActions}
+                onUpdateProperties={handleUpdateStateProperties}
+                stateMachine={stateMachine}
+                onAddTransition={handleAddTransition}
+                onDeleteTransition={handleDeleteTransition}
+                onUpdateTransition={handleUpdateTransition}
+              />
+            </div>
           </div>
-          <div className="w-2/3">
-            <StateDetailView 
-              state={selectedState} 
-              onUpdateActions={handleUpdateStateActions}
-              onUpdateProperties={handleUpdateStateProperties}
+        ) : (
+          <div className="w-full h-[600px]">
+            <StateMachineVisualizer 
               stateMachine={stateMachine}
-              onAddTransition={handleAddTransition}
-              onDeleteTransition={handleDeleteTransition}
-              onUpdateTransition={handleUpdateTransition}
+              onNodePositionChange={handleNodePositionChange}
+              onConnect={handleConnect}
             />
           </div>
-        </div>
-      ) : (
-        <div className="w-full h-[600px]">
-          <StateMachineVisualizer 
-            stateMachine={stateMachine}
-            onNodePositionChange={handleNodePositionChange}
-            onConnect={handleConnect}
-          />
-        </div>
-      )}
+        )}
+      </div>
     </Panel>
   );
 };

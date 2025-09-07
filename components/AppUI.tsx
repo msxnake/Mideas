@@ -36,7 +36,7 @@ import { EntityTemplateEditor } from './editors/EntityTemplateEditor';
 import { MainMenuEditor } from './editors/MainMenuEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
 import { StateMachineEditor } from './editors/StateMachineEditor';
-import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, MAIN_MENU_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
+import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
 import { PropertiesPanel } from './tools/PropertiesPanel';
 import { PalettePanel } from './tools/PalettePanel';
 import { EntityTypeListPanel } from './tools/EntityTypeListPanel'; 
