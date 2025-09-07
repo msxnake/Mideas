@@ -109,7 +109,164 @@ export const Z80_DIRECTIVES = [
 ];
 
 /** Default general-purpose Z80 snippets. This is populated dynamically. */
-export const Z80_SNIPPETS: Snippet[] = [];
+export const Z80_SNIPPETS: Snippet[] = [
+  {
+    id: "pac_man_collection",
+    name: "Pac-Man Tile Collection",
+    description: "Efficient tile-based collection system for MSX (like Pac-Man dots)",
+    code: `; Pac-Man Style Tile Collection System for MSX
+; Optimized for MSX hardware limitations
+; Uses: DE = Player position, HL = Screen map address
+
+COLLECT_TILES:
+    ; Input: DE = Player X,Y position (D=X, E=Y)
+    ; Input: HL = Screen map base address
+    ; Output: A = Number of items collected
+    ; Destroys: BC, DE, HL
+    
+    push bc
+    push de
+    push hl
+    
+    ld a, 0                    ; Initialize collection counter
+    ld (COLLECTION_COUNT), a
+    
+    ; Convert pixel position to tile coordinates
+    ld a, d                    ; Player X
+    srl a                      ; Divide by 2
+    srl a                      ; Divide by 4
+    srl a                      ; Divide by 8 (assuming 8x8 tiles)
+    ld d, a                    ; D = Tile X
+    
+    ld a, e                    ; Player Y  
+    srl a                      ; Divide by 2
+    srl a                      ; Divide by 4
+    srl a                      ; Divide by 8
+    ld e, a                    ; E = Tile Y
+    
+    ; Calculate tile address: HL + (Y * MAP_WIDTH) + X
+    ld a, e                    ; Y coordinate
+    ld b, 0
+    ld c, 32                   ; MAP_WIDTH (assuming 32 tiles wide)
+    call MULTIPLY_AC           ; A = Y * MAP_WIDTH
+    
+    add a, d                   ; A = (Y * MAP_WIDTH) + X
+    ld c, a
+    ld b, 0
+    add hl, bc                 ; HL points to tile at player position
+    
+    ; Check if current tile is collectible
+    ld a, (hl)                 ; Load tile ID
+    cp DOT_TILE_ID             ; Compare with dot tile
+    jr z, COLLECT_DOT
+    cp POWERUP_TILE_ID         ; Compare with power-up tile
+    jr z, COLLECT_POWERUP
+    cp FRUIT_TILE_ID           ; Compare with fruit tile
+    jr z, COLLECT_FRUIT
+    jr END_COLLECTION          ; Nothing to collect
+    
+COLLECT_DOT:
+    ld a, EMPTY_TILE_ID        ; Replace with empty tile
+    ld (hl), a
+    ld a, (SCORE)              ; Load current score
+    add a, 10                  ; Add 10 points for dot
+    ld (SCORE), a
+    ld a, (DOT_COUNT)          ; Increment dot counter
+    inc a
+    ld (DOT_COUNT), a
+    call PLAY_DOT_SOUND        ; Play collection sound
+    jr INCREMENT_COLLECTION
+
+COLLECT_POWERUP:
+    ld a, EMPTY_TILE_ID
+    ld (hl), a
+    ld a, (SCORE)
+    add a, 50                  ; Add 50 points for power-up
+    ld (SCORE), a
+    ld a, 1
+    ld (POWER_MODE), a         ; Activate power mode
+    call PLAY_POWERUP_SOUND
+    jr INCREMENT_COLLECTION
+
+COLLECT_FRUIT:
+    ld a, EMPTY_TILE_ID
+    ld (hl), a
+    ld a, (SCORE)
+    add a, 100                 ; Add 100 points for fruit
+    ld (SCORE), a
+    ld a, (FRUIT_COUNT)
+    inc a
+    ld (FRUIT_COUNT), a
+    call PLAY_FRUIT_SOUND
+    jr INCREMENT_COLLECTION
+
+INCREMENT_COLLECTION:
+    ld a, (COLLECTION_COUNT)
+    inc a
+    ld (COLLECTION_COUNT), a
+
+END_COLLECTION:
+    ld a, (COLLECTION_COUNT)   ; Return collection count in A
+    
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; Helper routine: Multiply A * C, result in A
+MULTIPLY_AC:
+    ld b, 0
+    ld h, b
+    ld l, a
+    ld d, h
+    ld e, l
+    add hl, hl                 ; HL = A * 2
+    jr nc, MUL_NO_CARRY1
+    inc de
+MUL_NO_CARRY1:
+    add hl, hl                 ; HL = A * 4
+    jr nc, MUL_NO_CARRY2
+    inc de
+MUL_NO_CARRY2:
+    add hl, hl                 ; HL = A * 8
+    jr nc, MUL_NO_CARRY3
+    inc de
+MUL_NO_CARRY3:
+    add hl, hl                 ; HL = A * 16
+    jr nc, MUL_NO_CARRY4
+    inc de
+MUL_NO_CARRY4:
+    add hl, hl                 ; HL = A * 32
+    ld a, l
+    ret
+
+; Sound effect stubs (implement based on your sound system)
+PLAY_DOT_SOUND:
+    ; Play dot collection sound
+    ret
+    
+PLAY_POWERUP_SOUND:
+    ; Play power-up sound
+    ret
+    
+PLAY_FRUIT_SOUND:
+    ; Play fruit collection sound
+    ret
+
+; Data section
+DOT_TILE_ID:        EQU 1      ; Tile ID for collectible dots
+POWERUP_TILE_ID:    EQU 2      ; Tile ID for power-ups
+FRUIT_TILE_ID:      EQU 3      ; Tile ID for bonus fruits
+EMPTY_TILE_ID:      EQU 0      ; Tile ID for empty space
+
+; Memory variables
+COLLECTION_COUNT:   DB 0       ; Items collected this frame
+SCORE:              DW 0       ; Player score
+DOT_COUNT:          DB 0       ; Total dots collected
+FRUIT_COUNT:        DB 0       ; Total fruits collected
+POWER_MODE:         DB 0       ; Power-up mode active flag`
+  }
+];
 /** Default behavior-specific Z80 snippets. This is populated dynamically. */
 export const Z80_BEHAVIOR_SNIPPETS: Snippet[] = [];
 

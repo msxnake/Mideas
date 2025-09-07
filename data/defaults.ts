@@ -195,6 +195,30 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "isActive", type: 'boolean', defaultValue: 'true', description: "Whether spawning is currently active." },
       { name: "spawnOnStart", type: 'boolean', defaultValue: 'false', description: "Spawn an entity immediately when the game starts." }
     ],
+  },
+  {
+    id: "comp_tile_collector", name: "Tile Collector",
+    description: "Allows an entity to collect items by walking over specific tiles (Pac-Man style).",
+    properties: [
+      { name: "collectionRadius", type: 'byte', defaultValue: '4', description: "Pixel radius for tile collection detection." },
+      { name: "collectibleTileIds", type: 'string', defaultValue: 'dot,powerup,fruit', description: "Comma-separated list of tile IDs that can be collected." },
+      { name: "replacementTileId", type: 'string', defaultValue: 'empty', description: "Tile ID to replace collected tiles with (usually empty/floor)." },
+      { name: "collectionSoundId", type: 'sound_ref', defaultValue: '', description: "Sound to play when collecting items." },
+      { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether tile collection is active." }
+    ],
+  },
+  {
+    id: "comp_inventory", name: "Inventory",
+    description: "Stores collected items and manages inventory state.",
+    properties: [
+      { name: "maxItems", type: 'word', defaultValue: '255', description: "Maximum number of items that can be stored." },
+      { name: "currentItemCount", type: 'word', defaultValue: '0', description: "Current number of items in inventory." },
+      { name: "showCountOnScreen", type: 'boolean', defaultValue: 'true', description: "Display item count on screen." },
+      { name: "countDisplayX", type: 'byte', defaultValue: '1', description: "Screen X position for count display (in character columns)." },
+      { name: "countDisplayY", type: 'byte', defaultValue: '1', description: "Screen Y position for count display (in character rows)." },
+      { name: "scorePerItem", type: 'word', defaultValue: '10', description: "Score points awarded per collected item." },
+      { name: "totalScore", type: 'word', defaultValue: '0', description: "Total accumulated score." }
+    ],
   }
 ];
 
@@ -258,5 +282,46 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       }}
     ],
     description: "Spawns enemies randomly across the screen."
+  },
+  {
+    id: "tpl_player_ship", name: "Player Ship", icon: "🚀",
+    components: [
+      { definitionId: "comp_pos", defaultValues: {x: 120, y: 150}}, 
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player_ship", isVisible: true, layer: 1 }},
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 50, mass: 1 }},
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 14, offsetX: 2, offsetY: 1, collisionLayer: 1, collidesWith: 6 }}, // Collides with enemies (2) and enemy bullets (4)
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 3 }},
+      { definitionId: "comp_aiming", defaultValues: { targetEntityTemplateId: "tpl_enemy_basic", aimingRange: 200, rotationSpeed: 0, fieldOfView: 255 }},
+      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "laser", knockbackForce: 2 }}
+    ],
+    description: "A fast-moving player spaceship with shooting capabilities. Create your own ship sprite and assign it to this entity."
+  },
+  {
+    id: "tpl_player_bullet", name: "Player Bullet", icon: "•",
+    components: [
+      { definitionId: "comp_pos", defaultValues: {x: 0, y: 0}},
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_bullet", isVisible: true, layer: 1 }},
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: -4, friction: 0, mass: 0 }},
+      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "laser", knockbackForce: 1 }},
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 4, hitboxHeight: 6, offsetX: 2, offsetY: 1, collisionLayer: 4, collidesWith: 2 }} // Bullet layer, collides with enemies
+    ],
+    description: "A fast-moving laser projectile fired by the player ship. Create your own bullet sprite and assign it to this entity."
+  },
+  {
+    id: "tpl_collector_player", name: "Collector Player", icon: "🔵",
+    components: [
+      { definitionId: "comp_pos", defaultValues: {x: 32, y: 32}}, 
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_collector", isVisible: true, layer: 1 }},
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 0, mass: 1 }},
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, collisionLayer: 1, collidesWith: 2 }},
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 }},
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", isEnabled: true }},
+      { definitionId: "comp_inventory", defaultValues: { maxItems: 255, currentItemCount: 0, showCountOnScreen: true, countDisplayX: 1, countDisplayY: 1, scorePerItem: 10, totalScore: 0 }}
+    ],
+    description: "A Pac-Man style player that collects items by walking over tiles. Perfect for maze-based collection games."
   },
 ];
