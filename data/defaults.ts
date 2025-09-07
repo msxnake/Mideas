@@ -180,6 +180,21 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether cursor control is active." },
       { name: "speed", type: 'byte', defaultValue: '2', description: "Movement speed in pixels per frame." }
     ],
+  },
+  {
+    id: "comp_spawner", name: "Spawner",
+    description: "Spawns entities at random positions within a defined zone at regular intervals.",
+    properties: [
+      { name: "spawnRate", type: 'word', defaultValue: '3000', description: "Milliseconds between spawns." },
+      { name: "maxEntities", type: 'byte', defaultValue: '5', description: "Maximum entities to spawn simultaneously." },
+      { name: "spawnZoneX", type: 'word', defaultValue: '0', description: "Spawn zone X coordinate in pixels (0 = random across screen)." },
+      { name: "spawnZoneY", type: 'word', defaultValue: '0', description: "Spawn zone Y coordinate in pixels (0 = random across screen)." },
+      { name: "spawnZoneWidth", type: 'word', defaultValue: '0', description: "Spawn zone width in pixels (0 = full screen width)." },
+      { name: "spawnZoneHeight", type: 'word', defaultValue: '0', description: "Spawn zone height in pixels (0 = full screen height)." },
+      { name: "entityTemplateId", type: 'entity_template_ref', defaultValue: 'tpl_enemy_basic', description: "Template ID of entity to spawn." },
+      { name: "isActive", type: 'boolean', defaultValue: 'true', description: "Whether spawning is currently active." },
+      { name: "spawnOnStart", type: 'boolean', defaultValue: 'false', description: "Spawn an entity immediately when the game starts." }
+    ],
   }
 ];
 
@@ -224,5 +239,24 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_collectible", defaultValues: { itemType: "key", itemValue: 1, autoCollectRadius: 12, collectionSoundRef: "sfx_collect_key" }}
     ],
     description: "A key item to be collected."
+  },
+  { 
+    id: "tpl_enemy_spawner", name: "Enemy Spawner", icon: "⚡", 
+    components: [ 
+      { definitionId: "comp_pos", defaultValues: {x: 128, y: 64}}, 
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_spawner", isVisible: false, layer: 0 } },
+      { definitionId: "comp_spawner", defaultValues: { 
+        spawnRate: 2000, 
+        maxEntities: 3, 
+        spawnZoneX: 0, 
+        spawnZoneY: 0, 
+        spawnZoneWidth: 0, 
+        spawnZoneHeight: 0,
+        entityTemplateId: "tpl_enemy_basic",
+        isActive: true,
+        spawnOnStart: false
+      }}
+    ],
+    description: "Spawns enemies randomly across the screen."
   },
 ];

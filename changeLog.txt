@@ -29,6 +29,21 @@ Versión 0.18 - 31/8/2025
 - fix(boss-editor): Set fixed height for tileset panel
 - fix(boss-editor): Enlarge tileset panel and previews
 
+Versión 0.21 - 7/9/2025
+
+NUEVA FUNCIONALIDAD: Sistema de Motores Dinámicos y Spawner Engine
+- ✅ Botón Play añadido al Screen Editor para ejecutar juegos directamente
+- ✅ Sistema de motores dinámicos que activa solo los engines necesarios según componentes de entidades
+- ✅ Spawner Engine: Sistema de spawn automático de entidades con configuración de zona, tiempo y límites
+- ✅ Nuevo componente comp_spawner con propiedades completas (spawnRate, maxEntities, spawnZone, etc.)
+- ✅ Template tpl_enemy_spawner predefinido para facilitar uso
+- ✅ Sistema de fallback inteligente para sprites faltantes
+- ✅ Animación automática para entidades spawneadas (frames artificiales si es necesario)
+- ✅ UI reactiva con contador de entidades en tiempo real
+- ✅ Engines disponibles: Gravity, Physics, Animation, Patrol, Spawner
+- ✅ Performance optimizado: solo ejecuta motores cuando hay entidades que los necesitan
+- ✅ Logs detallados de debug para desarrollo y troubleshooting
+
 Versión 0.19 - 31/8/2025
 - fix: Implement multi-language presets for State Machine editor
 - feat: Expand preset states list in State Machine editor
