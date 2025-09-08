@@ -2,7 +2,7 @@
 
 This file documents all the locations where the version number needs to be updated when releasing a new version.
 
-## Current Version: 0.231
+## Current Version: 0.232
 
 ## Files to Update:
 

@@ -23,6 +23,8 @@ interface ToolbarProps {
   onLoadProject: () => void;
   /** Callback to export all code files. */
   onExportAllCodeFiles: () => void;
+  /** Callback to export Z80 code. */
+  onExportZ80Code: () => void;
   /** Callback to compile the current code. */
   onCompile: () => void;
   /** Callback for the debug action. */
@@ -174,7 +176,7 @@ const DropdownToggleItem: React.FC<{
  */
 export const Toolbar: React.FC<ToolbarProps> = ({
   onNewProject, onNewAsset, onSaveProject, onSaveProjectAs, onLoadProject,
-  onExportAllCodeFiles, onCompile, onDebug, onRun, onOpenHelpDocs,
+  onExportAllCodeFiles, onExportZ80Code, onCompile, onDebug, onRun, onOpenHelpDocs,
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
@@ -219,6 +221,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onSaveProject} icon={<SaveFloppyIcon/>}>Save Project</DropdownItem>
         <DropdownItem onClick={onSaveProjectAs} icon={<SaveFloppyIcon/>}>Save Project As...</DropdownItem>
         <DropdownItem onClick={onLoadProject} icon={<FolderOpenIcon/>}>Load Project</DropdownItem>
+        <DropdownSeparator />
+        <DropdownItem onClick={onExportZ80Code}>Export Z80 Code</DropdownItem>
       </DropdownMenu>
 
       {/* Undo/Redo Buttons */}

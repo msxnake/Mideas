@@ -38,6 +38,7 @@ import { AppUI } from './components/AppUI';
 import { deepCopy, getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from './utils/projectUtils';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES, DEFAULT_MAP_ASM_CONTENT, DEFAULT_CONSTANTS_ASM_CONTENT } from './data/defaults';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { CodeExportModal } from './components/modals/CodeExportModal';
 
 /** The key used to store user snippets in localStorage. @constant */
 const SNIPPETS_STORAGE_KEY = 'msxIdeUserSnippets_v1';
@@ -80,6 +81,7 @@ const App: React.FC = () => {
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false); 
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false); 
   const [isCompressDataModalOpen, setIsCompressDataModalOpen] = useState(false);
+  const [isCodeExportModalOpen, setIsCodeExportModalOpen] = useState(false);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmModalProps, setConfirmModalProps] = useState<{
@@ -1312,6 +1314,7 @@ const App: React.FC = () => {
       }
     },
     isCompressDataModalOpen, setIsCompressDataModalOpen,
+    isCodeExportModalOpen, setIsCodeExportModalOpen,
     bossEditorZoom, setBossEditorZoom,
     tileEditorZoom, setTileEditorZoom,
     screenEditorZoom, setScreenEditorZoom,
