@@ -969,6 +969,49 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 </div>
             </div>
 
+            <div>
+                <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">Transform Frame</h4>
+                <div className="grid grid-cols-3 gap-1 text-xs mb-2">
+                    <Button onClick={() => handleTransform('shiftLeft')} variant="ghost" size="sm" icon={<ArrowLeftIcon className="w-3 h-3"/>} title="Shift Left">{null}</Button>
+                    <Button onClick={() => handleTransform('shiftUp')} variant="ghost" size="sm" icon={<ArrowUpIcon className="w-3 h-3"/>} title="Shift Up">{null}</Button>
+                    <Button onClick={() => handleTransform('shiftRight')} variant="ghost" size="sm" icon={<ArrowRightIcon className="w-3 h-3"/>} title="Shift Right">{null}</Button>
+
+                    <Button onClick={() => handleTransform('rotate')} variant="ghost" size="sm" icon={<RotateCcwIcon className="w-3 h-3"/>} title="Rotate 90° CW (Square only)">{null}</Button>
+                    <Button onClick={() => handleTransform('shiftDown')} variant="ghost" size="sm" icon={<ArrowDownIcon className="w-3 h-3"/>} title="Shift Down">{null}</Button>
+                    <Button onClick={handleClearFrame} variant="danger" size="sm" className="col-span-1" title="Clear Frame">Clr</Button>
+                    
+                    <Button onClick={handleContractRow} variant="ghost" size="sm" icon={<CompressVerticalIcon className="w-3 h-3"/>} title="Contract Row (Del Mid Row)" disabled={sprite.size.height <= 1}>{null}</Button>
+                    <Button onClick={handleContractColumn} variant="ghost" size="sm" icon={<CompressHorizontalIcon className="w-3 h-3"/>} title="Contract Col (Del Mid Col)" disabled={sprite.size.width <= 1}>{null}</Button>
+                </div>
+                <div className="grid grid-cols-2 gap-1 text-xs mb-2">
+                    <Button onClick={() => handleTransform('flipHorizontal')} variant="ghost" size="sm" className="w-full" justify="start">Flip H</Button>
+                    <Button onClick={() => handleTransform('flipVertical')} variant="ghost" size="sm" className="w-full" justify="start">Flip V</Button>
+                </div>
+                <Button 
+                    onClick={() => setIsExplosionModalOpen(true)} 
+                    variant="secondary" 
+                    size="sm" 
+                    icon={<FireIcon className="w-3.5 h-3.5" />} 
+                    className="w-full mb-1"
+                    justify="start"
+                    title="Crear secuencia animada de explosión (MSX1)"
+                >
+                    Gen Explosion
+                </Button>
+                <Button 
+                    onClick={handleAddContour}
+                    variant="secondary"
+                    size="sm"
+                    icon={<ContourIcon className="w-3.5 h-3.5" />}
+                    className="w-full"
+                    justify="start"
+                    title="Add a 1px contour around the sprite using the active brush color"
+                    disabled={isFrameEmpty}
+                >
+                    Add Contour
+                </Button>
+            </div>
+
             <div className="mt-auto pt-3 border-t border-msx-border">
                 <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">Define Sprite Colors</h4>
                 <p className="text-[0.65rem] text-msx-textsecondary mb-1.5">Click a slot, then pick from main MSX Palette Panel.</p>
@@ -1129,47 +1172,6 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               <Button onClick={() => handleFrameManagement('delete')} variant="danger" size="sm" icon={<TrashIcon />} className="w-full" justify="start" disabled={sprite.frames.length <= 1}>Delete Frame</Button>
             </div>
           </Panel>
-           <Panel title="Transform Frame">
-                <div className="grid grid-cols-3 gap-1 text-xs mb-2">
-                    <Button onClick={() => handleTransform('shiftLeft')} variant="ghost" size="sm" icon={<ArrowLeftIcon className="w-3 h-3"/>} title="Shift Left">{null}</Button>
-                    <Button onClick={() => handleTransform('shiftUp')} variant="ghost" size="sm" icon={<ArrowUpIcon className="w-3 h-3"/>} title="Shift Up">{null}</Button>
-                    <Button onClick={() => handleTransform('shiftRight')} variant="ghost" size="sm" icon={<ArrowRightIcon className="w-3 h-3"/>} title="Shift Right">{null}</Button>
-
-                    <Button onClick={() => handleTransform('rotate')} variant="ghost" size="sm" icon={<RotateCcwIcon className="w-3 h-3"/>} title="Rotate 90° CW (Square only)">{null}</Button>
-                    <Button onClick={() => handleTransform('shiftDown')} variant="ghost" size="sm" icon={<ArrowDownIcon className="w-3 h-3"/>} title="Shift Down">{null}</Button>
-                    <Button onClick={handleClearFrame} variant="danger" size="sm" className="col-span-1" title="Clear Frame">Clr</Button>
-                    
-                    <Button onClick={handleContractRow} variant="ghost" size="sm" icon={<CompressVerticalIcon className="w-3 h-3"/>} title="Contract Row (Del Mid Row)" disabled={sprite.size.height <= 1}>{null}</Button>
-                    <Button onClick={handleContractColumn} variant="ghost" size="sm" icon={<CompressHorizontalIcon className="w-3 h-3"/>} title="Contract Col (Del Mid Col)" disabled={sprite.size.width <= 1}>{null}</Button>
-                </div>
-                <div className="grid grid-cols-2 gap-1 text-xs mb-2">
-                    <Button onClick={() => handleTransform('flipHorizontal')} variant="ghost" size="sm" className="w-full" justify="start">Flip H</Button>
-                    <Button onClick={() => handleTransform('flipVertical')} variant="ghost" size="sm" className="w-full" justify="start">Flip V</Button>
-                </div>
-                <Button 
-                    onClick={() => setIsExplosionModalOpen(true)} 
-                    variant="secondary" 
-                    size="sm" 
-                    icon={<FireIcon className="w-3.5 h-3.5" />} 
-                    className="w-full"
-                    justify="start"
-                    title="Crear secuencia animada de explosión (MSX1)"
-                >
-                    Gen Explosion
-                </Button>
-                <Button 
-                    onClick={handleAddContour}
-                    variant="secondary"
-                    size="sm"
-                    icon={<ContourIcon className="w-3.5 h-3.5" />}
-                    className="w-full mt-1"
-                    justify="start"
-                    title="Add a 1px contour around the sprite using the active brush color"
-                    disabled={isFrameEmpty}
-                >
-                    Add Contour
-                </Button>
-            </Panel>
         </div>
       </div>
 

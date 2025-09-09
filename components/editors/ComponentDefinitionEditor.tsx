@@ -269,9 +269,10 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
 
   return (
     <Panel title="Component Definition Editor" icon={<PuzzlePieceIcon className="w-5 h-5 text-msx-textprimary" />} className="flex-grow flex flex-col !p-0">
-      <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
-        {/* Left Panel: List of Component Definitions */}
-        <div className="w-1/3 border-r border-msx-border p-2 overflow-y-auto">
+      <div className="max-h-[800px] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#4a5568 #2d3748' }}>
+        <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
+          {/* Left Panel: List of Component Definitions */}
+          <div className="w-1/3 border-r border-msx-border p-2 overflow-y-auto">
           <Button onClick={handleAddNewDefinition} variant="secondary" size="sm" icon={<PlusCircleIcon />} className="w-full mb-2">
             Add New Component
           </Button>
@@ -301,8 +302,8 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
           </ul>
         </div>
 
-        {/* Right Panel: Editor for Selected/New Definition */}
-        <div className="w-2/3 p-3 overflow-y-auto">
+          {/* Right Panel: Editor for Selected/New Definition */}
+          <div className="w-2/3 p-3">
           {!editingDefinition ? (
             <p className="text-msx-textsecondary text-center mt-10">Select a component definition to edit or add a new one.</p>
           ) : (
@@ -372,6 +373,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
        {isConfirmDeleteModalOpen && definitionToDelete && (

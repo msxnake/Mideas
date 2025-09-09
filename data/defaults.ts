@@ -78,7 +78,19 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "collisionLayer", type: "byte", defaultValue: "1", description: "Bitmask defining the entity's collision group (e.g., 1=player, 2=enemy)." },
       { name: "collidesWith", type: "byte", defaultValue: "255", description: "Bitmask defining which layers this entity can collide with." }
     ],
-    description: "Defines the physical shape and interaction rules for an entity."
+    description: "Defines the physical shape and interaction rules for entity-to-entity collisions."
+  },
+  { 
+    id: "comp_wall_collision", name: "Wall Collision", 
+    properties: [
+      { name: "hitboxWidth", type: "byte", defaultValue: "16", description: "Width of the collision bounding box for wall detection." },
+      { name: "hitboxHeight", type: "byte", defaultValue: "16", description: "Height of the collision bounding box for wall detection." },
+      { name: "offsetX", type: "byte", defaultValue: "0", description: "Horizontal offset of the hitbox from the entity's origin." },
+      { name: "offsetY", type: "byte", defaultValue: "0", description: "Vertical offset of the hitbox from the entity's origin." },
+      { name: "tileSize", type: "byte", defaultValue: "8", description: "Size of tiles in the collision layer (usually 8x8 for MSX)." },
+      { name: "stopOnCollision", type: "boolean", defaultValue: "true", description: "Whether to stop entity movement when hitting a wall." }
+    ],
+    description: "Defines collision detection with solid tiles in the collision layer (walls, obstacles)."
   },
   { 
     id: "comp_physics", name: "Physics", 
@@ -219,6 +231,14 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "scorePerItem", type: 'word', defaultValue: '10', description: "Score points awarded per collected item." },
       { name: "totalScore", type: 'word', defaultValue: '0', description: "Total accumulated score." }
     ],
+  },
+  {
+    id: "comp_rotate", name: "Rotate",
+    description: "Allows an entity sprite to be rotated based on facing direction.",
+    properties: [
+      { name: "rotation", type: 'byte', defaultValue: '0', description: "Current rotation angle in degrees (0=right, 90=up, 180=left, 270=down)." },
+      { name: "facingDirection", type: 'byte', defaultValue: '0', description: "Current facing direction (0=right, 1=up, 2=left, 3=down)." }
+    ],
   }
 ];
 
@@ -317,6 +337,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 0, mass: 1 }},
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
       { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, collisionLayer: 1, collidesWith: 2 }},
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true }},
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 }},
       { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", isEnabled: true }},

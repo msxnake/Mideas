@@ -13,6 +13,107 @@ import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
 
+// Sprite rotation utilities for auto-generated directional sprites
+const rotatePixelData90CW = (pixelData: any[][]): any[][] => {
+    const height = pixelData.length;
+    const width = pixelData[0].length;
+    const rotated = Array(width).fill(null).map(() => Array(height).fill(null));
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            rotated[x][height - 1 - y] = pixelData[y][x];
+        }
+    }
+    return rotated;
+};
+
+const rotatePixelData180 = (pixelData: any[][]): any[][] => {
+    const height = pixelData.length;
+    const width = pixelData[0].length;
+    const rotated = Array(height).fill(null).map(() => Array(width).fill(null));
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            rotated[height - 1 - y][width - 1 - x] = pixelData[y][x];
+        }
+    }
+    return rotated;
+};
+
+const rotatePixelData270CW = (pixelData: any[][]): any[][] => {
+    const height = pixelData.length;
+    const width = pixelData[0].length;
+    const rotated = Array(width).fill(null).map(() => Array(height).fill(null));
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            rotated[width - 1 - x][y] = pixelData[y][x];
+        }
+    }
+    return rotated;
+};
+
+// Auto-generate rotated sprites from base frames
+const generateRotatedSprites = (entity: AnimatedEntity): HTMLImageElement[] => {
+    if (entity.frameImages.length < 1 || !entity.sprite.frames[0]) {
+        return entity.frameImages;
+    }
+
+    console.log(`🔄 Auto-generating rotated sprites for ${entity.template.name} (${entity.frameImages.length} base frames)`);
+    
+    const generatedFrames: HTMLImageElement[] = [];
+    const spriteWidth = entity.sprite.size.width;
+    const spriteHeight = entity.sprite.size.height;
+    const baseFrameCount = entity.sprite.frames.length;
+    
+    // Generate frames by direction: [all_right_frames, all_up_frames, all_left_frames, all_down_frames]
+    for (let direction = 0; direction < 4; direction++) {
+        for (let frameIndex = 0; frameIndex < baseFrameCount; frameIndex++) {
+            const basePixelData = entity.sprite.frames[frameIndex].data;
+            
+            switch (direction) {
+                case 0: // Right (0°) - original
+                    generatedFrames.push(entity.frameImages[frameIndex]);
+                    break;
+                    
+                case 1: // Up (270°) - was Down
+                    if (spriteWidth === spriteHeight) {
+                        const rotated270 = rotatePixelData270CW(basePixelData);
+                        const img270 = new Image();
+                        img270.src = createSpriteDataURL(rotated270, spriteWidth, spriteHeight);
+                        generatedFrames.push(img270);
+                    } else {
+                        generatedFrames.push(entity.frameImages[frameIndex]);
+                    }
+                    break;
+                    
+                case 2: // Left (mirror horizontal)
+                    const mirrored = mirrorPixelDataHorizontally(basePixelData);
+                    const imgMirrored = new Image();
+                    imgMirrored.src = createSpriteDataURL(mirrored, spriteWidth, spriteHeight);
+                    generatedFrames.push(imgMirrored);
+                    break;
+                    
+                case 3: // Down (90°) - was Up
+                    if (spriteWidth === spriteHeight) {
+                        const rotated90 = rotatePixelData90CW(basePixelData);
+                        const img90 = new Image();
+                        img90.src = createSpriteDataURL(rotated90, spriteWidth, spriteHeight);
+                        generatedFrames.push(img90);
+                    } else {
+                        generatedFrames.push(entity.frameImages[frameIndex]);
+                    }
+                    break;
+            }
+        }
+    }
+    
+    console.log(`✅ Generated ${generatedFrames.length} rotated frames: ${baseFrameCount} frames × 4 directions`);
+    console.log(`📋 Frame structure: Right(0-${baseFrameCount-1}), Up(${baseFrameCount}-${baseFrameCount*2-1}), Left(${baseFrameCount*2}-${baseFrameCount*3-1}), Down(${baseFrameCount*3}-${baseFrameCount*4-1})`);
+    return generatedFrames;
+};
+
+
 // Game Engine System Types
 type GameEngine = {
     id: string;
@@ -90,7 +191,33 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 const animComp = entity.template.components.find(c => c.definitionId === 'comp_animation');
                 if (animComp && entity.frameImages.length > 1 && now - entity.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
                     const oldFrame = entity.currentFrame;
-                    entity.currentFrame = (entity.currentFrame + 1) % entity.frameImages.length;
+                    
+                    // Check if entity has directional rotation system
+                    if (entity.rotationData && entity.baseFrameForDirection !== undefined) {
+                        if (entity.framesPerDirection && entity.framesPerDirection > 1) {
+                            // Auto-generated system: cycle through frames in current direction
+                            const baseFrame = entity.baseFrameForDirection;
+                            const maxFrameInDirection = baseFrame + entity.framesPerDirection - 1;
+                            
+                            if (entity.currentFrame >= maxFrameInDirection) {
+                                entity.currentFrame = baseFrame; // Back to first frame of direction
+                            } else {
+                                entity.currentFrame++; // Next frame in same direction
+                            }
+                        } else {
+                            // 8-frame manual system: alternate between open/closed mouth
+                            const baseFrame = entity.baseFrameForDirection;
+                            if (entity.currentFrame === baseFrame) {
+                                entity.currentFrame = baseFrame + 1; // Switch to closed mouth
+                            } else {
+                                entity.currentFrame = baseFrame; // Switch to open mouth
+                            }
+                        }
+                    } else {
+                        // Standard animation: cycle through all frames
+                        entity.currentFrame = (entity.currentFrame + 1) % entity.frameImages.length;
+                    }
+                    
                     entity.lastFrameUpdateTime = now;
                     
                     if (entity.instance.id.startsWith('spawned_') && oldFrame !== entity.currentFrame) {
@@ -358,6 +485,76 @@ const AVAILABLE_ENGINES: EngineRegistry = {
         id: 'cursors',
         name: 'Cursor Control Engine',
         execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap, entityTemplates?: EntityTemplate[], allAssets?: ProjectAsset[], pendingSpawns?: React.MutableRefObject<EntityInstance[]>) => {
+            // Helper function to check if a position would cause wall collision
+            const wouldCollideWithWall = (entity: AnimatedEntity, newX: number, newY: number): boolean => {
+                if (!screenMap?.layers?.collision) {
+                    return false;
+                }
+                
+                let wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+                
+                // If entity has cursors but no wall collision, create default wall collision
+                if (!wallCollisionComp) {
+                    const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
+                    if (cursorsComp) {
+                        wallCollisionComp = {
+                            definitionId: 'comp_wall_collision',
+                            defaultValues: {
+                                hitboxWidth: 12,
+                                hitboxHeight: 12,
+                                offsetX: 2,
+                                offsetY: 2,
+                                tileSize: 8,
+                                stopOnCollision: true
+                            }
+                        };
+                    } else {
+                        return false;
+                    }
+                }
+
+                const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) };
+                const hitboxWidth = Number(props.hitboxWidth) || 16;
+                const hitboxHeight = Number(props.hitboxHeight) || 16;
+                const offsetX = Number(props.offsetX) || 0;
+                const offsetY = Number(props.offsetY) || 0;
+                const tileSize = Number(props.tileSize) || 8;
+
+                // Calculate entity bounds at new position
+                const entityLeft = newX + offsetX;
+                const entityTop = newY + offsetY;
+                const entityRight = entityLeft + hitboxWidth;
+                const entityBottom = entityTop + hitboxHeight;
+
+                // Convert to tile coordinates
+                const leftTile = Math.floor(entityLeft / tileSize);
+                const topTile = Math.floor(entityTop / tileSize);
+                const rightTile = Math.floor(entityRight / tileSize);
+                const bottomTile = Math.floor(entityBottom / tileSize);
+
+
+                // Check collision tiles in the entity's new area
+                for (let tileY = topTile; tileY <= bottomTile; tileY++) {
+                    for (let tileX = leftTile; tileX <= rightTile; tileX++) {
+                        // Bounds check
+                        if (tileX < 0 || tileY < 0 || 
+                            tileX >= (screenMap.width || 0) || 
+                            tileY >= (screenMap.height || 0)) {
+                            continue;
+                        }
+
+                        // Check if there's a solid tile at this position
+                        const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+                        
+                        if (tileOnLayer && tileOnLayer.tileId) {
+                            // Need to check if this tile is actually solid by looking at its logical properties
+                            // For now, assume any tile with an ID is solid (we can improve this later)
+                            return true; // Would collide
+                        }
+                    }
+                }
+                return false; // No collision
+            };
             // Get current pressed keys from the modal's key tracking system (we need to access it from the modal scope)
             // For now, we'll implement a simple key tracking system
             const currentPressedKeys = (window as any).currentPressedKeys || new Set();
@@ -378,18 +575,30 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     entity.vx = 0;
                     entity.vy = 0;
                     
-                    // Apply movement based on pressed keys
+                    // Apply movement based on pressed keys with wall collision prevention
                     if (currentPressedKeys.has('ArrowUp') || currentPressedKeys.has('KeyW')) {
-                        entity.vy = -speed;
+                        const newY = entity.y - speed;
+                        if (!wouldCollideWithWall(entity, entity.x, newY)) {
+                            entity.vy = -speed;
+                        }
                     }
                     if (currentPressedKeys.has('ArrowDown') || currentPressedKeys.has('KeyS')) {
-                        entity.vy = speed;
+                        const newY = entity.y + speed;
+                        if (!wouldCollideWithWall(entity, entity.x, newY)) {
+                            entity.vy = speed;
+                        }
                     }
                     if (currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA')) {
-                        entity.vx = -speed;
+                        const newX = entity.x - speed;
+                        if (!wouldCollideWithWall(entity, newX, entity.y)) {
+                            entity.vx = -speed;
+                        }
                     }
                     if (currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD')) {
-                        entity.vx = speed;
+                        const newX = entity.x + speed;
+                        if (!wouldCollideWithWall(entity, newX, entity.y)) {
+                            entity.vx = speed;
+                        }
                     }
                 }
             });
@@ -431,7 +640,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
     collision: {
         id: 'collision',
         name: 'Collision Detection Engine',
-        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[]) => {
+        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap) => {
             // Simple collision detection between entities
             for (let i = 0; i < entities.length; i++) {
                 for (let j = i + 1; j < entities.length; j++) {
@@ -530,6 +739,100 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     }
                 }
             }
+
+        }
+    },
+
+    wallCollision: {
+        id: 'wallCollision',
+        name: 'Wall Collision Engine',
+        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap) => {
+            // Tile collision detection (walls, obstacles)
+            if (!screenMap || !screenMap.layers?.collision) return;
+
+            entities.forEach(entity => {
+                const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+                if (!wallCollisionComp) return;
+
+                const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) };
+                const hitboxWidth = Number(props.hitboxWidth) || 16;
+                const hitboxHeight = Number(props.hitboxHeight) || 16;
+                const offsetX = Number(props.offsetX) || 0;
+                const offsetY = Number(props.offsetY) || 0;
+                const tileSize = Number(props.tileSize) || 8;
+                const stopOnCollision = props.stopOnCollision !== 'false' && props.stopOnCollision !== false;
+
+                // Calculate entity bounds
+                const entityLeft = entity.x + offsetX;
+                const entityTop = entity.y + offsetY;
+                const entityRight = entityLeft + hitboxWidth;
+                const entityBottom = entityTop + hitboxHeight;
+
+                // Convert to tile coordinates
+                const leftTile = Math.floor(entityLeft / tileSize);
+                const topTile = Math.floor(entityTop / tileSize);
+                const rightTile = Math.floor(entityRight / tileSize);
+                const bottomTile = Math.floor(entityBottom / tileSize);
+
+                // Check collision tiles in the entity's area
+                for (let tileY = topTile; tileY <= bottomTile; tileY++) {
+                    for (let tileX = leftTile; tileX <= rightTile; tileX++) {
+                        // Bounds check
+                        if (tileX < 0 || tileY < 0 || 
+                            tileX >= (screenMap.width || 0) || 
+                            tileY >= (screenMap.height || 0)) {
+                            continue;
+                        }
+
+                        // Check if there's a solid tile at this position
+                        const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+                        if (tileOnLayer && tileOnLayer.tileId) {
+                            // Solid tile found - push entity back
+                            const tileLeft = tileX * tileSize;
+                            const tileTop = tileY * tileSize;
+                            const tileRight = tileLeft + tileSize;
+                            const tileBottom = tileTop + tileSize;
+
+                            // Calculate overlap
+                            const overlapLeft = entityRight - tileLeft;
+                            const overlapRight = tileRight - entityLeft;
+                            const overlapTop = entityBottom - tileTop;
+                            const overlapBottom = tileBottom - entityTop;
+
+                            // Find smallest overlap to determine push direction
+                            const minOverlapX = Math.min(overlapLeft, overlapRight);
+                            const minOverlapY = Math.min(overlapTop, overlapBottom);
+
+                            if (minOverlapX < minOverlapY) {
+                                // Horizontal collision - push horizontally
+                                if (overlapLeft < overlapRight) {
+                                    entity.x = tileLeft - hitboxWidth - offsetX; // Push left
+                                } else {
+                                    entity.x = tileRight - offsetX; // Push right
+                                }
+                            } else {
+                                // Vertical collision - push vertically
+                                if (overlapTop < overlapBottom) {
+                                    entity.y = tileTop - hitboxHeight - offsetY; // Push up
+                                } else {
+                                    entity.y = tileBottom - offsetY; // Push down
+                                }
+                            }
+
+                            // Stop velocity if enabled and entity has movement component
+                            if (stopOnCollision) {
+                                const movementComp = entity.template.components.find(c => c.definitionId === 'comp_movement');
+                                if (movementComp) {
+                                    entity.velocityX = 0;
+                                    entity.velocityY = 0;
+                                }
+                            }
+
+                            console.log(`🚧 ${entity.template.name} collided with wall at tile (${tileX}, ${tileY})`);
+                        }
+                    }
+                }
+            });
         }
     },
 
@@ -537,7 +840,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
         id: 'tileCollection',
         name: 'Tile Collection Engine',
         execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap, entityTemplates?: EntityTemplate[], allAssets?: ProjectAsset[]) => {
-            if (!screenMap) return;
+            if (!screenMap || !screenMap.layers?.background?.tiles) return;
 
             entities.forEach(entity => {
                 const tileCollectorComp = entity.template.components.find(c => c.definitionId === 'comp_tile_collector');
@@ -650,6 +953,94 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 }
             });
         }
+    },
+
+    rotation: {
+        id: 'rotation',
+        name: 'Sprite Rotation Engine',
+        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[]) => {
+            entities.forEach(entity => {
+                const rotateComp = entity.template.components.find(c => c.definitionId === 'comp_rotate');
+                if (rotateComp) {
+                    const rotateProps = { 
+                        ...rotateComp.defaultValues, 
+                        ...(entity.instance.componentOverrides?.['comp_rotate'] || {}) 
+                    };
+
+                    // Initialize rotation data if needed
+                    if (!entity.rotationData) {
+                        entity.rotationData = {
+                            rotation: Number(rotateProps.rotation) || 0,
+                            facingDirection: Number(rotateProps.facingDirection) || 0,
+                            lastDirection: 0
+                        };
+                    }
+
+                    // Update facing direction based on movement velocity
+                    let newDirection = entity.rotationData.facingDirection;
+                    let newRotation = entity.rotationData.rotation;
+
+                    if (entity.vx > 0) {
+                        // Moving right
+                        newDirection = 0;
+                        newRotation = 0;
+                    } else if (entity.vx < 0) {
+                        // Moving left
+                        newDirection = 2;
+                        newRotation = 180;
+                    } else if (entity.vy < 0) {
+                        // Moving up
+                        newDirection = 1;
+                        newRotation = 90;
+                    } else if (entity.vy > 0) {
+                        // Moving down
+                        newDirection = 3;
+                        newRotation = 270;
+                    }
+
+                    // Only update if direction changed
+                    if (newDirection !== entity.rotationData.facingDirection) {
+                        entity.rotationData.facingDirection = newDirection;
+                        entity.rotationData.rotation = newRotation;
+                        entity.rotationData.lastDirection = newDirection;
+                        
+                        console.log(`🔄 ${entity.template.name} rotation: direction=${newDirection}, rotation=${newRotation}°, frames=${entity.frameImages.length}`);
+                        
+                        // Update current animation frame based on direction for auto-generated sprites
+                        const baseFrameCount = entity.sprite.frames.length; // Original frames before generation
+                        const totalFrames = entity.frameImages.length;
+                        
+                        if (totalFrames === baseFrameCount * 4) {
+                            // Auto-generated system: 4 rotations per base frame
+                            // Structure: [base0_right, base0_up, base0_left, base0_down, base1_right, base1_up, ...]
+                            const framesPerDirection = baseFrameCount;
+                            const baseFrame = newDirection * framesPerDirection;
+                            entity.currentFrame = baseFrame; // Start with first frame of new direction
+                            entity.baseFrameForDirection = baseFrame; // Store for animation engine
+                            entity.framesPerDirection = framesPerDirection; // Store for animation system
+                            console.log(`🎭 ${entity.template.name} switched to direction ${newDirection}, base frame ${baseFrame} (auto-generated, ${framesPerDirection} frames per direction)`);
+                        } else if (entity.frameImages.length >= 8) {
+                            // 8-frame manual system: 2 frames per direction (open/closed mouth)
+                            const baseFrame = newDirection * 2; 
+                            entity.currentFrame = baseFrame;
+                            entity.baseFrameForDirection = baseFrame;
+                            console.log(`🎭 ${entity.template.name} switched to direction ${newDirection}, base frame ${baseFrame} (8-frame manual system)`);
+                        } else if (entity.frameImages.length >= 4) {
+                            // 4-frame system: one frame per direction 
+                            entity.currentFrame = newDirection;
+                            console.log(`🎭 ${entity.template.name} switched to frame ${newDirection} for direction (4-frame system)`);
+                        } else if (entity.frameImages.length > 1) {
+                            // For sprites with fewer frames, cycle through available frames
+                            entity.currentFrame = newDirection % entity.frameImages.length;
+                            console.log(`🎭 ${entity.template.name} cycled to frame ${entity.currentFrame} (${entity.frameImages.length} total frames)`);
+                        } else {
+                            console.log(`🎭 ${entity.template.name} has only 1 frame - no visual rotation`);
+                        }
+                        // For single-frame sprites, keep currentFrame as 0
+                    }
+                }
+            });
+        }
     }
 };
 
@@ -686,8 +1077,14 @@ const detectRequiredEngines = (entities: AnimatedEntity[]): string[] => {
                 case 'comp_collision':
                     requiredEngines.add('collision');
                     break;
+                case 'comp_wall_collision':
+                    requiredEngines.add('wallCollision');
+                    break;
                 case 'comp_tile_collector':
                     requiredEngines.add('tileCollection');
+                    break;
+                case 'comp_rotate':
+                    requiredEngines.add('rotation');
                     break;
             }
         });
@@ -739,6 +1136,13 @@ interface AnimatedEntity {
             timestamp: number;
         }>;
     };
+    rotationData?: {
+        rotation: number;
+        facingDirection: number;
+        lastDirection: number;
+    };
+    baseFrameForDirection?: number;
+    framesPerDirection?: number;
     markedForDestruction?: boolean;
 }
 
@@ -1085,6 +1489,21 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             const startX = instance.position.x * TILE_SIZE;
             const startY = instance.position.y * TILE_SIZE;
 
+            // Check if entity has rotation component and auto-generate rotated sprites
+            const hasRotateComponent = template.components.some(c => c.definitionId === 'comp_rotate');
+            let finalFrameImages = frameImages;
+            
+            if (hasRotateComponent && sprite.frames.length > 0) {
+                // Create temporary entity for sprite generation
+                const tempEntity: AnimatedEntity = {
+                    instance, template, sprite, x: startX, y: startY, vx: 0, vy: 0,
+                    frameImages, currentFrame: 0, lastFrameUpdateTime: 0
+                };
+                
+                finalFrameImages = generateRotatedSprites(tempEntity);
+                console.log(`🎯 Auto-generated directional sprites for ${template.name}: ${finalFrameImages.length} total frames`);
+            }
+
             const newAnimatedEntity: AnimatedEntity = {
                 instance,
                 template,
@@ -1093,7 +1512,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 y: startY,
                 vx: 0,
                 vy: 0,
-                frameImages,
+                frameImages: finalFrameImages,
                 mirroredFrameImages,
                 currentFrame: 0,
                 lastFrameUpdateTime: 0,
@@ -1131,19 +1550,28 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         // DIAGNOSTIC: Log screen map entities and available assets
         console.log('🔍 DIAGNOSTIC INFO:', {
             screenMapEntities: screenMap.layers.entities.length,
-            entityInstances: screenMap.layers.entities.map(e => ({
-                id: e.id, 
-                templateId: e.entityTemplateId, 
-                name: e.name,
-                position: e.position
+            entityInstances: screenMap.layers.entities.map(e => {
+                const template = entityTemplates.find(t => t.id === e.entityTemplateId);
+                const hasWallCollision = template?.components.some(c => c.definitionId === 'comp_wall_collision');
+                return {
+                    id: e.id, 
+                    templateId: e.entityTemplateId, 
+                    name: e.name,
+                    position: e.position,
+                    templateName: template?.name,
+                    hasWallCollision
+                };
+            }),
+            availableTemplates: entityTemplates.map(t => ({
+                id: t.id, 
+                name: t.name,
+                hasWallCollision: t.components.some(c => c.definitionId === 'comp_wall_collision')
             })),
-            availableTemplates: entityTemplates.map(t => t.id),
             availableSprites: allAssets.filter(a => a.type === 'sprite').map(a => ({
                 id: a.id, 
                 name: a.name
             })),
-            playerShipTemplateExists: entityTemplates.some(t => t.id === 'tpl_player_ship'),
-            playerShipSpriteExists: allAssets.some(a => a.id === 'sprite_player_ship')
+            collectorPlayerTemplate: entityTemplates.find(t => t.id === 'tpl_collector_player')
         });
         
     }, [isOpen, screenMap, allAssets, entityTemplates, componentDefinitions]);
@@ -1235,12 +1663,15 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 }
 
                 // Choose correct sprite image (animation is now handled by animation engine)
-                let imageToDraw = entity.frameImages[entity.currentFrame];
-                if (entity.mirroredFrameImages) {
+                // Ensure currentFrame is within bounds
+                const safeFrameIndex = Math.min(entity.currentFrame, entity.frameImages.length - 1);
+                let imageToDraw = entity.frameImages[safeFrameIndex];
+                
+                if (entity.mirroredFrameImages && safeFrameIndex < entity.mirroredFrameImages.length) {
                     if (entity.sprite.facingDirection === 'right' && entity.vx < 0) {
-                        imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
+                        imageToDraw = entity.mirroredFrameImages[safeFrameIndex];
                     } else if (entity.sprite.facingDirection === 'left' && entity.vx > 0) {
-                        imageToDraw = entity.mirroredFrameImages[entity.currentFrame];
+                        imageToDraw = entity.mirroredFrameImages[safeFrameIndex];
                     }
                 }
 

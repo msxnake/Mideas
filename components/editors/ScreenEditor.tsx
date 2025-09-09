@@ -908,7 +908,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         lastClickedCell={lastClickedCell}
       />
        {isExportLayoutModalOpen && layoutASMExportData && ( <ExportLayoutASMModal isOpen={isExportLayoutModalOpen} onClose={() => setIsExportLayoutModalOpen(false)} {...layoutASMExportData} /> )}
-      {isExportBehaviorMapModalOpen && behaviorMapASMExportData && ( <ExportBehaviorMapModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} /> )}
+      {isExportBehaviorMapModalOpen && behaviorMapASMExportData && ( <ExportBehaviorMapASMModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} /> )}
       {isHudEditorModalOpen && screenMap && ( 
           <HUDEditorModal 
             isOpen={isHudEditorModalOpen} 

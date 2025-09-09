@@ -18,22 +18,22 @@ interface Z80SyntaxHighlighterProps {
 const commentsRegex = /(;.+)/g;
 const labelsRegex = /^([a-zA-Z_][a-zA-Z0-9_]*):/gm;
 
-const lookaheadToPreventHtmlMatch = "(?![^<]*>|[^<>]*<\\/span>)";
+const lookaheadToPreventHtmlMatch = "(?![^<]*>|[^<>]*<\/span>)";
 const stringsRegex = new RegExp(`(".*?"|'.*?')${lookaheadToPreventHtmlMatch}`, 'g');
 const hexRegex = new RegExp(`#[0-9A-Fa-f]+${lookaheadToPreventHtmlMatch}`, 'g');
 const binaryRegex = new RegExp(`%[01]+${lookaheadToPreventHtmlMatch}`, 'g');
 
-const mnemonicsRegex = new RegExp(`\\b(${Z80_MNEMONICS.join('|')})\\b`, 'gi');
+const mnemonicsRegex = new RegExp(`\b(${Z80_MNEMONICS.join('|')})\b`, 'gi');
 const registersRegexStr = Z80_REGISTERS.join('|').replace("'", "\\'");
-const registersRegex = new RegExp(`\\b(${registersRegexStr})\\b`, 'gi');
-const conditionsRegex = new RegExp(`\\b(${Z80_CONDITIONS.join('|')})\\b`, 'gi');
-const directivesRegex = new RegExp(`\\b(${Z80_DIRECTIVES.join('|')})\\b`, 'gi');
+const registersRegex = new RegExp(`\b(${registersRegexStr})\b`, 'gi');
+const conditionsRegex = new RegExp(`\b(${Z80_CONDITIONS.join('|')})\b`, 'gi');
+const directivesRegex = new RegExp(`\b(${Z80_DIRECTIVES.join('|')})\b`, 'gi');
 
-const portValueRegexPart = "(?:#[0-9A-Fa-f]+|\\b0x[0-9A-Fa-f]+\\b|\\b[0-9A-Fa-f]+[Hh]\\b|%[01]+|\\b\\d+\\b|C)";
+const portValueRegexPart = "(?:#[0-9A-Fa-f]+|\b0x[0-9A-Fa-f]+\b|\b[0-9A-Fa-f]+[Hh]\b|%[01]+|\b\d+\b|C)";
 const registerOrAccumulatorRegexPart = `(?:${registersRegexStr}|A)`;
 
-const ioPattern1Regex = new RegExp(`\\b(OUT|IN)\\s*\\(\\s*(${portValueRegexPart})\\s*\\)\\s*,\\s*(${registerOrAccumulatorRegexPart})\\b`, 'gi');
-const ioPattern2Regex = new RegExp(`\\b(OUT|IN)\\s*(${registerOrAccumulatorRegexPart})\\s*,\\s*\\(\\s*(${portValueRegexPart})\\s*\\)\\b`, 'gi');
+const ioPattern1Regex = new RegExp(`\b(OUT|IN)\s*\(\s*(${portValueRegexPart})\s*\)\s*,\s*(${registerOrAccumulatorRegexPart})\b`, 'gi');
+const ioPattern2Regex = new RegExp(`\b(OUT|IN)\s*(${registerOrAccumulatorRegexPart})\s*,\s*\(\s*(${portValueRegexPart})\s*\)\b`, 'gi');
 
 /**
  * Highlights a single line of Z80 assembly code by wrapping syntax elements in styled spans.
@@ -68,12 +68,12 @@ const highlightSegment = (segment: string): string => {
 
   line = line.replace(directivesRegex, '<span class="text-purple-400">$1</span>');
 
-  line = line.replace(new RegExp(`\\b(${registersRegexStr})${lookaheadToPreventHtmlMatch}\\b`, 'gi'), '<span class="text-orange-400">$1</span>');
+  line = line.replace(new RegExp(`\b(${registersRegexStr})${lookaheadToPreventHtmlMatch}\b`, 'gi'), '<span class="text-orange-400">$1</span>');
 
-  line = line.replace(new RegExp(`\\b(${Z80_CONDITIONS.join('|')})${lookaheadToPreventHtmlMatch}\\b`, 'gi'), '<span class="text-pink-400">$1</span>');
+  line = line.replace(new RegExp(`\b(${Z80_CONDITIONS.join('|')})${lookaheadToPreventHtmlMatch}\b`, 'gi'), '<span class="text-pink-400">$1</span>');
 
- // line = line.replace(hexRegex, '<span class="text-msx-cyan"></span>');
-  //line = line.replace(binaryRegex, '<span class="text-msx-cyan">$0</span>');
+  line = line.replace(hexRegex, '<span class="text-msx-cyan">$0</span>');
+  line = line.replace(binaryRegex, '<span class="text-msx-cyan">$0</span>');
 
   line = line.replace(/\b(\d+)\b(?![Hh])(?![^<]*>|[^<>]*<\/span>)/g, (match, decNum, offset, fullString) => {
       const twoCharsBefore = offset > 1 ? fullString.substring(offset - 2, offset) : "";
@@ -99,7 +99,7 @@ const highlightSegment = (segment: string): string => {
       
       let insideAttribute = false;
       const searchWindow = fullString.substring(Math.max(0, offset - 30), offset + match.length + 30);
-      if (/(class|id|style|data-[\w-]+|width|height|min|max|step|value|size|cols|rows|minlength|maxlength|tabindex|cx|cy|r|x|y|dx|dy|fx|fy|x1|x2|y1|y2|offset|startoffset|spacing|padding|margin|border|font-size|line-height)=["']([^"']*\b\d+\b[^"']*)["']/gi.test(searchWindow)) {
+      if (/(class|id|style|data-[\w-]+|width|height|min|max|step|value|size|cols|rows|minlength|maxlength|tabindex|cx|cy|r|x|y|dx|dy|fx|fy|x1|x2|y1|y2|offset|startoffset|spacing|padding|margin|border|font-size|line-height)=["']([^"']*\d+[^"']*)["']/gi.test(searchWindow)) {
            let openQuoteIndex = -1;
            let attrStartIndex = -1;
             for(let i = offset -1; i >=0; i--) {
@@ -142,7 +142,7 @@ const highlightSegment = (segment: string): string => {
       const preChar = offset > 0 ? fullString[offset-1] : ' ';
       const postChar = offset + match.length < fullString.length ? fullString[offset+match.length] : ' ';
       
-      if (preChar.match(/[a-zA-Z0-9_#%"']/) || postChar.match(/[a-zA-Z0-9_#%"']/)) {
+      if (preChar.match(/[a-zA-Z0-9_#%"']/i) || postChar.match(/[a-zA-Z0-9_#%"']/i)) {
           if ( !(preChar === ' ' || preChar === ',' || preChar === '(' || preChar === '\t' || preChar === '-' || preChar === '>' ) ) {
                return match;
           }

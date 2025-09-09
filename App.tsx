@@ -19,7 +19,7 @@ import {
   DEFAULT_SPRITE_SIZE, DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, 
   SCREEN_MODES, DEFAULT_SCREEN_MODE, MSX1_PALETTE,
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR,
-  DEFAULT_TILE_BANKS_CONFIG, Z80_SNIPPETS as DEFAULT_Z80_SNIPPETS, Z80_BEHAVIOR_SNIPPETS,
+  DEFAULT_TILE_BANKS_CONFIG, Z80_SNIPPETS as DEFAULT_Z80_SNIPPENS, Z80_BEHAVIOR_SNIPPETS,
   EDITOR_BASE_TILE_DIM_S2,
   DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED,
   DEFAULT_HELP_DOCS_DATA, HELP_DOCS_SYSTEM_ASSET_ID, MAX_HISTORY_LENGTH, DEFAULT_MAIN_MENU_CONFIG
@@ -84,7 +84,7 @@ const App: React.FC = () => {
   const [isCodeExportModalOpen, setIsCodeExportModalOpen] = useState(false);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [confirmModalProps, setConfirmModalProps] = useState<{
+  const [confirmModalProps, setConfirmModalProps] = useState<{ 
     title: string;
     message: string | React.ReactNode;
     onConfirm: () => void;
@@ -494,6 +494,7 @@ const App: React.FC = () => {
   }, [pushToHistory]);
 
   const handleUpdateAsset = useCallback((assetId: string, updatedData: any, newAssetsToCreate?: ProjectAsset[]) => {
+    console.log("handleUpdateAsset called", { assetId, updatedData, newAssetsToCreate });
     setAssetsWithHistory(prevAssets => {
       let intermediateAssets = prevAssets;
       if (newAssetsToCreate && newAssetsToCreate.length > 0) {
@@ -584,7 +585,7 @@ const App: React.FC = () => {
         const formattedDate = getFormattedDate();
         const createdAssets: ProjectAsset[] = [];
         let mainAsmAssetId: string | null = null;
-        newProjectFiles.forEach(filename => { const fileContent = filename === "main.asm" ? generateMainAsmContent(projectNameFromModal, formattedDate) : generateAsmFileHeader(projectNameFromModal, formattedDate, filename); const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\\/g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2,7)}`; const newAsset: ProjectAsset = { id: assetId, name: filename, type: 'code', data: fileContent }; createdAssets.push(newAsset); if (filename === "main.asm") { mainAsmAssetId = assetId; }});
+        newProjectFiles.forEach(filename => { const fileContent = filename === "main.asm" ? generateMainAsmContent(projectNameFromModal, formattedDate) : generateAsmFileHeader(projectNameFromModal, formattedDate, filename); const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\//g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2,7)}`; const newAsset: ProjectAsset = { id: assetId, name: filename, type: 'code', data: fileContent }; createdAssets.push(newAsset); if (filename === "main.asm") { mainAsmAssetId = assetId; }});
         setAssets(createdAssets);
         if (mainAsmAssetId) { setSelectedAssetId(mainAsmAssetId); setCurrentEditor(EditorType.Code); setStatusBarMessage(`Project "${projectNameFromModal}" created. main.asm opened.`);} else { setStatusBarMessage(`Project "${projectNameFromModal}" created.`);}
         setIsNewProjectModalOpen(false); setIsConfirmModalOpen(false);
@@ -1177,7 +1178,7 @@ const App: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setStatusBarMessage(`Project '${projectName}' (code & all binary assets) exported to ${zipFilename}.`);
+      setStatusBarMessage(`Project "${projectName}" (code & all binary assets) exported to ${zipFilename}.`);
     } catch (error) {
       console.error("Error exporting project files:", error);
       setStatusBarMessage(`Error exporting files: ${error instanceof Error ? error.message : "Unknown error"}`);
