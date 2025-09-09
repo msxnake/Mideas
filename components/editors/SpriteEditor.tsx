@@ -5,9 +5,10 @@ import { Sprite, MSXColorValue, PixelData, Point, SpriteFrame, DataFormat, Explo
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, RefreshCwIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, RefreshCwIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon } from '../icons/MsxIcons';
 import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
 import { ExplosionGeneratorModal } from '../modals/ExplosionGeneratorModal'; 
+import { DisintegrationGeneratorModal, DisintegrationParams } from '../modals/DisintegrationGeneratorModal';
 import { MSX_SCREEN5_PALETTE } from '../../constants'; 
 import { SpriteImportConfigModal, SpriteImportConfig } from '../modals/SpriteImportConfigModal';
 import { AnimationWatcherModal } from '../modals/AnimationWatcherModal';
@@ -240,6 +241,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const [activePaletteSetupSlotIndex, setActivePaletteSetupSlotIndex] = useState<number | 'bg' | null>(null);
 
   const [isExplosionModalOpen, setIsExplosionModalOpen] = useState<boolean>(false);
+  const [isDisintegrationModalOpen, setIsDisintegrationModalOpen] = useState<boolean>(false);
 
   const [isMovementEnabled, setIsMovementEnabled] = useState<boolean>(false);
   const [movementDirection, setMovementDirection] = useState<'left-to-right' | 'right-to-left'>('right-to-left');
@@ -730,6 +732,102 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
     setIsExplosionModalOpen(false);
   };
 
+  const convertToGrayscale = (pixelData: PixelData, backgroundColor: MSXColorValue): PixelData => {
+    // Find the closest grayscale colors in MSX palette
+    const grayscaleColors = [
+      '#000000', // Black
+      '#555555', // Dark gray  
+      '#AAAAAA', // Light gray
+      '#FFFFFF'  // White
+    ];
+
+    return pixelData.map(row => 
+      row.map(pixel => {
+        if (pixel === backgroundColor) return backgroundColor;
+        
+        // Simple grayscale conversion - pick closest gray
+        const pixelBrightness = getBrightness(pixel);
+        if (pixelBrightness < 0.25) return grayscaleColors[0];
+        else if (pixelBrightness < 0.5) return grayscaleColors[1]; 
+        else if (pixelBrightness < 0.75) return grayscaleColors[2];
+        else return grayscaleColors[3];
+      })
+    );
+  };
+
+  const getBrightness = (color: string): number => {
+    // Convert hex to RGB and calculate brightness
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    return (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+  };
+
+  const handleGenerateDisintegration = (params: DisintegrationParams) => {
+    if (!currentFrameData) return;
+
+    const { numFrames, convertToGrayscale: shouldConvertToGrayscale } = params;
+    const newFramesArray: SpriteFrame[] = [];
+    
+    // Start with current frame data
+    let basePixelData = currentFrameData.map(row => [...row]);
+    
+    // Convert to grayscale if requested
+    if (shouldConvertToGrayscale) {
+      basePixelData = convertToGrayscale(basePixelData, sprite.backgroundColor);
+    }
+
+    // Collect all non-background pixels with their positions
+    const nonBackgroundPixels: { x: number; y: number }[] = [];
+    for (let y = 0; y < sprite.size.height; y++) {
+      for (let x = 0; x < sprite.size.width; x++) {
+        if (basePixelData[y][x] !== sprite.backgroundColor) {
+          nonBackgroundPixels.push({ x, y });
+        }
+      }
+    }
+
+    console.log(`🔥 Generating ${numFrames} disintegration frames from ${nonBackgroundPixels.length} pixels`);
+
+    // Generate frames with progressive pixel removal
+    for (let frameIndex = 0; frameIndex < numFrames; frameIndex++) {
+      const frameData = basePixelData.map(row => [...row]);
+      
+      // Calculate how many pixels to remove for this frame
+      const totalPixels = nonBackgroundPixels.length;
+      const pixelsToRemoveByThisFrame = Math.floor((frameIndex + 1) * totalPixels / numFrames);
+      
+      // Shuffle pixels for random removal order (but deterministic)
+      const shuffledPixels = [...nonBackgroundPixels];
+      for (let i = shuffledPixels.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledPixels[i], shuffledPixels[j]] = [shuffledPixels[j], shuffledPixels[i]];
+      }
+      
+      // Remove pixels for this frame
+      for (let i = 0; i < pixelsToRemoveByThisFrame; i++) {
+        const pixel = shuffledPixels[i];
+        frameData[pixel.y][pixel.x] = sprite.backgroundColor;
+      }
+      
+      newFramesArray.push({
+        id: `disintegration_frame_${Date.now()}_${frameIndex}`,
+        data: frameData
+      });
+
+      console.log(`📉 Frame ${frameIndex + 1}: ${totalPixels - pixelsToRemoveByThisFrame} pixels remaining`);
+    }
+
+    // Update sprite with new frames
+    onUpdate({
+      frames: newFramesArray,
+      currentFrameIndex: 0
+    });
+
+    setIsDisintegrationModalOpen(false);
+  };
+
   const handleExportAsm = () => {
     setAsmExportConfig({ spriteToExport: sprite, dataOutputFormat: dataOutputFormat }); 
     setIsExportAsmModalOpen(true);
@@ -999,6 +1097,18 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     Gen Explosion
                 </Button>
                 <Button 
+                    onClick={() => setIsDisintegrationModalOpen(true)} 
+                    variant="secondary" 
+                    size="sm" 
+                    icon={<DisintegrationIcon className="w-3.5 h-3.5" />} 
+                    className="w-full mb-1"
+                    justify="start"
+                    title="Generate disintegration animation with progressive pixel removal"
+                    disabled={isFrameEmpty}
+                >
+                    Gen Disintegration
+                </Button>
+                <Button 
                     onClick={handleAddContour}
                     variant="secondary"
                     size="sm"
@@ -1202,6 +1312,13 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
             onClose={() => setIsExplosionModalOpen(false)}
             onGenerate={handleGenerateExplosion}
             initialSpriteSize={sprite.size.width as typeof EXPLOSION_SPRITE_SIZES[number] || 16}
+        />
+      )}
+      {isDisintegrationModalOpen && (
+        <DisintegrationGeneratorModal
+            isOpen={isDisintegrationModalOpen}
+            onClose={() => setIsDisintegrationModalOpen(false)}
+            onGenerate={handleGenerateDisintegration}
         />
       )}
       {isImportConfigModalOpen && importedImageData && (
