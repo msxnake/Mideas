@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
+import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { ProjectAsset } from '../../types';
 import { 
   generateCompleteGameAssembly, 
+  generateCompleteGameWithStateMachine,
+  generateStateMachineAssembly,
+  createProjectStateMachineCopy,
   generateTileAssembly, 
   generateSpriteAssembly, 
   generateScreenMapAssembly,
@@ -11,20 +15,34 @@ import {
   CodeGenerationOptions,
   DEFAULT_CODE_OPTIONS
 } from '../../utils/z80CodeGenerator';
+import { 
+  generateProjectSpecificASM,
+  analyzeProject 
+} from '../../utils/asmTemplateGenerator';
+import { 
+  generateMainASM,
+  generateMSXProjectFiles,
+  DEFAULT_MSX_CONFIG,
+  MSXProjectConfig
+} from '../../utils/msxMainGenerator';
+import { generateSpriteBinaryData } from '../utils/spriteUtils';
+import { generateTilePatternBytes } from '../utils/tileUtils';
 import { CodeIcon, SaveIcon, CompilerIcon } from '../icons/MsxIcons';
 
 interface CodeExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   assets: ProjectAsset[];
+  currentProjectName?: string | null;
 }
 
-type ExportType = 'complete' | 'tiles' | 'sprites' | 'screens' | 'entities';
+type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'msx_main_asm' | 'msx_full_project' | 'tiles' | 'sprites' | 'screens' | 'entities';
 
 export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   isOpen,
   onClose,
-  assets
+  assets,
+  currentProjectName
 }) => {
   const [exportType, setExportType] = useState<ExportType>('complete');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
@@ -32,6 +50,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCompiling, setIsCompiling] = useState(false);
   const [compilationResult, setCompilationResult] = useState<{ success: boolean; message: string; data?: string } | null>(null);
+  const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
 
   const handleGenerateCode = () => {
     setIsGenerating(true);
@@ -39,9 +58,68 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     try {
       let code = '';
       
+      const projectName = currentProjectName || "MSX_Project";
+      
       switch (exportType) {
         case 'complete':
           code = generateCompleteGameAssembly(assets, options);
+          break;
+          
+        case 'complete_with_statemachine':
+          code = generateCompleteGameWithStateMachine(projectName, assets, options);
+          break;
+          
+        case 'statemachine_only':
+          code = generateStateMachineAssembly(projectName, assets, options);
+          break;
+          
+        case 'dynamic_project_asm':
+          const result = generateProjectSpecificASM(projectName, assets);
+          code = result.content;
+          setProjectAnalysis(result.analysis);
+          break;
+          
+        case 'msx_main_asm':
+          const msxConfig: MSXProjectConfig = {
+            ...DEFAULT_MSX_CONFIG,
+            projectName,
+            targetMSX: options.msxModel as any,
+            baseAddress: options.baseAddress || 0x8000
+          };
+          code = generateMainASM(projectName, assets, msxConfig);
+          break;
+          
+        case 'msx_full_project':
+          const projectFiles = generateMSXProjectFiles(projectName, assets, {
+            ...DEFAULT_MSX_CONFIG,
+            projectName,
+            targetMSX: options.msxModel as any,
+            baseAddress: options.baseAddress || 0x8000
+          });
+          
+          // Show preview of professional ECS structure
+          code = `; Professional ECS MSX Project Generated:\n`;
+          code += `; \n`;
+          code += `; 📁 Project Structure:\n`;
+          code += `; ├── src/\n`;
+          code += `; │   ├── main.asm (entry point)\n`;
+          code += `; │   ├── constants.asm (MSX constants)\n`;
+          code += `; │   ├── macros.asm (utility macros)\n`;
+          code += `; │   ├── ecs/ (Entity-Component-System)\n`;
+          code += `; │   ├── core/ (memory, scheduler)\n`;
+          code += `; │   └── screens/ (game screens)\n`;
+          code += `; ├── assets/ (sprites, maps)\n`;
+          code += `; ├── tools/ (PNG→BIN converters)\n`;
+          code += `; ├── docs/ (documentation)\n`;
+          code += `; ├── Makefile (build system)\n`;
+          code += `; └── README.md (documentation)\n`;
+          code += `; \n`;
+          code += `; Total files: ${Object.keys(projectFiles).length}\n`;
+          code += `; Download ZIP for complete structure\n\n`;
+          
+          // Show main.asm as preview
+          code += `; ===== PREVIEW: src/main.asm =====\n\n`;
+          code += projectFiles['src/main.asm'] || '; Error: Could not load main.asm';
           break;
           
         case 'tiles':
@@ -133,6 +211,30 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleCreateProjectCopy = () => {
+    const projectName = currentProjectName || "MSX_Project";
+    
+    try {
+      const result = createProjectStateMachineCopy(projectName, assets, options);
+      
+      // Create and download the file
+      const blob = new Blob([result.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      alert(`Project-specific state machine saved as ${result.filename}\n\nConfiguration:\n- ECS: ${result.config.useECS ? 'Enabled' : 'Disabled'}\n- Custom States: ${result.config.customStates.length}\n- Menu: ${result.config.includeMenu ? 'Yes' : 'No'}`);
+      
+    } catch (error) {
+      alert(`Error creating project copy: ${error}`);
+    }
+  };
+
   const getAssetCount = (type: string) => {
     return assets.filter(a => a.type === type).length;
   };
@@ -157,7 +259,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
         <div className="flex space-x-4 flex-grow overflow-hidden">
         {/* Left Panel - Configuration */}
-        <div className="w-1/3 space-y-4">
+        <div className="w-1/3 space-y-4 overflow-y-auto max-h-full">
           <Panel title="Export Configuration" icon={<CodeIcon className="w-4 h-4" />}>
             <div className="space-y-3 p-3">
               <div>
@@ -170,6 +272,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
                 >
                   <option value="complete">Complete Game ({assets.length} assets)</option>
+                  <option value="complete_with_statemachine">Complete Game + State Machine</option>
+                  <option value="statemachine_only">State Machine Only</option>
+                  <option value="dynamic_project_asm">🔥 Dynamic Project ASM (Recommended)</option>
+                  <option value="msx_main_asm">📁 MSX Main.asm with Includes</option>
+                  <option value="msx_full_project">🎮 Complete MSX Project Structure</option>
                   <option value="tiles">Tiles Only ({getAssetCount('tile')} tiles)</option>
                   <option value="sprites">Sprites Only ({getAssetCount('sprite')} sprites)</option>
                   <option value="screens">Screen Maps ({getAssetCount('screenmap')} screens)</option>
@@ -250,6 +357,89 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   Optimize Code
                 </label>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="includeStateMachine"
+                  checked={options.includeStateMachine || false}
+                  onChange={(e) => setOptions({...options, includeStateMachine: e.target.checked})}
+                  className="rounded"
+                />
+                <label htmlFor="includeStateMachine" className="text-sm text-msx-textsecondary">
+                  Include State Machine
+                </label>
+              </div>
+
+              {(exportType === 'complete_with_statemachine' || exportType === 'statemachine_only') && (
+                <div className="bg-msx-highlight bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
+                  <p>💡 State Machine will be automatically analyzed and optimized for your project assets:</p>
+                  <ul className="mt-1 ml-4 text-xs">
+                    <li>• ECS integration: {getAssetCount('componentdefinition') > 0 ? 'Enabled' : 'Disabled'}</li>
+                    <li>• Multiple screens: {getAssetCount('screenmap') > 1 ? 'Yes' : 'No'}</li>
+                    <li>• Custom states: Auto-detected</li>
+                  </ul>
+                </div>
+              )}
+              
+              {exportType === 'dynamic_project_asm' && (
+                <div className="bg-green-500 bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
+                  <p>🔥 <strong>Dynamic Project ASM:</strong> Generates project-specific code with hot spots that adapt to your components!</p>
+                  <ul className="mt-1 ml-4 text-xs">
+                    <li>• Smart ECS integration based on your components</li>
+                    <li>• Custom input handling for your game controls</li>
+                    <li>• Optimized collision detection system</li>
+                    <li>• Sprite animation system tailored to your assets</li>
+                    <li>• Menu system generation (if detected)</li>
+                    <li>• Custom state handlers for project-specific logic</li>
+                  </ul>
+                </div>
+              )}
+              
+              {exportType === 'msx_main_asm' && (
+                <div className="bg-blue-500 bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
+                  <p>📁 <strong>MSX Main.asm:</strong> Generates a structured main assembly file with proper includes</p>
+                  <ul className="mt-1 ml-4 text-xs">
+                    <li>• Automatic INCLUDE statements for all project assets</li>
+                    <li>• ROM header generation for cartridge games</li>
+                    <li>• System initialization and memory organization</li>
+                    <li>• Asset loading stub functions</li>
+                    <li>• Ready for MSX/bin binary asset integration</li>
+                  </ul>
+                </div>
+              )}
+              
+              {exportType === 'msx_full_project' && (
+                <div className="bg-purple-500 bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
+                  <p>🎮 <strong>Professional ECS MSX Project:</strong> Complete ZIP with organized folder structure</p>
+                  <ul className="mt-1 ml-4 text-xs">
+                    <li>• 📁 <strong>src/</strong> - ECS architecture (entity manager, systems, components)</li>
+                    <li>• 📁 <strong>assets/</strong> - Sprite PNGs, entity CSV definitions</li>
+                    <li>• 📁 <strong>tools/</strong> - Python converters (PNG→BIN, CSV→ASM)</li>
+                    <li>• 📁 <strong>docs/</strong> - ECS design docs, memory layout</li>
+                    <li>• 🔧 <strong>Makefile</strong> - Professional build system with Glass</li>
+                    <li>• 📋 <strong>README.md</strong> - Complete documentation & usage guide</li>
+                  </ul>
+                </div>
+              )}
+
+              {projectAnalysis && exportType === 'dynamic_project_asm' && (
+                <div className="bg-blue-500 bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
+                  <p><strong>Project Analysis Results:</strong></p>
+                  <ul className="mt-1 ml-4 text-xs">
+                    <li>• ECS System: {projectAnalysis.hasECS ? '✅ Detected' : '❌ Not detected'}</li>
+                    <li>• Components: {projectAnalysis.components.length}</li>
+                    <li>• Entity Templates: {projectAnalysis.templates.length}</li>
+                    <li>• Sprites: {projectAnalysis.sprites.length} ({projectAnalysis.hasAnimations ? 'with animations' : 'static'})</li>
+                    <li>• Screen Maps: {projectAnalysis.screenMaps.length}</li>
+                    <li>• Collisions: {projectAnalysis.hasCollisions ? '✅ Detected' : '❌ Not detected'}</li>
+                    <li>• Menu System: {projectAnalysis.hasMenuSystem ? '✅ Detected' : '❌ Not detected'}</li>
+                    {projectAnalysis.customStates.length > 0 && (
+                      <li>• Custom States: {projectAnalysis.customStates.join(', ')}</li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
           </Panel>
 
@@ -284,6 +474,192 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
               >
                 Save Assembly File
               </Button>
+
+              {(exportType === 'statemachine_only' || exportType === 'complete_with_statemachine') && (
+                <Button
+                  onClick={handleCreateProjectCopy}
+                  disabled={isGenerating}
+                  variant="secondary"
+                  className="w-full"
+                >
+                  Create Project Copy
+                </Button>
+              )}
+              
+              {exportType === 'dynamic_project_asm' && (
+                <Button
+                  onClick={() => {
+                    const projectName = currentProjectName || "MSX_Project";
+                    const result = generateProjectSpecificASM(projectName, assets);
+                    
+                    const blob = new Blob([result.content], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = result.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    alert(`Dynamic ASM generated and saved as ${result.filename}!\n\nFeatures detected:\n- ECS: ${result.analysis.hasECS}\n- Animations: ${result.analysis.hasAnimations}\n- Collisions: ${result.analysis.hasCollisions}\n- Menu: ${result.analysis.hasMenuSystem}`);
+                  }}
+                  disabled={isGenerating}
+                  variant="primary"
+                  className="w-full"
+                >
+                  🔥 Generate & Download Dynamic ASM
+                </Button>
+              )}
+              
+              {exportType === 'msx_full_project' && (
+                <Button
+                  onClick={async () => {
+                    const projectName = currentProjectName || "MSX_Project";
+                    const msxConfig: MSXProjectConfig = {
+                      ...DEFAULT_MSX_CONFIG,
+                      projectName,
+                      targetMSX: options.msxModel as any,
+                      baseAddress: options.baseAddress || 0x8000
+                    };
+                    
+                    try {
+                      const projectFiles = generateMSXProjectFiles(projectName, assets, msxConfig);
+                      
+                      // Create ZIP with proper folder structure
+                      const zip = new JSZip();
+                      const projectFolderName = `${projectName.toLowerCase()}_ecs_msx`;
+                      const projectFolder = zip.folder(projectFolderName);
+                      
+                      if (!projectFolder) {
+                        throw new Error("Could not create project folder in ZIP");
+                      }
+                      
+                      // Add all files to ZIP with proper folder structure
+                      Object.entries(projectFiles).forEach(([filepath, content]) => {
+                        if (filepath.includes('/')) {
+                          // Handle nested folders (e.g., "src/ecs/entity_manager.asm")
+                          const parts = filepath.split('/');
+                          const filename = parts.pop()!;
+                          const folderPath = parts.join('/');
+                          
+                          const folder = projectFolder.folder(folderPath);
+                          if (folder) {
+                            folder.file(filename, content);
+                          }
+                        } else {
+                          // Root level file
+                          projectFolder.file(filepath, content);
+                        }
+                      });
+
+                      // Add binary sprite assets to assets/sprites/
+                      const spritesFolder = projectFolder.folder('assets/sprites');
+                      if (spritesFolder) {
+                        const spriteAssets = assets.filter(a => a.type === 'sprite');
+                        
+                        if (spriteAssets.length > 0) {
+                          // Generate combined sprites binary
+                          const allSpriteDataArrays: Uint8Array[] = [];
+                          spriteAssets.forEach(asset => {
+                            const sprite = asset.data as any;
+                            // Use the existing sprite binary generation function from App.tsx
+                            try {
+                              const spriteBinaryData = generateSpriteBinaryData(sprite);
+                              allSpriteDataArrays.push(spriteBinaryData);
+                            } catch (error) {
+                              console.warn(`Could not generate binary for sprite ${asset.name}`, error);
+                            }
+                          });
+                          
+                          if (allSpriteDataArrays.length > 0) {
+                            // Create combined sprite binary
+                            const totalSpriteDataLength = allSpriteDataArrays.reduce((sum, arr) => sum + arr.length, 0);
+                            const combinedSpriteDataBytes = new Uint8Array(totalSpriteDataLength);
+                            let offset = 0;
+                            allSpriteDataArrays.forEach(arr => {
+                              combinedSpriteDataBytes.set(arr, offset);
+                              offset += arr.length;
+                            });
+                            
+                            spritesFolder.file('all_sprites.bin', combinedSpriteDataBytes);
+                          }
+                          
+                          // Also create individual sprite binaries for reference
+                          spriteAssets.forEach((asset, index) => {
+                            try {
+                              const sprite = asset.data as any;
+                              const spriteBinaryData = generateSpriteBinaryData(sprite);
+                              const sanitizedName = asset.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                              spritesFolder.file(`${sanitizedName}.bin`, spriteBinaryData);
+                            } catch (error) {
+                              console.warn(`Could not generate individual binary for sprite ${asset.name}`, error);
+                            }
+                          });
+                        } else {
+                          // Create placeholder file if no sprites
+                          spritesFolder.file('README.txt', 'Place your sprite .bin files here\n\nUse tools/png2msx.py to convert PNG files to MSX binary format');
+                        }
+                      }
+
+                      // Add binary tile assets to assets/tiles/
+                      const tilesFolder = projectFolder.folder('assets/tiles');
+                      if (tilesFolder) {
+                        const tileAssets = assets.filter(a => a.type === 'tile');
+                        
+                        if (tileAssets.length > 0) {
+                          // Generate combined tiles binary
+                          const allPatternsBytesArrays: Uint8Array[] = [];
+                          tileAssets.forEach(asset => {
+                            const tile = asset.data as any;
+                            try {
+                              const tilePatternBytes = generateTilePatternBytes(tile, options.msxModel === 'MSX1' ? 'SCREEN 2 (Graphics I)' : 'SCREEN 4');
+                              allPatternsBytesArrays.push(tilePatternBytes);
+                            } catch (error) {
+                              console.warn(`Could not generate binary for tile ${asset.name}`, error);
+                            }
+                          });
+                          
+                          if (allPatternsBytesArrays.length > 0) {
+                            const totalPatternLength = allPatternsBytesArrays.reduce((sum, arr) => sum + arr.length, 0);
+                            const combinedPatternBytes = new Uint8Array(totalPatternLength);
+                            let offset = 0;
+                            allPatternsBytesArrays.forEach(arr => {
+                              combinedPatternBytes.set(arr, offset);
+                              offset += arr.length;
+                            });
+                            
+                            tilesFolder.file('all_patterns.bin', combinedPatternBytes);
+                          }
+                        } else {
+                          tilesFolder.file('README.txt', 'Place your tile .bin files here\n\nTiles will be generated from your project data');
+                        }
+                      }
+                      
+                      // Generate and download ZIP
+                      const zipBlob = await zip.generateAsync({ type: "blob" });
+                      const url = URL.createObjectURL(zipBlob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${projectFolderName}.zip`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                      
+                      alert(`✅ Professional ECS MSX Project created!\n\n📦 Downloaded: ${projectFolderName}.zip\n\n🏗️ Structure:\n- src/ (ECS architecture)\n- assets/ (sprites, maps)\n- tools/ (converters)\n- docs/ (documentation)\n- build system (Makefile, Glass config)\n\n🚀 Ready to extract and build!`);
+                      
+                    } catch (error) {
+                      alert(`Error creating MSX project: ${error instanceof Error ? error.message : "Unknown error"}`);
+                    }
+                  }}
+                  disabled={isGenerating}
+                  variant="primary"
+                  className="w-full"
+                >
+                  🎮 Download Complete MSX Project ZIP
+                </Button>
+              )}
             </div>
           </Panel>
 
@@ -308,14 +684,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
         {/* Right Panel - Code Output */}
         <div className="w-2/3 flex flex-col">
-          <Panel title="Generated Assembly Code" className="flex-1 flex flex-col">
-            <div className="flex-1 p-3 min-h-0">
+          <Panel title="Generated Assembly Code" className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 p-3 overflow-y-auto">
               <textarea
                 value={generatedCode}
                 onChange={(e) => setGeneratedCode(e.target.value)}
-                className="w-full h-full text-xs font-mono bg-msx-bgcolor border border-msx-border rounded p-2 text-msx-textprimary resize-none"
+                className="w-full text-xs font-mono bg-msx-bgcolor border border-msx-border rounded p-2 text-msx-textprimary resize-none"
                 placeholder="Generated Z80 assembly code will appear here..."
-                style={{ minHeight: '500px' }}
+                style={{ 
+                  minHeight: '500px',
+                  height: 'auto'
+                }}
+                rows={30}
               />
             </div>
           </Panel>
