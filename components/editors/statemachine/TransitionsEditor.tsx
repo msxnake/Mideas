@@ -50,8 +50,11 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
 
   const renderCondition = (c: Condition) => {
     if (!c) return 'None';
-    if (c.type === 'AND' || c.type === 'OR') {
+    if (c.type === 'AND' || c.type === 'OR' || c.type === 'XOR') {
       return `${c.type}(${c.conditions?.map(renderCondition).join(', ') || ''})`;
+    }
+    if (c.type === 'NOT') {
+      return `NOT(${c.conditions?.map(renderCondition).join('') || ''})`;
     }
     return `${c.type} ${JSON.stringify(c.params || {})}`;
   }

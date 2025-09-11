@@ -714,105 +714,163 @@ const AVAILABLE_ENGINES: EngineRegistry = {
     },
 
     wallCollision: {
-        id: 'wallCollision',
-        name: 'Wall Collision Engine',
-        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap) => {
-            // Tile collision detection (walls, obstacles)
-            if (!screenMap || !screenMap.layers?.collision) return;
+  id: 'wallCollision',
+  name: 'Wall Collision Engine (axis-separated)',
+  execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap) => {
+    if (!screenMap || !screenMap.layers?.collision) return;
 
-            entities.forEach(entity => {
-                const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
-                if (!wallCollisionComp) return;
+    const tileLayer = screenMap.layers.collision;
+    const mapW = screenMap.width || (tileLayer[0] ? tileLayer[0].length : 0);
+    const mapH = screenMap.height || tileLayer.length;
+    const EPS = 1e-6;
 
-                const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) };
-                const hitboxWidth = Number(props.hitboxWidth) || 16;
-                const hitboxHeight = Number(props.hitboxHeight) || 16;
-                const offsetX = Number(props.offsetX) || 0;
-                const offsetY = Number(props.offsetY) || 0;
-                const tileSize = Number(props.tileSize) || 8;
-                const stopOnCollision = props.stopOnCollision !== 'false' && props.stopOnCollision !== false;
+    entities.forEach(entity => {
+      const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+      if (!wallCollisionComp) return;
 
-                // Calculate entity bounds
-                const entityLeft = entity.x + offsetX;
-                const entityTop = entity.y + offsetY;
-                const entityRight = entityLeft + hitboxWidth;
-                const entityBottom = entityTop + hitboxHeight;
+      const props = { ...wallCollisionComp.defaultValues, ...(entity.instance?.componentOverrides?.['comp_wall_collision'] || {}) };
+      const hitboxWidth = Number(props.hitboxWidth) || 16;
+      const hitboxHeight = Number(props.hitboxHeight) || 16;
+      const offsetX = Number(props.offsetX) || 0;
+      const offsetY = Number(props.offsetY) || 0;
+      const tileSize = Number(props.tileSize) || 8;
+      const stopOnCollision = props.stopOnCollision !== 'false' && props.stopOnCollision !== false;
 
-                // Convert to tile coordinates
-                const leftTile = Math.floor(entityLeft / tileSize);
-                const topTile = Math.floor(entityTop / tileSize);
-                const rightTile = Math.floor(entityRight / tileSize);
-                const bottomTile = Math.floor(entityBottom / tileSize);
+      // unify velocity properties (prefer vx/vy, fallback a velocityX/velocityY)
+      let vx = typeof entity.vx === 'number' ? entity.vx : (typeof entity.velocityX === 'number' ? entity.velocityX : 0);
+      let vy = typeof entity.vy === 'number' ? entity.vy : (typeof entity.velocityY === 'number' ? entity.velocityY : 0);
 
-                // Check collision tiles in the entity's area
-                for (let tileY = topTile; tileY <= bottomTile; tileY++) {
-                    for (let tileX = leftTile; tileX <= rightTile; tileX++) {
-                        // Bounds check
-                        if (tileX < 0 || tileY < 0 || 
-                            tileX >= (screenMap.width || 0) || 
-                            tileY >= (screenMap.height || 0)) {
-                            continue;
-                        }
+      // helper to zero both forms of velocity
+      const zeroVelX = () => { entity.vx = 0; entity.velocityX = 0; vx = 0; };
+      const zeroVelY = () => { entity.vy = 0; entity.velocityY = 0; vy = 0; };
 
-                        // Check if there's a solid tile at this position
-                        const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
-                        if (tileOnLayer && tileOnLayer.tileId) {
-                            // Solid tile found - push entity back
-                            const tileLeft = tileX * tileSize;
-                            const tileTop = tileY * tileSize;
-                            const tileRight = tileLeft + tileSize;
-                            const tileBottom = tileTop + tileSize;
+      // compute bounds
+      let left = entity.x + offsetX;
+      let top = entity.y + offsetY;
+      let right = left + hitboxWidth;
+      let bottom = top + hitboxHeight;
 
-                            // Calculate overlap
-                            const overlapLeft = entityRight - tileLeft;
-                            const overlapRight = tileRight - entityLeft;
-                            const overlapTop = entityBottom - tileTop;
-                            const overlapBottom = tileBottom - entityTop;
+      let collidedThisFrame = false;
+      let collisionTilePos = null;
 
-                            // Find smallest overlap to determine push direction
-                            const minOverlapX = Math.min(overlapLeft, overlapRight);
-                            const minOverlapY = Math.min(overlapTop, overlapBottom);
+      // --- Horizontal pass (resolve X) ---
+      if (Math.abs(vx) > EPS) {
+        const dirX = vx > 0 ? 1 : -1;
+        const startTileY = Math.floor(top / tileSize);
+        const endTileY = Math.floor((bottom - EPS) / tileSize);
+        const startTileX = Math.floor(left / tileSize);
+        const endTileX = Math.floor((right - EPS) / tileSize);
 
-                            if (minOverlapX < minOverlapY) {
-                                // Horizontal collision - push horizontally
-                                if (overlapLeft < overlapRight) {
-                                    entity.x = tileLeft - hitboxWidth - offsetX; // Push left
-                                } else {
-                                    entity.x = tileRight - offsetX; // Push right
-                                }
-                            } else {
-                                // Vertical collision - push vertically
-                                if (overlapTop < overlapBottom) {
-                                    entity.y = tileTop - hitboxHeight - offsetY; // Push up
-                                } else {
-                                    entity.y = tileBottom - offsetY; // Push down
-                                }
-                            }
+        let stopHorizontal = false;
+        for (let ty = startTileY; ty <= endTileY && !stopHorizontal; ty++) {
+          for (let tx = startTileX; tx <= endTileX && !stopHorizontal; tx++) {
+            if (tx < 0 || ty < 0 || tx >= mapW || ty >= mapH) continue;
+            const tile = tileLayer[ty]?.[tx];
+            if (!tile || !tile.tileId) continue;
 
-                            // Stop velocity if enabled and entity has movement component
-                            if (stopOnCollision) {
-                                const movementComp = entity.template.components.find(c => c.definitionId === 'comp_movement');
-                                if (movementComp) {
-                                    entity.velocityX = 0;
-                                    entity.velocityY = 0;
-                                }
-                            }
+            const tileLeft = tx * tileSize;
+            const tileRight = tileLeft + tileSize;
 
-                            // Only log wall collision once per entity per frame
-                            if (!entity.wallCollisionLogged) {
-                                console.log(`🚧 ${entity.template.name} collided with wall at tile (${tileX}, ${tileY})`);
-                                entity.wallCollisionLogged = true;
-                                // Reset flag after a short delay to allow new collision detection
-                                setTimeout(() => {
-                                    if (entity) entity.wallCollisionLogged = false;
-                                }, 100);
-                            }
-                        }
-                    }
-                }
-            });
+            if (dirX > 0) {
+              const overlap = right - tileLeft;
+              if (overlap > EPS) {
+                // push entity left by overlap
+                entity.x -= overlap;
+                // update bounds after push
+                left = entity.x + offsetX;
+                right = left + hitboxWidth;
+                collidedThisFrame = true;
+                collisionTilePos = { tx, ty };
+                if (stopOnCollision) zeroVelX();
+                stopHorizontal = true;
+                break;
+              }
+            } else {
+              const overlap = tileRight - left;
+              if (overlap > EPS) {
+                // push entity right by overlap
+                entity.x += overlap;
+                left = entity.x + offsetX;
+                right = left + hitboxWidth;
+                collidedThisFrame = true;
+                collisionTilePos = { tx, ty };
+                if (stopOnCollision) zeroVelX();
+                stopHorizontal = true;
+                break;
+              }
+            }
+          }
         }
-    },
+      }
+
+      // --- Vertical pass (resolve Y) ---
+      // recompute bounds before vertical pass (x might have changed)
+      left = entity.x + offsetX;
+      top = entity.y + offsetY;
+      right = left + hitboxWidth;
+      bottom = top + hitboxHeight;
+
+      if (Math.abs(vy) > EPS) {
+        const dirY = vy > 0 ? 1 : -1;
+        const startTileX = Math.floor(left / tileSize);
+        const endTileX = Math.floor((right - EPS) / tileSize);
+        const startTileY = Math.floor(top / tileSize);
+        const endTileY = Math.floor((bottom - EPS) / tileSize);
+
+        let stopVertical = false;
+        for (let tx = startTileX; tx <= endTileX && !stopVertical; tx++) {
+          for (let ty = startTileY; ty <= endTileY && !stopVertical; ty++) {
+            if (tx < 0 || ty < 0 || tx >= mapW || ty >= mapH) continue;
+            const tile = tileLayer[ty]?.[tx];
+            if (!tile || !tile.tileId) continue;
+
+            const tileTop = ty * tileSize;
+            const tileBottom = tileTop + tileSize;
+
+            if (dirY > 0) {
+              const overlap = bottom - tileTop;
+              if (overlap > EPS) {
+                // push entity up
+                entity.y -= overlap;
+                top = entity.y + offsetY;
+                bottom = top + hitboxHeight;
+                collidedThisFrame = true;
+                collisionTilePos = collisionTilePos || { tx, ty };
+                if (stopOnCollision) zeroVelY();
+                stopVertical = true;
+                break;
+              }
+            } else {
+              const overlap = tileBottom - top;
+              if (overlap > EPS) {
+                // push entity down
+                entity.y += overlap;
+                top = entity.y + offsetY;
+                bottom = top + hitboxHeight;
+                collidedThisFrame = true;
+                collisionTilePos = collisionTilePos || { tx, ty };
+                if (stopOnCollision) zeroVelY();
+                stopVertical = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // log once per frame (existing mechanism)
+      if (collidedThisFrame && !entity.wallCollisionLogged) {
+        const pos = collisionTilePos ? ` at tile (${collisionTilePos.tx}, ${collisionTilePos.ty})` : '';
+        console.log(`🚧 ${entity.template.name} collided with wall${pos}`);
+        entity.wallCollisionLogged = true;
+        setTimeout(() => { if (entity) entity.wallCollisionLogged = false; }, 100);
+      }
+    });
+  }
+},
+
+
+  
 
     tileCollection: {
         id: 'tileCollection',

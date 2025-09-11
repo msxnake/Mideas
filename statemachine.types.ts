@@ -91,6 +91,7 @@ export const ConditionTypes = {
   // Logical operators
   AND: 'AND',
   OR: 'OR',
+  XOR: 'XOR',
   NOT: 'NOT',
 
   // Input conditions
