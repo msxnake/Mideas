@@ -1,0 +1,132 @@
+¡Hola! Claro, estudiar un sistema de lógica de juego basado en interrupciones es fundamental para el desarrollo en MSX. El método estándar y más eficiente es "enganchar" (hook) la interrupción del V-blank (borrado vertical).
+
+Esto te permite ejecutar la lógica de tu juego a una velocidad constante (50 o 60 veces por segundo, dependiendo de la región de la máquina), sincronizada con el refresco de la pantalla. Esto evita parpadeos (flickering) y saltos (tearing) en los gráficos.
+
+Aquí te presento un sistema básico y bien estructurado en ensamblador Z80 para que lo estudies.
+
+### Sistema de Lógica de Juego con Hook a V-Blank
+
+El concepto se basa en los siguientes pasos:
+
+1.  **Guardar el vector original:** Al iniciar el programa, leemos la dirección de la rutina de interrupción original que el sistema MSX llama en cada V-blank y la guardamos.
+2.  **Instalar nuestro vector:** Escribimos la dirección de *nuestra propia rutina* en el lugar donde estaba la original. A partir de este momento, el MSX llamará a nuestro código en cada V-blank.
+3.  **Bucle principal "vacío":** El programa principal se queda en un bucle infinito con la instrucción `HALT`. Esta instrucción detiene la CPU hasta que ocurra una interrupción, ahorrando ciclos de procesador.
+4.  **La rutina de interrupción (ISR):** Este es el corazón de nuestro juego.
+    *   Guarda el estado de todos los registros de la CPU.
+    *   Llama a la lógica principal del juego (mover personajes, leer input, etc.).
+    *   Restaura todos los registros a su estado original.
+    *   Habilita las interrupciones y retorna.
+5.  **Restaurar (Opcional pero recomendado):** Al salir del juego, se debería restaurar el vector de interrupción original.
+
+---
+
+### Ejemplo de Código Comentado (ASM Z80)
+
+Puedes crear un nuevo fichero, por ejemplo `game_loop.asm`, y añadir este código para estudiarlo.
+
+```z80
+; ==============================================================================
+; SISTEMA DE LÓGICA DE JUEGO BASADO EN INTERRUPCIÓN V-BLANK PARA MSX
+; ==============================================================================
+
+; El BIOS del MSX tiene un "hook" llamado H_TIMI en la dirección 0xFD9F.
+; En esta dirección de memoria se encuentra la dirección de la rutina que se
+; ejecutará en cada interrupción de V-Blank.
+; Nosotros cambiaremos esa dirección por la de nuestra propia rutina.
+
+H_TIMI EQU 0FD9Fh
+
+; ------------------------------------------------------------------------------
+; INICIALIZACIÓN DEL SISTEMA
+; Esta parte se llama una sola vez al principio de tu juego.
+; ------------------------------------------------------------------------------
+INIT_GAME:
+    di                      ; Deshabilitamos las interrupciones para cambiar el vector de forma segura.
+
+    ; Guardamos el vector de la rutina de interrupción original
+    ld   hl, (H_TIMI)
+    ld   (original_vblank_routine), hl
+
+    ; Instalamos nuestra propia rutina de interrupción
+    ld   hl, vblank_isr
+    ld   (H_TIMI), hl
+
+    ei                      ; Habilitamos las interrupciones de nuevo.
+    ret
+
+; ------------------------------------------------------------------------------
+; BUCLE PRINCIPAL DEL JUEGO
+; El programa se quedará aquí, "dormido", esperando las interrupciones.
+; ------------------------------------------------------------------------------
+MAIN_GAME_LOOP:
+    halt                    ; Detiene la CPU hasta la próxima interrupción (V-Blank).
+    jp   MAIN_GAME_LOOP     ; Repetimos indefinidamente.
+
+; ------------------------------------------------------------------------------
+; NUESTRA RUTINA MANEJADORA DE LA INTERRUPCIÓN (ISR - Interrupt Service Routine)
+; Este código se ejecutará 50/60 veces por segundo.
+; ------------------------------------------------------------------------------
+vblank_isr:
+    ; --- ¡MUY IMPORTANTE! Guardar todos los registros que vamos a usar ---
+    push af
+    push bc
+    push de
+    push hl
+    push ix
+    push iy
+
+    ; --- Aquí llamamos a la lógica principal de nuestro juego ---
+    call GAME_LOGIC
+
+    ; --- Restaurar todos los registros en orden inverso ---
+    pop  iy
+    pop  ix
+    pop  hl
+    pop  de
+    pop  bc
+    pop  af
+
+    ; --- Fin de la rutina de interrupción ---
+    ei                      ; Volvemos a habilitar interrupciones
+    reti                    ; Retornamos de la interrupción
+
+; ------------------------------------------------------------------------------
+; LÓGICA PRINCIPAL DEL JUEGO
+; Aquí es donde vive tu juego. Esta rutina es llamada desde la ISR.
+; ------------------------------------------------------------------------------
+GAME_LOGIC:
+    ; En este punto, tienes control total para actualizar un "frame" del juego.
+    ;
+    ; Tareas típicas a realizar aquí:
+    ; 1. Leer los puertos de joystick/teclado.
+    ; 2. Actualizar la lógica de los enemigos (IA).
+    ; 3. Mover al jugador y otros objetos (actualizar coordenadas).
+    ; 4. Comprobar colisiones.
+    ; 5. Actualizar la VRAM (actualizar patrones de tiles, posiciones de sprites, etc.).
+    ; 6. Reproducir sonidos.
+
+    ret                     ; Volvemos a la ISR
+
+; ------------------------------------------------------------------------------
+; ÁREA DE DATOS
+; ------------------------------------------------------------------------------
+original_vblank_routine:
+    defw 0                  ; Aquí guardaremos la dirección de la rutina original (2 bytes).
+
+```
+
+### ¿Cómo funciona?
+
+1.  Tu programa principal llamaría a `INIT_GAME` una vez.
+2.  Después, saltaría a `MAIN_GAME_LOOP`, donde la CPU se "duerme" con `halt`.
+3.  Cuando llega la señal de V-Blank, la CPU se "despierta" y ejecuta automáticamente el código en la dirección `H_TIMI`, que ahora es nuestra `vblank_isr`.
+4.  `vblank_isr` guarda todo, llama a `GAME_LOGIC` (donde ocurre la acción), restaura todo y devuelve el control.
+5.  El programa vuelve a la instrucción después de `halt` (el `jp MAIN_GAME_LOOP`), y se vuelve a ejecutar `halt`, esperando el siguiente V-Blank.
+
+### Próximos Pasos
+
+1.  **Integración:** Integra este código en tu proyecto. Puedes añadir el fichero `game_loop.asm` a tu proceso de compilación (por ejemplo, incluyéndolo desde tu fichero `main.asm` con `include "game_loop.asm"`).
+2.  **Llamadas:** Llama a `INIT_GAME` al principio de tu código y luego salta a `MAIN_GAME_LOOP`.
+3.  **Desarrollo:** Empieza a añadir código real dentro de la subrutina `GAME_LOGIC`.
+
+Este es el esqueleto profesional y estándar sobre el que se construyen la gran mayoría de juegos de MSX. Si tienes alguna duda sobre alguna parte, ¡pregunta sin problema!

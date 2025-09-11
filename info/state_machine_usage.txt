@@ -1,0 +1,202 @@
+### Sistema de Máquina de Estados Implementado para MSX
+
+Este documento explica cómo usar el sistema de máquina de estados que se ha implementado basado en tu documentación original.
+
+## Archivos Creados
+
+1. **state_machine_system.asm** - Sistema principal de máquina de estados
+2. **state_machine_integration.asm** - Ejemplo de integración con ECS
+3. **state_machine_example.asm** - Ejemplo simple de uso
+4. **state_machine_usage.txt** - Esta documentación
+
+## Estados Predefinidos
+
+El sistema incluye los siguientes estados:
+
+- `STATE_PLAYING (0)` - Jugando normalmente
+- `STATE_DYING (1)` - Animación de muerte del jugador
+- `STATE_CHANGING_ZONE (2)` - Transición entre zonas/niveles
+- `STATE_PAUSED (3)` - Juego pausado
+- `STATE_MENU (4)` - Menú principal
+- `STATE_GAMEOVER (5)` - Pantalla de game over
+- `STATE_LOADING (6)` - Pantalla de carga
+
+## Cómo Usar el Sistema
+
+### 1. Inicialización
+
+```z80
+; En tu programa principal
+CALL INIT_STATE_MACHINE
+
+; Bucle principal simple
+MAIN_LOOP:
+    HALT                ; Espera V-Blank
+    JP MAIN_LOOP        ; El sistema maneja todo vía interrupciones
+```
+
+### 2. Cambiar Estados
+
+```z80
+; Para cambiar a cualquier estado
+LD A, STATE_PLAYING
+CALL CHANGE_GAME_STATE
+
+; Ejemplo: iniciar muerte del jugador
+LD A, STATE_DYING
+CALL CHANGE_GAME_STATE
+```
+
+### 3. Obtener Estado Actual
+
+```z80
+CALL GET_CURRENT_STATE  ; Retorna estado en A
+CP STATE_PLAYING
+JR Z, handle_playing
+```
+
+### 4. Timer de Estado
+
+```z80
+CALL GET_STATE_TIMER    ; Retorna timer en HL
+LD A, H
+OR L
+JR Z, state_just_started
+```
+
+## Personalización
+
+### Implementar Funciones Stub
+
+El sistema incluye funciones "stub" que debes implementar para tu juego:
+
+```z80
+; Funciones que DEBES implementar:
+READ_INPUT_STATE:       ; Leer input del joystick/teclado
+UPDATE_GAME_ENTITIES:   ; Actualizar entidades del juego
+UPDATE_SPRITES:         ; Actualizar sprites en VRAM
+CHECK_PLAYER_STATUS:    ; Verificar estado del jugador
+; ... y otras según tus necesidades
+```
+
+### Agregar Estados Personalizados
+
+Para agregar un nuevo estado:
+
+1. Definir la constante:
+```z80
+STATE_MI_ESTADO EQU 7
+```
+
+2. Actualizar MAX_STATES:
+```z80
+MAX_STATES EQU 8
+```
+
+3. Agregar a la tabla de saltos:
+```z80
+jump_table:
+    DEFW logic_playing
+    DEFW logic_dying
+    ; ... estados existentes ...
+    DEFW logic_mi_estado    ; Tu nuevo estado
+```
+
+4. Implementar la rutina:
+```z80
+logic_mi_estado:
+    ; Tu lógica aquí
+    ; Para cambiar a otro estado:
+    ; LD A, STATE_OTRO
+    ; CALL CHANGE_GAME_STATE
+    RET
+```
+
+## Integración con ECS
+
+Si usas el sistema ECS, puedes integrar así:
+
+```z80
+; En logic_playing, actualizar sistemas ECS
+logic_playing:
+    CALL UPDATE_ALL_SYSTEMS     ; Actualizar todos los sistemas ECS
+    CALL CHECK_PLAYER_HEALTH_ECS ; Verificar salud del jugador
+    ; ... resto de la lógica
+    RET
+```
+
+## Variables del Sistema
+
+- `current_game_state` - Estado actual (1 byte)
+- `state_timer` - Contador de frames en el estado actual (2 bytes)
+- `input_state` - Estado actual del input (1 byte)
+- `prev_input_state` - Estado anterior del input (1 byte)
+- `player_lives` - Vidas del jugador (1 byte)
+
+## Bits de Input Predefinidos
+
+```z80
+INPUT_BIT_UP        EQU 0
+INPUT_BIT_DOWN      EQU 1
+INPUT_BIT_LEFT      EQU 2
+INPUT_BIT_RIGHT     EQU 3
+INPUT_BIT_FIRE1     EQU 4
+INPUT_BIT_FIRE2     EQU 5
+INPUT_BIT_PAUSE     EQU 6
+INPUT_BIT_SELECT    EQU 7
+```
+
+## Ejemplo de Lógica de Estados
+
+### Estado Playing
+- Lee input del jugador
+- Actualiza entidades del juego
+- Verifica colisiones
+- Cambia a STATE_DYING si el jugador muere
+- Cambia a STATE_PAUSED si se presiona pausa
+
+### Estado Dying
+- Reproduce animación de muerte
+- Después de 3 segundos (180 frames):
+  - Si quedan vidas: vuelve a STATE_PLAYING
+  - Si no: va a STATE_GAMEOVER
+
+### Estado Changing Zone
+- Frame 0-29: Fade out
+- Frame 30-89: Carga datos de la nueva zona
+- Frame 90-119: Fade in
+- Frame 120+: Vuelve a STATE_PLAYING
+
+## Restaurar Sistema Original
+
+Para volver al sistema MSX original:
+
+```z80
+CALL RESTORE_STATE_MACHINE
+```
+
+## Consejos de Uso
+
+1. **Preservación de Registros**: El ISR preserva todos los registros automáticamente
+2. **Timer Automático**: El state_timer se incrementa automáticamente cada frame
+3. **Input Handling**: Se mantiene automáticamente input_state y prev_input_state
+4. **Estado Inicial**: El sistema inicia en STATE_MENU por defecto
+5. **Bounds Checking**: Se verifica automáticamente que el estado sea válido
+
+## Depuración
+
+Para depurar problemas:
+
+1. Verifica que todos los estados en jump_table tengan rutinas implementadas
+2. Asegúrate de que MAX_STATES coincida con el número real de estados
+3. Los cambios de estado deben usar CHANGE_GAME_STATE, no escribir directamente
+4. Las rutinas de estado deben terminar con RET, no JP
+
+## Compatibilidad
+
+El sistema es compatible con:
+- MSX1 y MSX2
+- Todos los modos de pantalla
+- Sistema ECS existente
+- Rutinas BIOS estándar
+- Interrupt hooks personalizados

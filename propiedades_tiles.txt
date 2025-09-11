@@ -1,0 +1,30 @@
+Resumen de las Propiedades de Tiles y su Exportación
+
+1. Definición de Propiedades del Tile:
+   - Cada asset de tile se define por la interfaz `Tile`, que incluye su `id`, `nombre`, dimensiones y datos de píxeles.
+   - Crucialmente, contiene un objeto `logicalProperties` que define el comportamiento del tile en el juego.
+
+2. Propiedades Lógicas (`TileLogicalProperties`):
+   - Estas propiedades determinan cómo interactúa un tile con el entorno del juego.
+   - Incluyen:
+     - `isSolid`: Si el tile es una barrera sólida.
+     - `isBreakable`: Si el tile puede ser destruido.
+     - `isMovable`: Si el tile puede ser movido.
+     - `causesDamage`: Si el tile daña al jugador.
+     - `isInteractiveSwitch`: Si el tile actúa como un interruptor.
+
+3. Codificación en un Byte (`mapId`):
+   - Todas las propiedades lógicas se codifican en un solo byte (un número de 0 a 255) llamado `mapId`.
+   - Este byte se divide en dos "nibbles" (4 bits cada uno):
+     - High Nibble (`familyId`): Define la categoría de solidez del tile (ej. sólido, plataforma, pasable).
+     - Low Nibble (`instanceId`): Define banderas de propiedades (ej. rompible, dañino).
+
+4. Capa de Colisión (`collision layer`):
+   - El "Screen Editor" utiliza una capa específica llamada `collision`.
+   - El propósito de esta capa es diseñar el mapa de colisiones y comportamientos del nivel.
+
+5. Exportación para el Juego (MSX):
+   - El sistema está diseñado para que la definición de datos (`DB` en ensamblador) para el MSX esté en perfecta concordancia con las propiedades de los tiles.
+   - El proceso de exportación del "behavior map" recorre la capa `collision`.
+   - Para cada celda, extrae el `mapId` del tile correspondiente y lo escribe como un byte en el fichero de exportación.
+   - Esto asegura que el mapa de colisiones y comportamientos en el juego es un reflejo exacto de lo que se ha diseñado en el editor.

@@ -1,0 +1,153 @@
+### Título: Sistema de Saltos Dinámicos (Máquina de Estados) en Z80 para MSX
+
+Este documento expande la idea del "hook" a la interrupción de V-Blank para crear un sistema dinámico donde la lógica del juego cambia según un "estado" actual. Es ideal para manejar situaciones como: estar jugando, muriendo, en pausa, cambiando de zona, mostrando un menú, etc.
+
+#### ¿Cómo Funciona?
+
+1.  **Variable de Estado:** Se usa una variable en memoria (por ejemplo, `current_game_state`) para almacenar el estado actual del juego. Cada estado se representa con un número (ej: `STATE_PLAYING = 0`, `STATE_DYING = 1`).
+
+2.  **Tabla de Saltos (Jump Table):** Se crea una tabla en memoria que contiene las direcciones de las subrutinas de lógica para cada estado. La posición en la tabla corresponde al número del estado.
+
+3.  **Despachador (Dispatcher):** La rutina principal llamada por la interrupción (`GAME_LOGIC` en el ejemplo anterior) ya no contiene la lógica en sí. En su lugar, actúa como un "despachador":
+    *   Lee el valor de `current_game_state`.
+    *   Usa ese valor como índice para buscar en la `jump_table`.
+    *   Obtiene la dirección de la rutina correcta.
+    *   Salta a esa dirección.
+
+Para cambiar el comportamiento del juego, solo tienes que cambiar el valor de la variable `current_game_state`. En el siguiente ciclo de V-Blank, el despachador ejecutará automáticamente la nueva lógica.
+
+---
+
+### Ejemplo de Código Comentado (ASM Z80)
+
+Este código modifica el ejemplo anterior para implementar la máquina de estados.
+
+```z80
+; ==============================================================================
+; MÁQUINA DE ESTADOS CON SALTO DINÁMICO PARA MSX
+; ==============================================================================
+
+H_TIMI EQU 0FD9Fh
+
+; --- 1. Definición de los estados del juego ---
+; Usamos números consecutivos empezando desde 0.
+STATE_PLAYING       EQU 0
+STATE_DYING         EQU 1
+STATE_CHANGING_ZONE EQU 2
+STATE_PAUSED        EQU 3
+; ... puedes añadir más estados aquí
+
+; ==============================================================================
+; INICIALIZACIÓN Y BUCLE PRINCIPAL (Sin cambios respecto al ejemplo anterior)
+; ==============================================================================
+
+INIT_GAME:
+    di
+    ld   hl, (H_TIMI)
+    ld   (original_vblank_routine), hl
+    
+    ; Al inicio, establecemos el estado inicial del juego.
+    ld   a, STATE_PLAYING
+    ld   (current_game_state), a
+
+    ld   hl, vblank_isr
+    ld   (H_TIMI), hl
+    ei
+    ret
+
+MAIN_GAME_LOOP:
+    halt
+    jp   MAIN_GAME_LOOP
+
+; ==============================================================================
+; RUTINA DE INTERRUPCIÓN Y DESPACHADOR
+; ==============================================================================
+
+vblank_isr:
+    push af, bc, de, hl, ix, iy
+
+    ; Llamamos al despachador, que elegirá la rutina correcta.
+    call GAME_LOGIC_DISPATCHER
+
+    pop  iy, ix, hl, de, bc, af
+    ei
+    reti
+
+; --- 2. El Despachador (El corazón de la máquina de estados) ---
+GAME_LOGIC_DISPATCHER:
+    ld   a, (current_game_state) ; Carga el estado actual
+    
+    ; Multiplicamos el estado por 2, porque cada dirección en la tabla ocupa 2 bytes (defw)
+    ld   l, a
+    ld   h, 0
+    add  hl, hl  ; hl = hl * 2. Ahora HL contiene el índice para la tabla.
+
+    ; Apuntamos a la base de la tabla de saltos y añadimos el índice
+    ld   de, jump_table
+    add  hl, de  ; Ahora HL apunta a la entrada correcta en la tabla.
+
+    ; Cargamos la dirección de la rutina de la tabla y saltamos a ella.
+    ; ld a, (hl) -> Carga el byte bajo de la dirección
+    ; inc hl
+    ; ld h, (hl) -> Carga el byte alto de la dirección
+    ; ld l, a
+    ; jp (hl) -> Salta a la dirección que ahora está en HL
+    ; Una forma más corta y común de hacer esto es:
+    ld   e, (hl)
+    inc  hl
+    ld   d, (hl)
+    push de     ; Empujamos la dirección a la pila
+    ret         ; 'ret' sacará la dirección de la pila y saltará a ella.
+
+; ==============================================================================
+; 3. TABLA DE SALTOS
+; ¡El orden DEBE coincidir con los valores de los estados definidos arriba!
+; ==============================================================================
+jump_table:
+    defw logic_playing          ; Dirección para STATE_PLAYING (0)
+    defw logic_dying            ; Dirección para STATE_DYING (1)
+    defw logic_changing_zone    ; Dirección para STATE_CHANGING_ZONE (2)
+    defw logic_paused           ; Dirección para STATE_PAUSED (3)
+    ; ... añade las direcciones de las nuevas rutinas aquí
+
+; ==============================================================================
+; 4. SUBRUTINAS DE LÓGICA PARA CADA ESTADO
+; ==============================================================================
+
+logic_playing:
+    ; Lógica normal del juego: leer input, mover sprites, chequear colisiones...
+    ; Ejemplo: para cambiar de estado si el jugador pierde una vida:
+    ; ld a, STATE_DYING
+    ; ld (current_game_state), a
+    ret
+
+logic_dying:
+    ; Lógica para la animación de muerte, esperar un tiempo, descontar una vida...
+    ; Cuando termina, puede volver al estado de juego o ir a Game Over.
+    ; ld a, STATE_PLAYING
+    ; ld (current_game_state), a
+    ret
+
+logic_changing_zone:
+    ; Lógica para hacer un fade out, cargar nuevos datos de mapa, hacer fade in...
+    ; Al terminar, cambia al estado de juego normal.
+    ; ld a, STATE_PLAYING
+    ; ld (current_game_state), a
+    ret
+
+logic_paused:
+    ; No hacer nada o mostrar un mensaje de "PAUSA".
+    ; Esperar a que se pulse una tecla para volver al estado de juego.
+    ; ld a, STATE_PLAYING
+    ; ld (current_game_state), a
+    ret
+
+; ==============================================================================
+; ÁREA DE DATOS
+; ==============================================================================
+current_game_state:
+    defb 0  ; Variable para almacenar el estado actual (1 byte).
+
+original_vblank_routine:
+    defw 0  ; Dirección de la rutina de V-Blank original (2 bytes).
+```

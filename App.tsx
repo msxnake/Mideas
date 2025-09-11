@@ -1,6 +1,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import JSZip from 'jszip'; 
+import JSZip from 'jszip';
+import { generateMainASM, generateMSXProjectFiles, DEFAULT_MSX_CONFIG, MSXProjectConfig } from './utils/msxMainGenerator'; 
 import { StateMachine } from './statemachine.types';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, ScreenMap, MSXColorValue, SpriteFrame, PixelData, 
@@ -1051,7 +1052,7 @@ const App: React.FC = () => {
   }, [history]);
 
   const handleExportAllCodeFiles = async () => {
-    setStatusBarMessage("Exporting all project files (code & binary assets)...");
+    setStatusBarMessage("Exporting complete MSX project (code, binary assets & main.asm)...");
     const codeAssets = assets.filter(a => a.type === 'code' || a.type === 'behavior'); 
     const tileAssetsAll = assets.filter(a => a.type === 'tile');
     const spriteAssetsAll = assets.filter(a => a.type === 'sprite');
@@ -1167,6 +1168,171 @@ const App: React.FC = () => {
           binFolderInZip.file("font_colors.bin", fontColorBytes);
         }
       }
+
+      // Generate juego_completo.json with complete project structure
+      const juegoCompleto = {
+        project: {
+          name: projectName,
+          version: "1.0.0",
+          target: "MSX1",
+          created: new Date().toISOString(),
+          screenMode: currentScreenMode
+        },
+        assets: {
+          tiles: tileAssetsAll.map(a => ({ id: a.id, name: a.name, data: a.data })),
+          sprites: spriteAssetsAll.map(a => ({ id: a.id, name: a.name, data: a.data })),
+          screens: screenMapAsset ? [{ id: screenMapAsset.id, name: screenMapAsset.name, data: screenMapAsset.data }] : [],
+          code: codeAssets.map(a => ({ id: a.id, name: a.name, data: a.data })),
+          components: componentDefinitions.map(c => ({ id: c.id, name: c.name, data: c })),
+          templates: entityTemplates.map(t => ({ id: t.id, name: t.name, data: t })),
+          font: {
+            patterns: msxFont,
+            colors: msxFontColorAttributes
+          }
+        },
+        binary_files: {
+          patterns: tileAssetsAll.length > 0 ? "bin/AllPatterns.BIN" : null,
+          colors: currentScreenMode === "SCREEN 2 (Graphics I)" && tileAssetsAll.length > 0 ? "bin/AllColors.BIN" : null,
+          map_layout: screenMapAsset ? "bin/MapLayout.bin" : null,
+          sprites: spriteAssetsAll.length > 0 ? "bin/sprites.bin" : null,
+          font_patterns: Object.keys(msxFont).length > 0 ? "bin/font_patterns.bin" : null,
+          font_colors: currentScreenMode === "SCREEN 2 (Graphics I)" && Object.keys(msxFont).length > 0 ? "bin/font_colors.bin" : null
+        }
+      };
+      
+      // Add juego_completo.json to project root
+      projectFolderInZip.file("juego_completo.json", JSON.stringify(juegoCompleto, null, 2));
+
+      // Generate MSX project structure with main.asm
+      const msxConfig: MSXProjectConfig = {
+        ...DEFAULT_MSX_CONFIG,
+        projectName,
+        targetMSX: 'MSX1', // Could be made configurable
+        baseAddress: 0x8000
+      };
+      
+      // Generate main.asm and supporting files
+      const msxProjectFiles = generateMSXProjectFiles(projectName, assets, msxConfig);
+      
+      // Create MSX folder structure in zip
+      const msxFolderInZip = projectFolderInZip.folder("MSX");
+      if (msxFolderInZip) {
+        // Add all MSX project files to MSX/ folder
+        Object.entries(msxProjectFiles).forEach(([filename, content]) => {
+          if (filename.includes('/')) {
+            // Handle subdirectories (e.g., system/constants.asm)
+            const parts = filename.split('/');
+            const dir = parts.slice(0, -1).join('/');
+            const file = parts[parts.length - 1];
+            const subFolder = msxFolderInZip.folder(dir);
+            if (subFolder) {
+              subFolder.file(file, content);
+            }
+          } else {
+            // Direct file in MSX root
+            msxFolderInZip.file(filename, content);
+          }
+        });
+
+        // Add organized binary files to MSX/bin structure
+        const msxBinFolder = msxFolderInZip.folder("bin");
+        if (msxBinFolder) {
+          // Recreate binary files in organized structure
+          if (tileAssetsAll.length > 0) {
+            const tilesFolder = msxBinFolder.folder("tiles");
+            if (tilesFolder) {
+              // Regenerate tile patterns for MSX/bin
+              const allPatternsBytesArrays: Uint8Array[] = [];
+              tileAssetsAll.forEach(asset => {
+                const tile = asset.data as Tile;
+                allPatternsBytesArrays.push(generateTilePatternBytes(tile, currentScreenMode));
+              });
+              if (allPatternsBytesArrays.length > 0) {
+                const totalPatternLength = allPatternsBytesArrays.reduce((sum, arr) => sum + arr.length, 0);
+                const combinedPatternBytes = new Uint8Array(totalPatternLength);
+                let offset = 0;
+                allPatternsBytesArrays.forEach(arr => {
+                  combinedPatternBytes.set(arr, offset);
+                  offset += arr.length;
+                });
+                tilesFolder.file("all_patterns.bin", combinedPatternBytes);
+              }
+              
+              if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+                const allColorsBytesArrays: Uint8Array[] = [];
+                tileAssetsAll.forEach(asset => {
+                  const tile = asset.data as Tile;
+                  const colorBytes = generateTileColorBytes(tile);
+                  if (colorBytes) allColorsBytesArrays.push(colorBytes);
+                });
+                if (allColorsBytesArrays.length > 0) {
+                  const totalColorLength = allColorsBytesArrays.reduce((sum, arr) => sum + arr.length, 0);
+                  const combinedColorBytes = new Uint8Array(totalColorLength);
+                  let offset = 0;
+                  allColorsBytesArrays.forEach(arr => {
+                    combinedColorBytes.set(arr, offset);
+                    offset += arr.length;
+                  });
+                  tilesFolder.file("all_colors.bin", combinedColorBytes);
+                }
+              }
+            }
+          }
+          
+          if (spriteAssetsAll.length > 0) {
+            const spritesFolder = msxBinFolder.folder("sprites");
+            if (spritesFolder) {
+              // Regenerate sprite data for MSX/bin
+              const allSpriteDataArrays: Uint8Array[] = [];
+              spriteAssetsAll.forEach(asset => {
+                const sprite = asset.data as Sprite;
+                allSpriteDataArrays.push(generateSpriteBinaryData(sprite));
+              });
+              if (allSpriteDataArrays.length > 0) {
+                const totalSpriteDataLength = allSpriteDataArrays.reduce((sum, arr) => sum + arr.length, 0);
+                const combinedSpriteDataBytes = new Uint8Array(totalSpriteDataLength);
+                let offset = 0;
+                allSpriteDataArrays.forEach(arr => {
+                  combinedSpriteDataBytes.set(arr, offset);
+                  offset += arr.length;
+                });
+                spritesFolder.file("all_sprites.bin", combinedSpriteDataBytes);
+              }
+            }
+          }
+          
+          if (screenMapAsset) {
+            const screensFolder = msxBinFolder.folder("screens");
+            if (screensFolder) {
+              // Regenerate screen map data for MSX/bin
+              const screenMapData = screenMapAsset.data as ScreenMap;
+              const tileAssetDataForMap = tileAssetsAll.map(ta => ta.data as Tile);
+              const banksForMap = currentScreenMode === "SCREEN 2 (Graphics I)" ? tileBanks : undefined;
+              const layoutBytes = generateScreenMapLayoutBytes(screenMapData, tileAssetDataForMap, banksForMap, currentScreenMode);
+              if (layoutBytes.length > 0) {
+                screensFolder.file("map_layout.bin", layoutBytes);
+              }
+            }
+          }
+          
+          if (Object.keys(msxFont).length > 0) {
+            const fontsFolder = msxBinFolder.folder("fonts");
+            if (fontsFolder) {
+              // Regenerate font data for MSX/bin
+              const fontPatternBytes = generateFontPatternBinaryData(msxFont, true);
+              if (fontPatternBytes.length > 0) {
+                fontsFolder.file("font_patterns.bin", fontPatternBytes);
+              }
+              if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+                const fontColorBytes = generateFontColorBinaryData(msxFontColorAttributes, true);
+                if (fontColorBytes.length > 0) {
+                  fontsFolder.file("font_colors.bin", fontColorBytes);
+                }
+              }
+            }
+          }
+        }
+      }
   
       const zipBlob = await zip.generateAsync({ type: "blob" });
       
@@ -1178,7 +1344,7 @@ const App: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setStatusBarMessage(`Project "${projectName}" (code & all binary assets) exported to ${zipFilename}.`);
+      setStatusBarMessage(`Complete MSX Project "${projectName}" exported to ${zipFilename} with juego_completo.json, main.asm & MSX/bin/ structure.`);
     } catch (error) {
       console.error("Error exporting project files:", error);
       setStatusBarMessage(`Error exporting files: ${error instanceof Error ? error.message : "Unknown error"}`);

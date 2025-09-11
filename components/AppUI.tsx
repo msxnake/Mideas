@@ -554,6 +554,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           isOpen={isCodeExportModalOpen}
           onClose={() => setIsCodeExportModalOpen(false)}
           assets={assets}
+          currentProjectName={currentProjectName}
         />
       )}
     </div>
