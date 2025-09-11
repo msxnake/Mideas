@@ -43,7 +43,7 @@ export interface CodeGenerationOptions {
 export const DEFAULT_CODE_OPTIONS: CodeGenerationOptions = {
   dataFormat: 'hex',
   includeComments: true,
-  baseAddress: 0x8000,
+  baseAddress: 0x4000,
   optimize: true,
   msxModel: 'MSX1',
   includeStateMachine: true,

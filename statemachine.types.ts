@@ -40,6 +40,13 @@ export type StateMachineEventName =
   | 'collision_item'
   | 'timer_expired'
   | 'animation_finished'
+  // Movement Validation Events
+  | 'can_move_up'
+  | 'can_move_down'
+  | 'can_move_left'
+  | 'can_move_right'
+  | 'collision_ahead'
+  | 'path_blocked'
   // Game Specific
   | 'dialogue_finished'
   | 'item_collected'
@@ -93,7 +100,14 @@ export const ConditionTypes = {
   // Game state conditions
   VARIABLE_EQUALS: 'VARIABLE_EQUALS',
   VARIABLE_GREATER: 'VARIABLE_GREATER',
-  // TODO: Add more condition types as needed
+  
+  // Movement/Collision conditions
+  CAN_MOVE_DIRECTION: 'CAN_MOVE_DIRECTION',
+  HAS_COLLISION: 'HAS_COLLISION',
+  PATH_CLEAR: 'PATH_CLEAR',
+  
+  // Composite conditions
+  KEY_AND_MOVEMENT: 'KEY_AND_MOVEMENT'
 } as const;
 
 export type ConditionType = typeof ConditionTypes[keyof typeof ConditionTypes];

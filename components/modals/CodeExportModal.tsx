@@ -38,6 +38,11 @@ interface CodeExportModalProps {
 
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'msx_main_asm' | 'msx_full_project' | 'tiles' | 'sprites' | 'screens' | 'entities';
 
+interface GeneratedFile {
+  name: string;
+  content: string;
+}
+
 export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   isOpen,
   onClose,
@@ -47,35 +52,49 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [exportType, setExportType] = useState<ExportType>('complete');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
   const [generatedCode, setGeneratedCode] = useState<string>('');
+  const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
+  const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCompiling, setIsCompiling] = useState(false);
   const [compilationResult, setCompilationResult] = useState<{ success: boolean; message: string; data?: string } | null>(null);
   const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
+
+  const handleFileTabChange = (index: number) => {
+    setActiveFileIndex(index);
+    if (generatedFiles[index]) {
+      setGeneratedCode(generatedFiles[index].content);
+    }
+  };
 
   const handleGenerateCode = () => {
     setIsGenerating(true);
     
     try {
       let code = '';
+      let files: GeneratedFile[] = [];
       
       const projectName = currentProjectName || "MSX_Project";
       
       switch (exportType) {
         case 'complete':
           code = generateCompleteGameAssembly(assets, options);
+          files = [{ name: 'main.asm', content: code }];
           break;
           
         case 'complete_with_statemachine':
           code = generateCompleteGameWithStateMachine(projectName, assets, options);
+          files = [{ name: 'main_with_statemachine.asm', content: code }];
           break;
           
         case 'statemachine_only':
           code = generateStateMachineAssembly(projectName, assets, options);
+          files = [{ name: 'statemachine.asm', content: code }];
           break;
           
         case 'dynamic_project_asm':
           const result = generateProjectSpecificASM(projectName, assets);
           code = result.content;
+          files = [{ name: 'dynamic_project.asm', content: code }];
           setProjectAnalysis(result.analysis);
           break;
           
@@ -84,9 +103,10 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             ...DEFAULT_MSX_CONFIG,
             projectName,
             targetMSX: options.msxModel as any,
-            baseAddress: options.baseAddress || 0x8000
+            baseAddress: options.baseAddress || 0x4000
           };
           code = generateMainASM(projectName, assets, msxConfig);
+          files = [{ name: 'main.asm', content: code }];
           break;
           
         case 'msx_full_project':
@@ -94,50 +114,112 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             ...DEFAULT_MSX_CONFIG,
             projectName,
             targetMSX: options.msxModel as any,
-            baseAddress: options.baseAddress || 0x8000
+            baseAddress: options.baseAddress || 0x4000
           });
           
-          // Show preview of professional ECS structure
-          code = `; Professional ECS MSX Project Generated:\n`;
-          code += `; \n`;
-          code += `; 📁 Project Structure:\n`;
-          code += `; ├── src/\n`;
-          code += `; │   ├── main.asm (entry point)\n`;
-          code += `; │   ├── constants.asm (MSX constants)\n`;
-          code += `; │   ├── macros.asm (utility macros)\n`;
-          code += `; │   ├── ecs/ (Entity-Component-System)\n`;
-          code += `; │   ├── core/ (memory, scheduler)\n`;
-          code += `; │   └── screens/ (game screens)\n`;
-          code += `; ├── assets/ (sprites, maps)\n`;
-          code += `; ├── tools/ (PNG→BIN converters)\n`;
-          code += `; ├── docs/ (documentation)\n`;
-          code += `; ├── Makefile (build system)\n`;
-          code += `; └── README.md (documentation)\n`;
-          code += `; \n`;
-          code += `; Total files: ${Object.keys(projectFiles).length}\n`;
-          code += `; Download ZIP for complete structure\n\n`;
+          // Generate multiple files from the project structure
+          files = Object.entries(projectFiles)
+            .filter(([path, content]) => path.endsWith('.asm'))
+            .map(([path, content]) => ({
+              name: path.replace(/^src\//, '').replace(/\//g, '_'),
+              content: content
+            }));
           
-          // Show main.asm as preview
-          code += `; ===== PREVIEW: src/main.asm =====\n\n`;
-          code += projectFiles['src/main.asm'] || '; Error: Could not load main.asm';
+          // Set the first file content as main display
+          code = files.length > 0 ? files[0].content : '; No ASM files generated';
+          
+          // Show preview if no specific files
+          if (files.length === 0) {
+            code = `; Professional ECS MSX Project Generated:\n`;
+            code += `; \n`;
+            code += `; 📁 Project Structure:\n`;
+            code += `; ├── src/\n`;
+            code += `; │   ├── main.asm (entry point)\n`;
+            code += `; │   ├── constants.asm (MSX constants)\n`;
+            code += `; │   ├── macros.asm (utility macros)\n`;
+            code += `; │   ├── ecs/ (Entity-Component-System)\n`;
+            code += `; │   ├── core/ (memory, scheduler)\n`;
+            code += `; │   └── screens/ (game screens)\n`;
+            code += `; ├── assets/ (sprites, maps)\n`;
+            code += `; ├── tools/ (PNG→BIN converters)\n`;
+            code += `; ├── docs/ (documentation)\n`;
+            code += `; ├── Makefile (build system)\n`;
+            code += `; └── README.md (documentation)\n`;
+            code += `; \n`;
+            code += `; Total files: ${Object.keys(projectFiles).length}\n`;
+            code += `; Download ZIP for complete structure\n\n`;
+            
+            // Show main.asm as preview
+            code += `; ===== PREVIEW: src/main.asm =====\n\n`;
+            code += projectFiles['src/main.asm'] || '; Error: Could not load main.asm';
+            files = [{ name: 'project_preview.asm', content: code }];
+          }
           break;
           
         case 'tiles':
           const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as any);
-          code = generateTileAssembly(tiles, options);
+          if (tiles.length > 1) {
+            // Generate separate files for each tile
+            files = tiles.map((tile, index) => ({
+              name: `tile_${index}.asm`,
+              content: generateTileAssembly([tile], options)
+            }));
+            // Also create a combined file
+            files.unshift({
+              name: 'all_tiles.asm',
+              content: generateTileAssembly(tiles, options)
+            });
+            code = files[0].content;
+          } else {
+            code = generateTileAssembly(tiles, options);
+            files = [{ name: 'tiles.asm', content: code }];
+          }
           break;
           
         case 'sprites':
           const sprites = assets.filter(a => a.type === 'sprite').map(a => a.data as any);
-          code = generateSpriteAssembly(sprites, options);
+          if (sprites.length > 1) {
+            // Generate separate files for each sprite
+            files = sprites.map((sprite, index) => ({
+              name: `sprite_${index}.asm`,
+              content: generateSpriteAssembly([sprite], options)
+            }));
+            // Also create a combined file
+            files.unshift({
+              name: 'all_sprites.asm',
+              content: generateSpriteAssembly(sprites, options)
+            });
+            code = files[0].content;
+          } else {
+            code = generateSpriteAssembly(sprites, options);
+            files = [{ name: 'sprites.asm', content: code }];
+          }
           break;
           
         case 'screens':
           const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as any);
           const tilesForScreens = assets.filter(a => a.type === 'tile').map(a => a.data as any);
-          code = screenMaps.map(screen => 
-            generateScreenMapAssembly(screen, tilesForScreens, options)
-          ).join('\n');
+          
+          if (screenMaps.length > 1) {
+            // Generate separate files for each screen
+            files = screenMaps.map((screen, index) => ({
+              name: `screen_${index}.asm`,
+              content: generateScreenMapAssembly(screen, tilesForScreens, options)
+            }));
+            // Also create a combined file
+            files.unshift({
+              name: 'all_screens.asm',
+              content: screenMaps.map(screen => 
+                generateScreenMapAssembly(screen, tilesForScreens, options)
+              ).join('\n\n')
+            });
+            code = files[0].content;
+          } else {
+            code = screenMaps.map(screen => 
+              generateScreenMapAssembly(screen, tilesForScreens, options)
+            ).join('\n');
+            files = [{ name: 'screens.asm', content: code }];
+          }
           break;
           
         case 'entities':
@@ -151,12 +233,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           } else {
             code = '; No entities found or missing component definitions/templates';
           }
+          files = [{ name: 'entities.asm', content: code }];
           break;
       }
       
       setGeneratedCode(code);
+      setGeneratedFiles(files);
+      setActiveFileIndex(0);
     } catch (error) {
-      setGeneratedCode(`; Error generating code: ${error}`);
+      const errorCode = `; Error generating code: ${error}`;
+      setGeneratedCode(errorCode);
+      setGeneratedFiles([{ name: 'error.asm', content: errorCode }]);
+      setActiveFileIndex(0);
     } finally {
       setIsGenerating(false);
     }
@@ -200,11 +288,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       return;
     }
 
+    const currentFile = generatedFiles[activeFileIndex];
+    const filename = currentFile ? currentFile.name : `${exportType}_code_${new Date().toISOString().split('T')[0]}.asm`;
+
     const blob = new Blob([generatedCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${exportType}_code_${new Date().toISOString().split('T')[0]}.asm`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -320,14 +411,41 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 </label>
                 <input
                   type="text"
-                  value={`#${(options.baseAddress || 0x8000).toString(16).toUpperCase()}`}
+                  value={`#${(options.baseAddress || 0x4000).toString(16).toUpperCase()}`}
                   onChange={(e) => {
-                    const hex = e.target.value.replace('#', '');
+                    let value = e.target.value;
+                    
+                    // Allow typing # at the beginning
+                    if (!value.startsWith('#')) {
+                      value = '#' + value;
+                    }
+                    
+                    // Remove # for parsing
+                    const hex = value.replace('#', '');
+                    
+                    // Allow empty input while typing
+                    if (hex === '') {
+                      return;
+                    }
+                    
+                    // Only allow valid hex characters
+                    if (!/^[0-9A-Fa-f]*$/.test(hex)) {
+                      return;
+                    }
+                    
                     const addr = parseInt(hex, 16);
-                    if (!isNaN(addr)) {
+                    if (!isNaN(addr) && addr >= 0 && addr <= 0xFFFF) {
                       setOptions({...options, baseAddress: addr});
                     }
                   }}
+                  onBlur={(e) => {
+                    // Ensure we have a valid address on blur
+                    const value = e.target.value.replace('#', '');
+                    if (value === '' || isNaN(parseInt(value, 16))) {
+                      setOptions({...options, baseAddress: 0x4000});
+                    }
+                  }}
+                  placeholder="#4000"
                   className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary font-mono"
                 />
               </div>
@@ -520,7 +638,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       ...DEFAULT_MSX_CONFIG,
                       projectName,
                       targetMSX: options.msxModel as any,
-                      baseAddress: options.baseAddress || 0x8000
+                      baseAddress: options.baseAddress || 0x4000
                     };
                     
                     try {
@@ -685,6 +803,24 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         {/* Right Panel - Code Output */}
         <div className="w-2/3 flex flex-col">
           <Panel title="Generated Assembly Code" className="flex-1 flex flex-col overflow-hidden">
+            {/* File Tabs */}
+            {generatedFiles.length > 1 && (
+              <div className="flex flex-wrap gap-1 p-2 border-b border-msx-border bg-msx-bgcolor bg-opacity-50">
+                {generatedFiles.map((file, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleFileTabChange(index)}
+                    className={`px-3 py-1 text-xs font-mono rounded transition-colors ${
+                      activeFileIndex === index
+                        ? 'bg-msx-highlight text-msx-panelbg'
+                        : 'bg-msx-panelbg text-msx-textsecondary hover:bg-msx-highlight hover:bg-opacity-20'
+                    }`}
+                  >
+                    {file.name}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex-1 p-3 overflow-y-auto">
               <textarea
                 value={generatedCode}

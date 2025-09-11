@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Connection } from '@xyflow/react';
-import { StateMachine, StateMachineState, StateMachineStateName, StateMachineTransition, Condition, Action, StateMachineEvent, StateMachineEventName, StateMachineInputType } from '../../statemachine.types';
+import { StateMachine, StateMachineState, StateMachineStateName, StateMachineTransition, Condition, Action } from '../../statemachine.types';
 import { ProjectAsset } from '../../types';
 import { StatesPanel } from './statemachine/StatesPanel';
 import { TransitionsEditor } from './statemachine/TransitionsEditor';
@@ -9,7 +9,7 @@ import { StatePropertiesEditor } from './statemachine/StatePropertiesEditor';
 import StateMachineVisualizer from './statemachine/StateMachineVisualizer';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { EventsPanel } from './statemachine/EventsPanel';
+import { InitStatePanel } from './statemachine/InitStatePanel';
 
 interface StateMachineEditorProps {
   currentAsset: ProjectAsset;
@@ -124,17 +124,8 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
     });
   };
 
-  const handleCreateEvent = (name: string, type: StateMachineInputType) => {
-    const newEvent: StateMachineEvent = {
-      id: `event_${Date.now()}`,
-      name: name as StateMachineEventName,
-      type,
-    };
-    onUpdateAsset({ events: [...(stateMachine.events || []), newEvent] });
-  };
-
-  const handleDeleteEvent = (id: string) => {
-    onUpdateAsset({ events: stateMachine.events.filter(e => e.id !== id) });
+  const handleUpdateInitialState = (stateId: string | null) => {
+    onUpdateAsset({ initialStateId: stateId });
   };
 
   const handleUpdateStateActions = (actionList: 'onEnter' | 'onExit', newActions: Action[]) => {
@@ -254,10 +245,10 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
                 }}
                 language={language}
               />
-              <EventsPanel
-                events={stateMachine.events || []}
-                onCreateEvent={handleCreateEvent}
-                onDeleteEvent={handleDeleteEvent}
+              <InitStatePanel
+                states={stateMachine.states}
+                initialStateId={stateMachine.initialStateId}
+                onUpdateInitialState={handleUpdateInitialState}
               />
             </div>
             <div className="w-2/3">

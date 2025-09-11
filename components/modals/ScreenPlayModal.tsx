@@ -152,36 +152,6 @@ const AVAILABLE_ENGINES: EngineRegistry = {
         }
     },
     
-    physics: {
-        id: 'physics',
-        name: 'Physics Engine',
-        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[]) => {
-            entities.forEach(entity => {
-                const physicsComp = entity.template.components.find(c => c.definitionId === 'comp_physics');
-                if (physicsComp) {
-                    const physicsProps = { 
-                        ...physicsComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_physics'] || {}) 
-                    };
-                    
-                    // Only apply friction when entity is NOT being controlled by state machine
-                    const hasPlayerInput = entity.template.components.some(c => c.definitionId === 'comp_player_input');
-                    const friction = Number(physicsProps.friction || 0) / 1000; // Reduced friction impact
-                    
-                    // Apply friction only when not actively moving (no input)
-                    if (friction > 0 && !hasPlayerInput) {
-                        entity.vx *= (1 - friction);
-                        entity.vy *= (1 - friction);
-                        
-                        // Stop very small velocities to prevent jitter
-                        if (Math.abs(entity.vx) < 0.05) entity.vx = 0;
-                        if (Math.abs(entity.vy) < 0.05) entity.vy = 0;
-                    }
-                }
-            });
-        }
-    },
-    
     animation: {
         id: 'animation',
         name: 'Animation Engine',
@@ -828,7 +798,15 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                                 }
                             }
 
-                            console.log(`🚧 ${entity.template.name} collided with wall at tile (${tileX}, ${tileY})`);
+                            // Only log wall collision once per entity per frame
+                            if (!entity.wallCollisionLogged) {
+                                console.log(`🚧 ${entity.template.name} collided with wall at tile (${tileX}, ${tileY})`);
+                                entity.wallCollisionLogged = true;
+                                // Reset flag after a short delay to allow new collision detection
+                                setTimeout(() => {
+                                    if (entity) entity.wallCollisionLogged = false;
+                                }, 100);
+                            }
                         }
                     }
                 }
@@ -1041,6 +1019,88 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 }
             });
         }
+    },
+
+    stateMachine: {
+        id: 'stateMachine',
+        name: 'State Machine Engine',
+        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[]) => {
+            entities.forEach(entity => {
+                if (!entity.stateMachine || !entity.currentState) return;
+
+                const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
+                if (!currentStateDef) return;
+
+                // Execute onEnter actions if this is the first frame for this state
+                if (!entity.stateData) {
+                    entity.stateData = {
+                        currentStateName: entity.currentState,
+                        stateStartTime: performance.now(),
+                        hasExecutedOnEnter: false
+                    };
+                }
+
+                // Execute onEnter actions once when entering a new state
+                if (!entity.stateData.hasExecutedOnEnter || entity.stateData.currentStateName !== entity.currentState) {
+                    entity.stateData.currentStateName = entity.currentState;
+                    entity.stateData.stateStartTime = performance.now();
+                    entity.stateData.hasExecutedOnEnter = true;
+
+                    console.log(`🎯 Executing onEnter actions for state: ${entity.currentState} on entity: ${entity.template.name} (${entity.instance.name})`);
+                    console.log(`📋 State definition:`, currentStateDef);
+                    
+                    if (currentStateDef.onEnter && currentStateDef.onEnter.length > 0) {
+                        console.log(`🎬 Found ${currentStateDef.onEnter.length} onEnter actions`);
+                        currentStateDef.onEnter.forEach((action, index) => {
+                            console.log(`🎭 Executing action ${index + 1}/${currentStateDef.onEnter.length}:`, action);
+                            switch (action.type) {
+                                case 'SET_VELOCITY':
+                                    const vx = Number(action.params?.x) || 0;
+                                    const vy = Number(action.params?.y) || 0;
+                                    const prevVx = entity.vx;
+                                    const prevVy = entity.vy;
+                                    entity.vx = vx;
+                                    entity.vy = vy;
+                                    console.log(`⚡ SET_VELOCITY: (${prevVx}, ${prevVy}) → (${vx}, ${vy}) for ${entity.template.name}`);
+                                    break;
+                                case 'PLAY_SOUND':
+                                    console.log(`🔊 PLAY_SOUND: ${action.params?.soundId} for ${entity.template.name}`);
+                                    break;
+                                case 'SET_ANIMATION':
+                                    console.log(`🎬 SET_ANIMATION: ${action.params?.animationId} for ${entity.template.name}`);
+                                    break;
+                                default:
+                                    console.log(`❓ Unknown action type: ${action.type}`);
+                            }
+                        });
+                    } else {
+                        console.log(`⚠️ No onEnter actions found for state: ${entity.currentState}`);
+                    }
+                }
+
+                // Continuously execute state actions (if any) - for states that need continuous behavior
+                if (currentStateDef.properties?.continuousMovement) {
+                    // Example: continuous movement based on state properties
+                    const moveSpeed = Number(currentStateDef.properties.moveSpeed) || 1;
+                    const direction = currentStateDef.properties.direction || 'right';
+                    
+                    switch (direction) {
+                        case 'right':
+                            entity.vx = moveSpeed;
+                            break;
+                        case 'left':
+                            entity.vx = -moveSpeed;
+                            break;
+                        case 'up':
+                            entity.vy = -moveSpeed;
+                            break;
+                        case 'down':
+                            entity.vy = moveSpeed;
+                            break;
+                    }
+                }
+            });
+        }
     }
 };
 
@@ -1086,12 +1146,20 @@ const detectRequiredEngines = (entities: AnimatedEntity[]): string[] => {
                 case 'comp_rotate':
                     requiredEngines.add('rotation');
                     break;
+                case 'comp_statemachine':
+                    requiredEngines.add('stateMachine');
+                    break;
             }
         });
         
         // Check instance overrides for additional engines
         if (entity.instance.componentOverrides?.comp_patrol) {
             requiredEngines.add('patrol');
+        }
+        
+        // Check if entity has a state machine (also check the entity itself)
+        if (entity.stateMachine) {
+            requiredEngines.add('stateMachine');
         }
     });
     
@@ -1144,6 +1212,12 @@ interface AnimatedEntity {
     baseFrameForDirection?: number;
     framesPerDirection?: number;
     markedForDestruction?: boolean;
+    stateData?: {
+        currentStateName: string;
+        stateStartTime: number;
+        hasExecutedOnEnter: boolean;
+    };
+    wallCollisionLogged?: boolean;
 }
 
 interface ScreenPlayModalProps {
@@ -1175,6 +1249,123 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const pendingSpawnsRef = useRef<EntityInstance[]>([]);
     const [entityCount, setEntityCount] = useState(0);
 
+    // Helper function to check if entity can move in a specific direction
+    const canMoveInDirection = useCallback((entity: AnimatedEntity, direction: string): boolean => {
+        // Debug logs removed for cleaner output
+        
+        if (!screenMap?.layers?.collision) {
+            // console.log(`🔍 No collision layer found - returning true`);
+            return true;
+        }
+        
+        // Get the actual velocity that would be applied based on direction
+        let velocityX = 0, velocityY = 0;
+        switch (direction) {
+            case 'left': velocityX = -1; break;
+            case 'right': velocityX = 1; break;
+            case 'up': velocityY = -1; break;
+            case 'down': velocityY = 1; break;
+            default: return true;
+        }
+        
+        // Calculate next position using the actual velocity that would be set
+        const nextX = entity.x + velocityX;
+        const nextY = entity.y + velocityY;
+        
+        // Use same collision detection logic as the movement system
+        const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision' || c.definitionId === 'comp_collision');
+        if (!wallCollisionComp) {
+            // console.log(`🔍 No collision component found - returning true`);
+            return true;
+        }
+        // console.log(`🔍 Found collision component: ${wallCollisionComp.definitionId}`);
+        
+        const componentId = wallCollisionComp.definitionId;
+        const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
+        // Use smaller hitbox for Pac-Man style movement (12x12 instead of 16x16)
+        const hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
+        const hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
+        const offsetX = Number(props.offsetX) || 2; // Center the smaller hitbox
+        const offsetY = Number(props.offsetY) || 2;
+        
+        // Check if new position would collide
+        const entityLeft = nextX + offsetX;
+        const entityTop = nextY + offsetY;
+        const entityRight = entityLeft + hitboxWidth;
+        const entityBottom = entityTop + hitboxHeight;
+        
+        const leftTile = Math.floor(entityLeft / 16);
+        const topTile = Math.floor(entityTop / 16);
+        const rightTile = Math.floor((entityRight - 1) / 16);
+        const bottomTile = Math.floor((entityBottom - 1) / 16);
+        
+        // Debug info
+        // console.log(`🔍 Checking direction ${direction}: nextPos(${nextX}, ${nextY}), hitbox(${hitboxWidth}×${hitboxHeight}), offset(${offsetX}, ${offsetY})`);
+        // console.log(`🔍 Tiles to check: (${leftTile}, ${topTile}) to (${rightTile}, ${bottomTile})`);
+        
+        // Check all tiles the entity would occupy
+        for (let tileY = topTile; tileY <= bottomTile; tileY++) {
+            for (let tileX = leftTile; tileX <= rightTile; tileX++) {
+                // Check bounds
+                if (tileX < 0 || tileY < 0 || tileX >= screenMap.width || tileY >= screenMap.height) {
+                    // console.log(`🔍 Tile (${tileX}, ${tileY}) is out of bounds`);
+                    return false;
+                }
+                
+                // Use the same structure as the working collision system
+                const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+                
+                // console.log(`🔍 Tile (${tileX}, ${tileY}): ${tileOnLayer ? `tileId="${tileOnLayer.tileId}"` : 'null'}`);
+                
+                // If tile exists and has a tileId, there's a collision
+                if (tileOnLayer && tileOnLayer.tileId) {
+                    // console.log(`🔍 Collision found at tile (${tileX}, ${tileY}) with tileId="${tileOnLayer.tileId}"`);
+                    return false;
+                }
+            }
+        }
+        
+        // console.log(`🔍 No collision found - movement allowed`);
+        return true;
+    }, [screenMap]);
+    
+    // Enhanced condition evaluator that supports compound conditions
+    const evaluateCondition = useCallback((condition: any, entity: AnimatedEntity, pressedKey: string, isKeyDown: boolean): boolean => {
+        if (!condition) return false;
+        
+        switch (condition.type) {
+            case 'KEY_PRESSED':
+                return isKeyDown && condition.params?.key === pressedKey;
+                
+            case 'KEY_RELEASED':
+                return !isKeyDown && condition.params?.key === pressedKey;
+                
+            case 'CAN_MOVE_DIRECTION':
+                const canMove = canMoveInDirection(entity, condition.params?.direction);
+                // console.log(`🔍 CAN_MOVE_DIRECTION(${condition.params?.direction}): ${canMove} at position (${entity.x}, ${entity.y})`);
+                return canMove;
+                
+            case 'AND':
+                if (!condition.conditions || !Array.isArray(condition.conditions)) return false;
+                return condition.conditions.every((subCondition: any) => 
+                    evaluateCondition(subCondition, entity, pressedKey, isKeyDown)
+                );
+                
+            case 'OR':
+                if (!condition.conditions || !Array.isArray(condition.conditions)) return false;
+                return condition.conditions.some((subCondition: any) => 
+                    evaluateCondition(subCondition, entity, pressedKey, isKeyDown)
+                );
+                
+            case 'NOT':
+                if (!condition.conditions || !Array.isArray(condition.conditions)) return false;
+                return !evaluateCondition(condition.conditions[0], entity, pressedKey, isKeyDown);
+                
+            default:
+                return false;
+        }
+    }, [canMoveInDirection]);
+
     const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
         const entity = entitiesRef.current.find(e => e.instance.id === entityId);
         if (!entity || !entity.stateMachine || !entity.currentState) return;
@@ -1188,24 +1379,23 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             const condition = transition.conditions;
             if (!condition) continue;
             
-            let conditionMet = false;
-            
-            if (isKeyDown && condition.type === 'KEY_PRESSED' && condition.params?.key === pressedKey) {
-                conditionMet = true;
-            } else if (!isKeyDown && condition.type === 'KEY_RELEASED' && condition.params?.key === pressedKey) {
-                conditionMet = true;
-            }
+            // Use enhanced condition evaluation
+            const conditionMet = evaluateCondition(condition, entity, pressedKey, isKeyDown);
             
             if (conditionMet) {
                 const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
                 if (nextState) {
+                    console.log(`🔄 State transition: ${entity.currentState} → ${nextState.name} (key: ${pressedKey})`);
                     entity.currentState = nextState.name;
                     
                     if (transition.actions) {
                         for (const action of transition.actions) {
                             if (action.type === 'SET_VELOCITY') {
-                                entity.vx = action.params.x || 0;
-                                entity.vy = action.params.y || 0;
+                                const newVx = action.params.x || 0;
+                                const newVy = action.params.y || 0;
+                                console.log(`⚡ Setting velocity: (${entity.vx}, ${entity.vy}) → (${newVx}, ${newVy})`);
+                                entity.vx = newVx;
+                                entity.vy = newVy;
                             }
                         }
                     }
@@ -1213,7 +1403,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 }
             }
         }
-    }, []);
+    }, [evaluateCondition]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         e.preventDefault();
@@ -1231,7 +1421,9 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
         if (playerRef.current && pressedKeys.current.has(e.key)) {
             pressedKeys.current.delete(e.key);
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            // Only call checkKeyTransitions for KeyUp for non-movement keys or specific KEY_RELEASED transitions
+            // For movement keys, we mainly care about KeyDown events
+            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 checkKeyTransitions(playerRef.current.instance.id, e.key, false);
             }
         }
@@ -1472,17 +1664,36 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 const stateMachineAsset = getAsset(stateMachineAssetId, 'statemachine');
                 stateMachine = stateMachineAsset?.data as StateMachine | undefined;
                 if (stateMachine) {
-                    const startStateId = smcOverride?.currentStateId || smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
+                    const instanceCurrentStateId = smcOverride?.currentStateId;
+                    const templateCurrentStateId = smc?.defaultValues?.currentStateId;
+                    const machineInitialStateId = stateMachine.initialStateId;
+                    
+                    const startStateId = instanceCurrentStateId || templateCurrentStateId || machineInitialStateId;
+                    
+                    console.log(`🎯 State Machine Initialization for ${template.name}:`, {
+                        instanceName: instance.name,
+                        stateMachineAsset: stateMachineAssetId,
+                        instanceCurrentStateId,
+                        templateCurrentStateId,
+                        machineInitialStateId,
+                        selectedStartStateId: startStateId,
+                        availableStates: stateMachine.states.map(s => ({ id: s.id, name: s.name }))
+                    });
+                    
                     let initialState = stateMachine.states.find(s => s.id === startStateId);
 
                     if (!initialState && startStateId) {
                         initialState = stateMachine.states.find(s => s.name === startStateId);
+                        console.log(`🔍 State found by name: ${initialState?.name}`);
                     }
 
                     if (!initialState) {
                         initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
+                        console.log(`🔍 Fallback state selected: ${initialState?.name}`);
                     }
+                    
                     currentState = initialState?.name;
+                    console.log(`✅ Final selected state: ${currentState}`);
                 }
             }
 
@@ -1634,13 +1845,70 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             processSpawnedEntities();
             
             // Update entities position and rendering
-            if (entitiesRef.current.length > 1) {
-                console.log('🎨 Rendering entities:', entitiesRef.current.length, 'entities at frame');
-            }
             entitiesRef.current.forEach(entity => {
-                // Update position
-                entity.x += entity.vx;
-                entity.y += entity.vy;
+                // Check if movement would cause collision before applying it
+                let newX = entity.x + entity.vx;
+                let newY = entity.y + entity.vy;
+                
+                // Check collision for the new position
+                const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision' || c.definitionId === 'comp_collision');
+                if (wallCollisionComp && screenMap?.layers?.collision?.tiles) {
+                    const componentId = wallCollisionComp.definitionId;
+                    const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
+                    // Use smaller hitbox for Pac-Man style movement (12x12 instead of 16x16)
+                    const hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
+                    const hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
+                    const offsetX = Number(props.offsetX) || 2; // Center the smaller hitbox
+                    const offsetY = Number(props.offsetY) || 2;
+                    
+                    // Check if new position would collide
+                    const entityLeft = newX + offsetX;
+                    const entityTop = newY + offsetY;
+                    const entityRight = entityLeft + hitboxWidth;
+                    const entityBottom = entityTop + hitboxHeight;
+                    
+                    const leftTile = Math.floor(entityLeft / 16);
+                    const topTile = Math.floor(entityTop / 16);
+                    const rightTile = Math.floor((entityRight - 1) / 16);
+                    const bottomTile = Math.floor((entityBottom - 1) / 16);
+                    
+                    let hasCollision = false;
+                    
+                    // Check all tiles the entity would occupy
+                    for (let tileY = topTile; tileY <= bottomTile && !hasCollision; tileY++) {
+                        for (let tileX = leftTile; tileX <= rightTile && !hasCollision; tileX++) {
+                            if (tileX < 0 || tileY < 0 || tileX >= screenMap.width || tileY >= screenMap.height) {
+                                hasCollision = true;
+                                break;
+                            }
+                            
+                            const tileIndex = tileY * screenMap.width + tileX;
+                            const tile = screenMap.layers.collision.tiles[tileIndex];
+                            
+                            if (tile && tile.id !== 'empty' && tile.id !== '') {
+                                hasCollision = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Only apply movement if no collision
+                    if (!hasCollision) {
+                        entity.x = newX;
+                        entity.y = newY;
+                    } else {
+                        // Stop velocity on collision (only log if entity was actually moving)
+                        if (entity.vx !== 0 || entity.vy !== 0) {
+                            console.log(`🚧 Collision detected! Stopping velocity (${entity.vx}, ${entity.vy}) → (0, 0) at position (${entity.x}, ${entity.y})`);
+                        }
+                        entity.vx = 0;
+                        entity.vy = 0;
+                    }
+                } else {
+                    // No collision detection component, apply movement normally
+                    entity.x = newX;
+                    entity.y = newY;
+                }
 
                 // Apply screen boundary constraints
                 const spriteWidth = entity.sprite.size.width;
