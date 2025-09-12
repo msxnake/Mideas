@@ -1163,9 +1163,9 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 
     pacMovement: {
         id: 'pacMovement',
-        name: 'Pac-Man Movement Engine',
-        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap) => {
-            // Direcciones
+        name: 'Enhanced Pac-Man Movement Engine',
+        execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap, entityTemplates?: EntityTemplate[], allAssets?: ProjectAsset[]) => {
+            // Direcciones con nombres consistentes
             const DIRS = {
                 NONE: { x: 0, y: 0 },
                 LEFT: { x: -1, y: 0 },
@@ -1174,103 +1174,354 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 DOWN: { x: 0, y: 1 }
             };
 
-            // Función para verificar si se puede mover en una dirección
-            const canMove = (tileX: number, tileY: number, dir: string, screenMap: ScreenMap): boolean => {
-                if (!dir || dir === 'NONE') return false;
-                const nx = tileX + DIRS[dir].x;
-                const ny = tileY + DIRS[dir].y;
+            // Tolerancia para alineación a la grilla (en píxeles)
+            const ALIGNMENT_TOLERANCE = 2;
 
-                if (!screenMap?.layers?.collision) return true;
-                
-                // Check bounds using screenMap dimensions
-                if (nx < 0 || ny < 0 || nx >= screenMap.width || ny >= screenMap.height) return false;
+            /**
+             * Verifica si una entidad está alineada a la grilla para poder girar
+             */
+            const isAlignedToGridForTurning = (entity: any, direction: string, tileSize: number): boolean => {
+                const remainderX = entity.x % tileSize;
+                const remainderY = entity.y % tileSize;
 
-                // Collision layer is a 2D array: collision[tileY][tileX]
-                const tileOnLayer = screenMap.layers.collision[ny]?.[nx];
+                if (direction === 'UP' || direction === 'DOWN') {
+                    // Para movimiento vertical, debe estar alineado en X
+                    return Math.abs(remainderX) < ALIGNMENT_TOLERANCE || 
+                           Math.abs(remainderX - tileSize) < ALIGNMENT_TOLERANCE;
+                }
                 
-                // Return true if tile is empty or doesn't exist (can move)
-                return !(tileOnLayer && tileOnLayer.tileId);
+                if (direction === 'LEFT' || direction === 'RIGHT') {
+                    // Para movimiento horizontal, debe estar alineado en Y
+                    return Math.abs(remainderY) < ALIGNMENT_TOLERANCE || 
+                           Math.abs(remainderY - tileSize) < ALIGNMENT_TOLERANCE;
+                }
+                
+                return false;
             };
 
-            // Get current pressed keys from the modal's key tracking system
+            /**
+             * Verifica si se puede mover desde una posición alineada a la grilla
+             */
+            const canMoveFromAlignedPosition = (entity: any, direction: string, tileSize: number, screenMap: ScreenMap): boolean => {
+                if (!direction || direction === 'NONE' || !screenMap?.layers?.collision) {
+                    console.log(`🚨 canMoveFromAlignedPosition: No screenMap o collision layer`);
+                    return true; // Si no hay mapa de colisión, permite el movimiento
+                }
+
+                // Usar la misma estructura que el sistema de colisión de paredes
+                const tileLayer = screenMap.layers.collision;
+                const mapW = screenMap.width || (tileLayer[0] ? tileLayer[0].length : 0);
+                const mapH = screenMap.height || tileLayer.length;
+
+                console.log(`🔍 Verificando movimiento hacia ${direction}, mapa: ${mapW}x${mapH}`);
+
+                // Obtener propiedades de hitbox desde el sprite primero, luego fallback al wall collision
+                let hitboxWidth = 16;
+                let hitboxHeight = 16;
+                let offsetX = 0;
+                let offsetY = 0;
+                let actualTileSize = tileSize;
+
+                // Primero intentar obtener el sprite del entity
+                let spriteAssetId: string | undefined;
+                
+                // Buscar sprite en component overrides
+                if (entity.instance.componentOverrides) {
+                    for (const compId in entity.instance.componentOverrides) {
+                        const compDef = componentDefinitions.find(c => c.id === compId);
+                        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                        if (spriteProp && entity.instance.componentOverrides[compId]?.[spriteProp.name]) {
+                            spriteAssetId = entity.instance.componentOverrides[compId][spriteProp.name];
+                            break;
+                        }
+                    }
+                }
+                
+                // Si no se encontró en overrides, buscar en template defaults
+                if (!spriteAssetId) {
+                    for (const comp of entity.template.components) {
+                        const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                            spriteAssetId = comp.defaultValues[spriteProp.name];
+                            break;
+                        }
+                    }
+                }
+                
+                // Obtener sprite asset y usar sus valores de hitbox (solo si allAssets está disponible)
+                if (spriteAssetId && allAssets && allAssets.length > 0) {
+                    const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+                    const sprite = spriteAsset?.data as Sprite;
+                    if (sprite?.hitbox) {
+                        hitboxWidth = sprite.hitbox.width;
+                        hitboxHeight = sprite.hitbox.height;
+                        offsetX = sprite.hitbox.offsetX;
+                        offsetY = sprite.hitbox.offsetY;
+                    }
+                }
+                
+                // Fallback: usar valores del wall collision component
+                const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+                if (wallCollisionComp) {
+                    const wallProps = { 
+                        ...wallCollisionComp.defaultValues, 
+                        ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) 
+                    };
+                    
+                    // Solo usar estos valores si no tenemos valores del sprite o allAssets no está disponible
+                    if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
+                        hitboxWidth = Number(wallProps.hitboxWidth) || hitboxWidth;
+                        hitboxHeight = Number(wallProps.hitboxHeight) || hitboxHeight;
+                        offsetX = Number(wallProps.offsetX) || offsetX;
+                        offsetY = Number(wallProps.offsetY) || offsetY;
+                    }
+                    actualTileSize = Number(wallProps.tileSize) || 8; // Siempre usar tileSize del wall collision
+                }
+
+                // Calcular posición de prueba alineada
+                let testX = entity.x;
+                let testY = entity.y;
+
+                switch (direction) {
+                    case 'UP':
+                        testY = Math.floor(entity.y / actualTileSize) * actualTileSize;
+                        testX = Math.round(entity.x / actualTileSize) * actualTileSize + (actualTileSize / 2) - (hitboxWidth / 2);
+                        testY -= 1;
+                        break;
+                    case 'DOWN':
+                        testY = Math.floor(entity.y / actualTileSize) * actualTileSize;
+                        testX = Math.round(entity.x / actualTileSize) * actualTileSize + (actualTileSize / 2) - (hitboxWidth / 2);
+                        testY += 1;
+                        break;
+                    case 'LEFT':
+                        testX = Math.floor(entity.x / actualTileSize) * actualTileSize;
+                        testY = Math.round(entity.y / actualTileSize) * actualTileSize + (actualTileSize / 2) - (hitboxHeight / 2);
+                        testX -= 1;
+                        break;
+                    case 'RIGHT':
+                        testX = Math.floor(entity.x / actualTileSize) * actualTileSize;
+                        testY = Math.round(entity.y / actualTileSize) * actualTileSize + (actualTileSize / 2) - (hitboxHeight / 2);
+                        testX += 1;
+                        break;
+                    default:
+                        return false;
+                }
+
+                // Calcular bounds de hitbox en la posición de prueba
+                const left = testX + offsetX;
+                const top = testY + offsetY;
+                const right = left + hitboxWidth;
+                const bottom = top + hitboxHeight;
+
+                // Convertir a coordenadas de tile (usar la misma lógica que wall collision)
+                const startTileX = Math.floor(left / actualTileSize);
+                const endTileX = Math.floor((right - 1e-6) / actualTileSize);
+                const startTileY = Math.floor(top / actualTileSize);
+                const endTileY = Math.floor((bottom - 1e-6) / actualTileSize);
+
+                console.log(`🔍 Verificando tiles desde (${startTileX},${startTileY}) hasta (${endTileX},${endTileY})`);
+
+                // Verificar colisión en el área (usar la misma lógica que wall collision)
+                for (let ty = startTileY; ty <= endTileY; ty++) {
+                    for (let tx = startTileX; tx <= endTileX; tx++) {
+                        if (tx < 0 || ty < 0 || tx >= mapW || ty >= mapH) {
+                            continue;
+                        }
+                        
+                        // Usar exactamente la misma lógica que el sistema de wall collision
+                        const tile = tileLayer[ty]?.[tx];
+                        console.log(`🔍 Tile en (${tx},${ty}):`, tile);
+                        
+                        // Usar la misma condición que el wall collision
+                        if (!tile || !tile.tileId) continue; // No hay tile o no tiene tileId
+                        
+                        // Si llegamos aquí, hay un tile sólido
+                        console.log(`🚧 Tile sólido encontrado en (${tx},${ty}), tileId: ${tile.tileId}`);
+                        return false; // Pared encontrada
+                    }
+                }
+
+                console.log(`✅ Camino libre hacia ${direction}`);
+                return true; // Camino libre
+            };
+
+            /**
+             * Alinea una entidad a la grilla para giros limpios
+             */
+            const snapToGridAlignment = (entity: any, direction: string, tileSize: number) => {
+                const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+                let hitboxWidth = 16;
+                let hitboxHeight = 16;
+
+                if (wallCollisionComp) {
+                    const wallProps = { 
+                        ...wallCollisionComp.defaultValues, 
+                        ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) 
+                    };
+                    hitboxWidth = Number(wallProps.hitboxWidth) || 16;
+                    hitboxHeight = Number(wallProps.hitboxHeight) || 16;
+                }
+
+                if (direction === 'UP' || direction === 'DOWN') {
+                    entity.x = Math.round(entity.x / tileSize) * tileSize + (tileSize / 2) - (hitboxWidth / 2);
+                } else {
+                    entity.y = Math.round(entity.y / tileSize) * tileSize + (tileSize / 2) - (hitboxHeight / 2);
+                }
+            };
+
+            // Obtener teclas presionadas actuales
             const currentPressedKeys = (window as any).currentPressedKeys || new Set();
 
             entities.forEach(entity => {
                 const pacMovementComp = entity.template.components.find(c => c.definitionId === 'comp_pacMovement');
-                if (pacMovementComp) {
-                    const pacProps = { 
-                        ...pacMovementComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_pacMovement'] || {}) 
+                if (!pacMovementComp) return;
+
+                const pacProps = { 
+                    ...pacMovementComp.defaultValues, 
+                    ...(entity.instance.componentOverrides?.['comp_pacMovement'] || {}) 
+                };
+
+                if (!pacProps.isEnabled) return;
+
+                // Inicializar datos de movimiento mejorados
+                if (!entity.enhancedMovementData) {
+                    entity.enhancedMovementData = {
+                        currentDir: pacProps.currentDirection || 'NONE',
+                        desiredDir: pacProps.desiredDirection || 'NONE',
+                        previousInputState: { up: false, down: false, left: false, right: false }
                     };
+                }
 
-                    if (!pacProps.isEnabled) return;
-
-                    // Initialize movement data if needed
-                    if (!entity.movementData) {
-                        entity.movementData = {
-                            currentDir: pacProps.currentDirection || 'NONE',
-                            desiredDir: pacProps.desiredDirection || 'NONE'
-                        };
-                    }
-
-                    const speed = Number(pacProps.speed) || 2;
-                    const tileSize = 16; // Standard tile size
-
-                    // Handle keyboard input for desired direction
-                    let newDesiredDir = entity.movementData.desiredDir;
+                const movementData = entity.enhancedMovementData;
+                const speed = Number(pacProps.speed) || 2;
+                
+                // Obtener el tileSize correcto del componente wall_collision
+                const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+                let tileSize = 16; // Default fallback
+                
+                if (wallCollisionComp) {
+                    const wallProps = { 
+                        ...wallCollisionComp.defaultValues, 
+                        ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) 
+                    };
+                    tileSize = Number(wallProps.tileSize) || 8; // Usar el tileSize del wall collision
                     
-                    if (currentPressedKeys.has('ArrowUp') || currentPressedKeys.has('KeyW')) {
-                        newDesiredDir = 'UP';
-                    } else if (currentPressedKeys.has('ArrowDown') || currentPressedKeys.has('KeyS')) {
-                        newDesiredDir = 'DOWN';
-                    } else if (currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA')) {
-                        newDesiredDir = 'LEFT';
-                    } else if (currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD')) {
-                        newDesiredDir = 'RIGHT';
-                    }
-                    
-                    // Update desired direction only if a key is pressed
-                    if (newDesiredDir !== entity.movementData.desiredDir) {
-                        entity.movementData.desiredDir = newDesiredDir;
-                    }
-                    
-                    // If no movement keys are pressed, cancel desired direction if it's not current direction
-                    if (!currentPressedKeys.has('ArrowUp') && !currentPressedKeys.has('KeyW') &&
-                        !currentPressedKeys.has('ArrowDown') && !currentPressedKeys.has('KeyS') &&
-                        !currentPressedKeys.has('ArrowLeft') && !currentPressedKeys.has('KeyA') &&
-                        !currentPressedKeys.has('ArrowRight') && !currentPressedKeys.has('KeyD')) {
-                        // No keys pressed, cancel intention if different from current direction
-                        if (entity.movementData.desiredDir !== entity.movementData.currentDir) {
-                            entity.movementData.desiredDir = entity.movementData.currentDir;
+                    // DEBUG: Mostrar todos los valores del hitbox
+                    console.log(`🔧 Hitbox Debug:`, {
+                        entityName: entity.template.name,
+                        templateDefaults: wallCollisionComp.defaultValues,
+                        instanceOverrides: entity.instance.componentOverrides?.['comp_wall_collision'] || {},
+                        finalValues: wallProps,
+                        tileSize: tileSize,
+                        speed: speed
+                    });
+                }
+                
+                console.log(`🎮 Entidad ${entity.template.name}: tileSize=${tileSize}, speed=${speed}`);
+
+                // Detectar nueva entrada de dirección (edge-triggered)
+                const currentInput = {
+                    up: currentPressedKeys.has('ArrowUp') || currentPressedKeys.has('KeyW'),
+                    down: currentPressedKeys.has('ArrowDown') || currentPressedKeys.has('KeyS'),
+                    left: currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA'),
+                    right: currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD')
+                };
+
+                let newDesiredDirection = movementData.desiredDir;
+
+                // Detectar nueva pulsación de tecla (edge detection)
+                if (currentInput.up && !movementData.previousInputState.up) {
+                    newDesiredDirection = 'UP';
+                } else if (currentInput.down && !movementData.previousInputState.down) {
+                    newDesiredDirection = 'DOWN';
+                } else if (currentInput.left && !movementData.previousInputState.left) {
+                    newDesiredDirection = 'LEFT';
+                } else if (currentInput.right && !movementData.previousInputState.right) {
+                    newDesiredDirection = 'RIGHT';
+                }
+
+                // Actualizar estado de input anterior
+                movementData.previousInputState = { ...currentInput };
+
+                // Función para verificar si dos direcciones son opuestas
+                const areOppositeDirections = (dir1: string, dir2: string): boolean => {
+                    const opposites = {
+                        'UP': 'DOWN', 'DOWN': 'UP',
+                        'LEFT': 'RIGHT', 'RIGHT': 'LEFT'
+                    };
+                    return opposites[dir1] === dir2;
+                };
+
+                // Intentar cambiar dirección si tenemos una dirección deseada nueva
+                if (newDesiredDirection !== 'NONE' && newDesiredDirection !== movementData.currentDir) {
+                    // CASO ESPECIAL: Cambios de dirección opuesta son inmediatos
+                    if (areOppositeDirections(movementData.currentDir, newDesiredDirection)) {
+                        // Cambiar dirección opuesta inmediatamente sin verificar alineación
+                        movementData.currentDir = newDesiredDirection;
+                        movementData.desiredDir = 'NONE';
+                        console.log(`↩️ ${entity.template.name} cambió a dirección opuesta ${newDesiredDirection} (inmediato)`);
+                    } else {
+                        // CASO NORMAL: Cambios perpendiculares requieren alineación
+                        const isAligned = isAlignedToGridForTurning(entity, newDesiredDirection, tileSize);
+                        const canMove = canMoveFromAlignedPosition(entity, newDesiredDirection, tileSize, screenMap);
+
+                        if (isAligned && canMove) {
+                            // Cambiar dirección inmediatamente
+                            movementData.currentDir = newDesiredDirection;
+                            movementData.desiredDir = 'NONE';
+                            
+                            // Alinear a la grilla para giros limpios
+                            snapToGridAlignment(entity, newDesiredDirection, tileSize);
+                            
+                            console.log(`🔄 ${entity.template.name} cambió dirección a ${newDesiredDirection} (alineado)`);
+                        } else {
+                            // Encolar la dirección para más tarde
+                            movementData.desiredDir = newDesiredDirection;
+                            
+                            if (!isAligned) {
+                                console.log(`⏳ ${entity.template.name} encoló dirección ${newDesiredDirection} (no alineado)`);
+                            } else {
+                                console.log(`🚧 ${entity.template.name} encoló dirección ${newDesiredDirection} (camino bloqueado)`);
+                            }
                         }
                     }
+                }
 
-                    // Calcular en qué tile está el centro del sprite
-                    const centerX = Math.floor((entity.x + tileSize / 2) / tileSize);
-                    const centerY = Math.floor((entity.y + tileSize / 2) / tileSize);
+                // Resetear velocidad
+                entity.vx = 0;
+                entity.vy = 0;
 
-                    // ¿Se puede mover en desiredDir?
-                    if (canMove(centerX, centerY, entity.movementData.desiredDir, screenMap)) {
-                        entity.movementData.currentDir = entity.movementData.desiredDir;
+                // Moverse en la dirección actual si es posible
+                if (movementData.currentDir !== 'NONE') {
+                    const canContinue = canMoveFromAlignedPosition(entity, movementData.currentDir, tileSize, screenMap);
+
+                    if (canContinue) {
+                        // Aplicar movimiento
+                        entity.vx = DIRS[movementData.currentDir].x * speed;
+                        entity.vy = DIRS[movementData.currentDir].y * speed;
+                    } else {
+                        // No puede continuar, detener
+                        console.log(`🛑 ${entity.template.name} se detuvo (pared adelante)`);
+                        movementData.currentDir = 'NONE';
                     }
+                }
 
-                    const dir = entity.movementData.currentDir;
+                // Actualizar propiedades del componente para persistencia
+                if (!entity.instance.componentOverrides) {
+                    entity.instance.componentOverrides = {};
+                }
+                if (!entity.instance.componentOverrides['comp_pacMovement']) {
+                    entity.instance.componentOverrides['comp_pacMovement'] = {};
+                }
+                
+                entity.instance.componentOverrides['comp_pacMovement'].currentDirection = movementData.currentDir;
+                entity.instance.componentOverrides['comp_pacMovement'].desiredDirection = movementData.desiredDir;
 
-                    // Reset velocity
-                    entity.vx = 0;
-                    entity.vy = 0;
-
-                    // Apply movement if possible
-                    if (canMove(centerX, centerY, dir, screenMap)) {
-                        entity.vx = DIRS[dir].x * speed;
-                        entity.vy = DIRS[dir].y * speed;
-                    }
-
-                    // Update component properties for persistence
-                    if (entity.instance.componentOverrides?.['comp_pacMovement']) {
-                        entity.instance.componentOverrides['comp_pacMovement'].currentDirection = entity.movementData.currentDir;
-                        entity.instance.componentOverrides['comp_pacMovement'].desiredDirection = entity.movementData.desiredDir;
-                    }
+                // Mantener compatibilidad con el sistema anterior
+                if (entity.movementData) {
+                    entity.movementData.currentDir = movementData.currentDir;
+                    entity.movementData.desiredDir = movementData.desiredDir;
                 }
             });
         }
@@ -1424,6 +1675,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const activeEnginesRef = useRef<GameEngine[]>([]);
     const pendingSpawnsRef = useRef<EntityInstance[]>([]);
     const [entityCount, setEntityCount] = useState(0);
+    const [debugMode, setDebugMode] = useState(false);
 
     // Pac-Man style movement tracking
     const desiredDirection = useRef<string | null>(null);
@@ -1462,11 +1714,59 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         
         const componentId = wallCollisionComp.definitionId;
         const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
-        // Use smaller hitbox for Pac-Man style movement (12x12 instead of 16x16)
-        const hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
-        const hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
-        const offsetX = Number(props.offsetX) || 2; // Center the smaller hitbox
-        const offsetY = Number(props.offsetY) || 2;
+        
+        // Get hitbox values from sprite first, then fallback to collision component
+        let hitboxWidth = 12;
+        let hitboxHeight = 12;
+        let offsetX = 2;
+        let offsetY = 2;
+
+        // Try to get sprite hitbox values
+        let spriteAssetId: string | undefined;
+        
+        // Search in component overrides
+        if (entity.instance?.componentOverrides) {
+            for (const compId in entity.instance.componentOverrides) {
+                const compDef = componentDefinitions.find(c => c.id === compId);
+                const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                if (spriteProp && entity.instance.componentOverrides[compId]?.[spriteProp.name]) {
+                    spriteAssetId = entity.instance.componentOverrides[compId][spriteProp.name];
+                    break;
+                }
+            }
+        }
+        
+        // If not found in overrides, search in template defaults
+        if (!spriteAssetId) {
+            for (const comp of entity.template.components) {
+                const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                    spriteAssetId = comp.defaultValues[spriteProp.name];
+                    break;
+                }
+            }
+        }
+        
+        // Get sprite asset and use its hitbox values (solo si allAssets está disponible)
+        if (spriteAssetId && allAssets && allAssets.length > 0) {
+            const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+            const sprite = spriteAsset?.data as Sprite;
+            if (sprite?.hitbox) {
+                hitboxWidth = sprite.hitbox.width;
+                hitboxHeight = sprite.hitbox.height;
+                offsetX = sprite.hitbox.offsetX;
+                offsetY = sprite.hitbox.offsetY;
+            }
+        }
+
+        // Fallback: use collision component values if no sprite hitbox (with Pac-Man style adjustment)
+        if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
+            hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
+            hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
+            offsetX = Number(props.offsetX) || 2;
+            offsetY = Number(props.offsetY) || 2;
+        }
         
         // Check if new position would collide
         const entityLeft = nextX + offsetX;
@@ -1492,15 +1792,47 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     return false;
                 }
                 
+                // DEBUG: Check collision layer structure - always show when checking tiles
+                console.log(`🔍 DEBUG Collision vs Game Flow differences en (${tileX},${tileY}):`, {
+                    tilePos: { x: tileX, y: tileY },
+                    screenPlayTileSize: actualTileSize,
+                    gameFlowTileSize: 8, // Game Flow Preview uses TILE_SIZE = 8
+                    entityPixelPos: { x: entity.x, y: entity.y }
+                });
+                
                 // Use the same structure as the working collision system
                 const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
                 
-                // console.log(`🔍 Tile (${tileX}, ${tileY}): ${tileOnLayer ? `tileId="${tileOnLayer.tileId}"` : 'null'}`);
+                console.log(`🔍 Tile en (${tileX},${tileY}):`, tileOnLayer);
                 
-                // If tile exists and has a tileId, there's a collision
+                // If tile exists and has a tileId, check if it's actually solid (using Game Flow Preview logic)
                 if (tileOnLayer && tileOnLayer.tileId) {
-                    // console.log(`🔍 Collision found at tile (${tileX}, ${tileY}) with tileId="${tileOnLayer.tileId}"`);
-                    return false;
+                    console.log(`🧱 FORZANDO DEBUG - Tile encontrado: ${tileOnLayer.tileId}`);
+                    
+                    // Get tileset from allAssets (same as Game Flow Preview)
+                    const tileset = allAssets ? allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile) : [];
+                    const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+                    
+                    console.log(`🧱 Debug completo tile ${tileOnLayer.tileId}:`, {
+                        allAssetsCount: allAssets ? allAssets.length : 0,
+                        tileAssetsCount: allAssets ? allAssets.filter(a => a.type === 'tile').length : 0,
+                        tileset: tileset,
+                        tilesetLength: tileset.length,
+                        searchingFor: tileOnLayer.tileId,
+                        tile: tile,
+                        tileExists: !!tile,
+                        tileKeys: tile ? Object.keys(tile) : 'no tile found'
+                    });
+                    
+                    // Use the same logic as Game Flow Preview: check logicalProperties.isSolid
+                    const isSolid = tile?.logicalProperties?.isSolid ?? false;
+                    
+                    if (isSolid) {
+                        console.log(`🚧 Tile sólido encontrado en (${tileX},${tileY}), tileId: ${tileOnLayer.tileId}`);
+                        return false;
+                    } else {
+                        console.log(`🟢 Tile transitable en (${tileX},${tileY}), tileId: ${tileOnLayer.tileId}`);
+                    }
                 }
             }
         }
@@ -2035,11 +2367,59 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 if (wallCollisionComp && screenMap?.layers?.collision?.tiles) {
                     const componentId = wallCollisionComp.definitionId;
                     const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
-                    // Use smaller hitbox for Pac-Man style movement (12x12 instead of 16x16)
-                    const hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
-                    const hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
-                    const offsetX = Number(props.offsetX) || 2; // Center the smaller hitbox
-                    const offsetY = Number(props.offsetY) || 2;
+                    
+                    // Get hitbox values from sprite first, then fallback to collision component
+                    let hitboxWidth = 12;
+                    let hitboxHeight = 12;
+                    let offsetX = 2;
+                    let offsetY = 2;
+
+                    // Try to get sprite hitbox values
+                    let spriteAssetId: string | undefined;
+                    
+                    // Search in component overrides
+                    if (entity.instance?.componentOverrides) {
+                        for (const compId in entity.instance.componentOverrides) {
+                            const compDef = componentDefinitions.find(c => c.id === compId);
+                            const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                            if (spriteProp && entity.instance.componentOverrides[compId]?.[spriteProp.name]) {
+                                spriteAssetId = entity.instance.componentOverrides[compId][spriteProp.name];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // If not found in overrides, search in template defaults
+                    if (!spriteAssetId) {
+                        for (const comp of entity.template.components) {
+                            const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                            const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                            if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                                spriteAssetId = comp.defaultValues[spriteProp.name];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Get sprite asset and use its hitbox values (solo si allAssets está disponible)
+                    if (spriteAssetId && allAssets && allAssets.length > 0) {
+                        const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+                        const sprite = spriteAsset?.data as Sprite;
+                        if (sprite?.hitbox) {
+                            hitboxWidth = sprite.hitbox.width;
+                            hitboxHeight = sprite.hitbox.height;
+                            offsetX = sprite.hitbox.offsetX;
+                            offsetY = sprite.hitbox.offsetY;
+                        }
+                    }
+
+                    // Fallback: use collision component values if no sprite hitbox (with Pac-Man style adjustment)
+                    if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
+                        hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
+                        hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
+                        offsetX = Number(props.offsetX) || 2;
+                        offsetY = Number(props.offsetY) || 2;
+                    }
                     
                     // Check if new position would collide
                     const entityLeft = newX + offsetX;
@@ -2127,6 +2507,79 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     ctx.drawImage(imageToDraw, entity.x, entity.y);
                 }
                 
+                // Debug: Draw hitboxes when debug mode is enabled
+                if (debugMode) {
+                    // Get hitbox values from sprite first, then fallback to collision component
+                    let hitboxWidth = 16;
+                    let hitboxHeight = 16;
+                    let offsetX = 0;
+                    let offsetY = 0;
+                    
+                    // Try to get sprite hitbox values
+                    let spriteAssetId: string | undefined;
+                    
+                    // Search in component overrides
+                    if (entity.instance?.componentOverrides) {
+                        for (const compId in entity.instance.componentOverrides) {
+                            const compDef = componentDefinitions.find(c => c.id === compId);
+                            const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                            if (spriteProp && entity.instance.componentOverrides[compId]?.[spriteProp.name]) {
+                                spriteAssetId = entity.instance.componentOverrides[compId][spriteProp.name];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // If not found in overrides, search in template defaults
+                    if (!spriteAssetId) {
+                        for (const comp of entity.template.components) {
+                            const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                            const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                            if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                                spriteAssetId = comp.defaultValues[spriteProp.name];
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Get sprite asset and use its hitbox values (solo si allAssets está disponible)
+                    if (spriteAssetId && allAssets && allAssets.length > 0) {
+                        const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+                        const sprite = spriteAsset?.data as Sprite;
+                        if (sprite?.hitbox) {
+                            hitboxWidth = sprite.hitbox.width;
+                            hitboxHeight = sprite.hitbox.height;
+                            offsetX = sprite.hitbox.offsetX;
+                            offsetY = sprite.hitbox.offsetY;
+                        }
+                    }
+                    
+                    // Fallback: get from collision components
+                    if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
+                        const collisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision' || c.definitionId === 'comp_wall_collision');
+                        if (collisionComp) {
+                            const props = { ...collisionComp.defaultValues, ...(entity.instance?.componentOverrides?.[collisionComp.definitionId] || {}) };
+                            hitboxWidth = Number(props.hitboxWidth) || 16;
+                            hitboxHeight = Number(props.hitboxHeight) || 16;
+                            offsetX = Number(props.offsetX) || 0;
+                            offsetY = Number(props.offsetY) || 0;
+                        }
+                    }
+                    
+                    // Draw hitbox as semi-transparent gray rectangle
+                    ctx.save();
+                    ctx.fillStyle = 'rgba(128, 128, 128, 0.3)'; // Semi-transparent gray
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // White border
+                    ctx.lineWidth = 1;
+                    
+                    const hitboxX = entity.x + offsetX;
+                    const hitboxY = entity.y + offsetY;
+                    
+                    ctx.fillRect(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
+                    ctx.strokeRect(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
+                    ctx.restore();
+                }
+                
                 // Check if bullet entities should be cleaned up (off-screen)
                 if (entity.template.id === 'tpl_player_bullet') {
                     if (entity.y < -20 || entity.y > PREVIEW_HEIGHT + 20 || 
@@ -2147,7 +2600,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         };
-    }, [isOpen, screenMap, allAssets, currentScreenMode]);
+    }, [isOpen, screenMap, allAssets, currentScreenMode, debugMode]);
 
     if (!isOpen) return null;
 
@@ -2186,7 +2639,14 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         }}
                     />
                 </div>
-                <div className="flex items-center mt-4">
+                <div className="flex items-center justify-between mt-4">
+                    <Button 
+                        onClick={() => setDebugMode(!debugMode)} 
+                        variant={debugMode ? "primary" : "secondary"} 
+                        size="md"
+                    >
+                        {debugMode ? "Debug ON" : "Debug OFF"}
+                    </Button>
                     <Button onClick={onClose} variant="primary" size="md">Close</Button>
                 </div>
             </div>

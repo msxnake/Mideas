@@ -149,6 +149,13 @@ export interface Sprite {
   attributes?: Record<string, any>;
   /** The default facing direction of the sprite. */
   facingDirection?: FacingDirection;
+  /** Hitbox configuration for collision detection. */
+  hitbox?: {
+    width: number;
+    height: number;
+    offsetX: number;
+    offsetY: number;
+  };
   /** Whether the sprite is mirrored horizontally by default. */
   mirroredHorizontally?: boolean;
   /** Whether the sprite is mirrored vertically by default. */

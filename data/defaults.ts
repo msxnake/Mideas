@@ -361,7 +361,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_pos", defaultValues: {x: 32, y: 32}}, 
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_pacman", isVisible: true, layer: 1 }},
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
-      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 16, stopOnCollision: true }},
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true }},
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
       { definitionId: "comp_pacMovement", defaultValues: { speed: 2, currentDirection: "NONE", desiredDirection: "NONE", isEnabled: true }},
       { definitionId: "comp_rotate", defaultValues: { rotation: 0, facingDirection: 0 }}

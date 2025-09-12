@@ -1242,6 +1242,86 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               </label>
             </div>
           </Panel>
+          <Panel title="Hitbox Settings">
+            <div className="space-y-2 text-xs">
+              <label className="flex items-center justify-between">
+                <span>Width</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={sprite.size.width}
+                  value={sprite.hitbox?.width ?? sprite.size.width}
+                  onChange={e => onUpdate({ 
+                    hitbox: { 
+                      ...sprite.hitbox, 
+                      width: parseInt(e.target.value) || sprite.size.width,
+                      height: sprite.hitbox?.height ?? sprite.size.height,
+                      offsetX: sprite.hitbox?.offsetX ?? 0,
+                      offsetY: sprite.hitbox?.offsetY ?? 0
+                    } 
+                  })}
+                  className="w-16 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                />
+              </label>
+              <label className="flex items-center justify-between">
+                <span>Height</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={sprite.size.height}
+                  value={sprite.hitbox?.height ?? sprite.size.height}
+                  onChange={e => onUpdate({ 
+                    hitbox: { 
+                      ...sprite.hitbox, 
+                      width: sprite.hitbox?.width ?? sprite.size.width,
+                      height: parseInt(e.target.value) || sprite.size.height,
+                      offsetX: sprite.hitbox?.offsetX ?? 0,
+                      offsetY: sprite.hitbox?.offsetY ?? 0
+                    } 
+                  })}
+                  className="w-16 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                />
+              </label>
+              <label className="flex items-center justify-between">
+                <span>Offset X</span>
+                <input
+                  type="number"
+                  min={-(sprite.size.width)}
+                  max={sprite.size.width}
+                  value={sprite.hitbox?.offsetX ?? 0}
+                  onChange={e => onUpdate({ 
+                    hitbox: { 
+                      ...sprite.hitbox, 
+                      width: sprite.hitbox?.width ?? sprite.size.width,
+                      height: sprite.hitbox?.height ?? sprite.size.height,
+                      offsetX: parseInt(e.target.value) || 0,
+                      offsetY: sprite.hitbox?.offsetY ?? 0
+                    } 
+                  })}
+                  className="w-16 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                />
+              </label>
+              <label className="flex items-center justify-between">
+                <span>Offset Y</span>
+                <input
+                  type="number"
+                  min={-(sprite.size.height)}
+                  max={sprite.size.height}
+                  value={sprite.hitbox?.offsetY ?? 0}
+                  onChange={e => onUpdate({ 
+                    hitbox: { 
+                      ...sprite.hitbox, 
+                      width: sprite.hitbox?.width ?? sprite.size.width,
+                      height: sprite.hitbox?.height ?? sprite.size.height,
+                      offsetX: sprite.hitbox?.offsetX ?? 0,
+                      offsetY: parseInt(e.target.value) || 0
+                    } 
+                  })}
+                  className="w-16 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                />
+              </label>
+            </div>
+          </Panel>
           <Panel title="Animation Tools">
             <div className="text-center">
               {currentFrameData && sprite.size.width > 0 && sprite.size.height > 0 ? (
