@@ -242,12 +242,45 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   },
   {
     id: "comp_pacMovement", name: "Pac-Man Movement",
-    description: "Implements Pac-Man style movement with direction intention and tile-based collision.",
+    description: "Implements advanced Pac-Man style movement with direction intention, tile-based collision checks every 8 pixels, and pixel-perfect movement at 60fps.",
     properties: [
-      { name: "speed", type: 'byte', defaultValue: '2', description: "Movement speed in pixels per frame." },
+      { name: "speed", type: 'byte', defaultValue: '1', description: "Movement speed in pixels per frame (at 60fps)." },
       { name: "currentDirection", type: 'string', defaultValue: 'NONE', description: "Current movement direction (NONE, LEFT, RIGHT, UP, DOWN)." },
       { name: "desiredDirection", type: 'string', defaultValue: 'NONE', description: "Desired movement direction for next valid turn." },
+      { name: "pixelCounter", type: 'byte', defaultValue: '0', description: "Counter for position relative to 8x8 character grid (0-7)." },
+      { name: "velocityX", type: 'byte', defaultValue: '0', description: "Current horizontal velocity (-speed to +speed)." },
+      { name: "velocityY", type: 'byte', defaultValue: '0', description: "Current vertical velocity (-speed to +speed)." },
+      { name: "canTurnOnPixel", type: 'boolean', defaultValue: 'true', description: "Whether direction changes are allowed on current pixel." },
+      { name: "stopOnWall", type: 'boolean', defaultValue: 'true', description: "Stop movement when hitting wall if no input." },
+      { name: "allowReverse", type: 'boolean', defaultValue: 'true', description: "Allow immediate reverse direction without collision check." },
+      { name: "tileSize", type: 'byte', defaultValue: '8', description: "Size of tiles for collision checking (8x8 for MSX)." },
       { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether Pac-Man movement is active." }
+    ],
+  },
+  {
+    id: "comp_PacmanMovementV2", name: "PacmanMovementV2",
+    description: "Advanced Pac-Man movement system with pixel-perfect collision detection every 8 pixels, direction intention system, and 60fps smooth movement for MSX games.",
+    properties: [
+      { name: "speed", type: 'byte', defaultValue: '1', description: "Movement speed in pixels per frame at 60fps" },
+      { name: "currentDirection", type: 'string', defaultValue: 'NONE', description: "Current movement direction: NONE, LEFT, RIGHT, UP, DOWN" },
+      { name: "desiredDirection", type: 'string', defaultValue: 'NONE', description: "Player's desired direction for next turn opportunity" },
+      { name: "pixelCounter", type: 'byte', defaultValue: '0', description: "Position counter relative to 8x8 character grid (0-7)" },
+      { name: "velocityX", type: 'byte', defaultValue: '0', description: "Current horizontal velocity (-speed to +speed)" },
+      { name: "velocityY", type: 'byte', defaultValue: '0', description: "Current vertical velocity (-speed to +speed)" },
+      { name: "canTurnOnPixel", type: 'boolean', defaultValue: 'true', description: "Whether direction changes are allowed on current pixel" },
+      { name: "stopOnWall", type: 'boolean', defaultValue: 'true', description: "Stop movement when hitting wall if no input pressed" },
+      { name: "allowReverse", type: 'boolean', defaultValue: 'true', description: "Allow immediate reverse direction without collision check" },
+      { name: "tileSize", type: 'byte', defaultValue: '8', description: "Size of tiles for collision checking (8x8 for MSX)" },
+      { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether Pac-Man movement system is active" }
+    ],
+  },
+  {
+    id: "comp_PacmanRotationV2", name: "PacmanRotationV2",
+    description: "Automatic sprite rotation based on Pac-Man movement direction with MSX-compatible angles.",
+    properties: [
+      { name: "rotation", type: 'byte', defaultValue: '0', description: "Current rotation angle: 0=right, 90=up, 180=left, 270=down" },
+      { name: "facingDirection", type: 'byte', defaultValue: '0', description: "Current facing direction: 0=right, 1=up, 2=left, 3=down" },
+      { name: "autoRotate", type: 'boolean', defaultValue: 'true', description: "Automatically rotate sprite based on movement direction" }
     ],
   }
 ];
@@ -361,11 +394,50 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_pos", defaultValues: {x: 32, y: 32}}, 
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_pacman", isVisible: true, layer: 1 }},
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
-      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true }},
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 16, hitboxHeight: 16, offsetX: 0, offsetY: 0, tileSize: 8, stopOnCollision: true }},
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
-      { definitionId: "comp_pacMovement", defaultValues: { speed: 2, currentDirection: "NONE", desiredDirection: "NONE", isEnabled: true }},
-      { definitionId: "comp_rotate", defaultValues: { rotation: 0, facingDirection: 0 }}
+      { definitionId: "comp_pacMovement", defaultValues: { 
+        speed: 1, 
+        currentDirection: "NONE", 
+        desiredDirection: "NONE", 
+        pixelCounter: 0,
+        velocityX: 0,
+        velocityY: 0,
+        canTurnOnPixel: true,
+        stopOnWall: true,
+        allowReverse: true,
+        tileSize: 8,
+        isEnabled: true 
+      }},
+      { definitionId: "comp_rotate", defaultValues: { rotation: 0, facingDirection: 0 }},
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "pacman_idle", animationSpeed: "6", loops: true, isPlaying: true }}
     ],
-    description: "A Pac-Man style player with direction intention and tile-based movement."
+    description: "Advanced Pac-Man player with pixel-perfect movement, 8-pixel collision checks, direction intention system, and 60fps smooth movement. Sprite size should be 16x16 pixels."
+  },
+  {
+    id: "tpl_PacmanPlayerV2", name: "PacmanPlayerV2", icon: "🟡",
+    components: [
+      { definitionId: "comp_pos", defaultValues: {x: 32, y: 32}}, 
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "pacman_sprite_16x16", isVisible: true, layer: 1 }},
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 16, hitboxHeight: 16, offsetX: 0, offsetY: 0, tileSize: 8, stopOnCollision: true }},
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
+      { definitionId: "comp_PacmanMovementV2", defaultValues: { 
+        speed: 1, 
+        currentDirection: "NONE", 
+        desiredDirection: "NONE", 
+        pixelCounter: 0,
+        velocityX: 0,
+        velocityY: 0,
+        canTurnOnPixel: true,
+        stopOnWall: true,
+        allowReverse: true,
+        tileSize: 8,
+        isEnabled: true 
+      }},
+      { definitionId: "comp_PacmanRotationV2", defaultValues: { rotation: 0, facingDirection: 0, autoRotate: true }},
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "pacman_idle", animationSpeed: "6", loops: true, isPlaying: true }}
+    ],
+    description: "Advanced Pac-Man player with pixel-perfect movement, 8-pixel collision checks, direction intention system, and 60fps smooth movement. Optimized for MSX Screen 2 mode with 16x16 sprites."
   },
 ];
