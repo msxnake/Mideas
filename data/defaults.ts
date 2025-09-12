@@ -239,6 +239,16 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "rotation", type: 'byte', defaultValue: '0', description: "Current rotation angle in degrees (0=right, 90=up, 180=left, 270=down)." },
       { name: "facingDirection", type: 'byte', defaultValue: '0', description: "Current facing direction (0=right, 1=up, 2=left, 3=down)." }
     ],
+  },
+  {
+    id: "comp_pacMovement", name: "Pac-Man Movement",
+    description: "Implements Pac-Man style movement with direction intention and tile-based collision.",
+    properties: [
+      { name: "speed", type: 'byte', defaultValue: '2', description: "Movement speed in pixels per frame." },
+      { name: "currentDirection", type: 'string', defaultValue: 'NONE', description: "Current movement direction (NONE, LEFT, RIGHT, UP, DOWN)." },
+      { name: "desiredDirection", type: 'string', defaultValue: 'NONE', description: "Desired movement direction for next valid turn." },
+      { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether Pac-Man movement is active." }
+    ],
   }
 ];
 
@@ -344,5 +354,18 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_inventory", defaultValues: { maxItems: 255, currentItemCount: 0, showCountOnScreen: true, countDisplayX: 1, countDisplayY: 1, scorePerItem: 10, totalScore: 0 }}
     ],
     description: "A Pac-Man style player that collects items by walking over tiles. Perfect for maze-based collection games."
+  },
+  {
+    id: "tpl_pacman_player", name: "Pac-Man Player", icon: "🟡",
+    components: [
+      { definitionId: "comp_pos", defaultValues: {x: 32, y: 32}}, 
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_pacman", isVisible: true, layer: 1 }},
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 16, stopOnCollision: true }},
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
+      { definitionId: "comp_pacMovement", defaultValues: { speed: 2, currentDirection: "NONE", desiredDirection: "NONE", isEnabled: true }},
+      { definitionId: "comp_rotate", defaultValues: { rotation: 0, facingDirection: 0 }}
+    ],
+    description: "A Pac-Man style player with direction intention and tile-based movement."
   },
 ];
