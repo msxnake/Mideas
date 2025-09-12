@@ -715,8 +715,11 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 
     wallCollision: {
   id: 'wallCollision',
-  name: 'Wall Collision Engine (axis-separated)',
+  name: 'Wall Collision Engine (TEMPORARILY DISABLED)',
   execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap) => {
+    // TEMPORARILY DISABLED FOR TESTING - Pac-Man Movement only
+    console.log('🔇 Wall Collision System temporalmente desactivado');
+    return;
     if (!screenMap || !screenMap.layers?.collision) return;
 
     const tileLayer = screenMap.layers.collision;
@@ -1261,7 +1264,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     }
                 }
                 
-                // Fallback: usar valores del wall collision component
+                // Fallback: usar valores del wall collision component si existe, sino valores por defecto
                 const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
                 if (wallCollisionComp) {
                     const wallProps = { 
@@ -1276,7 +1279,17 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         offsetX = Number(wallProps.offsetX) || offsetX;
                         offsetY = Number(wallProps.offsetY) || offsetY;
                     }
-                    actualTileSize = Number(wallProps.tileSize) || 8; // Siempre usar tileSize del wall collision
+                    actualTileSize = Number(wallProps.tileSize) || 8;
+                } else {
+                    // No wall collision component - use sprite hitbox or reasonable defaults
+                    console.log(`⚠️ ${entity.template.name} no tiene comp_wall_collision, usando valores por defecto`);
+                    actualTileSize = 8; // MSX standard tile size
+                    if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
+                        hitboxWidth = 12; // Pac-Man default size
+                        hitboxHeight = 12;
+                        offsetX = 2;
+                        offsetY = 2;
+                    }
                 }
 
                 // Calcular posición de prueba alineada
@@ -1350,17 +1363,55 @@ const AVAILABLE_ENGINES: EngineRegistry = {
              * Alinea una entidad a la grilla para giros limpios
              */
             const snapToGridAlignment = (entity: any, direction: string, tileSize: number) => {
+                let hitboxWidth = 12;  // Default Pac-Man size
+                let hitboxHeight = 12;
+                
+                // Try to get hitbox from sprite first
+                let spriteAssetId: string | undefined;
+                
+                // Search in component overrides
+                if (entity.instance?.componentOverrides) {
+                    for (const compId in entity.instance.componentOverrides) {
+                        const compDef = componentDefinitions.find(c => c.id === compId);
+                        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                        if (spriteProp && entity.instance.componentOverrides[compId]?.[spriteProp.name]) {
+                            spriteAssetId = entity.instance.componentOverrides[compId][spriteProp.name];
+                            break;
+                        }
+                    }
+                }
+                
+                // If not found in overrides, search in template defaults
+                if (!spriteAssetId) {
+                    for (const comp of entity.template.components) {
+                        const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                            spriteAssetId = comp.defaultValues[spriteProp.name];
+                            break;
+                        }
+                    }
+                }
+                
+                // Get sprite asset and use its hitbox values
+                if (spriteAssetId && allAssets && allAssets.length > 0) {
+                    const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+                    const sprite = spriteAsset?.data as Sprite;
+                    if (sprite?.hitbox) {
+                        hitboxWidth = sprite.hitbox.width;
+                        hitboxHeight = sprite.hitbox.height;
+                    }
+                }
+                
+                // Fallback to wall collision component if exists
                 const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
-                let hitboxWidth = 16;
-                let hitboxHeight = 16;
-
-                if (wallCollisionComp) {
+                if (wallCollisionComp && (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox)) {
                     const wallProps = { 
                         ...wallCollisionComp.defaultValues, 
                         ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) 
                     };
-                    hitboxWidth = Number(wallProps.hitboxWidth) || 16;
-                    hitboxHeight = Number(wallProps.hitboxHeight) || 16;
+                    hitboxWidth = Number(wallProps.hitboxWidth) || hitboxWidth;
+                    hitboxHeight = Number(wallProps.hitboxHeight) || hitboxHeight;
                 }
 
                 if (direction === 'UP' || direction === 'DOWN') {
@@ -1396,9 +1447,9 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 const movementData = entity.enhancedMovementData;
                 const speed = Number(pacProps.speed) || 2;
                 
-                // Obtener el tileSize correcto del componente wall_collision
+                // Obtener el tileSize correcto (independiente del componente wall_collision)
                 const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
-                let tileSize = 16; // Default fallback
+                let tileSize = 8; // MSX standard tile size default
                 
                 if (wallCollisionComp) {
                     const wallProps = { 
@@ -1406,8 +1457,13 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) 
                     };
                     tileSize = Number(wallProps.tileSize) || 8; // Usar el tileSize del wall collision
-                    
-                    // DEBUG: Mostrar todos los valores del hitbox
+                } else {
+                    console.log(`⚠️ ${entity.template.name} funciona sin comp_wall_collision, usando tileSize=${tileSize}`);
+                }
+                
+                // DEBUG: Mostrar todos los valores del hitbox (solo si existe wallCollisionComp)
+                if (wallCollisionComp) {
+                    const wallProps = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) };
                     console.log(`🔧 Hitbox Debug:`, {
                         entityName: entity.template.name,
                         templateDefaults: wallCollisionComp.defaultValues,
@@ -1418,7 +1474,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     });
                 }
                 
-                console.log(`🎮 Entidad ${entity.template.name}: tileSize=${tileSize}, speed=${speed}`);
+                console.log(`🎮 Entidad ${entity.template.name}: tileSize=${tileSize}, speed=${speed}, hasWallCollision=${!!wallCollisionComp}`);
 
                 // Detectar nueva entrada de dirección (edge-triggered)
                 const currentInput = {
@@ -1807,25 +1863,14 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 
                 // If tile exists and has a tileId, check if it's actually solid (using Game Flow Preview logic)
                 if (tileOnLayer && tileOnLayer.tileId) {
-                    console.log(`🧱 FORZANDO DEBUG - Tile encontrado: ${tileOnLayer.tileId}`);
-                    
                     // Get tileset from allAssets (same as Game Flow Preview)
                     const tileset = allAssets ? allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile) : [];
                     const tile = tileset.find(t => t.id === tileOnLayer.tileId);
                     
-                    console.log(`🧱 Debug completo tile ${tileOnLayer.tileId}:`, {
-                        allAssetsCount: allAssets ? allAssets.length : 0,
-                        tileAssetsCount: allAssets ? allAssets.filter(a => a.type === 'tile').length : 0,
-                        tileset: tileset,
-                        tilesetLength: tileset.length,
-                        searchingFor: tileOnLayer.tileId,
-                        tile: tile,
-                        tileExists: !!tile,
-                        tileKeys: tile ? Object.keys(tile) : 'no tile found'
-                    });
-                    
                     // Use the same logic as Game Flow Preview: check logicalProperties.isSolid
                     const isSolid = tile?.logicalProperties?.isSolid ?? false;
+                    
+                    console.log(`🧱 Pac-Man Movement - Tile ${tileOnLayer.tileId} en (${tileX},${tileY}): isSolid=${isSolid}`);
                     
                     if (isSolid) {
                         console.log(`🚧 Tile sólido encontrado en (${tileX},${tileY}), tileId: ${tileOnLayer.tileId}`);
@@ -2362,9 +2407,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 let newX = entity.x + entity.vx;
                 let newY = entity.y + entity.vy;
                 
-                // Check collision for the new position
-                const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision' || c.definitionId === 'comp_collision');
-                if (wallCollisionComp && screenMap?.layers?.collision?.tiles) {
+                // Check collision for the new position - TEMPORARILY DISABLED FOR TESTING
+                console.log('🔇 Movement Update Collision temporalmente desactivado - usando solo Wall Collision');
+                // DISABLED: const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision' || c.definitionId === 'comp_collision');
+                if (false && wallCollisionComp && screenMap?.layers?.collision?.tiles) {
                     const componentId = wallCollisionComp.definitionId;
                     const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
                     
