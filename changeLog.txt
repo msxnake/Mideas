@@ -75,3 +75,34 @@ Versión 0.19 - 31/8/2025
 - feat: Add Copy/Paste functionality for Boss Editor phases
 - feat: Link Boss to screen for preview and update version
 - feat: Align ScreenEditor grid and update version
+
+Versión 0.238 - 13/9/2025
+- pacman2
+- bugs collision
+- prueba collision
+- varis, abans de gemini wallCollision
+- canvis  motor wallcollision
+- mejorando codigo asm
+- Add Play button to Screen Editor with dynamic game engine system
+- bugs 5
+- bugs 3
+- bug 2
+- bugs
+- state m 1
+- state machine rev 2
+- feat: Add import/export functionality for pt3tracker
+- Fix instruments always sounding like a piano
+- docs: Add JSDoc comments and update README
+- control_hero and gravity
+- fix: Restore all lost game-play features
+- feat(game-preview): Implement gravity physics
+- feat: Restore game preview, hero controls, and collision system
+- feat(components): Add import/export and fix TileBankEditor
+- fix(components): Add missing icons for import/export buttons
+- feat(components): Add import/export for component definitions
+- feat(game-preview): Implement collision detection system
+- feat(state-machine): Add presets for common events
+- refactor(game-preview): Drive entity movement from state machine properties
+- feat(game-preview): Implement player controls and state machine for Hero entity
+- feat(ecs): Add 'statemachine_ref' as a component property type
+- canvi de tecles per salvar tiles individualment
