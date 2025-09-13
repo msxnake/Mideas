@@ -10003,14 +10003,14 @@
           ]
         ],
         "logicalProperties": {
-          "mapId": 0,
+          "mapId": 8,
           "familyId": 0,
-          "instanceId": 0,
+          "instanceId": 8,
           "isSolid": false,
           "isBreakable": false,
           "causesDamage": false,
           "isMovable": false,
-          "isInteractiveSwitch": false
+          "isInteractiveSwitch": true
         }
       }
     },
@@ -26215,8 +26215,8 @@
     }
   ],
   "currentScreenMode": "SCREEN 2 (Graphics I)",
-  "selectedAssetId": "statemachine_1756728818358",
-  "currentEditor": "StateMachine",
+  "selectedAssetId": "dot",
+  "currentEditor": "Tile",
   "tileBanks": [
     {
       "id": "bank_hud",

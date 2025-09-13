@@ -2,7 +2,7 @@
 
 This file documents all the locations where the version number needs to be updated when releasing a new version.
 
-## Current Version: 0.238
+## Current Version: 0.239
 
 ## Files to Update:
 
@@ -39,6 +39,12 @@ You can use find/replace across the project:
 **IMPORTANT**: When asked to "incrementar version" or "increment version":
 - Always increment by 0.001 (e.g., 0.23 → 0.231)
 - This is the standard increment for this project
+
+## Pregunta al usuario:
+1. ¿quieres actualizar changeLog.txt?
+2. Si responde "sí" o "yes":
+  -   ejecuta "node generateChangeLog.js"
+  
 
 ## Git Workflow:
 

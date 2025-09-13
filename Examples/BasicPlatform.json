@@ -52652,12 +52652,12 @@
             "toDirection": "west"
           }
         ],
-        "startScreenNodeId": null,
+        "startScreenNodeId": "wmnode_1754825973142",
         "gridSize": 40,
-        "zoomLevel": 1.218411358592631,
+        "zoomLevel": 1.5980392156862746,
         "panOffset": {
-          "x": -231.3125143732949,
-          "y": 181.5336682618514
+          "x": -209.99999999999994,
+          "y": 228
         }
       }
     },
@@ -60348,11 +60348,11 @@
     },
     {
       "id": "sprite_1754938056148",
-      "name": "New Sprite",
+      "name": "minipotato",
       "type": "sprite",
       "data": {
         "id": "sprite_1754938056148",
-        "name": "New Sprite",
+        "name": "minipotato",
         "size": {
           "width": 16,
           "height": 16
@@ -399209,322 +399209,6 @@
       }
     },
     {
-      "id": "sprite_1756036049019",
-      "name": "New Sprite",
-      "type": "sprite",
-      "data": {
-        "id": "sprite_1756036049019",
-        "name": "New Sprite",
-        "size": {
-          "width": 16,
-          "height": 16
-        },
-        "spritePalette": [
-          "#000000",
-          "#3EB847",
-          "#FC584A",
-          "#FFFFFF"
-        ],
-        "backgroundColor": "rgba(0,0,0,0)",
-        "frames": [
-          {
-            "id": "frame_1756036049019",
-            "data": [
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ],
-              [
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)",
-                "rgba(0,0,0,0)"
-              ]
-            ]
-          }
-        ],
-        "currentFrameIndex": 0
-      }
-    },
-    {
       "id": "tile_1756055623548",
       "name": "New Tile",
       "type": "tile",
@@ -400986,7 +400670,7 @@
           },
           {
             "type": "SubMenu",
-            "title": "",
+            "title": "LABERINTO",
             "options": [
               {
                 "id": "opt_1",
@@ -401000,21 +400684,12 @@
             "id": "gfn_1756129867534",
             "position": {
               "x": 320,
-              "y": 120
-            }
-          },
-          {
-            "type": "WorldLink",
-            "worldAssetId": "screenmap_1754755287165",
-            "id": "gfn_1756129920310",
-            "position": {
-              "x": 600,
               "y": 80
             }
           },
           {
             "type": "SubMenu",
-            "title": "",
+            "title": "CHOOSE",
             "options": [
               {
                 "id": "opt_1",
@@ -401033,20 +400708,29 @@
           },
           {
             "type": "WorldLink",
-            "worldAssetId": "screenmap_1752520188906",
-            "id": "gfn_1756148086394",
+            "worldAssetId": "worldmap_1755255512987",
+            "id": "gfn_1757756505909",
             "position": {
-              "x": 880,
-              "y": 160
+              "x": 600,
+              "y": 80
             }
           },
           {
             "type": "WorldLink",
-            "worldAssetId": "screenmap_random_1_2_1755255524322",
-            "id": "gfn_1756148094913",
+            "worldAssetId": "worldmap_1755255512987",
+            "id": "gfn_1757756540556",
             "position": {
-              "x": 880,
-              "y": 320
+              "x": 960,
+              "y": 200
+            }
+          },
+          {
+            "type": "WorldLink",
+            "worldAssetId": "worldmap_1754825914797",
+            "id": "gfn_1757756546349",
+            "position": {
+              "x": 960,
+              "y": 360
             }
           }
         ],
@@ -401062,16 +400746,6 @@
             }
           },
           {
-            "id": "gfc_1756129924786",
-            "from": {
-              "nodeId": "gfn_1756129867534",
-              "sourceId": "opt_1"
-            },
-            "to": {
-              "nodeId": "gfn_1756129920310"
-            }
-          },
-          {
             "id": "gfc_1756129950490",
             "from": {
               "nodeId": "gfn_1756129867534",
@@ -401082,79 +400756,37 @@
             }
           },
           {
-            "id": "gfc_1756148100294",
+            "id": "gfc_1757756515834",
+            "from": {
+              "nodeId": "gfn_1756129867534",
+              "sourceId": "opt_1"
+            },
+            "to": {
+              "nodeId": "gfn_1757756505909"
+            }
+          },
+          {
+            "id": "gfc_1757756551299",
             "from": {
               "nodeId": "gfn_1756129944430",
               "sourceId": "opt_1"
             },
             "to": {
-              "nodeId": "gfn_1756148086394"
+              "nodeId": "gfn_1757756540556"
             }
           },
           {
-            "id": "gfc_1756148102629",
+            "id": "gfc_1757756562127",
             "from": {
               "nodeId": "gfn_1756129944430",
               "sourceId": "opt_1756148062985"
             },
             "to": {
-              "nodeId": "gfn_1756148094913"
+              "nodeId": "gfn_1757756546349"
             }
           }
         ],
         "startNodeId": "gf_start_1756129860022",
-        "panOffset": {
-          "x": 0,
-          "y": 0
-        },
-        "zoomLevel": 1
-      }
-    },
-    {
-      "id": "gameflow_1756132686635",
-      "name": "New Gameflow",
-      "type": "gameflow",
-      "data": {
-        "id": "gameflow_1756132686635",
-        "name": "New Gameflow",
-        "nodes": [
-          {
-            "id": "gf_start_1756132686635",
-            "type": "Start",
-            "position": {
-              "x": 40,
-              "y": 40
-            }
-          },
-          {
-            "type": "SubMenu",
-            "title": "Nuevo Menú",
-            "options": [
-              {
-                "id": "opt_1",
-                "text": "Opción 1"
-              }
-            ],
-            "id": "gfn_1756132703708",
-            "position": {
-              "x": 320,
-              "y": 80
-            }
-          }
-        ],
-        "connections": [
-          {
-            "id": "gfc_1756132707016",
-            "from": {
-              "nodeId": "gf_start_1756132686635",
-              "sourceId": "out"
-            },
-            "to": {
-              "nodeId": "gfn_1756132703708"
-            }
-          }
-        ],
-        "startNodeId": "gf_start_1756132686635",
         "panOffset": {
           "x": 0,
           "y": 0
@@ -408909,11 +408541,11 @@
     },
     {
       "id": "sprite_1756133339179",
-      "name": "New Sprite",
+      "name": "blackDuck",
       "type": "sprite",
       "data": {
         "id": "sprite_1756133339179",
-        "name": "New Sprite",
+        "name": "blackDuck",
         "size": {
           "width": 16,
           "height": 16
@@ -414824,8 +414456,8 @@
     }
   ],
   "currentScreenMode": "SCREEN 2 (Graphics I)",
-  "selectedAssetId": "boss_1753979520599",
-  "currentEditor": "Boss",
+  "selectedAssetId": "sprite_1756133339179",
+  "currentEditor": "Sprite",
   "tileBanks": [
     {
       "id": "bank_hud",
@@ -426618,7 +426250,50 @@
           "description": "Bitmask defining which layers this entity can collide with."
         }
       ],
-      "description": "Defines the physical shape and interaction rules for an entity."
+      "description": "Defines the physical shape and interaction rules for entity-to-entity collisions."
+    },
+    {
+      "id": "comp_wall_collision",
+      "name": "Wall Collision",
+      "properties": [
+        {
+          "name": "hitboxWidth",
+          "type": "byte",
+          "defaultValue": "16",
+          "description": "Width of the collision bounding box for wall detection."
+        },
+        {
+          "name": "hitboxHeight",
+          "type": "byte",
+          "defaultValue": "16",
+          "description": "Height of the collision bounding box for wall detection."
+        },
+        {
+          "name": "offsetX",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Horizontal offset of the hitbox from the entity's origin."
+        },
+        {
+          "name": "offsetY",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Vertical offset of the hitbox from the entity's origin."
+        },
+        {
+          "name": "tileSize",
+          "type": "byte",
+          "defaultValue": "8",
+          "description": "Size of tiles in the collision layer (usually 8x8 for MSX)."
+        },
+        {
+          "name": "stopOnCollision",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether to stop entity movement when hitting a wall."
+        }
+      ],
+      "description": "Defines collision detection with solid tiles in the collision layer (walls, obstacles)."
     },
     {
       "id": "comp_physics",
@@ -426776,31 +426451,31 @@
         },
         {
           "name": "waypoint1_x",
-          "type": "byte",
+          "type": "word",
           "defaultValue": "0",
           "description": "Start X coordinate or min corner of box."
         },
         {
           "name": "waypoint1_y",
-          "type": "byte",
+          "type": "word",
           "defaultValue": "0",
           "description": "Start Y coordinate or min corner of box."
         },
         {
           "name": "waypoint2_x",
-          "type": "byte",
+          "type": "word",
           "defaultValue": "64",
           "description": "End X coordinate or max corner of box."
         },
         {
           "name": "waypoint2_y",
-          "type": "byte",
+          "type": "word",
           "defaultValue": "0",
           "description": "End Y coordinate or max corner of box."
         },
         {
           "name": "patrolSpeed",
-          "type": "byte",
+          "type": "word",
           "defaultValue": "50",
           "description": "Movement speed during patrol."
         },
@@ -426891,53 +426566,1006 @@
           "description": "ID of the sound asset to play on bounce."
         }
       ]
+    },
+    {
+      "id": "comp_statemachine",
+      "name": "StateMachine",
+      "description": "Connects an entity to a state machine for behavior control.",
+      "properties": [
+        {
+          "name": "stateMachineAssetId",
+          "type": "statemachine_ref",
+          "defaultValue": "",
+          "description": "ID of the state machine asset to use."
+        },
+        {
+          "name": "currentStateId",
+          "type": "string",
+          "defaultValue": "Idle",
+          "description": "ID of the current active state. Auto-selected from available states."
+        },
+        {
+          "name": "isEnabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether the state machine is currently active."
+        }
+      ]
+    },
+    {
+      "id": "comp_cursors",
+      "name": "Cursors",
+      "description": "Marks an entity as player-controllable with cursor/arrow keys.",
+      "properties": [
+        {
+          "name": "isEnabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether cursor control is active."
+        },
+        {
+          "name": "speed",
+          "type": "byte",
+          "defaultValue": "2",
+          "description": "Movement speed in pixels per frame."
+        }
+      ]
+    },
+    {
+      "id": "comp_spawner",
+      "name": "Spawner",
+      "description": "Spawns entities at random positions within a defined zone at regular intervals.",
+      "properties": [
+        {
+          "name": "spawnRate",
+          "type": "word",
+          "defaultValue": "3000",
+          "description": "Milliseconds between spawns."
+        },
+        {
+          "name": "maxEntities",
+          "type": "byte",
+          "defaultValue": "5",
+          "description": "Maximum entities to spawn simultaneously."
+        },
+        {
+          "name": "spawnZoneX",
+          "type": "word",
+          "defaultValue": "0",
+          "description": "Spawn zone X coordinate in pixels (0 = random across screen)."
+        },
+        {
+          "name": "spawnZoneY",
+          "type": "word",
+          "defaultValue": "0",
+          "description": "Spawn zone Y coordinate in pixels (0 = random across screen)."
+        },
+        {
+          "name": "spawnZoneWidth",
+          "type": "word",
+          "defaultValue": "0",
+          "description": "Spawn zone width in pixels (0 = full screen width)."
+        },
+        {
+          "name": "spawnZoneHeight",
+          "type": "word",
+          "defaultValue": "0",
+          "description": "Spawn zone height in pixels (0 = full screen height)."
+        },
+        {
+          "name": "entityTemplateId",
+          "type": "entity_template_ref",
+          "defaultValue": "tpl_enemy_basic",
+          "description": "Template ID of entity to spawn."
+        },
+        {
+          "name": "isActive",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether spawning is currently active."
+        },
+        {
+          "name": "spawnOnStart",
+          "type": "boolean",
+          "defaultValue": "false",
+          "description": "Spawn an entity immediately when the game starts."
+        }
+      ]
+    },
+    {
+      "id": "comp_tile_collector",
+      "name": "Tile Collector",
+      "description": "Allows an entity to collect items by walking over specific tiles (Pac-Man style).",
+      "properties": [
+        {
+          "name": "collectionRadius",
+          "type": "byte",
+          "defaultValue": "4",
+          "description": "Pixel radius for tile collection detection."
+        },
+        {
+          "name": "collectibleTileIds",
+          "type": "string",
+          "defaultValue": "dot,powerup,fruit",
+          "description": "Comma-separated list of tile IDs that can be collected."
+        },
+        {
+          "name": "replacementTileId",
+          "type": "string",
+          "defaultValue": "empty",
+          "description": "Tile ID to replace collected tiles with (usually empty/floor)."
+        },
+        {
+          "name": "collectionSoundId",
+          "type": "sound_ref",
+          "defaultValue": "",
+          "description": "Sound to play when collecting items."
+        },
+        {
+          "name": "isEnabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether tile collection is active."
+        }
+      ]
+    },
+    {
+      "id": "comp_inventory",
+      "name": "Inventory",
+      "description": "Stores collected items and manages inventory state.",
+      "properties": [
+        {
+          "name": "maxItems",
+          "type": "word",
+          "defaultValue": "255",
+          "description": "Maximum number of items that can be stored."
+        },
+        {
+          "name": "currentItemCount",
+          "type": "word",
+          "defaultValue": "0",
+          "description": "Current number of items in inventory."
+        },
+        {
+          "name": "showCountOnScreen",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Display item count on screen."
+        },
+        {
+          "name": "countDisplayX",
+          "type": "byte",
+          "defaultValue": "1",
+          "description": "Screen X position for count display (in character columns)."
+        },
+        {
+          "name": "countDisplayY",
+          "type": "byte",
+          "defaultValue": "1",
+          "description": "Screen Y position for count display (in character rows)."
+        },
+        {
+          "name": "scorePerItem",
+          "type": "word",
+          "defaultValue": "10",
+          "description": "Score points awarded per collected item."
+        },
+        {
+          "name": "totalScore",
+          "type": "word",
+          "defaultValue": "0",
+          "description": "Total accumulated score."
+        }
+      ]
+    },
+    {
+      "id": "comp_rotate",
+      "name": "Rotate",
+      "description": "Allows an entity sprite to be rotated based on facing direction.",
+      "properties": [
+        {
+          "name": "rotation",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Current rotation angle in degrees (0=right, 90=up, 180=left, 270=down)."
+        },
+        {
+          "name": "facingDirection",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Current facing direction (0=right, 1=up, 2=left, 3=down)."
+        }
+      ]
+    },
+    {
+      "id": "comp_pacMovement",
+      "name": "Pac-Man Movement",
+      "description": "Implements advanced Pac-Man style movement with direction intention, tile-based collision checks every 8 pixels, and pixel-perfect movement at 60fps.",
+      "properties": [
+        {
+          "name": "speed",
+          "type": "byte",
+          "defaultValue": "1",
+          "description": "Movement speed in pixels per frame (at 60fps)."
+        },
+        {
+          "name": "currentDirection",
+          "type": "string",
+          "defaultValue": "NONE",
+          "description": "Current movement direction (NONE, LEFT, RIGHT, UP, DOWN)."
+        },
+        {
+          "name": "desiredDirection",
+          "type": "string",
+          "defaultValue": "NONE",
+          "description": "Desired movement direction for next valid turn."
+        },
+        {
+          "name": "pixelCounter",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Counter for position relative to 8x8 character grid (0-7)."
+        },
+        {
+          "name": "velocityX",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Current horizontal velocity (-speed to +speed)."
+        },
+        {
+          "name": "velocityY",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Current vertical velocity (-speed to +speed)."
+        },
+        {
+          "name": "canTurnOnPixel",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether direction changes are allowed on current pixel."
+        },
+        {
+          "name": "stopOnWall",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Stop movement when hitting wall if no input."
+        },
+        {
+          "name": "allowReverse",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Allow immediate reverse direction without collision check."
+        },
+        {
+          "name": "tileSize",
+          "type": "byte",
+          "defaultValue": "8",
+          "description": "Size of tiles for collision checking (8x8 for MSX)."
+        },
+        {
+          "name": "isEnabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether Pac-Man movement is active."
+        }
+      ]
+    },
+    {
+      "id": "comp_PacmanMovementV2",
+      "name": "PacmanMovementV2",
+      "description": "Advanced Pac-Man movement system with pixel-perfect collision detection every 8 pixels, direction intention system, and 60fps smooth movement for MSX games.",
+      "properties": [
+        {
+          "name": "speed",
+          "type": "byte",
+          "defaultValue": "1",
+          "description": "Movement speed in pixels per frame at 60fps"
+        },
+        {
+          "name": "currentDirection",
+          "type": "string",
+          "defaultValue": "NONE",
+          "description": "Current movement direction: NONE, LEFT, RIGHT, UP, DOWN"
+        },
+        {
+          "name": "desiredDirection",
+          "type": "string",
+          "defaultValue": "NONE",
+          "description": "Player's desired direction for next turn opportunity"
+        },
+        {
+          "name": "pixelCounter",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Position counter relative to 8x8 character grid (0-7)"
+        },
+        {
+          "name": "velocityX",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Current horizontal velocity (-speed to +speed)"
+        },
+        {
+          "name": "velocityY",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Current vertical velocity (-speed to +speed)"
+        },
+        {
+          "name": "canTurnOnPixel",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether direction changes are allowed on current pixel"
+        },
+        {
+          "name": "stopOnWall",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Stop movement when hitting wall if no input pressed"
+        },
+        {
+          "name": "allowReverse",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Allow immediate reverse direction without collision check"
+        },
+        {
+          "name": "tileSize",
+          "type": "byte",
+          "defaultValue": "8",
+          "description": "Size of tiles for collision checking (8x8 for MSX)"
+        },
+        {
+          "name": "isEnabled",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Whether Pac-Man movement system is active"
+        }
+      ]
+    },
+    {
+      "id": "comp_PacmanRotationV2",
+      "name": "PacmanRotationV2",
+      "description": "Automatic sprite rotation based on Pac-Man movement direction with MSX-compatible angles.",
+      "properties": [
+        {
+          "name": "rotation",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Current rotation angle: 0=right, 90=up, 180=left, 270=down"
+        },
+        {
+          "name": "facingDirection",
+          "type": "byte",
+          "defaultValue": "0",
+          "description": "Current facing direction: 0=right, 1=up, 2=left, 3=down"
+        },
+        {
+          "name": "autoRotate",
+          "type": "boolean",
+          "defaultValue": "true",
+          "description": "Automatically rotate sprite based on movement direction"
+        }
+      ]
     }
   ],
   "entityTemplates": [
     {
-      "id": "tpl_1755947317423_1m6n5",
-      "name": "patrulla1",
-      "icon": "❓",
-      "description": "",
+      "id": "tpl_player",
+      "name": "Player",
+      "icon": "👤",
       "components": [
-        {
-          "definitionId": "comp_render",
-          "defaultValues": {
-            "spriteAssetId": "",
-            "isVisible": "true",
-            "layer": "1"
-          }
-        },
         {
           "definitionId": "comp_pos",
           "defaultValues": {
-            "x": "0",
-            "y": "0"
+            "x": 32,
+            "y": 100
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_player",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_behavior",
+          "defaultValues": {
+            "scriptAssetId": "placeholder_behavior_player_control"
+          }
+        },
+        {
+          "definitionId": "comp_health",
+          "defaultValues": {
+            "current": 3,
+            "max": 3
+          }
+        },
+        {
+          "definitionId": "comp_jump",
+          "defaultValues": {
+            "jumpPower": "384",
+            "maxJumps": "2"
+          }
+        },
+        {
+          "definitionId": "comp_gravity",
+          "defaultValues": {
+            "strength": "80"
           }
         },
         {
           "definitionId": "comp_animation",
           "defaultValues": {
-            "currentAnimationName": "idle",
-            "currentFrameIndex": "0",
-            "animationSpeed": "6",
-            "loops": "true",
-            "isPlaying": "true"
+            "currentAnimationName": "player_idle",
+            "animationSpeed": "8"
           }
         },
         {
-          "definitionId": "comp_patrol",
+          "definitionId": "comp_collision",
           "defaultValues": {
-            "patrolType": "Horizontal",
-            "waypoint1_x": "0",
-            "waypoint1_y": "0",
-            "waypoint2_x": "64",
-            "waypoint2_y": "0",
-            "patrolSpeed": "50",
-            "waypointPause": "0"
+            "hitboxWidth": 14,
+            "hitboxHeight": 15,
+            "offsetX": 1,
+            "offsetY": 1,
+            "collisionLayer": 1,
+            "collidesWith": 2
+          }
+        },
+        {
+          "definitionId": "comp_player_input",
+          "defaultValues": {
+            "controllerId": 0,
+            "inputEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_statemachine",
+          "defaultValues": {
+            "stateMachineAssetId": "",
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_cursors",
+          "defaultValues": {
+            "isEnabled": true,
+            "speed": 2
           }
         }
-      ]
+      ],
+      "description": "The main player character."
+    },
+    {
+      "id": "tpl_enemy_basic",
+      "name": "Basic Enemy",
+      "icon": "👻",
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 100,
+            "y": 100
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_enemy",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_ai_behavior",
+          "defaultValues": {
+            "scriptAssetId": "placeholder_behavior_patrol",
+            "patrolRangeX": 32,
+            "aggroRadius": 64
+          }
+        },
+        {
+          "definitionId": "comp_health",
+          "defaultValues": {
+            "current": 1,
+            "max": 1
+          }
+        },
+        {
+          "definitionId": "comp_gravity",
+          "defaultValues": {}
+        },
+        {
+          "definitionId": "comp_animation",
+          "defaultValues": {
+            "currentAnimationName": "enemy_walk",
+            "animationSpeed": "10"
+          }
+        },
+        {
+          "definitionId": "comp_collision",
+          "defaultValues": {
+            "collisionLayer": 2,
+            "collidesWith": 1
+          }
+        },
+        {
+          "definitionId": "comp_damage",
+          "defaultValues": {
+            "damageAmount": 1,
+            "damageType": "contact"
+          }
+        }
+      ],
+      "description": "A simple enemy that patrols and deals contact damage."
+    },
+    {
+      "id": "tpl_item_key",
+      "name": "Key Item",
+      "icon": "🔑",
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 50,
+            "y": 50
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_key",
+            "isVisible": true,
+            "layer": 0
+          }
+        },
+        {
+          "definitionId": "comp_animation",
+          "defaultValues": {
+            "currentAnimationName": "key_shine",
+            "loops": true,
+            "animationSpeed": "15"
+          }
+        },
+        {
+          "definitionId": "comp_collectible",
+          "defaultValues": {
+            "itemType": "key",
+            "itemValue": 1,
+            "autoCollectRadius": 12,
+            "collectionSoundRef": "sfx_collect_key"
+          }
+        }
+      ],
+      "description": "A key item to be collected."
+    },
+    {
+      "id": "tpl_enemy_spawner",
+      "name": "Enemy Spawner",
+      "icon": "⚡",
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 128,
+            "y": 64
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_spawner",
+            "isVisible": false,
+            "layer": 0
+          }
+        },
+        {
+          "definitionId": "comp_spawner",
+          "defaultValues": {
+            "spawnRate": 2000,
+            "maxEntities": 3,
+            "spawnZoneX": 0,
+            "spawnZoneY": 0,
+            "spawnZoneWidth": 0,
+            "spawnZoneHeight": 0,
+            "entityTemplateId": "tpl_enemy_basic",
+            "isActive": true,
+            "spawnOnStart": false
+          }
+        }
+      ],
+      "description": "Spawns enemies randomly across the screen."
+    },
+    {
+      "id": "tpl_player_ship",
+      "name": "Player Ship",
+      "icon": "🚀",
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 120,
+            "y": 150
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_player_ship",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_physics",
+          "defaultValues": {
+            "velocityX": 0,
+            "velocityY": 0,
+            "friction": 50,
+            "mass": 1
+          }
+        },
+        {
+          "definitionId": "comp_health",
+          "defaultValues": {
+            "current": 3,
+            "max": 3
+          }
+        },
+        {
+          "definitionId": "comp_collision",
+          "defaultValues": {
+            "hitboxWidth": 12,
+            "hitboxHeight": 14,
+            "offsetX": 2,
+            "offsetY": 1,
+            "collisionLayer": 1,
+            "collidesWith": 6
+          }
+        },
+        {
+          "definitionId": "comp_player_input",
+          "defaultValues": {
+            "controllerId": 0,
+            "inputEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_cursors",
+          "defaultValues": {
+            "isEnabled": true,
+            "speed": 3
+          }
+        },
+        {
+          "definitionId": "comp_aiming",
+          "defaultValues": {
+            "targetEntityTemplateId": "tpl_enemy_basic",
+            "aimingRange": 200,
+            "rotationSpeed": 0,
+            "fieldOfView": 255
+          }
+        },
+        {
+          "definitionId": "comp_damage",
+          "defaultValues": {
+            "damageAmount": 1,
+            "damageType": "laser",
+            "knockbackForce": 2
+          }
+        }
+      ],
+      "description": "A fast-moving player spaceship with shooting capabilities. Create your own ship sprite and assign it to this entity."
+    },
+    {
+      "id": "tpl_player_bullet",
+      "name": "Player Bullet",
+      "icon": "•",
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_bullet",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_physics",
+          "defaultValues": {
+            "velocityX": 0,
+            "velocityY": -4,
+            "friction": 0,
+            "mass": 0
+          }
+        },
+        {
+          "definitionId": "comp_damage",
+          "defaultValues": {
+            "damageAmount": 1,
+            "damageType": "laser",
+            "knockbackForce": 1
+          }
+        },
+        {
+          "definitionId": "comp_collision",
+          "defaultValues": {
+            "hitboxWidth": 4,
+            "hitboxHeight": 6,
+            "offsetX": 2,
+            "offsetY": 1,
+            "collisionLayer": 4,
+            "collidesWith": 2
+          }
+        }
+      ],
+      "description": "A fast-moving laser projectile fired by the player ship. Create your own bullet sprite and assign it to this entity."
+    },
+    {
+      "id": "tpl_collector_player",
+      "name": "Collector Player",
+      "icon": "🔵",
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 32,
+            "y": 32
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_collector",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_physics",
+          "defaultValues": {
+            "velocityX": 0,
+            "velocityY": 0,
+            "friction": 0,
+            "mass": 1
+          }
+        },
+        {
+          "definitionId": "comp_health",
+          "defaultValues": {
+            "current": 3,
+            "max": 3
+          }
+        },
+        {
+          "definitionId": "comp_collision",
+          "defaultValues": {
+            "hitboxWidth": 12,
+            "hitboxHeight": 12,
+            "offsetX": 2,
+            "offsetY": 2,
+            "collisionLayer": 1,
+            "collidesWith": 2
+          }
+        },
+        {
+          "definitionId": "comp_wall_collision",
+          "defaultValues": {
+            "hitboxWidth": 12,
+            "hitboxHeight": 12,
+            "offsetX": 2,
+            "offsetY": 2,
+            "tileSize": 8,
+            "stopOnCollision": true
+          }
+        },
+        {
+          "definitionId": "comp_player_input",
+          "defaultValues": {
+            "controllerId": 0,
+            "inputEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_cursors",
+          "defaultValues": {
+            "isEnabled": true,
+            "speed": 2
+          }
+        },
+        {
+          "definitionId": "comp_tile_collector",
+          "defaultValues": {
+            "collectionRadius": 8,
+            "collectibleTileIds": "dot,powerup,fruit",
+            "replacementTileId": "empty",
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_inventory",
+          "defaultValues": {
+            "maxItems": 255,
+            "currentItemCount": 0,
+            "showCountOnScreen": true,
+            "countDisplayX": 1,
+            "countDisplayY": 1,
+            "scorePerItem": 10,
+            "totalScore": 0
+          }
+        }
+      ],
+      "description": "A Pac-Man style player that collects items by walking over tiles. Perfect for maze-based collection games."
+    },
+    {
+      "id": "tpl_pacman_player",
+      "name": "Pac-Man Player",
+      "icon": "🟡",
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 32,
+            "y": 32
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "placeholder_sprite_pacman",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_health",
+          "defaultValues": {
+            "current": 3,
+            "max": 3
+          }
+        },
+        {
+          "definitionId": "comp_wall_collision",
+          "defaultValues": {
+            "hitboxWidth": 16,
+            "hitboxHeight": 16,
+            "offsetX": 0,
+            "offsetY": 0,
+            "tileSize": 8,
+            "stopOnCollision": true
+          }
+        },
+        {
+          "definitionId": "comp_player_input",
+          "defaultValues": {
+            "controllerId": 0,
+            "inputEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_pacMovement",
+          "defaultValues": {
+            "speed": 1,
+            "currentDirection": "NONE",
+            "desiredDirection": "NONE",
+            "pixelCounter": 0,
+            "velocityX": 0,
+            "velocityY": 0,
+            "canTurnOnPixel": true,
+            "stopOnWall": true,
+            "allowReverse": true,
+            "tileSize": 8,
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_rotate",
+          "defaultValues": {
+            "rotation": 0,
+            "facingDirection": 0
+          }
+        },
+        {
+          "definitionId": "comp_animation",
+          "defaultValues": {
+            "currentAnimationName": "pacman_idle",
+            "animationSpeed": "6",
+            "loops": true,
+            "isPlaying": true
+          }
+        }
+      ],
+      "description": "Advanced Pac-Man player with pixel-perfect movement, 8-pixel collision checks, direction intention system, and 60fps smooth movement. Sprite size should be 16x16 pixels."
+    },
+    {
+      "id": "tpl_PacmanPlayerV2",
+      "name": "PacmanPlayerV2",
+      "icon": "🟡",
+      "components": [
+        {
+          "definitionId": "comp_pos",
+          "defaultValues": {
+            "x": 32,
+            "y": 32
+          }
+        },
+        {
+          "definitionId": "comp_render",
+          "defaultValues": {
+            "spriteAssetId": "pacman_sprite_16x16",
+            "isVisible": true,
+            "layer": 1
+          }
+        },
+        {
+          "definitionId": "comp_health",
+          "defaultValues": {
+            "current": 3,
+            "max": 3
+          }
+        },
+        {
+          "definitionId": "comp_wall_collision",
+          "defaultValues": {
+            "hitboxWidth": 16,
+            "hitboxHeight": 16,
+            "offsetX": 0,
+            "offsetY": 0,
+            "tileSize": 8,
+            "stopOnCollision": true
+          }
+        },
+        {
+          "definitionId": "comp_player_input",
+          "defaultValues": {
+            "controllerId": 0,
+            "inputEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_PacmanMovementV2",
+          "defaultValues": {
+            "speed": 1,
+            "currentDirection": "NONE",
+            "desiredDirection": "NONE",
+            "pixelCounter": 0,
+            "velocityX": 0,
+            "velocityY": 0,
+            "canTurnOnPixel": true,
+            "stopOnWall": true,
+            "allowReverse": true,
+            "tileSize": 8,
+            "isEnabled": true
+          }
+        },
+        {
+          "definitionId": "comp_PacmanRotationV2",
+          "defaultValues": {
+            "rotation": 0,
+            "facingDirection": 0,
+            "autoRotate": true
+          }
+        },
+        {
+          "definitionId": "comp_animation",
+          "defaultValues": {
+            "currentAnimationName": "pacman_idle",
+            "animationSpeed": "6",
+            "loops": true,
+            "isPlaying": true
+          }
+        }
+      ],
+      "description": "Advanced Pac-Man player with pixel-perfect movement, 8-pixel collision checks, direction intention system, and 60fps smooth movement. Optimized for MSX Screen 2 mode with 16x16 sprites."
     }
   ],
   "mainMenuConfig": {
