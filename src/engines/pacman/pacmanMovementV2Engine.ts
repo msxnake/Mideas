@@ -254,14 +254,14 @@ export const pacmanMovementV2Engine: GameEngine = {
                 // Verificar colisión (optimizado: solo en límites de tile)
                 const atBoundary = isAtTileBoundary(entity, tileSize);
                 let canMove = true;
-                
+
                 const currentTileX = Math.floor(entity.x / tileSize);
                 const currentTileY = Math.floor(entity.y / tileSize);
-                
-                if (atBoundary || 
-                    movementData.lastCollisionPos.x !== currentTileX || 
+
+                if (atBoundary ||
+                    movementData.lastCollisionPos.x !== currentTileX ||
                     movementData.lastCollisionPos.y !== currentTileY) {
-                    
+
                     canMove = canMoveInDirectionV2(entity, movementData.currentDir, tileSize, screenMap);
                     movementData.lastCollisionPos = { x: currentTileX, y: currentTileY };
                 }

@@ -619,17 +619,19 @@ const AVAILABLE_ENGINES: EngineRegistry = {
         id: 'tileCollection',
         name: 'Tile Collection Engine',
         execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap, entityTemplates?: EntityTemplate[], allAssets?: ProjectAsset[]) => {
-            if (!screenMap || !screenMap.layers?.background?.tiles) return;
+            if (!screenMap || !screenMap.layers?.background) return;
 
             entities.forEach(entity => {
                 const tileCollectorComp = entity.template.components.find(c => c.definitionId === 'comp_tile_collector');
                 const inventoryComp = entity.template.components.find(c => c.definitionId === 'comp_inventory');
                 
                 if (tileCollectorComp) {
-                    const collectorProps = { 
-                        ...tileCollectorComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_tile_collector'] || {}) 
+                    const collectorProps = {
+                        ...tileCollectorComp.defaultValues,
+                        ...(entity.instance.componentOverrides?.['comp_tile_collector'] || {})
                     };
+
+                    console.log('🎯 Tile Collector - Entity pos:', entity.x, entity.y, 'Props:', collectorProps);
                     
                     let inventoryProps = null;
                     if (inventoryComp) {
@@ -679,14 +681,16 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         }
 
                         // Get tile at position
-                        const currentTile = screenMap.layers.background.tiles[tilePos.y]?.[tilePos.x];
+                        const currentTile = screenMap.layers.background[tilePos.y]?.[tilePos.x];
                         if (!currentTile) return;
 
                         // Check if this tile is collectible
-                        const isCollectible = collectibleTileIds.some(collectibleId => 
+                        const isCollectible = collectibleTileIds.some(collectibleId =>
                             currentTile.tileId === collectibleId ||
                             currentTile.id === collectibleId
                         );
+
+                        console.log('🔍 Checking tile at', tilePos.x, tilePos.y, ':', currentTile.tileId, 'collectible:', isCollectible);
 
                         if (isCollectible) {
                             // Calculate distance from entity center to tile center for precise collection
@@ -702,7 +706,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             // Only collect if within collection radius
                             if (distance <= collectionRadius) {
                                 // Replace tile with empty/floor tile
-                                screenMap.layers.background.tiles[tilePos.y][tilePos.x] = {
+                                screenMap.layers.background[tilePos.y][tilePos.x] = {
                                     ...currentTile,
                                     tileId: replacementTileId,
                                     id: replacementTileId
@@ -1720,12 +1724,12 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         const animate = () => {
             ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
             renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
-            
+
             // Execute Active Game Engines Dynamically
             activeEnginesRef.current.forEach(engine => {
                 engine.execute(entitiesRef.current, componentDefinitions, screenMap, entityTemplates, allAssets, pendingSpawnsRef);
             });
-            
+
             // Process any pending spawned entities
             processSpawnedEntities();
             
