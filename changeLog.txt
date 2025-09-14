@@ -1,4 +1,15 @@
 
+Versión 0.241 - 14/9/2025
+- docs: Actualizar guía MSX_ASM_GUIDE.md
+- fix: Eliminar referencias "Konami" de documentación ASM
+- fix: Corregir posición ORG #4000 al inicio del archivo ASM
+- feat: Integrar funciones existentes del proyecto en guía ASM
+- feat: Agregar ejemplos prácticos basados en código real
+- feat: Documentar estructura Game Flow y sistema de menú principal
+- feat: Agregar sistema de renderizado Screen1 → Screen2
+- test: Crear test de verificación para guía MSX_ASM_GUIDE.md
+- docs: Sincronizar guía con código de producción de Mideas
+
 Versión 0.18 - 31/8/2025
 - feat: Implemented tile selection and context menu
 - save individual tiles
@@ -139,3 +150,35 @@ Versión 0.238 - 13/9/2025
 - feat(state-machine): Add presets for common events
 - refactor(game-preview): Drive entity movement from state machine properties
 - feat(game-preview): Implement player controls and state machine for Hero entity
+
+Versión 0.238 - 14/9/2025
+- nova versio
+- clean 2
+- clean up archives
+- minor improvements
+- sorting structure
+- pacman2
+- bugs collision
+- prueba collision
+- varis, abans de gemini wallCollision
+- canvis  motor wallcollision
+- mejorando codigo asm
+- Add Play button to Screen Editor with dynamic game engine system
+- bugs 5
+- bugs 3
+- bug 2
+- bugs
+- state m 1
+- state machine rev 2
+- feat: Add import/export functionality for pt3tracker
+- Fix instruments always sounding like a piano
+- docs: Add JSDoc comments and update README
+- control_hero and gravity
+- fix: Restore all lost game-play features
+- feat(game-preview): Implement gravity physics
+- feat: Restore game preview, hero controls, and collision system
+- feat(components): Add import/export and fix TileBankEditor
+- fix(components): Add missing icons for import/export buttons
+- feat(components): Add import/export for component definitions
+- feat(game-preview): Implement collision detection system
+- feat(state-machine): Add presets for common events
