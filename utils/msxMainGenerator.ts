@@ -113,6 +113,9 @@ Nota: Solo se puede usar un Game Flow por ROM`);
   // All system constants inline
   code += generateInlineSystemConstants();
 
+  // RAM Variables section inline (for all-in-one compilation)
+  code += generateInlineRAMVariables();
+
   // All asset data inline (with project configuration)
   code += generateInlineAssets(assets, analysis, config, projectData);
 
@@ -219,7 +222,8 @@ INIT_GAME:
     ; Initialize stack
     LD SP, #F380
     
-    ; Clear work RAM
+    ; Initialize project RAM variables area
+    ; Clear RAM from #C000 to #FFFF (writable variables zone)
     LD HL, #C000
     LD DE, #C001
     LD BC, #3FFF
@@ -319,7 +323,8 @@ MAIN_PROGRAM:
     ; Initialize stack
     ld sp, #F380
     
-    ; Clear work RAM
+    ; Initialize project variables in RAM
+    ; Clear writable RAM area #C000-#FFFF
     ld hl, #C000
     ld de, #C001
     ld bc, #3FFF
@@ -657,10 +662,11 @@ INIT_KONAMI:
     ; Initialize stack for Konami cartridge
     LD SP, #F380
 
-    ; Clear work RAM (Konami standard)
+    ; Initialize RAM variables area (MSX Standard)
+    ; Clear RAM from #C000 to #FFFF (project variables zone)
     LD HL, #C000
     LD DE, #C001
-    LD BC, #3FFF
+    LD BC, #3FFF         ; Clear 16KB of RAM
     LD (HL), 0
     LDIR
 
@@ -1525,29 +1531,17 @@ function generateInlineGameSystems(analysis: ProjectAnalysis, assets?: ProjectAs
   code += `    ; Frame rendering logic here\n`;
   code += `    RET\n\n`;
 
-  // DYNAMIC VARIABLE STORAGE
+  // NOTE: Variable storage is now handled in constants.asm using DS virtual
+  // This avoids inflating the ROM binary with unnecessary bytes
+  // All variables are defined in the RAM area #C000-#FFFF
+
   code += `; ==================================================================\n`;
-  code += `; VARIABLE STORAGE (DYNAMIC)\n`;
-  code += `; ==================================================================\n`;
+  code += `; NOTE: All variables are defined in constants.asm using DS virtual\n`;
+  code += `; RAM Variables Area: #C000-#FFFF (writable during execution)\n`;
+  code += `; ROM Constants Area: #4000-#BFFF (read-only)\n`;
+  code += `; ==================================================================\n\n`;
 
-  // Core variables (always present)
-  code += `input_state:        DB 0\n`;
-  code += `prev_input_state:   DB 0\n`;
-
-  // Conditional variables
-  if (analysis.sprites.length > 0) {
-    code += `active_sprite_count: DB 0\n`;
-  }
-
-  if (analysis.screenMaps.length > 0) {
-    code += `current_screen_id:   DB 0\n`;
-  }
-
-  if (hasWorlds) {
-    code += `current_world_id:    DB 0\n`;
-  }
-
-  code += `\n    END                 ; End of program\n\n`;
+  code += `    END                 ; End of program\n\n`;
 
   return code;
 }
