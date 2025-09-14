@@ -34,9 +34,10 @@ interface CodeExportModalProps {
   onClose: () => void;
   assets: ProjectAsset[];
   currentProjectName?: string | null;
+  projectData?: any; // Full project data including tileBanks
 }
 
-type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'msx_main_asm' | 'msx_full_project' | 'tiles' | 'sprites' | 'screens' | 'entities';
+type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'msx_main_asm' | 'msx_full_project' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
 
 interface GeneratedFile {
   name: string;
@@ -47,7 +48,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   isOpen,
   onClose,
   assets,
-  currentProjectName
+  currentProjectName,
+  projectData
 }) => {
   const [exportType, setExportType] = useState<ExportType>('complete');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
@@ -66,7 +68,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
-  const handleGenerateCode = () => {
+  const handleGenerateCode = async () => {
     setIsGenerating(true);
     
     try {
@@ -221,7 +223,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             files = [{ name: 'screens.asm', content: code }];
           }
           break;
-          
+
+        case 'asm_all_in_one':
+          const { generateUnitedFilesASM } = await import('../../utils/msxMainGenerator');
+          code = generateUnitedFilesASM(projectName, assets, {
+            ...DEFAULT_MSX_CONFIG,
+            projectName,
+            targetMSX: options.msxModel as any,
+            baseAddress: 0x4000  // Konami standard address
+          }, projectData); // Pass the full project data including tileBanks
+          files = [{ name: 'unitedFiles.asm', content: code }];
+          break;
+
         case 'entities':
           const mainScreen = assets.filter(a => a.type === 'screenmap').map(a => a.data as any)
             .find(s => s.layers.entities.length > 0);
@@ -271,7 +284,20 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       });
 
       const result = await response.json();
-      setCompilationResult(result);
+
+      // Enhanced error logging for Glass compilation issues
+      if (!response.ok || !result.success) {
+        console.error('Glass compilation failed:', result);
+
+        // Show detailed error information
+        setCompilationResult({
+          success: false,
+          message: result.details || result.error || 'Unknown compilation error',
+          fullDetails: result
+        });
+      } else {
+        setCompilationResult(result);
+      }
     } catch (error) {
       setCompilationResult({
         success: false,
@@ -368,6 +394,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   <option value="dynamic_project_asm">🔥 Dynamic Project ASM (Recommended)</option>
                   <option value="msx_main_asm">📁 MSX Main.asm with Includes</option>
                   <option value="msx_full_project">🎮 Complete MSX Project Structure</option>
+                  <option value="asm_all_in_one">🔧 ASM (all in one) - Konami ROM</option>
                   <option value="tiles">Tiles Only ({getAssetCount('tile')} tiles)</option>
                   <option value="sprites">Sprites Only ({getAssetCount('sprite')} sprites)</option>
                   <option value="screens">Screen Maps ({getAssetCount('screenmap')} screens)</option>
@@ -555,6 +582,20 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     {projectAnalysis.customStates.length > 0 && (
                       <li>• Custom States: {projectAnalysis.customStates.join(', ')}</li>
                     )}
+                  </ul>
+                </div>
+              )}
+
+              {exportType === 'asm_all_in_one' && (
+                <div className="bg-orange-500 bg-opacity-10 p-2 rounded text-xs text-msx-textsecondary">
+                  <p>🔧 <strong>ASM (all in one):</strong> Single file Konami cartridge ROM</p>
+                  <ul className="mt-1 ml-4 text-xs">
+                    <li>• 📄 Single file: <strong>unitedFiles.asm</strong></li>
+                    <li>• 🎮 Konami cartridge header (#4000 base address)</li>
+                    <li>• 🔗 All assets and systems inline (no includes)</li>
+                    <li>• 🎯 Ready to compile with glass.jar</li>
+                    <li>• 🚀 Game Flow integration for main menu</li>
+                    <li>• 💾 Creates .ROM file for MSX emulators/flash carts</li>
                   </ul>
                 </div>
               )}
@@ -778,18 +819,84 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   🎮 Download Complete MSX Project ZIP
                 </Button>
               )}
+
+              {exportType === 'asm_all_in_one' && (
+                <Button
+                  onClick={async () => {
+                    try {
+                      const projectName = currentProjectName || "MSX_Game";
+                      const { generateUnitedFilesASM } = await import('../../utils/msxMainGenerator');
+
+                      const code = generateUnitedFilesASM(projectName, assets, {
+                        ...DEFAULT_MSX_CONFIG,
+                        projectName,
+                        targetMSX: options.msxModel as any,
+                        baseAddress: 0x4000
+                      }, projectData); // Pass the full project data including tileBanks
+
+                      // Show the generated code in the preview first
+                      setGeneratedCode(code);
+                      setGeneratedFiles([{ name: 'unitedFiles.asm', content: code }]);
+                      setActiveFileIndex(0);
+
+                      // Also download the file
+                      const blob = new Blob([code], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'unitedFiles.asm';
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+
+                      alert(`🔧 unitedFiles.asm generated!\n\n📄 File downloaded as: unitedFiles.asm\n📁 Please save to: test/unitedFiles.asm\n🎮 Konami ROM format\n⚡ Ready for glass.jar compilation\n\nCommand: glass unitedFiles.asm ${projectName.toLowerCase()}.rom`);
+                    } catch (error) {
+                      alert(`Error generating ASM: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }}
+                  disabled={isGenerating}
+                  variant="primary"
+                  className="w-full"
+                >
+                  🔧 Generate unitedFiles.asm
+                </Button>
+              )}
             </div>
           </Panel>
 
           {compilationResult && (
-            <Panel title="Compilation Result" className={compilationResult.success ? "border-green-500" : "border-red-500"}>
+            <Panel title="Glass Compilation Result" className={compilationResult.success ? "border-green-500" : "border-red-500"}>
               <div className="p-3">
                 <div className={`text-sm ${compilationResult.success ? 'text-green-400' : 'text-red-400'}`}>
-                  {compilationResult.success ? '✓ Compilation successful!' : '✗ Compilation failed'}
+                  {compilationResult.success ? '✓ Compilation successful!' : '✗ Glass compilation failed'}
                 </div>
-                <div className="text-xs text-msx-textsecondary mt-1 font-mono">
+                <div className="text-xs text-msx-textsecondary mt-1 font-mono whitespace-pre-wrap">
                   {compilationResult.message}
                 </div>
+
+                {/* Enhanced error details for debugging */}
+                {!compilationResult.success && (compilationResult as any).fullDetails && (
+                  <details className="mt-2">
+                    <summary className="text-xs text-msx-highlight cursor-pointer hover:underline">
+                      🔍 Show detailed Glass logs (for debugging)
+                    </summary>
+                    <div className="mt-2 p-2 bg-msx-bgcolor bg-opacity-30 rounded text-xs font-mono">
+                      <div className="text-red-400">Command: {(compilationResult as any).fullDetails.command}</div>
+                      <div className="text-yellow-400 mt-1">STDERR:</div>
+                      <pre className="text-msx-textsecondary whitespace-pre-wrap">{(compilationResult as any).fullDetails.fullStderr || 'No stderr output'}</pre>
+                      <div className="text-yellow-400 mt-1">STDOUT:</div>
+                      <pre className="text-msx-textsecondary whitespace-pre-wrap">{(compilationResult as any).fullDetails.fullStdout || 'No stdout output'}</pre>
+                      {(compilationResult as any).fullDetails.sourceCode && (
+                        <>
+                          <div className="text-yellow-400 mt-1">Source (first 1000 chars):</div>
+                          <pre className="text-msx-textsecondary whitespace-pre-wrap text-xs">{(compilationResult as any).fullDetails.sourceCode}</pre>
+                        </>
+                      )}
+                    </div>
+                  </details>
+                )}
+
                 {compilationResult.success && compilationResult.data && (
                   <div className="text-xs text-msx-textsecondary mt-2">
                     Binary size: {compilationResult.data.length / 2} bytes

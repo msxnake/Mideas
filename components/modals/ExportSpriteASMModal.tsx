@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { Sprite, PixelData, MSXColorValue, DataFormat } from '../../types'; 
 import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
-import { generateSpriteBinaryData } from '../utils/spriteUtils'; // Updated import
+import { generateSpriteBinaryData, generateSpriteASMCode } from '../utils/spriteUtils';
 
 /**
  * Props for the ExportSpriteASMModal component.
@@ -24,102 +24,7 @@ const ASM_BYTES_PER_LINE = 16;
 const MODAL_DEFAULT_FONT_SIZE = 13;
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
-// Helper function to ensure two-digit uppercase hex representation
-const toHexByte = (num: number): string => {
-  let hex = num.toString(16).toUpperCase();
-  if (hex.length === 1) {
-    hex = '0' + hex; // Manual padding
-  }
-  return hex;
-};
-
-/**
- * Generates Z80 assembly code for a single frame of a sprite.
- * @param frameName The name of the frame, used for labels in the ASM code.
- * @param frameData The pixel data for the frame.
- * @param spritePalette The sprite's 4-color palette.
- * @param backgroundColor The sprite's background color, which is not exported as a layer.
- * @param spriteWidth The width of the sprite in pixels.
- * @param spriteHeight The height of the sprite in pixels.
- * @param dataFormat The data format for exporting to ASM.
- * @returns A string containing the generated assembly code for the frame.
- */
-const generateSingleFrameASMCode = (
-  frameName: string, 
-  frameData: PixelData,
-  spritePalette: [MSXColorValue, MSXColorValue, MSXColorValue, MSXColorValue],
-  backgroundColor: MSXColorValue,
-  spriteWidth: number,
-  spriteHeight: number,
-  dataFormat: DataFormat 
-): string => {
-  const safeFrameName = frameName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-  let asmString = `;; ---- Sprite Frame: ${frameName} ----\n`;
-  asmString += `;; Size: ${spriteWidth}x${spriteHeight}\n`;
-  
-  let layersGenerated = 0;
-
-  for (let layerIndex = 0; layerIndex < spritePalette.length; layerIndex++) {
-    const layerColor = spritePalette[layerIndex];
-
-    let colorUsed = false;
-    if (layerColor !== backgroundColor) {
-      for (let y = 0; y < spriteHeight; y++) {
-        for (let x = 0; x < spriteWidth; x++) {
-          if (frameData[y]?.[x] === layerColor) {
-            colorUsed = true;
-            break;
-          }
-        }
-        if (colorUsed) break;
-      }
-    }
-
-    if (!colorUsed) {
-      asmString += `;; Layer ${layerIndex} (Color: ${layerColor}) - SKIPPED (color not used or is background)\n`;
-      continue;
-    }
-
-    layersGenerated++;
-    asmString += `${safeFrameName}_LAYER${layerIndex}: ; Brush Color Index ${layerIndex} (Actual Color: ${layerColor})\n`;
-    
-    const layerBytes: number[] = [];
-    if (spriteWidth % 8 !== 0) {
-        asmString += `;; WARNING: Sprite width ${spriteWidth} is not a multiple of 8. Bitmask generation might be problematic for standard VDP.\n`;
-    }
-
-    for (let y = 0; y < spriteHeight; y++) {
-      for (let xByte = 0; xByte < Math.ceil(spriteWidth / 8); xByte++) {
-        let byteValue = 0;
-        for (let bit = 0; bit < 8; bit++) {
-          const px = xByte * 8 + bit;
-          if (px < spriteWidth) { 
-            const pixelColorValue = frameData[y]?.[px];
-            if (pixelColorValue === layerColor) {
-              byteValue |= (1 << (7 - bit));
-            }
-          }
-        }
-        layerBytes.push(byteValue);
-      }
-    }
-
-    for (let i = 0; i < layerBytes.length; i += ASM_BYTES_PER_LINE) {
-      const chunk = layerBytes.slice(i, i + ASM_BYTES_PER_LINE);
-      const formattedChunk = chunk.map(b => {
-        return dataFormat === 'hex' ? `#${toHexByte(b)}` : b.toString();
-      });
-      asmString += `    DB ${formattedChunk.join(',')}\n`;
-    }
-    asmString += '\n';
-  }
-
-  if (layersGenerated === 0) {
-    asmString += `;; NO ACTIVE LAYERS EXPORTED for ${frameName} - Frame might be empty or only contain the background color.\n`;
-  }
-  asmString += `;; ---- End of Frame: ${frameName} ----\n\n`;
-  return asmString;
-};
+// Moved generateSingleFrameASMCode to spriteUtils.ts for reuse
 
 
 /**
@@ -135,23 +40,7 @@ export const ExportSpriteASMModal: React.FC<ExportSpriteASMModalProps> = ({
 
   useEffect(() => {
     if (isOpen && spriteToExport) {
-      let fullAsmCode = `;; Sprite: ${spriteToExport.name}\n`;
-      fullAsmCode += `;; Total Frames: ${spriteToExport.frames.length}\n`;
-      fullAsmCode += `;; Background Color (not exported as a layer): ${spriteToExport.backgroundColor}\n`;
-      fullAsmCode += `;; Drawable Palette (Hex): C0=${spriteToExport.spritePalette[0]}, C1=${spriteToExport.spritePalette[1]}, C2=${spriteToExport.spritePalette[2]}, C3=${spriteToExport.spritePalette[3]}\n\n`;
-
-      spriteToExport.frames.forEach((frame, index) => {
-        fullAsmCode += generateSingleFrameASMCode(
-          `${spriteToExport.name}_F${index}`, 
-          frame.data,
-          spriteToExport.spritePalette,
-          spriteToExport.backgroundColor,
-          spriteToExport.size.width,
-          spriteToExport.size.height,
-          dataOutputFormat 
-        );
-      });
-      setAsmCode(fullAsmCode);
+      setAsmCode(generateSpriteASMCode(spriteToExport, dataOutputFormat));
     }
   }, [isOpen, spriteToExport, dataOutputFormat]); 
 

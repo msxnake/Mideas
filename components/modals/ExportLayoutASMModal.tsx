@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
-import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter'; 
-import { DataFormat } from '../../types'; 
+import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
+import { DataFormat } from '../../types';
+import { generateScreenLayoutASMCode } from '../utils/screenUtils'; 
 
 /**
  * Props for the ExportLayoutASMModal component.
@@ -32,45 +33,7 @@ const MODAL_DEFAULT_FONT_SIZE = 13;
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
 
-/**
- * Generates Z80 assembly code for a screen map layout.
- * @param mapName The name of the map.
- * @param mapWidth The width of the map in tiles.
- * @param mapHeight The height of the map in tiles.
- * @param mapIndices The map layout data, as an array of tile indices.
- * @param referenceComments Optional comments providing context for tile indices.
- * @param dataFormat The data format for exporting to ASM.
- * @returns A string containing the generated assembly code.
- */
-const generateASMCode = (
-  mapName: string,
-  mapWidth: number,
-  mapHeight: number,
-  mapIndices: number[],
-  referenceComments: string[],
-  dataFormat: DataFormat 
-): string => {
-  const safeMapName = mapName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-  let asmString = `;; MAP: ${mapName} (${mapWidth}x${mapHeight} tiles)\n`;
-  asmString += `;; Total size: ${mapIndices.length} bytes\n\n`;
-  
-  if (referenceComments.length > 0) {
-    asmString += `;; --- TILE INDEX REFERENCES for ${safeMapName} ---\n`;
-    asmString += referenceComments.join('\n') + '\n\n';
-  }
-
-  asmString += `${safeMapName}_LAYOUT_DATA:\n`;
-
-  for (let i = 0; i < mapIndices.length; i += ASM_BYTES_PER_LINE) {
-    const chunk = mapIndices.slice(i, i + ASM_BYTES_PER_LINE);
-    const formattedChunk = chunk.map(idx => {
-        return dataFormat === 'hex' ? `#${idx.toString(16).padStart(2, '0').toUpperCase()}` : idx.toString();
-    });
-    asmString += `    DB ${formattedChunk.join(',')}\n`;
-  }
-
-  return asmString;
-};
+// Moved generateASMCode to screenUtils.ts for reuse
 
 /**
  * A modal dialog for exporting a screen map layout as Z80 assembly code or a binary file.
@@ -89,7 +52,7 @@ export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      setAsmCode(generateASMCode(mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat)); 
+      setAsmCode(generateScreenLayoutASMCode(mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat));
     }
   }, [isOpen, mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat]); 
 

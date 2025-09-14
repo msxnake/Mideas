@@ -56,10 +56,39 @@ app.post('/compile', (req, res) => {
     const jarPath = path.join(__dirname, 'glass.jar');
     const command = `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}"`;
 
+    console.log(`🔧 Executing Glass: ${command}`);
+
     exec(command, (error, stdout, stderr) => {
+      // Log detailed information for debugging
+      console.log('=== GLASS COMPILATION RESULTS ===');
+      console.log('Command:', command);
+      console.log('Error object:', error);
+      console.log('STDOUT:', stdout);
+      console.log('STDERR:', stderr);
+      console.log('===================================');
+
       if (error) {
-        fs.unlink(tempFilePath, () => {});
-        return res.status(500).send({ error: 'Compilation failed', details: stderr || stdout });
+        // Don't delete temp file yet so we can inspect it
+        console.log(`❌ Glass compilation failed. Temp file: ${tempFilePath}`);
+
+        // Read the source file to see what we tried to compile
+        fs.readFile(tempFilePath, 'utf8', (readErr, sourceCode) => {
+          const errorResponse = {
+            error: 'Glass compilation failed',
+            details: stderr || stdout || error.message,
+            command: command,
+            sourceFile: tempFilePath,
+            sourceCode: readErr ? 'Could not read source' : sourceCode.substring(0, 1000), // First 1000 chars
+            fullStderr: stderr,
+            fullStdout: stdout,
+            errorCode: error.code,
+            signal: error.signal
+          };
+
+          console.log('Full error response:', errorResponse);
+          return res.status(500).json(errorResponse);
+        });
+        return;
       }
 
       fs.readFile(outputFilePath, (readErr, data) => {

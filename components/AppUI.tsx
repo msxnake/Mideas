@@ -555,6 +555,14 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           onClose={() => setIsCodeExportModalOpen(false)}
           assets={assets}
           currentProjectName={currentProjectName}
+          projectData={{
+            tileBanks,
+            msxFont,
+            msxFontColorAttributes,
+            componentDefinitions,
+            entityTemplates,
+            mainMenuConfig
+          }}
         />
       )}
     </div>

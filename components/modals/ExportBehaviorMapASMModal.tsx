@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
-import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter'; 
-import { DataFormat } from '../../types'; 
+import { Z80SyntaxHighlighter } from '../common/Z80SyntaxHighlighter';
+import { DataFormat } from '../../types';
+import { generateBehaviorMapASMCode } from '../utils/screenUtils'; 
 
 /**
  * Props for the ExportBehaviorMapASMModal component.
@@ -29,41 +30,7 @@ const ASM_BYTES_PER_LINE = 16;
 const MODAL_DEFAULT_FONT_SIZE = 13; 
 const MODAL_LINE_HEIGHT_MULTIPLIER = 1.5;
 
-/**
- * Generates Z80 assembly code for a behavior map.
- * @param mapName The name of the map.
- * @param mapWidth The width of the map in tiles.
- * @param mapHeight The height of the map in tiles.
- * @param behaviorMapData The behavior map data, as an array of map IDs.
- * @param dataFormat The data format for exporting to ASM.
- * @returns A string containing the generated assembly code.
- */
-const generateBehaviorMapASMCode = (
-  mapName: string,
-  mapWidth: number,
-  mapHeight: number,
-  behaviorMapData: number[],
-  dataFormat: DataFormat 
-): string => {
-  const safeMapName = mapName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-  let asmString = `;; BEHAVIOR MAP: ${mapName} (${mapWidth}x${mapHeight} tiles)\n`;
-  asmString += `;; Total size: ${behaviorMapData.length} bytes (Map IDs 0-255)\n`;
-  asmString += `;; Data format: ${dataFormat.toUpperCase()}\n\n`;
-  
-  asmString += `${safeMapName}_BEHAVIOR_DATA:\n`;
-
-  const formatNumber = (value: number): string => {
-    return dataFormat === 'hex' ? `#${value.toString(16).padStart(2, '0').toUpperCase()}` : value.toString(10);
-  };
-
-  for (let i = 0; i < behaviorMapData.length; i += ASM_BYTES_PER_LINE) {
-    const chunk = behaviorMapData.slice(i, i + ASM_BYTES_PER_LINE);
-    const formattedChunk = chunk.map(formatNumber);
-    asmString += `    DB ${formattedChunk.join(',')}\n`;
-  }
-  asmString += `\n;; End of Behavior Map Data for ${mapName}\n`;
-  return asmString;
-};
+// Moved generateBehaviorMapASMCode to screenUtils.ts for reuse
 
 /**
  * A modal dialog for exporting a behavior map as Z80 assembly code or a binary file.

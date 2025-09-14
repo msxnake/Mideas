@@ -646,7 +646,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         entityA.vy = -entityA.vy;
                     }
                 }
-                if (now - entityA.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
+                // Only animate entities that have animation component
+                const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
+                if (animComp && entityA.frameImages.length > 1 && now - entityA.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
                     entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
                     entityA.lastFrameUpdateTime = now;
                 }

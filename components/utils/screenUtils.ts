@@ -223,6 +223,125 @@ export const generateScreenMapLayoutBytes = (
 };
 
 /**
+ * Generates Z80 assembly code for a screen map layout - EXACT SAME FUNCTION AS ExportLayoutASMModal
+ * @param mapName The name of the map.
+ * @param mapWidth The width of the map in tiles.
+ * @param mapHeight The height of the map in tiles.
+ * @param mapIndices The map layout data, as an array of tile indices.
+ * @param referenceComments Optional comments providing context for tile indices.
+ * @param dataFormat The data format for exporting to ASM.
+ * @returns A string containing the generated assembly code.
+ */
+export const generateScreenLayoutASMCode = (
+  mapName: string,
+  mapWidth: number,
+  mapHeight: number,
+  mapIndices: number[],
+  referenceComments: string[],
+  dataFormat: 'hex' | 'decimal' = 'hex'
+): string => {
+  const ASM_BYTES_PER_LINE = 16;
+  const safeMapName = mapName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+  let asmString = `;; MAP: ${mapName} (${mapWidth}x${mapHeight} tiles)\n`;
+  asmString += `;; Total size: ${mapIndices.length} bytes\n\n`;
+
+  if (referenceComments.length > 0) {
+    asmString += `;; --- TILE INDEX REFERENCES for ${safeMapName} ---\n`;
+    asmString += referenceComments.join('\n') + '\n\n';
+  }
+
+  // Constants for MSX Main Generator
+  asmString += `SCREEN_${safeMapName}_WIDTH     EQU ${mapWidth}\n`;
+  asmString += `SCREEN_${safeMapName}_HEIGHT    EQU ${mapHeight}\n`;
+  asmString += `SCREEN_${safeMapName}_SIZE      EQU ${mapIndices.length}\n\n`;
+
+  asmString += `SCREEN_${safeMapName}_LAYOUT:\n`;
+
+  for (let i = 0; i < mapIndices.length; i += ASM_BYTES_PER_LINE) {
+    const chunk = mapIndices.slice(i, i + ASM_BYTES_PER_LINE);
+    const formattedChunk = chunk.map(idx => {
+        return dataFormat === 'hex' ? `#${idx.toString(16).padStart(2, '0').toUpperCase()}` : idx.toString();
+    });
+    asmString += `    DB ${formattedChunk.join(',')}\n`;
+  }
+
+  return asmString;
+};
+
+/**
+ * Generates Z80 assembly code for a behavior map.
+ * @param mapName The name of the map.
+ * @param mapWidth The width of the map in tiles.
+ * @param mapHeight The height of the map in tiles.
+ * @param behaviorMapData The behavior map data, as an array of map IDs.
+ * @param dataFormat The data format for exporting to ASM.
+ * @returns A string containing the generated assembly code.
+ */
+export const generateBehaviorMapASMCode = (
+  mapName: string,
+  mapWidth: number,
+  mapHeight: number,
+  behaviorMapData: number[],
+  dataFormat: 'hex' | 'decimal' = 'hex'
+): string => {
+  const ASM_BYTES_PER_LINE = 16;
+  const safeMapName = mapName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+  let asmString = `;; BEHAVIOR MAP: ${mapName} (${mapWidth}x${mapHeight} tiles)\n`;
+  asmString += `;; Total size: ${behaviorMapData.length} bytes (Map IDs 0-255)\n`;
+  asmString += `;; Data format: ${dataFormat.toUpperCase()}\n\n`;
+
+  // Constants for MSX Main Generator
+  asmString += `BEHAVIOR_${safeMapName}_WIDTH     EQU ${mapWidth}\n`;
+  asmString += `BEHAVIOR_${safeMapName}_HEIGHT    EQU ${mapHeight}\n`;
+  asmString += `BEHAVIOR_${safeMapName}_SIZE      EQU ${behaviorMapData.length}\n\n`;
+
+  asmString += `BEHAVIOR_${safeMapName}_DATA:\n`;
+
+  const formatNumber = (value: number): string => {
+    return dataFormat === 'hex' ? `#${value.toString(16).padStart(2, '0').toUpperCase()}` : value.toString(10);
+  };
+
+  for (let i = 0; i < behaviorMapData.length; i += ASM_BYTES_PER_LINE) {
+    const chunk = behaviorMapData.slice(i, i + ASM_BYTES_PER_LINE);
+    const formattedChunk = chunk.map(formatNumber);
+    asmString += `    DB ${formattedChunk.join(',')}\n`;
+  }
+  asmString += `\n;; End of Behavior Map Data for ${mapName}\n`;
+  return asmString;
+};
+
+/**
+ * Generates behavior map data from collision layer.
+ * This uses the same logic as the Screen Editor's "Download ASM" button.
+ * @param screenMapData The screen map data containing collision layer.
+ * @param tileset Array of available tiles.
+ * @returns Array of behavior map IDs.
+ */
+export const generateBehaviorMapData = (
+  screenMapData: ScreenMap,
+  tileset: Tile[]
+): number[] => {
+  const behaviorMapData: number[] = [];
+  const activeCollisionLayer = screenMapData.layers.collision;
+
+  for (let r = 0; r < (screenMapData.activeAreaHeight ?? screenMapData.height); r++) {
+    const mapY = (screenMapData.activeAreaY ?? 0) + r;
+    for (let c = 0; c < (screenMapData.activeAreaWidth ?? screenMapData.width); c++) {
+      const mapX = (screenMapData.activeAreaX ?? 0) + c;
+      const screenTile = activeCollisionLayer[mapY]?.[mapX];
+      if (screenTile?.tileId) {
+        const tileAsset = tileset.find(t => t.id === screenTile.tileId);
+        behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
+      } else {
+        behaviorMapData.push(0);
+      }
+    }
+  }
+
+  return behaviorMapData;
+};
+
+/**
  * Compresses data using an optimized RLE (Run-Length Encoding) algorithm.
  * The format consists of literal and repetition packets.
  * - Literal packet: [count], [byte1], [byte2], ... (count is 1-127)
