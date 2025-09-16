@@ -16,7 +16,8 @@ const app = express();
 const port = 3001;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increase limit for large ASM files
+app.use(express.urlencoded({ limit: '10mb', extended: true })); // Also for URL-encoded data
 
 /**
  * Root endpoint to check if the server is running.
@@ -45,8 +46,9 @@ app.post('/compile', (req, res) => {
     fs.mkdirSync(tempDir);
   }
 
-  const tempFilePath = path.join(tempDir, `source_${Date.now()}.asm`);
-  const outputFilePath = tempFilePath.replace('.asm', '.bin');
+  const timestamp = Date.now();
+  const tempFilePath = path.join(tempDir, `source_${timestamp}.asm`);
+  const outputFilePath = tempFilePath.replace('.asm', '.rom');
 
   fs.writeFile(tempFilePath, code, (err) => {
     if (err) {
@@ -92,14 +94,51 @@ app.post('/compile', (req, res) => {
       }
 
       fs.readFile(outputFilePath, (readErr, data) => {
+        // Clean up only the temporary ASM file, keep the ROM file
         fs.unlink(tempFilePath, () => {});
-        fs.unlink(outputFilePath, () => {});
 
         if (readErr) {
           return res.status(500).send({ error: 'Failed to read compiled file', details: readErr });
         }
 
-        res.send({ success: true, data: data.toString('hex'), message: stdout });
+        // MSX ROM files must be multiples of 8KB
+        const KB_8 = 8192; // 8KB in bytes
+        const originalSize = data.length;
+
+        let paddedData = data;
+        if (originalSize % KB_8 !== 0) {
+          // Calculate padding needed to reach next 8KB boundary
+          const paddingNeeded = KB_8 - (originalSize % KB_8);
+          const padding = Buffer.alloc(paddingNeeded, 0xFF); // Fill with 0xFF (common for ROM padding)
+          paddedData = Buffer.concat([data, padding]);
+
+          console.log(`📏 ROM Size Adjustment:`);
+          console.log(`   Original: ${originalSize} bytes`);
+          console.log(`   Padded: ${paddedData.length} bytes (${paddedData.length / KB_8}×8KB)`);
+          console.log(`   Added: ${paddingNeeded} bytes of padding (0xFF)`);
+
+          // Write the padded ROM back to file
+          fs.writeFileSync(outputFilePath, paddedData);
+        } else {
+          console.log(`✅ ROM Size OK: ${originalSize} bytes (${originalSize / KB_8}×8KB)`);
+        }
+
+        // Return ROM file information for download
+        const romFileName = path.basename(outputFilePath);
+        res.send({
+          success: true,
+          data: paddedData.toString('hex'),
+          message: stdout,
+          romFile: romFileName,
+          romPath: outputFilePath,
+          downloadUrl: `/download/${romFileName}`,
+          romSizeInfo: {
+            originalSize: originalSize,
+            paddedSize: paddedData.length,
+            paddingAdded: paddedData.length - originalSize,
+            sizeIn8KB: paddedData.length / KB_8
+          }
+        });
       });
     });
   });
@@ -177,6 +216,80 @@ app.post('/run-compressor', async (req, res) => {
       }
     }
   }
+});
+
+/**
+ * Endpoint to download compiled ROM files
+ * @name GET /download/:filename
+ * @function
+ */
+app.get('/download/:filename', (req, res) => {
+  const filename = req.params.filename;
+
+  // Validate filename (only allow .rom files)
+  if (!filename.endsWith('.rom') || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).send({ error: 'Invalid filename' });
+  }
+
+  const tempDir = path.join(__dirname, 'temp');
+  const filePath = path.join(tempDir, filename);
+
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send({ error: 'ROM file not found' });
+  }
+
+  // Set headers for download
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Type', 'application/octet-stream');
+
+  // Send the file
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      return res.status(500).send({ error: 'Failed to read ROM file', details: err });
+    }
+
+    res.send(data);
+
+    // Optional: Delete the file after sending (uncomment if you want to clean up)
+    // setTimeout(() => {
+    //   fs.unlink(filePath, () => {});
+    // }, 5000); // Delete after 5 seconds
+  });
+});
+
+/**
+ * Endpoint to list available ROM files
+ * @name GET /roms
+ * @function
+ */
+app.get('/roms', (req, res) => {
+  const tempDir = path.join(__dirname, 'temp');
+
+  if (!fs.existsSync(tempDir)) {
+    return res.send({ roms: [] });
+  }
+
+  fs.readdir(tempDir, (err, files) => {
+    if (err) {
+      return res.status(500).send({ error: 'Failed to read temp directory', details: err });
+    }
+
+    const romFiles = files
+      .filter(file => file.endsWith('.rom'))
+      .map(file => {
+        const filePath = path.join(tempDir, file);
+        const stats = fs.statSync(filePath);
+        return {
+          filename: file,
+          size: stats.size,
+          created: stats.mtime,
+          downloadUrl: `/download/${file}`
+        };
+      });
+
+    res.send({ roms: romFiles });
+  });
 });
 
 /**

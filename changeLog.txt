@@ -1,4 +1,15 @@
 
+Versión 0.242 - 16/9/2025
+- fix: Corregir error de redefinición de símbolos - SCREEN_*_ID ahora incluye índice único
+- fix: Resolver símbolos de sprite no encontrados - SPRITE_*_PATTERN ahora apunta a capas correctas
+- fix: Corregir símbolo NAMTBL no encontrado - usar NAMETBL según definición en constantes
+- fix: Resolver referencias de layout de pantalla - usar nombres con índice para evitar conflictos
+- fix: Resolver estados de flujo de juego no definidos - FLOW_STATE_* ahora siempre disponibles
+- fix: Corregir orden de archivos en unitedFiles.asm - header.asm ahora es el primer archivo
+- feat: Mejorar generación de ASM con detección dinámica de capas de sprite
+- feat: Añadir aliases unificados para patrones de sprite para facilitar carga
+- feat: Implementar nomenclatura indexada para evitar conflictos de símbolos
+
 Versión 0.241 - 14/9/2025
 - docs: Actualizar guía MSX_ASM_GUIDE.md
 - fix: Eliminar referencias "Konami" de documentación ASM

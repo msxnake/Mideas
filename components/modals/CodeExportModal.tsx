@@ -61,6 +61,36 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [compilationResult, setCompilationResult] = useState<{ success: boolean; message: string; data?: string } | null>(null);
   const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
 
+  // Function to download ZIP with all modular files
+  const downloadModularZip = async (modularFiles: Record<string, string>, projectName: string) => {
+    try {
+      const zip = new JSZip();
+
+      // Add all modular files to the ZIP
+      Object.entries(modularFiles).forEach(([filename, content]) => {
+        zip.file(filename, content);
+      });
+
+      // Generate the ZIP file
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+      // Download the ZIP
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectName.toLowerCase()}_modular_project.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      return true;
+    } catch (error) {
+      console.error('Error generating ZIP:', error);
+      return false;
+    }
+  };
+
   const handleFileTabChange = (index: number) => {
     setActiveFileIndex(index);
     if (generatedFiles[index]) {
@@ -225,14 +255,49 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           break;
 
         case 'asm_all_in_one':
-          const { generateUnitedFilesASM } = await import('../../utils/msxMainGenerator');
-          code = generateUnitedFilesASM(projectName, assets, {
-            ...DEFAULT_MSX_CONFIG,
+          // Use new modular system - show ALL modular files + unified
+          console.log('🔄 Using new modular ASM generator...');
+          console.log('📊 Switch case debug:');
+          console.log('  projectName:', projectName);
+          console.log('  assets:', assets);
+          console.log('  assets length:', assets?.length);
+          console.log('  options:', options);
+
+          const { generateModularASM } = await import('../../utils/msxModularGenerator');
+          const modularFiles = generateModularASM(projectName, assets, {
             projectName,
             targetMSX: options.msxModel as any,
-            baseAddress: 0x4000  // Konami standard address
-          }, projectData); // Pass the full project data including tileBanks
-          files = [{ name: 'unitedFiles.asm', content: code }];
+            generateUnified: true,
+            outputDir: './asm/'
+          });
+
+          // Convert modular files to GeneratedFile array with logical ordering
+          const fileOrder = [
+            'unitedFiles.asm', // Unified file first (for compilation)
+            'main.asm',        // Main file with includes
+            'bios.asm',        // Core system files
+            'constants.asm',
+            'variables.asm',
+            'header.asm',
+            'patterns.asm',    // Asset files
+            'colors.asm',
+            'sprites.asm',
+            'screens.asm',
+            'components.asm',  // Logic files
+            'entities.asm',
+            'menus.asm'
+          ];
+
+          files = fileOrder
+            .filter(fileName => modularFiles[fileName]) // Only include existing files
+            .map(fileName => ({
+              name: fileName,
+              content: modularFiles[fileName]
+            }));
+
+          // Set unitedFiles.asm for compilation (contains all code in one file)
+          // or fallback to main.asm for display
+          code = modularFiles['unitedFiles.asm'] || modularFiles['main.asm'] || 'Error generating main file';
           break;
 
         case 'entities':
@@ -283,7 +348,24 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         }),
       });
 
-      const result = await response.json();
+      // Get response as text first, then try to parse as JSON
+      const responseText = await response.text();
+      let result;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        // Handle non-JSON responses
+        console.error('Failed to parse JSON response:', jsonError);
+        console.error('Raw response:', responseText);
+
+        setCompilationResult({
+          success: false,
+          message: `Server response error: ${responseText}`,
+          fullDetails: { jsonError, responseText, status: response.status }
+        });
+        return;
+      }
 
       // Enhanced error logging for Glass compilation issues
       if (!response.ok || !result.success) {
@@ -825,41 +907,117 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   onClick={async () => {
                     try {
                       const projectName = currentProjectName || "MSX_Game";
-                      const { generateUnitedFilesASM } = await import('../../utils/msxMainGenerator');
+                      // Use new modular system for compilation
+                      console.log('🔄 Using new modular ASM generator for compilation...');
+                      console.log('📊 Debug info:');
+                      console.log('  projectName:', projectName);
+                      console.log('  assets:', assets);
+                      console.log('  assets length:', assets?.length);
+                      console.log('  options:', options);
 
-                      const code = generateUnitedFilesASM(projectName, assets, {
-                        ...DEFAULT_MSX_CONFIG,
+                      const { generateModularASM } = await import('../../utils/msxModularGenerator');
+
+                      const modularFiles = generateModularASM(projectName, assets, {
                         projectName,
                         targetMSX: options.msxModel as any,
-                        baseAddress: 0x4000
-                      }, projectData); // Pass the full project data including tileBanks
+                        generateUnified: true,
+                        outputDir: './asm/'
+                      });
 
-                      // Show the generated code in the preview first
-                      setGeneratedCode(code);
-                      setGeneratedFiles([{ name: 'unitedFiles.asm', content: code }]);
-                      setActiveFileIndex(0);
+                      // Convert all modular files to GeneratedFile array with logical ordering
+                      const fileOrder = [
+                        'main.asm',        // Main file first
+                        'bios.asm',        // Core system files
+                        'constants.asm',
+                        'variables.asm',
+                        'header.asm',
+                        'patterns.asm',    // Asset files
+                        'colors.asm',
+                        'sprites.asm',
+                        'screens.asm',
+                        'components.asm',  // Logic files
+                        'entities.asm',
+                        'menus.asm',
+                        'unitedFiles.asm'  // Unified file last
+                      ];
 
-                      // Also download the file
-                      const blob = new Blob([code], { type: 'text/plain' });
+                      const allFiles = fileOrder
+                        .filter(fileName => modularFiles[fileName]) // Only include existing files
+                        .map(fileName => ({
+                          name: fileName,
+                          content: modularFiles[fileName]
+                        }));
+
+                      // Debug: Check what files were generated
+                      console.log('🔍 Generated modular files:', Object.keys(modularFiles));
+                      console.log('📝 unitedFiles.asm exists:', !!modularFiles['unitedFiles.asm']);
+                      console.log('📝 main.asm exists:', !!modularFiles['main.asm']);
+
+                      // Use unitedFiles.asm for compilation (contains all code in one file)
+                      // or fallback to main.asm for display/download
+                      const mainCode = modularFiles['unitedFiles.asm'] || modularFiles['main.asm'] || 'Error generating main file';
+
+                      console.log('📄 Using file for compilation:', modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm');
+                      console.log('📏 Code length:', mainCode.length);
+
+                      // Show all generated files in tabs
+                      setGeneratedCode(mainCode);
+                      setGeneratedFiles(allFiles);
+                      setActiveFileIndex(allFiles.findIndex(f => f.name === 'main.asm'));
+
+                      // Also download the main file (unitedFiles.asm for compilation)
+                      const blob = new Blob([mainCode], { type: 'text/plain' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
-                      a.download = 'unitedFiles.asm';
+                      a.download = modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm';
                       document.body.appendChild(a);
                       a.click();
                       document.body.removeChild(a);
                       URL.revokeObjectURL(url);
 
-                      alert(`🔧 unitedFiles.asm generated!\n\n📄 File downloaded as: unitedFiles.asm\n📁 Please save to: test/unitedFiles.asm\n🎮 Konami ROM format\n⚡ Ready for glass.jar compilation\n\nCommand: glass unitedFiles.asm ${projectName.toLowerCase()}.rom`);
+                      // Generate and download ZIP with all modular files
+                      const zipSuccess = await downloadModularZip(modularFiles, projectName);
+
+                      const message = zipSuccess
+                        ? `🔧 Modular ASM Project Generated!\n\n📄 Main file: ${modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm'}\n📦 ZIP downloaded: ${projectName.toLowerCase()}_modular_project.zip\n\n🎮 Contains:\n- All modular .asm files\n- unitedFiles.asm (for compilation)\n- Complete project structure\n\n⚡ Ready for glass.jar compilation\nCommand: glass unitedFiles.asm ${projectName.toLowerCase()}.rom`
+                        : `🔧 ASM files generated!\n\n📄 File downloaded as: ${modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm'}\n⚠️ ZIP generation failed - check console\n\n⚡ Ready for glass.jar compilation\nCommand: glass ${modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm'} ${projectName.toLowerCase()}.rom`;
+
+                      alert(message);
                     } catch (error) {
                       alert(`Error generating ASM: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    } finally {
+                      setIsGenerating(false);
                     }
                   }}
                   disabled={isGenerating}
                   variant="primary"
                   className="w-full"
                 >
-                  🔧 Generate unitedFiles.asm
+                  🔧 Generate & Download Project ZIP
+                </Button>
+              )}
+
+              {/* Optional: Download ZIP only button (if files already generated) */}
+              {generatedFiles.length > 0 && exportType === 'asm_all_in_one' && (
+                <Button
+                  onClick={async () => {
+                    // Reconstruct modularFiles from generatedFiles for ZIP download
+                    const modularFiles: Record<string, string> = {};
+                    generatedFiles.forEach(file => {
+                      modularFiles[file.name] = file.content;
+                    });
+
+                    const zipSuccess = await downloadModularZip(modularFiles, projectName || 'MSX_Game');
+                    alert(zipSuccess
+                      ? `📦 ZIP downloaded: ${(projectName || 'MSX_Game').toLowerCase()}_modular_project.zip`
+                      : '⚠️ ZIP generation failed - check console'
+                    );
+                  }}
+                  variant="secondary"
+                  className="w-full mt-2"
+                >
+                  📦 Download ZIP Only
                 </Button>
               )}
             </div>
@@ -900,6 +1058,82 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 {compilationResult.success && compilationResult.data && (
                   <div className="text-xs text-msx-textsecondary mt-2">
                     Binary size: {compilationResult.data.length / 2} bytes
+                    {(compilationResult as any).romSizeInfo && (
+                      <div className="mt-1 text-xs">
+                        ROM size: {(compilationResult as any).romSizeInfo.paddedSize} bytes
+                        ({(compilationResult as any).romSizeInfo.sizeIn8KB}×8KB)
+                        {(compilationResult as any).romSizeInfo.paddingAdded > 0 && (
+                          <span className="text-yellow-400">
+                            {' '}(+{(compilationResult as any).romSizeInfo.paddingAdded} padding)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ROM Download Button */}
+                {compilationResult.success && (compilationResult as any).romFile && (
+                  <div className="mt-3 p-2 bg-green-900 bg-opacity-30 rounded border border-green-500">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm text-green-400 font-semibold">🎮 ROM Ready!</div>
+                        <div className="text-xs text-msx-textsecondary">
+                          File: {(compilationResult as any).romFile}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const downloadUrl = `http://localhost:3001${(compilationResult as any).downloadUrl}`;
+                            const link = document.createElement('a');
+                            link.href = downloadUrl;
+                            link.download = (compilationResult as any).romFile;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                          className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded transition-colors"
+                        >
+                          📥 Download ROM
+                        </button>
+                        <button
+                          onClick={() => {
+                            window.open('http://localhost:3001/roms', '_blank');
+                          }}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition-colors"
+                        >
+                          📂 View All ROMs
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Alternative: Show ROM management even when no recent compilation */}
+                {!compilationResult && (
+                  <div className="mt-3">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const response = await fetch('http://localhost:3001/roms');
+                          const data = await response.json();
+                          if (data.roms && data.roms.length > 0) {
+                            const romList = data.roms.map((rom: any) =>
+                              `${rom.filename} (${rom.size} bytes, ${new Date(rom.created).toLocaleString()})`
+                            ).join('\n');
+                            alert(`📂 Available ROMs:\n\n${romList}\n\nTip: Click "View All ROMs" to access them via browser.`);
+                          } else {
+                            alert('📂 No ROMs available.\n\nCompile a project first to generate ROM files.');
+                          }
+                        } catch (error) {
+                          alert('❌ Could not connect to ROM server.\n\nMake sure the server is running on localhost:3001');
+                        }
+                      }}
+                      className="px-3 py-1 bg-msx-highlight hover:bg-opacity-80 text-msx-bgcolor text-xs rounded transition-colors"
+                    >
+                      📂 Check Available ROMs
+                    </button>
                   </div>
                 )}
               </div>

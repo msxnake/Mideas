@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph } from '../types';
 
 /**
  * Hot spot marker interface
@@ -24,6 +24,8 @@ export interface ProjectAnalysis {
   sprites: Sprite[];
   tiles: Tile[];
   screenMaps: ScreenMap[];
+  entities?: EntityInstance[];
+  gameFlow?: GameFlowGraph;
   hasECS: boolean;
   hasMultipleScreens: boolean;
   hasSprites: boolean;

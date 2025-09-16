@@ -12,7 +12,12 @@
       "Bash(mv:*)",
       "Bash(grep:*)",
       "Bash(awk:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npm run:*)",
+      "Bash(curl:*)",
+      "Bash(dir:*)",
+      "Bash(npm start)"
     ],
     "deny": [],
     "ask": []

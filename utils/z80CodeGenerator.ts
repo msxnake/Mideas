@@ -74,7 +74,7 @@ function debugSpriteData(pixelData: PixelData, spriteName: string = 'Unknown'): 
 /**
  * Convert MSX color value to palette index for MSX1
  */
-function colorToMSX1Index(color: MSXColorValue): number {
+export function colorToMSX1Index(color: MSXColorValue): number {
   if (!color) return 1; // Default to transparent/black
   
   // Handle different color formats and normalize
@@ -149,7 +149,7 @@ function colorToMSX1Index(color: MSXColorValue): number {
  * For sprites, we use a two-plane system where each pixel needs 2 bits
  * For tiles, we use single-plane 1-bit per pixel
  */
-function pixelDataToPattern(pixelData: PixelData, isSprite: boolean = false): number[] {
+export function pixelDataToPattern(pixelData: PixelData, isSprite: boolean = false): number[] {
   const pattern: number[] = [];
   
   if (!pixelData || pixelData.length === 0) {

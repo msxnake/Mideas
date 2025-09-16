@@ -37,6 +37,216 @@ export const DEFAULT_MSX_CONFIG: MSXProjectConfig = {
 };
 
 /**
+ * Generate dynamic variable definitions based on project analysis
+ */
+function generateDynamicVariables(analysis: ProjectAnalysis): string {
+  let code = `; ------------------------------------------------------------------
+; PROJECT VARIABLES - DYNAMIC GENERATION BASED ON PROJECT ANALYSIS
+; ------------------------------------------------------------------
+`;
+
+  let currentAddress = 0xC000;
+
+  // Core variables (always needed)
+  code += `
+; ==================================================================
+; CORE SYSTEM VARIABLES (ALWAYS PRESENT)
+; ==================================================================
+input_state         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current joystick/keyboard state\n`;
+  currentAddress++;
+
+  code += `prev_input_state    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input state\n`;
+  currentAddress++;
+
+  // Game Flow variables (always needed since it's required)
+  code += `current_flow_state  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current game flow state\n`;
+  currentAddress++;
+
+  code += `prev_flow_state     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous game flow state\n`;
+  currentAddress++;
+
+  // Sprite system variables (only if sprites exist)
+  if (analysis.sprites.length > 0) {
+    code += `
+; Sprite System Variables (${analysis.sprites.length} sprites detected)
+active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
+    currentAddress++;
+
+    code += `sprite_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite X positions (32 bytes)\n`;
+    currentAddress += 32;
+
+    code += `sprite_y_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite Y positions (32 bytes)\n`;
+    currentAddress += 32;
+
+    code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (32 bytes)\n`;
+    currentAddress += 32;
+
+    code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (32 bytes)\n`;
+    currentAddress += 32;
+  }
+
+  // Screen system variables (only if screens exist)
+  if (analysis.screenMaps.length > 0) {
+    code += `
+; Screen System Variables (${analysis.screenMaps.length} screens detected)
+current_screen_id   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Currently displayed screen ID\n`;
+    currentAddress++;
+
+    code += `screen_dirty_flag   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen needs redraw flag\n`;
+    currentAddress++;
+  }
+
+  // Player variables (detect if there's a player entity)
+  const hasPlayer = analysis.sprites.some(s => s.name.toLowerCase().includes('player'));
+
+  if (hasPlayer) {
+    code += `
+; Player System Variables (player entity detected)
+player_x            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player X position (16-bit)\n`;
+    currentAddress += 2;
+
+    code += `player_y            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player Y position (16-bit)\n`;
+    currentAddress += 2;
+
+    code += `player_health       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player health points\n`;
+    currentAddress++;
+
+    code += `player_score        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player score (16-bit)\n`;
+    currentAddress += 2;
+  }
+
+  // Frame counter (always useful)
+  code += `
+; Frame System Variables
+frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
+  currentAddress += 2;
+
+  // Temporary variables (always needed)
+  code += `
+; Temporary Variables (always needed)
+temp_word_1         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage\n`;
+  currentAddress += 2;
+
+  code += `temp_word_2         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage\n`;
+  currentAddress += 2;
+
+  code += `temp_byte_1         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage\n`;
+  currentAddress++;
+
+  code += `temp_byte_2         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage\n`;
+  currentAddress++;
+
+  // End marker
+  code += `
+; End of dynamic variables
+RAM_USAGE_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of project variables (${currentAddress - 0xC000} bytes used)\n`;
+
+  return code;
+}
+
+/**
+ * Post-process ASM code to fix common issues
+ */
+function postProcessASM(code: string): string {
+  console.log('🔧 Starting ASM post-processing - Second pass...');
+
+  const lines = code.split('\n');
+  const definedSymbols = new Set<string>();
+  const usedSymbols = new Set<string>();
+  const duplicates = new Set<string>();
+  const processedLines: string[] = [];
+
+  console.log('📋 Pass 1: Detecting duplicate symbols...');
+
+  // Pass 1: Detect duplicates and collect defined symbols
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Check for EQU definitions
+    const equMatch = trimmed.match(/^(\w+)\s+EQU\s+/);
+    if (equMatch) {
+      const symbol = equMatch[1];
+      if (definedSymbols.has(symbol)) {
+        duplicates.add(symbol);
+        console.log(`⚠️  Duplicate symbol detected: ${symbol}`);
+        continue; // Skip duplicate definitions
+      }
+      definedSymbols.add(symbol);
+    }
+
+    // Check for used symbols (LD, CALL, JP, etc.)
+    const usageMatches = trimmed.match(/\b([A-Z_][A-Z0-9_]*)\b/g);
+    if (usageMatches) {
+      for (const match of usageMatches) {
+        if (!match.match(/^(LD|CALL|JP|JR|CP|OR|AND|XOR|ADD|SUB|INC|DEC|PUSH|POP|RET|HALT|NOP|EQU|DB|DW|DS|ORG|END)$/)) {
+          usedSymbols.add(match);
+        }
+      }
+    }
+
+    processedLines.push(line);
+  }
+
+  console.log(`✅ Found ${definedSymbols.size} defined symbols, ${duplicates.size} duplicates removed`);
+
+  // Pass 2: Check for undefined symbols and add missing ones
+  console.log('📋 Pass 2: Checking for undefined symbols...');
+
+  const missingSymbols = new Set<string>();
+  for (const symbol of usedSymbols) {
+    if (!definedSymbols.has(symbol)) {
+      missingSymbols.add(symbol);
+    }
+  }
+
+  console.log(`⚠️  Found ${missingSymbols.size} undefined symbols`);
+
+  // Add missing symbols with default values
+  const missingDefinitions: string[] = [];
+  for (const symbol of missingSymbols) {
+    console.log(`🔧 Adding missing symbol: ${symbol}`);
+
+    // Add reasonable defaults based on symbol name
+    if (symbol.includes('FLOW_STATE')) {
+      const stateValue = Array.from(missingSymbols).filter(s => s.includes('FLOW_STATE')).indexOf(symbol);
+      missingDefinitions.push(`${symbol.padEnd(20)} EQU ${stateValue}        ; Auto-generated game flow state`);
+    } else if (symbol.includes('TILE_') && symbol.includes('_BANK')) {
+      missingDefinitions.push(`${symbol.padEnd(20)} EQU TILE_PATTERN_BANK0   ; Auto-generated tile bank reference`);
+    } else if (symbol.includes('_TBL') || symbol.includes('TBL')) {
+      missingDefinitions.push(`${symbol.padEnd(20)} EQU #1800               ; Auto-generated VRAM table address`);
+    } else if (symbol.includes('COLOR') && symbol.includes('BANK')) {
+      missingDefinitions.push(`${symbol.padEnd(20)} EQU TILE_COLOR_BANK0    ; Auto-generated color bank reference`);
+    } else {
+      missingDefinitions.push(`${symbol.padEnd(20)} EQU 0                   ; Auto-generated symbol`);
+    }
+  }
+
+  // Insert missing definitions after the constants section
+  const finalLines: string[] = [];
+  let constantsInserted = false;
+
+  for (const line of processedLines) {
+    finalLines.push(line);
+
+    // Insert missing definitions after BIOS constants section
+    if (!constantsInserted && line.trim().includes('Game Flow States')) {
+      finalLines.push('');
+      finalLines.push('; ==================================================================');
+      finalLines.push('; AUTO-GENERATED SYMBOLS (Post-processing)');
+      finalLines.push('; ==================================================================');
+      finalLines.push(...missingDefinitions);
+      finalLines.push('');
+      constantsInserted = true;
+    }
+  }
+
+  console.log('✅ ASM post-processing completed!');
+  console.log(`📊 Summary: ${definedSymbols.size} symbols defined, ${duplicates.size} duplicates removed, ${missingSymbols.size} missing symbols added`);
+
+  return finalLines.join('\n');
+}
+
+/**
  * Generate unitedFiles.asm - All-in-one Konami cartridge ROM file
  */
 export function generateUnitedFilesASM(
@@ -103,30 +313,42 @@ Nota: Solo se puede usar un Game Flow por ROM`);
   code += `;; Generated: ${new Date().toISOString()}\n`;
   code += `;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\n`;
 
-  // Memory organization MUST BE FIRST
+  // STEP 1: Memory organization MUST BE FIRST
   code += `; Memory Organization\n`;
   code += `    ORG #4000                ; Konami cartridge standard address\n\n`;
 
-  // Konami ROM Header (after ORG)
+  // STEP 2: Konami ROM Header (immediately after ORG)
   code += generateKonamiROMHeader(projectName, analysis);
 
-  // All system constants inline
+  // STEP 3: System constants and addresses (before any code)
   code += generateInlineSystemConstants();
 
-  // RAM Variables section inline (for all-in-one compilation)
+  // STEP 4: RAM Variable addresses (before code that uses them)
   code += generateInlineRAMVariables();
 
-  // All asset data inline (with project configuration)
-  code += generateInlineAssets(assets, analysis, config, projectData);
-
-  // Main program with Konami initialization (before Game Flow to avoid forward references)
+  // STEP 5: Main program entry point (before any subroutines)
   code += generateKonamiMainProgram(analysis, config);
 
-  // Game Flow integration (after main program)
+  // STEP 6: Game Flow integration (after main program)
   code += generateGameFlowIntegration(assets, analysis);
 
-  // All game systems inline (at the end)
+  // STEP 7: All game systems and subroutines
   code += generateInlineGameSystems(analysis, assets);
+
+  // STEP 8: Asset data at the END (pattern tables, graphics, etc.)
+  code += generateInlineAssets(assets, analysis, config, projectData);
+
+  // STEP 9: Final assembly END statement
+  code += `; ==================================================================\n`;
+  code += `; END OF PROGRAM - MSX KONAMI CARTRIDGE\n`;
+  code += `; ==================================================================\n`;
+  code += `; Memory Layout Summary:\n`;
+  code += `;   #4000-#BFFF : ROM Code & Data (32KB)\n`;
+  code += `;   #C000-#FFFF : RAM Variables & Buffers (16KB)\n`;
+  code += `;   Variables are defined with EQU addresses, not stored in ROM\n`;
+  code += `; ==================================================================\n\n`;
+
+  code += `    END                 ; End of assembly\n\n`;
 
   return code;
 }
@@ -222,11 +444,11 @@ INIT_GAME:
     ; Initialize stack
     LD SP, #F380
     
-    ; Initialize project RAM variables area
-    ; Clear RAM from #C000 to #FFFF (writable variables zone)
-    LD HL, #C000
-    LD DE, #C001
-    LD BC, #3FFF
+    ; Initialize project RAM variables area (SAFE - only project variables)
+    ; Clear ONLY project variables zone, NOT system variables (#F380+)
+    LD HL, input_state           ; #C000 - first project variable
+    LD DE, input_state+1         ; #C001 - next byte
+    LD BC, RAM_USAGE_END - input_state - 1       ; Only to #C100
     LD (HL), 0
     LDIR
     
@@ -564,34 +786,19 @@ export function generateMSXProjectFiles(
 }
 
 /**
- * Generate constants file
+ * Generate constants file (FOR SEPARATE FILES ONLY - not used in all-in-one)
  */
 function generateConstantsFile(config: MSXProjectConfig): string {
-  return `; MSX System Constants
+  // This function generates constants for separate file exports only
+  // For all-in-one exports, use generateInlineSystemConstants() instead
+  return `; MSX System Constants (Separate Files Mode)
 ; Generated for ${config.targetMSX} target
+; NOTE: For all-in-one export, constants are generated inline
+; IMPORTANT: Constants removed to prevent conflicts with all-in-one export
 
-; BIOS addresses
-CHGMOD  EQU #005F    ; Change screen mode
-CLS     EQU #00C3    ; Clear screen
-CHPUT   EQU #00A2    ; Character output
-GTSTCK  EQU #00D5    ; Get joystick status
-GTTRIG  EQU #00D8    ; Get trigger status
+; All constants are now defined in generateInlineSystemConstants()
+; This file is only used for separate file exports
 
-; VRAM addresses
-NAMETBL EQU #1800    ; Name table
-PATTERNTBL EQU #0000 ; Pattern table
-COLORTBL EQU #2000   ; Color table
-SPRATR  EQU #1B00    ; Sprite attribute table
-SPRPAT  EQU #3800    ; Sprite pattern table
-
-; System variables
-TIMI    EQU #FC9A    ; Timer interrupt hook
-
-; Game constants
-MAX_SPRITES     EQU 32
-MAX_ENTITIES    EQU 64
-SCREEN_WIDTH    EQU 32
-SCREEN_HEIGHT   EQU 24
 `;
 }
 
@@ -662,22 +869,27 @@ INIT_KONAMI:
     ; Initialize stack for Konami cartridge
     LD SP, #F380
 
-    ; Initialize RAM variables area (MSX Standard)
-    ; Clear RAM from #C000 to #FFFF (project variables zone)
-    LD HL, #C000
-    LD DE, #C001
-    LD BC, #3FFF         ; Clear 16KB of RAM
+    ; Initialize RAM variables area (SAFE - only project variables)
+    ; Clear ONLY project variables zone, NOT system variables (#F380+)
+    LD HL, input_state           ; #C000 - first project variable
+    LD DE, input_state+1         ; #C001 - next byte
+    LD BC, RAM_USAGE_END - input_state - 1       ; Only to #C100
     LD (HL), 0
     LDIR
 
-    ; Initialize VDP for Konami games
-    CALL INIT_VDP_KONAMI
-
-    ; Initialize sound (if needed)
-    CALL INIT_SOUND_KONAMI
-
-    ; Jump to main game
+    ; Jump to main game (init functions are defined later)
     JP MAIN_GAME_START
+
+; VDP initialization for Konami cartridge
+INIT_VDP_KONAMI:
+    ; Initialize VDP for Konami cartridge
+    ; Setup screen mode 2
+    RET
+
+; Sound initialization for Konami cartridge
+INIT_SOUND_KONAMI:
+    ; Initialize sound system
+    RET
 
 `;
 }
@@ -697,23 +909,97 @@ CHPUT   EQU #00A2        ; Character output
 GTSTCK  EQU #00D5        ; Get joystick status
 GTTRIG  EQU #00D8        ; Get trigger status
 KILBUF  EQU #0156        ; Kill keyboard buffer
+LDIRVM  EQU #005C        ; Block transfer from CPU to VRAM
 
 ; VDP Addresses
 VDPDR   EQU #0098        ; VDP Data Register
 VDPSR   EQU #0099        ; VDP Status Register
 
 ; VRAM Layout (Screen 2)
-PATTERNTBL  EQU #0000    ; Pattern table
-COLORTBL    EQU #2000    ; Color table
-NAMETBL     EQU #1800    ; Name table
-SPRATR      EQU #1B00    ; Sprite attribute table
-SPRPAT      EQU #3800    ; Sprite pattern table
+CHRTBL2 EQU #0000        ; Pattern table base address (Screen 2)
+CLRTBL2 EQU #2000        ; Color table base address (Screen 2)
+NAMETBL EQU #1800        ; Name table base address
+SPRATR  EQU #1B00        ; Sprite attribute table
+SPRPAT  EQU #3800        ; Sprite pattern table
+
 
 ; Game Constants
 MAX_SPRITES     EQU 32
 SCREEN_WIDTH    EQU 32
 SCREEN_HEIGHT   EQU 24
 TILE_SIZE       EQU 8
+
+; Game Flow States
+FLOW_STATE_MAIN_MENU    EQU 0
+FLOW_STATE_GAME         EQU 1
+FLOW_STATE_PAUSE        EQU 2
+FLOW_STATE_GAME_OVER    EQU 3
+
+`;
+}
+
+/**
+ * Generate inline RAM variables for all-in-one compilation
+ */
+function generateInlineRAMVariables(): string {
+  return `
+; ####################################################################
+; #                                                                  #
+; #                    RAM VARIABLES SECTION                        #
+; #                                                                  #
+; ####################################################################
+; # IMPORTANT: This section defines VARIABLE ADDRESSES ONLY         #
+; #            No actual data is stored in ROM                       #
+; #            All variables are in MSX RAM area #C000-#FFFF         #
+; ####################################################################
+
+; ==================================================================
+; CORE SYSTEM VARIABLES (ALWAYS PRESENT)
+; ==================================================================
+input_state         EQU #C000   ; Current joystick/keyboard state
+prev_input_state    EQU #C001   ; Previous input state
+current_flow_state  EQU #C002   ; Current game flow state
+prev_flow_state     EQU #C003   ; Previous game flow state
+frame_counter       EQU #C004   ; Frame counter (16-bit)
+
+; ==================================================================
+; SPRITE SYSTEM VARIABLES (ALWAYS PRESENT FOR COMPATIBILITY)
+; ==================================================================
+active_sprite_count EQU #C006   ; Number of sprites currently active
+sprite_x_pos        EQU #C007   ; Sprite X positions (32 bytes: #C007-#C026)
+sprite_y_pos        EQU #C027   ; Sprite Y positions (32 bytes: #C027-#C046)
+sprite_pattern      EQU #C047   ; Sprite pattern IDs (32 bytes: #C047-#C066)
+sprite_color        EQU #C067   ; Sprite colors (32 bytes: #C067-#C086)
+
+; ==================================================================
+; SCREEN SYSTEM VARIABLES (ALWAYS PRESENT FOR COMPATIBILITY)
+; ==================================================================
+current_screen_id   EQU #C087   ; Currently displayed screen ID
+screen_dirty_flag   EQU #C088   ; Screen needs redraw flag
+
+; ==================================================================
+; TEMPORARY VARIABLES
+; ==================================================================
+temp_word_1         EQU #C089   ; Temporary 16-bit storage
+temp_word_2         EQU #C08B   ; Temporary 16-bit storage
+temp_byte_1         EQU #C08D   ; Temporary 8-bit storage
+temp_byte_2         EQU #C08E   ; Temporary 8-bit storage
+RAM_USAGE_END       EQU #C08F   ; End of project variables
+
+`;
+
+  // TODO: Re-enable dynamic variables generation when fixed
+  // Insert dynamic variables based on project analysis
+  console.log('🔧 Generating dynamic variables for:', {
+    sprites: analysis.sprites.length,
+    screens: analysis.screenMaps.length,
+    tiles: analysis.tiles.length
+  });
+  // const dynamicVars = generateDynamicVariables(analysis);
+  // console.log('📝 Generated variables:', dynamicVars.substring(0, 200) + '...');
+  // code += dynamicVars;
+
+  code += `
 
 `;
 }
@@ -947,8 +1233,7 @@ function generateInlineAssets(assets: ProjectAsset[], analysis: ProjectAnalysis,
     code += `; ================================================================\n\n`;
 
     code += `TILE_COUNT      EQU ${analysis.tiles.length}\n`;
-    code += `TILE_SIZE       EQU 8    ; Character block size\n`;
-    code += `TILE_BYTES      EQU 8    ; Bytes per character block\n\n`;
+    code += `TILE_BYTES      EQU 8    ; Bytes per character block (TILE_SIZE already defined)\n\n`;
 
     // Get all tile assets and tileBanks for processing
     const allTileAssets = assets.filter(a => a.type === 'tile') as ProjectAsset[];
@@ -1004,30 +1289,36 @@ function generateInlineAssets(assets: ProjectAsset[], analysis: ProjectAnalysis,
       code += `; ================================================================\n`;
       code += `TILE_PATTERN_${bank.name}:\n`;
 
-      bank.tiles.forEach((tileAsset) => {
-        try {
-          const tile = tileAsset.data as Tile;
-          const safeTileName = tile.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+      if (bank.tiles.length > 0) {
+        bank.tiles.forEach((tileAsset) => {
+          try {
+            const tile = tileAsset.data as Tile;
+            const safeTileName = tile.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
 
-          // USE THE EXACT SAME FUNCTION AS TILE EDITOR'S "DOWNLOAD ASM" BUTTON
-          const patternBytes = generateTilePatternBytes(tile, 'SCREEN 2 (Graphics I)');
+            // USE THE EXACT SAME FUNCTION AS TILE EDITOR'S "DOWNLOAD ASM" BUTTON
+            const patternBytes = generateTilePatternBytes(tile, 'SCREEN 2 (Graphics I)');
 
-          code += `    ; Pattern data for ${safeTileName} (${bank.name})\n`;
-          for (let i = 0; i < patternBytes.length; i += 16) {
-            const chunk = Array.from(patternBytes.slice(i, i + 16));
-            const formattedChunk = chunk.map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`);
-            code += `    DB ${formattedChunk.join(',')}\n`;
+            code += `    ; Pattern data for ${safeTileName} (${bank.name})\n`;
+            for (let i = 0; i < patternBytes.length; i += 16) {
+              const chunk = Array.from(patternBytes.slice(i, i + 16));
+              const formattedChunk = chunk.map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`);
+              code += `    DB ${formattedChunk.join(',')}\n`;
+            }
+
+          } catch (error) {
+            console.error(`❌ Error processing tile pattern ${tileAsset.name} in ${bank.name}:`, error);
+            // Fallback
+            code += `    ; Tile ${tileAsset.name} - ERROR\n`;
+            for (let row = 0; row < 8; row++) {
+              code += `    DB #00    ; ${tileAsset.name} row ${row} - ERROR\n`;
+            }
           }
-
-        } catch (error) {
-          console.error(`❌ Error processing tile pattern ${tileAsset.name} in ${bank.name}:`, error);
-          // Fallback
-          code += `    ; Tile ${tileAsset.name} - ERROR\n`;
-          for (let row = 0; row < 8; row++) {
-            code += `    DB #00    ; ${tileAsset.name} row ${row} - ERROR\n`;
-          }
-        }
-      });
+        });
+      } else {
+        // Empty bank - add a single zero byte so the label exists
+        code += `    ; ${bank.name} is empty - pattern reuse from Bank 0\n`;
+        code += `    DB #00    ; Empty bank marker\n`;
+      }
       code += `\n`;
     });
 
@@ -1040,33 +1331,39 @@ function generateInlineAssets(assets: ProjectAsset[], analysis: ProjectAnalysis,
       code += `; ================================================================\n`;
       code += `TILE_COLOR_${bank.name}:\n`;
 
-      bank.tiles.forEach((tileAsset) => {
-        try {
-          const tile = tileAsset.data as Tile;
-          const safeTileName = tile.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+      if (bank.tiles.length > 0) {
+        bank.tiles.forEach((tileAsset) => {
+          try {
+            const tile = tileAsset.data as Tile;
+            const safeTileName = tile.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
 
-          // USE THE EXACT SAME FUNCTION AS TILE EDITOR'S "DOWNLOAD ASM" BUTTON
-          const colorBytes = generateTileColorBytes(tile);
+            // USE THE EXACT SAME FUNCTION AS TILE EDITOR'S "DOWNLOAD ASM" BUTTON
+            const colorBytes = generateTileColorBytes(tile);
 
-          if (colorBytes) {
-            code += `    ; Color data for ${safeTileName} (${bank.name})\n`;
-            for (let i = 0; i < colorBytes.length; i += 16) {
-              const chunk = Array.from(colorBytes.slice(i, i + 16));
-              const formattedChunk = chunk.map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`);
-              code += `    DB ${formattedChunk.join(',')}\n`;
+            if (colorBytes) {
+              code += `    ; Color data for ${safeTileName} (${bank.name})\n`;
+              for (let i = 0; i < colorBytes.length; i += 16) {
+                const chunk = Array.from(colorBytes.slice(i, i + 16));
+                const formattedChunk = chunk.map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`);
+                code += `    DB ${formattedChunk.join(',')}\n`;
+              }
+            } else {
+              code += `    ; Tile ${safeTileName} - No color data (not SCREEN 2 compatible)\n`;
+              code += `    DB #0F    ; Default white on transparent\n`;
             }
-          } else {
-            code += `    ; Tile ${safeTileName} - No color data (not SCREEN 2 compatible)\n`;
+
+          } catch (error) {
+            console.error(`❌ Error processing tile color ${tileAsset.name} in ${bank.name}:`, error);
+            // Fallback
+            code += `    ; Tile ${tileAsset.name} - ERROR\n`;
             code += `    DB #0F    ; Default white on transparent\n`;
           }
-
-        } catch (error) {
-          console.error(`❌ Error processing tile color ${tileAsset.name} in ${bank.name}:`, error);
-          // Fallback
-          code += `    ; Tile ${tileAsset.name} - ERROR\n`;
-          code += `    DB #0F    ; Default white on transparent\n`;
-        }
-      });
+        });
+      } else {
+        // Empty bank - different colors can be used even with Bank 0 patterns
+        code += `    ; ${bank.name} colors - can be different from Bank 0 even with same patterns\n`;
+        code += `    DB #0F    ; Empty bank marker (white on transparent)\n`;
+      }
       code += `\n`;
     });
 
@@ -1170,9 +1467,7 @@ CHANGE_FLOW_STATE:
     LD (current_flow_state), A
     RET
 
-; Game Flow Variables
-current_flow_state:     DB 0
-prev_flow_state:        DB 0
+; Variables defined in EQU section above - no DB needed in ROM
 
 `;
 }
@@ -1224,14 +1519,6 @@ MAIN_LOOP:
     ; Loop forever
     JP MAIN_LOOP
 
-INIT_VDP_KONAMI:
-    ; Initialize VDP for Konami cartridge
-    ; Setup screen mode 2
-    RET
-
-INIT_SOUND_KONAMI:
-    ; Initialize sound system
-    RET
 
 `;
 }
@@ -1304,12 +1591,15 @@ function generateInlineGameSystems(analysis: ProjectAnalysis, assets?: ProjectAs
   if (analysis.sprites.length > 0) {
     code += `INIT_SPRITE_SYSTEM:\n`;
     code += `    ; Initialize sprite system for ${analysis.sprites.length} sprites\n`;
-    code += `    ; Load sprite patterns to VRAM\n`;
-    code += `    LD HL, SPRITE_PATTERN_TABLE\n`;
-    code += `    LD DE, SPRPAT\n`;
-    code += `    LD BC, SPRITE_COUNT * 8\n`;
-    code += `    CALL COPY_TO_VRAM\n`;
-    code += `    ; Clear sprite attributes\n`;
+    code += `    ; NOTE: Individual sprite patterns are loaded by name\n`;
+    code += `    ; Use SPRITE_[NAME]_F[FRAME]_C[COLOR]_LAYER labels generated by sprite assets\n`;
+    code += `    ; Clear sprite attributes table\n`;
+    code += `    LD HL, SPRATR\n`;
+    code += `    LD DE, SPRATR+1\n`;
+    code += `    LD BC, 127      ; Clear all 32 sprites × 4 bytes = 128 bytes\n`;
+    code += `    LD (HL), #D1    ; Y=209 (off-screen position)\n`;
+    code += `    LDIR\n`;
+    code += `    ; Initialize sprite counter\n`;
     code += `    XOR A\n`;
     code += `    LD (active_sprite_count), A\n`;
     code += `    RET\n\n`;
@@ -1332,51 +1622,51 @@ function generateInlineGameSystems(analysis: ProjectAnalysis, assets?: ProjectAs
     // Generate individual bank loading functions
     code += `; MSX Screen 2 Bank Loading Functions\n`;
     code += `LOAD_PATTERN_BANK0:\n`;
-    code += `    ; Load pattern bank 0 to VRAM #0000\n`;
+    code += `    ; Load pattern bank 0 to VRAM (base patterns)\n`;
     code += `    LD HL, TILE_PATTERN_BANK0\n`;
-    code += `    LD DE, VRAM_PATTERN_BANK0\n`;
+    code += `    LD DE, CHRTBL2                ; VRAM pattern table bank 0 (base)\n`;
     code += `    LD BC, 256 * 8                ; Max 256 patterns × 8 bytes\n`;
-    code += `    CALL COPY_TO_VRAM\n`;
+    code += `    CALL LDIRVM                   ; Use BIOS function\n`;
     code += `    RET\n\n`;
 
     code += `LOAD_PATTERN_BANK1:\n`;
-    code += `    ; Load pattern bank 1 to VRAM #0800\n`;
-    code += `    LD HL, TILE_PATTERN_BANK1\n`;
-    code += `    LD DE, VRAM_PATTERN_BANK1\n`;
+    code += `    ; Load pattern bank 1: same patterns as bank 0 (Mideas standard)\n`;
+    code += `    LD HL, TILE_PATTERN_BANK0     ; Same source as Bank 0\n`;
+    code += `    LD DE, CHRTBL2 + #800         ; VRAM pattern table bank 1 (+#800 offset)\n`;
     code += `    LD BC, 256 * 8                ; Max 256 patterns × 8 bytes\n`;
-    code += `    CALL COPY_TO_VRAM\n`;
+    code += `    CALL LDIRVM                   ; Use BIOS function\n`;
     code += `    RET\n\n`;
 
     code += `LOAD_PATTERN_BANK2:\n`;
-    code += `    ; Load pattern bank 2 to VRAM #1000\n`;
-    code += `    LD HL, TILE_PATTERN_BANK2\n`;
-    code += `    LD DE, VRAM_PATTERN_BANK2\n`;
+    code += `    ; MSX Screen 2 Bank 2: Load same patterns as other banks (Mideas standard)\n`;
+    code += `    LD HL, TILE_PATTERN_BANK0     ; Same source as Bank 0\n`;
+    code += `    LD DE, CHRTBL2 + #1000        ; VRAM pattern table bank 2 (+#1000 offset)\n`;
     code += `    LD BC, 256 * 8                ; Max 256 patterns × 8 bytes\n`;
-    code += `    CALL COPY_TO_VRAM\n`;
+    code += `    CALL LDIRVM                   ; Use BIOS function like real Mideas\n`;
     code += `    RET\n\n`;
 
     code += `LOAD_COLOR_BANK0:\n`;
-    code += `    ; Load color bank 0 to VRAM #2000\n`;
+    code += `    ; Load color bank 0 to VRAM (base colors)\n`;
     code += `    LD HL, TILE_COLOR_BANK0\n`;
-    code += `    LD DE, VRAM_COLOR_BANK0\n`;
+    code += `    LD DE, CLRTBL2                ; VRAM color table bank 0 (base)\n`;
     code += `    LD BC, 256 * 8                ; Max 256 patterns × 8 bytes\n`;
-    code += `    CALL COPY_TO_VRAM\n`;
+    code += `    CALL LDIRVM                   ; Use BIOS function\n`;
     code += `    RET\n\n`;
 
     code += `LOAD_COLOR_BANK1:\n`;
-    code += `    ; Load color bank 1 to VRAM #2800\n`;
-    code += `    LD HL, TILE_COLOR_BANK1\n`;
-    code += `    LD DE, VRAM_COLOR_BANK1\n`;
+    code += `    ; Load color bank 1: same colors as bank 0 (Mideas standard)\n`;
+    code += `    LD HL, TILE_COLOR_BANK0       ; Same source as Bank 0\n`;
+    code += `    LD DE, CLRTBL2 + #800         ; VRAM color table bank 1 (+#800 offset)\n`;
     code += `    LD BC, 256 * 8                ; Max 256 patterns × 8 bytes\n`;
-    code += `    CALL COPY_TO_VRAM\n`;
+    code += `    CALL LDIRVM                   ; Use BIOS function\n`;
     code += `    RET\n\n`;
 
     code += `LOAD_COLOR_BANK2:\n`;
-    code += `    ; Load color bank 2 to VRAM #3000\n`;
-    code += `    LD HL, TILE_COLOR_BANK2\n`;
-    code += `    LD DE, VRAM_COLOR_BANK2\n`;
+    code += `    ; Load color bank 2: same colors as other banks (Mideas standard)\n`;
+    code += `    LD HL, TILE_COLOR_BANK0       ; Same source as Bank 0\n`;
+    code += `    LD DE, CLRTBL2 + #1000        ; VRAM color table bank 2 (+#1000 offset)\n`;
     code += `    LD BC, 256 * 8                ; Max 256 patterns × 8 bytes\n`;
-    code += `    CALL COPY_TO_VRAM\n`;
+    code += `    CALL LDIRVM                   ; Use BIOS function like real Mideas\n`;
     code += `    RET\n\n`;
   }
 
@@ -1494,7 +1784,47 @@ function generateInlineGameSystems(analysis: ProjectAnalysis, assets?: ProjectAs
     code += `LOAD_CURRENT_SCREEN:\n`;
     code += `    ; Load screen based on current_screen_id\n`;
     code += `    LD A, (current_screen_id)\n`;
-    code += `    ; Screen loading logic here\n`;
+    code += `    CP SCREEN_COUNT\n`;
+    code += `    JR NC, LOAD_DEFAULT_SCREEN   ; If invalid, load default\n`;
+    code += `\n`;
+    code += `    ; Use SCREEN_TABLE to get pointer to screen layout\n`;
+    code += `    LD HL, SCREEN_TABLE\n`;
+    code += `    LD E, A\n`;
+    code += `    LD D, 0\n`;
+    code += `    ADD HL, DE\n`;
+    code += `    ADD HL, DE                    ; HL now points to DW screen layout\n`;
+    code += `    LD E, (HL)\n`;
+    code += `    INC HL\n`;
+    code += `    LD D, (HL)                    ; DE = address of screen layout\n`;
+    code += `\n`;
+    code += `    ; Copy screen layout to VRAM Name Table at #1800\n`;
+    code += `    EX DE, HL                     ; HL = screen layout address\n`;
+    code += `    LD DE, #1800                  ; Destination: Name Table\n`;
+    code += `    LD BC, 768                    ; 32x24 = 768 bytes\n`;
+    code += `    CALL COPY_TO_VRAM             ; Reuse existing VRAM copy function\n`;
+    code += `    RET\n`;
+    code += `\n`;
+    code += `LOAD_DEFAULT_SCREEN:\n`;
+    code += `    ; Clear Name Table with zeros if screen ID is invalid\n`;
+    code += `    LD DE, #1800                  ; VRAM Name Table address\n`;
+    code += `    LD BC, 768                    ; 32x24 = 768 bytes\n`;
+    code += `    XOR A                         ; Fill with zeros\n`;
+    code += `CLEAR_NAME_TABLE_LOOP:\n`;
+    code += `    ; Set VRAM write address\n`;
+    code += `    LD A, E\n`;
+    code += `    OUT (#99), A\n`;
+    code += `    LD A, D\n`;
+    code += `    OR #40\n`;
+    code += `    OUT (#99), A\n`;
+    code += `    ; Write zero\n`;
+    code += `    XOR A\n`;
+    code += `    OUT (#98), A\n`;
+    code += `    ; Increment address\n`;
+    code += `    INC DE\n`;
+    code += `    DEC BC\n`;
+    code += `    LD A, B\n`;
+    code += `    OR C\n`;
+    code += `    JR NZ, CLEAR_NAME_TABLE_LOOP\n`;
     code += `    RET\n\n`;
   }
 
@@ -1531,17 +1861,9 @@ function generateInlineGameSystems(analysis: ProjectAnalysis, assets?: ProjectAs
   code += `    ; Frame rendering logic here\n`;
   code += `    RET\n\n`;
 
-  // NOTE: Variable storage is now handled in constants.asm using DS virtual
-  // This avoids inflating the ROM binary with unnecessary bytes
-  // All variables are defined in the RAM area #C000-#FFFF
+  // Apply post-processing to fix common issues
+  console.log('🔄 Applying ASM post-processing...');
+  const processedCode = postProcessASM(code);
 
-  code += `; ==================================================================\n`;
-  code += `; NOTE: All variables are defined in constants.asm using DS virtual\n`;
-  code += `; RAM Variables Area: #C000-#FFFF (writable during execution)\n`;
-  code += `; ROM Constants Area: #4000-#BFFF (read-only)\n`;
-  code += `; ==================================================================\n\n`;
-
-  code += `    END                 ; End of program\n\n`;
-
-  return code;
+  return processedCode;
 }

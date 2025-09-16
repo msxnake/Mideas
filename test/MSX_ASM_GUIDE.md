@@ -10,22 +10,23 @@
 ```
 MSX Memory Layout:
 #0000 - #BFFF : ROM (solo lectura)  ← Código, datos constantes, assets
-#C000 - #FFFF : RAM (escribible)   ← Variables del juego, buffers
+#C000 - #FFFF : RAM (escribible)   ← Variables proyecto: #C000-#F37F, sistema: #F380+
 
 ROM Cartucho: #4000 - #BFFF        ← Nuestro código va aquí
-Variables:    #C000+                ← TODAS las variables van aquí
+Variables:    #C000-#F37F           ← Variables del proyecto (NO tocar #F380+)
 ```
 
-### **🚨 ERROR COMÚN:**
+### **🚨 ERRORES COMUNES:**
 ❌ **NO** poner variables en zona ROM (#4000-#BFFF) - son solo lectura
-✅ **SÍ** poner variables en zona RAM (#C000+) - son escribibles
+❌ **NO** limpiar zona del sistema (#F380-#FFFF) - causa reseteo/crash
+✅ **SÍ** poner variables en zona RAM proyecto (#C000-#F37F) - escribibles y seguras
 
 ### **🎯 Estructura correcta del ASM:**
 1. `ORG #4000` - Inicio del código ROM
 2. Cabecera ROM, código, funciones, datos constantes
-3. `ORG #C000` - Inicio de variables RAM
-4. Declaración de todas las variables del juego
-5. Funciones de inicialización de RAM
+3. Variables con `EQU` (direcciones fijas #C000-#F37F)
+4. Funciones de inicialización segura de RAM del proyecto
+5. **NO usar ORG #C000 + DB/DS** - usar EQU para evitar conflictos
 
 ---
 
@@ -110,8 +111,8 @@ INIT_ROM:
     ; Initialize stack for cartridge
     LD SP, #F380
 
-    ; ⚠️ CRÍTICO: Inicializar RAM donde están las variables del juego
-    CALL INIT_RAM_VARIABLES     ; Inicializar variables en #C000+
+    ; ⚠️ CRÍTICO: Inicializar solo variables del proyecto (NO del sistema)
+    CALL INIT_RAM_VARIABLES     ; Solo variables #C000-#C520
 
     ; Initialize VDP for games
     CALL INIT_VDP_ROM
@@ -137,36 +138,171 @@ INIT_ROM:
 
 ## 📋 **PASO 4: CONSTANTES DEL SISTEMA MSX**
 
-### **4.1 DIRECCIONES BIOS (INLINE)**
+### **4.1 FUNCIONES BIOS Y DIRECCIONES VDP COMPLETAS**
 ```assembly
 ; ==================================================================
-; MSX SYSTEM CONSTANTS (INLINE)
+; MSX SYSTEM CONSTANTS - FUNCIONES BIOS Y VDP
 ; ==================================================================
 
-; BIOS Addresses
-CHGMOD  EQU #005F        ; Change screen mode
+; ==================================================================
+; FUNCIONES BIOS MSX - PRINCIPALES
+; ==================================================================
+
+; Screen y Display
+CHGMOD  EQU #005F        ; Change screen mode (A=mode)
 CLS     EQU #00C3        ; Clear screen
-CHPUT   EQU #00A2        ; Character output
-GTSTCK  EQU #00D5        ; Get joystick status
-GTTRIG  EQU #00D8        ; Get trigger status
+POSIT   EQU #00C6        ; Position cursor (H=X, L=Y)
+ERAFNK  EQU #00CC        ; Erase function keys
+DSPFNK  EQU #00CF        ; Display function keys
+
+; Character I/O
+CHPUT   EQU #00A2        ; Character output (A=char)
+CHGET   EQU #009F        ; Character input
+CHSNS   EQU #009C        ; Character sense (check key)
+BREAKX  EQU #00B7        ; Check CTRL+STOP
+ISCNTC  EQU #00BA        ; Check CTRL+C
+
+; String I/O
+OUTDO   EQU #005A        ; String output (HL=string)
+
+; Input Devices
+GTSTCK  EQU #00D5        ; Get joystick status (A=port)
+GTTRIG  EQU #00D8        ; Get trigger status (A=port)
+GTPAD   EQU #00DB        ; Get paddle (A=port)
+GTPDL   EQU #00DE        ; Get paddle value
+SNSMAT  EQU #0141        ; Sense matrix (A=row)
 KILBUF  EQU #0156        ; Kill keyboard buffer
 
-; VDP Addresses
-VDPDR   EQU #0098        ; VDP Data Register
-VDPSR   EQU #0099        ; VDP Status Register
+; Sound
+GICINI  EQU #0090        ; Initialize PSG
+WRTPSG  EQU #0093        ; Write PSG register (A=reg, E=value)
+RDPSG   EQU #0096        ; Read PSG register (A=reg)
 
-; VRAM Layout (Screen 2)
-PATTERNTBL  EQU #0000    ; Pattern table
-COLORTBL    EQU #2000    ; Color table
-NAMETBL     EQU #1800    ; Name table
-SPRATR      EQU #1B00    ; Sprite attribute table
-SPRPAT      EQU #3800    ; Sprite pattern table
+; Graphics VDP
+GRPPRT  EQU #0089        ; Print in graphic mode
+SETGRP  EQU #007E        ; Set graphic mode
 
-; Game Constants
-MAX_SPRITES     EQU 32
-SCREEN_WIDTH    EQU 32
-SCREEN_HEIGHT   EQU 24
-TILE_SIZE       EQU 8
+; File I/O (Disk BIOS)
+DSKIO   EQU #004A        ; Disk I/O
+DSKCHF  EQU #004D        ; Disk change flag
+
+; Memory
+LDIRMV  EQU #0059        ; Block transfer to VRAM (RAM→VRAM)
+LDIRVM  EQU #005C        ; Block transfer from VRAM (VRAM→RAM)
+
+; Math
+GETYPR  EQU #0053        ; Get type of variable
+
+; ==================================================================
+; FUNCIONES BIOS MSX - AVANZADAS
+; ==================================================================
+
+; MSX-DOS (si está disponible)
+BDOS    EQU #0005        ; Call MSX-DOS function
+
+; Interrupciones
+ENASCR  EQU #0044        ; Enable screen display
+DISSCR  EQU #0041        ; Disable screen display
+
+; Cassette (MSX1)
+TAPION  EQU #00E1        ; Tape input open
+TAPIN   EQU #00E4        ; Tape input
+TAPIOF  EQU #00E7        ; Tape input close
+TAPOON  EQU #00EA        ; Tape output open
+TAPOUT  EQU #00ED        ; Tape output
+TAPOOF  EQU #00F0        ; Tape output close
+
+; ==================================================================
+; REGISTROS Y PUERTOS VDP
+; ==================================================================
+
+; VDP Data/Status Ports
+VDPDR   EQU #0098        ; VDP Data Register (Port 0)
+VDPSR   EQU #0099        ; VDP Status Register (Port 1)
+
+; VDP Registers (usar con VDPSR)
+VDP_R0  EQU 0            ; Mode register 0
+VDP_R1  EQU 1            ; Mode register 1
+VDP_R2  EQU 2            ; Name table base address
+VDP_R3  EQU 3            ; Color table base address
+VDP_R4  EQU 4            ; Pattern table base address
+VDP_R5  EQU 5            ; Sprite attribute table
+VDP_R6  EQU 6            ; Sprite pattern table
+VDP_R7  EQU 7            ; Text/border color
+
+; ==================================================================
+; DIRECCIONES VRAM (Screen 2 - Modo Gráfico MSX)
+; ==================================================================
+
+; Screen 2 VRAM Layout (16KB)
+PATTERNTBL  EQU #0000    ; Pattern table (6KB: #0000-#17FF)
+NAMETBL     EQU #1800    ; Name table (768 bytes: #1800-#1AFF)
+SPRATR      EQU #1B00    ; Sprite attribute table (128 bytes)
+SPRPAT      EQU #3800    ; Sprite pattern table (2KB)
+COLORTBL    EQU #2000    ; Color table (6KB: #2000-#37FF)
+
+; Screen 1 VRAM Layout (Modo Texto)
+TXTNAM      EQU #1800    ; Text name table
+TXTCOL      EQU #2000    ; Text color table
+TXTPAT      EQU #0800    ; Text pattern table
+
+; Screen 0 VRAM Layout (40x24 texto)
+TXT40NAM    EQU #0000    ; 40-column name table
+TXT40COL    EQU #0400    ; 40-column color table
+TXT40PAT    EQU #0800    ; 40-column pattern table
+
+; ==================================================================
+; CONSTANTES DE PANTALLA Y SPRITES
+; ==================================================================
+
+; Screen Modes
+SCREEN0     EQU 0        ; 40x24 text
+SCREEN1     EQU 1        ; 32x24 text/graphics
+SCREEN2     EQU 2        ; 256x192 graphics
+SCREEN3     EQU 3        ; 64x48 multicolor
+
+; Screen Dimensions
+SCREEN_WIDTH    EQU 32   ; Tiles horizontales (Screen 1/2)
+SCREEN_HEIGHT   EQU 24   ; Tiles verticales
+TILE_SIZE       EQU 8    ; 8x8 pixels por tile
+
+; Sprite Constants
+MAX_SPRITES     EQU 32   ; Máximo sprites por pantalla
+SPRITE_SIZE     EQU 8    ; 8x8 o 16x16 (según modo)
+SPRITE_INVISIBLE EQU #D1 ; Y=209 (sprite fuera de pantalla)
+
+; Colors (MSX Standard)
+TRANSPARENT EQU 0
+BLACK       EQU 1
+MEDIUM_GREEN EQU 2
+LIGHT_GREEN EQU 3
+DARK_BLUE   EQU 4
+LIGHT_BLUE  EQU 5
+DARK_RED    EQU 6
+CYAN        EQU 7
+MEDIUM_RED  EQU 8
+LIGHT_RED   EQU 9
+DARK_YELLOW EQU 10
+LIGHT_YELLOW EQU 11
+DARK_GREEN  EQU 12
+MAGENTA     EQU 13
+GRAY        EQU 14
+WHITE       EQU 15
+
+; Joystick/Input Constants
+STICK_UP    EQU 1
+STICK_UPRIGHT EQU 2
+STICK_RIGHT EQU 3
+STICK_DOWNRIGHT EQU 4
+STICK_DOWN  EQU 5
+STICK_DOWNLEFT EQU 6
+STICK_LEFT  EQU 7
+STICK_UPLEFT EQU 8
+STICK_CENTER EQU 0
+
+; Trigger Constants
+TRIG_A      EQU #10      ; Trigger A (Fire)
+TRIG_B      EQU #20      ; Trigger B (MSX2+)
 ```
 
 ---
@@ -789,120 +925,179 @@ temp_byte:              DB 0
 
 ## 💾 **ORGANIZACIÓN DE VARIABLES EN RAM**
 
-### **⚠️ CRÍTICO: Variables en zona RAM escribible**
+### **⚠️ CRÍTICO: Variables con direcciones fijas usando EQU**
 
 ```assembly
 ; ==================================================================
-; VARIABLES EN RAM (ZONA ESCRIBIBLE #C000+)
+; VARIABLES EN RAM - DIRECCIONES FIJAS CON EQU
 ; ==================================================================
 
-; ⚠️ IMPORTANTE: Todas las variables del juego DEBEN estar en RAM
+; ⚠️ IMPORTANTE: Usar EQU evita que las variables se pisen
 ; ROM: #0000-#BFFF (solo lectura - código, datos, constantes)
-; RAM: #C000-#FFFF (lectura/escritura - variables del juego)
+; RAM: #8000-#BFFF y #C000-#FFFE (lectura/escritura - variables)
 
-    ORG #C000                ; Inicio de RAM - ZONA ESCRIBIBLE
+; OPCIÓN 1: Variables en RAM baja (#8000-#BFFF)
+; OPCIÓN 2: Variables en RAM alta (#C000-#F37F) ← Más común (EVITAR #F380+ = sistema)
+
+; ==================================================================
+; DIRECCIONES FIJAS DE VARIABLES (usando RAM alta)
+; ==================================================================
 
 ; Variables del Game Flow
-current_flow_state:         DB 0        ; Estado actual del juego
-prev_flow_state:            DB 0        ; Estado anterior
-flow_state_timer:           DW 0        ; Timer del estado actual
+current_flow_state     EQU #C000    ; Estado actual del juego
+prev_flow_state        EQU #C001    ; Estado anterior
+flow_state_timer       EQU #C002    ; Timer del estado (2 bytes)
 
 ; Variables de Input
-input_state:                DB 0        ; Estado actual del joystick
-prev_input_state:           DB 0        ; Estado anterior para detectar cambios
-input_fire_pressed:         DB 0        ; Flag de botón fuego presionado
+input_state            EQU #C004    ; Estado actual del joystick
+prev_input_state       EQU #C005    ; Estado anterior para detectar cambios
+input_fire_pressed     EQU #C006    ; Flag de botón fuego presionado
 
 ; Variables del Sistema de Sprites (si existen sprites)
-active_sprite_count:        DB 0        ; Número de sprites activos
-sprite_attributes:          DS 128      ; Buffer de atributos (32 sprites * 4 bytes)
+active_sprite_count    EQU #C007    ; Número de sprites activos
+sprite_attributes      EQU #C010    ; Buffer de atributos (128 bytes: #C010-#C08F)
 
 ; Variables del Sistema de Pantallas
-current_screen_id:          DB 0        ; ID de pantalla actual
-current_screen_width:       DB 0        ; Ancho de pantalla actual
-current_screen_height:      DB 0        ; Alto de pantalla actual
-current_screen_data:        DW 0        ; Puntero a datos de pantalla
-screen_buffer:              DS 768      ; Buffer temporal de pantalla (32x24 max)
+current_screen_id      EQU #C090    ; ID de pantalla actual
+current_screen_width   EQU #C091    ; Ancho de pantalla actual
+current_screen_height  EQU #C092    ; Alto de pantalla actual
+current_screen_data    EQU #C093    ; Puntero a datos de pantalla (2 bytes)
+screen_buffer          EQU #C0A0    ; Buffer temporal (768 bytes: #C0A0-#C39F)
 
 ; Variables del Sistema de Tiles
-current_tile_bank:          DB 0        ; Banco de tiles actual
-tile_animation_counter:     DB 0        ; Contador para tiles animados
+current_tile_bank      EQU #C3A0    ; Banco de tiles actual
+tile_animation_counter EQU #C3A1    ; Contador para tiles animados
 
 ; Variables del Sistema de Font
-text_x:                     DB 0        ; Posición X del cursor de texto
-text_y:                     DB 0        ; Posición Y del cursor de texto
-current_font_id:            DB 0        ; ID de fuente actual
+text_x                 EQU #C3A2    ; Posición X del cursor de texto
+text_y                 EQU #C3A3    ; Posición Y del cursor de texto
+current_font_id        EQU #C3A4    ; ID de fuente actual
 
 ; Variables del Sistema de World/Level
-current_world_id:           DB 0        ; ID del mundo actual
-current_world_width:        DB 0        ; Ancho del mundo actual
-current_world_height:       DB 0        ; Alto del mundo actual
-player_spawn_x:             DB 0        ; Posición spawn X del jugador
-player_spawn_y:             DB 0        ; Posición spawn Y del jugador
-world_entity_count:         DB 0        ; Número de entidades en el mundo
-world_entities:             DS 64       ; Buffer de entidades
+current_world_id       EQU #C3A5    ; ID del mundo actual
+current_world_width    EQU #C3A6    ; Ancho del mundo actual
+current_world_height   EQU #C3A7    ; Alto del mundo actual
+player_spawn_x         EQU #C3A8    ; Posición spawn X del jugador
+player_spawn_y         EQU #C3A9    ; Posición spawn Y del jugador
+world_entity_count     EQU #C3AA    ; Número de entidades en el mundo
+world_entities         EQU #C3B0    ; Buffer de entidades (64 bytes: #C3B0-#C3EF)
 
 ; Variables del Sistema de State Machines (si existen)
-SM_COUNT                    EQU 4       ; Máximo 4 máquinas de estado
-state_machine_runtime:      DS 32       ; 4 máquinas * 8 bytes cada una
+SM_COUNT               EQU 4        ; Máximo 4 máquinas de estado
+state_machine_runtime  EQU #C3F0    ; Runtime data (32 bytes: #C3F0-#C40F)
 
 ; Variables de utilidad temporal
-temp_byte:                  DB 0        ; Byte temporal para operaciones
-temp_word:                  DW 0        ; Word temporal para operaciones
-temp_address:               DW 0        ; Dirección temporal
+temp_byte              EQU #C410    ; Byte temporal para operaciones
+temp_word              EQU #C411    ; Word temporal (2 bytes)
+temp_address           EQU #C413    ; Dirección temporal (2 bytes)
 
 ; Variables de rendimiento/debug
-frame_counter:              DW 0        ; Contador de frames
-last_vblank_time:          DB 0        ; Tiempo del último vblank
+frame_counter          EQU #C415    ; Contador de frames (2 bytes)
+last_vblank_time       EQU #C417    ; Tiempo del último vblank
 
 ; Buffer de trabajo general
-work_buffer:                DS 256      ; Buffer de 256 bytes para operaciones
+work_buffer            EQU #C420    ; Buffer de 256 bytes (#C420-#C51F)
 
-; ⚠️ VERIFICAR: Asegurar que no se exceda #FFFF
-RAM_END_MARKER:             DB 0        ; Marcador de fin de variables
+; ⚠️ LÍMITE SEGURO: #C520 - Variables del proyecto hasta aquí
+RAM_USAGE_END          EQU #C520    ; Fin de variables del proyecto
 
 ; ==================================================================
-; FIN DE VARIABLES EN RAM
+; ⚠️ ZONAS CRÍTICAS - NO TOCAR:
+; #F380-#FFFF: Variables del sistema MSX (BIOS, BASIC, buffers)
+; #FFFF: Registro de slots secundarios (MSX2+)
+; Rango seguro para proyecto: #C000-#F37F (~13KB disponibles)
+; Ver MSX_SYSTEM_VARIABLES.md para detalles completos
 ; ==================================================================
 ```
 
-### **🔧 Funciones para gestionar variables RAM:**
+### **🔧 Funciones para gestionar variables RAM con EQU:**
 
 ```assembly
 ; ==================================================================
-; INICIALIZACIÓN DE VARIABLES RAM
+; INICIALIZACIÓN DE VARIABLES RAM (usando direcciones EQU)
 ; ==================================================================
 
 INIT_RAM_VARIABLES:
     ; Inicializar todas las variables en RAM a valores por defecto
-    ; ⚠️ CRÍTICO: Llamar al inicio del programa
+    ; ⚠️ CRÍTICO: Solo limpiar variables del proyecto, NO del sistema
 
-    ; Limpiar toda la zona de variables (método rápido)
-    LD HL, #C000            ; Inicio de variables
-    LD DE, #C001            ; Destino (siguiente byte)
-    LD BC, RAM_END_MARKER - #C000 ; Tamaño de zona de variables
-    LD (HL), 0              ; Poner primer byte a 0
-    LDIR                    ; Copiar 0 a toda la zona
+    ; Método 1: Limpiar zona específica del proyecto (SEGURO)
+    LD HL, current_flow_state   ; #C000 - primera variable del proyecto
+    LD DE, current_flow_state+1 ; #C001 - siguiente byte
+    LD BC, RAM_USAGE_END - current_flow_state - 1 ; Solo hasta #C520
+    LD (HL), 0                  ; Poner primer byte a 0
+    LDIR                        ; Limpia SOLO variables del proyecto
+
+    ; ⚠️ IMPORTANTE: NO limpiar más allá de #F380 (variables del sistema MSX)
+
+    ; Método 2: Inicializar variables individuales (más control)
+    ; XOR A                     ; A = 0
+    ; LD (current_flow_state), A
+    ; LD (prev_flow_state), A
+    ; LD (input_state), A
+    ; LD (active_sprite_count), A
+    ; ... etc
 
     ; Inicializar valores específicos no-cero
     LD A, 255
-    LD (prev_flow_state), A ; Estado anterior = no válido
+    LD (prev_flow_state), A     ; Estado anterior = no válido
+
+    ; Inicializar punteros/words a 0
+    LD HL, 0
+    LD (flow_state_timer), HL
+    LD (current_screen_data), HL
+    LD (temp_word), HL
+    LD (frame_counter), HL
 
     RET
 
 VERIFY_RAM_BOUNDS:
-    ; Verificar que las variables no excedan el límite de RAM
+    ; Verificar que las variables del proyecto no invadan zona del sistema
     ; ⚠️ DEBUG: Usar durante desarrollo
 
-    LD HL, RAM_END_MARKER
-    LD DE, #FFFF
-    OR A                    ; Clear carry
+    ; Verificar que RAM_USAGE_END < #F380 (límite antes de variables sistema)
+    LD HL, RAM_USAGE_END
+    LD DE, #F380                ; Límite antes de variables del sistema MSX
+    OR A                        ; Clear carry
     SBC HL, DE
-    JR C, RAM_BOUNDS_OK     ; Si HL < #FFFF, OK
+    JR C, RAM_BOUNDS_OK         ; Si HL < #F380, OK
 
-    ; ERROR: Variables exceden límite de RAM
-    HALT                    ; Parar programa - error crítico
+    ; ERROR: Variables del proyecto invaden zona del sistema MSX
+    ; Esto corromperá variables críticas del BIOS/BASIC
+    HALT                        ; Parar programa - error crítico
 
 RAM_BOUNDS_OK:
+    RET
+
+; ==================================================================
+; FUNCIONES AUXILIARES PARA TRABAJAR CON VARIABLES EQU
+; ==================================================================
+
+CLEAR_SPRITE_BUFFER:
+    ; Limpiar buffer de sprites específicamente
+    LD HL, sprite_attributes
+    LD DE, sprite_attributes+1
+    LD BC, 127                  ; 128 bytes - 1
+    LD (HL), #D1               ; Y=209 (sprite invisible)
+    LDIR
+    RET
+
+CLEAR_SCREEN_BUFFER:
+    ; Limpiar buffer de pantalla específicamente
+    LD HL, screen_buffer
+    LD DE, screen_buffer+1
+    LD BC, 767                  ; 768 bytes - 1
+    LD (HL), 0                 ; Tile ID 0
+    LDIR
+    RET
+
+CLEAR_WORK_BUFFER:
+    ; Limpiar buffer de trabajo
+    LD HL, work_buffer
+    LD DE, work_buffer+1
+    LD BC, 255                  ; 256 bytes - 1
+    LD (HL), 0
+    LDIR
     RET
 ```
 
@@ -2224,45 +2419,36 @@ CHECK_TIMER_TRIGGER:
 ; VARIABLE STORAGE FOR IMPLEMENTATION
 ; ==================================================================
 
-; Screen system variables
-current_screen_width:       DB 0
-current_screen_height:      DB 0
-current_screen_data:        DW 0
-screen_buffer:              DS 768     ; 32x24 max screen buffer
-
-; Sprite system variables
-active_sprite_count:        DB 0
-sprite_attributes:          DS 128     ; 32 sprites * 4 bytes
-
-; Font system variables
-text_x:                     DB 0
-text_y:                     DB 0
-
-; World system variables
-current_world_width:        DB 0
-current_world_height:       DB 0
-current_world_data:         DW 0
-player_spawn_x:             DB 0
-player_spawn_y:             DB 0
-world_entity_count:         DB 0
-world_entities:             DS 64      ; Entity buffer
-
-; Game flow variables
-current_flow_state:         DB 0
-prev_flow_state:            DB 0
-flow_state_timer:           DW 0
-
-; State machine variables (for multiple machines)
-SM_COUNT                    EQU 4      ; Max 4 state machines
-state_machine_runtime:      DS 32      ; 4 machines * 8 bytes each
-
-; Utility variables
-temp_byte:                  DB 0
-temp_word:                  DW 0
-
-; Input state
-input_state:                DB 0
-prev_input_state:           DB 0
+; ==================================================================
+; ⚠️ NOTA: Variables ahora definidas con EQU (ver sección anterior)
+; ==================================================================
+; Las variables ya no se definen aquí con DB/DS, sino con EQU:
+;
+; current_screen_width       EQU #C091
+; current_screen_height      EQU #C092
+; current_screen_data        EQU #C093
+; screen_buffer              EQU #C0A0
+; active_sprite_count        EQU #C007
+; sprite_attributes          EQU #C010
+; text_x                     EQU #C3A2
+; text_y                     EQU #C3A3
+; current_world_width        EQU #C3A6
+; current_world_height       EQU #C3A7
+; current_world_data         EQU #C3A8 (ajustar según necesidad)
+; player_spawn_x             EQU #C3A8
+; player_spawn_y             EQU #C3A9
+; world_entity_count         EQU #C3AA
+; world_entities             EQU #C3B0
+; current_flow_state         EQU #C000
+; prev_flow_state            EQU #C001
+; flow_state_timer           EQU #C002
+; state_machine_runtime      EQU #C3F0
+; temp_byte                  EQU #C410
+; temp_word                  EQU #C411
+; input_state                EQU #C004
+; prev_input_state           EQU #C005
+;
+; ✅ Usar estas direcciones fijas evita conflictos de memoria
 ```
 
 ---
@@ -2437,14 +2623,28 @@ RENDER_FRAME:
 ### **10.1 Almacenamiento de Variables**
 ```assembly
 ; ==================================================================
-; VARIABLE STORAGE
+; VARIABLE STORAGE (usando EQU - no DB/DS)
 ; ==================================================================
-input_state:        DB 0
-prev_input_state:   DB 0
-current_flow_state: DB 0
-prev_flow_state:    DB 0
 
-; Agregar variables adicionales según assets del proyecto
+; ⚠️ IMPORTANTE: Las variables ahora se definen con EQU, no con DB
+; Ver sección "ORGANIZACIÓN DE VARIABLES EN RAM" para direcciones completas
+
+; Ejemplo de uso de variables EQU:
+; LD A, 0
+; LD (input_state), A          ; input_state EQU #C004
+; LD (current_flow_state), A   ; current_flow_state EQU #C000
+
+; Las direcciones están preasignadas para evitar conflictos:
+; input_state        EQU #C004
+; prev_input_state   EQU #C005
+; current_flow_state EQU #C000
+; prev_flow_state    EQU #C001
+
+; ✅ Ventajas del método EQU:
+; - No hay riesgo de variables que se pisen
+; - Direcciones fijas y predecibles
+; - Mejor control de uso de memoria
+; - Fácil debugging (direcciones conocidas)
 ```
 
 ### **10.2 Final del Programa**
@@ -2506,17 +2706,24 @@ java -jar glass.jar unitedFiles.asm game.rom
 - ✅ Game Flow asset existe
 - ✅ Cabecera ROM correcta
 - ✅ ORG #4000 establecido (ROM - código y datos)
-- ✅ **ORG #C000 para variables** (RAM escribible)
+- ✅ **Variables definidas con EQU** (direcciones fijas, no se pisan)
 - ✅ Constantes MSX definidas
 - ✅ Assets inline generados
 - ✅ Programa principal completo
 - ✅ **INIT_RAM_VARIABLES llamado** en inicialización
 - ✅ Sistema Game Flow implementado
 - ✅ Sistemas del juego incluidos
-- ✅ **Variables en zona RAM** (#C000+)
+- ✅ **Variables en zona RAM segura** (#C000-#F37F, evitando sistema #F380+)
 - ✅ **Verificación límites RAM** incluida
+- ✅ **Direcciones EQU calculadas** sin conflictos
 - ✅ END al final
 - ✅ Sin referencias forward
 - ✅ Sintaxis Glass correcta
+
+**Ventajas del método EQU:**
+- 🔒 **Sin overlapping**: Cada variable tiene dirección fija
+- 🎯 **Predecible**: Direcciones conocidas en tiempo de compilación
+- 🐛 **Debuggeable**: Fácil ubicar variables en memoria
+- 💾 **Eficiente**: Uso óptimo de los ~3KB de RAM disponibles
 
 **Resultado**: `game.rom` listo para MSX! 🎮
