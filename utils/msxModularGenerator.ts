@@ -61,6 +61,10 @@ CLS     EQU #00C3        ; Clear screen
 POSIT   EQU #00C6        ; Position cursor (H=X, L=Y)
 ERAFNK  EQU #00CC        ; Erase function keys
 DSPFNK  EQU #00CF        ; Display function keys
+DISSCR  EQU #0041        ; Disable screen (prevent flicker)
+ENASCR  EQU #0044        ; Enable screen
+INITXT  EQU #006C        ; Initialize text mode
+INIT32  EQU #006F        ; Initialize screen mode
 
 ; Character I/O
 CHPUT   EQU #00A2        ; Character output (A=char)
@@ -92,7 +96,8 @@ SETGRP  EQU #007E        ; Set graphic mode
 ; Memory Transfer
 LDIRVM  EQU #005C        ; Block transfer from CPU to VRAM
 LDIRMV  EQU #0059        ; Block transfer from VRAM to CPU
-WRTVRM  EQU #0047        ; Write data to VRAM (A=data, HL=address)
+WRTVDP  EQU #0047        ; Write to VDP register
+WRTVRM  EQU #004D        ; Write data to VRAM (A=data, HL=address)
 
 ; File I/O (Disk BIOS)
 DSKIO   EQU #004A        ; Disk I/O
@@ -421,9 +426,9 @@ INIT_ROM:
     LD (HL), 0
     LDIR
 
-    ; Initialize VDP for Screen 2
+    ; Initialize VDP for Screen 2 using BIOS
     LD A, 2
-    CALL CHGMOD         ; Set Screen 2 mode
+    CALL CHGMOD         ; Set Screen 2 mode (BIOS handles everything)
 
     ; Clear screen
     CALL CLS
@@ -595,26 +600,29 @@ ${analysis.tiles.map((tile, index) => {
 ; ==================================================================
 LOAD_PATTERN_BANK0:
     ; Load pattern bank 0 to VRAM (base patterns)
+    ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_PATTERN_BANK0
     LD DE, CHRTBL2                ; VRAM pattern table bank 0
     LD BC, ${analysis.tiles.length} * 8    ; ${analysis.tiles.length} patterns × 8 bytes
-    CALL LDIRVM                   ; Use BIOS function
+    CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
 LOAD_PATTERN_BANK1:
     ; Load pattern bank 1: same patterns as bank 0 (MSX Screen 2 standard)
+    ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_PATTERN_BANK0     ; Same source as Bank 0
     LD DE, CHRTBL2 + #800         ; VRAM pattern table bank 1 (+#800 offset)
     LD BC, ${analysis.tiles.length} * 8    ; ${analysis.tiles.length} patterns × 8 bytes
-    CALL LDIRVM                   ; Use BIOS function
+    CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
 LOAD_PATTERN_BANK2:
     ; Load pattern bank 2: same patterns as bank 0 (MSX Screen 2 standard)
+    ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_PATTERN_BANK0     ; Same source as Bank 0
     LD DE, CHRTBL2 + #1000        ; VRAM pattern table bank 2 (+#1000 offset)
     LD BC, ${analysis.tiles.length} * 8    ; ${analysis.tiles.length} patterns × 8 bytes
-    CALL LDIRVM                   ; Use BIOS function
+    CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
 ; ==================================================================
@@ -665,26 +673,29 @@ ${analysis.tiles.map((tile, index) => {
 ; ==================================================================
 LOAD_COLOR_BANK0:
     ; Load color bank 0 to VRAM (base colors)
+    ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_COLOR_BANK0
     LD DE, CLRTBL2                ; VRAM color table bank 0
     LD BC, ${analysis.tiles.length} * 8     ; ${analysis.tiles.length} patterns × 8 bytes
-    CALL LDIRVM                   ; Use BIOS function
+    CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
 LOAD_COLOR_BANK1:
     ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
+    ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_COLOR_BANK0       ; Same source as Bank 0
     LD DE, CLRTBL2 + #800         ; VRAM color table bank 1 (+#800 offset)
     LD BC, ${analysis.tiles.length} * 8     ; ${analysis.tiles.length} patterns × 8 bytes
-    CALL LDIRVM                   ; Use BIOS function
+    CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
 LOAD_COLOR_BANK2:
     ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
+    ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_COLOR_BANK0       ; Same source as Bank 0
     LD DE, CLRTBL2 + #1000        ; VRAM color table bank 2 (+#1000 offset)
     LD BC, ${analysis.tiles.length} * 8     ; ${analysis.tiles.length} patterns × 8 bytes
-    CALL LDIRVM                   ; Use BIOS function
+    CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
 ; ==================================================================
@@ -756,7 +767,7 @@ MAIN_LOOP:
 INIT_GAME_SYSTEMS:
     ; Initialize MSX hardware and game systems
     LD A, SCREEN2
-    CALL CHGMOD               ; Set Screen 2 mode
+    CALL CHGMOD               ; Set Screen 2 mode (BIOS handles everything)
     CALL ERAFNK               ; Remove function keys
 
     ; Initialize component systems
@@ -768,7 +779,7 @@ INIT_GAME_SYSTEMS:
     ; Initialize sound system
     CALL GICINI               ; Initialize PSG
 
-    ; Clear screen
+    ; Clear screen (BIOS CLS handles timing)
     CALL CLS
 
     ; Show initial startup message
@@ -891,26 +902,10 @@ RENDER_MAIN_MENU:
     RET
 
 RENDER_GAME:
-    ; Render game frame - draw basic game screen
-    ; Fill screen with pattern to show it's working
-    LD HL, NAMETBL
-    LD BC, 768                 ; 32x24 screen
-    LD A, 46                   ; '.' character
+    ; Render game frame - load actual screen map
+    ; BIOS LDIRVM in screen loading handles timing automatically
+    CALL LOAD_SCREEN_PANTALLA1
 
-FILL_GAME_SCREEN:
-    LD (HL), A
-    INC HL
-    DEC BC
-    LD A, B
-    OR C
-    JR NZ, FILL_GAME_SCREEN_CONTINUE
-    JR GAME_SCREEN_DONE
-
-FILL_GAME_SCREEN_CONTINUE:
-    LD A, 46                   ; Restore character
-    JP FILL_GAME_SCREEN
-
-GAME_SCREEN_DONE:
     ; Display game status at top
     LD H, 1                    ; Row 1
     LD L, 1                    ; Column 1
@@ -1092,11 +1087,11 @@ LOAD_SPRITE_PATTERNS:
   // Generate pattern loading for each sprite
   analysis.sprites.forEach((sprite, index) => {
     code += `
-    ; Load sprite ${index}: ${sprite.name}
+    ; Load sprite ${index}: ${sprite.name} (BIOS LDIRVM handles timing)
     LD HL, SPRITE_${index}_PATTERN
-    LD DE, SPRPAT + (${index} * 8)  ; Each sprite pattern is 8 bytes
-    LD BC, 8
-    CALL LDIRVM
+    LD DE, SPRPAT + (${index} * 32) ; Each 16x16 sprite = 32 bytes (4 patterns)
+    LD BC, 32                       ; 16x16 sprite size
+    CALL LDIRVM                     ; BIOS handles safe VRAM access
 `;
   });
 
@@ -1108,38 +1103,43 @@ LOAD_SPRITE_PATTERNS:
 
 ; Show sprite (A = sprite number, B = X, C = Y, D = pattern, E = color)
 SHOW_SPRITE:
-    PUSH AF
+    PUSH BC                       ; Preserve parameters
+    PUSH DE
+
+    ; Calculate sprite offset (A = sprite number)
+    LD L, A                       ; L = sprite number
+    LD H, 0                       ; HL = sprite number
 
     ; Set X position
-    LD HL, sprite_x_pos
-    LD A, E                       ; E was sprite number (from stack)
-    LD E, A
-    LD D, 0
-    ADD HL, DE
+    PUSH HL
+    LD DE, sprite_x_pos
+    ADD HL, DE                    ; HL points to sprite X position
     LD (HL), B                    ; Set X position
+    POP HL
 
     ; Set Y position
-    LD HL, sprite_y_pos
-    LD E, A
-    LD D, 0
-    ADD HL, DE
+    PUSH HL
+    LD DE, sprite_y_pos
+    ADD HL, DE                    ; HL points to sprite Y position
     LD (HL), C                    ; Set Y position
+    POP HL
 
     ; Set pattern
-    LD HL, sprite_pattern
-    LD E, A
-    LD D, 0
-    ADD HL, DE
+    PUSH HL
+    LD DE, sprite_pattern
+    ADD HL, DE                    ; HL points to sprite pattern
+    POP DE                        ; Restore original HL to DE
+    PUSH DE                       ; Save it again
     LD (HL), D                    ; Set pattern number
+    POP HL
 
     ; Set color
-    LD HL, sprite_color
-    LD E, A
-    LD D, 0
-    ADD HL, DE
+    LD DE, sprite_color
+    ADD HL, DE                    ; HL points to sprite color
+    POP DE                        ; Get original DE back
     LD (HL), E                    ; Set color
 
-    POP AF
+    POP BC                        ; Restore original parameters
     RET
 
 ; Clear all sprites (make them invisible)
@@ -1163,10 +1163,11 @@ HIDE_SPRITE:
 ; Update sprite positions to VRAM
 UPDATE_SPRITES_TO_VRAM:
     ; Copy sprite attributes from RAM to VRAM
+    ; BIOS LDIRVM handles timing automatically
     LD HL, sprite_y_pos
     LD DE, SPRATR
     LD BC, 128                    ; 32 sprites * 4 bytes each
-    CALL LDIRVM
+    CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
 ; ==================================================================
@@ -1190,108 +1191,366 @@ UPDATE_SPRITES_TO_VRAM:
 }
 
 /**
- * Generate components file with game component systems
+ * Generate components file with game component systems - Based on Mideas ECS Architecture
  */
 function generateComponentsFile(analysis: ProjectAnalysis): string {
   let code = `; ==================================================================
-; GAME COMPONENTS
+; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
 ; File: components.asm
-; Description: Game component systems and logic
+; Description: Component systems based on Mideas React.js architecture
+; Implements Position, Sprite, Movement, Collision, Input, and Behavior systems
 ; ==================================================================
 
-`;
-
-  // Generate component types based on project analysis
-  if (analysis.entities && analysis.entities.length > 0) {
-    code += `; ==================================================================
-; COMPONENT TYPES
+; ==================================================================
+; COMPONENT TYPE CONSTANTS (Based on ComponentDefinition analysis)
 ; ==================================================================
 
-`;
+; Core Components (always present)
+COMP_POSITION   EQU 0    ; Position component (x, y coordinates)
+COMP_SPRITE     EQU 1    ; Sprite rendering component
+COMP_MOVEMENT   EQU 2    ; Movement/velocity component
+COMP_COLLISION  EQU 3    ; Collision detection component
+COMP_INPUT      EQU 4    ; Input handling component
+COMP_BEHAVIOR   EQU 5    ; AI/Logic behavior component
+COMP_HEALTH     EQU 6    ; Health/damage component
+COMP_ANIMATION  EQU 7    ; Animation state component
 
-    // Generate component constants
-    const componentTypes = new Set<string>();
-    analysis.entities.forEach(entity => {
-      if (entity.componentOverrides) {
-        Object.keys(entity.componentOverrides).forEach(comp => componentTypes.add(comp));
-      }
-    });
+; Component flags for entity filtering
+COMP_MASK_POSITION   EQU #01  ; Binary: 00000001
+COMP_MASK_SPRITE     EQU #02  ; Binary: 00000010
+COMP_MASK_MOVEMENT   EQU #04  ; Binary: 00000100
+COMP_MASK_COLLISION  EQU #08  ; Binary: 00001000
+COMP_MASK_INPUT      EQU #10  ; Binary: 00010000
+COMP_MASK_BEHAVIOR   EQU #20  ; Binary: 00100000
+COMP_MASK_HEALTH     EQU #40  ; Binary: 01000000
+COMP_MASK_ANIMATION  EQU #80  ; Binary: 10000000
 
-    Array.from(componentTypes).forEach((comp, index) => {
-      code += `COMP_${comp.toUpperCase().replace(/[^A-Z0-9]/g, '_')} EQU ${index}
-`;
-    });
-
-    code += `
 ; ==================================================================
-; COMPONENT SYSTEM FUNCTIONS
+; COMPONENT DATA STRUCTURES (Entity-Component arrays)
+; ==================================================================
+
+; Position Component Data (32 entities max)
+entity_x_pos        EQU sprite_x_pos      ; Reuse sprite positions
+entity_y_pos        EQU sprite_y_pos      ; (32 bytes each)
+
+; Movement Component Data
+entity_vel_x        EQU temp_word_1       ; X velocity storage (signed 8-bit)
+entity_vel_y        EQU temp_word_2       ; Y velocity storage (signed 8-bit)
+
+; Component masks for each entity (which components are active)
+entity_comp_masks   EQU temp_byte_1       ; Component flags per entity (32 bytes)
+
+; Animation Component Data
+entity_anim_frame   EQU temp_byte_2       ; Current animation frame (32 bytes)
+
+; ==================================================================
+; CORE ECS SYSTEM FUNCTIONS
 ; ==================================================================
 
 INIT_COMPONENTS:
-    ; Initialize component system
+    ; Initialize all component systems (based on Mideas initialization)
+
+    ; Clear all component masks
+    LD HL, entity_comp_masks
+    LD DE, entity_comp_masks+1
+    LD BC, 31
+    LD (HL), 0
+    LDIR
+
+    ; Initialize position system
+    CALL INIT_POSITION_SYSTEM
+
+    ; Initialize sprite system
+    CALL INIT_SPRITE_SYSTEM
+
+    ; Initialize movement system
+    CALL INIT_MOVEMENT_SYSTEM
+
+    ; Initialize collision system
+    CALL INIT_COLLISION_SYSTEM
+
+    ; Initialize input system
+    CALL INIT_INPUT_SYSTEM
+
+    ; Initialize behavior system
+    CALL INIT_BEHAVIOR_SYSTEM
+
     RET
 
-`;
-
-    // Generate component update functions
-    Array.from(componentTypes).forEach(comp => {
-      const compName = comp.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `UPDATE_${compName}_COMPONENT:
-    ; Update ${comp} component logic
-    ; TODO: Implement ${comp} component behavior
-    RET
-
-`;
-    });
-  } else {
-    // Default component system for basic games
-    code += `; ==================================================================
-; DEFAULT COMPONENT SYSTEM
+; ==================================================================
+; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
 ; ==================================================================
 
-; Basic component types
-COMP_POSITION   EQU 0
-COMP_SPRITE     EQU 1
-COMP_MOVEMENT   EQU 2
-COMP_COLLISION  EQU 3
+INIT_POSITION_SYSTEM:
+    ; Initialize position component system
+    ; Clear all entity positions
+    LD HL, entity_x_pos
+    LD DE, entity_x_pos+1
+    LD BC, 31
+    LD (HL), 0
+    LDIR
 
-INIT_COMPONENTS:
-    ; Initialize basic component system
+    LD HL, entity_y_pos
+    LD DE, entity_y_pos+1
+    LD BC, 31
+    LD (HL), 0
+    LDIR
     RET
 
 UPDATE_POSITION_COMPONENT:
-    ; Update position components
+    ; Update positions based on velocities (Movement → Position)
+    LD B, 32                   ; Loop through all entities
+    LD HL, entity_comp_masks   ; Check component masks
+
+position_update_loop:
+    LD A, (HL)                 ; Get entity component mask
+    AND COMP_MASK_POSITION     ; Check if has position component
+    JR Z, position_next_entity ; Skip if no position component
+
+    ; Apply velocity to position (if has movement component)
+    LD A, (HL)
+    AND COMP_MASK_MOVEMENT
+    JR Z, position_next_entity ; Skip velocity if no movement
+
+    ; TODO: Add velocity to position logic here
+    ; entity_x_pos[entity] += entity_vel_x[entity]
+    ; entity_y_pos[entity] += entity_vel_y[entity]
+
+position_next_entity:
+    INC HL                     ; Next entity
+    DJNZ position_update_loop
+    RET
+
+; ==================================================================
+; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
+; ==================================================================
+
+INIT_SPRITE_SYSTEM:
+    ; Initialize sprite rendering system
+    ; Clear all sprite attributes
+    CALL CLEAR_ALL_SPRITES
     RET
 
 UPDATE_SPRITE_COMPONENT:
-    ; Update sprite components
+    ; Update sprite rendering based on entity positions
+    LD B, 32                   ; Loop through all entities
+    LD HL, entity_comp_masks   ; Check component masks
+    LD C, 0                    ; Entity index counter
+
+sprite_update_loop:
+    LD A, (HL)                 ; Get entity component mask
+    AND COMP_MASK_SPRITE       ; Check if has sprite component
+    JR Z, sprite_next_entity   ; Skip if no sprite component
+
+    ; Render sprite at entity position
+    PUSH BC
+    PUSH HL
+
+    ; Get entity position
+    LD HL, entity_x_pos
+    LD E, C                    ; Entity index
+    LD D, 0
+    ADD HL, DE                 ; HL points to entity X
+    LD B, (HL)                 ; B = X position
+
+    LD HL, entity_y_pos
+    ADD HL, DE                 ; HL points to entity Y
+    LD C, (HL)                 ; C = Y position
+
+    ; Show sprite (A=sprite#, B=X, C=Y, D=pattern, E=color)
+    LD A, E                    ; Sprite number = entity index
+    LD D, 0                    ; Pattern 0 (TODO: get from entity data)
+    LD E, 15                   ; Color white (TODO: get from entity data)
+    CALL SHOW_SPRITE
+
+    POP HL
+    POP BC
+
+sprite_next_entity:
+    INC HL                     ; Next entity
+    INC C                      ; Next entity index
+    DJNZ sprite_update_loop
+
+    ; Update all sprites to VRAM
+    CALL UPDATE_SPRITES_TO_VRAM
+    RET
+
+; ==================================================================
+; MOVEMENT COMPONENT SYSTEM (Based on movement physics)
+; ==================================================================
+
+INIT_MOVEMENT_SYSTEM:
+    ; Initialize movement/physics system
+    ; Clear velocities
+    LD A, 0
+    LD (entity_vel_x), A
+    LD (entity_vel_y), A
     RET
 
 UPDATE_MOVEMENT_COMPONENT:
-    ; Update movement components
+    ; Update movement/physics for entities
+    LD B, 32                   ; Loop through all entities
+    LD HL, entity_comp_masks   ; Check component masks
+
+movement_update_loop:
+    LD A, (HL)                 ; Get entity component mask
+    AND COMP_MASK_MOVEMENT     ; Check if has movement component
+    JR Z, movement_next_entity ; Skip if no movement component
+
+    ; Apply physics/movement logic here
+    ; TODO: Apply gravity, friction, collision response, etc.
+
+movement_next_entity:
+    INC HL                     ; Next entity
+    DJNZ movement_update_loop
+    RET
+
+; ==================================================================
+; COLLISION COMPONENT SYSTEM (Based on ScreenEditor collision detection)
+; ==================================================================
+
+INIT_COLLISION_SYSTEM:
+    ; Initialize collision detection system
     RET
 
 UPDATE_COLLISION_COMPONENT:
-    ; Update collision components
+    ; Check collisions between entities and environment
+    LD B, 32                   ; Loop through all entities
+    LD HL, entity_comp_masks   ; Check component masks
+
+collision_update_loop:
+    LD A, (HL)                 ; Get entity component mask
+    AND COMP_MASK_COLLISION    ; Check if has collision component
+    JR Z, collision_next_entity ; Skip if no collision component
+
+    ; Perform collision detection
+    ; TODO: Check against tiles, other entities, screen boundaries
+
+collision_next_entity:
+    INC HL                     ; Next entity
+    DJNZ collision_update_loop
+    RET
+
+; ==================================================================
+; INPUT COMPONENT SYSTEM (Based on input handling)
+; ==================================================================
+
+INIT_INPUT_SYSTEM:
+    ; Initialize input handling system
+    XOR A
+    LD (input_state), A
+    LD (prev_input_state), A
     RET
 
 UPDATE_INPUT_COMPONENT:
-    ; Update input handling
+    ; Update input handling for player entities
+    ; Store previous input state
+    LD A, (input_state)
+    LD (prev_input_state), A
+
+    ; Read current joystick state
     LD A, 0                    ; Joystick port 0
-    CALL GTSTCK                ; Get joystick status
+    CALL GTSTCK                ; Get joystick status (BIOS call)
     LD (input_state), A        ; Store current input state
+
+    ; Process input for entities with input component
+    LD B, 32                   ; Loop through all entities
+    LD HL, entity_comp_masks   ; Check component masks
+
+input_update_loop:
+    LD A, (HL)                 ; Get entity component mask
+    AND COMP_MASK_INPUT        ; Check if has input component
+    JR Z, input_next_entity    ; Skip if no input component
+
+    ; Apply input to entity movement/actions
+    ; TODO: Convert joystick state to velocity/actions
+
+input_next_entity:
+    INC HL                     ; Next entity
+    DJNZ input_update_loop
     RET
 
-`;
-  }
+; ==================================================================
+; BEHAVIOR COMPONENT SYSTEM (Based on BehaviorEditor logic)
+; ==================================================================
 
-  code += `; ==================================================================
-; END OF COMPONENTS
+INIT_BEHAVIOR_SYSTEM:
+    ; Initialize AI/behavior system
+    RET
+
+UPDATE_BEHAVIOR_COMPONENT:
+    ; Update AI/behavior logic for entities
+    LD B, 32                   ; Loop through all entities
+    LD HL, entity_comp_masks   ; Check component masks
+
+behavior_update_loop:
+    LD A, (HL)                 ; Get entity component mask
+    AND COMP_MASK_BEHAVIOR     ; Check if has behavior component
+    JR Z, behavior_next_entity ; Skip if no behavior component
+
+    ; Execute behavior scripts/AI logic
+    ; TODO: State machines, pathfinding, decision trees
+
+behavior_next_entity:
+    INC HL                     ; Next entity
+    DJNZ behavior_update_loop
+    RET
+
+; ==================================================================
+; ENTITY MANAGEMENT FUNCTIONS (Based on EntityTemplate system)
+; ==================================================================
+
+; Create entity with components (A = entity ID, B = component mask)
+CREATE_ENTITY:
+    ; Set component mask for entity
+    LD HL, entity_comp_masks
+    LD E, A                    ; Entity index
+    LD D, 0
+    ADD HL, DE                 ; HL points to entity mask
+    LD (HL), B                 ; Set component mask
+
+    ; Initialize component data based on mask
+    BIT 0, B                   ; Check COMP_MASK_POSITION
+    CALL NZ, INIT_ENTITY_POSITION
+
+    BIT 1, B                   ; Check COMP_MASK_SPRITE
+    CALL NZ, INIT_ENTITY_SPRITE
+
+    ; TODO: Initialize other components based on mask bits
+
+    RET
+
+; Initialize position component for entity (A = entity ID)
+INIT_ENTITY_POSITION:
+    LD HL, entity_x_pos
+    LD E, A
+    LD D, 0
+    ADD HL, DE
+    LD (HL), 100               ; Default X position
+
+    LD HL, entity_y_pos
+    ADD HL, DE
+    LD (HL), 100               ; Default Y position
+    RET
+
+; Initialize sprite component for entity (A = entity ID)
+INIT_ENTITY_SPRITE:
+    ; Set sprite as visible with default pattern
+    LD HL, sprite_pattern
+    LD E, A
+    LD D, 0
+    ADD HL, DE
+    LD (HL), 0                 ; Pattern 0
+
+    LD HL, sprite_color
+    ADD HL, DE
+    LD (HL), 15                ; White color
+    RET
+
+; ==================================================================
+; END OF COMPONENT SYSTEMS
 ; ==================================================================
 `;
-
-  return code;
-}
 
 /**
  * Generate entities file with game entity definitions
@@ -1628,11 +1887,11 @@ LOAD_SCREEN:
     analysis.screenMaps.forEach((screen, index) => {
       const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
       code += `LOAD_SCREEN_${screenName}:
-    ; Load ${screen.name} screen
+    ; Load ${screen.name} screen (BIOS LDIRVM handles timing)
     LD HL, SCREEN_${screenName}_${index}_LAYOUT
     LD DE, NAMETBL
     LD BC, SCREEN_${screenName}_${index}_SIZE
-    CALL LDIRVM
+    CALL LDIRVM                ; BIOS handles safe VRAM access
     RET
 
 `;
@@ -1658,11 +1917,11 @@ LOAD_SCREEN:
     RET
 
 LOAD_SCREEN_GAME:
-    ; Load game screen
+    ; Load game screen (BIOS LDIRVM handles timing)
     LD HL, SCREEN_GAME_DATA
     LD DE, NAMETBL
     LD BC, 768
-    CALL LDIRVM
+    CALL LDIRVM                ; BIOS handles safe VRAM access
     RET
 
 `;
