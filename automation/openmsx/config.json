@@ -1,0 +1,41 @@
+{
+  "openmsx": {
+    "executable_paths": [
+      "C:\\Program Files\\openMSX\\openmsx.exe",
+      "C:\\Program Files (x86)\\openMSX\\openmsx.exe",
+      "C:\\openMSX\\openmsx.exe",
+      ".\\openmsx\\openmsx.exe"
+    ],
+    "default_machine": "MSX",
+    "supported_machines": [
+      "MSX",
+      "MSX2",
+      "MSX2+",
+      "MSXturboR",
+      "Philips_NMS_8250",
+      "Sony_HB-F700P",
+      "Panasonic_FS-A1ST"
+    ]
+  },
+  "automation": {
+    "default_wait_time": 10,
+    "min_wait_time": 3,
+    "max_wait_time": 60,
+    "screenshot_dir": "screenshots",
+    "auto_exit": true,
+    "log_level": "INFO"
+  },
+  "screenshots": {
+    "format": "PNG",
+    "include_timestamp": true,
+    "include_machine_name": false,
+    "custom_prefix": "",
+    "organize_by_date": false
+  },
+  "validation": {
+    "check_rom_size": true,
+    "required_rom_multiples": [8192, 16384, 32768],
+    "max_rom_size_mb": 8,
+    "allowed_extensions": [".rom", ".bin"]
+  }
+}

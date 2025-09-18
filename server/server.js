@@ -293,6 +293,185 @@ app.get('/roms', (req, res) => {
 });
 
 /**
+ * Endpoint to run ROM in OpenMSX for testing
+ * @name POST /run-openmsx
+ * @function
+ */
+app.post('/run-openmsx', (req, res) => {
+  const { romFile } = req.body;
+
+  if (!romFile) {
+    return res.status(400).send({ error: 'No ROM file specified' });
+  }
+
+  const tempDir = path.join(__dirname, 'temp');
+  const romPath = path.join(tempDir, romFile);
+
+  // Verify ROM file exists
+  if (!fs.existsSync(romPath)) {
+    return res.status(404).send({ error: 'ROM file not found', romFile: romFile });
+  }
+
+  // Path to automation script
+  const automationDir = path.join(__dirname, '..', 'automation', 'openmsx');
+  const runScript = path.join(automationDir, 'run-openmsx.bat');
+
+  if (!fs.existsSync(runScript)) {
+    return res.status(500).send({ error: 'OpenMSX automation script not found' });
+  }
+
+  console.log(`🎮 Starting OpenMSX with ROM: ${romFile}`);
+
+  // Execute run script (doesn't wait - OpenMSX stays open)
+  const command = `"${runScript}" "${romPath}"`;
+
+  exec(command, (error, stdout, stderr) => {
+    if (error) {
+      console.log(`❌ Failed to start OpenMSX: ${error.message}`);
+      return res.status(500).send({
+        error: 'Failed to start OpenMSX',
+        details: error.message,
+        stdout: stdout,
+        stderr: stderr
+      });
+    }
+
+    console.log(`✅ OpenMSX started successfully for ROM: ${romFile}`);
+    res.send({
+      success: true,
+      message: 'OpenMSX started successfully',
+      romFile: romFile,
+      note: 'OpenMSX is running - close it manually when done testing'
+    });
+  });
+});
+
+/**
+ * Endpoint to generate screenshot from ROM
+ * @name POST /generate-screenshot
+ * @function
+ */
+app.post('/generate-screenshot', (req, res) => {
+  const { romFile, waitSeconds = 10 } = req.body;
+
+  if (!romFile) {
+    return res.status(400).send({ error: 'No ROM file specified' });
+  }
+
+  const tempDir = path.join(__dirname, 'temp');
+  const romPath = path.join(tempDir, romFile);
+
+  // Verify ROM file exists
+  if (!fs.existsSync(romPath)) {
+    return res.status(404).send({ error: 'ROM file not found', romFile: romFile });
+  }
+
+  // Path to automation script
+  const automationDir = path.join(__dirname, '..', 'automation', 'openmsx');
+  const screenshotScript = path.join(automationDir, 'openmsx-screenshot-corrected.bat');
+
+  if (!fs.existsSync(screenshotScript)) {
+    return res.status(500).send({ error: 'Screenshot automation script not found' });
+  }
+
+  console.log(`📷 Generating screenshot for ROM: ${romFile} (wait: ${waitSeconds}s)`);
+
+  // Execute screenshot script and wait for completion
+  const command = `"${screenshotScript}" "${romPath}" ${waitSeconds}`;
+
+  exec(command, { timeout: (waitSeconds + 20) * 1000 }, (error, stdout, stderr) => {
+    if (error) {
+      console.log(`❌ Screenshot generation failed: ${error.message}`);
+      return res.status(500).send({
+        error: 'Screenshot generation failed',
+        details: error.message,
+        stdout: stdout,
+        stderr: stderr
+      });
+    }
+
+    // Look for generated screenshot
+    const screenshotsDir = path.join(automationDir, 'screenshots');
+
+    if (!fs.existsSync(screenshotsDir)) {
+      return res.status(500).send({ error: 'Screenshots directory not found' });
+    }
+
+    // Find the most recent PNG file
+    try {
+      const screenshotFiles = fs.readdirSync(screenshotsDir)
+        .filter(file => file.endsWith('.png'))
+        .map(file => {
+          const filePath = path.join(screenshotsDir, file);
+          const stats = fs.statSync(filePath);
+          return { filename: file, mtime: stats.mtime, size: stats.size };
+        })
+        .sort((a, b) => b.mtime - a.mtime);
+
+      if (screenshotFiles.length === 0) {
+        return res.status(500).send({ error: 'No screenshot generated' });
+      }
+
+      const latestScreenshot = screenshotFiles[0];
+      console.log(`✅ Screenshot generated: ${latestScreenshot.filename}`);
+
+      res.send({
+        success: true,
+        message: 'Screenshot generated successfully',
+        romFile: romFile,
+        screenshot: {
+          filename: latestScreenshot.filename,
+          size: latestScreenshot.size,
+          generated: latestScreenshot.mtime
+        },
+        waitSeconds: waitSeconds
+      });
+
+    } catch (dirError) {
+      return res.status(500).send({
+        error: 'Failed to read screenshots directory',
+        details: dirError.message
+      });
+    }
+  });
+});
+
+/**
+ * Endpoint to serve screenshot files
+ * @name GET /screenshot/:filename
+ * @function
+ */
+app.get('/screenshot/:filename', (req, res) => {
+  const filename = req.params.filename;
+
+  // Validate filename
+  if (!filename.endsWith('.png') || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return res.status(400).send({ error: 'Invalid filename' });
+  }
+
+  const automationDir = path.join(__dirname, '..', 'automation', 'openmsx');
+  const screenshotsDir = path.join(automationDir, 'screenshots');
+  const filePath = path.join(screenshotsDir, filename);
+
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send({ error: 'Screenshot not found' });
+  }
+
+  // Set headers for image
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+
+  // Send the image file
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      return res.status(500).send({ error: 'Failed to read screenshot', details: err });
+    }
+    res.send(data);
+  });
+});
+
+/**
  * Starts the Express server.
  */
 app.listen(port, () => {

@@ -46,6 +46,14 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ code: initialCode, onUpd
   const [saveAsFilename, setSaveAsFilename] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // OpenMSX integration states
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [isRunningOpenMSX, setIsRunningOpenMSX] = useState(false);
+  const [isGeneratingScreenshot, setIsGeneratingScreenshot] = useState(false);
+  const [compiledRomFile, setCompiledRomFile] = useState<string | null>(null);
+  const [compilationMessage, setCompilationMessage] = useState<string>('');
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
+
   useEffect(() => {
     // Sync local code with prop if it changes externally,
     // but only if it's truly different from what's in the textarea to avoid cursor jumps.
@@ -266,7 +274,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ code: initialCode, onUpd
       return;
     }
     const filenameToSave = saveAsFilename.endsWith('.asm') ? saveAsFilename : `${saveAsFilename}.asm`;
-    
+
     const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -279,6 +287,107 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ code: initialCode, onUpd
     setIsSaveAsModalOpen(false);
   };
 
+  // OpenMSX integration functions
+  const compileCode = async () => {
+    if (!code.trim()) {
+      alert("No code to compile!");
+      return;
+    }
+
+    setIsCompiling(true);
+    setCompilationMessage('');
+
+    try {
+      const response = await fetch('http://localhost:3001/compile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setCompiledRomFile(result.romFile);
+        setCompilationMessage(`✅ ROM compiled successfully: ${result.romFile}`);
+        alert(`ROM compiled successfully!\nFile: ${result.romFile}\nSize: ${result.romSizeInfo.paddedSize} bytes (${result.romSizeInfo.sizeIn8KB}×8KB)`);
+      } else {
+        setCompilationMessage(`❌ Compilation failed: ${result.details || result.error}`);
+        alert(`Compilation failed:\n${result.details || result.error}`);
+      }
+    } catch (error) {
+      console.error('Compilation error:', error);
+      setCompilationMessage(`❌ Network error during compilation`);
+      alert('Failed to connect to compilation server');
+    } finally {
+      setIsCompiling(false);
+    }
+  };
+
+  const runOpenMSX = async () => {
+    if (!compiledRomFile) {
+      await compileCode();
+      if (!compiledRomFile) return; // If compilation failed
+    }
+
+    setIsRunningOpenMSX(true);
+
+    try {
+      const response = await fetch('http://localhost:3001/run-openmsx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ romFile: compiledRomFile })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert(`OpenMSX started successfully!\n${result.note}`);
+      } else {
+        alert(`Failed to start OpenMSX:\n${result.details || result.error}`);
+      }
+    } catch (error) {
+      console.error('OpenMSX launch error:', error);
+      alert('Failed to connect to OpenMSX service');
+    } finally {
+      setIsRunningOpenMSX(false);
+    }
+  };
+
+  const generateScreenshot = async () => {
+    if (!compiledRomFile) {
+      await compileCode();
+      if (!compiledRomFile) return; // If compilation failed
+    }
+
+    setIsGeneratingScreenshot(true);
+
+    try {
+      const response = await fetch('http://localhost:3001/generate-screenshot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          romFile: compiledRomFile,
+          waitSeconds: 10
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        const screenshotPath = `/screenshot/${result.screenshot.filename}`;
+        setScreenshotUrl(`http://localhost:3001${screenshotPath}`);
+        alert(`Screenshot generated successfully!\nFile: ${result.screenshot.filename}\nSize: ${result.screenshot.size} bytes`);
+      } else {
+        alert(`Screenshot generation failed:\n${result.details || result.error}`);
+      }
+    } catch (error) {
+      console.error('Screenshot generation error:', error);
+      alert('Failed to generate screenshot');
+    } finally {
+      setIsGeneratingScreenshot(false);
+    }
+  };
+
   const editorLineHeight = editorFontSize * LINE_HEIGHT_MULTIPLIER;
 
   return (
@@ -287,6 +396,38 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ code: initialCode, onUpd
       <div className="p-1 border-b border-msx-border flex items-center space-x-2">
         <Button onClick={handleLoadFileClick} size="sm" variant="ghost" title="Load ASM File" icon={<FolderOpenIcon className="w-4 h-4"/>}><span className="hidden sm:inline">Load</span></Button>
         <Button onClick={handleOpenSaveAsModal} size="sm" variant="ghost" title="Save ASM File As..." icon={<SaveFloppyIcon className="w-4 h-4"/>}><span className="hidden sm:inline">Save As...</span></Button>
+
+        {/* OpenMSX Integration Buttons */}
+        <div className="border-l border-msx-border pl-2 ml-2 flex items-center space-x-1">
+          <Button
+            onClick={compileCode}
+            size="sm"
+            variant="primary"
+            disabled={isCompiling}
+            title="Compile Z80 code to ROM"
+          >
+            {isCompiling ? '⏳ Compiling...' : '🔧 Compile'}
+          </Button>
+          <Button
+            onClick={runOpenMSX}
+            size="sm"
+            variant="secondary"
+            disabled={isRunningOpenMSX || isCompiling}
+            title="Run ROM in OpenMSX for testing"
+          >
+            {isRunningOpenMSX ? '⏳ Opening...' : '🎮 RUN OPENMSX'}
+          </Button>
+          <Button
+            onClick={generateScreenshot}
+            size="sm"
+            variant="secondary"
+            disabled={isGeneratingScreenshot || isCompiling}
+            title="Generate screenshot of ROM execution"
+          >
+            {isGeneratingScreenshot ? '⏳ Capturing...' : '📷 Generate Screenshot'}
+          </Button>
+        </div>
+
         <span className="text-xs font-sans text-msx-textsecondary ml-auto mr-2">Z80 (MSX)</span>
         <div className="flex items-center space-x-1">
           <Button onClick={decreaseFontSize} size="sm" variant="ghost" title="Decrease font size (Zoom Out)" icon={<ZoomOutIcon className="w-4 h-4"/>} disabled={editorFontSize <= MIN_FONT_SIZE}>{null}</Button>
@@ -316,23 +457,66 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({ code: initialCode, onUpd
         />
       </div>
       <div className="p-1 border-t border-msx-border text-xs text-msx-textsecondary font-sans">
-        Lines: {code.split('\n').length} | Chars: {code.length}
+        <div className="flex items-center justify-between">
+          <div>
+            Lines: {code.split('\n').length} | Chars: {code.length}
+          </div>
+          <div className="flex items-center space-x-2">
+            {compilationMessage && (
+              <span className={`text-xs ${compilationMessage.includes('✅') ? 'text-green-400' : 'text-red-400'}`}>
+                {compilationMessage}
+              </span>
+            )}
+            {compiledRomFile && (
+              <span className="text-xs text-blue-400">
+                ROM: {compiledRomFile}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {isSaveAsModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={() => setIsSaveAsModalOpen(false)}>
           <div className="bg-msx-panelbg p-6 rounded-lg shadow-xl max-w-md w-full animate-slideIn pixel-font" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg text-msx-highlight mb-4">Save ASM File As</h2>
-            <input 
-              type="text" 
-              value={saveAsFilename} 
-              onChange={(e) => setSaveAsFilename(e.target.value)} 
+            <input
+              type="text"
+              value={saveAsFilename}
+              onChange={(e) => setSaveAsFilename(e.target.value)}
               placeholder="Enter filename (e.g., my_code.asm)"
-              className="w-full p-2 mb-4 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent" 
+              className="w-full p-2 mb-4 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
             />
             <div className="flex justify-end space-x-2">
               <Button onClick={() => setIsSaveAsModalOpen(false)} variant="ghost" size="md">Cancel</Button>
               <Button onClick={handleConfirmSaveAs} variant="primary" size="md">Save</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {screenshotUrl && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={() => setScreenshotUrl(null)}>
+          <div className="bg-msx-panelbg p-6 rounded-lg shadow-xl max-w-2xl w-full animate-slideIn pixel-font" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg text-msx-highlight mb-4">📷 ROM Screenshot</h2>
+            <div className="bg-msx-bgcolor p-4 rounded border border-msx-border mb-4">
+              <img
+                src={screenshotUrl}
+                alt="MSX ROM Screenshot"
+                className="w-full h-auto border border-msx-border"
+                style={{ imageRendering: 'pixelated' }}
+              />
+            </div>
+            <div className="flex justify-between">
+              <a
+                href={screenshotUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-msx-accent hover:text-msx-highlight text-sm underline"
+              >
+                Open in new tab
+              </a>
+              <Button onClick={() => setScreenshotUrl(null)} variant="primary" size="md">Close</Button>
             </div>
           </div>
         </div>
