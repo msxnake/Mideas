@@ -17,7 +17,22 @@
       "Bash(npm run:*)",
       "Bash(curl:*)",
       "Bash(dir:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(./openmsx-screenshot.bat \"..\\..\\server\\first.rom\")",
+      "Bash(./simple-screenshot.bat \"../../server/first.rom\")",
+      "Bash(timeout:*)",
+      "Bash(java:*)",
+      "Bash(\"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\automation\\openmsx\\run_basicenemy_test.bat\")",
+      "Bash(npx ts-node:*)",
+      "Read(//c/Users/salam/Downloads/**)",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" -script \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\automation\\openmsx\\debug_basicenemy.tcl\")",
+      "Bash(xxd:*)",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" -script \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\automation\\openmsx\\test_basicenemy_current.tcl\")",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" -script \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\automation\\openmsx\\capture_basicenemy_simple.tcl\")",
+      "Bash(\"working-screenshot.bat\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\BasicEnemy.rom\")",
+      "Bash(\"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\automation\\openmsx\\working-screenshot.bat\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\BasicEnemy.rom\")",
+      "Bash(if not exist \"automation\\openmsx\\screenshots\" mkdir \"automation\\openmsx\\screenshots\")",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" unitedFiles17.rom)"
     ],
     "deny": [],
     "ask": []

@@ -18,7 +18,7 @@
     ]
   },
   "automation": {
-    "default_wait_time": 10,
+    "default_wait_time": 5,
     "min_wait_time": 3,
     "max_wait_time": 60,
     "screenshot_dir": "screenshots",

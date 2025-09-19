@@ -1,52 +1,20 @@
+"use strict";
 /**
  * @fileoverview MSX Modular ASM Generator
  * Generates multiple specialized ASM files for better maintainability
  */
-
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph } from '../types';
-import { generateScreenLayoutASMCode, generateBehaviorMapASMCode, generateScreenMapLayoutBytes } from '../components/utils/screenUtils';
-import { generateTilePatternBytes, generateTileColorBytes } from '../components/utils/tileUtils';
-import { generateSpriteASMCode } from '../components/utils/spriteUtils';
-import { pixelDataToPattern } from './z80CodeGenerator';
-import { DEFAULT_TILE_BANKS_CONFIG } from '../constants';
-import { TileBank } from '../types';
-import { analyzeProject, ProjectAnalysis } from './asmTemplateGenerator';
-
-/**
- * MSX Modular configuration
- */
-export interface MSXModularConfig {
-  projectName: string;
-  targetMSX: 'MSX1' | 'MSX2' | 'MSX2+';
-  generateUnified: boolean;
-  outputDir: string;
-}
-
-/**
- * Generated ASM files structure
- */
-export interface GeneratedASMFiles {
-  'bios.asm': string;
-  'constants.asm': string;
-  'variables.asm': string;
-  'header.asm': string;
-  'components.asm': string;
-  'entities.asm': string;
-  'screens.asm': string;
-  'patterns.asm': string;
-  'colors.asm': string;
-  'sprites.asm': string;
-  'font.asm': string;
-  'menus.asm': string;
-  'main.asm': string;
-  'unitedFiles.asm'?: string; // Optional unified file
-}
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateModularASM = generateModularASM;
+const screenUtils_1 = require("../components/utils/screenUtils");
+const tileUtils_1 = require("../components/utils/tileUtils");
+const spriteUtils_1 = require("../components/utils/spriteUtils");
+const constants_1 = require("../constants");
+const asmTemplateGenerator_1 = require("./asmTemplateGenerator");
 /**
  * Generate BIOS functions and addresses (bios.asm)
  */
-function generateBIOSFile(): string {
-  return `; ==================================================================
+function generateBIOSFile() {
+    return `; ==================================================================
 ; MSX BIOS FUNCTIONS AND ADDRESSES
 ; File: bios.asm
 ; Description: Standard MSX BIOS function definitions
@@ -130,12 +98,11 @@ VDP_R7  EQU 7            ; Text/border color
 ; ==================================================================
 `;
 }
-
 /**
  * Generate MSX constants (constants.asm)
  */
-function generateConstantsFile(analysis: ProjectAnalysis): string {
-  return `; ==================================================================
+function generateConstantsFile(analysis) {
+    return `; ==================================================================
 ; MSX SYSTEM CONSTANTS
 ; File: constants.asm
 ; Description: MSX hardware constants and project-specific definitions
@@ -252,12 +219,11 @@ TOTAL_SCREENS           EQU ${analysis.screenMaps.length}
 ; ==================================================================
 `;
 }
-
 /**
  * Generate RAM variables with EQU addresses (variables.asm)
  */
-function generateVariablesFile(analysis: ProjectAnalysis): string {
-  let code = `; ==================================================================
+function generateVariablesFile(analysis) {
+    let code = `; ==================================================================
 ; RAM VARIABLES DEFINITIONS
 ; File: variables.asm
 ; Description: Dynamic variable allocation using EQU addresses
@@ -268,105 +234,82 @@ function generateVariablesFile(analysis: ProjectAnalysis): string {
 ; CORE SYSTEM VARIABLES (ALWAYS PRESENT)
 ; ==================================================================
 `;
-
-  let currentAddress = 0xC000;
-
-  // Core variables (always needed)
-  code += `input_state         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current joystick/keyboard state\n`;
-  currentAddress++;
-
-  code += `prev_input_state    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input state\n`;
-  currentAddress++;
-
-  code += `current_flow_state  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current game flow state\n`;
-  currentAddress++;
-
-  code += `prev_flow_state     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous game flow state\n`;
-  currentAddress++;
-
-  // Frame counter (always useful)
-  code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
-  currentAddress += 2;
-
-  // Sprite system variables (only if sprites exist)
-  if (analysis.sprites.length > 0) {
-    code += `
+    let currentAddress = 0xC000;
+    // Core variables (always needed)
+    code += `input_state         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current joystick/keyboard state\n`;
+    currentAddress++;
+    code += `prev_input_state    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input state\n`;
+    currentAddress++;
+    code += `current_flow_state  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current game flow state\n`;
+    currentAddress++;
+    code += `prev_flow_state     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous game flow state\n`;
+    currentAddress++;
+    // Frame counter (always useful)
+    code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
+    currentAddress += 2;
+    // Sprite system variables (only if sprites exist)
+    if (analysis.sprites.length > 0) {
+        code += `
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES (${analysis.sprites.length} sprites detected)
 ; ==================================================================
 `;
-    code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
-    currentAddress++;
-
-    code += `sprite_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite X positions (32 bytes)\n`;
-    currentAddress += 32;
-
-    code += `sprite_y_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite Y positions (32 bytes)\n`;
-    currentAddress += 32;
-
-    code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (32 bytes)\n`;
-    currentAddress += 32;
-
-    code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (32 bytes)\n`;
-    currentAddress += 32;
-  }
-
-  // Screen system variables (only if screens exist)
-  if (analysis.screenMaps.length > 0) {
-    code += `
+        code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
+        currentAddress++;
+        code += `sprite_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite X positions (32 bytes)\n`;
+        currentAddress += 32;
+        code += `sprite_y_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite Y positions (32 bytes)\n`;
+        currentAddress += 32;
+        code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (32 bytes)\n`;
+        currentAddress += 32;
+        code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (32 bytes)\n`;
+        currentAddress += 32;
+    }
+    // Screen system variables (only if screens exist)
+    if (analysis.screenMaps.length > 0) {
+        code += `
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (${analysis.screenMaps.length} screens detected)
 ; ==================================================================
 `;
-    code += `current_screen_id   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Currently displayed screen ID\n`;
-    currentAddress++;
-
-    code += `screen_dirty_flag   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen needs redraw flag\n`;
-    currentAddress++;
-  }
-
-  // Player variables (detect if there's a player entity)
-  const hasPlayer = analysis.sprites.some(s => s.name.toLowerCase().includes('player'));
-
-  if (hasPlayer) {
-    code += `
+        code += `current_screen_id   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Currently displayed screen ID\n`;
+        currentAddress++;
+        code += `screen_dirty_flag   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen needs redraw flag\n`;
+        currentAddress++;
+    }
+    // Player variables (detect if there's a player entity)
+    const hasPlayer = analysis.sprites.some(s => s.name.toLowerCase().includes('player'));
+    if (hasPlayer) {
+        code += `
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
 `;
-    code += `player_x            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player X position (16-bit)\n`;
-    currentAddress += 2;
-
-    code += `player_y            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player Y position (16-bit)\n`;
-    currentAddress += 2;
-
-    code += `player_health       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player health points\n`;
-    currentAddress++;
-
-    code += `player_score        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player score (16-bit)\n`;
-    currentAddress += 2;
-  }
-
-  // Temporary variables (always needed)
-  code += `
+        code += `player_x            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player X position (16-bit)\n`;
+        currentAddress += 2;
+        code += `player_y            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player Y position (16-bit)\n`;
+        currentAddress += 2;
+        code += `player_health       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player health points\n`;
+        currentAddress++;
+        code += `player_score        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player score (16-bit)\n`;
+        currentAddress += 2;
+    }
+    // Temporary variables (always needed)
+    code += `
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
 `;
-  code += `temp_word_1         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage\n`;
-  currentAddress += 2;
-
-  code += `temp_word_2         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage\n`;
-  currentAddress += 2;
-
-  code += `temp_byte_1         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage\n`;
-  currentAddress++;
-
-  code += `temp_byte_2         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage\n`;
-  currentAddress++;
-
-  // End marker
-  code += `
+    code += `temp_word_1         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage\n`;
+    currentAddress += 2;
+    code += `temp_word_2         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage\n`;
+    currentAddress += 2;
+    code += `temp_byte_1         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage\n`;
+    currentAddress++;
+    code += `temp_byte_2         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage\n`;
+    currentAddress++;
+    // End marker
+    code += `
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
@@ -381,15 +324,13 @@ RAM_USAGE_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4,
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ; ==================================================================
 `;
-
-  return code;
+    return code;
 }
-
 /**
  * Generate ROM header with "AB" signature (header.asm)
  */
-function generateHeaderFile(projectName: string): string {
-  return `; ==================================================================
+function generateHeaderFile(projectName) {
+    return `; ==================================================================
 ; MSX CARTRIDGE ROM HEADER
 ; File: header.asm
 ; Description: Standard MSX cartridge initialization
@@ -445,12 +386,11 @@ INIT_ROM:
 ; ==================================================================
 `;
 }
-
 /**
  * Generate main.asm with ordered imports
  */
-function generateMainFile(projectName: string, analysis: ProjectAnalysis): string {
-  return `; ==================================================================
+function generateMainFile(projectName, analysis) {
+    return `; ==================================================================
 ; ${projectName.toUpperCase()} - MAIN ASSEMBLY FILE
 ; File: main.asm
 ; Description: Main file with ordered imports for MSX cartridge
@@ -566,22 +506,20 @@ RENDER_FRAME:
     END                 ; End of assembly
 `;
 }
-
 /**
  * Generate pattern data file (patterns.asm)
  */
-function generatePatternsFile(analysis: ProjectAnalysis): string {
-  if (analysis.tiles.length === 0) {
-    return `; ==================================================================
+function generatePatternsFile(analysis) {
+    if (analysis.tiles.length === 0) {
+        return `; ==================================================================
 ; PATTERN DATA (EMPTY - NO TILES DETECTED)
 ; File: patterns.asm
 ; ==================================================================
 
 ; No tiles detected in project - file generated as placeholder
 `;
-  }
-
-  return `; ==================================================================
+    }
+    return `; ==================================================================
 ; TILE PATTERN DATA
 ; File: patterns.asm
 ; Description: Tile pattern definitions for MSX Screen 2
@@ -593,14 +531,13 @@ function generatePatternsFile(analysis: ProjectAnalysis): string {
 ; ==================================================================
 TILE_PATTERN_BANK0:
 ${analysis.tiles.map((tile, index) => {
-  // Generate actual pattern bytes using the same function as MSX Main Generator
-  const patternBytes = generateTilePatternBytes(tile, 'SCREEN 2 (Graphics I)');
-  const bytesHex = Array.from(patternBytes).map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`);
-
-  return `    ; Tile ${index}: ${tile.name} (${tile.width}x${tile.height}px)
+        // Generate actual pattern bytes using the same function as MSX Main Generator
+        const patternBytes = (0, tileUtils_1.generateTilePatternBytes)(tile, 'SCREEN 2 (Graphics I)');
+        const bytesHex = Array.from(patternBytes).map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`);
+        return `    ; Tile ${index}: ${tile.name} (${tile.width}x${tile.height}px)
     DB ${bytesHex.join(', ')}
 `;
-}).join('')}
+    }).join('')}
 
 ; ==================================================================
 ; PATTERN LOADING FUNCTIONS
@@ -637,22 +574,20 @@ LOAD_PATTERN_BANK2:
 ; ==================================================================
 `;
 }
-
 /**
  * Generate color data file (colors.asm)
  */
-function generateColorsFile(analysis: ProjectAnalysis): string {
-  if (analysis.tiles.length === 0) {
-    return `; ==================================================================
+function generateColorsFile(analysis) {
+    if (analysis.tiles.length === 0) {
+        return `; ==================================================================
 ; COLOR DATA (EMPTY - NO TILES DETECTED)
 ; File: colors.asm
 ; ==================================================================
 
 ; No tiles detected in project - file generated as placeholder
 `;
-  }
-
-  return `; ==================================================================
+    }
+    return `; ==================================================================
 ; TILE COLOR DATA
 ; File: colors.asm
 ; Description: Tile color definitions for MSX Screen 2
@@ -664,16 +599,15 @@ function generateColorsFile(analysis: ProjectAnalysis): string {
 ; ==================================================================
 TILE_COLOR_BANK0:
 ${analysis.tiles.map((tile, index) => {
-  // Generate actual color bytes using the same function as MSX Main Generator
-  const colorBytes = generateTileColorBytes(tile);
-  const bytesHex = colorBytes ?
-    Array.from(colorBytes).map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`) :
-    ['#F0', '#F0', '#F0', '#F0', '#F0', '#F0', '#F0', '#F0']; // Default white/black if no color data
-
-  return `    ; Tile ${index}: ${tile.name} colors (fg/bg pairs)
+        // Generate actual color bytes using the same function as MSX Main Generator
+        const colorBytes = (0, tileUtils_1.generateTileColorBytes)(tile);
+        const bytesHex = colorBytes ?
+            Array.from(colorBytes).map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`) :
+            ['#F0', '#F0', '#F0', '#F0', '#F0', '#F0', '#F0', '#F0']; // Default white/black if no color data
+        return `    ; Tile ${index}: ${tile.name} colors (fg/bg pairs)
     DB ${bytesHex.join(', ')}
 `;
-}).join('')}
+    }).join('')}
 
 ; ==================================================================
 ; COLOR LOADING FUNCTIONS
@@ -710,12 +644,11 @@ LOAD_COLOR_BANK2:
 ; ==================================================================
 `;
 }
-
 /**
  * Generate unified file (unitedFiles.asm) - optional
  */
-function generateUnifiedFile(files: GeneratedASMFiles, projectName: string): string {
-  return `; ==================================================================
+function generateUnifiedFile(files, projectName) {
+    return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
 ; File: unitedFiles.asm
 ; Description: All-in-one file combining all modular files
@@ -982,13 +915,12 @@ txt_credits:        DB "CREDITS: MIDEAS MSX", 0
     END                 ; End of assembly
 `;
 }
-
 /**
  * Generate sprite data file (sprites.asm)
  */
-function generateSpritesFile(analysis: ProjectAnalysis): string {
-  if (analysis.sprites.length === 0) {
-    return `; ==================================================================
+function generateSpritesFile(analysis) {
+    if (analysis.sprites.length === 0) {
+        return `; ==================================================================
 ; SPRITE DATA (EMPTY - NO SPRITES DETECTED)
 ; File: sprites.asm
 ; ==================================================================
@@ -1021,9 +953,8 @@ HIDE_SPRITE:
 ; END OF SPRITE DATA
 ; ==================================================================
 `;
-  }
-
-  let code = `; ==================================================================
+    }
+    let code = `; ==================================================================
 ; SPRITE DATA
 ; File: sprites.asm
 ; Description: Sprite pattern and animation data
@@ -1034,42 +965,38 @@ HIDE_SPRITE:
 ; SPRITE PATTERN DATA
 ; ==================================================================
 `;
-
-  // Generate sprite patterns using the EXACT same function as Sprite Editor "Download ASM"
-  analysis.sprites.forEach((sprite, index) => {
-    const safeSpriteName = sprite.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-    const spriteASM = generateSpriteASMCode(sprite, 'hex');
-
-    // Find the first layer that was actually generated by scanning the ASM output
-    let firstLayerFound = -1;
-    for (let layerIndex = 0; layerIndex < 4; layerIndex++) {
-      const layerLabel = `${safeSpriteName}_F0_LAYER${layerIndex}:`;
-      if (spriteASM.includes(layerLabel)) {
-        firstLayerFound = layerIndex;
-        break;
-      }
-    }
-
-    code += `
+    // Generate sprite patterns using the EXACT same function as Sprite Editor "Download ASM"
+    analysis.sprites.forEach((sprite, index) => {
+        const safeSpriteName = sprite.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+        const spriteASM = (0, spriteUtils_1.generateSpriteASMCode)(sprite, 'hex');
+        // Find the first layer that was actually generated by scanning the ASM output
+        let firstLayerFound = -1;
+        for (let layerIndex = 0; layerIndex < 4; layerIndex++) {
+            const layerLabel = `${safeSpriteName}_F0_LAYER${layerIndex}:`;
+            if (spriteASM.includes(layerLabel)) {
+                firstLayerFound = layerIndex;
+                break;
+            }
+        }
+        code += `
 ; Sprite ${index}: ${sprite.name}
 ${spriteASM}`;
-
-    if (firstLayerFound >= 0) {
-      code += `
+        if (firstLayerFound >= 0) {
+            code += `
 ; Unified pattern label for sprite ${index} (for easy reference in loading code)
 SPRITE_${index}_PATTERN EQU ${safeSpriteName}_F0_LAYER${firstLayerFound}
 `;
-    } else {
-      code += `
+        }
+        else {
+            code += `
 ; WARNING: No valid pattern layers found for sprite ${index}: ${sprite.name}
 ; Creating placeholder pattern label
 SPRITE_${index}_PATTERN:
     DB 0, 0, 0, 0, 0, 0, 0, 0  ; 8 bytes of empty pattern data
 `;
-    }
-  });
-
-  code += `
+        }
+    });
+    code += `
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
 ; ==================================================================
@@ -1090,19 +1017,17 @@ INIT_SPRITES:
 LOAD_SPRITE_PATTERNS:
     ; Load all sprite patterns to VRAM sprite pattern table
 `;
-
-  // Generate pattern loading for each sprite
-  analysis.sprites.forEach((sprite, index) => {
-    code += `
+    // Generate pattern loading for each sprite
+    analysis.sprites.forEach((sprite, index) => {
+        code += `
     ; Load sprite ${index}: ${sprite.name} (BIOS LDIRVM handles timing)
     LD HL, SPRITE_${index}_PATTERN
     LD DE, SPRPAT + (${index} * 32) ; Each 16x16 sprite = 32 bytes (4 patterns)
     LD BC, 32                       ; 16x16 sprite size
     CALL LDIRVM                     ; BIOS handles safe VRAM access
 `;
-  });
-
-  code += `    RET
+    });
+    code += `    RET
 
 ; ==================================================================
 ; SPRITE MANAGEMENT FUNCTIONS
@@ -1181,27 +1106,23 @@ UPDATE_SPRITES_TO_VRAM:
 ; SPRITE CONSTANTS
 ; ==================================================================
 `;
-
-  // Generate sprite ID constants
-  analysis.sprites.forEach((sprite, index) => {
-    const spriteName = sprite.name.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
-    code += `SPRITE_ID_${spriteName}    EQU ${index}      ; Sprite: ${sprite.name}\n`;
-  });
-
-  code += `
+    // Generate sprite ID constants
+    analysis.sprites.forEach((sprite, index) => {
+        const spriteName = sprite.name.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+        code += `SPRITE_ID_${spriteName}    EQU ${index}      ; Sprite: ${sprite.name}\n`;
+    });
+    code += `
 ; ==================================================================
 ; END OF SPRITE DATA
 ; ==================================================================
 `;
-
-  return code;
+    return code;
 }
-
 /**
  * Generate components file with game component systems - Based on Mideas ECS Architecture
  */
-function generateComponentsFile(analysis: ProjectAnalysis): string {
-  let code = `; ==================================================================
+function generateComponentsFile(analysis) {
+    let code = `; ==================================================================
 ; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
 ; File: components.asm
 ; Description: Component systems based on Mideas React.js architecture
@@ -1558,94 +1479,83 @@ INIT_ENTITY_SPRITE:
 ; END OF COMPONENT SYSTEMS
 ; ==================================================================
 `;
-
-  return code;
+    return code;
 }
-
 /**
  * Generate entities file with game entity definitions
  */
-function generateEntitiesFile(analysis: ProjectAnalysis): string {
-  let code = `; ==================================================================
+function generateEntitiesFile(analysis) {
+    let code = `; ==================================================================
 ; GAME ENTITIES
 ; File: entities.asm
 ; Description: Game entity definitions and behavior
 ; ==================================================================
 
 `;
-
-  if (analysis.entities && analysis.entities.length > 0) {
-    code += `; ==================================================================
+    if (analysis.entities && analysis.entities.length > 0) {
+        code += `; ==================================================================
 ; ENTITY DEFINITIONS
 ; ==================================================================
 
 `;
-
-    analysis.entities.forEach((entity, index) => {
-      const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `; Entity: ${entity.name}
+        analysis.entities.forEach((entity, index) => {
+            const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            code += `; Entity: ${entity.name}
 ENTITY_${entityName}_ID EQU ${index}
 `;
-
-      if (entity.entityTemplateId) {
-        code += `ENTITY_${entityName}_TEMPLATE EQU \"${entity.entityTemplateId}\"
+            if (entity.entityTemplateId) {
+                code += `ENTITY_${entityName}_TEMPLATE EQU \"${entity.entityTemplateId}\"
 `;
-      }
-
-      if (entity.position) {
-        code += `ENTITY_${entityName}_X EQU ${entity.position.x}
+            }
+            if (entity.position) {
+                code += `ENTITY_${entityName}_X EQU ${entity.position.x}
 ENTITY_${entityName}_Y EQU ${entity.position.y}
 `;
-      }
-
-      code += `
+            }
+            code += `
 `;
-    });
-
-    code += `; ==================================================================
+        });
+        code += `; ==================================================================
 ; ENTITY MANAGEMENT FUNCTIONS
 ; ==================================================================
 
 INIT_ENTITIES:
     ; Initialize all game entities
 `;
-
-    if (analysis.entities && analysis.entities.length > 0) {
-      analysis.entities.forEach((entity) => {
-        const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-        code += `    CALL INIT_${entityName}
+        if (analysis.entities && analysis.entities.length > 0) {
+            analysis.entities.forEach((entity) => {
+                const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                code += `    CALL INIT_${entityName}
 `;
-      });
-    } else {
-      code += `    ; No entities to initialize
+            });
+        }
+        else {
+            code += `    ; No entities to initialize
 `;
-    }
-
-    code += `    RET
+        }
+        code += `    RET
 
 UPDATE_ENTITIES:
     ; Update all entities
 `;
-
-    if (analysis.entities && analysis.entities.length > 0) {
-      analysis.entities.forEach((entity) => {
-        const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-        code += `    CALL UPDATE_${entityName}
+        if (analysis.entities && analysis.entities.length > 0) {
+            analysis.entities.forEach((entity) => {
+                const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                code += `    CALL UPDATE_${entityName}
 `;
-      });
-    } else {
-      code += `    ; No entities to update
+            });
+        }
+        else {
+            code += `    ; No entities to update
 `;
-    }
-
-    code += `    RET
+        }
+        code += `    RET
 
 `;
-
-    // Generate individual entity functions
-    analysis.entities.forEach((entity) => {
-      const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `INIT_${entityName}:
+        // Generate individual entity functions
+        analysis.entities.forEach((entity) => {
+            const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            code += `INIT_${entityName}:
     ; Initialize ${entity.name}
     ; TODO: Set initial position, sprite, and state
     RET
@@ -1656,9 +1566,10 @@ UPDATE_${entityName}:
     RET
 
 `;
-    });
-  } else {
-    code += `; ==================================================================
+        });
+    }
+    else {
+        code += `; ==================================================================
 ; DEFAULT ENTITY SYSTEM
 ; ==================================================================
 
@@ -1685,205 +1596,163 @@ UPDATE_PLAYER:
     RET
 
 `;
-  }
-
-  code += `; ==================================================================
+    }
+    code += `; ==================================================================
 ; END OF ENTITIES
 ; ==================================================================
 `;
-
-  return code;
+    return code;
 }
-
 /**
  * Generate screens file with screen layout and map data
  */
-function generateScreensFile(analysis: ProjectAnalysis): string {
-  let code = `; ==================================================================
+function generateScreensFile(analysis) {
+    let code = `; ==================================================================
 ; SCREEN MAPS
 ; File: screens.asm
 ; Description: Screen layout and map data
 ; ==================================================================
 
 `;
-
-  if (analysis.screenMaps && analysis.screenMaps.length > 0) {
-    code += `; ==================================================================
+    if (analysis.screenMaps && analysis.screenMaps.length > 0) {
+        code += `; ==================================================================
 ; SCREEN MAP CONSTANTS
 ; ==================================================================
 
 `;
-
-    analysis.screenMaps.forEach((screen, index) => {
-      const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `SCREEN_${screenName}_${index}_ID EQU ${index}
+        analysis.screenMaps.forEach((screen, index) => {
+            const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            code += `SCREEN_${screenName}_${index}_ID EQU ${index}
 `;
-    });
-
-    code += `
+        });
+        code += `
 ; ==================================================================
 ; SCREEN MAP DATA
 ; ==================================================================
 
 `;
-
-    analysis.screenMaps.forEach((screen) => {
-      if (screen.layers && screen.layers.background) {
-        // Create automatic tile banks with assigned tiles for character mapping
-        const uniqueTileIds = new Set(screen.layers.background.flat().map(tile => tile.tileId).filter(Boolean));
-        const tileBanks: TileBank[] = [];
-
-        console.log(`🔍 Screen ${screen.name}: Found ${uniqueTileIds.size} unique tiles`);
-        console.log('Unique tile IDs:', Array.from(uniqueTileIds));
-        console.log('Available tiles in analysis:', analysis.tiles?.map(t => `${t.name} (${t.id})`));
-
-        if (uniqueTileIds.size > 0) {
-          // Create a single tile bank with all tiles
-          const mainBank: TileBank = {
-            ...DEFAULT_TILE_BANKS_CONFIG[1], // Use main game bank as template
-            assignedTiles: {},
-            charsetRangeStart: 0,
-            charsetRangeEnd: 255  // Ensure wide range
-          };
-
-          // Assign tiles to characters starting from charCode 0
-          let nextCharCode = 0;
-          Array.from(uniqueTileIds).forEach((tileId) => {
-            if (tileId) {
-              const tileAsset = analysis.tiles?.find(t => t.id === tileId);
-              if (tileAsset) {
-                // Calculate how many characters this tile needs (width/8 * height/8)
-                const charsWide = Math.ceil(tileAsset.width / 8);
-                const charsHigh = Math.ceil(tileAsset.height / 8);
-
-                mainBank.assignedTiles[tileId] = {
-                  charCode: nextCharCode,
-                  assignedAt: Date.now()
-                };
-
-                console.log(`📌 Assigned tile ${tileAsset.name} (${tileId}) to charCode ${nextCharCode} (${charsWide}x${charsHigh} chars)`);
-                nextCharCode += charsWide * charsHigh;
-              } else {
-                console.log(`❌ Tile asset not found for ID: ${tileId}`);
-              }
-            }
-          });
-
-          tileBanks.push(mainBank);
-          console.log(`✅ Created tile bank with ${Object.keys(mainBank.assignedTiles).length} assigned tiles`);
-        }
-
-        // Use the EXACT same function as Screen Editor "Download ASM" button
-        const layoutBytes = generateScreenMapLayoutBytes(
-          screen,
-          analysis.tiles || [],
-          tileBanks.length > 0 ? tileBanks : undefined,
-          'SCREEN 2 (Graphics I)' // Now we can use SCREEN 2 with proper tile banks
-        );
-        const mapIndices = Array.from(layoutBytes);
-
-        // Debug the generated bytes
-        const nonFFCount = mapIndices.filter(b => b !== 255).length;
-        const uniqueBytes = new Set(mapIndices);
-        console.log(`📊 Generated ${mapIndices.length} bytes: ${nonFFCount} non-FF (${((nonFFCount/mapIndices.length)*100).toFixed(1)}%)`);
-        console.log(`🎯 Unique byte values: [${Array.from(uniqueBytes).sort((a,b) => a-b).join(', ')}]`);
-
-        if (nonFFCount === 0) {
-          console.log(`❌ All bytes are #FF - debugging tile bank assignment...`);
-          console.log('Tile bank enabled:', tileBanks[0]?.enabled);
-          console.log('Tile bank assigned tiles:', Object.keys(tileBanks[0]?.assignedTiles || {}));
-          console.log('Charset range:', tileBanks[0]?.charsetRangeStart, '-', tileBanks[0]?.charsetRangeEnd);
-        }
-
-        // Create a mapping from byte values to tile names for comments
-        const uniqueValues = new Set(mapIndices.filter(val => val !== 255 && val !== 0));
-        const uniqueTiles = new Set(screen.layers.background.flat().map(tile => tile.tileId).filter(Boolean));
-
-        // Generate reference comments based on actual byte values from Screen Editor logic
-        const referenceComments: string[] = [];
-        referenceComments.push(`; Generated using exact Screen Editor "Download ASM" logic`);
-        referenceComments.push(`; Byte values represent actual character codes in VRAM`);
-
-        // Create a mapping of tileIds to actual byte values used
-        const tileIdToByteValue = new Map<string, number>();
-        const backgroundLayer = screen.layers.background;
-
-        for (let r = 0; r < backgroundLayer.length; r++) {
-          for (let c = 0; c < backgroundLayer[r].length; c++) {
-            const tile = backgroundLayer[r][c];
-            if (tile?.tileId) {
-              const byteIndex = r * (screen.activeAreaWidth ?? screen.width) + c;
-              if (byteIndex < mapIndices.length) {
-                const byteValue = mapIndices[byteIndex];
-                if (byteValue !== 255 && byteValue !== 0) {
-                  tileIdToByteValue.set(tile.tileId, byteValue);
+        analysis.screenMaps.forEach((screen) => {
+            if (screen.layers && screen.layers.background) {
+                // Create automatic tile banks with assigned tiles for character mapping
+                const uniqueTileIds = new Set(screen.layers.background.flat().map(tile => tile.tileId).filter(Boolean));
+                const tileBanks = [];
+                console.log(`🔍 Screen ${screen.name}: Found ${uniqueTileIds.size} unique tiles`);
+                console.log('Unique tile IDs:', Array.from(uniqueTileIds));
+                console.log('Available tiles in analysis:', analysis.tiles?.map(t => `${t.name} (${t.id})`));
+                if (uniqueTileIds.size > 0) {
+                    // Create a single tile bank with all tiles
+                    const mainBank = {
+                        ...constants_1.DEFAULT_TILE_BANKS_CONFIG[1], // Use main game bank as template
+                        assignedTiles: {},
+                        charsetRangeStart: 0,
+                        charsetRangeEnd: 255 // Ensure wide range
+                    };
+                    // Assign tiles to characters starting from charCode 0
+                    let nextCharCode = 0;
+                    Array.from(uniqueTileIds).forEach((tileId) => {
+                        if (tileId) {
+                            const tileAsset = analysis.tiles?.find(t => t.id === tileId);
+                            if (tileAsset) {
+                                // Calculate how many characters this tile needs (width/8 * height/8)
+                                const charsWide = Math.ceil(tileAsset.width / 8);
+                                const charsHigh = Math.ceil(tileAsset.height / 8);
+                                mainBank.assignedTiles[tileId] = {
+                                    charCode: nextCharCode,
+                                    assignedAt: Date.now()
+                                };
+                                console.log(`📌 Assigned tile ${tileAsset.name} (${tileId}) to charCode ${nextCharCode} (${charsWide}x${charsHigh} chars)`);
+                                nextCharCode += charsWide * charsHigh;
+                            }
+                            else {
+                                console.log(`❌ Tile asset not found for ID: ${tileId}`);
+                            }
+                        }
+                    });
+                    tileBanks.push(mainBank);
+                    console.log(`✅ Created tile bank with ${Object.keys(mainBank.assignedTiles).length} assigned tiles`);
                 }
-              }
+                // Use the EXACT same function as Screen Editor "Download ASM" button
+                const layoutBytes = (0, screenUtils_1.generateScreenMapLayoutBytes)(screen, analysis.tiles || [], tileBanks.length > 0 ? tileBanks : undefined, 'SCREEN 2 (Graphics I)' // Now we can use SCREEN 2 with proper tile banks
+                );
+                const mapIndices = Array.from(layoutBytes);
+                // Debug the generated bytes
+                const nonFFCount = mapIndices.filter(b => b !== 255).length;
+                const uniqueBytes = new Set(mapIndices);
+                console.log(`📊 Generated ${mapIndices.length} bytes: ${nonFFCount} non-FF (${((nonFFCount / mapIndices.length) * 100).toFixed(1)}%)`);
+                console.log(`🎯 Unique byte values: [${Array.from(uniqueBytes).sort((a, b) => a - b).join(', ')}]`);
+                if (nonFFCount === 0) {
+                    console.log(`❌ All bytes are #FF - debugging tile bank assignment...`);
+                    console.log('Tile bank enabled:', tileBanks[0]?.enabled);
+                    console.log('Tile bank assigned tiles:', Object.keys(tileBanks[0]?.assignedTiles || {}));
+                    console.log('Charset range:', tileBanks[0]?.charsetRangeStart, '-', tileBanks[0]?.charsetRangeEnd);
+                }
+                // Create a mapping from byte values to tile names for comments
+                const uniqueValues = new Set(mapIndices.filter(val => val !== 255 && val !== 0));
+                const uniqueTiles = new Set(screen.layers.background.flat().map(tile => tile.tileId).filter(Boolean));
+                // Generate reference comments based on actual byte values from Screen Editor logic
+                const referenceComments = [];
+                referenceComments.push(`; Generated using exact Screen Editor "Download ASM" logic`);
+                referenceComments.push(`; Byte values represent actual character codes in VRAM`);
+                // Create a mapping of tileIds to actual byte values used
+                const tileIdToByteValue = new Map();
+                const backgroundLayer = screen.layers.background;
+                for (let r = 0; r < backgroundLayer.length; r++) {
+                    for (let c = 0; c < backgroundLayer[r].length; c++) {
+                        const tile = backgroundLayer[r][c];
+                        if (tile?.tileId) {
+                            const byteIndex = r * (screen.activeAreaWidth ?? screen.width) + c;
+                            if (byteIndex < mapIndices.length) {
+                                const byteValue = mapIndices[byteIndex];
+                                if (byteValue !== 255 && byteValue !== 0) {
+                                    tileIdToByteValue.set(tile.tileId, byteValue);
+                                }
+                            }
+                        }
+                    }
+                }
+                // No tile constants needed - we use the actual byte values from Screen Editor
+                // Use existing ASM generation logic with hex format like Screen Editor
+                const screenNameWithIndex = `${screen.name}_${analysis.screenMaps.indexOf(screen)}`;
+                const asmCode = (0, screenUtils_1.generateScreenLayoutASMCode)(screenNameWithIndex, screen.width, screen.height, mapIndices, referenceComments, 'hex' // Use hex format #?? like Screen Editor "Download ASM"
+                );
+                // Add the screen layout data (no tile constants needed - using exact Screen Editor format)
+                code += asmCode;
+                // Also generate collision/behavior map if available
+                if (screen.layers.collision && analysis.tiles) {
+                    const collisionLayer = screen.layers.collision;
+                    const behaviorMapData = [];
+                    collisionLayer.forEach(row => {
+                        row.forEach(tile => {
+                            if (tile.tileId) {
+                                // Find the tile asset to get its logical properties
+                                const tileAsset = analysis.tiles.find(t => t.id === tile.tileId);
+                                const mapId = tileAsset?.logicalProperties?.mapId || 0;
+                                behaviorMapData.push(mapId);
+                            }
+                            else {
+                                behaviorMapData.push(0);
+                            }
+                        });
+                    });
+                    // Generate behavior map ASM
+                    const behaviorASM = (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, screen.width, screen.height, behaviorMapData, 'hex');
+                    code += `\n${behaviorASM}`;
+                }
             }
-          }
-        }
-
-        // No tile constants needed - we use the actual byte values from Screen Editor
-
-        // Use existing ASM generation logic with hex format like Screen Editor
-        const screenNameWithIndex = `${screen.name}_${analysis.screenMaps.indexOf(screen)}`;
-        const asmCode = generateScreenLayoutASMCode(
-          screenNameWithIndex,
-          screen.width,
-          screen.height,
-          mapIndices,
-          referenceComments,
-          'hex' // Use hex format #?? like Screen Editor "Download ASM"
-        );
-
-        // Add the screen layout data (no tile constants needed - using exact Screen Editor format)
-        code += asmCode;
-
-        // Also generate collision/behavior map if available
-        if (screen.layers.collision && analysis.tiles) {
-          const collisionLayer = screen.layers.collision;
-          const behaviorMapData: number[] = [];
-
-          collisionLayer.forEach(row => {
-            row.forEach(tile => {
-              if (tile.tileId) {
-                // Find the tile asset to get its logical properties
-                const tileAsset = analysis.tiles.find(t => t.id === tile.tileId);
-                const mapId = tileAsset?.logicalProperties?.mapId || 0;
-                behaviorMapData.push(mapId);
-              } else {
-                behaviorMapData.push(0);
-              }
-            });
-          });
-
-          // Generate behavior map ASM
-          const behaviorASM = generateBehaviorMapASMCode(
-            screenNameWithIndex,
-            screen.width,
-            screen.height,
-            behaviorMapData,
-            'hex'
-          );
-
-          code += `\n${behaviorASM}`;
-        }
-      } else {
-        // Generate placeholder screen data
-        const screenIndex = analysis.screenMaps.indexOf(screen);
-        const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-        code += `SCREEN_${screenName}_${screenIndex}_LAYOUT:
+            else {
+                // Generate placeholder screen data
+                const screenIndex = analysis.screenMaps.indexOf(screen);
+                const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                code += `SCREEN_${screenName}_${screenIndex}_LAYOUT:
     ; Screen data for ${screen.name}
     ; TODO: Add actual screen map data
     DB 0, 0, 0, 0, 0, 0, 0, 0
 
 `;
-      }
-
-      code += `\n`;
-    });
-
-    code += `; ==================================================================
+            }
+            code += `\n`;
+        });
+        code += `; ==================================================================
 ; SCREEN LOADING FUNCTIONS
 ; ==================================================================
 
@@ -1893,10 +1762,9 @@ LOAD_SCREEN:
     RET
 
 `;
-
-    analysis.screenMaps.forEach((screen, index) => {
-      const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `LOAD_SCREEN_${screenName}:
+        analysis.screenMaps.forEach((screen, index) => {
+            const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            code += `LOAD_SCREEN_${screenName}:
     ; Load ${screen.name} screen (BIOS LDIRVM handles timing)
     LD HL, SCREEN_${screenName}_${index}_LAYOUT
     LD DE, NAMETBL
@@ -1905,9 +1773,10 @@ LOAD_SCREEN:
     RET
 
 `;
-    });
-  } else {
-    code += `; ==================================================================
+        });
+    }
+    else {
+        code += `; ==================================================================
 ; DEFAULT SCREEN SYSTEM
 ; ==================================================================
 
@@ -1935,21 +1804,18 @@ LOAD_SCREEN_GAME:
     RET
 
 `;
-  }
-
-  code += `; ==================================================================
+    }
+    code += `; ==================================================================
 ; END OF SCREEN MAPS
 ; ==================================================================
 `;
-
-  return code;
+    return code;
 }
-
 /**
  * Generate font data file with MSX font patterns for Screen 2 text
  */
-function generateFontFile(analysis: ProjectAnalysis): string {
-  return `; ==================================================================
+function generateFontFile(analysis) {
+    return `; ==================================================================
 ; MSX FONT DATA FOR SCREEN 2 TEXT
 ; File: font.asm
 ; Description: Font pattern data based on Mideas Font Editor
@@ -2203,48 +2069,42 @@ INIT_FONT_SYSTEM:
 ; ==================================================================
 `;
 }
-
 /**
  * Generate menus file with menu systems and user interface
  */
-function generateMenusFile(analysis: ProjectAnalysis): string {
-  let code = `; ==================================================================
+function generateMenusFile(analysis) {
+    let code = `; ==================================================================
 ; GAME MENUS
 ; File: menus.asm
 ; Description: Menu systems and user interface with custom font support
 ; ==================================================================
 
 `;
-
-  // Check if there are specific menu definitions in the analysis
-  const hasMenus = analysis.gameFlow && analysis.gameFlow.nodes &&
-    analysis.gameFlow.nodes.some(node => node.type === 'SubMenu');
-
-  if (hasMenus) {
-    code += `; ==================================================================
+    // Check if there are specific menu definitions in the analysis
+    const hasMenus = analysis.gameFlow && analysis.gameFlow.nodes &&
+        analysis.gameFlow.nodes.some(node => node.type === 'SubMenu');
+    if (hasMenus) {
+        code += `; ==================================================================
 ; MENU CONSTANTS
 ; ==================================================================
 
 `;
-
-    const menuNodes = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
-    menuNodes.forEach((menu: any, index) => {
-      const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `MENU_${menuName}_ID EQU ${index}
+        const menuNodes = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
+        menuNodes.forEach((menu, index) => {
+            const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            code += `MENU_${menuName}_ID EQU ${index}
 `;
-    });
-
-    code += `
+        });
+        code += `
 ; ==================================================================
 ; MENU FUNCTIONS
 ; ==================================================================
 
 `;
-
-    const menuNodes2 = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
-    menuNodes2.forEach((menu: any) => {
-      const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `SHOW_MENU_${menuName}:
+        const menuNodes2 = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
+        menuNodes2.forEach((menu) => {
+            const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            code += `SHOW_MENU_${menuName}:
     ; Display ${menu.title || menu.id} menu
     ; TODO: Implement menu display logic
     RET
@@ -2255,9 +2115,10 @@ HANDLE_MENU_${menuName}:
     RET
 
 `;
-    });
-  } else {
-    code += `; ==================================================================
+        });
+    }
+    else {
+        code += `; ==================================================================
 ; DEFAULT MENU SYSTEM
 ; ==================================================================
 
@@ -2399,91 +2260,76 @@ print_loop:
     JP print_loop
 
 `;
-  }
-
-  code += `; ==================================================================
+    }
+    code += `; ==================================================================
 ; END OF MENUS
 ; ==================================================================
 `;
-
-  return code;
+    return code;
 }
-
 /**
  * Generate modular ASM files
  */
-export function generateModularASM(
-  projectName: string,
-  assets: ProjectAsset[],
-  config: MSXModularConfig
-): GeneratedASMFiles {
-  console.log('🔧 Generating modular ASM files...');
-
-  // Validate inputs
-  if (!projectName) {
-    console.error('❌ projectName is required');
-    throw new Error('projectName is required');
-  }
-
-  if (!assets) {
-    console.error('❌ assets is undefined or null');
-    console.log('Received assets:', assets);
-    console.log('Received config:', config);
-    throw new Error('assets array is required');
-  }
-
-  if (!Array.isArray(assets)) {
-    console.error('❌ assets is not an array');
-    console.log('assets type:', typeof assets);
-    console.log('assets value:', assets);
-    throw new Error('assets must be an array');
-  }
-
-  console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
-
-  // Analyze project with validated assets
-  let analysis;
-  try {
-    analysis = analyzeProject(projectName, assets);
-    console.log(`🔍 Analysis complete: ${analysis.sprites.length} sprites, ${analysis.tiles.length} tiles, ${analysis.screenMaps.length} screens`);
-  } catch (error) {
-    console.error('❌ Error analyzing project:', error);
-    // Fallback to empty analysis
-    analysis = {
-      sprites: [],
-      tiles: [],
-      screenMaps: [],
-      entities: [],
-      gameFlow: null
+function generateModularASM(projectName, assets, config) {
+    console.log('🔧 Generating modular ASM files...');
+    // Validate inputs
+    if (!projectName) {
+        console.error('❌ projectName is required');
+        throw new Error('projectName is required');
+    }
+    if (!assets) {
+        console.error('❌ assets is undefined or null');
+        console.log('Received assets:', assets);
+        console.log('Received config:', config);
+        throw new Error('assets array is required');
+    }
+    if (!Array.isArray(assets)) {
+        console.error('❌ assets is not an array');
+        console.log('assets type:', typeof assets);
+        console.log('assets value:', assets);
+        throw new Error('assets must be an array');
+    }
+    console.log(`📊 Project: ${projectName}, Assets: ${assets.length}, Config:`, config);
+    // Analyze project with validated assets
+    let analysis;
+    try {
+        analysis = (0, asmTemplateGenerator_1.analyzeProject)(projectName, assets);
+        console.log(`🔍 Analysis complete: ${analysis.sprites.length} sprites, ${analysis.tiles.length} tiles, ${analysis.screenMaps.length} screens`);
+    }
+    catch (error) {
+        console.error('❌ Error analyzing project:', error);
+        // Fallback to empty analysis
+        analysis = {
+            sprites: [],
+            tiles: [],
+            screenMaps: [],
+            entities: [],
+            gameFlow: null
+        };
+        console.log('🔄 Using fallback empty analysis');
+    }
+    // Generate individual files
+    const files = {
+        'bios.asm': generateBIOSFile(),
+        'constants.asm': generateConstantsFile(analysis),
+        'variables.asm': generateVariablesFile(analysis),
+        'header.asm': generateHeaderFile(projectName),
+        'patterns.asm': generatePatternsFile(analysis),
+        'colors.asm': generateColorsFile(analysis),
+        'components.asm': generateComponentsFile(analysis),
+        'entities.asm': generateEntitiesFile(analysis),
+        'screens.asm': generateScreensFile(analysis),
+        'sprites.asm': generateSpritesFile(analysis),
+        'font.asm': generateFontFile(analysis),
+        'menus.asm': generateMenusFile(analysis),
+        'main.asm': generateMainFile(projectName, analysis)
     };
-    console.log('🔄 Using fallback empty analysis');
-  }
-
-  // Generate individual files
-  const files: GeneratedASMFiles = {
-    'bios.asm': generateBIOSFile(),
-    'constants.asm': generateConstantsFile(analysis),
-    'variables.asm': generateVariablesFile(analysis),
-    'header.asm': generateHeaderFile(projectName),
-    'patterns.asm': generatePatternsFile(analysis),
-    'colors.asm': generateColorsFile(analysis),
-    'components.asm': generateComponentsFile(analysis),
-    'entities.asm': generateEntitiesFile(analysis),
-    'screens.asm': generateScreensFile(analysis),
-    'sprites.asm': generateSpritesFile(analysis),
-    'font.asm': generateFontFile(analysis),
-    'menus.asm': generateMenusFile(analysis),
-    'main.asm': generateMainFile(projectName, analysis)
-  };
-
-  // Generate unified file if requested
-  if (config.generateUnified) {
-    files['unitedFiles.asm'] = generateUnifiedFile(files, projectName);
-  }
-
-  console.log('✅ Modular ASM files generated successfully!');
-  console.log(`📊 Generated ${Object.keys(files).length} files`);
-  console.log(`📁 Files: ${Object.keys(files).join(', ')}`);
-
-  return files;
+    // Generate unified file if requested
+    if (config.generateUnified) {
+        files['unitedFiles.asm'] = generateUnifiedFile(files, projectName);
+    }
+    console.log('✅ Modular ASM files generated successfully!');
+    console.log(`📊 Generated ${Object.keys(files).length} files`);
+    console.log(`📁 Files: ${Object.keys(files).join(', ')}`);
+    return files;
 }

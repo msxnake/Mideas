@@ -1,4 +1,0 @@
-ORG #4000
-LD A,1
-RET
-END

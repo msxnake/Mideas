@@ -1,0 +1,12 @@
+Exception in thread "main" nl.grauw.glass.instructions.ArgumentException: Invalid arguments.
+[at C:\Users\salam\Downloads\unitedFiles(16).asm:1166]
+
+    ; Make sure custom font is loaded
+    CALL INIT_FONT_SYSTEM
+	at nl.grauw.glass.instructions.Call.createObject(Call.java:16)
+	at nl.grauw.glass.Line.resolve(Line.java:100)
+	at nl.grauw.glass.Source.resolve(Source.java:83)
+	at nl.grauw.glass.Source.resolve(Source.java:78)
+	at nl.grauw.glass.Source.assemble(Source.java:51)
+	at nl.grauw.glass.Assembler.writeObject(Assembler.java:72)
+	at nl.grauw.glass.Assembler.main(Assembler.java:59)
