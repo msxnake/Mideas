@@ -32,7 +32,8 @@
       "Bash(\"working-screenshot.bat\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\BasicEnemy.rom\")",
       "Bash(\"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\automation\\openmsx\\working-screenshot.bat\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\BasicEnemy.rom\")",
       "Bash(if not exist \"automation\\openmsx\\screenshots\" mkdir \"automation\\openmsx\\screenshots\")",
-      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" unitedFiles17.rom)"
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" unitedFiles17.rom)",
+      "Bash(npx tsx:*)"
     ],
     "deny": [],
     "ask": []

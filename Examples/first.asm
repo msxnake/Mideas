@@ -45,27 +45,38 @@ sprite_attr     EQU #C000   ; Format: Y, X, pattern, color per sprite
 ; INIT ROM
 ; ==================================================================
 INIT_ROM:
-    DI                           ; Disable interrupts during init
-
     ; Initialize stack
     LD SP, #F380
 
-    ; Clear variables
-    LD HL, sprite_attr
-    LD DE, sprite_attr+1
-    LD BC, 127                   ; Clear 128 bytes
-    LD (HL), 0
-    LDIR
 
-    ; Initialize Screen 2
-    LD A, 2
-    CALL CHGMOD                  ; BIOS handles everything!
+    DI                           ; Disable interrupts during init
+    ld a,#C9
+    ld (HKEY),a
+    EI
 
-    ; Enable 16x16 magnified sprites (set size bit in VDP reg 1)
-    LD BC, #01E2                 ; C=reg 1, B=0xE2 (standard 0xE0 | 0x02 for size=1)
-    CALL WRTVDP
+    ; Set up memory mapper (if any)
+    ; This is a placeholder for future mapper initialization
 
-    CALL ERAFNK
+    call setupROMRAMslots
+
+    xor a       
+    ld (CLIKSW),a ; Click switch off
+    ; Change background colors:
+    ld (BAKCLR),a ; Set up initial colors
+    ld (BDRCLR),a
+    call CHGCLR
+   
+    ld a,2      ; Change screen mode
+    call CHGMOD
+
+    ;; 16x16 sprites:
+    ld bc,#e201  ;; write #e2 in VDP register #01 (activate sprites, generate interrupts, 16x16 sprites with no magnification)
+    call WRTVDP
+
+    ;; clear the screen, set up music interrupt, and decompress data:
+    call FILLSCREEN
+
+ 
     CALL CLS
 
     ; Load patterns

@@ -1,0 +1,216 @@
+{
+  "schema": "Mideas Project Summary v1.0",
+  "description": "Estructura limpia para generación eficiente de ASM MSX",
+
+  "projectInfo": {
+    "name": "string - Nombre del proyecto",
+    "extractedFrom": "string - Path del archivo .json original",
+    "extractionDate": "string - ISO date",
+    "mideasVersion": "string - Versión de Mideas utilizada",
+    "summaryVersion": "1.0"
+  },
+
+  "execution": {
+    "mainGameFlow": {
+      "id": "string - ID del GameFlow principal (debe contener 'main')",
+      "name": "string - Nombre del GameFlow",
+      "startNodeId": "string - ID del nodo inicial",
+      "nodes": [
+        {
+          "id": "string",
+          "type": "start|world_link|screen|menu|unknown",
+          "position": { "x": "number", "y": "number" },
+          "data": {
+            "worldMapId": "string - Solo si type=world_link",
+            "screenId": "string - Solo si type=screen",
+            "menuConfig": "object - Solo si type=menu"
+          }
+        }
+      ],
+      "connections": [
+        {
+          "id": "string",
+          "fromNodeId": "string",
+          "toNodeId": "string"
+        }
+      ]
+    },
+    "startBehavior": "gameflow|menu|direct",
+    "initialState": "game|menu|intro",
+    "hasMenus": "boolean - Si hay nodos tipo menu"
+  },
+
+  "assets": {
+    "worldMaps": [
+      {
+        "id": "string",
+        "name": "string",
+        "startScreenId": "string",
+        "screens": [
+          {
+            "nodeId": "string",
+            "screenId": "string",
+            "name": "string",
+            "position": { "x": "number", "y": "number" }
+          }
+        ],
+        "connections": ["array - conexiones entre screens"]
+      }
+    ],
+
+    "screens": [
+      {
+        "id": "string",
+        "name": "string",
+        "width": "number - en tiles",
+        "height": "number - en tiles",
+        "layers": {
+          "background": "array[array] - mapa de tiles",
+          "collision": "array[array] - mapa de colisiones"
+        },
+        "tileBank": {
+          "id": "string",
+          "name": "string",
+          "vramPattern": "number",
+          "vramColor": "number"
+        },
+        "entityInstances": [
+          {
+            "id": "string",
+            "templateId": "string",
+            "x": "number",
+            "y": "number",
+            "components": "object - valores específicos de componentes"
+          }
+        ]
+      }
+    ],
+
+    "tiles": [
+      {
+        "id": "string",
+        "name": "string",
+        "width": "number - pixels",
+        "height": "number - pixels",
+        "data": "array[array] - datos de pixel colors",
+        "msxCharCount": "number - chars MSX necesarios (16x16 = 4 chars)",
+        "patterns": "array - bytes de patrones MSX generados",
+        "colors": "array - bytes de colores MSX generados"
+      }
+    ],
+
+    "sprites": [
+      {
+        "id": "string",
+        "name": "string",
+        "width": "number",
+        "height": "number",
+        "frames": [
+          {
+            "id": "string",
+            "layers": [
+              {
+                "color": "string - hex color",
+                "patterns": "array - bytes MSX de este layer"
+              }
+            ]
+          }
+        ],
+        "msxSize": "8x8|16x16",
+        "totalPatternBytes": "number"
+      }
+    ],
+
+    "entities": [
+      {
+        "templateId": "string",
+        "name": "string",
+        "components": [
+          {
+            "type": "Position|Sprite|Movement|Collision|Input|Behavior",
+            "properties": "object - propiedades del componente"
+          }
+        ],
+        "usedInScreens": ["array - IDs de screens donde aparece"]
+      }
+    ],
+
+    "components": [
+      {
+        "id": "string",
+        "name": "string",
+        "type": "Position|Sprite|Movement|Collision|Input|Behavior|Custom",
+        "properties": [
+          {
+            "name": "string",
+            "type": "number|string|boolean|array",
+            "default": "any"
+          }
+        ],
+        "systemMask": "number - máscara ECS",
+        "updateOrder": "number"
+      }
+    ],
+
+    "fonts": [
+      {
+        "id": "string",
+        "name": "string",
+        "charWidth": "number",
+        "charHeight": "number",
+        "charset": "ASCII|custom",
+        "patterns": {
+          "char": "array - bytes pattern para cada caracter"
+        },
+        "msxCompatible": "boolean",
+        "usedBy": ["array - entities o screens que lo usan"]
+      }
+    ],
+
+    "stateMachines": [
+      {
+        "id": "string",
+        "name": "string",
+        "states": [
+          {
+            "id": "string",
+            "name": "string",
+            "isInitial": "boolean"
+          }
+        ],
+        "transitions": [
+          {
+            "from": "string",
+            "to": "string",
+            "trigger": "string"
+          }
+        ],
+        "usedBy": ["array - entities que lo usan"]
+      }
+    ]
+  },
+
+  "metadata": {
+    "extraction": {
+      "totalOriginalAssets": "number",
+      "totalUsedAssets": "number",
+      "compressionRatio": "string - ej: 95% reduction",
+      "brokenReferences": ["array - assets referenciados pero no encontrados"]
+    },
+    "msxGeneration": {
+      "targetMSX": ["MSX1", "MSX2", "MSX2+"],
+      "estimatedROMSize": "number - bytes",
+      "memoryUsage": {
+        "sprites": "number - bytes RAM",
+        "variables": "number - bytes RAM",
+        "patterns": "number - bytes VRAM"
+      }
+    },
+    "validation": {
+      "gameFlowValid": "boolean",
+      "allReferencesValid": "boolean",
+      "msxCompatible": "boolean",
+      "warnings": ["array - avisos de compatibilidad"]
+    }
+  }
+}

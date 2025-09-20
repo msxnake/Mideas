@@ -1,0 +1,82 @@
+; ==================================================================
+; MSX BIOS FUNCTIONS AND ADDRESSES
+; File: bios.asm
+; Description: Standard MSX BIOS function definitions
+; ==================================================================
+
+; ==================================================================
+; MAIN BIOS FUNCTIONS
+; ==================================================================
+
+; Screen and Display
+CHGMOD  EQU #005F        ; Change screen mode (A=mode)
+CLS     EQU #00C3        ; Clear screen
+POSIT   EQU #00C6        ; Position cursor (H=X, L=Y)
+ERAFNK  EQU #00CC        ; Erase function keys
+DSPFNK  EQU #00CF        ; Display function keys
+DISSCR  EQU #0041        ; Disable screen (prevent flicker)
+ENASCR  EQU #0044        ; Enable screen
+INITXT  EQU #006C        ; Initialize text mode
+INIT32  EQU #006F        ; Initialize screen mode
+
+; Character I/O
+CHPUT   EQU #00A2        ; Character output (A=char)
+CHGET   EQU #009F        ; Character input
+CHSNS   EQU #009C        ; Character sense (check key)
+BREAKX  EQU #00B7        ; Check CTRL+STOP
+ISCNTC  EQU #00BA        ; Check CTRL+C
+
+; String I/O
+OUTDO   EQU #005A        ; String output (HL=string)
+
+; Input Devices
+GTSTCK  EQU #00D5        ; Get joystick status (A=port)
+GTTRIG  EQU #00D8        ; Get trigger status (A=port)
+GTPAD   EQU #00DB        ; Get paddle (A=port)
+GTPDL   EQU #00DE        ; Get paddle value
+SNSMAT  EQU #0141        ; Sense matrix (A=row)
+KILBUF  EQU #0156        ; Kill keyboard buffer
+
+; Sound
+GICINI  EQU #0090        ; Initialize PSG
+WRTPSG  EQU #0093        ; Write PSG register (A=reg, E=value)
+RDPSG   EQU #0096        ; Read PSG register (A=reg)
+
+; Graphics VDP
+GRPPRT  EQU #0089        ; Print in graphic mode
+SETGRP  EQU #007E        ; Set graphic mode
+
+; Memory Transfer
+LDIRVM  EQU #005C        ; Block transfer from CPU to VRAM
+LDIRMV  EQU #0059        ; Block transfer from VRAM to CPU
+WRTVDP  EQU #0047        ; Write to VDP register
+WRTVRM  EQU #004D        ; Write data to VRAM (A=data, HL=address)
+
+; File I/O (Disk BIOS)
+DSKIO   EQU #004A        ; Disk I/O
+DSKCHF  EQU #004D        ; Disk change flag
+
+; Math
+GETYPR  EQU #0053        ; Get type of variable
+
+; ==================================================================
+; VDP PORTS AND REGISTERS
+; ==================================================================
+
+; VDP Data/Status Ports
+VDPDR   EQU #0098        ; VDP Data Register (Port 0)
+VDPSR   EQU #0099        ; VDP Status Register (Port 1)
+
+; VDP Registers (use with VDPSR)
+VDP_R0  EQU 0            ; Mode register 0
+VDP_R1  EQU 1            ; Mode register 1
+VDP_R2  EQU 2            ; Name table base address
+VDP_R3  EQU 3            ; Color table base address
+VDP_R4  EQU 4            ; Pattern table base address
+VDP_R5  EQU 5            ; Sprite attribute table
+VDP_R6  EQU 6            ; Sprite pattern table
+VDP_R7  EQU 7            ; Text/border color
+
+; ==================================================================
+; END OF BIOS DEFINITIONS
+; ==================================================================
