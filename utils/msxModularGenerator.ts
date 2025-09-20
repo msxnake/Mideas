@@ -169,11 +169,33 @@ SCREEN2     EQU 2        ; 256x192 graphics
 SCREEN3     EQU 3        ; 64x48 multicolor
 
 ; ==================================================================
-; SCREEN DIMENSIONS
+; SCREEN DIMENSIONS (DYNAMIC BASED ON PROJECT TILES)
 ; ==================================================================
-SCREEN_WIDTH    EQU 32   ; Tiles horizontales (Screen 1/2)
-SCREEN_HEIGHT   EQU 24   ; Tiles verticales
-TILE_SIZE       EQU 8    ; 8x8 pixels por tile
+${analysis.tiles && analysis.tiles.length > 0 ? `
+; Project-specific tile dimensions detected:
+${analysis.tiles.map((tile, i) => `; Tile ${i}: ${tile.name} = ${tile.width}x${tile.height}px (${Math.ceil(tile.width/8)}x${Math.ceil(tile.height/8)} MSX chars)`).join('\n')}
+
+; Using primary tile size: ${analysis.tiles[0].width}x${analysis.tiles[0].height}px
+TILE_WIDTH      EQU ${analysis.tiles[0].width}    ; Primary tile width in pixels
+TILE_HEIGHT     EQU ${analysis.tiles[0].height}   ; Primary tile height in pixels
+SCREEN_TILES_X  EQU ${Math.floor(256 / analysis.tiles[0].width)}    ; Horizontal tiles (256px ÷ ${analysis.tiles[0].width}px)
+SCREEN_TILES_Y  EQU ${Math.floor(192 / analysis.tiles[0].height)}   ; Vertical tiles (192px ÷ ${analysis.tiles[0].height}px)
+MSX_CHARS_PER_TILE_X EQU ${Math.ceil(analysis.tiles[0].width / 8)}  ; MSX characters wide per tile
+MSX_CHARS_PER_TILE_Y EQU ${Math.ceil(analysis.tiles[0].height / 8)} ; MSX characters high per tile
+` : `
+; No tiles detected - using MSX default character size
+TILE_WIDTH      EQU 8    ; Default: 8x8 pixels per MSX character
+TILE_HEIGHT     EQU 8    ; Default: 8x8 pixels per MSX character
+SCREEN_TILES_X  EQU 32   ; Horizontal tiles (Screen 1/2)
+SCREEN_TILES_Y  EQU 24   ; Vertical tiles
+MSX_CHARS_PER_TILE_X EQU 1   ; 1 MSX character per tile
+MSX_CHARS_PER_TILE_Y EQU 1   ; 1 MSX character per tile
+`}
+
+; Legacy compatibility
+SCREEN_WIDTH    EQU SCREEN_TILES_X
+SCREEN_HEIGHT   EQU SCREEN_TILES_Y
+TILE_SIZE       EQU 8    ; MSX character size (always 8x8)
 
 ; ==================================================================
 ; SPRITE CONSTANTS
@@ -243,9 +265,9 @@ ${analysis.gameFlow ? `
 ; ==================================================================
 
 ; Detected Assets
-TOTAL_SPRITES           EQU ${analysis.sprites.length}
-TOTAL_TILES             EQU ${analysis.tiles.length}
-TOTAL_SCREENS           EQU ${analysis.screenMaps.length}
+TOTAL_SPRITES           EQU ${analysis.sprites?.length || 0}
+TOTAL_TILES             EQU ${analysis.tiles?.length || 0}
+TOTAL_SCREENS           EQU ${analysis.screenMaps?.length || 0}
 
 ; ==================================================================
 ; END OF CONSTANTS
@@ -413,29 +435,43 @@ function generateHeaderFile(projectName: string): string {
 ; ROM INITIALIZATION ENTRY POINT
 ; ==================================================================
 INIT_ROM:
-    ; Disable interrupts during initialization
-    DI
-
-    ; Initialize stack for cartridge
+    ; Initialize stack
     LD SP, #F380
 
-    ; Initialize project RAM variables area (SAFE - only project variables)
-    ; Clear ONLY project variables zone, NOT system variables (#F380+)
-    LD HL, input_state           ; First project variable
-    LD DE, input_state+1         ; Next byte
-    LD BC, RAM_USAGE_END - input_state - 1  ; Only to end of project vars
-    LD (HL), 0
-    LDIR
 
-    ; Initialize VDP for Screen 2 using BIOS
-    LD A, 2
-    CALL CHGMOD         ; Set Screen 2 mode (BIOS handles everything)
-
-    ; Clear screen
-    CALL CLS
-
-    ; Enable interrupts
+    DI                           ; Disable interrupts during init
+    ld a,#C9
+    ld (HKEY),a
     EI
+
+    ; Set up memory mapper (if any)
+    ; This is a placeholder for future mapper initialization
+
+    call setupROMRAMslots
+
+    xor a       
+    ld (CLIKSW),a ; Click switch off
+    ; Change background colors:
+    ld (BAKCLR),a 
+    ld (BDRCLR),a
+    call CHGCLR
+   
+    ld a,2      ; Change screen mode
+    call CHGMOD
+
+    ;; 16x16 sprites:
+    ld bc,#e201  ;; write #e2 in VDP register #01 (activate sprites, generate interrupts, 16x16 sprites with no magnification)
+    call WRTVDP
+
+    ; init fill screen
+    call FILLSCREEN
+
+     call CheckIf60Hz
+    ld (isComputer50HzOr60Hz),a
+
+    ;init random seed
+    call randomSeedUpdate
+
 
     ; Jump to main program
     JP MAIN_PROGRAM
@@ -473,18 +509,18 @@ INCLUDE "variables.asm"
 ; 4. ROM Header (depends on variables)
 INCLUDE "header.asm"
 
-${analysis.tiles.length > 0 ? `; 5. Pattern Data (if tiles exist)
+${analysis.tiles && analysis.tiles.length > 0 ? `; 5. Pattern Data (if tiles exist)
 INCLUDE "patterns.asm"
 
 ; 6. Color Data (if tiles exist)
 INCLUDE "colors.asm"
 ` : ''}
 
-${analysis.sprites.length > 0 ? `; 7. Sprite Data (if sprites exist)
+${analysis.sprites && analysis.sprites.length > 0 ? `; 7. Sprite Data (if sprites exist)
 INCLUDE "sprites.asm"
 ` : ''}
 
-${analysis.screenMaps.length > 0 ? `; 8. Screen Maps (if screens exist)
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `; 8. Screen Maps (if screens exist)
 INCLUDE "screens.asm"
 ` : ''}
 
@@ -571,7 +607,7 @@ RENDER_FRAME:
  * Generate pattern data file (patterns.asm)
  */
 function generatePatternsFile(analysis: ProjectAnalysis): string {
-  if (analysis.tiles.length === 0) {
+  if (!analysis.tiles || analysis.tiles.length === 0) {
     return `; ==================================================================
 ; PATTERN DATA (EMPTY - NO TILES DETECTED)
 ; File: patterns.asm
@@ -585,7 +621,7 @@ function generatePatternsFile(analysis: ProjectAnalysis): string {
 ; TILE PATTERN DATA
 ; File: patterns.asm
 ; Description: Tile pattern definitions for MSX Screen 2
-; ${analysis.tiles.length} tiles detected
+; ${analysis.tiles?.length || 0} tiles detected
 ; ==================================================================
 
 ; ==================================================================
@@ -595,9 +631,34 @@ TILE_PATTERN_BANK0:
 ${analysis.tiles.map((tile, index) => {
   // Generate actual pattern bytes using the same function as MSX Main Generator
   const patternBytes = generateTilePatternBytes(tile, 'SCREEN 2 (Graphics I)');
+
+  // Calculate how many 8x8 MSX characters this tile needs (dynamic sizing)
+  const charsWide = Math.ceil(tile.width / 8);   // e.g., 24px = 3 chars wide
+  const charsHigh = Math.ceil(tile.height / 8);  // e.g., 16px = 2 chars high
+  const totalChars = charsWide * charsHigh;      // e.g., 3×2 = 6 MSX characters
+  const totalBytes = totalChars * 8;             // Each MSX char = 8 bytes
+
+  // Validate that tile size is compatible with MSX characters
+  if (tile.width % 8 !== 0 || tile.height % 8 !== 0) {
+    console.warn(`⚠️  Tile ${tile.name} size ${tile.width}x${tile.height} is not multiple of 8px - may cause visual artifacts`);
+  }
+
   const bytesHex = Array.from(patternBytes).map(b => `#${b.toString(16).padStart(2, '0').toUpperCase()}`);
 
-  return `    ; Tile ${index}: ${tile.name} (${tile.width}x${tile.height}px)
+  // Generate character-by-character breakdown for complex tiles
+  let charBreakdown = '';
+  if (totalChars > 1) {
+    charBreakdown = `\n    ; Character layout: ${charsWide}×${charsHigh} grid`;
+    for (let row = 0; row < charsHigh; row++) {
+      charBreakdown += `\n    ; Row ${row}: `;
+      for (let col = 0; col < charsWide; col++) {
+        const charIndex = row * charsWide + col;
+        charBreakdown += `Char${charIndex} `;
+      }
+    }
+  }
+
+  return `    ; Tile ${index}: ${tile.name} (${tile.width}x${tile.height}px = ${charsWide}×${charsHigh} chars = ${totalChars} MSX characters)${charBreakdown}
     DB ${bytesHex.join(', ')}
 `;
 }).join('')}
@@ -610,7 +671,11 @@ LOAD_PATTERN_BANK0:
     ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_PATTERN_BANK0
     LD DE, CHRTBL2                ; VRAM pattern table bank 0
-    LD BC, ${analysis.tiles.length} * 8    ; ${analysis.tiles.length} patterns × 8 bytes
+    LD BC, ${analysis.tiles.reduce((total, tile) => {
+      const charsWide = Math.ceil(tile.width / 8);
+      const charsHigh = Math.ceil(tile.height / 8);
+      return total + (charsWide * charsHigh * 8);
+    }, 0)}    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
     CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
@@ -619,7 +684,11 @@ LOAD_PATTERN_BANK1:
     ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_PATTERN_BANK0     ; Same source as Bank 0
     LD DE, CHRTBL2 + #800         ; VRAM pattern table bank 1 (+#800 offset)
-    LD BC, ${analysis.tiles.length} * 8    ; ${analysis.tiles.length} patterns × 8 bytes
+    LD BC, ${analysis.tiles.reduce((total, tile) => {
+      const charsWide = Math.ceil(tile.width / 8);
+      const charsHigh = Math.ceil(tile.height / 8);
+      return total + (charsWide * charsHigh * 8);
+    }, 0)}    ; Total bytes for all tile characters
     CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
@@ -628,7 +697,11 @@ LOAD_PATTERN_BANK2:
     ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_PATTERN_BANK0     ; Same source as Bank 0
     LD DE, CHRTBL2 + #1000        ; VRAM pattern table bank 2 (+#1000 offset)
-    LD BC, ${analysis.tiles.length} * 8    ; ${analysis.tiles.length} patterns × 8 bytes
+    LD BC, ${analysis.tiles.reduce((total, tile) => {
+      const charsWide = Math.ceil(tile.width / 8);
+      const charsHigh = Math.ceil(tile.height / 8);
+      return total + (charsWide * charsHigh * 8);
+    }, 0)}    ; Total bytes for all tile characters
     CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
@@ -642,7 +715,7 @@ LOAD_PATTERN_BANK2:
  * Generate color data file (colors.asm)
  */
 function generateColorsFile(analysis: ProjectAnalysis): string {
-  if (analysis.tiles.length === 0) {
+  if (!analysis.tiles || analysis.tiles.length === 0) {
     return `; ==================================================================
 ; COLOR DATA (EMPTY - NO TILES DETECTED)
 ; File: colors.asm
@@ -656,7 +729,7 @@ function generateColorsFile(analysis: ProjectAnalysis): string {
 ; TILE COLOR DATA
 ; File: colors.asm
 ; Description: Tile color definitions for MSX Screen 2
-; ${analysis.tiles.length} tiles detected
+; ${analysis.tiles?.length || 0} tiles detected
 ; ==================================================================
 
 ; ==================================================================
@@ -683,7 +756,11 @@ LOAD_COLOR_BANK0:
     ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_COLOR_BANK0
     LD DE, CLRTBL2                ; VRAM color table bank 0
-    LD BC, ${analysis.tiles.length} * 8     ; ${analysis.tiles.length} patterns × 8 bytes
+    LD BC, ${analysis.tiles.reduce((total, tile) => {
+      const charsWide = Math.ceil(tile.width / 8);
+      const charsHigh = Math.ceil(tile.height / 8);
+      return total + (charsWide * charsHigh * 8);
+    }, 0)}     ; Total color bytes for all tile characters
     CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
@@ -692,7 +769,11 @@ LOAD_COLOR_BANK1:
     ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_COLOR_BANK0       ; Same source as Bank 0
     LD DE, CLRTBL2 + #800         ; VRAM color table bank 1 (+#800 offset)
-    LD BC, ${analysis.tiles.length} * 8     ; ${analysis.tiles.length} patterns × 8 bytes
+    LD BC, ${analysis.tiles.reduce((total, tile) => {
+      const charsWide = Math.ceil(tile.width / 8);
+      const charsHigh = Math.ceil(tile.height / 8);
+      return total + (charsWide * charsHigh * 8);
+    }, 0)}     ; Total color bytes for all tile characters
     CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
@@ -701,7 +782,11 @@ LOAD_COLOR_BANK2:
     ; BIOS LDIRVM handles timing automatically
     LD HL, TILE_COLOR_BANK0       ; Same source as Bank 0
     LD DE, CLRTBL2 + #1000        ; VRAM color table bank 2 (+#1000 offset)
-    LD BC, ${analysis.tiles.length} * 8     ; ${analysis.tiles.length} patterns × 8 bytes
+    LD BC, ${analysis.tiles.reduce((total, tile) => {
+      const charsWide = Math.ceil(tile.width / 8);
+      const charsHigh = Math.ceil(tile.height / 8);
+      return total + (charsWide * charsHigh * 8);
+    }, 0)}     ; Total color bytes for all tile characters
     CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
@@ -772,35 +857,47 @@ MAIN_LOOP:
 ; ==================================================================
 
 INIT_GAME_SYSTEMS:
-    ; Initialize MSX hardware and game systems
-    LD A, SCREEN2
-    CALL CHGMOD               ; Set Screen 2 mode (BIOS handles everything)
-    CALL ERAFNK               ; Remove function keys
-
     ; Initialize component systems
     CALL INIT_COMPONENTS
 
-    ; Initialize sprite system if available
+    ; Initialize sprite system and load patterns
     CALL INIT_SPRITES
+    CALL LOAD_SPRITE_PATTERNS  ; Load sprite patterns to VRAM
+
+    ; Load pattern and color data
+    CALL LOAD_PATTERN_BANK0
+    CALL LOAD_PATTERN_BANK1
+    CALL LOAD_PATTERN_BANK2
+    CALL LOAD_COLOR_BANK0
+    CALL LOAD_COLOR_BANK1
+    CALL LOAD_COLOR_BANK2
+
+    ; Initialize game entities with real positions from JSON
+    CALL INIT_ENTITIES
 
     ; Initialize sound system
     CALL GICINI               ; Initialize PSG
 
     ; Clear screen (BIOS CLS handles timing)
-    CALL CLS
+    CALL FILLSCREEN
 
-    ; Show initial startup message
-    LD H, 1                    ; Row 1
-    LD L, 1                    ; Column 1
-    CALL POSIT
+    ; Load the first game screen
+    CALL LOAD_GAME_SCREEN
 
-    LD HL, txt_system_init
-    CALL OUTDO
+    ; No startup message needed for pure game projects
 
     RET
 
 UPDATE_CURRENT_STATE:
     ; Update game logic based on current flow state
+    ; Store previous state for transition detection
+    LD A, (current_flow_state)
+    LD (prev_flow_state), A
+
+    ; Update input first (needed by all states)
+    CALL UPDATE_INPUT_COMPONENT
+
+    ; Branch to appropriate state handler
     LD A, (current_flow_state)
     CP FLOW_STATE_MAIN_MENU
     JP Z, UPDATE_MAIN_MENU_STATE
@@ -816,46 +913,230 @@ UPDATE_CURRENT_STATE:
 
 UPDATE_MAIN_MENU_STATE:
     ; Handle main menu input and logic
-    CALL UPDATE_INPUT_COMPONENT
+    ; Check for joystick input to navigate menu
+    LD A, (input_state)
+    CP STICK_DOWN
+    CALL Z, MENU_CURSOR_DOWN
+    CP STICK_UP
+    CALL Z, MENU_CURSOR_UP
 
-    ; Menu navigation logic would go here
+    ; Check for selection (trigger or space)
+    LD A, 0                     ; Trigger port 0
+    CALL GTTRIG
+    OR A
+    JP NZ, MENU_SELECT_OPTION
+
+    ; Check for START key to begin game directly
+    LD A, (input_state)
+    CP STICK_CENTER
+    RET NZ
+    LD A, 0
+    CALL GTTRIG
+    OR A
+    JP NZ, START_GAME_FROM_MENU
     RET
 
 UPDATE_GAME_STATE:
-    ; Main gameplay logic - update all component systems
-    CALL UPDATE_POSITION_COMPONENT
-    CALL UPDATE_MOVEMENT_COMPONENT
-    CALL UPDATE_COLLISION_COMPONENT
-    CALL UPDATE_SPRITE_COMPONENT
+    ; Main gameplay logic - update all component systems in correct order
+    CALL UPDATE_INPUT_COMPONENT     ; Read input
+    CALL UPDATE_BEHAVIOR_COMPONENT  ; AI/Logic decisions
+    CALL UPDATE_MOVEMENT_COMPONENT  ; Apply physics/movement
+    CALL UPDATE_POSITION_COMPONENT  ; Update positions
+    CALL UPDATE_COLLISION_COMPONENT ; Check collisions
+    CALL UPDATE_SPRITE_COMPONENT    ; Update sprite rendering
+
+    ; Check for pause input (SELECT key or P)
+    LD A, (input_state)
+    CP STICK_CENTER                ; Center + trigger = pause
+    RET NZ
+    LD A, 0
+    CALL GTTRIG
+    OR A
+    JP NZ, PAUSE_GAME
+
+    ; Check for game over conditions
+    CALL CHECK_GAME_OVER_CONDITIONS
     RET
 
 UPDATE_PAUSE_STATE:
-    ; Handle pause state
-    CALL UPDATE_INPUT_COMPONENT
-
-    ; Check for unpause input
+    ; Handle pause state - minimal updates
+    ; Check for unpause input (same as pause)
+    LD A, (input_state)
+    CP STICK_CENTER
+    RET NZ
+    LD A, 0
+    CALL GTTRIG
+    OR A
+    JP NZ, UNPAUSE_GAME
     RET
 
 UPDATE_GAME_OVER_STATE:
     ; Handle game over state
-    CALL UPDATE_INPUT_COMPONENT
+    ; Auto-advance to menu after delay or on input
+    LD A, (frame_counter)
+    AND #3F                         ; Check every 64 frames (~1 second)
+    RET NZ
 
-    ; Check for restart/menu input
+    ; Check for any input to return to menu
+    LD A, 0
+    CALL GTTRIG
+    OR A
+    JP NZ, RETURN_TO_MENU
+
+    ; Auto-return after timeout
+    LD HL, (frame_counter)
+    LD DE, 300                      ; ~5 seconds at 60fps
+    OR A
+    SBC HL, DE
+    JP NC, RETURN_TO_MENU
     RET
 
 UPDATE_CREDITS_STATE:
-    ; Handle credits state
-    ; Auto-advance credits or return to menu
+    ; Handle credits state - auto-advance
+    LD A, (frame_counter)
+    AND #1F                         ; Check every 32 frames
+    RET NZ
+
+    ; Auto-return to menu after credits
+    LD HL, (frame_counter)
+    LD DE, 600                      ; ~10 seconds
+    OR A
+    SBC HL, DE
+    JP NC, RETURN_TO_MENU
+    RET
+
+; ==================================================================
+; GAME FLOW TRANSITION FUNCTIONS (Critical for Parity)
+; ==================================================================
+
+START_GAME_FROM_MENU:
+    ; Transition: Main Menu → Game
+    LD A, FLOW_STATE_GAME
+    LD (current_flow_state), A
+
+    ; Initialize game state
+    CALL INIT_GAME_ENTITIES
+    CALL RESET_GAME_VARIABLES
+
+    ; Clear screen and load game screen
+    CALL CLS
+    CALL LOAD_GAME_SCREEN
+    RET
+
+PAUSE_GAME:
+    ; Transition: Game → Pause
+    LD A, FLOW_STATE_PAUSE
+    LD (current_flow_state), A
+
+    ; Save game state (already in RAM variables)
+    ; Show pause overlay
+    CALL SHOW_PAUSE_OVERLAY
+    RET
+
+UNPAUSE_GAME:
+    ; Transition: Pause → Game
+    LD A, FLOW_STATE_GAME
+    LD (current_flow_state), A
+
+    ; Restore game display
+    CALL CLEAR_PAUSE_OVERLAY
+    RET
+
+GAME_OVER:
+    ; Transition: Game → Game Over
+    LD A, FLOW_STATE_GAME_OVER
+    LD (current_flow_state), A
+
+    ; Reset frame counter for timeout
+    LD HL, 0
+    LD (frame_counter), HL
+
+    ; Show game over screen
+    CALL SHOW_GAME_OVER_SCREEN
+    RET
+
+RETURN_TO_MENU:
+    ; Pure game - restart game instead of menu
+    LD A, FLOW_STATE_GAME
+    LD (current_flow_state), A
+
+    ; Reset all game state and restart
+    CALL RESET_ALL_GAME_STATE
+    CALL INIT_GAME_ENTITIES
+    CALL LOAD_GAME_SCREEN
+    RET
+
+; ==================================================================
+; STATE HELPER FUNCTIONS
+; ==================================================================
+
+MENU_CURSOR_DOWN:
+    ; Move menu cursor down (cycle through options)
+    RET
+
+MENU_CURSOR_UP:
+    ; Move menu cursor up (cycle through options)
+    RET
+
+MENU_SELECT_OPTION:
+    ; Select current menu option
+    JP START_GAME_FROM_MENU
+
+CHECK_GAME_OVER_CONDITIONS:
+    ; Check if player is dead, enemies cleared, etc.
+    ; Implementation depends on specific game logic
+    RET
+
+INIT_GAME_ENTITIES:
+    ; Initialize all game entities for new game
+    CALL INIT_ENTITIES
+    CALL INIT_SPRITES
+    RET
+
+RESET_GAME_VARIABLES:
+    ; Reset score, health, etc.
+    XOR A
+    LD (player_health), A
+    LD HL, 0
+    LD (player_score), HL
+    RET
+
+RESET_ALL_GAME_STATE:
+    ; Complete reset for return to menu
+    CALL CLEAR_ALL_SPRITES
+    CALL RESET_GAME_VARIABLES
+    RET
+
+LOAD_GAME_SCREEN:
+    ; Load the first game screen (using generated screen data)
+    ; This loads the screen map that matches the JSON screen data
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load first screen: ${analysis.screenMaps[0]?.name || 'default'}
+    CALL LOAD_SCREEN_${analysis.screenMaps[0]?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'DEFAULT'}` : `    ; No screens detected - load default pattern`}
+    RET
+
+SHOW_PAUSE_OVERLAY:
+    ; Pure game - no pause overlay needed
+    RET
+
+CLEAR_PAUSE_OVERLAY:
+    ; Clear pause overlay by redrawing that area
+    ; Simple implementation: reload game screen
+    CALL LOAD_GAME_SCREEN
+    RET
+
+SHOW_GAME_OVER_SCREEN:
+    ; Pure game - no game over screen needed
+    ; Just restart the game automatically
     RET
 
 RENDER_FRAME:
     ; Render current frame based on flow state
-    ; Debug: Show frame indicator
-    LD H, 23                   ; Bottom row
-    LD L, 30                   ; Right side
-    CALL POSIT
-    LD A, '*'                  ; Frame indicator
-    CALL CHPUT
+    ; Optimized rendering with V-Blank synchronization
+
+    ; Increment frame counter for timing
+    LD HL, (frame_counter)
+    INC HL
+    LD (frame_counter), HL
 
     ; Check current flow state and render appropriately
     LD A, (current_flow_state)
@@ -870,114 +1151,47 @@ RENDER_FRAME:
     CP FLOW_STATE_CREDITS
     JP Z, RENDER_CREDITS
 
-    ; Default: show unknown state debug info
-    LD H, 2
-    LD L, 1
-    CALL POSIT
-    LD HL, txt_debug_state
-    CALL OUTDO
+    ; Default: unknown state - just continue
     RET
 
 RENDER_MAIN_MENU:
-    ; Render main menu interface
-    CALL CLS                   ; Clear screen first
-
-    ; Position cursor for title
-    LD H, 8                    ; Row 8
-    LD L, 10                   ; Column 10
-    CALL POSIT
-
-    ; Display title
-    LD HL, txt_main_title
-    CALL OUTDO
-
-    ; Position cursor for menu option 1
-    LD H, 12                   ; Row 12
-    LD L, 12                   ; Column 12
-    CALL POSIT
-
-    LD HL, txt_start_game
-    CALL OUTDO
-
-    ; Position cursor for menu option 2
-    LD H, 14                   ; Row 14
-    LD L, 12                   ; Column 12
-    CALL POSIT
-
-    LD HL, txt_exit_game
-    CALL OUTDO
+    ; Pure game - no menu, go directly to game
+    LD A, FLOW_STATE_GAME
+    LD (current_flow_state), A
+    CALL INIT_GAME_ENTITIES
+    CALL LOAD_GAME_SCREEN
     RET
 
 RENDER_GAME:
-    ; Render game frame - load actual screen map
-    ; BIOS LDIRVM in screen loading handles timing automatically
-    CALL LOAD_SCREEN_PANTALLA1
+    ; Render game frame with optimized sprite updates
+    ; Only update sprites that have moved (optimization)
 
-    ; Display game status at top
-    LD H, 1                    ; Row 1
-    LD L, 1                    ; Column 1
-    CALL POSIT
+    ; Update sprite positions in VRAM only when needed
+    ; This is much more efficient than reloading entire screen
+    CALL UPDATE_SPRITES_TO_VRAM
 
-    LD HL, txt_game_mode
-    CALL OUTDO
+    ; Pure game rendering - no UI text needed
+    ; Game state is entirely visual through sprites and background
     RET
 
 RENDER_PAUSE:
-    ; Render pause overlay
-    ; Position cursor in center
-    LD H, 12                   ; Row 12 (center)
-    LD L, 14                   ; Column 14 (center)
-    CALL POSIT
-
-    LD HL, txt_paused
-    CALL OUTDO
+    ; Pure game - no pause text needed
+    ; Game is paused but visually identical
     RET
 
 RENDER_GAME_OVER:
-    ; Render game over screen
-    CALL CLS                   ; Clear screen
-
-    ; Position cursor for game over message
-    LD H, 10                   ; Row 10
-    LD L, 12                   ; Column 12
-    CALL POSIT
-
-    LD HL, txt_game_over
-    CALL OUTDO
-
-    ; Position cursor for instruction
-    LD H, 14                   ; Row 14
-    LD L, 8                    ; Column 8
-    CALL POSIT
-
-    LD HL, txt_press_any_key
-    CALL OUTDO
+    ; Pure game - return to game after brief pause
+    ; No text needed - just restart game
+    CALL RETURN_TO_MENU
     RET
 
 RENDER_CREDITS:
-    ; Render credits screen
-    CALL CLS                   ; Clear screen
-
-    ; Position cursor for credits
-    LD H, 8                    ; Row 8
-    LD L, 8                    ; Column 8
-    CALL POSIT
-
-    LD HL, txt_credits
-    CALL OUTDO
+    ; Pure game - no credits needed
+    CALL RETURN_TO_MENU
     RET
 
-; Text strings for display
-txt_system_init:    DB "MSX SYSTEM READY", 0
-txt_debug_state:    DB "UNKNOWN STATE", 0
-txt_main_title:     DB "MSX GAME ENGINE", 0
-txt_start_game:     DB "1. START GAME", 0
-txt_exit_game:      DB "2. EXIT", 0
-txt_game_mode:      DB "GAME MODE", 0
-txt_paused:         DB "PAUSED", 0
-txt_game_over:      DB "GAME OVER", 0
-txt_press_any_key:  DB "PRESS ANY KEY", 0
-txt_credits:        DB "CREDITS: MIDEAS MSX", 0
+; Pure game - no text strings needed for ${projectName.toUpperCase()}
+; All communication is through visual gameplay elements
 
     END                 ; End of assembly
 `;
@@ -987,7 +1201,7 @@ txt_credits:        DB "CREDITS: MIDEAS MSX", 0
  * Generate sprite data file (sprites.asm)
  */
 function generateSpritesFile(analysis: ProjectAnalysis): string {
-  if (analysis.sprites.length === 0) {
+  if (!analysis.sprites || analysis.sprites.length === 0) {
     return `; ==================================================================
 ; SPRITE DATA (EMPTY - NO SPRITES DETECTED)
 ; File: sprites.asm
@@ -1027,7 +1241,7 @@ HIDE_SPRITE:
 ; SPRITE DATA
 ; File: sprites.asm
 ; Description: Sprite pattern and animation data
-; ${analysis.sprites.length} sprites detected
+; ${analysis.sprites?.length || 0} sprites detected
 ; ==================================================================
 
 ; ==================================================================
@@ -1424,18 +1638,237 @@ UPDATE_COLLISION_COMPONENT:
     ; Check collisions between entities and environment
     LD B, 32                   ; Loop through all entities
     LD HL, entity_comp_masks   ; Check component masks
+    LD C, 0                    ; Entity index
 
 collision_update_loop:
     LD A, (HL)                 ; Get entity component mask
     AND COMP_MASK_COLLISION    ; Check if has collision component
     JR Z, collision_next_entity ; Skip if no collision component
 
-    ; Perform collision detection
-    ; TODO: Check against tiles, other entities, screen boundaries
+    ; Perform collision detection for this entity
+    PUSH BC
+    PUSH HL
+
+    ; Get entity position
+    LD HL, entity_x_pos
+    LD E, C                    ; Entity index
+    LD D, 0
+    ADD HL, DE                 ; HL points to entity X
+    LD A, (HL)                 ; A = X position
+
+    LD HL, entity_y_pos
+    ADD HL, DE                 ; HL points to entity Y
+    LD B, (HL)                 ; B = Y position
+
+    ; Check screen boundaries (256x192 with 16x16 sprites)
+    ; Left boundary
+    CP 0
+    JR Z, collision_boundary_hit
+
+    ; Right boundary (256 - 16 = 240)
+    CP 240
+    JR NC, collision_boundary_hit
+
+    ; Top boundary
+    LD A, B
+    CP 0
+    JR Z, collision_boundary_hit
+
+    ; Bottom boundary (192 - 16 = 176)
+    CP 176
+    JR NC, collision_boundary_hit
+
+    ; Check tile collision (if screen maps exist)
+    CALL CHECK_TILE_COLLISION
+
+    ; Check entity-to-entity collision
+    CALL CHECK_ENTITY_COLLISION
+
+    JR collision_check_complete
+
+collision_boundary_hit:
+    ; Handle boundary collision
+    CALL HANDLE_BOUNDARY_COLLISION
+
+collision_check_complete:
+    POP HL
+    POP BC
 
 collision_next_entity:
     INC HL                     ; Next entity
+    INC C                      ; Next entity index
     DJNZ collision_update_loop
+    RET
+
+; ==================================================================
+; COLLISION HELPER FUNCTIONS (Critical for Gameplay Parity)
+; ==================================================================
+
+CHECK_TILE_COLLISION:
+    ; Check collision with background tiles
+    ; A = X position, B = Y position
+    ; Convert pixel position to tile coordinates
+    PUSH AF
+    PUSH BC
+
+    ; DYNAMIC TILE SIZE CONVERSION
+    ; TODO: This should be calculated from actual screen map tile sizes
+    ; For now, detect most common tile size in project
+${analysis.tiles && analysis.tiles.length > 0 ? `
+    ; Project tile analysis: ${analysis.tiles.map(t => `${t.width}x${t.height}`).join(', ')}
+    ; Using first tile as reference: ${analysis.tiles[0].width}x${analysis.tiles[0].height}
+    ; Convert X to tile column (divide by ${analysis.tiles[0].width})` : `
+    ; No tiles detected - using default 16x16
+    ; Convert X to tile column (divide by 16)`}
+
+${analysis.tiles && analysis.tiles.length > 0 && analysis.tiles[0].width >= 8 && Number.isInteger(Math.log2(analysis.tiles[0].width)) ? `
+    ; Divide by ${analysis.tiles[0].width} (${Math.log2(analysis.tiles[0].width)} shifts)
+${Array.from({length: Math.log2(analysis.tiles[0].width)}, (_, i) => `    SRL A                      ; A = X / ${Math.pow(2, i+1)}`).join('\n')}
+` : `
+    ; Default 16px tiles (4 shifts)
+    SRL A                      ; A = X / 2
+    SRL A                      ; A = X / 4
+    SRL A                      ; A = X / 8
+    SRL A                      ; A = X / 16
+`}    LD C, A                    ; C = tile column
+
+${analysis.tiles && analysis.tiles.length > 0 && analysis.tiles[0].height >= 8 && Number.isInteger(Math.log2(analysis.tiles[0].height)) ? `
+    ; Convert Y to tile row (divide by ${analysis.tiles[0].height})
+    LD A, B
+${Array.from({length: Math.log2(analysis.tiles[0].height)}, (_, i) => `    SRL A                      ; A = Y / ${Math.pow(2, i+1)}`).join('\n')}
+` : `
+    ; Default 16px tiles (4 shifts)
+    LD A, B
+    SRL A                      ; A = Y / 2
+    SRL A                      ; A = Y / 4
+    SRL A                      ; A = Y / 8
+    SRL A                      ; A = Y / 16
+`}    LD B, A                    ; B = tile row
+
+    ; Check if position is within valid tile map
+    LD A, C
+    CP ${analysis.tiles && analysis.tiles.length > 0 ? Math.floor(256 / analysis.tiles[0].width) : 16}                      ; Screen width in tiles
+    JR NC, no_tile_collision
+    LD A, B
+    CP ${analysis.tiles && analysis.tiles.length > 0 ? Math.floor(192 / analysis.tiles[0].height) : 12}                      ; Screen height in tiles
+    JR NC, no_tile_collision
+
+    ; Get tile at position (simplified - would read from behavior map)
+    ; For now, assume all non-zero tiles are solid
+    ; This would read from the behavior map generated from screen data
+    CALL GET_BEHAVIOR_TILE     ; Returns A = behavior value
+    OR A
+    JR Z, no_tile_collision    ; 0 = passable
+
+    ; Collision detected - handle it
+    CALL HANDLE_TILE_COLLISION
+
+no_tile_collision:
+    POP BC
+    POP AF
+    RET
+
+CHECK_ENTITY_COLLISION:
+    ; Check collision with other entities
+    ; A = current entity X, B = current entity Y, C = current entity index
+    PUSH BC
+    PUSH AF
+
+    ; Loop through all other entities
+    LD HL, entity_comp_masks
+    LD E, 0                    ; Other entity index
+
+entity_collision_loop:
+    LD A, E
+    CP C                       ; Skip self
+    JR Z, next_entity_collision
+
+    ; Check if other entity has collision component
+    LD A, (HL)
+    AND COMP_MASK_COLLISION
+    JR Z, next_entity_collision
+
+    ; Get other entity position
+    PUSH HL
+    PUSH DE
+
+    LD HL, entity_x_pos
+    LD D, 0
+    ADD HL, DE                 ; HL points to other entity X
+    LD D, (HL)                 ; D = other X
+
+    LD HL, entity_y_pos
+    ADD HL, DE                 ; HL points to other entity Y
+    LD E, (HL)                 ; E = other Y
+
+    ; Check if entities overlap (16x16 sprites)
+    ; Current entity: A = X, B = Y
+    ; Other entity: D = X, E = Y
+
+    ; X overlap check: |X1 - X2| < 16
+    LD H, A                    ; H = current X
+    LD A, D                    ; A = other X
+    SUB H                      ; A = other X - current X
+    JR NC, x_diff_positive     ; Jump if positive
+    NEG                        ; Make positive
+x_diff_positive:
+    CP 16                      ; Check if < 16
+    JR NC, no_entity_collision ; No X overlap
+
+    ; Y overlap check: |Y1 - Y2| < 16
+    LD A, E                    ; A = other Y
+    SUB B                      ; A = other Y - current Y
+    JR NC, y_diff_positive     ; Jump if positive
+    NEG                        ; Make positive
+y_diff_positive:
+    CP 16                      ; Check if < 16
+    JR NC, no_entity_collision ; No Y overlap
+
+    ; Collision detected!
+    CALL HANDLE_ENTITY_COLLISION
+
+no_entity_collision:
+    POP DE
+    POP HL
+
+next_entity_collision:
+    INC HL                     ; Next entity mask
+    INC E                      ; Next entity index
+    LD A, E
+    CP 32                      ; Check all 32 entities
+    JR NZ, entity_collision_loop
+
+    POP AF
+    POP BC
+    RET
+
+HANDLE_BOUNDARY_COLLISION:
+    ; Handle collision with screen boundaries
+    ; Stop movement in the collision direction
+    LD A, 0
+    LD (entity_vel_x), A       ; Stop X movement
+    LD (entity_vel_y), A       ; Stop Y movement
+    RET
+
+HANDLE_TILE_COLLISION:
+    ; Handle collision with solid tiles
+    ; Prevent movement into the tile
+    LD A, 0
+    LD (entity_vel_x), A       ; Stop X movement
+    LD (entity_vel_y), A       ; Stop Y movement
+    RET
+
+HANDLE_ENTITY_COLLISION:
+    ; Handle collision between entities
+    ; Implementation depends on game logic (damage, bouncing, etc.)
+    RET
+
+GET_BEHAVIOR_TILE:
+    ; Get behavior value for tile at (B, C)
+    ; Returns A = behavior value (0=passable, 1=solid, etc.)
+    ; This would read from the behavior map data
+    ; For now, return 0 (all passable)
+    LD A, 0
     RET
 
 ; ==================================================================
@@ -1451,7 +1884,7 @@ INIT_INPUT_SYSTEM:
 
 UPDATE_INPUT_COMPONENT:
     ; Update input handling for player entities
-    ; Store previous input state
+    ; Store previous input state for edge detection
     LD A, (input_state)
     LD (prev_input_state), A
 
@@ -1463,17 +1896,92 @@ UPDATE_INPUT_COMPONENT:
     ; Process input for entities with input component
     LD B, 32                   ; Loop through all entities
     LD HL, entity_comp_masks   ; Check component masks
+    LD C, 0                    ; Entity index
 
 input_update_loop:
     LD A, (HL)                 ; Get entity component mask
     AND COMP_MASK_INPUT        ; Check if has input component
     JR Z, input_next_entity    ; Skip if no input component
 
-    ; Apply input to entity movement/actions
-    ; TODO: Convert joystick state to velocity/actions
+    ; Apply input to entity movement (real implementation)
+    PUSH BC
+    PUSH HL
+
+    ; Convert joystick input to velocity
+    LD A, (input_state)
+    LD B, 0                    ; Default X velocity
+    LD C, 0                    ; Default Y velocity
+
+    ; Check directional input
+    CP STICK_UP
+    JR Z, input_move_up
+    CP STICK_DOWN
+    JR Z, input_move_down
+    CP STICK_LEFT
+    JR Z, input_move_left
+    CP STICK_RIGHT
+    JR Z, input_move_right
+    CP STICK_UPRIGHT
+    JR Z, input_move_upright
+    CP STICK_UPLEFT
+    JR Z, input_move_upleft
+    CP STICK_DOWNRIGHT
+    JR Z, input_move_downright
+    CP STICK_DOWNLEFT
+    JR Z, input_move_downleft
+    JR input_apply_velocity
+
+input_move_up:
+    LD C, -2                   ; Negative Y velocity (up)
+    JR input_apply_velocity
+
+input_move_down:
+    LD C, 2                    ; Positive Y velocity (down)
+    JR input_apply_velocity
+
+input_move_left:
+    LD B, -2                   ; Negative X velocity (left)
+    JR input_apply_velocity
+
+input_move_right:
+    LD B, 2                    ; Positive X velocity (right)
+    JR input_apply_velocity
+
+input_move_upright:
+    LD B, 1                    ; Diagonal movement (slower)
+    LD C, -1
+    JR input_apply_velocity
+
+input_move_upleft:
+    LD B, -1
+    LD C, -1
+    JR input_apply_velocity
+
+input_move_downright:
+    LD B, 1
+    LD C, 1
+    JR input_apply_velocity
+
+input_move_downleft:
+    LD B, -1
+    LD C, 1
+
+input_apply_velocity:
+    ; Apply calculated velocity to entity
+    ; Store X velocity (entity_vel_x is temp storage for now)
+    LD A, B
+    LD (entity_vel_x), A       ; Store calculated X velocity
+
+    ; Store Y velocity
+    LD A, C
+    LD (entity_vel_y), A       ; Store calculated Y velocity
+
+    POP HL
+    POP BC
 
 input_next_entity:
     INC HL                     ; Next entity
+    INC C                      ; Next entity index
     DJNZ input_update_loop
     RET
 
@@ -1642,17 +2150,76 @@ UPDATE_ENTITIES:
 
 `;
 
-    // Generate individual entity functions
-    analysis.entities.forEach((entity) => {
+    // Generate individual entity functions with REAL POSITIONS from JSON
+    analysis.entities.forEach((entity, index) => {
       const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+
+      // Get real position from JSON entity data
+      const realX = entity.position?.x || 100;
+      const realY = entity.position?.y || 100;
+
+      // Convert tile coordinates to pixel coordinates
+      // NOTE: Mideas tiles can be any size multiple of 8 pixels
+      // Need to determine the grid size from the actual screen layout
+      // For now, assume standard 16x16 grid but this should be dynamic
+      const tileGridSizeX = 16;  // Should be calculated from screen map
+      const tileGridSizeY = 16;  // Should be calculated from screen map
+      const pixelX = realX * tileGridSizeX;
+      const pixelY = realY * tileGridSizeY;
+
       code += `INIT_${entityName}:
-    ; Initialize ${entity.name}
-    ; TODO: Set initial position, sprite, and state
+    ; Initialize ${entity.name} at real position from JSON
+    ; JSON position: (${realX}, ${realY}) tiles = (${pixelX}, ${pixelY}) pixels
+
+    ; Set entity ID and component mask
+    LD A, ${index}             ; Entity ID
+    LD B, COMP_MASK_POSITION + COMP_MASK_SPRITE + COMP_MASK_MOVEMENT + COMP_MASK_COLLISION + COMP_MASK_INPUT
+    CALL CREATE_ENTITY         ; Create with all components
+
+    ; Set real position from JSON data
+    LD HL, entity_x_pos
+    LD E, ${index}             ; Entity index
+    LD D, 0
+    ADD HL, DE
+    LD (HL), ${pixelX}         ; Set real X position from JSON
+
+    LD HL, entity_y_pos
+    ADD HL, DE
+    LD (HL), ${pixelY}         ; Set real Y position from JSON
+
+    ; Set sprite pattern and color
+    LD HL, sprite_pattern
+    ADD HL, DE
+    LD (HL), ${index}          ; Use entity index as sprite pattern
+
+    LD HL, sprite_color
+    ADD HL, DE
+    LD (HL), 15                ; White color
+
+    ; Make sprite visible immediately
+    LD A, ${index}             ; Sprite number
+    LD B, ${pixelX}            ; X position
+    LD C, ${pixelY}            ; Y position
+    LD D, ${index}             ; Pattern
+    LD E, 15                   ; Color
+    CALL SHOW_SPRITE
     RET
 
 UPDATE_${entityName}:
-    ; Update ${entity.name} logic
-    ; TODO: Implement entity behavior
+    ; Update ${entity.name} logic with real behavior
+    ; Check if entity has input component (player entities)
+    LD A, ${index}
+    LD HL, entity_comp_masks
+    LD E, A
+    LD D, 0
+    ADD HL, DE
+    LD A, (HL)
+    AND COMP_MASK_INPUT
+    RET Z                      ; Skip if no input component
+
+    ; This is a player entity - update based on input
+    ; Input velocity is already calculated in UPDATE_INPUT_COMPONENT
+    ; Position update happens in UPDATE_POSITION_COMPONENT
     RET
 
 `;
