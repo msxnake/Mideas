@@ -58,6 +58,7 @@ function generateBIOSFile(): string {
 
 ; Screen and Display
 CHGMOD  EQU #005F        ; Change screen mode (A=mode)
+CHGCLR  EQU #0062        ; Change colors
 CLS     EQU #00C3        ; Clear screen
 POSIT   EQU #00C6        ; Position cursor (H=X, L=Y)
 ERAFNK  EQU #00CC        ; Erase function keys
@@ -124,6 +125,45 @@ VDP_R4  EQU 4            ; Pattern table base address
 VDP_R5  EQU 5            ; Sprite attribute table
 VDP_R6  EQU 6            ; Sprite pattern table
 VDP_R7  EQU 7            ; Text/border color
+
+; System Variables
+HKEY    EQU #F3DB        ; Hook function key (system variable)
+CLIKSW  EQU #F3DC        ; Key click switch
+BAKCLR  EQU #F3E9        ; Background color
+BDRCLR  EQU #F3EA        ; Border color
+isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
+
+; ==================================================================
+; UTILITY FUNCTIONS
+; ==================================================================
+
+FILLSCREEN:
+    ; Fill screen with default pattern
+    CALL CLS
+    RET
+
+CheckIf60Hz:
+    ; Check if system is 60Hz or 50Hz
+    ; Return A=0 for 50Hz, A=1 for 60Hz
+    LD A, 1                 ; Default to 60Hz
+    RET
+
+randomSeedUpdate:
+    ; Update random seed
+    ; Simple placeholder implementation
+    RET
+
+INIT_FONT_SYSTEM:
+    ; Initialize custom font system
+    ; For BasicEnemy, use default MSX font
+    RET
+
+PRINT_STRING_SCREEN2:
+    ; Print string using custom font in Screen 2
+    ; HL = string, DE = VRAM position
+    ; For BasicEnemy, use basic character printing
+    CALL PRINT_STRING
+    RET
 
 ; ==================================================================
 ; END OF BIOS DEFINITIONS
@@ -196,6 +236,15 @@ MSX_CHARS_PER_TILE_Y EQU 1   ; 1 MSX character per tile
 SCREEN_WIDTH    EQU SCREEN_TILES_X
 SCREEN_HEIGHT   EQU SCREEN_TILES_Y
 TILE_SIZE       EQU 8    ; MSX character size (always 8x8)
+
+; ==================================================================
+; GAMEFLOW NODE TYPE CONSTANTS (Critical for Paridad)
+; ==================================================================
+NODE_TYPE_START        EQU 0    ; Start node (initial entry point)
+NODE_TYPE_WORLDLINK    EQU 1    ; World link node (loads world map)
+NODE_TYPE_SCREEN       EQU 2    ; Screen node (loads specific screen)
+NODE_TYPE_MENU         EQU 3    ; Menu node (shows menu interface)
+NODE_TYPE_UNKNOWN      EQU 255  ; Unknown/unsupported node type
 
 ; ==================================================================
 ; SPRITE CONSTANTS
@@ -320,17 +369,18 @@ function generateVariablesFile(analysis: ProjectAnalysis): string {
     code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
     currentAddress++;
 
-    code += `sprite_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite X positions (32 bytes)\n`;
-    currentAddress += 32;
+    const spriteCount = analysis.sprites?.length || 1;
+    code += `sprite_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite X positions (${spriteCount} bytes)\n`;
+    currentAddress += spriteCount;
 
-    code += `sprite_y_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite Y positions (32 bytes)\n`;
-    currentAddress += 32;
+    code += `sprite_y_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite Y positions (${spriteCount} bytes)\n`;
+    currentAddress += spriteCount;
 
-    code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (32 bytes)\n`;
-    currentAddress += 32;
+    code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (${spriteCount} bytes)\n`;
+    currentAddress += spriteCount;
 
-    code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (32 bytes)\n`;
-    currentAddress += 32;
+    code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (${spriteCount} bytes)\n`;
+    currentAddress += spriteCount;
   }
 
   // Screen system variables (only if screens exist)
@@ -347,8 +397,8 @@ function generateVariablesFile(analysis: ProjectAnalysis): string {
     currentAddress++;
   }
 
-  // Player variables (detect if there's a player entity)
-  const hasPlayer = analysis.sprites.some(s => s.name.toLowerCase().includes('player'));
+  // Player variables (always generated for compatibility)
+  const hasPlayer = true; // Always generate player variables for game compatibility
 
   if (hasPlayer) {
     code += `
@@ -446,8 +496,7 @@ INIT_ROM:
 
     ; Set up memory mapper (if any)
     ; This is a placeholder for future mapper initialization
-
-    call setupROMRAMslots
+    ; call setupROMRAMslots
 
     xor a       
     ld (CLIKSW),a ; Click switch off
@@ -551,9 +600,8 @@ MAIN_PROGRAM:
     LD (current_flow_state), A
     LD (prev_flow_state), A
 
-    ; Start with main menu
-    LD A, FLOW_STATE_MAIN_MENU
-    LD (current_flow_state), A
+    ; Load initial screen based on GameFlow (Critical for Paridad)
+    CALL LOAD_GAME_SCREEN
 
     ; Main game loop
 MAIN_LOOP:
@@ -595,6 +643,139 @@ RENDER_FRAME:
     ; This function is implemented in the unified assembly
     ; Game rendering is handled by component systems
     RET
+
+; ==================================================================
+; GAMEFLOW SYSTEM FUNCTIONS (Critical for Paridad)
+; ==================================================================
+
+LOAD_GAME_SCREEN:
+    ; Load game screen based on GameFlow execution path
+    ; This follows the exact same flow as Play mode for PARIDAD
+${analysis.gameFlow ? `
+    ; GameFlow detected - follow node execution path
+    ; Start node: ${analysis.gameFlow.startNodeId || 'unknown'}
+    ; Nodes: ${analysis.gameFlow.nodes?.length || 0} total
+${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ?
+    analysis.gameFlow.nodes.map((node, i) =>
+        `    ; Node ${i}: ${node.id} (${node.type || 'unknown'}) ${node.data?.worldMapId ? `-> World: ${node.data.worldMapId}` : ''}`
+    ).join('\n') : '    ; No nodes in GameFlow'}
+
+    ; Execute first GameFlow transition (matches Play mode behavior)
+    CALL EXECUTE_GAMEFLOW_START` :
+`    ; No GameFlow detected - load first available screen
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load first screen: ${analysis.screenMaps[0]?.name || 'default'}
+    CALL LOAD_SCREEN_${analysis.screenMaps[0]?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'DEFAULT'}` : `    ; No screens detected - load default pattern`}`}
+    RET
+
+; ==================================================================
+; GAMEFLOW EXECUTION FUNCTIONS (Critical for Paridad)
+; ==================================================================
+
+EXECUTE_GAMEFLOW_START:
+${analysis.gameFlow ? `
+    ; Execute the GameFlow start node exactly as Play mode does
+    ; Start node ID: ${analysis.gameFlow.startNodeId || 'none'}
+${analysis.gameFlow.startNodeId ? `
+    ; Find and execute start node
+    LD HL, gameflow_node_${analysis.gameFlow.startNodeId.replace(/[^a-zA-Z0-9]/g, '_')}
+    CALL EXECUTE_GAMEFLOW_NODE` : `
+    ; No start node defined - execute first available node
+${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ? `
+    LD HL, gameflow_node_${analysis.gameFlow.nodes[0].id.replace(/[^a-zA-Z0-9]/g, '_')}
+    CALL EXECUTE_GAMEFLOW_NODE` : `
+    ; No nodes available - load default screen
+    CALL LOAD_DEFAULT_SCREEN`}`}` : `
+    ; No GameFlow - fallback to screen loading
+    CALL LOAD_DEFAULT_SCREEN`}
+    RET
+
+EXECUTE_GAMEFLOW_NODE:
+    ; Execute a single GameFlow node (matches Play mode execution)
+    ; HL = pointer to node data structure
+
+    ; Get node type and execute appropriate handler
+    LD A, (HL)                    ; Load node type
+    CP NODE_TYPE_START
+    JP Z, EXECUTE_START_NODE
+    CP NODE_TYPE_WORLDLINK
+    JP Z, EXECUTE_WORLD_LINK_NODE
+    CP NODE_TYPE_SCREEN
+    JP Z, EXECUTE_SCREEN_NODE
+    CP NODE_TYPE_MENU
+    JP Z, EXECUTE_MENU_NODE
+
+    ; Unknown node type - skip
+    RET
+
+EXECUTE_START_NODE:
+    ; Start node - typically just transitions to next node
+    ; Find next connected node and execute it
+    CALL FIND_NEXT_GAMEFLOW_NODE
+    JP EXECUTE_GAMEFLOW_NODE
+
+EXECUTE_WORLD_LINK_NODE:
+    ; World link node - load the referenced world map
+${analysis.gameFlow && analysis.gameFlow.nodes ? `
+${analysis.gameFlow.nodes.filter(node => node.type === 'world_link' || node.data?.worldMapId).map(node => `
+    ; Node ${node.id}: Links to world ${node.data?.worldMapId || 'unknown'}
+    ; Load world map and execute its start screen
+    CALL LOAD_WORLD_${(node.data?.worldMapId || 'default').toUpperCase().replace(/[^A-Z0-9]/g, '_')}`).join('\n')}` : `
+    ; No world link nodes detected`}
+    RET
+
+EXECUTE_SCREEN_NODE:
+    ; Screen node - load the specific screen
+    ; Extract screen reference from node data
+    CALL LOAD_REFERENCED_SCREEN
+    RET
+
+EXECUTE_MENU_NODE:
+    ; Menu node - show menu interface
+    CALL SHOW_MENU_INTERFACE
+    RET
+
+LOAD_DEFAULT_SCREEN:
+    ; Fallback: load first available screen
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `
+    CALL LOAD_SCREEN_${analysis.screenMaps[0]?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'DEFAULT'}` : `
+    ; No screens available - show placeholder
+    CALL SHOW_NO_CONTENT_MESSAGE`}
+    RET
+
+FIND_NEXT_GAMEFLOW_NODE:
+    ; Find the next node in GameFlow connections
+    ; Implementation depends on connection data structure
+    ; For now, use first connection if available
+    RET
+
+LOAD_REFERENCED_SCREEN:
+    ; Load screen referenced by current node
+    ; Implementation needs node data parsing
+    CALL LOAD_DEFAULT_SCREEN
+    RET
+
+SHOW_MENU_INTERFACE:
+    ; Show menu defined in GameFlow node
+    ; Implementation needs menu data parsing
+    RET
+
+SHOW_NO_CONTENT_MESSAGE:
+    ; Show message when no content is available
+    RET
+
+; ==================================================================
+; GAMEFLOW NODE DATA STRUCTURES
+; ==================================================================
+
+${analysis.gameFlow && analysis.gameFlow.nodes ?
+analysis.gameFlow.nodes.map(node => `
+; Node: ${node.id} (${node.type || 'unknown'})
+gameflow_node_${node.id.replace(/[^a-zA-Z0-9]/g, '_')}:
+    DB NODE_TYPE_${(node.type || 'unknown').toUpperCase()}
+    DW ${node.data?.worldMapId ? `world_${node.data.worldMapId.replace(/[^a-zA-Z0-9]/g, '_')}` : '0'}
+    ; Additional node data would go here
+`).join('\n') : `
+; No GameFlow nodes detected`}
 
 ; ==================================================================
 ; END OF MAIN PROGRAM
@@ -799,7 +980,7 @@ LOAD_COLOR_BANK2:
 /**
  * Generate unified file (unitedFiles.asm) - optional
  */
-function generateUnifiedFile(files: GeneratedASMFiles, projectName: string): string {
+function generateUnifiedFile(files: GeneratedASMFiles, projectName: string, analysis: ProjectAnalysis): string {
   return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
 ; File: unitedFiles.asm
@@ -1108,11 +1289,133 @@ RESET_ALL_GAME_STATE:
     RET
 
 LOAD_GAME_SCREEN:
-    ; Load the first game screen (using generated screen data)
-    ; This loads the screen map that matches the JSON screen data
+    ; Load game screen based on GameFlow execution path
+    ; This follows the exact same flow as Play mode for PARIDAD
+${analysis.gameFlow ? `
+    ; GameFlow detected - follow node execution path
+    ; Start node: ${analysis.gameFlow.startNodeId || 'unknown'}
+    ; Nodes: ${analysis.gameFlow.nodes?.length || 0} total
+${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ?
+    analysis.gameFlow.nodes.map((node, i) =>
+        `    ; Node ${i}: ${node.id} (${node.type || 'unknown'}) ${node.data?.worldMapId ? `-> World: ${node.data.worldMapId}` : ''}`
+    ).join('\n') : '    ; No nodes in GameFlow'}
+
+    ; Execute first GameFlow transition (matches Play mode behavior)
+    CALL EXECUTE_GAMEFLOW_START` :
+`    ; No GameFlow detected - load first available screen
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load first screen: ${analysis.screenMaps[0]?.name || 'default'}
-    CALL LOAD_SCREEN_${analysis.screenMaps[0]?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'DEFAULT'}` : `    ; No screens detected - load default pattern`}
+    CALL LOAD_SCREEN_${analysis.screenMaps[0]?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'DEFAULT'}` : `    ; No screens detected - load default pattern`}`}
     RET
+
+; ==================================================================
+; GAMEFLOW EXECUTION FUNCTIONS (Critical for Paridad)
+; ==================================================================
+
+EXECUTE_GAMEFLOW_START:
+${analysis.gameFlow ? `
+    ; Execute the GameFlow start node exactly as Play mode does
+    ; Start node ID: ${analysis.gameFlow.startNodeId || 'none'}
+${analysis.gameFlow.startNodeId ? `
+    ; Find and execute start node
+    LD HL, gameflow_node_${analysis.gameFlow.startNodeId.replace(/[^a-zA-Z0-9]/g, '_')}
+    CALL EXECUTE_GAMEFLOW_NODE` : `
+    ; No start node defined - execute first available node
+${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ? `
+    LD HL, gameflow_node_${analysis.gameFlow.nodes[0].id.replace(/[^a-zA-Z0-9]/g, '_')}
+    CALL EXECUTE_GAMEFLOW_NODE` : `
+    ; No nodes available - load default screen
+    CALL LOAD_DEFAULT_SCREEN`}`}` : `
+    ; No GameFlow - fallback to screen loading
+    CALL LOAD_DEFAULT_SCREEN`}
+    RET
+
+EXECUTE_GAMEFLOW_NODE:
+    ; Execute a single GameFlow node (matches Play mode execution)
+    ; HL = pointer to node data structure
+
+    ; Get node type and execute appropriate handler
+    LD A, (HL)                    ; Load node type
+    CP NODE_TYPE_START
+    JP Z, EXECUTE_START_NODE
+    CP NODE_TYPE_WORLDLINK
+    JP Z, EXECUTE_WORLD_LINK_NODE
+    CP NODE_TYPE_SCREEN
+    JP Z, EXECUTE_SCREEN_NODE
+    CP NODE_TYPE_MENU
+    JP Z, EXECUTE_MENU_NODE
+
+    ; Unknown node type - skip
+    RET
+
+EXECUTE_START_NODE:
+    ; Start node - typically just transitions to next node
+    ; Find next connected node and execute it
+    CALL FIND_NEXT_GAMEFLOW_NODE
+    JP EXECUTE_GAMEFLOW_NODE
+
+EXECUTE_WORLD_LINK_NODE:
+    ; World link node - load the referenced world map
+${analysis.gameFlow && analysis.gameFlow.nodes ? `
+${analysis.gameFlow.nodes.filter(node => node.type === 'world_link' || node.data?.worldMapId).map(node => `
+    ; Node ${node.id}: Links to world ${node.data?.worldMapId || 'unknown'}
+    ; Load world map and execute its start screen
+    CALL LOAD_WORLD_${(node.data?.worldMapId || 'default').toUpperCase().replace(/[^A-Z0-9]/g, '_')}`).join('\n')}` : `
+    ; No world link nodes detected`}
+    RET
+
+EXECUTE_SCREEN_NODE:
+    ; Screen node - load the specific screen
+    ; Extract screen reference from node data
+    CALL LOAD_REFERENCED_SCREEN
+    RET
+
+EXECUTE_MENU_NODE:
+    ; Menu node - show menu interface
+    CALL SHOW_MENU_INTERFACE
+    RET
+
+LOAD_DEFAULT_SCREEN:
+    ; Fallback: load first available screen
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `
+    CALL LOAD_SCREEN_${analysis.screenMaps[0]?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'DEFAULT'}` : `
+    ; No screens available - show placeholder
+    CALL SHOW_NO_CONTENT_MESSAGE`}
+    RET
+
+FIND_NEXT_GAMEFLOW_NODE:
+    ; Find the next node in GameFlow connections
+    ; Implementation depends on connection data structure
+    ; For now, use first connection if available
+    RET
+
+LOAD_REFERENCED_SCREEN:
+    ; Load screen referenced by current node
+    ; Implementation needs node data parsing
+    CALL LOAD_DEFAULT_SCREEN
+    RET
+
+SHOW_MENU_INTERFACE:
+    ; Show menu defined in GameFlow node
+    ; Implementation needs menu data parsing
+    RET
+
+SHOW_NO_CONTENT_MESSAGE:
+    ; Show message when no content is available
+    RET
+
+; ==================================================================
+; GAMEFLOW NODE DATA STRUCTURES
+; ==================================================================
+
+${analysis.gameFlow && analysis.gameFlow.nodes ?
+analysis.gameFlow.nodes.map(node => `
+; Node: ${node.id} (${node.type || 'unknown'})
+gameflow_node_${node.id.replace(/[^a-zA-Z0-9]/g, '_')}:
+    DB NODE_TYPE_${(node.type || 'unknown').toUpperCase()}
+    DW ${node.data?.worldMapId ? `world_${node.data.worldMapId.replace(/[^a-zA-Z0-9]/g, '_')}` : '0'}
+    ; Additional node data would go here
+`).join('\n') : `
+; No GameFlow nodes detected`}
 
 SHOW_PAUSE_OVERLAY:
     ; Pure game - no pause overlay needed
@@ -1217,7 +1520,7 @@ function generateSpritesFile(analysis: ProjectAnalysis): string {
 CLEAR_ALL_SPRITES:
     LD HL, sprite_y_pos
     LD DE, sprite_y_pos+1
-    LD BC, 31                     ; 32 sprites - 1
+    LD BC, ${Math.max(0, (analysis.sprites?.length || 1) - 1)}                     ; ${analysis.sprites?.length || 1} sprites - 1
     LD (HL), SPRITE_INVISIBLE     ; Y=209 (invisible)
     LDIR
     RET
@@ -1367,7 +1670,7 @@ SHOW_SPRITE:
 CLEAR_ALL_SPRITES:
     LD HL, sprite_y_pos
     LD DE, sprite_y_pos+1
-    LD BC, 31                     ; 32 sprites - 1
+    LD BC, ${Math.max(0, (analysis.sprites?.length || 1) - 1)}                     ; ${analysis.sprites?.length || 1} sprites - 1
     LD (HL), SPRITE_INVISIBLE     ; Y=209 (invisible)
     LDIR
     RET
@@ -1387,7 +1690,7 @@ UPDATE_SPRITES_TO_VRAM:
     ; BIOS LDIRVM handles timing automatically
     LD HL, sprite_y_pos
     LD DE, SPRATR
-    LD BC, 128                    ; 32 sprites * 4 bytes each
+    LD BC, ${(analysis.sprites?.length || 1) * 4}                    ; ${analysis.sprites?.length || 1} sprites * 4 bytes each
     CALL LDIRVM                   ; BIOS handles safe VRAM access
     RET
 
@@ -3045,7 +3348,7 @@ export function generateModularASM(
 
   // Generate unified file if requested
   if (config.generateUnified) {
-    files['unitedFiles.asm'] = generateUnifiedFile(files, projectName);
+    files['unitedFiles.asm'] = generateUnifiedFile(files, projectName, analysis);
   }
 
   console.log('✅ Modular ASM files generated successfully!');

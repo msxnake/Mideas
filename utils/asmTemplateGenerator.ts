@@ -54,6 +54,10 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
 
+  // CRITICAL: Detect GameFlow for ASM generation control
+  const gameFlowAsset = assets.find(a => a.type === 'gameflow');
+  const gameFlow = gameFlowAsset?.data as GameFlowGraph | undefined;
+
   // Detect various features
   const hasECS = components.length > 0;
   const hasMultipleScreens = screenMaps.length > 1;
@@ -77,6 +81,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     sprites,
     tiles,
     screenMaps,
+    gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
     hasECS,
     hasMultipleScreens,
     hasSprites,
