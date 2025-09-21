@@ -193,3 +193,38 @@ Versión 0.238 - 14/9/2025
 - feat(components): Add import/export for component definitions
 - feat(game-preview): Implement collision detection system
 - feat(state-machine): Add presets for common events
+
+Versión 1 - 21/9/2025
+- Deleted Font Editor Project button
+- Finish Font Editor assets
+- empezar multi assets fuentes
+- Sistema Summary implementado con validación de dependencias
+- inicio control gameflow
+- punto inflexion asm , sistemas
+- add button run openmsx
+- fuente acabada
+- comenzamos fuente data
+- codigo corrupto
+- millorant asm msx part 1
+- memoria Ram y Rom
+- puntualizacion Ram y Rom
+- Merge branch 'main' of https://github.com/msxnake/Mideas
+- Delete .github/workflows directory
+- nova versio
+- clean 2
+- clean up archives
+- minor improvements
+- sorting structure
+- pacman2
+- bugs collision
+- prueba collision
+- varis, abans de gemini wallCollision
+- canvis  motor wallcollision
+- mejorando codigo asm
+- Add Play button to Screen Editor with dynamic game engine system
+- bugs 5
+- bugs 3
+- bug 2
+- bugs
+- state m 1
+- state machine rev 2

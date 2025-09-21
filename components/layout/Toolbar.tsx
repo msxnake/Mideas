@@ -132,9 +132,13 @@ const DropdownMenu: React.FC<{ label: string; children: React.ReactNode }> = ({ 
 /**
  * An item within a DropdownMenu.
  */
-const DropdownItem: React.FC<{ onClick: () => void; children: React.ReactNode; icon?: React.ReactNode; disabled?: boolean; }> = ({ onClick, children, icon, disabled }) => {
+const DropdownItem: React.FC<{ onClick: () => void; children: React.ReactNode; icon?: React.ReactNode; disabled?: boolean; colorClass?: string; }> = ({ onClick, children, icon, disabled, colorClass }) => {
+  const baseClasses = "w-full text-left px-3 py-1.5 text-xs flex items-center disabled:opacity-50 disabled:cursor-not-allowed";
+  const defaultClasses = "text-msx-textsecondary hover:bg-msx-accent hover:text-white disabled:hover:bg-transparent disabled:hover:text-msx-textsecondary";
+  const customClasses = colorClass || defaultClasses;
+
   return (
-    <button onClick={onClick} disabled={disabled} className="w-full text-left px-3 py-1.5 text-xs text-msx-textsecondary hover:bg-msx-accent hover:text-white flex items-center disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-msx-textsecondary">
+    <button onClick={onClick} disabled={disabled} className={`${baseClasses} ${customClasses}`}>
       {icon && <span className="mr-2 w-4 h-4">{icon}</span>}
       {children}
     </button>
@@ -231,23 +235,23 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* New Asset Menu */}
       <DropdownMenu label="New Asset">
-        <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon/>}>State Machine</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon/>} colorClass="text-purple-200 hover:bg-purple-600 hover:text-white">State Machine</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon/>}>Tile</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon/>}>Sprite</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon/>}>Font</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon/>}>Boss</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('screenmap')} icon={<MapIcon/>}>Screen Map</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon/>}>World Map</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon/>}>Game Flow</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon/>} colorClass="text-red-200 hover:bg-red-500 hover:text-white">Tile</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon/>} colorClass="text-orange-200 hover:bg-orange-500 hover:text-white">Sprite</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon/>} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Font</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon/>} colorClass="text-green-200 hover:bg-green-500 hover:text-white">Boss</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap')} icon={<MapIcon/>} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white">Screen Map</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon/>} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">World Map</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon/>} colorClass="text-violet-200 hover:bg-violet-500 hover:text-white">Game Flow</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon/>}>Component Definition</DropdownItem>
-        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon/>}>Entity Template</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>}>Data Struct (Code)</DropdownItem>
+        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon/>} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
+        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon/>} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white">Data Struct (Code)</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon/>}>Sound FX</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon/>}>Music Track</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>}>Code File</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon/>} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Sound FX</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon/>} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white">Music Track</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>} colorClass="text-lime-200 hover:bg-lime-500 hover:text-white">Code File</DropdownItem>
       </DropdownMenu>
 
       {/* Run Menu */}
