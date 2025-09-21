@@ -33,7 +33,7 @@ import { generateFontPatternBinaryData, generateFontColorBinaryData } from './co
 import { generateTemplatesASM } from './components/utils/ecsUtils';
 import { createDefaultTrackerPattern as createDefaultPT3Pattern, normalizeImportedPT3Data } from './components/utils/trackerUtils';
 import { resolveSnippetPlaceholders } from './components/utils/snippetResolver'; 
-import { TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './components/tools/FileExplorerPanel';
+import { TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './components/tools/FileExplorerPanel';
 import { msxFontJsonString } from './data/msxFontData';
 import { AppUI } from './components/AppUI';
 import { deepCopy, getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from './utils/projectUtils';
@@ -742,7 +742,6 @@ const App: React.FC = () => {
     }
 
     if (assetId === TILE_BANKS_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.TileBanks); setStatusBarMessage("Opened Tile Banks Editor."); }
-    else if (assetId === FONT_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.Font); setStatusBarMessage("Opened Font Editor."); }
     else if (assetId === HELP_DOCS_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.HelpDocs); setStatusBarMessage("Opened Help & Tutorials."); }
     else if (assetId === COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.ComponentDefinitionEditor); setStatusBarMessage("Opened Component Definition Editor."); }
     else if (assetId === ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID) { setCurrentEditor(EditorType.EntityTemplateEditor); setStatusBarMessage("Opened Entity Template Editor."); }

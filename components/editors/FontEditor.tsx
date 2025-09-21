@@ -36,8 +36,6 @@ interface FontEditorProps {
   selectedColor: MSX1ColorValue;
   /** The data format for exporting to ASM. */
   dataOutputFormat: DataFormat;
-  /** Optional callback to create a new font asset from current font data. */
-  onCreateFontAsset?: (fontData: MSXFont, fontColorAttributes: MSXFontColorAttributes) => void;
 }
 
 /**
@@ -247,8 +245,7 @@ const generateFontASMCode = (
 export const FontEditor: React.FC<FontEditorProps> = ({
     fontData, onUpdateFont,
     fontColorAttributes, onUpdateFontColorAttributes,
-    currentScreenMode, selectedColor, dataOutputFormat,
-    onCreateFontAsset
+    currentScreenMode, selectedColor, dataOutputFormat
 }) => {
   const [selectedCharCode, setSelectedCharCode] = useState<number | null>(EDITABLE_CHAR_CODES_SUBSET[0]?.code || 32);
   const [zoom, setZoom] = useState(20);
@@ -312,14 +309,12 @@ export const FontEditor: React.FC<FontEditorProps> = ({
   };
 
   const handleApplyColorsToRange = (rangeType: 'numbers' | 'letters') => {
-    console.log('handleApplyColorsToRange called', { rangeType, selectedCharCode });
     if (selectedCharCode === null) {
       alert("Please select a source character first (e.g., '0' for numbers, 'A' for letters).");
       return;
     }
 
     const sourceCharColorAttributes = fontColorAttributes[selectedCharCode];
-    console.log('sourceCharColorAttributes:', sourceCharColorAttributes);
     if (!sourceCharColorAttributes && currentScreenMode === "SCREEN 2 (Graphics I)") {
         alert(`Row colors for the selected source character '${String.fromCharCode(selectedCharCode)}' are not defined. Please define them first or ensure they are initialized.`);
         return;
@@ -335,7 +330,6 @@ export const FontEditor: React.FC<FontEditorProps> = ({
     const newFontData = { ...fontData };
     let patternsModified = false;
 
-    console.log('Processing codes:', codesToUpdate);
     codesToUpdate.forEach(code => {
       // Apply row colors from the selected source character
       if (currentScreenMode === "SCREEN 2 (Graphics I)" && sourceCharColorAttributes) {
@@ -351,11 +345,8 @@ export const FontEditor: React.FC<FontEditorProps> = ({
       }
     });
 
-    console.log('About to call updates', { patternsModified, currentScreenMode });
-
     // For font assets, we need to handle updates more carefully to avoid conflicts
     if (patternsModified && currentScreenMode === "SCREEN 2 (Graphics I)") {
-      console.log('Both patterns and colors modified, doing combined update');
       // Update font data first
       onUpdateFont(newFontData);
       // Then update colors in next tick
@@ -363,10 +354,8 @@ export const FontEditor: React.FC<FontEditorProps> = ({
         onUpdateFontColorAttributes(newFontColors);
       });
     } else if (currentScreenMode === "SCREEN 2 (Graphics I)") {
-      console.log('Only colors modified');
       onUpdateFontColorAttributes(newFontColors);
     } else if (patternsModified) {
-      console.log('Only patterns modified');
       onUpdateFont(newFontData);
     }
 
@@ -567,11 +556,6 @@ export const FontEditor: React.FC<FontEditorProps> = ({
     setIsExportAsmModalOpen(true);
   };
 
-  const handleFinishEditing = () => {
-    if (onCreateFontAsset) {
-      onCreateFontAsset(fontData, fontColorAttributes);
-    }
-  };
 
 
   return (
@@ -581,9 +565,6 @@ export const FontEditor: React.FC<FontEditorProps> = ({
         <Button onClick={handleSaveFont} size="sm" variant="secondary" icon={<SaveFloppyIcon />}>Save Font (.json)</Button>
         <Button onClick={handleLoadFontClick} size="sm" variant="secondary" icon={<FolderOpenIcon />}>Load Font (.json)</Button>
         <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon />}>Export Font ASM</Button>
-        {onCreateFontAsset && (
-          <Button onClick={handleFinishEditing} size="sm" variant="primary" icon={<SaveFloppyIcon />}>Finish Editing</Button>
-        )}
         <label className="flex items-center text-xs pixel-font text-msx-textsecondary ml-2">
             <input 
                 type="checkbox" 

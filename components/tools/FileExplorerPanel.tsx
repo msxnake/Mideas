@@ -32,8 +32,6 @@ interface FileExplorerPanelProps {
   showTileBanksEntry?: boolean;
   /** Whether the 'Tile Banks' editor is currently active. */
   isTileBanksActive?: boolean;
-  /** Whether the 'Font Editor' is currently active. */
-  isFontEditorActive?: boolean;
  
   /** Whether the 'Help & Docs' viewer is currently active. */
   isHelpDocsActive?: boolean; 
@@ -121,8 +119,6 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
 // Constants for special system asset IDs
 /** System asset ID for the Tile Banks editor. @constant */
 export const TILE_BANKS_SYSTEM_ASSET_ID = "TILE_BANKS_EDITOR";
-/** System asset ID for the Font editor. @constant */
-export const FONT_EDITOR_SYSTEM_ASSET_ID = "FONT_EDITOR";
 /** System asset ID for the Font Assets manager. @constant */
 /** System asset ID for the Help & Docs viewer. @constant */
 export const HELP_DOCS_SYSTEM_ASSET_ID = "HELP_DOCS_SYSTEM_ASSET";
@@ -277,7 +273,6 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
     { id: COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, name: "Component Definitions", iconType: "componentdefinitioneditor" as const, editorType: EditorType.ComponentDefinitionEditor, isActive: isComponentDefEditorActive, title: "Manage Component Definitions" },
     { id: ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, name: "Entity Templates", iconType: "entitytemplateeditor" as const, editorType: EditorType.EntityTemplateEditor, isActive: isEntityTemplateEditorActive, title: "Manage Entity Templates" },
     ...(showTileBanksEntry ? [{ id: TILE_BANKS_SYSTEM_ASSET_ID, name: "Tile Banks", iconType: "tilebanks" as const, editorType: EditorType.TileBanks, isActive: isTileBanksActive, title: "Manage Tile Banks (Screen 2)" }] : []),
-    { id: FONT_EDITOR_SYSTEM_ASSET_ID, name: "Font Editor", iconType: "fonteditor" as const, editorType: EditorType.Font, isActive: isFontEditorActive, title: "Edit MSX1 Font Characters" },
    // { id: HELP_DOCS_SYSTEM_ASSET_ID, name: "Help & Tutorials", iconType: "helpdocs" as const, editorType: EditorType.HelpDocs, isActive: isHelpDocsActive, title: "View Help & Tutorials" },
   ];
 

@@ -36,7 +36,7 @@ import { EntityTemplateEditor } from './editors/EntityTemplateEditor';
 import { MainMenuEditor } from './editors/MainMenuEditor';
 import { GameFlowEditor } from './editors/GameFlowEditor';
 import { StateMachineEditor } from './editors/StateMachineEditor';
-import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, FONT_EDITOR_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
+import { FileExplorerPanel, TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './tools/FileExplorerPanel';
 import { PropertiesPanel } from './tools/PropertiesPanel';
 import { PalettePanel } from './tools/PalettePanel';
 import { EntityTypeListPanel } from './tools/EntityTypeListPanel'; 
@@ -239,19 +239,6 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
 
   const allTileAssetsData = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
 
-  const handleCreateFontAsset = useCallback((fontData: MSXFont, fontColorAttributes: MSXFontColorAttributes) => {
-    const id = `font_${Date.now()}`;
-    const defaultName = `New Font`;
-    const newAssetData: MSXFontAsset = {
-      fontData,
-      fontColorAttributes
-    };
-    const newAsset: ProjectAsset = { id, name: defaultName, type: 'font', data: newAssetData };
-    setAssetsWithHistory(prev => [...prev, newAsset]);
-    setSelectedAssetId(id);
-    setCurrentEditor(EditorType.Font);
-    setStatusBarMessage(`${defaultName} created as asset.`);
-  }, [setAssetsWithHistory, setSelectedAssetId, setCurrentEditor, setStatusBarMessage]);
 
 
   const isUndoDisabled = history.undoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
@@ -384,7 +371,6 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onRequestRename={memoizedOnRequestRename} 
             showTileBanksEntry={currentScreenMode === "SCREEN 2 (Graphics I)"} 
             isTileBanksActive={currentEditor === EditorType.TileBanks} 
-            isFontEditorActive={currentEditor === EditorType.Font}
  
             isHelpDocsActive={currentEditor === EditorType.HelpDocs}
             isComponentDefEditorActive={currentEditor === EditorType.ComponentDefinitionEditor}
@@ -450,7 +436,6 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               currentScreenMode={currentScreenMode}
               selectedColor={selectedColor as MSX1ColorValue}
               dataOutputFormat={dataOutputFormat}
-              onCreateFontAsset={handleCreateFontAsset}
             />
           )}
           {currentEditor === EditorType.Font && activeAsset?.type === 'font' && (!activeAsset.data || !(activeAsset.data as MSXFontAsset).fontData) && (
@@ -479,7 +464,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               </div>
             </Panel>
           )}
-          {currentEditor === EditorType.Font && !activeAsset && ( <FontEditor fontData={msxFont} onUpdateFont={setMsxFont} fontColorAttributes={msxFontColorAttributes} onUpdateFontColorAttributes={setMsxFontColorAttributes} currentScreenMode={currentScreenMode} selectedColor={selectedColor as MSX1ColorValue} dataOutputFormat={dataOutputFormat} onCreateFontAsset={handleCreateFontAsset}/>)}
+          {currentEditor === EditorType.Font && !activeAsset && ( <FontEditor fontData={msxFont} onUpdateFont={setMsxFont} fontColorAttributes={msxFontColorAttributes} onUpdateFontColorAttributes={setMsxFontColorAttributes} currentScreenMode={currentScreenMode} selectedColor={selectedColor as MSX1ColorValue} dataOutputFormat={dataOutputFormat}/>)}
           {currentEditor === EditorType.HelpDocs && ( <HelpDocsViewer helpDocsData={helpDocsData} /> )}
            
            {currentEditor === EditorType.ComponentDefinitionEditor && <ComponentDefinitionEditor componentDefinitions={componentDefinitions} onUpdateComponentDefinitions={setComponentDefinitions} />}
