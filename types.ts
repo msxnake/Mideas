@@ -960,17 +960,28 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine';
+  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine' | 'font';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine;
+  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine | MSXFontAsset;
 }
 
 export interface Point { x: number; y: number; }
 export interface SymmetrySettings { horizontal: boolean; vertical: boolean; diagonalMain: boolean; diagonalAnti: boolean; quadMirror: boolean; }
 export type MSXCharacterPattern = number[]; 
-export type MSXFont = Record<number, MSXCharacterPattern>; 
-export type MSXFontRowColorAttributes = Array<{fg: MSX1ColorValue, bg: MSX1ColorValue}>; 
-export type MSXFontColorAttributes = Record<number, MSXFontRowColorAttributes>; 
+export type MSXFont = Record<number, MSXCharacterPattern>;
+export type MSXFontRowColorAttributes = Array<{fg: MSX1ColorValue, bg: MSX1ColorValue}>;
+export type MSXFontColorAttributes = Record<number, MSXFontRowColorAttributes>;
+
+/**
+ * Represents a complete font asset including patterns and color attributes.
+ */
+export interface MSXFontAsset {
+  /** The font pattern data mapping character codes to patterns. */
+  fontData: MSXFont;
+  /** The color attributes for SCREEN 2 mode. */
+  fontColorAttributes: MSXFontColorAttributes;
+}
+
 export type DataFormat = 'hex' | 'decimal';
 
 export interface Snippet { id: string; name: string; code: string; }

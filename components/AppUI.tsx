@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, ScreenMap, MSXColorValue, SpriteFrame, PixelData, 
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, 
-  TrackerSongData, HUDConfiguration, TileBank, MSXFont, 
-  MSXFontColorAttributes, DataFormat,
+  TrackerSongData, HUDConfiguration, TileBank, MSXFont,
+  MSXFontColorAttributes, MSXFontAsset, DataFormat,
   Snippet, EntityInstance, MockEntityType, HelpDocSection, BehaviorScript,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
   ComponentDefinition, EntityTemplate, ContextMenuItem,
@@ -238,7 +238,22 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const screenMapForHudModal = assets.find(a => a.id === selectedAssetId && a.type === 'screenmap')?.data as ScreenMap | undefined;
 
   const allTileAssetsData = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
-  
+
+  const handleCreateFontAsset = useCallback((fontData: MSXFont, fontColorAttributes: MSXFontColorAttributes) => {
+    const id = `font_${Date.now()}`;
+    const defaultName = `New Font`;
+    const newAssetData: MSXFontAsset = {
+      fontData,
+      fontColorAttributes
+    };
+    const newAsset: ProjectAsset = { id, name: defaultName, type: 'font', data: newAssetData };
+    setAssetsWithHistory(prev => [...prev, newAsset]);
+    setSelectedAssetId(id);
+    setCurrentEditor(EditorType.Font);
+    setStatusBarMessage(`${defaultName} created as asset.`);
+  }, [setAssetsWithHistory, setSelectedAssetId, setCurrentEditor, setStatusBarMessage]);
+
+
   const isUndoDisabled = history.undoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
   const isRedoDisabled = history.redoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
 
@@ -369,7 +384,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onRequestRename={memoizedOnRequestRename} 
             showTileBanksEntry={currentScreenMode === "SCREEN 2 (Graphics I)"} 
             isTileBanksActive={currentEditor === EditorType.TileBanks} 
-            isFontEditorActive={currentEditor === EditorType.Font} 
+            isFontEditorActive={currentEditor === EditorType.Font}
+ 
             isHelpDocsActive={currentEditor === EditorType.HelpDocs}
             isComponentDefEditorActive={currentEditor === EditorType.ComponentDefinitionEditor}
             isEntityTemplateEditorActive={currentEditor === EditorType.EntityTemplateEditor}
@@ -413,7 +429,57 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.Sound && activeAsset?.type === 'sound' && ( <SoundEditor soundData={activeAsset.data as PSGSoundData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.Track && activeAsset?.type === 'track' && ( <TrackerComposer songData={activeAsset.data as TrackerSongData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.TileBanks && ( <TileBankEditor tileBanks={tileBanks} onUpdateBanks={setTileBanks} allTiles={assets.filter(a => a.type === 'tile')} currentScreenMode={currentScreenMode}/>)}
-          {currentEditor === EditorType.Font && ( <FontEditor fontData={msxFont} onUpdateFont={setMsxFont} fontColorAttributes={msxFontColorAttributes} onUpdateFontColorAttributes={setMsxFontColorAttributes} currentScreenMode={currentScreenMode} selectedColor={selectedColor as MSX1ColorValue} dataOutputFormat={dataOutputFormat}/>)}
+          {currentEditor === EditorType.Font && activeAsset?.type === 'font' && activeAsset.data && (activeAsset.data as MSXFontAsset).fontData && (
+            <FontEditor
+              fontData={(activeAsset.data as MSXFontAsset).fontData}
+              onUpdateFont={(fontData) => {
+                const updatedAssetData: MSXFontAsset = {
+                  ...activeAsset.data as MSXFontAsset,
+                  fontData
+                };
+                handleUpdateAsset(activeAsset.id, updatedAssetData);
+              }}
+              fontColorAttributes={(activeAsset.data as MSXFontAsset).fontColorAttributes || {}}
+              onUpdateFontColorAttributes={(fontColorAttributes) => {
+                const updatedAssetData: MSXFontAsset = {
+                  ...activeAsset.data as MSXFontAsset,
+                  fontColorAttributes
+                };
+                handleUpdateAsset(activeAsset.id, updatedAssetData);
+              }}
+              currentScreenMode={currentScreenMode}
+              selectedColor={selectedColor as MSX1ColorValue}
+              dataOutputFormat={dataOutputFormat}
+              onCreateFontAsset={handleCreateFontAsset}
+            />
+          )}
+          {currentEditor === EditorType.Font && activeAsset?.type === 'font' && (!activeAsset.data || !(activeAsset.data as MSXFontAsset).fontData) && (
+            <Panel title="Font Asset Repair">
+              <div className="p-4">
+                <p className="text-center text-msx-textsecondary mb-4">
+                  Font asset data is corrupted or incomplete.<br/>
+                  Asset ID: {activeAsset.id}<br/>
+                  Has data: {activeAsset.data ? 'Yes' : 'No'}<br/>
+                  Has fontData: {activeAsset.data && (activeAsset.data as MSXFontAsset).fontData ? 'Yes' : 'No'}
+                </p>
+                <div className="text-center">
+                  <Button
+                    onClick={() => {
+                      const repairedAssetData: MSXFontAsset = {
+                        fontData: JSON.parse(JSON.stringify(msxFont)),
+                        fontColorAttributes: JSON.parse(JSON.stringify(msxFontColorAttributes))
+                      };
+                      handleUpdateAsset(activeAsset.id, repairedAssetData);
+                    }}
+                    variant="primary"
+                  >
+                    Repair Font Asset
+                  </Button>
+                </div>
+              </div>
+            </Panel>
+          )}
+          {currentEditor === EditorType.Font && !activeAsset && ( <FontEditor fontData={msxFont} onUpdateFont={setMsxFont} fontColorAttributes={msxFontColorAttributes} onUpdateFontColorAttributes={setMsxFontColorAttributes} currentScreenMode={currentScreenMode} selectedColor={selectedColor as MSX1ColorValue} dataOutputFormat={dataOutputFormat} onCreateFontAsset={handleCreateFontAsset}/>)}
           {currentEditor === EditorType.HelpDocs && ( <HelpDocsViewer helpDocsData={helpDocsData} /> )}
            
            {currentEditor === EditorType.ComponentDefinitionEditor && <ComponentDefinitionEditor componentDefinitions={componentDefinitions} onUpdateComponentDefinitions={setComponentDefinitions} />}

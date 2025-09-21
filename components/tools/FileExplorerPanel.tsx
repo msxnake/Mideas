@@ -33,7 +33,8 @@ interface FileExplorerPanelProps {
   /** Whether the 'Tile Banks' editor is currently active. */
   isTileBanksActive?: boolean;
   /** Whether the 'Font Editor' is currently active. */
-  isFontEditorActive?: boolean; 
+  isFontEditorActive?: boolean;
+ 
   /** Whether the 'Help & Docs' viewer is currently active. */
   isHelpDocsActive?: boolean; 
   /** Whether the 'Component Definitions' editor is currently active. */
@@ -57,6 +58,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
   switch (type) {
     case 'tile': return <TilesetIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'sprite': return <SpriteIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
+    case 'font': return <PencilIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'boss': return <BugIcon className={`${iconClass} text-msx-danger group-hover:text-msx-accent`} />;
     case 'screenmap': return <MapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'worldmap': return <WorldMapIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -79,12 +81,13 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'sprite', 'boss', 'screenmap', 'worldmap', 'gameflow', 'sound', 'track', 'behavior', 'componentdefinition', 'entitytemplate', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'sprite', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'sound', 'track', 'behavior', 'componentdefinition', 'entitytemplate', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
   tile: "Tiles",
   sprite: "Sprites",
+  font: "Fonts",
   boss: "Bosses",
   screenmap: "Screen Maps",
   worldmap: "World Maps",
@@ -97,11 +100,30 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   code: "Code Files",
 };
 
+/** Maps asset types to their corresponding editor types. @constant */
+const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
+  statemachine: EditorType.StateMachine,
+  tile: EditorType.Tile,
+  sprite: EditorType.Sprite,
+  font: EditorType.Font,
+  boss: EditorType.Boss,
+  screenmap: EditorType.Screen,
+  worldmap: EditorType.WorldMap,
+  gameflow: EditorType.GameFlow,
+  sound: EditorType.Sound,
+  track: EditorType.Track,
+  behavior: EditorType.BehaviorEditor,
+  componentdefinition: EditorType.ComponentDefinitionEditor,
+  entitytemplate: EditorType.EntityTemplateEditor,
+  code: EditorType.Code,
+};
+
 // Constants for special system asset IDs
 /** System asset ID for the Tile Banks editor. @constant */
 export const TILE_BANKS_SYSTEM_ASSET_ID = "TILE_BANKS_EDITOR";
 /** System asset ID for the Font editor. @constant */
 export const FONT_EDITOR_SYSTEM_ASSET_ID = "FONT_EDITOR";
+/** System asset ID for the Font Assets manager. @constant */
 /** System asset ID for the Help & Docs viewer. @constant */
 export const HELP_DOCS_SYSTEM_ASSET_ID = "HELP_DOCS_SYSTEM_ASSET";
 /** System asset ID for the Component Definition editor. @constant */
@@ -444,10 +466,10 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                                 );
                               } else {
                                 setSelectedTileIds([asset.id]);
-                                onSelectAsset(asset.id);
+                                onSelectAsset(asset.id, ASSET_TYPE_TO_EDITOR[asset.type]);
                               }
                             } else {
-                              onSelectAsset(asset.id);
+                              onSelectAsset(asset.id, ASSET_TYPE_TO_EDITOR[asset.type]);
                             }
                           }}
                           onDoubleClick={() => onRequestRename(asset.id, asset.name, asset.type)}

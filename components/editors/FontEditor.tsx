@@ -35,7 +35,9 @@ interface FontEditorProps {
   /** The currently selected color from the main palette. */
   selectedColor: MSX1ColorValue;
   /** The data format for exporting to ASM. */
-  dataOutputFormat: DataFormat; 
+  dataOutputFormat: DataFormat;
+  /** Optional callback to create a new font asset from current font data. */
+  onCreateFontAsset?: (fontData: MSXFont, fontColorAttributes: MSXFontColorAttributes) => void;
 }
 
 /**
@@ -242,10 +244,11 @@ const generateFontASMCode = (
 };
 
 
-export const FontEditor: React.FC<FontEditorProps> = ({ 
-    fontData, onUpdateFont, 
-    fontColorAttributes, onUpdateFontColorAttributes, 
-    currentScreenMode, selectedColor, dataOutputFormat
+export const FontEditor: React.FC<FontEditorProps> = ({
+    fontData, onUpdateFont,
+    fontColorAttributes, onUpdateFontColorAttributes,
+    currentScreenMode, selectedColor, dataOutputFormat,
+    onCreateFontAsset
 }) => {
   const [selectedCharCode, setSelectedCharCode] = useState<number | null>(EDITABLE_CHAR_CODES_SUBSET[0]?.code || 32);
   const [zoom, setZoom] = useState(20);
@@ -279,9 +282,9 @@ export const FontEditor: React.FC<FontEditorProps> = ({
 
     const newFontData = { ...fontData };
     let patternToUpdate = [...(newFontData[selectedCharCode] || Array(8).fill(0))];
-    
+
     patternToUpdate[point.y] = patternToUpdate[point.y] ^ (1 << (7 - point.x));
-    
+
     newFontData[selectedCharCode] = patternToUpdate;
     onUpdateFont(newFontData);
   }, [selectedCharCode, fontData, onUpdateFont]);
@@ -309,31 +312,34 @@ export const FontEditor: React.FC<FontEditorProps> = ({
   };
 
   const handleApplyColorsToRange = (rangeType: 'numbers' | 'letters') => {
+    console.log('handleApplyColorsToRange called', { rangeType, selectedCharCode });
     if (selectedCharCode === null) {
       alert("Please select a source character first (e.g., '0' for numbers, 'A' for letters).");
       return;
     }
-    
+
     const sourceCharColorAttributes = fontColorAttributes[selectedCharCode];
+    console.log('sourceCharColorAttributes:', sourceCharColorAttributes);
     if (!sourceCharColorAttributes && currentScreenMode === "SCREEN 2 (Graphics I)") {
         alert(`Row colors for the selected source character '${String.fromCharCode(selectedCharCode)}' are not defined. Please define them first or ensure they are initialized.`);
         return;
     }
 
-    const codesToUpdate = rangeType === 'numbers' 
+    const codesToUpdate = rangeType === 'numbers'
       ? Array.from({ length: 10 }, (_, i) => 48 + i) // 0-9
       : Array.from({ length: 26 }, (_, i) => 65 + i); // A-Z
-    
+
     const anchorCharCode = rangeType === 'numbers' ? 48 : 65; // '0' or 'A'
 
     const newFontColors = { ...fontColorAttributes };
     const newFontData = { ...fontData };
     let patternsModified = false;
 
+    console.log('Processing codes:', codesToUpdate);
     codesToUpdate.forEach(code => {
       // Apply row colors from the selected source character
       if (currentScreenMode === "SCREEN 2 (Graphics I)" && sourceCharColorAttributes) {
-        newFontColors[code] = JSON.parse(JSON.stringify(sourceCharColorAttributes)); 
+        newFontColors[code] = JSON.parse(JSON.stringify(sourceCharColorAttributes));
       }
 
       // If the selected character is the anchor for this range, invert patterns of other characters in the range
@@ -345,13 +351,25 @@ export const FontEditor: React.FC<FontEditorProps> = ({
       }
     });
 
-    if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+    console.log('About to call updates', { patternsModified, currentScreenMode });
+
+    // For font assets, we need to handle updates more carefully to avoid conflicts
+    if (patternsModified && currentScreenMode === "SCREEN 2 (Graphics I)") {
+      console.log('Both patterns and colors modified, doing combined update');
+      // Update font data first
+      onUpdateFont(newFontData);
+      // Then update colors in next tick
+      requestAnimationFrame(() => {
+        onUpdateFontColorAttributes(newFontColors);
+      });
+    } else if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+      console.log('Only colors modified');
       onUpdateFontColorAttributes(newFontColors);
-    }
-    if (patternsModified) {
+    } else if (patternsModified) {
+      console.log('Only patterns modified');
       onUpdateFont(newFontData);
     }
-    
+
     alert(`Row colors ${patternsModified ? 'and patterns ' : ''}applied to ${rangeType === 'numbers' ? '0-9' : 'A-Z'}.`);
   };
   
@@ -549,6 +567,12 @@ export const FontEditor: React.FC<FontEditorProps> = ({
     setIsExportAsmModalOpen(true);
   };
 
+  const handleFinishEditing = () => {
+    if (onCreateFontAsset) {
+      onCreateFontAsset(fontData, fontColorAttributes);
+    }
+  };
+
 
   return (
     <Panel title="MSX1 Font Editor" icon={<PencilIcon />} className="flex-grow flex flex-col bg-msx-bgcolor">
@@ -557,6 +581,9 @@ export const FontEditor: React.FC<FontEditorProps> = ({
         <Button onClick={handleSaveFont} size="sm" variant="secondary" icon={<SaveFloppyIcon />}>Save Font (.json)</Button>
         <Button onClick={handleLoadFontClick} size="sm" variant="secondary" icon={<FolderOpenIcon />}>Load Font (.json)</Button>
         <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon />}>Export Font ASM</Button>
+        {onCreateFontAsset && (
+          <Button onClick={handleFinishEditing} size="sm" variant="primary" icon={<SaveFloppyIcon />}>Finish Editing</Button>
+        )}
         <label className="flex items-center text-xs pixel-font text-msx-textsecondary ml-2">
             <input 
                 type="checkbox" 

@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
 import { ProjectAsset, DataFormat, EditorType } from '../../types'; 
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon } from '../icons/MsxIcons';
+import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 
 /**
@@ -235,6 +235,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon/>}>Tile</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon/>}>Sprite</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon/>}>Font</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon/>}>Boss</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('screenmap')} icon={<MapIcon/>}>Screen Map</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon/>}>World Map</DropdownItem>

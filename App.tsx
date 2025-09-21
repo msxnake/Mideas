@@ -6,8 +6,8 @@ import { StateMachine } from './statemachine.types';
 import { 
   EditorType, ProjectAsset, Tile, Sprite, ScreenMap, MSXColorValue, SpriteFrame, PixelData, 
   LineColorAttribute, MSX1ColorValue, WorldMapGraph, PSGSoundData, PSGSoundChannelState, 
-  TrackerSongData, HUDConfiguration, TileBank, MSXFont, 
-  MSXFontColorAttributes, DataFormat,
+  TrackerSongData, HUDConfiguration, TileBank, MSXFont,
+  MSXFontColorAttributes, MSXFontAsset, DataFormat,
   Snippet, ScreenLayerData,
   EntityInstance, MockEntityType, HelpDocSection, BehaviorScript, TileLogicalProperties,
   CopiedScreenData, CopiedLayerData, EffectZone, ScreenEditorLayerName, 
@@ -495,7 +495,6 @@ const App: React.FC = () => {
   }, [pushToHistory]);
 
   const handleUpdateAsset = useCallback((assetId: string, updatedData: any, newAssetsToCreate?: ProjectAsset[]) => {
-    console.log("handleUpdateAsset called", { assetId, updatedData, newAssetsToCreate });
     setAssetsWithHistory(prevAssets => {
       let intermediateAssets = prevAssets;
       if (newAssetsToCreate && newAssetsToCreate.length > 0) {
@@ -529,6 +528,7 @@ const App: React.FC = () => {
             case 'componentdefinition':
             case 'entitytemplate':
             case 'statemachine':
+            case 'font':
               if (asset.data && typeof asset.data === 'object' && typeof updatedData === 'object') {
                 newAssetData = { ...asset.data, ...updatedData } as any;
               }
@@ -667,6 +667,13 @@ const App: React.FC = () => {
           initialStateId: null,
         } as StateMachine;
         newEditorType = EditorType.StateMachine;
+        break;
+      case 'font':
+        newAssetData = {
+          fontData: JSON.parse(JSON.stringify(msxFont)),
+          fontColorAttributes: JSON.parse(JSON.stringify(msxFontColorAttributes))
+        } as MSXFontAsset;
+        newEditorType = EditorType.Font;
         break;
       default: setStatusBarMessage(`Asset type ${type} creation not implemented for this flow.`); return;
     }
