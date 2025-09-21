@@ -33,7 +33,15 @@
       "Bash(\"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\automation\\openmsx\\working-screenshot.bat\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\BasicEnemy.rom\")",
       "Bash(if not exist \"automation\\openmsx\\screenshots\" mkdir \"automation\\openmsx\\screenshots\")",
       "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" unitedFiles17.rom)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" -carta \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\white_square_game.rom\" -script \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\capture_screenshot.tcl\")",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" -carta \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\white_square_game.rom\")",
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\white_square_game.rom\")",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test_white_square.rom\")",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test_white_square_fixed.rom\")",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\test_white_square_corrected.rom\")"
     ],
     "deny": [],
     "ask": []

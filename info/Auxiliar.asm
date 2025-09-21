@@ -3,7 +3,7 @@
 ;
 ;-----------------------------------------------
 ;; clear sprites:
-clearAllTheSprites:
+clearSprites:
     xor a
     ld bc,32*4
     ld hl,SPRATR1

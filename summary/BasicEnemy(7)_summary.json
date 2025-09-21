@@ -1,20 +1,20 @@
 {
   "schema": "Mideas Project Summary v1.0",
   "projectInfo": {
-    "name": "simple_sprite(2)",
-    "extractedFrom": "./Examples/simple_sprite(2).json",
-    "extractionDate": "2025-09-20T15:31:04.303Z",
+    "name": "BasicEnemy(7)",
+    "extractedFrom": "./Examples/BasicEnemy(7).json",
+    "extractionDate": "2025-09-20T15:24:42.620Z",
     "mideasVersion": "unknown",
     "summaryVersion": "1.0"
   },
   "execution": {
     "mainGameFlow": {
-      "id": "gameflow_1758379036872",
+      "id": "gameflow_1757846301679",
       "name": "main",
-      "startNodeId": "gf_start_1758379036872",
+      "startNodeId": "gf_start_1757846301679",
       "nodes": [
         {
-          "id": "gf_start_1758379036872",
+          "id": "gf_start_1757846301679",
           "type": "Start",
           "position": {
             "x": 40,
@@ -23,8 +23,8 @@
         },
         {
           "type": "WorldLink",
-          "worldAssetId": "worldmap_1758379051608",
-          "id": "gfn_1758379328617",
+          "worldAssetId": "worldmap_1757846280079",
+          "id": "gfn_1757846312799",
           "position": {
             "x": 280,
             "y": 40
@@ -33,13 +33,13 @@
       ],
       "connections": [
         {
-          "id": "gfc_1758379331173",
+          "id": "gfc_1757846321077",
           "from": {
-            "nodeId": "gf_start_1758379036872",
+            "nodeId": "gf_start_1757846301679",
             "sourceId": "out"
           },
           "to": {
-            "nodeId": "gfn_1758379328617"
+            "nodeId": "gfn_1757846312799"
           }
         }
       ]
@@ -51,17 +51,17 @@
   "assets": {
     "worldMaps": [
       {
-        "id": "worldmap_1758379051608",
-        "name": "mundo1",
-        "startScreenId": "wmnode_1758379254238",
+        "id": "worldmap_1757846280079",
+        "name": "New Worldmap",
+        "startScreenId": "wmnode_1757846281964",
         "screens": [
           {
-            "id": "wmnode_1758379254238",
-            "screenAssetId": "screenmap_1758379055864",
-            "name": "screen_1_vacia",
+            "id": "wmnode_1757846281964",
+            "screenAssetId": "screenmap_1757845666799",
+            "name": "pantalla1",
             "position": {
-              "x": 160,
-              "y": 160
+              "x": 240,
+              "y": 40
             }
           }
         ],
@@ -70,8 +70,8 @@
     ],
     "screens": [
       {
-        "id": "screenmap_1758379055864",
-        "name": "screen_1_vacia",
+        "id": "screenmap_1757845666799",
+        "name": "pantalla1",
         "width": 32,
         "height": 24,
         "layers": {
@@ -1548,884 +1548,1460 @@
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ]
           ],
@@ -3902,884 +4478,1460 @@
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 1
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 1
               }
             ],
             [
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 0,
+                "subTileY": 0
               },
               {
-                "tileId": null
+                "tileId": "tile_1757845467414",
+                "subTileX": 1,
+                "subTileY": 0
               }
             ]
           ],
@@ -7139,16 +8291,22 @@
           ],
           "entities": [
             {
-              "id": "entity_1758379456800_yvr4e",
-              "entityTemplateId": "tpl_1758379412687_lfuzt",
-              "name": "entidad_cara",
+              "id": "entity_1757847210799_ijvt5",
+              "entityTemplateId": "tpl_1757846444390_6e3zn",
+              "name": "BasicPatrol 1",
               "position": {
-                "x": 13,
-                "y": 11
+                "x": 14,
+                "y": 13
               },
               "componentOverrides": {
                 "comp_render": {
-                  "spriteAssetId": "sprite_1758379122048"
+                  "spriteAssetId": "sprite_1757845796423"
+                },
+                "comp_patrol": {
+                  "waypoint1_x": 8,
+                  "waypoint1_y": 104,
+                  "waypoint2_x": 168,
+                  "waypoint2_y": 104
                 }
               }
             }
@@ -7156,16 +8314,22 @@
         },
         "entityInstances": [
           {
-            "id": "entity_1758379456800_yvr4e",
-            "entityTemplateId": "tpl_1758379412687_lfuzt",
-            "name": "entidad_cara",
+            "id": "entity_1757847210799_ijvt5",
+            "entityTemplateId": "tpl_1757846444390_6e3zn",
+            "name": "BasicPatrol 1",
             "position": {
-              "x": 13,
-              "y": 11
+              "x": 14,
+              "y": 13
             },
             "componentOverrides": {
               "comp_render": {
-                "spriteAssetId": "sprite_1758379122048"
+                "spriteAssetId": "sprite_1757845796423"
+              },
+              "comp_patrol": {
+                "waypoint1_x": 8,
+                "waypoint1_y": 104,
+                "waypoint2_x": 168,
+                "waypoint2_y": 104
               }
             }
           }
@@ -7175,15 +8339,15 @@
     "tiles": [],
     "sprites": [
       {
-        "id": "sprite_1758379122048",
-        "name": "cara1",
+        "id": "sprite_1757845796423",
+        "name": "bot1",
         "width": 16,
         "height": 16,
-        "frames": 1,
+        "frames": 2,
         "msxSize": "16x16",
         "data": {
-          "id": "sprite_1758379122048",
-          "name": "cara1",
+          "id": "sprite_1757845796423",
+          "name": "bot1",
           "size": {
             "width": 16,
             "height": 16
@@ -7197,20 +8361,92 @@
           "backgroundColor": "rgba(0,0,0,0)",
           "frames": [
             {
-              "id": "frame_1758379122048",
+              "id": "frame_1757845796423",
               "data": [
                 [
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
@@ -7238,28 +8474,8 @@
                 [
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
                   "#FFFFFF",
                   "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)"
-                ],
-                [
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
                   "#FFFFFF",
                   "#FFFFFF",
                   "#FFFFFF",
@@ -7269,24 +8485,8 @@
                   "#FFFFFF",
                   "#FFFFFF",
                   "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)"
-                ],
-                [
                   "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
                   "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
                   "rgba(0,0,0,0)"
                 ],
                 [
@@ -7295,39 +8495,6 @@
                   "#FFFFFF",
                   "rgba(0,0,0,0)",
                   "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)"
-                ],
-                [
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)"
-                ],
-                [
-                  "#FFFFFF",
-                  "#FFFFFF",
                   "#FFFFFF",
                   "#FFFFFF",
                   "#FFFFFF",
@@ -7335,108 +8502,33 @@
                   "rgba(0,0,0,0)",
                   "#FFFFFF",
                   "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
                   "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
                   "#FFFFFF"
                 ],
                 [
                   "rgba(0,0,0,0)",
                   "#FFFFFF",
                   "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
                   "rgba(0,0,0,0)",
                   "#FFFFFF",
                   "#FFFFFF",
                   "#FFFFFF",
                   "#FFFFFF",
                   "#FFFFFF",
-                  "rgba(0,0,0,0)"
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF"
                 ],
                 [
                   "rgba(0,0,0,0)",
                   "#FFFFFF",
                   "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)"
-                ],
-                [
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)"
-                ],
-                [
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)"
-                ],
-                [
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "#FFFFFF",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)"
-                ],
-                [
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
-                  "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "#FFFFFF",
                   "#FFFFFF",
@@ -7459,10 +8551,195 @@
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
                   "#FFFFFF",
                   "#FFFFFF",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF"
+                ],
+                [
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF"
+                ],
+                [
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF"
+                ]
+              ]
+            },
+            {
+              "id": "frame_dup_1757846009005",
+              "data": [
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
@@ -7481,6 +8758,186 @@
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)"
+                ],
+                [
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "rgba(0,0,0,0)",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
+                  "#FFFFFF",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
                   "rgba(0,0,0,0)",
@@ -7490,14 +8947,15 @@
               ]
             }
           ],
-          "currentFrameIndex": 0
+          "currentFrameIndex": 1,
+          "facingDirection": "right"
         }
       }
     ],
     "entities": [
       {
-        "templateId": "tpl_1758379412687_lfuzt",
-        "name": "basic_sprite",
+        "templateId": "tpl_1757846444390_6e3zn",
+        "name": "BasicPatrol",
         "components": [
           {
             "definitionId": "comp_pos",
@@ -7513,12 +8971,34 @@
               "isVisible": "true",
               "layer": "1"
             }
+          },
+          {
+            "definitionId": "comp_patrol",
+            "defaultValues": {
+              "patrolType": "Horizontal",
+              "waypoint1_x": "0",
+              "waypoint1_y": "0",
+              "waypoint2_x": "64",
+              "waypoint2_y": "0",
+              "patrolSpeed": "50",
+              "waypointPause": "0"
+            }
+          },
+          {
+            "definitionId": "comp_animation",
+            "defaultValues": {
+              "currentAnimationName": "idle",
+              "currentFrameIndex": "0",
+              "animationSpeed": "6",
+              "loops": "true",
+              "isPlaying": "true"
+            }
           }
         ],
         "icon": "❓",
-        "description": "",
+        "description": "Just basic patrol entity. Could be enemy, or npc.",
         "usedInScreens": [
-          "screenmap_1758379055864"
+          "screenmap_1757845666799"
         ]
       }
     ],
@@ -7577,6 +9057,110 @@
           "isVisible": "true",
           "layer": "1"
         }
+      },
+      {
+        "id": "comp_patrol",
+        "name": "Patrol",
+        "type": "custom",
+        "properties": [
+          {
+            "name": "patrolType",
+            "type": "string",
+            "defaultValue": "Horizontal",
+            "description": "Type of patrol: Horizontal, Vertical, Box, BackAndForth."
+          },
+          {
+            "name": "waypoint1_x",
+            "type": "word",
+            "defaultValue": "0",
+            "description": "Start X coordinate or min corner of box."
+          },
+          {
+            "name": "waypoint1_y",
+            "type": "word",
+            "defaultValue": "0",
+            "description": "Start Y coordinate or min corner of box."
+          },
+          {
+            "name": "waypoint2_x",
+            "type": "word",
+            "defaultValue": "64",
+            "description": "End X coordinate or max corner of box."
+          },
+          {
+            "name": "waypoint2_y",
+            "type": "word",
+            "defaultValue": "0",
+            "description": "End Y coordinate or max corner of box."
+          },
+          {
+            "name": "patrolSpeed",
+            "type": "word",
+            "defaultValue": "50",
+            "description": "Movement speed during patrol."
+          },
+          {
+            "name": "waypointPause",
+            "type": "word",
+            "defaultValue": "0",
+            "description": "Pause duration in ticks at each waypoint."
+          }
+        ],
+        "description": "Defines a patrol route for an entity. Works with a Behavior script to update entity velocity.",
+        "defaultValues": {
+          "patrolType": "Horizontal",
+          "waypoint1_x": "0",
+          "waypoint1_y": "0",
+          "waypoint2_x": "64",
+          "waypoint2_y": "0",
+          "patrolSpeed": "50",
+          "waypointPause": "0"
+        }
+      },
+      {
+        "id": "comp_animation",
+        "name": "Animation",
+        "type": "custom",
+        "properties": [
+          {
+            "name": "currentAnimationName",
+            "type": "string",
+            "defaultValue": "idle",
+            "description": "Name of the current animation (e.g., 'idle', 'walk')."
+          },
+          {
+            "name": "currentFrameIndex",
+            "type": "byte",
+            "defaultValue": "0",
+            "description": "Current frame in the animation."
+          },
+          {
+            "name": "animationSpeed",
+            "type": "byte",
+            "defaultValue": "6",
+            "description": "Ticks/frames per animation update."
+          },
+          {
+            "name": "loops",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Does the animation loop?"
+          },
+          {
+            "name": "isPlaying",
+            "type": "boolean",
+            "defaultValue": "true",
+            "description": "Is the animation currently playing?"
+          }
+        ],
+        "description": "Manages sprite animation sequences for an entity.",
+        "defaultValues": {
+          "currentAnimationName": "idle",
+          "currentFrameIndex": "0",
+          "animationSpeed": "6",
+          "loops": "true",
+          "isPlaying": "true"
+        }
       }
     ],
     "fonts": [],
@@ -7584,9 +9168,9 @@
   },
   "metadata": {
     "extraction": {
-      "totalOriginalAssets": 4,
-      "totalUsedAssets": 6,
-      "compressionRatio": "-50.0% reduction",
+      "totalOriginalAssets": 9,
+      "totalUsedAssets": 8,
+      "compressionRatio": "11.1% reduction",
       "brokenReferences": []
     },
     "msxGeneration": {

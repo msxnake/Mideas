@@ -1,0 +1,125 @@
+REQUISITOS DE TAMAÑO PARA ROM MSX
+====================================
+
+## Información Esencial
+
+Los archivos ROM para MSX DEBEN tener un tamaño que sea múltiplo exacto de 8KB (8192 bytes).
+Esto es un requisito OBLIGATORIO del hardware MSX.
+
+## Tamaños Válidos Comunes
+
+- 8KB   = 8,192 bytes   = #2000 bytes (hex)
+- 16KB  = 16,384 bytes  = #4000 bytes (hex)
+- 32KB  = 32,768 bytes  = #8000 bytes (hex)
+- 64KB  = 65,536 bytes  = #10000 bytes (hex)
+- 128KB = 131,072 bytes = #20000 bytes (hex)
+
+## Problema Común
+
+Si tu código + datos ocupa, por ejemplo, 12KB (12,288 bytes), NO funcionará en MSX.
+Necesitas rellenar hasta 16KB (16,384 bytes) para que sea un múltiplo válido.
+
+## Solución: End.asm
+
+El archivo `End.asm` proporciona:
+
+1. **Cálculo automático** del padding necesario
+2. **Relleno automático** hasta el siguiente múltiplo de 8KB
+3. **Verificación** de que el tamaño final es correcto
+4. **Información de debug** durante la compilación
+
+## Uso en tu Proyecto
+
+```assembly
+; En tu archivo principal (main.asm o unitedFiles.asm):
+
+ORG #4000                  ; Inicio estándar de cartridge
+DB "AB"                    ; Header MSX
+DW INIT_ROM
+; ... resto de header ...
+
+INIT_ROM:
+; ... todo tu código aquí ...
+; ... datos del juego ...
+; ... patrones, sprites, etc. ...
+
+; AL FINAL, incluir el alineamiento:
+INCLUDE "End.asm"
+```
+
+## Qué hace End.asm
+
+1. **Calcula** el tamaño actual del ROM
+2. **Determina** cuántos bytes faltan para el siguiente múltiplo de 8KB
+3. **Rellena** con bytes #FF (instrucciones RST #38 seguras)
+4. **Verifica** que el resultado sea múltiplo de 8KB
+5. **Genera error** si algo está mal
+
+## Ejemplo Práctico
+
+Si tu código ocupa 10,500 bytes:
+- Siguiente múltiplo de 8KB: 16,384 bytes (16KB)
+- Padding necesario: 16,384 - 10,500 = 5,884 bytes
+- End.asm añade automáticamente 5,884 bytes de relleno
+- ROM final: exactamente 16KB ✅
+
+## Verificación Manual
+
+Para verificar manualmente el tamaño:
+
+```bash
+# En Windows
+dir archivo.rom
+
+# En Linux/Mac
+ls -l archivo.rom
+
+# El tamaño debe ser múltiplo exacto de 8192
+```
+
+## Tipos de Relleno
+
+- **#FF** (recomendado): Instrucción RST #38, relativamente segura
+- **#00**: NOP, también seguro pero menos informativo
+- **#C9**: RET, puede causar comportamiento impredecible
+
+## Consideraciones Especiales
+
+### ROMs Grandes (32KB+)
+Para ROMs de 32KB o más, considera usar bancos de memoria y
+ajustar el sistema de padding en consecuencia.
+
+### Compilador glass.jar
+El compilador glass.jar soporta:
+- Operaciones matemáticas en tiempo de compilación
+- Directivas condicionales (IF/ENDIF)
+- Cálculo de direcciones con $ (posición actual)
+
+### Direcciones de Inicio
+El cálculo en End.asm asume inicio en #4000 (cartridge estándar).
+Para otras direcciones, ajusta la fórmula:
+
+```assembly
+current_size EQU $ - #TU_DIRECCION_INICIO
+```
+
+## Debugging
+
+Durante la compilación, puedes ver:
+- Tamaño antes del padding
+- Cantidad de padding añadida
+- Tamaño final del ROM
+- Verificación de múltiplo
+
+## Importancia Crítica
+
+Sin el alineamiento correcto:
+- ❌ El ROM no cargará en MSX real
+- ❌ Emuladores pueden rechazar el archivo
+- ❌ Comportamiento impredecible en hardware
+
+Con End.asm:
+- ✅ ROM garantizado compatible con MSX
+- ✅ Tamaño siempre múltiplo de 8KB
+- ✅ Relleno seguro y automático
+- ✅ Verificación integrada
