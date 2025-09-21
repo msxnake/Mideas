@@ -414,7 +414,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           {currentEditor === EditorType.WorldView && ( <WorldViewEditor allWorldMapGraphs={allWorldMapGraphs} allScreenMaps={assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap)} allTiles={assets.filter(a => a.type === 'tile').map(a => a.data as Tile)} currentScreenMode={currentScreenMode} /> )}
           {currentEditor === EditorType.Sound && activeAsset?.type === 'sound' && ( <SoundEditor soundData={activeAsset.data as PSGSoundData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
           {currentEditor === EditorType.Track && activeAsset?.type === 'track' && ( <TrackerComposer songData={activeAsset.data as TrackerSongData} onUpdate={(data) => handleUpdateAsset(activeAsset.id, data)}/>)}
-          {currentEditor === EditorType.TileBanks && ( <TileBankEditor tileBanks={tileBanks} onUpdateBanks={setTileBanks} allTiles={assets.filter(a => a.type === 'tile')} currentScreenMode={currentScreenMode}/>)}
+          {currentEditor === EditorType.TileBanks && ( <TileBankEditor tileBanks={tileBanks} onUpdateBanks={setTileBanks} allTiles={assets.filter(a => a.type === 'tile')} allFonts={assets.filter(a => a.type === 'font')} currentScreenMode={currentScreenMode}/>)}
           {currentEditor === EditorType.Font && activeAsset?.type === 'font' && activeAsset.data && (activeAsset.data as MSXFontAsset).fontData && (
             <FontEditor
               fontData={(activeAsset.data as MSXFontAsset).fontData}
