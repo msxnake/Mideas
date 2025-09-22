@@ -361,8 +361,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     // Create the 8x8 pixel grid
     if (assignedFontPattern) {
       // Get font colors from MSX font color attributes or use MSX-like defaults
-      let fgColor = '#5555FF'; // MSX Blue
-      let bgColor = '#AAAAAA'; // MSX Light Gray
+      let colorAttrs: any = null;
 
       // Try to get colors from font color attributes if available
       banks.forEach(bank => {
@@ -374,15 +373,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                 const fontAsset = allFonts.find(f => tileId.includes(f.id));
                 if (fontAsset && (fontAsset.data as MSXFontAsset).fontColorAttributes) {
                   const actualCharCode = fontChar.character.charCodeAt(0);
-                  const colorAttrs = (fontAsset.data as MSXFontAsset).fontColorAttributes[actualCharCode];
-                  if (colorAttrs) {
-                    // Use the first row's colors
-                    const firstRowColors = colorAttrs[0];
-                    if (firstRowColors) {
-                      fgColor = firstRowColors.fg || '#5555FF';
-                      bgColor = firstRowColors.bg || '#AAAAAA';
-                    }
-                  }
+                  colorAttrs = (fontAsset.data as MSXFontAsset).fontColorAttributes[actualCharCode];
                 }
               }
             }
@@ -390,7 +381,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         }
       });
 
-      // Render font pattern (8 bytes, each bit is a pixel)
+      // Render font pattern (8 bytes, each bit is a pixel) with per-row colors
       return (
         <div
           style={{
@@ -405,6 +396,16 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
           {assignedFontPattern.map((byte, rowIndex) =>
             Array.from({length: 8}, (_, colIndex) => {
               const isPixelOn = (byte & (1 << (7 - colIndex))) !== 0;
+
+              // Get colors for this specific row, with fallbacks
+              let fgColor = '#5555FF'; // MSX Blue default
+              let bgColor = '#AAAAAA'; // MSX Light Gray default
+
+              if (colorAttrs && colorAttrs[rowIndex]) {
+                fgColor = colorAttrs[rowIndex].fg || fgColor;
+                bgColor = colorAttrs[rowIndex].bg || bgColor;
+              }
+
               return (
                 <div
                   key={`${rowIndex}-${colIndex}`}
@@ -469,6 +470,39 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                 if (!fontAsset) {
                     alert(`Font asset with ID ${fontId} not found.`);
                     return bank;
+                }
+
+                // Validate font color attributes for MSX1 compatibility
+                const fontData = fontAsset.data as MSXFontAsset;
+                const invalidColorWarnings: string[] = [];
+
+                if (fontData.fontColorAttributes) {
+                    characters.forEach(char => {
+                        const charCode = char.charCodeAt(0);
+                        const colorAttrs = fontData.fontColorAttributes[charCode];
+                        if (colorAttrs) {
+                            colorAttrs.forEach((rowColor, rowIndex) => {
+                                const fgColorValid = MSX1_PALETTE.some(c => c.hex === rowColor.fg);
+                                const bgColorValid = MSX1_PALETTE.some(c => c.hex === rowColor.bg);
+
+                                if (!fgColorValid) {
+                                    invalidColorWarnings.push(`Character '${char}' row ${rowIndex}: invalid fg color ${rowColor.fg}`);
+                                }
+                                if (!bgColorValid) {
+                                    invalidColorWarnings.push(`Character '${char}' row ${rowIndex}: invalid bg color ${rowColor.bg}`);
+                                }
+                            });
+                        }
+                    });
+                }
+
+                if (invalidColorWarnings.length > 0) {
+                    const shouldContinue = confirm(
+                        `Warning: Some font colors are not valid MSX1 colors:\n${invalidColorWarnings.slice(0, 5).join('\n')}${invalidColorWarnings.length > 5 ? '\n...' : ''}\n\nContinue anyway?`
+                    );
+                    if (!shouldContinue) {
+                        return bank;
+                    }
                 }
 
                 // Map each character to its exact ASCII position
@@ -637,12 +671,35 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                     const codesUsedByThisFont = `${fontChars.length} chars`;
                     const characterList = fontChars.map((fc: any) => fc.character).join('');
 
+                    // Check if this font has color attributes
+                    const fontAsset = allFonts.find(f => tileId.includes(f.id));
+                    let hasColorInfo = false;
+                    let colorInfo = '';
+
+                    if (fontAsset && (fontAsset.data as MSXFontAsset).fontColorAttributes) {
+                        const fontColorAttrs = (fontAsset.data as MSXFontAsset).fontColorAttributes;
+                        const hasColors = fontChars.some((fc: any) => {
+                            const charCode = fc.character.charCodeAt(0);
+                            return fontColorAttrs[charCode] && fontColorAttrs[charCode].length > 0;
+                        });
+
+                        if (hasColors) {
+                            hasColorInfo = true;
+                            colorInfo = '🎨 Per-row colors';
+                        }
+                    }
+
                     return (
                         <div key={tileId} className="flex justify-between items-center p-0.5 text-xs hover:bg-msx-border/50 rounded bg-blue-900/20">
-                            <span>Font: {characterList} (Font Asset)</span>
-                            <span className="text-msx-textsecondary">Base: {assignment.charCode} (0x{assignment.charCode.toString(16).toUpperCase()}) - {codesUsedByThisFont}</span>
-                            {!bank.isLocked && isBankEffectivelyEnabled &&
-                                <Button onClick={() => handleRemoveTileFromBank(bank.id, tileId)} size="sm" variant="danger" className="!p-0.5" icon={<TrashIcon className="w-2.5 h-2.5"/>}>{null}</Button>}
+                            <div className="flex flex-col">
+                                <span>Font: {characterList} (Font Asset)</span>
+                                {hasColorInfo && <span className="text-green-400 text-xs italic">{colorInfo}</span>}
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <span className="text-msx-textsecondary">ASCII pos: {fontChars.map((fc: any) => fc.bankCharCode).join(',')} - {codesUsedByThisFont}</span>
+                                {!bank.isLocked && isBankEffectivelyEnabled &&
+                                    <Button onClick={() => handleRemoveTileFromBank(bank.id, tileId)} size="sm" variant="danger" className="!p-0.5" icon={<TrashIcon className="w-2.5 h-2.5"/>}>{null}</Button>}
+                            </div>
                         </div>
                     );
                 } else {
