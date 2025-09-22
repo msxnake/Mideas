@@ -67,17 +67,27 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   const [selectedFontId, setSelectedFontId] = useState<string | null>(null);
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [isTilesetPreviewOpen, setIsTilesetPreviewOpen] = useState<boolean>(false);
+  const [shouldUpdateParent, setShouldUpdateParent] = useState<boolean>(false);
 
+  // Effect to update parent when banks change (but not during initial load)
   useEffect(() => {
-    // Clean up any invalid tile assignments first
-    const cleanedBanks = initialTileBanks.map(bank => {
+    if (shouldUpdateParent) {
+      onUpdateBanks(banks);
+      setShouldUpdateParent(false);
+    }
+  }, [banks, shouldUpdateParent, onUpdateBanks]);
+
+  // Clean up invalid tile assignments
+  const cleanupInvalidAssignments = useCallback((banksToClean: TileBank[]) => {
+    return banksToClean.map(bank => {
       const cleanedAssignedTiles: { [key: string]: any } = {};
 
       Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
         // Check if this is a font assignment
         if (tileId.startsWith('font_')) {
           // For font assignments, check if the font asset still exists
-          const fontIdMatch = tileId.match(/font_([^_]+)/);
+          // Extract fontId from pattern: font_fontId_characters_timestamp
+          const fontIdMatch = tileId.match(/^font_([^_]+_[^_]+)/);
           if (fontIdMatch) {
             const fontId = fontIdMatch[1];
             const fontExists = allFonts.some(f => f.id === fontId);
@@ -99,16 +109,28 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         assignedTiles: cleanedAssignedTiles
       };
     });
+  }, [allTiles, allFonts]);
 
-    setBanks(cleanedBanks);
+  // Update parent with cleaned banks if needed
+  useEffect(() => {
+    const cleanedBanks = cleanupInvalidAssignments(initialTileBanks);
 
-    // Update the parent component if we cleaned anything
+    // Check if there were changes
     const hasChanges = cleanedBanks.some((cleanedBank, index) =>
       Object.keys(cleanedBank.assignedTiles).length !== Object.keys(initialTileBanks[index]?.assignedTiles || {}).length
     );
+
     if (hasChanges) {
-      onUpdateBanks(cleanedBanks);
+      // Use setTimeout to avoid setState during render
+      setTimeout(() => {
+        onUpdateBanks(cleanedBanks);
+      }, 0);
     }
+  }, [initialTileBanks, cleanupInvalidAssignments, onUpdateBanks]);
+
+  useEffect(() => {
+    const cleanedBanks = cleanupInvalidAssignments(initialTileBanks);
+    setBanks(cleanedBanks);
 
     if (!selectedBankId && cleanedBanks.length > 0) {
         setSelectedBankId(cleanedBanks[0].id);
@@ -117,7 +139,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     } else if (cleanedBanks.length === 0) {
         setSelectedBankId(null);
     }
-  }, [initialTileBanks, selectedBankId, allTiles, allFonts, onUpdateBanks]);
+  }, [initialTileBanks, selectedBankId, cleanupInvalidAssignments]);
 
   const handleBankPropertyChange = (bankId: string, property: keyof TileBank | `screenZone.${keyof TileBank['screenZone']}`, value: any) => {
     setBanks(prevBanks => {
@@ -204,9 +226,10 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             newBanks[mainGameBankIndex] = mainGameBank;
         }
       }
-      onUpdateBanks(newBanks);
+
       return newBanks;
     });
+    setShouldUpdateParent(true);
   };
 
   const handleAssignTileToBank = (bankId: string, tileAssetId: string) => {
@@ -272,9 +295,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         }
         return bank;
       });
-      onUpdateBanks(newBanks);
       return newBanks;
     });
+    setShouldUpdateParent(true);
     setIsAssignTileModalOpen(false);
   };
 
@@ -288,9 +311,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             }
             return bank;
         });
-        onUpdateBanks(newBanks);
         return newBanks;
     });
+    setShouldUpdateParent(true);
   };
 
   const renderCharacterGraphics = (charCode: number): JSX.Element => {
@@ -569,9 +592,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             }
             return bank;
         });
-        onUpdateBanks(newBanks);
         return newBanks;
     });
+    setShouldUpdateParent(true);
   };
   
   const selectedBankDetails = banks.find(b => b.id === selectedBankId);
