@@ -67,6 +67,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   const [selectedFontId, setSelectedFontId] = useState<string | null>(null);
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
   const [isTilesetPreviewOpen, setIsTilesetPreviewOpen] = useState<boolean>(false);
+  const [currentPreviewBank, setCurrentPreviewBank] = useState<number>(0);
   const [shouldUpdateParent, setShouldUpdateParent] = useState<boolean>(false);
 
   // Effect to update parent when banks change (but not during initial load)
@@ -111,9 +112,23 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     });
   }, [allTiles, allFonts]);
 
-  // Update parent with cleaned banks if needed
+  // Update parent with cleaned banks if needed and check for migration
   useEffect(() => {
     const cleanedBanks = cleanupInvalidAssignments(initialTileBanks);
+
+    // Check if we need to migrate from old bank system
+    const needsMigration = cleanedBanks.some(bank =>
+      bank.id === 'bank_hud' || bank.id === 'bank_main_game' || bank.id === 'bank_status_menu' ||
+      (bank.charsetRangeEnd - bank.charsetRangeStart + 1) !== 256
+    );
+
+    if (needsMigration) {
+      console.log('TileBankEditor: Migrating to triple bank system');
+      setTimeout(() => {
+        onUpdateBanks(DEFAULT_TILE_BANKS_CONFIG);
+      }, 0);
+      return;
+    }
 
     // Check if there were changes
     const hasChanges = cleanedBanks.some((cleanedBank, index) =>
@@ -183,49 +198,8 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         return bank;
       });
 
-      if (property === 'enabled' && (bankId === 'bank_hud' || bankId === 'bank_status_menu')) {
-        const mainGameBankIndex = newBanks.findIndex(b => b.id === 'bank_main_game');
-        const hudBank = newBanks.find(b => b.id === 'bank_hud')!; 
-        const statusBank = newBanks.find(b => b.id === 'bank_status_menu')!;
-
-        const isHudEffectivelyEnabled = hudBank.enabled ?? true;
-        const isStatusEffectivelyEnabled = statusBank.enabled ?? true;
-
-        const defaultHudConf = DEFAULT_TILE_BANKS_CONFIG.find(b => b.id === 'bank_hud')!;
-        const defaultMainConf = DEFAULT_TILE_BANKS_CONFIG.find(b => b.id === 'bank_main_game')!;
-        const defaultStatusConf = DEFAULT_TILE_BANKS_CONFIG.find(b => b.id === 'bank_status_menu')!;
-        
-        if (mainGameBankIndex !== -1) {
-            const mainGameBank = { ...newBanks[mainGameBankIndex] }; 
-            mainGameBank.screenZone = { ...mainGameBank.screenZone }; 
-
-            mainGameBank.charsetRangeStart = isHudEffectivelyEnabled
-                ? defaultMainConf.charsetRangeStart
-                : defaultHudConf.charsetRangeStart;
-
-            mainGameBank.charsetRangeEnd = isStatusEffectivelyEnabled
-                ? defaultMainConf.charsetRangeEnd
-                : defaultStatusConf.charsetRangeEnd;
-
-            let newMainGameY = defaultMainConf.screenZone.y;
-            let newMainGameHeight = defaultMainConf.screenZone.height;
-
-            if (!isHudEffectivelyEnabled) {
-                newMainGameY = defaultHudConf.screenZone.y;
-                newMainGameHeight += defaultHudConf.screenZone.height;
-            }
-            if (!isStatusEffectivelyEnabled) { 
-                newMainGameHeight += defaultStatusConf.screenZone.height;
-            }
-
-            mainGameBank.screenZone.y = newMainGameY;
-            mainGameBank.screenZone.height = newMainGameHeight;
-            mainGameBank.screenZone.width = defaultMainConf.screenZone.width;
-            mainGameBank.screenZone.x = defaultMainConf.screenZone.x;
-
-            newBanks[mainGameBankIndex] = mainGameBank;
-        }
-      }
+      // Remove the complex bank interdependency logic since each bank is now independent
+      // Each bank has its own 256 character range (0-255)
 
       return newBanks;
     });
@@ -316,14 +290,17 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     setShouldUpdateParent(true);
   };
 
-  const renderCharacterGraphics = (charCode: number): JSX.Element => {
+  const renderCharacterGraphics = (charCode: number, bankIndex?: number): JSX.Element => {
     // Check if this character is assigned to a tile or font
     let assignedTileData: PixelData | null = null;
     let assignedFontPattern: number[] | null = null;
     let hasAssignment = false;
 
-    banks.forEach(bank => {
-      if (charCode >= bank.charsetRangeStart && charCode <= bank.charsetRangeEnd) {
+    // If bankIndex is provided, only check that specific bank
+    const banksToCheck = bankIndex !== undefined ? [banks[bankIndex]] : banks;
+
+    banksToCheck.forEach(bank => {
+      if (bank && charCode >= bank.charsetRangeStart && charCode <= bank.charsetRangeEnd) {
         Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
           if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
             // Font character assignment
@@ -387,8 +364,8 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
       let colorAttrs: any = null;
 
       // Try to get colors from font color attributes if available
-      banks.forEach(bank => {
-        if (charCode >= bank.charsetRangeStart && charCode <= bank.charsetRangeEnd) {
+      banksToCheck.forEach(bank => {
+        if (bank && charCode >= bank.charsetRangeStart && charCode <= bank.charsetRangeEnd) {
           Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
             if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
               const fontChar = (assignment as any).fontCharacters.find((fc: any) => fc.bankCharCode === charCode);
@@ -614,33 +591,21 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     // totalCharsUsedByTiles is now a better reflection of actual usage by assigned tiles
     // const numAssignedTiles = Object.keys(bank.assignedTiles).length; // This counts assets, not char codes
 
-    const isHudOrStatusBank = bank.id === 'bank_hud' || bank.id === 'bank_status_menu';
-    const isMainGameBank = bank.id === 'bank_main_game';
+    // All banks are now independent, no special logic needed
+    const isSpecialBank = false; // No special banks anymore
 
 
     return (
-      <div key={bank.id} className={`p-3 border border-msx-border rounded-md bg-msx-panelbg/70 ${!isBankEffectivelyEnabled && isHudOrStatusBank ? 'opacity-60' : ''}`}>
+      <div key={bank.id} className={`p-3 border border-msx-border rounded-md bg-msx-panelbg/70`}>
         <div className="flex justify-between items-center mb-2">
           <input 
             type="text" 
             value={bank.name} 
             onChange={(e) => handleBankPropertyChange(bank.id, 'name', e.target.value)}
             className="pixel-font text-md text-msx-highlight bg-transparent border-b border-msx-highlight/50 focus:border-msx-highlight outline-none"
-            disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank)}
+            disabled={bank.isLocked}
           />
            <div className="flex items-center space-x-3">
-             {isHudOrStatusBank && (
-                <label className="text-xs flex items-center">
-                    <input 
-                        type="checkbox" 
-                        checked={isBankEffectivelyEnabled} 
-                        onChange={(e) => handleBankPropertyChange(bank.id, 'enabled', e.target.checked)} 
-                        className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent mr-1"
-                        disabled={bank.isLocked}
-                    />
-                    Enabled
-                </label>
-             )}
              <label className="text-xs flex items-center">
                  <input type="checkbox" checked={bank.isLocked} onChange={(e) => handleBankPropertyChange(bank.id, 'isLocked', e.target.checked)} className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent mr-1"/>
                  Locked
@@ -651,42 +616,42 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs mb-2">
           <div>
             <label>Charset Range: </label>
-            <input type="number" value={bank.charsetRangeStart} onChange={(e) => handleBankPropertyChange(bank.id, 'charsetRangeStart', e.target.value)} className="w-12 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank) || isMainGameBank} />
+            <input type="number" value={bank.charsetRangeStart} onChange={(e) => handleBankPropertyChange(bank.id, 'charsetRangeStart', e.target.value)} className="w-12 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={true} />
             -
-            <input type="number" value={bank.charsetRangeEnd} onChange={(e) => handleBankPropertyChange(bank.id, 'charsetRangeEnd', e.target.value)} className="w-12 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank) || isMainGameBank} />
+            <input type="number" value={bank.charsetRangeEnd} onChange={(e) => handleBankPropertyChange(bank.id, 'charsetRangeEnd', e.target.value)} className="w-12 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={true} />
             <span className="text-msx-textsecondary"> ({numCharsInBankRange} chars total in range)</span>
           </div>
           <div>
             <label>VRAM Pattern Start: </label>
-            <input type="text" value={`0x${bank.vramPatternStart.toString(16).toUpperCase()}`} onChange={(e) => handleBankPropertyChange(bank.id, 'vramPatternStart', parseInt(e.target.value,16))} className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank)} />
+            <input type="text" value={`0x${bank.vramPatternStart.toString(16).toUpperCase()}`} onChange={(e) => handleBankPropertyChange(bank.id, 'vramPatternStart', parseInt(e.target.value,16))} className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked} />
             <span className="text-msx-textsecondary"> (Size: {patternBytes}B)</span>
           </div>
           <div>
             <label>VRAM Color Start: </label>
-            <input type="text" value={`0x${bank.vramColorStart.toString(16).toUpperCase()}`} onChange={(e) => handleBankPropertyChange(bank.id, 'vramColorStart', parseInt(e.target.value,16))} className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank)} />
+            <input type="text" value={`0x${bank.vramColorStart.toString(16).toUpperCase()}`} onChange={(e) => handleBankPropertyChange(bank.id, 'vramColorStart', parseInt(e.target.value,16))} className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked} />
             <span className="text-msx-textsecondary"> (Size: {colorBytes}B)</span>
           </div>
            <div>
             <label>Screen Zone (X,Y,W,H): </label>
-            <input type="number" value={bank.screenZone.x} onChange={(e) => handleBankPropertyChange(bank.id, 'screenZone.x', e.target.value)} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank) || isMainGameBank } />
-            <input type="number" value={bank.screenZone.y} onChange={(e) => handleBankPropertyChange(bank.id, 'screenZone.y', e.target.value)} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank) || isMainGameBank } />
-            <input type="number" value={bank.screenZone.width} onChange={(e) => handleBankPropertyChange(bank.id, 'screenZone.width', e.target.value)} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank) || isMainGameBank } />
-            <input type="number" value={bank.screenZone.height} onChange={(e) => handleBankPropertyChange(bank.id, 'screenZone.height', e.target.value)} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank) || isMainGameBank } />
+            <input type="number" value={bank.screenZone.x} onChange={(e) => handleBankPropertyChange(bank.id, 'screenZone.x', e.target.value)} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked} />
+            <input type="number" value={bank.screenZone.y} onChange={(e) => handleBankPropertyChange(bank.id, 'screenZone.y', e.target.value)} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked} />
+            <input type="number" value={bank.screenZone.width} onChange={(e) => handleBankPropertyChange(bank.id, 'screenZone.width', e.target.value)} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked} />
+            <input type="number" value={bank.screenZone.height} onChange={(e) => handleBankPropertyChange(bank.id, 'screenZone.height', e.target.value)} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded" disabled={bank.isLocked} />
           </div>
           <div>
             <label>Default Colors (FG/BG Idx): </label>
-            <select value={bank.defaultFgColorIndex} onChange={(e) => handleBankPropertyChange(bank.id, 'defaultFgColorIndex', e.target.value)} className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded text-xs" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank)}>
+            <select value={bank.defaultFgColorIndex} onChange={(e) => handleBankPropertyChange(bank.id, 'defaultFgColorIndex', e.target.value)} className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded text-xs" disabled={bank.isLocked}>
                 {MSX1_PALETTE.map(c => <option key={`fg-${c.index}`} value={c.index}>{c.index}: {c.name.split(' ')[0]}</option>)}
             </select>
             /
-            <select value={bank.defaultBgColorIndex} onChange={(e) => handleBankPropertyChange(bank.id, 'defaultBgColorIndex', e.target.value)} className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded text-xs" disabled={bank.isLocked || (!isBankEffectivelyEnabled && isHudOrStatusBank)}>
+            <select value={bank.defaultBgColorIndex} onChange={(e) => handleBankPropertyChange(bank.id, 'defaultBgColorIndex', e.target.value)} className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded text-xs" disabled={bank.isLocked}>
                 {MSX1_PALETTE.map(c => <option key={`bg-${c.index}`} value={c.index}>{c.index}: {c.name.split(' ')[0]}</option>)}
             </select>
           </div>
         </div>
         
         <h5 className="text-sm text-msx-cyan mt-3 mb-1">Assigned Tiles ({totalCharsUsedByTiles} / {numCharsInBankRange} char codes used):</h5>
-        <div className={`max-h-32 overflow-y-auto bg-msx-bgcolor p-1 rounded border border-msx-border space-y-0.5 ${(!isBankEffectivelyEnabled && isHudOrStatusBank) ? 'opacity-50' : ''}`}>
+        <div className={`max-h-32 overflow-y-auto bg-msx-bgcolor p-1 rounded border border-msx-border space-y-0.5`}>
             {Object.entries(bank.assignedTiles).map(([tileId, assignment]) => {
                 // Check if this is a font assignment
                 if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
@@ -720,7 +685,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                             </div>
                             <div className="flex items-center gap-1">
                                 <span className="text-msx-textsecondary">ASCII pos: {fontChars.map((fc: any) => fc.bankCharCode).join(',')} - {codesUsedByThisFont}</span>
-                                {!bank.isLocked && isBankEffectivelyEnabled &&
+                                {!bank.isLocked &&
                                     <Button onClick={() => handleRemoveTileFromBank(bank.id, tileId)} size="sm" variant="danger" className="!p-0.5" icon={<TrashIcon className="w-2.5 h-2.5"/>}>{null}</Button>}
                             </div>
                         </div>
@@ -739,7 +704,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                         <div key={tileId} className="flex justify-between items-center p-0.5 text-xs hover:bg-msx-border/50 rounded">
                             <span>{tileAsset?.name || 'Unknown Tile'} (ID: ...{tileId.slice(-4)})</span>
                             <span className="text-msx-textsecondary">Base: {assignment.charCode} (0x{assignment.charCode.toString(16).toUpperCase()}) - {codesUsedByThisTile}</span>
-                            {!bank.isLocked && isBankEffectivelyEnabled &&
+                            {!bank.isLocked &&
                                 <Button onClick={() => handleRemoveTileFromBank(bank.id, tileId)} size="sm" variant="danger" className="!p-0.5" icon={<TrashIcon className="w-2.5 h-2.5"/>}>{null}</Button>}
                         </div>
                     );
@@ -747,7 +712,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             })}
             {totalCharsUsedByTiles === 0 && <p className="text-xs text-msx-textsecondary italic p-1">No tiles assigned to this bank.</p>}
         </div>
-        {!bank.isLocked && isBankEffectivelyEnabled &&
+        {!bank.isLocked &&
             <div className="flex gap-2 mt-2">
                 <Button
                     onClick={() => { setBankToAssignTileTo(bank.id); setIsAssignTileModalOpen(true); }}
@@ -764,8 +729,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                     Font Asset
                 </Button>
             </div>}
-        {isBankEffectivelyEnabled && totalCharsUsedByTiles >= numCharsInBankRange && <p className="text-xs text-red-500 mt-1">Bank character code range full or not enough contiguous space.</p>}
-        {!isBankEffectivelyEnabled && isHudOrStatusBank && <p className="text-xs text-orange-400 mt-1">This bank is currently disabled. Its character range is allocated to the Main Game Area.</p>}
+        {totalCharsUsedByTiles >= numCharsInBankRange && <p className="text-xs text-red-500 mt-1">Bank character code range full or not enough contiguous space.</p>}
       </div>
     );
   };
@@ -774,9 +738,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     <Panel title="Tile Banks Management (SCREEN 2)" icon={<ListBulletIcon />} className="flex-grow flex flex-col p-2 bg-msx-bgcolor overflow-y-auto select-none">
       <div className="flex justify-between items-start mb-2">
         <p className="text-xs text-msx-textsecondary flex-1">
-          Define up to 3 independent banks for character tiles. Each bank reserves a range of character codes (0-255) and VRAM for patterns and colors.
-          Associate banks with screen zones for organization. Exported screen maps will use character codes from these banks.
-          HUD and Status banks can be disabled to give their character codes to the Main Game Area.
+          Define 3 independent banks for character tiles. Each bank has 256 characters (0-255) with dedicated VRAM space.
+          Bank 0: HUD/Fonts, Bank 1: Game Tileset, Bank 2: Background/Status.
+          Each bank corresponds to a different area of MSX Screen 2 memory for optimal pattern organization.
         </p>
         <Button
           onClick={() => setIsTilesetPreviewOpen(true)}
@@ -793,9 +757,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
           <React.Fragment key={bank.id}>
             <button 
                 onClick={() => setSelectedBankId(bank.id)} 
-                className={`w-full text-left p-2 rounded pixel-font text-lg ${selectedBankId === bank.id ? 'bg-msx-accent text-white' : 'bg-msx-panelbg text-msx-highlight hover:bg-msx-border'} ${!(bank.enabled ?? true) && (bank.id === 'bank_hud' || bank.id === 'bank_status_menu') ? 'opacity-70 line-through' : ''}`}
+                className={`w-full text-left p-2 rounded pixel-font text-lg ${selectedBankId === bank.id ? 'bg-msx-accent text-white' : 'bg-msx-panelbg text-msx-highlight hover:bg-msx-border'}`}
             >
-                {bank.name} (Chars: {bank.charsetRangeStart}-{bank.charsetRangeEnd}) {(bank.enabled ?? true) ? '' : '(Disabled)'}
+                {bank.name} (Chars: {bank.charsetRangeStart}-{bank.charsetRangeEnd})
             </button>
             {selectedBankId === bank.id && renderBankControls(bank)}
           </React.Fragment>
@@ -938,7 +902,28 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50" onClick={() => setIsTilesetPreviewOpen(false)}>
           <div className="bg-white p-6 rounded-lg shadow-xl max-w-6xl" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-black">Mapa de Caracteres MSX (256 Characters)</h3>
+              <div className="flex items-center gap-4">
+                <h3 className="text-lg font-bold text-black">Mapa de Caracteres MSX</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentPreviewBank(Math.max(0, currentPreviewBank - 1))}
+                    disabled={currentPreviewBank === 0}
+                    className="bg-blue-500 text-white px-2 py-1 rounded text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="text-sm font-medium text-gray-700">
+                    {banks[currentPreviewBank]?.name || `Bank ${currentPreviewBank}`} ({currentPreviewBank + 1}/3)
+                  </span>
+                  <button
+                    onClick={() => setCurrentPreviewBank(Math.min(2, currentPreviewBank + 1))}
+                    disabled={currentPreviewBank === 2}
+                    className="bg-blue-500 text-white px-2 py-1 rounded text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={() => setIsTilesetPreviewOpen(false)}
                 className="bg-red-500 text-white px-3 py-1 rounded text-sm"
@@ -948,7 +933,19 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             </div>
 
             <div className="bg-gray-100 border border-gray-300 rounded p-4">
-              {/* Complete 256 characters in 16x16 grid */}
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                <div className="text-sm font-medium text-blue-800 mb-1">
+                  🎯 Triple Bank System: 3 × 256 = 768 Total Characters
+                </div>
+                <div className="text-sm text-blue-600">
+                  Bank {currentPreviewBank}: {banks[currentPreviewBank]?.name || 'Unknown'} - 256 Independent Characters (0-255)
+                </div>
+                <div className="text-xs text-blue-500 mt-1">
+                  VRAM: {banks[currentPreviewBank]?.vramPatternStart ? `0x${banks[currentPreviewBank].vramPatternStart.toString(16).toUpperCase()}` : 'N/A'} (Patterns) |
+                  {banks[currentPreviewBank]?.vramColorStart ? ` 0x${banks[currentPreviewBank].vramColorStart.toString(16).toUpperCase()}` : ' N/A'} (Colors)
+                </div>
+              </div>
+              {/* Complete 256 characters in 16x16 grid for current bank */}
               <div
                 style={{
                   display: 'grid',
@@ -958,7 +955,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
               >
                 {Array.from({length: 256}, (_, charCode) => (
                   <div key={charCode} style={{ textAlign: 'center' }}>
-                    {renderCharacterGraphics(charCode)}
+                    {renderCharacterGraphics(charCode, currentPreviewBank)}
                     <div style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>
                       {charCode}
                     </div>

@@ -94,9 +94,24 @@ const App: React.FC = () => {
     confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost';
   } | null>(null);
 
-  const [tileBanks, setTileBanksState] = useState<TileBank[]>(() => { 
+  const [tileBanks, setTileBanksState] = useState<TileBank[]>(() => {
     const savedBanks = localStorage.getItem('tileBanksConfig');
-    return savedBanks ? JSON.parse(savedBanks) : DEFAULT_TILE_BANKS_CONFIG;
+    if (savedBanks) {
+      const parsedBanks = JSON.parse(savedBanks);
+      // Check if we need to migrate to new 3x256 bank system
+      const needsMigration = parsedBanks.some((bank: TileBank) =>
+        bank.id === 'bank_hud' || bank.id === 'bank_main_game' || bank.id === 'bank_status_menu' ||
+        (bank.charsetRangeEnd - bank.charsetRangeStart + 1) !== 256
+      );
+
+      if (needsMigration) {
+        console.log('Migrating to new triple bank system (3x256 characters)');
+        localStorage.setItem('tileBanksConfig', JSON.stringify(DEFAULT_TILE_BANKS_CONFIG));
+        return DEFAULT_TILE_BANKS_CONFIG;
+      }
+      return parsedBanks;
+    }
+    return DEFAULT_TILE_BANKS_CONFIG;
   });
   
   const [msxFont, setMsxFontState] = useState<MSXFont>(() => { 
@@ -901,7 +916,23 @@ const App: React.FC = () => {
           if (projectData.currentScreenMode) setCurrentScreenMode(projectData.currentScreenMode);
           if (projectData.selectedAssetId) setSelectedAssetId(projectData.selectedAssetId);
           if (projectData.currentEditor) setCurrentEditor(projectData.currentEditor);
-          if (projectData.tileBanks) setTileBanksState(projectData.tileBanks); else setTileBanksState(DEFAULT_TILE_BANKS_CONFIG);
+          if (projectData.tileBanks) {
+            // Check if loaded project has old bank system and migrate
+            const loadedBanks = projectData.tileBanks;
+            const needsMigration = loadedBanks.some((bank: TileBank) =>
+              bank.id === 'bank_hud' || bank.id === 'bank_main_game' || bank.id === 'bank_status_menu' ||
+              (bank.charsetRangeEnd - bank.charsetRangeStart + 1) !== 256
+            );
+
+            if (needsMigration) {
+              console.log('Migrating loaded project to new triple bank system');
+              setTileBanksState(DEFAULT_TILE_BANKS_CONFIG);
+            } else {
+              setTileBanksState(projectData.tileBanks);
+            }
+          } else {
+            setTileBanksState(DEFAULT_TILE_BANKS_CONFIG);
+          }
           if (projectData.msxFont) setMsxFontState(projectData.msxFont); else setMsxFontState(DEFAULT_MSX_FONT); 
           if (projectData.msxFontColorAttributes) setMsxFontColorAttributesState(projectData.msxFontColorAttributes); else { const initialColors: MSXFontColorAttributes = {}; Object.keys(projectData.msxFont || msxFont).forEach(charCodeStr => { const charCodeNum = Number(charCodeStr); if (!isNaN(charCodeNum)) { initialColors[charCodeNum] = Array(8).fill(null).map(() => ({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR }));}}); setMsxFontColorAttributesState(initialColors);}
           if (projectData.ideConfiguration) { setDataOutputFormat(projectData.ideConfiguration.dataOutputFormat || 'hex'); setAutosaveEnabled(projectData.ideConfiguration.autosaveEnabled !== undefined ? projectData.ideConfiguration.autosaveEnabled : true); setSnippetsEnabled(projectData.ideConfiguration.snippetsEnabled !== undefined ? projectData.ideConfiguration.snippetsEnabled : true); setSyntaxHighlightingEnabled(projectData.ideConfiguration.syntaxHighlightingEnabled !== undefined ? projectData.ideConfiguration.syntaxHighlightingEnabled : true);}
