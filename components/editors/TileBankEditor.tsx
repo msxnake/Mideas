@@ -4,7 +4,7 @@ import { TileBank, Tile, ProjectAsset, MSX1Color, MSX1ColorValue, MSXFontAsset }
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, SCREEN2_PIXELS_PER_COLOR_SEGMENT, DEFAULT_TILE_BANKS_CONFIG, DEFAULT_SCREEN_HEIGHT_TILES, DEFAULT_SCREEN_WIDTH_TILES } from '../../constants';
-import { PlusCircleIcon, TrashIcon, ListBulletIcon, PencilIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, ListBulletIcon, PencilIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 
 interface TileBankEditorProps {
   tileBanks: TileBank[];
@@ -27,6 +27,7 @@ const calculateVramUsage = (bank: TileBank, tileAssets: ProjectAsset[]): { patte
   Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
     // Check if this is a font assignment
     if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
+      // Count each individual font character
       totalCharsUsedByTiles += (assignment as any).fontCharacters.length;
     } else {
       // Regular tile assignment
@@ -65,17 +66,58 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   const [isFontAssetModalOpen, setIsFontAssetModalOpen] = useState<boolean>(false);
   const [selectedFontId, setSelectedFontId] = useState<string | null>(null);
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
+  const [isTilesetPreviewOpen, setIsTilesetPreviewOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    setBanks(initialTileBanks);
-    if (!selectedBankId && initialTileBanks.length > 0) {
-        setSelectedBankId(initialTileBanks[0].id);
-    } else if (selectedBankId && !initialTileBanks.find(b => b.id === selectedBankId) && initialTileBanks.length > 0) {
-        setSelectedBankId(initialTileBanks[0].id);
-    } else if (initialTileBanks.length === 0) {
+    // Clean up any invalid tile assignments first
+    const cleanedBanks = initialTileBanks.map(bank => {
+      const cleanedAssignedTiles: { [key: string]: any } = {};
+
+      Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+        // Check if this is a font assignment
+        if (tileId.startsWith('font_')) {
+          // For font assignments, check if the font asset still exists
+          const fontIdMatch = tileId.match(/font_([^_]+)/);
+          if (fontIdMatch) {
+            const fontId = fontIdMatch[1];
+            const fontExists = allFonts.some(f => f.id === fontId);
+            if (fontExists) {
+              cleanedAssignedTiles[tileId] = assignment;
+            }
+          }
+        } else {
+          // For regular tile assignments, check if the tile asset still exists
+          const tileExists = allTiles.some(t => t.id === tileId);
+          if (tileExists) {
+            cleanedAssignedTiles[tileId] = assignment;
+          }
+        }
+      });
+
+      return {
+        ...bank,
+        assignedTiles: cleanedAssignedTiles
+      };
+    });
+
+    setBanks(cleanedBanks);
+
+    // Update the parent component if we cleaned anything
+    const hasChanges = cleanedBanks.some((cleanedBank, index) =>
+      Object.keys(cleanedBank.assignedTiles).length !== Object.keys(initialTileBanks[index]?.assignedTiles || {}).length
+    );
+    if (hasChanges) {
+      onUpdateBanks(cleanedBanks);
+    }
+
+    if (!selectedBankId && cleanedBanks.length > 0) {
+        setSelectedBankId(cleanedBanks[0].id);
+    } else if (selectedBankId && !cleanedBanks.find(b => b.id === selectedBankId) && cleanedBanks.length > 0) {
+        setSelectedBankId(cleanedBanks[0].id);
+    } else if (cleanedBanks.length === 0) {
         setSelectedBankId(null);
     }
-  }, [initialTileBanks, selectedBankId]);
+  }, [initialTileBanks, selectedBankId, allTiles, allFonts, onUpdateBanks]);
 
   const handleBankPropertyChange = (bankId: string, property: keyof TileBank | `screenZone.${keyof TileBank['screenZone']}`, value: any) => {
     setBanks(prevBanks => {
@@ -251,6 +293,174 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     });
   };
 
+  const renderCharacterGraphics = (charCode: number): JSX.Element => {
+    // Check if this character is assigned to a tile or font
+    let assignedTileData: PixelData | null = null;
+    let assignedFontPattern: number[] | null = null;
+    let hasAssignment = false;
+
+    banks.forEach(bank => {
+      if (charCode >= bank.charsetRangeStart && charCode <= bank.charsetRangeEnd) {
+        Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+          if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
+            // Font character assignment
+            const fontChars = (assignment as any).fontCharacters;
+            const fontChar = fontChars.find((fc: any) => fc.bankCharCode === charCode);
+            if (fontChar) {
+              const fontAsset = allFonts.find(f => tileId.includes(f.id));
+              if (fontAsset) {
+                const fontData = (fontAsset.data as MSXFontAsset).fontData;
+                // Use the actual ASCII code of the character (A=65, B=66, etc.)
+                const actualCharCode = fontChar.character.charCodeAt(0);
+                const pattern = fontData[actualCharCode];
+                if (pattern && pattern.length === 8) {
+                  assignedFontPattern = pattern;
+                  hasAssignment = true;
+                }
+              }
+            }
+          } else {
+            // Regular tile assignment
+            const tileAsset = allTiles.find(t => t.id === tileId)?.data as Tile | undefined;
+            if (tileAsset) {
+              const widthInChars = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
+              const heightInChars = Math.ceil(tileAsset.height / EDITOR_BASE_TILE_DIM_S2);
+              const totalChars = widthInChars * heightInChars;
+              if (charCode >= assignment.charCode && charCode < assignment.charCode + totalChars) {
+                const charIndex = charCode - assignment.charCode;
+                const charX = charIndex % widthInChars;
+                const charY = Math.floor(charIndex / widthInChars);
+
+                // Extract 8x8 section from tile
+                const startX = charX * 8;
+                const startY = charY * 8;
+                const char8x8: PixelData = [];
+
+                for (let y = 0; y < 8; y++) {
+                  const row: string[] = [];
+                  for (let x = 0; x < 8; x++) {
+                    const pixelX = startX + x;
+                    const pixelY = startY + y;
+                    if (pixelY < tileAsset.data.length && pixelX < tileAsset.data[pixelY].length) {
+                      row.push(tileAsset.data[pixelY][pixelX]);
+                    } else {
+                      row.push('#000000');
+                    }
+                  }
+                  char8x8.push(row);
+                }
+                assignedTileData = char8x8;
+                hasAssignment = true;
+              }
+            }
+          }
+        });
+      }
+    });
+
+    // Create the 8x8 pixel grid
+    if (assignedFontPattern) {
+      // Get font colors from MSX font color attributes or use MSX-like defaults
+      let fgColor = '#5555FF'; // MSX Blue
+      let bgColor = '#AAAAAA'; // MSX Light Gray
+
+      // Try to get colors from font color attributes if available
+      banks.forEach(bank => {
+        if (charCode >= bank.charsetRangeStart && charCode <= bank.charsetRangeEnd) {
+          Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+            if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
+              const fontChar = (assignment as any).fontCharacters.find((fc: any) => fc.bankCharCode === charCode);
+              if (fontChar) {
+                const fontAsset = allFonts.find(f => tileId.includes(f.id));
+                if (fontAsset && (fontAsset.data as MSXFontAsset).fontColorAttributes) {
+                  const actualCharCode = fontChar.character.charCodeAt(0);
+                  const colorAttrs = (fontAsset.data as MSXFontAsset).fontColorAttributes[actualCharCode];
+                  if (colorAttrs) {
+                    // Use the first row's colors
+                    const firstRowColors = colorAttrs[0];
+                    if (firstRowColors) {
+                      fgColor = firstRowColors.fg || '#5555FF';
+                      bgColor = firstRowColors.bg || '#AAAAAA';
+                    }
+                  }
+                }
+              }
+            }
+          });
+        }
+      });
+
+      // Render font pattern (8 bytes, each bit is a pixel)
+      return (
+        <div
+          style={{
+            width: '24px',
+            height: '24px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(8, 1fr)',
+            gridTemplateRows: 'repeat(8, 1fr)',
+            border: '1px solid #666'
+          }}
+        >
+          {assignedFontPattern.map((byte, rowIndex) =>
+            Array.from({length: 8}, (_, colIndex) => {
+              const isPixelOn = (byte & (1 << (7 - colIndex))) !== 0;
+              return (
+                <div
+                  key={`${rowIndex}-${colIndex}`}
+                  style={{
+                    backgroundColor: isPixelOn ? fgColor : bgColor,
+                    width: '100%',
+                    height: '100%'
+                  }}
+                />
+              );
+            })
+          ).flat()}
+        </div>
+      );
+    } else if (assignedTileData && assignedTileData.length === 8) {
+      // Render tile pixel data
+      return (
+        <div
+          style={{
+            width: '24px',
+            height: '24px',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(8, 1fr)',
+            gridTemplateRows: 'repeat(8, 1fr)',
+            border: '1px solid #666'
+          }}
+        >
+          {assignedTileData.map((row, rowIndex) =>
+            row.map((color, colIndex) => (
+              <div
+                key={`${rowIndex}-${colIndex}`}
+                style={{
+                  backgroundColor: color,
+                  width: '100%',
+                  height: '100%'
+                }}
+              />
+            ))
+          ).flat()}
+        </div>
+      );
+    } else {
+      // Empty character - show hex code
+      return (
+        <div
+          className="border border-gray-400 bg-black flex items-center justify-center"
+          style={{ width: '24px', height: '24px' }}
+        >
+          <span className="text-white text-[6px] font-mono">
+            {charCode.toString(16).padStart(2, '0').toUpperCase()}
+          </span>
+        </div>
+      );
+    }
+  };
+
   const handleAssignFontCharactersToBank = (bankId: string, fontId: string, characters: string[]) => {
     setBanks(prevBanks => {
         const newBanks = prevBanks.map(bank => {
@@ -261,61 +471,63 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                     return bank;
                 }
 
-                const fontData = (fontAsset.data as MSXFontAsset).fontData;
+                // Map each character to its exact ASCII position
+                const fontCharMapping: any[] = [];
+                const conflictingCharacters: string[] = [];
 
-                // Check if we have enough character codes for the selected characters
-                const numCharactersNeeded = characters.length;
+                characters.forEach(char => {
+                    const asciiCode = char.charCodeAt(0); // A=65, B=66, etc.
 
-                const usedCharCodesInBank = new Set<number>();
-                Object.entries(bank.assignedTiles).forEach(([assignedTileId, assignment]) => {
-                    const assignedAsset = allTiles.find(t => t.id === assignedTileId)?.data as Tile | undefined;
-                    if (assignedAsset) {
-                        const w = Math.ceil(assignedAsset.width / EDITOR_BASE_TILE_DIM_S2);
-                        const h = Math.ceil(assignedAsset.height / EDITOR_BASE_TILE_DIM_S2);
-                        for (let i = 0; i < w * h; i++) {
-                            usedCharCodesInBank.add(assignment.charCode + i);
+                    // Check if this ASCII position falls within the bank range
+                    if (asciiCode >= bank.charsetRangeStart && asciiCode <= bank.charsetRangeEnd) {
+                        // Check if this position is already occupied by a tile
+                        let isOccupied = false;
+                        Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+                            if (!tileId.startsWith('font_')) {
+                                // Check if ASCII position conflicts with tile assignment
+                                const tileAsset = allTiles.find(t => t.id === tileId)?.data as Tile | undefined;
+                                if (tileAsset) {
+                                    const w = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
+                                    const h = Math.ceil(tileAsset.height / EDITOR_BASE_TILE_DIM_S2);
+                                    const totalChars = w * h;
+                                    if (asciiCode >= assignment.charCode && asciiCode < assignment.charCode + totalChars) {
+                                        isOccupied = true;
+                                    }
+                                }
+                            }
+                        });
+
+                        if (isOccupied) {
+                            conflictingCharacters.push(char);
+                        } else {
+                            fontCharMapping.push({
+                                character: char,
+                                charCode: asciiCode,
+                                bankCharCode: asciiCode // Use the exact ASCII position
+                            });
                         }
-                    } else {
-                        usedCharCodesInBank.add(assignment.charCode);
                     }
                 });
 
-                // Find contiguous space for the font characters
-                let foundBaseCharCode = -1;
-                for (let charCodeAttempt = bank.charsetRangeStart; charCodeAttempt <= bank.charsetRangeEnd - numCharactersNeeded + 1; charCodeAttempt++) {
-                    let blockAvailable = true;
-                    for (let k = 0; k < numCharactersNeeded; k++) {
-                        if (usedCharCodesInBank.has(charCodeAttempt + k)) {
-                            blockAvailable = false;
-                            break;
-                        }
-                    }
-                    if (blockAvailable) {
-                        foundBaseCharCode = charCodeAttempt;
-                        break;
-                    }
+                if (conflictingCharacters.length > 0) {
+                    alert(`Characters ${conflictingCharacters.join(', ')} conflict with existing tile assignments in bank "${bank.name}".`);
                 }
 
-                if (foundBaseCharCode === -1) {
-                    alert(`Bank "${bank.name}" has no contiguous block of ${numCharactersNeeded} free character codes for the selected font characters.`);
+                if (fontCharMapping.length === 0) {
+                    alert(`No characters from ${characters.join('')} can be placed in bank range ${bank.charsetRangeStart}-${bank.charsetRangeEnd}`);
                     return bank;
                 }
 
                 // Create a virtual tile for this font character assignment
                 const fontTileId = `font_${fontId}_${characters.join('')}_${Date.now()}`;
-                const fontTileName = `Font: ${fontAsset.name} (${characters.join('')})`;
 
                 const updatedBank = {
                     ...bank,
                     assignedTiles: {
                         ...bank.assignedTiles,
                         [fontTileId]: {
-                            charCode: foundBaseCharCode,
-                            fontCharacters: characters.map((char, index) => ({
-                                character: char,
-                                charCode: char.charCodeAt(0),
-                                bankCharCode: foundBaseCharCode + index
-                            }))
+                            charCode: 0, // Not used for fonts - each char has its own position
+                            fontCharacters: fontCharMapping
                         }
                     }
                 };
@@ -480,11 +692,22 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
 
   return (
     <Panel title="Tile Banks Management (SCREEN 2)" icon={<ListBulletIcon />} className="flex-grow flex flex-col p-2 bg-msx-bgcolor overflow-y-auto select-none">
-      <p className="text-xs text-msx-textsecondary mb-2">
-        Define up to 3 independent banks for character tiles. Each bank reserves a range of character codes (0-255) and VRAM for patterns and colors.
-        Associate banks with screen zones for organization. Exported screen maps will use character codes from these banks.
-        HUD and Status banks can be disabled to give their character codes to the Main Game Area.
-      </p>
+      <div className="flex justify-between items-start mb-2">
+        <p className="text-xs text-msx-textsecondary flex-1">
+          Define up to 3 independent banks for character tiles. Each bank reserves a range of character codes (0-255) and VRAM for patterns and colors.
+          Associate banks with screen zones for organization. Exported screen maps will use character codes from these banks.
+          HUD and Status banks can be disabled to give their character codes to the Main Game Area.
+        </p>
+        <Button
+          onClick={() => setIsTilesetPreviewOpen(true)}
+          size="sm"
+          variant="secondary"
+          icon={<ViewfinderCircleIcon />}
+          className="ml-2 text-xs whitespace-nowrap"
+        >
+          Preview Tileset
+        </Button>
+      </div>
       <div className="space-y-3">
         {banks.map(bank => (
           <React.Fragment key={bank.id}>
@@ -626,6 +849,42 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
               >
                 Cancel
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isTilesetPreviewOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50" onClick={() => setIsTilesetPreviewOpen(false)}>
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-6xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-black">Mapa de Caracteres MSX (256 Characters)</h3>
+              <button
+                onClick={() => setIsTilesetPreviewOpen(false)}
+                className="bg-red-500 text-white px-3 py-1 rounded text-sm"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="bg-gray-100 border border-gray-300 rounded p-4">
+              {/* Complete 256 characters in 16x16 grid */}
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(16, 1fr)',
+                  gap: '4px'
+                }}
+              >
+                {Array.from({length: 256}, (_, charCode) => (
+                  <div key={charCode} style={{ textAlign: 'center' }}>
+                    {renderCharacterGraphics(charCode)}
+                    <div style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>
+                      {charCode}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
