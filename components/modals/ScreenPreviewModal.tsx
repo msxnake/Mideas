@@ -91,6 +91,8 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
   const animationFrameId = useRef<number>();
   const entitiesRef = useRef<AnimatedEntity[]>([]);
   const [enableScanlines, setEnableScanlines] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const fullScreenTimerRef = useRef<NodeJS.Timeout>();
 
   // HUD rendering function (simplified version from ScreenPlayModal)
   const renderHUDElements = (ctx: CanvasRenderingContext2D) => {
@@ -193,6 +195,32 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
     // Restore context state
     ctx.restore();
   };
+
+  // Full Screen functionality
+  const handleFullScreen = () => {
+    setIsFullScreen(true);
+
+    // Auto-close after 5 seconds
+    fullScreenTimerRef.current = setTimeout(() => {
+      setIsFullScreen(false);
+    }, 5000);
+  };
+
+  const handleExitFullScreen = () => {
+    setIsFullScreen(false);
+    if (fullScreenTimerRef.current) {
+      clearTimeout(fullScreenTimerRef.current);
+    }
+  };
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (fullScreenTimerRef.current) {
+        clearTimeout(fullScreenTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -328,7 +356,30 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         // 2. Render HUD elements
         renderHUDElements(ctx);
 
-        // 3. Update and Draw Entities
+        // 3. Draw Entities to main canvas
+        entitiesRef.current.forEach(entity => {
+            const { x, y, currentFrame } = entity;
+            let imageToDraw = entity.frameImages[currentFrame];
+
+            if (entity.sprite.facingDirection === 'right' && entity.vx < 0 && entity.mirroredFrameImages) {
+                imageToDraw = entity.mirroredFrameImages[currentFrame];
+            } else if (entity.sprite.facingDirection === 'left' && entity.vx > 0 && entity.mirroredFrameImages) {
+                imageToDraw = entity.mirroredFrameImages[currentFrame];
+            } else if (entity.sprite.facingDirection === 'up' && entity.vy > 0 && entity.mirroredFrameImages) {
+                imageToDraw = entity.mirroredFrameImages[currentFrame];
+            } else if (entity.sprite.facingDirection === 'down' && entity.vy < 0 && entity.mirroredFrameImages) {
+                imageToDraw = entity.mirroredFrameImages[currentFrame];
+            }
+
+            if (imageToDraw) {
+              ctx.drawImage(imageToDraw, x, y);
+            }
+        });
+
+        // 4. Render scanlines for CRT effect (on top of everything)
+        renderScanlines(ctx);
+
+        // 5. Update Entities (do this once, after rendering)
         const updatedEntities = entitiesRef.current.map(entity => {
             let { x, y, vx, vy, currentFrame, lastFrameUpdateTime } = entity;
 
@@ -372,18 +423,10 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
                 imageToDraw = entity.mirroredFrameImages[currentFrame];
             }
 
-            if (imageToDraw) {
-              ctx.drawImage(imageToDraw, x, y);
-            }
-
-
             return { ...entity, x, y, vx, vy, currentFrame, lastFrameUpdateTime };
         });
 
         entitiesRef.current = updatedEntities;
-
-        // 4. Render scanlines for CRT effect (on top of everything)
-        renderScanlines(ctx);
 
         animationFrameId.current = requestAnimationFrame(animate);
     };
@@ -395,7 +438,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [isOpen, allAssets, currentScreenMode, screenMap, enableScanlines, tileBanks, msxFont, msxFontColorAttributes]);
+  }, [isOpen, allAssets, currentScreenMode, screenMap, enableScanlines, isFullScreen, tileBanks, msxFont, msxFontColorAttributes]);
 
   if (!isOpen) return null;
 
@@ -424,40 +467,84 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
           100% { opacity: 1; }
         }
       `}</style>
+
+      {/* Container that changes based on full screen mode */}
       <div
         ref={modalRef}
-        className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4 outline-none"
-        onClick={onClose}
+        className={`fixed inset-0 flex items-center justify-center z-50 outline-none ${
+          isFullScreen
+            ? 'bg-black'
+            : 'bg-black bg-opacity-75 animate-fadeIn p-4'
+        }`}
+        onClick={isFullScreen ? handleExitFullScreen : onClose}
         tabIndex={-1}
       >
-      <div
-        className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
-        onClick={e => e.stopPropagation()}
-      >
-        <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Screen Preview</h2>
-        <canvas
-            ref={canvasRef}
-            width={PREVIEW_WIDTH}
-            height={PREVIEW_HEIGHT}
-            className={`border-2 border-msx-border ${enableScanlines ? 'crt-effect' : ''}`}
-            style={{
-                width: PREVIEW_WIDTH * 2,
-                height: PREVIEW_HEIGHT * 2,
-                imageRendering: 'pixelated'
-            }}
-        />
-        <div className="flex gap-3 mt-4">
-          <Button
-            onClick={() => setEnableScanlines(!enableScanlines)}
-            variant={enableScanlines ? "primary" : "secondary"}
-            size="md"
+        {/* Content wrapper - only shows in normal mode */}
+        {!isFullScreen && (
+          <div
+            className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
+            onClick={e => e.stopPropagation()}
           >
-            {enableScanlines ? "CRT ON" : "CRT OFF"}
-          </Button>
-          <Button onClick={onClose} variant="primary" size="md">Close</Button>
-        </div>
+            <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Screen Preview</h2>
+          </div>
+        )}
+
+        {/* Canvas - always present but with different styles */}
+        <canvas
+          ref={canvasRef}
+          width={PREVIEW_WIDTH}
+          height={PREVIEW_HEIGHT}
+          className={`${enableScanlines ? 'crt-effect' : ''} ${
+            isFullScreen
+              ? ''
+              : 'border-2 border-msx-border'
+          }`}
+          style={
+            isFullScreen
+              ? {
+                  width: '90vw',
+                  height: '90vh',
+                  maxWidth: '90vw',
+                  maxHeight: '90vh',
+                  objectFit: 'contain',
+                  imageRendering: 'pixelated'
+                }
+              : {
+                  width: PREVIEW_WIDTH * 2,
+                  height: PREVIEW_HEIGHT * 2,
+                  imageRendering: 'pixelated'
+                }
+          }
+        />
+
+        {/* Full Screen indicator */}
+        {isFullScreen && (
+          <div className="absolute top-4 right-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+            Click to exit | Auto-close in 5s
+          </div>
+        )}
+
+        {/* Controls - only shows in normal mode */}
+        {!isFullScreen && (
+          <div className="flex gap-3 mt-4">
+            <Button
+              onClick={() => setEnableScanlines(!enableScanlines)}
+              variant={enableScanlines ? "primary" : "secondary"}
+              size="md"
+            >
+              {enableScanlines ? "CRT ON" : "CRT OFF"}
+            </Button>
+            <Button
+              onClick={handleFullScreen}
+              variant="secondary"
+              size="md"
+            >
+              Full Screen
+            </Button>
+            <Button onClick={onClose} variant="primary" size="md">Close</Button>
+          </div>
+        )}
       </div>
-    </div>
     </>
   );
 };

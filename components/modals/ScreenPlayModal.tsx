@@ -1071,10 +1071,38 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const pendingSpawnsRef = useRef<EntityInstance[]>([]);
     const [entityCount, setEntityCount] = useState(0);
     const [debugMode, setDebugMode] = useState(false);
+    const [isFullScreen, setIsFullScreen] = useState(false);
+    const fullScreenTimerRef = useRef<NodeJS.Timeout>();
 
     // Pac-Man style movement tracking
     const desiredDirection = useRef<string | null>(null);
     const currentDirection = useRef<string | null>(null);
+
+    // Full Screen functionality
+    const handleFullScreen = () => {
+        setIsFullScreen(true);
+
+        // Auto-close after 5 seconds
+        fullScreenTimerRef.current = setTimeout(() => {
+            setIsFullScreen(false);
+        }, 5000);
+    };
+
+    const handleExitFullScreen = () => {
+        setIsFullScreen(false);
+        if (fullScreenTimerRef.current) {
+            clearTimeout(fullScreenTimerRef.current);
+        }
+    };
+
+    // Clean up timer on unmount
+    useEffect(() => {
+        return () => {
+            if (fullScreenTimerRef.current) {
+                clearTimeout(fullScreenTimerRef.current);
+            }
+        };
+    }, []);
 
     // Helper function to check if entity can move in a specific direction
     const canMoveInDirection = useCallback((entity: AnimatedEntity, direction: string): boolean => {
@@ -2083,56 +2111,98 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         };
-    }, [isOpen, screenMap, allAssets, currentScreenMode, debugMode, renderHUDElements]);
+    }, [isOpen, screenMap, allAssets, currentScreenMode, debugMode, isFullScreen, renderHUDElements]);
 
     if (!isOpen) return null;
 
     return (
         <div
             ref={modalRef}
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4 outline-none"
-            onClick={onClose}
+            className={`fixed inset-0 flex items-center justify-center z-50 outline-none ${
+                isFullScreen
+                    ? 'bg-black'
+                    : 'bg-black bg-opacity-75 animate-fadeIn p-4'
+            }`}
+            onClick={isFullScreen ? handleExitFullScreen : onClose}
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             tabIndex={-1}
         >
-            <div
-                className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
-                onClick={e => e.stopPropagation()}
-            >
-                <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Screen Play Mode</h2>
-                <p className="text-xs text-msx-textsecondary mb-1">Use Arrow keys to move. Press Escape to close.</p>
-                <p className="text-xs text-msx-textsecondary mb-1">
-                    Active Engines: {activeEnginesRef.current.map(e => e.name).join(', ') || 'None'}
-                </p>
-                <p className="text-xs text-msx-textsecondary mb-2">
-                    Total Entities: {entityCount} | Pending Spawns: {pendingSpawnsRef.current.length}
-                </p>
-                <div className="relative" style={{ width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}>
-                    <canvas
-                        ref={canvasRef}
-                        width={PREVIEW_WIDTH}
-                        height={PREVIEW_HEIGHT}
-                        className="border-2 border-msx-border"
-                        style={{
-                            width: PREVIEW_WIDTH * 2,
-                            height: PREVIEW_HEIGHT * 2,
-                            imageRendering: 'pixelated',
-                            backgroundColor: 'black'
-                        }}
-                    />
+            {/* Content wrapper - only shows in normal mode */}
+            {!isFullScreen && (
+                <div
+                    className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Screen Play Mode</h2>
+                    <p className="text-xs text-msx-textsecondary mb-1">Use Arrow keys to move. Press Escape to close.</p>
+                    <p className="text-xs text-msx-textsecondary mb-1">
+                        Active Engines: {activeEnginesRef.current.map(e => e.name).join(', ') || 'None'}
+                    </p>
+                    <p className="text-xs text-msx-textsecondary mb-2">
+                        Total Entities: {entityCount} | Pending Spawns: {pendingSpawnsRef.current.length}
+                    </p>
                 </div>
-                <div className="flex items-center justify-between mt-4">
-                    <Button 
-                        onClick={() => setDebugMode(!debugMode)} 
-                        variant={debugMode ? "primary" : "secondary"} 
+            )}
+
+            {/* Canvas container */}
+            <div
+                className={isFullScreen ? '' : 'relative'}
+                style={isFullScreen ? {} : { width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}
+            >
+                <canvas
+                    ref={canvasRef}
+                    width={PREVIEW_WIDTH}
+                    height={PREVIEW_HEIGHT}
+                    className={isFullScreen ? '' : 'border-2 border-msx-border'}
+                    style={
+                        isFullScreen
+                            ? {
+                                width: '90vw',
+                                height: '90vh',
+                                maxWidth: '90vw',
+                                maxHeight: '90vh',
+                                objectFit: 'contain',
+                                imageRendering: 'pixelated',
+                                backgroundColor: 'black'
+                            }
+                            : {
+                                width: PREVIEW_WIDTH * 2,
+                                height: PREVIEW_HEIGHT * 2,
+                                imageRendering: 'pixelated',
+                                backgroundColor: 'black'
+                            }
+                    }
+                />
+            </div>
+
+            {/* Full Screen indicator */}
+            {isFullScreen && (
+                <div className="absolute top-4 right-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                    Click to exit | Auto-close in 5s
+                </div>
+            )}
+
+            {/* Controls - only shows in normal mode */}
+            {!isFullScreen && (
+                <div className="flex gap-3 mt-4">
+                    <Button
+                        onClick={() => setDebugMode(!debugMode)}
+                        variant={debugMode ? "primary" : "secondary"}
                         size="md"
                     >
                         {debugMode ? "Debug ON" : "Debug OFF"}
                     </Button>
+                    <Button
+                        onClick={handleFullScreen}
+                        variant="secondary"
+                        size="md"
+                    >
+                        Full Screen
+                    </Button>
                     <Button onClick={onClose} variant="primary" size="md">Close</Button>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
