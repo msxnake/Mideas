@@ -217,25 +217,27 @@ export function createTileBasedFont(
         if (ctx && pattern) {
           ctx.imageSmoothingEnabled = false;
 
-          // Get colors from font's own color attributes first, then fallback to custom or defaults
-          let fgColor = customTextColor || '#FF0000'; // Use custom or red default
-          let bgColor = customBackgroundColor || '#000000'; // Use custom or black default
+          // Get default colors
+          const defaultFgColor = customTextColor || '#FF0000'; // Use custom or red default
+          const defaultBgColor = customBackgroundColor || '#000000'; // Use custom or black default
 
-          if (fontColorAttrs && fontColorAttrs[charCode]) {
-            // Use per-character colors if available
-            const charColors = fontColorAttrs[charCode];
-            if (charColors && typeof charColors === 'object') {
-              // Check if it's row-based colors or simple fg/bg
-              if (charColors.fg && charColors.bg) {
-                fgColor = charColors.fg;
-                bgColor = charColors.bg;
-              }
-            }
-          }
-
-          // Render the character pattern
+          // Render the character pattern with per-row colors (MSX Screen 2 style)
           for (let y = 0; y < 8; y++) {
             const rowByte = pattern[y];
+
+            // Get colors for this specific row
+            let fgColor = defaultFgColor;
+            let bgColor = defaultBgColor;
+
+            if (fontColorAttrs && fontColorAttrs[charCode] && Array.isArray(fontColorAttrs[charCode])) {
+              // MSX Screen 2 style: array of color objects, one per row
+              const rowColorAttr = fontColorAttrs[charCode][y];
+              if (rowColorAttr && rowColorAttr.fg && rowColorAttr.bg) {
+                fgColor = rowColorAttr.fg;
+                bgColor = rowColorAttr.bg;
+              }
+            }
+
             for (let x = 0; x < 8; x++) {
               const isPixelSet = (rowByte >> (7 - x)) & 1;
               ctx.fillStyle = isPixelSet ? fgColor : bgColor;
