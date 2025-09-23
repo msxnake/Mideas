@@ -308,6 +308,47 @@ export const FontEditor: React.FC<FontEditorProps> = ({
     onUpdateFontColorAttributes(newFontColors);
   };
 
+  const handleSelectAll = () => {
+    if (selectedCharCode === null) {
+      alert("Please select a source character first to copy its pattern to all characters.");
+      return;
+    }
+
+    const sourcePattern = fontData[selectedCharCode] || Array(8).fill(0);
+    const sourceColorAttributes = fontColorAttributes[selectedCharCode];
+    const newFontData = { ...fontData };
+    const newFontColors = { ...fontColorAttributes };
+
+    charCodesForSelector.forEach(({ code }) => {
+      newFontData[code] = [...sourcePattern];
+      if (currentScreenMode === "SCREEN 2 (Graphics I)" && sourceColorAttributes) {
+        newFontColors[code] = JSON.parse(JSON.stringify(sourceColorAttributes));
+      }
+    });
+
+    onUpdateFont(newFontData);
+    if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+      onUpdateFontColorAttributes(newFontColors);
+    }
+  };
+
+  const handleSelectNone = () => {
+    const newFontData = { ...fontData };
+    const newFontColors = { ...fontColorAttributes };
+
+    charCodesForSelector.forEach(({ code }) => {
+      newFontData[code] = Array(8).fill(0);
+      if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+        newFontColors[code] = Array(8).fill({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR });
+      }
+    });
+
+    onUpdateFont(newFontData);
+    if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+      onUpdateFontColorAttributes(newFontColors);
+    }
+  };
+
   const handleApplyColorsToRange = (rangeType: 'numbers' | 'letters') => {
     if (selectedCharCode === null) {
       alert("Please select a source character first (e.g., '0' for numbers, 'A' for letters).");
@@ -590,6 +631,27 @@ export const FontEditor: React.FC<FontEditorProps> = ({
         {/* Left: Character Selector */}
         <div className="w-48 p-2 border-r border-msx-border overflow-y-auto flex-shrink-0">
           <h4 className="text-sm pixel-font text-msx-highlight mb-2">Characters {filterEditableCharsOnly ? "(Editable Subset)" : "(All 256)"}</h4>
+          <div className="flex gap-1 mb-2">
+            <Button
+              onClick={handleSelectAll}
+              size="sm"
+              variant="secondary"
+              className="text-xs flex-1"
+              disabled={selectedCharCode === null}
+              title="Copy current character pattern to all visible characters"
+            >
+              Select All
+            </Button>
+            <Button
+              onClick={handleSelectNone}
+              size="sm"
+              variant="secondary"
+              className="text-xs flex-1"
+              title="Clear all visible character patterns"
+            >
+              Select None
+            </Button>
+          </div>
           <div className="grid grid-cols-8 gap-1">
             {charCodesForSelector.map(({ code, display }) => (
               <button

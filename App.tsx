@@ -35,6 +35,26 @@ import { createDefaultTrackerPattern as createDefaultPT3Pattern, normalizeImport
 import { resolveSnippetPlaceholders } from './components/utils/snippetResolver'; 
 import { TILE_BANKS_SYSTEM_ASSET_ID, COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, WORLD_VIEW_SYSTEM_ASSET_ID, GAME_FLOW_SYSTEM_ASSET_ID } from './components/tools/FileExplorerPanel';
 import { msxFontJsonString } from './data/msxFontData';
+
+// Función para generar colores variados por carácter
+const getVariedColorsForChar = (charCode: number): { fg: MSX1ColorValue, bg: MSX1ColorValue } => {
+  const colors = [
+    '#FFFFFF', // White
+    '#FF7978', // Light Red
+    '#21B03B', // Dark Green
+    '#5455ED', // Dark Blue
+    '#D4C154', // Dark Yellow
+    '#C95BBA', // Magenta
+    '#42EBF5', // Cyan
+    '#E6CE80', // Light Yellow
+  ];
+
+  const fgIndex = charCode % colors.length;
+  return {
+    fg: colors[fgIndex],
+    bg: DEFAULT_SCREEN2_BG_COLOR // Siempre negro para el fondo
+  };
+};
 import { AppUI } from './components/AppUI';
 import { deepCopy, getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from './utils/projectUtils';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES, DEFAULT_MAP_ASM_CONTENT, DEFAULT_CONSTANTS_ASM_CONTENT } from './data/defaults';
@@ -128,6 +148,7 @@ const App: React.FC = () => {
     }
   });
   
+
   const [msxFontColorAttributes, setMsxFontColorAttributesState] = useState<MSXFontColorAttributes>(() => { 
     try {
         const parsedFont = JSON.parse(msxFontJsonString);
@@ -140,7 +161,9 @@ const App: React.FC = () => {
             Object.keys(msxFont).forEach(charCodeStr => {
                 const charCodeNum = Number(charCodeStr);
                 if (!isNaN(charCodeNum)) {
-                    fontColors[charCodeNum] = Array(8).fill(null).map(() => ({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR }));
+                    // Generar colores variados en lugar de solo blanco
+                    const colors = getVariedColorsForChar(charCodeNum);
+                    fontColors[charCodeNum] = Array(8).fill(null).map(() => colors);
                 }
             });
         }
@@ -151,7 +174,9 @@ const App: React.FC = () => {
         Object.keys(msxFont).forEach(charCodeStr => {
             const charCodeNum = Number(charCodeStr);
             if (!isNaN(charCodeNum)) {
-                 initialColors[charCodeNum] = Array(8).fill(null).map(() => ({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR }));
+                 // Generar colores variados en lugar de solo blanco
+                 const colors = getVariedColorsForChar(charCodeNum);
+                 initialColors[charCodeNum] = Array(8).fill(null).map(() => colors);
             }
         });
         return initialColors;
@@ -934,7 +959,7 @@ const App: React.FC = () => {
             setTileBanksState(DEFAULT_TILE_BANKS_CONFIG);
           }
           if (projectData.msxFont) setMsxFontState(projectData.msxFont); else setMsxFontState(DEFAULT_MSX_FONT); 
-          if (projectData.msxFontColorAttributes) setMsxFontColorAttributesState(projectData.msxFontColorAttributes); else { const initialColors: MSXFontColorAttributes = {}; Object.keys(projectData.msxFont || msxFont).forEach(charCodeStr => { const charCodeNum = Number(charCodeStr); if (!isNaN(charCodeNum)) { initialColors[charCodeNum] = Array(8).fill(null).map(() => ({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR }));}}); setMsxFontColorAttributesState(initialColors);}
+          if (projectData.msxFontColorAttributes) { setMsxFontColorAttributesState(projectData.msxFontColorAttributes); } else { const initialColors: MSXFontColorAttributes = {}; Object.keys(projectData.msxFont || msxFont).forEach(charCodeStr => { const charCodeNum = Number(charCodeStr); if (!isNaN(charCodeNum)) { const colors = getVariedColorsForChar(charCodeNum); initialColors[charCodeNum] = Array(8).fill(null).map(() => colors);}}); setMsxFontColorAttributesState(initialColors);}
           if (projectData.ideConfiguration) { setDataOutputFormat(projectData.ideConfiguration.dataOutputFormat || 'hex'); setAutosaveEnabled(projectData.ideConfiguration.autosaveEnabled !== undefined ? projectData.ideConfiguration.autosaveEnabled : true); setSnippetsEnabled(projectData.ideConfiguration.snippetsEnabled !== undefined ? projectData.ideConfiguration.snippetsEnabled : true); setSyntaxHighlightingEnabled(projectData.ideConfiguration.syntaxHighlightingEnabled !== undefined ? projectData.ideConfiguration.syntaxHighlightingEnabled : true);}
           if (Array.isArray(projectData.userSnippets)) { setUserSnippets(projectData.userSnippets);}
           if (Array.isArray(projectData.helpDocsData)) { setHelpDocsData(projectData.helpDocsData); } else { setHelpDocsData(DEFAULT_HELP_DOCS_DATA); }

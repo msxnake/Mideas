@@ -1,6 +1,7 @@
 
-import { MSXFont, MSXCharacterPattern, MSX1ColorValue, MSXFontColorAttributes, MSXFontRowColorAttributes } from '../../types';
+import { MSXFont, MSXCharacterPattern, MSX1ColorValue, MSXFontColorAttributes, MSXFontRowColorAttributes, TileBank, ProjectAsset, Tile } from '../../types';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants'; // Added MSX1_PALETTE for defaults
+import { createTileDataURL } from './screenUtils';
 
 /**
  * A default MSX-style font for rendering text.
@@ -9,6 +10,7 @@ import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../co
 export const DEFAULT_MSX_FONT: MSXFont = {
   // ASCII Char Code: Pattern (Array of 8 bytes)
   32: [0, 0, 0, 0, 0, 0, 0, 0], // Space
+  45: [0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00], // - (hyphen)
   48: [0x3E, 0x7F, 0x73, 0x73, 0x73, 0x7F, 0x3E, 0x00], // 0
   49: [0x18, 0x38, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x00], // 1
   50: [0x3E, 0x7F, 0x03, 0x3E, 0x60, 0x7F, 0x3E, 0x00], // 2
@@ -18,10 +20,27 @@ export const DEFAULT_MSX_FONT: MSXFont = {
   67: [0x3C, 0x7E, 0x60, 0x60, 0x60, 0x7E, 0x3C, 0x00], // C
   68: [0x7C, 0x7E, 0x66, 0x66, 0x66, 0x7E, 0x7C, 0x00], // D
   69: [0x7F, 0x7F, 0x60, 0x7C, 0x60, 0x7F, 0x7F, 0x00], // E
+  70: [0x7F, 0x7F, 0x60, 0x7C, 0x60, 0x60, 0x60, 0x00], // F
+  71: [0x3E, 0x7F, 0x63, 0x60, 0x67, 0x7F, 0x3E, 0x00], // G
+  72: [0x63, 0x63, 0x63, 0x7F, 0x63, 0x63, 0x63, 0x00], // H
+  73: [0x3E, 0x3E, 0x1C, 0x1C, 0x1C, 0x3E, 0x3E, 0x00], // I
+  74: [0x1F, 0x1F, 0x06, 0x06, 0x66, 0x7E, 0x3C, 0x00], // J
+  75: [0x63, 0x66, 0x6C, 0x78, 0x6C, 0x66, 0x63, 0x00], // K
   76: [0x60, 0x60, 0x60, 0x60, 0x60, 0x7F, 0x7F, 0x00], // L
+  77: [0x63, 0x77, 0x7F, 0x6B, 0x63, 0x63, 0x63, 0x00], // M
+  78: [0x63, 0x73, 0x7B, 0x6F, 0x67, 0x63, 0x63, 0x00], // N
+  79: [0x3E, 0x7F, 0x63, 0x63, 0x63, 0x7F, 0x3E, 0x00], // O
+  80: [0x7E, 0x7F, 0x63, 0x7E, 0x60, 0x60, 0x60, 0x00], // P
+  81: [0x3E, 0x7F, 0x63, 0x6B, 0x67, 0x7F, 0x3E, 0x00], // Q
   82: [0x7E, 0x7F, 0x63, 0x7E, 0x7B, 0x6F, 0x63, 0x00], // R
   83: [0x3E, 0x7F, 0x60, 0x3E, 0x0F, 0x7F, 0x3E, 0x00], // S
   84: [0x7F, 0x7F, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00], // T
+  85: [0x63, 0x63, 0x63, 0x63, 0x63, 0x7F, 0x3E, 0x00], // U
+  86: [0x63, 0x63, 0x63, 0x63, 0x36, 0x1C, 0x08, 0x00], // V
+  87: [0x63, 0x63, 0x63, 0x6B, 0x7F, 0x77, 0x63, 0x00], // W
+  88: [0x63, 0x63, 0x36, 0x1C, 0x36, 0x63, 0x63, 0x00], // X
+  89: [0x63, 0x63, 0x36, 0x1C, 0x18, 0x18, 0x18, 0x00], // Y
+  90: [0x7F, 0x7F, 0x06, 0x0C, 0x30, 0x7F, 0x7F, 0x00], // Z
   // Add more characters as needed for a basic set
   // Question mark for unknown characters
   63: [0x3E, 0x7F, 0x63, 0x18, 0x18, 0x00, 0x18, 0x00], // ?
@@ -59,6 +78,8 @@ export const ALL_CHAR_CODES_FOR_SELECTOR = Array.from({ length: 256 }, (_, i) =>
  * @param fontColorAttributes Optional MSXFontColorAttributes for Screen 2 per-row coloring.
  * @param scale The scaling factor for the output image.
  * @param charSpacing Horizontal space (in 1x pixels) between characters.
+ * @param customTextColor Optional custom text color (overrides defaults).
+ * @param customBackgroundColor Optional custom background color (overrides defaults).
  * @returns A data URL string representing the rendered text image.
  */
 export function renderMSX1TextToDataURL(
@@ -66,7 +87,9 @@ export function renderMSX1TextToDataURL(
   font: MSXFont = DEFAULT_MSX_FONT,
   fontColorAttributes: MSXFontColorAttributes | undefined,
   scale: number = 1,
-  charSpacing: number = 0 // In 1x pixels
+  charSpacing: number = 0, // In 1x pixels
+  customTextColor?: string,
+  customBackgroundColor?: string
 ): string {
   if (!text) return "";
 
@@ -80,8 +103,9 @@ export function renderMSX1TextToDataURL(
 
   ctx.imageSmoothingEnabled = false; // Crucial for pixel art
 
-  const defaultFgColor = MSX1_PALETTE[15].hex; // MSX White
-  const defaultBgColor = 'transparent';
+  // Use custom colors if provided, otherwise use defaults
+  const defaultFgColor = customTextColor || '#FF0000'; // Use custom or red default
+  const defaultBgColor = customBackgroundColor || '#000000'; // Use custom or black default
 
   for (let i = 0; i < text.length; i++) {
     const charCode = text.charCodeAt(i);
@@ -96,16 +120,18 @@ export function renderMSX1TextToDataURL(
         let bgForRow = defaultBgColor;
 
         if (charSpecificRowColors && charSpecificRowColors[y]) {
-          fgForRow = charSpecificRowColors[y].fg || defaultFgColor; // Guard against undefined
-          bgForRow = charSpecificRowColors[y].bg || defaultBgColor; // Guard against undefined
+          // Usar colores de la fila si están definidos, sino usar los defaults (que pueden ser custom)
+          fgForRow = charSpecificRowColors[y].fg || defaultFgColor;
+          bgForRow = charSpecificRowColors[y].bg || defaultBgColor;
         }
         
         for (let x = 0; x < CHAR_WIDTH; x++) { // For each pixel in the row
           const isPixelSet = (rowByte >> (7 - x)) & 1;
           ctx.fillStyle = isPixelSet ? fgForRow : bgForRow;
           
-          // Optimization: only draw if pixel is set OR if background is not transparent.
-          if (isPixelSet || (bgForRow !== 'transparent' && !(bgForRow.startsWith('rgba') && bgForRow.endsWith(',0)')))) {
+          // Always draw to ensure consistent rendering (either foreground or background)
+          // Skip drawing background if it's transparent
+          if (isPixelSet || (bgForRow !== 'transparent' && customBackgroundColor !== 'transparent')) {
             ctx.fillRect(
               (i * totalCharWidth + x) * scale,
               y * scale,
@@ -118,6 +144,189 @@ export function renderMSX1TextToDataURL(
     }
   }
   return canvas.toDataURL();
+}
+
+/**
+ * Creates a tile-based font from Bank 0 tiles using the same logic as ScreenPlayModal.
+ * This ensures consistent rendering between Screen Editor and Play Mode.
+ * @param tileBanks Array of tile banks.
+ * @param allAssets All project assets.
+ * @param msxFont Fallback MSX font.
+ * @param msxFontColorAttributes Fallback font color attributes.
+ * @param customTextColor Optional custom text color (overrides defaults).
+ * @param customBackgroundColor Optional custom background color (overrides defaults).
+ * @returns Object mapping characters to HTMLImageElement or null if not available.
+ */
+export function createTileBasedFont(
+  tileBanks?: TileBank[],
+  allAssets?: ProjectAsset[],
+  msxFont?: MSXFont,
+  msxFontColorAttributes?: MSXFontColorAttributes,
+  customTextColor?: string,
+  customBackgroundColor?: string
+): { [ascii: string]: HTMLImageElement } | null {
+  if (!tileBanks || !allAssets) return null;
+
+  const bank0 = tileBanks.find(bank => bank.id === 'bank_0');
+  if (!bank0 || !bank0.assignedTiles || Object.keys(bank0.assignedTiles).length === 0) {
+    return null;
+  }
+
+  const tileBasedFont: { [ascii: string]: HTMLImageElement } = {};
+  const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+  const fontAssets = allAssets.filter(a => a.type === 'font');
+
+  const bank0TileIds = Object.keys(bank0.assignedTiles);
+  let bank0Fonts = fontAssets.filter(font => bank0TileIds.includes(font.id));
+
+  // If no exact match, try partial matching for font IDs
+  if (bank0Fonts.length === 0) {
+    bank0Fonts = fontAssets.filter(font => {
+      return bank0TileIds.some(bankId => bankId.includes(font.id) || font.id.includes(bankId));
+    });
+  }
+
+  // If we have fonts assigned to Bank 0, use them for character mapping
+  if (bank0Fonts.length > 0) {
+    bank0Fonts.forEach(fontAsset => {
+      const fontData = fontAsset.data;
+
+      // For each character needed, create a direct mapping
+      const charactersNeeded = 'SCORE:0123456789LIVES ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,!?-()[]{}';
+      charactersNeeded.split('').forEach(char => {
+        const charCode = char.charCodeAt(0);
+
+        // Create a canvas for this character using MSX font
+        const canvas = document.createElement('canvas');
+        canvas.width = 8;
+        canvas.height = 8;
+        const ctx = canvas.getContext('2d');
+
+        // Try to get pattern from font data first, then fallback to msxFont prop
+        let pattern = null;
+        let fontColorAttrs = null;
+
+        if (fontData && fontData.fontData && fontData.fontData[charCode]) {
+          pattern = fontData.fontData[charCode];
+          fontColorAttrs = fontData.fontColorAttributes;
+        } else if (msxFont && msxFont[charCode]) {
+          pattern = msxFont[charCode];
+          fontColorAttrs = msxFontColorAttributes;
+        }
+
+        if (ctx && pattern) {
+          ctx.imageSmoothingEnabled = false;
+
+          // Get colors from font's own color attributes first, then fallback to custom or defaults
+          let fgColor = customTextColor || '#FF0000'; // Use custom or red default
+          let bgColor = customBackgroundColor || '#000000'; // Use custom or black default
+
+          if (fontColorAttrs && fontColorAttrs[charCode]) {
+            // Use per-character colors if available
+            const charColors = fontColorAttrs[charCode];
+            if (charColors && typeof charColors === 'object') {
+              // Check if it's row-based colors or simple fg/bg
+              if (charColors.fg && charColors.bg) {
+                fgColor = charColors.fg;
+                bgColor = charColors.bg;
+              }
+            }
+          }
+
+          // Render the character pattern
+          for (let y = 0; y < 8; y++) {
+            const rowByte = pattern[y];
+            for (let x = 0; x < 8; x++) {
+              const isPixelSet = (rowByte >> (7 - x)) & 1;
+              ctx.fillStyle = isPixelSet ? fgColor : bgColor;
+              // Skip drawing background if it's transparent
+              if (isPixelSet || (bgColor !== 'transparent' && customBackgroundColor !== 'transparent')) {
+                ctx.fillRect(x, y, 1, 1);
+              }
+            }
+          }
+
+          // Create image from canvas
+          const img = new Image();
+          img.src = canvas.toDataURL();
+          tileBasedFont[char] = img;
+        }
+      });
+    });
+  }
+
+  return Object.keys(tileBasedFont).length > 0 ? tileBasedFont : null;
+}
+
+/**
+ * Renders text using either tile-based font (like Play Mode) or MSX font fallback.
+ * This ensures consistent rendering between Screen Editor and Play Mode.
+ * @param text The string to render.
+ * @param tileBanks Tile banks for tile-based font.
+ * @param allAssets All project assets.
+ * @param msxFont Fallback MSX font.
+ * @param msxFontColorAttributes Fallback font color attributes.
+ * @param scale The scaling factor for the output image.
+ * @param charSpacing Horizontal space between characters.
+ * @param customTextColor Optional custom text color (overrides defaults).
+ * @param customBackgroundColor Optional custom background color (overrides defaults).
+ * @returns A data URL string representing the rendered text image.
+ */
+export function renderUnifiedTextToDataURL(
+  text: string,
+  tileBanks?: TileBank[],
+  allAssets?: ProjectAsset[],
+  msxFont: MSXFont = DEFAULT_MSX_FONT,
+  msxFontColorAttributes?: MSXFontColorAttributes,
+  scale: number = 1,
+  charSpacing: number = 0,
+  customTextColor?: string,
+  customBackgroundColor?: string
+): string {
+  if (!text) return "";
+
+  // Try to use tile-based font first (same as Play Mode)
+  const tileBasedFont = createTileBasedFont(tileBanks, allAssets, msxFont, msxFontColorAttributes, customTextColor, customBackgroundColor);
+
+  if (tileBasedFont) {
+    // Use tile-based rendering (same logic as ScreenPlayModal)
+    const canvas = document.createElement('canvas');
+    const totalCharWidth = CHAR_WIDTH + charSpacing;
+    canvas.width = (text.length * totalCharWidth - (text.length > 0 ? charSpacing : 0)) * scale;
+    canvas.height = CHAR_HEIGHT * scale;
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) return "";
+
+    ctx.imageSmoothingEnabled = false;
+
+    let xOffset = 0;
+    for (const char of text) {
+      const tileImg = tileBasedFont[char.toUpperCase()] || tileBasedFont[char];
+
+      if (tileImg && tileImg.complete && tileImg.naturalWidth > 0) {
+        ctx.drawImage(tileImg, xOffset * scale, 0, 8 * scale, 8 * scale);
+      } else {
+        // Fallback with custom colors if provided
+        const fallbackBgColor = customBackgroundColor && customBackgroundColor !== 'transparent' ? customBackgroundColor : '#FF0000';
+        const fallbackTextColor = customTextColor || '#FFFFFF';
+
+        if (customBackgroundColor !== 'transparent') {
+          ctx.fillStyle = fallbackBgColor;
+          ctx.fillRect(xOffset * scale, 0, 8 * scale, 8 * scale);
+        }
+        ctx.fillStyle = fallbackTextColor;
+        ctx.font = `${6 * scale}px monospace`;
+        ctx.fillText(char, (xOffset + 1) * scale, (6) * scale);
+      }
+
+      xOffset += 8 + charSpacing;
+    }
+    return canvas.toDataURL();
+  }
+
+  // Fallback to MSX font rendering with custom colors if provided
+  return renderMSX1TextToDataURL(text, msxFont, msxFontColorAttributes, scale, charSpacing, customTextColor, customBackgroundColor);
 }
 
 /**

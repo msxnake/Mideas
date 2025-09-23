@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, EffectZoneFlagKey, ComponentDefinition } from '../../types';
 import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, EFFECT_ZONE_FLAGS } from '../../constants';
-import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
+import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
 
 /**
@@ -23,7 +23,9 @@ export interface ScreenGridProps {
   /** The tileset used for rendering tiles. */
   tileset: Tile[];
   /** A list of all sprite assets in the project. */
-  sprites: ProjectAsset[]; 
+  sprites: ProjectAsset[];
+  /** All project assets for unified font rendering. */
+  allAssets: ProjectAsset[]; 
   /** Callback function when a tile is placed or erased. */
   onTilePlace: (point: Point) => void;
   /** Callback function when an entity is placed. */
@@ -83,7 +85,7 @@ export interface ScreenGridProps {
  * @category ScreenEditor
  */
 export const ScreenGrid: React.FC<ScreenGridProps> = ({
-  mapData, activeLayer, tileset, sprites, onTilePlace, onEntityPlace, onEntitySelect, onEffectZoneSelect, onTileContextMenu,
+  mapData, activeLayer, tileset, sprites, allAssets, onTilePlace, onEntityPlace, onEntitySelect, onEffectZoneSelect, onTileContextMenu,
   gridPixelSize, baseCellPixelWidth, baseCellPixelHeight, currentScreenMode,
   hudElements, editorBaseTileDim, tileBanks, msxFont, msxFontColorAttributes,
   selectedEntityInstanceId, effectZones, selectedEffectZoneId,
@@ -260,9 +262,24 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
       if (isTextBasedHudElement(hudEl.type) && (hudEl.text || hudEl.name)) {
         const textToRender = hudEl.text || hudEl.name || "TEXT";
         const charSpacing = typeof details.charSpacing === 'number' ? details.charSpacing : 0;
-        const fontToUse = msxFont || DEFAULT_MSX_FONT; 
-        
-        const textImageSrc = renderMSX1TextToDataURL(textToRender, fontToUse, msxFontColorAttributes, 1, charSpacing);
+        const fontToUse = msxFont || DEFAULT_MSX_FONT;
+        const fontColorAttrs = msxFontColorAttributes || {};
+
+        // Extract custom colors from HUD element details
+        const hudTextColor = details.textColor || undefined;
+        const hudBackgroundColor = details.textBackgroundColor || undefined;
+
+        const textImageSrc = renderUnifiedTextToDataURL(
+          textToRender,
+          tileBanks,
+          allAssets,
+          fontToUse,
+          fontColorAttrs,
+          1,
+          charSpacing,
+          hudTextColor,
+          hudBackgroundColor
+        );
         const dimensions = getTextDimensionsMSX1(textToRender, charSpacing);
 
         renderedHudPlaceholders.push(

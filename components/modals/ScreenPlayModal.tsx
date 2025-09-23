@@ -12,6 +12,7 @@ import {
 import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
+import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
 import { wallCollisionEngine, entityCollisionEngine, pacMovementEngine, pacmanMovementV2Engine } from '../../src/engines';
 
 // Sprite rotation utilities for auto-generated directional sprites
@@ -1043,6 +1044,9 @@ interface ScreenPlayModalProps {
     entityTemplates: EntityTemplate[];
     componentDefinitions: ComponentDefinition[];
     currentScreenMode: string;
+    msxFont?: any; // MSX font data for HUD rendering
+    msxFontColorAttributes?: any; // MSX font color attributes
+    tileBanks?: any[]; // Tile banks configuration
 }
 
 export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
@@ -1052,7 +1056,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     allAssets,
     entityTemplates,
     componentDefinitions,
-    currentScreenMode
+    currentScreenMode,
+    msxFont,
+    msxFontColorAttributes,
+    tileBanks
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -1676,6 +1683,300 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         
     }, [isOpen, screenMap, allAssets, entityTemplates, componentDefinitions]);
 
+    // HUD image cache
+    const hudImageCache = useRef<Map<string, HTMLImageElement>>(new Map());
+
+    // Function to create tile-based font from Bank 0 tiles
+    const createTileBasedFont = useCallback((customTextColor?: string, customBackgroundColor?: string) => {
+        // Debug: Get tileBanks from props, not screenMap
+        console.log('🔍 Looking for Bank 0 tiles...');
+        console.log('Available tileBanks:', tileBanks);
+
+        const bank0 = tileBanks?.find(bank => bank.id === 'bank_0');
+
+        if (!bank0) {
+            console.warn('❌ Bank 0 not found');
+            return null;
+        }
+
+        console.log('✅ Bank 0 found:', bank0);
+        console.log('Assigned tiles in Bank 0:', bank0.assignedTiles);
+
+        if (!bank0.assignedTiles || Object.keys(bank0.assignedTiles).length === 0) {
+            console.warn('❌ Bank 0 has no assigned tiles');
+            return null;
+        }
+
+        const tileBasedFont: { [ascii: string]: HTMLImageElement } = {};
+
+        // Get both tiles AND fonts from assets
+        const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+        const fontAssets = allAssets.filter(a => a.type === 'font');
+
+        console.log('Available tiles:', tileset.map(t => t.name));
+        console.log('Available fonts:', fontAssets.map(f => f.id));
+
+        // Get all tiles/fonts assigned to Bank 0
+        const bank0TileIds = Object.keys(bank0.assignedTiles);
+        console.log('Bank 0 tile IDs:', bank0TileIds);
+
+        const bank0Tiles = tileset.filter(tile => bank0TileIds.includes(tile.id));
+
+        // Try exact match first, then partial match for fonts
+        let bank0Fonts = fontAssets.filter(font => bank0TileIds.includes(font.id));
+
+        // If no exact match, try partial matching for font IDs
+        if (bank0Fonts.length === 0) {
+            bank0Fonts = fontAssets.filter(font => {
+                return bank0TileIds.some(bankId => bankId.includes(font.id) || font.id.includes(bankId));
+            });
+            console.log('🔍 Using partial font ID matching');
+        }
+
+        console.log('Bank 0 actual tiles:', bank0Tiles.map(t => t.name));
+        console.log('Bank 0 actual fonts:', bank0Fonts.map(f => f.id));
+
+        // If we have fonts assigned to Bank 0, use them for character mapping
+        if (bank0Fonts.length > 0) {
+            console.log('✅ Found fonts in Bank 0, using MSX font data');
+            // Use the MSX font system but with the bank's font data
+            bank0Fonts.forEach(fontAsset => {
+                const fontData = fontAsset.data; // This should be the MSX font data
+                console.log('Font asset:', fontAsset.id, 'Data type:', typeof fontData);
+                console.log('Font data keys:', fontData ? Object.keys(fontData).slice(0, 5) : 'No data');
+
+                // Debug font structure
+                if (fontData && fontData.fontColorAttributes) {
+                    console.log('Font has color attributes. Sample chars:', Object.keys(fontData.fontColorAttributes).slice(0, 5));
+                    const sampleChar = Object.keys(fontData.fontColorAttributes)[0];
+                    if (sampleChar) {
+                        console.log(`Sample color for char ${sampleChar}:`, fontData.fontColorAttributes[sampleChar]);
+                    }
+                }
+
+                // For each character in SCORE/LIVES, create a direct mapping
+                const charactersNeeded = 'SCORE:0123456789LIVES ';
+                charactersNeeded.split('').forEach(char => {
+                    const charCode = char.charCodeAt(0);
+
+                    // Create a canvas for this character using MSX font
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 8;
+                    canvas.height = 8;
+                    const ctx = canvas.getContext('2d');
+
+                    // Try to get pattern from font data first, then fallback to msxFont prop
+                    let pattern = null;
+                    let fontColorAttrs = null;
+
+                    if (fontData && fontData.fontData && fontData.fontData[charCode]) {
+                        pattern = fontData.fontData[charCode];
+                        fontColorAttrs = fontData.fontColorAttributes;
+                        console.log(`Using pattern from font asset for '${char}'`);
+                    } else if (msxFont && msxFont[charCode]) {
+                        pattern = msxFont[charCode];
+                        fontColorAttrs = msxFontColorAttributes;
+                        console.log(`Using pattern from msxFont prop for '${char}'`);
+                    }
+
+                    if (ctx && pattern) {
+                        ctx.imageSmoothingEnabled = false;
+
+                        // Get colors from font's own color attributes first, then fallback to custom or defaults
+                        let fgColor = customTextColor || '#FF0000'; // Use custom or red default
+                        let bgColor = customBackgroundColor || '#000000'; // Use custom or black default
+
+                        if (fontColorAttrs && fontColorAttrs[charCode]) {
+                            const colorAttr = fontColorAttrs[charCode][0]; // Use first row colors
+                            if (colorAttr) {
+                                fgColor = colorAttr.fg || '#FF0000';
+                                bgColor = colorAttr.bg || '#000000';
+                                console.log(`Using font colors for '${char}': fg=${fgColor}, bg=${bgColor}`);
+                            }
+                        } else {
+                            console.log(`Using default red color for '${char}'`);
+                        }
+
+                        // Debug color attributes for this character
+                        if (fontColorAttrs && fontColorAttrs[charCode]) {
+                            console.log(`Color attributes for '${char}' (${charCode}):`, fontColorAttrs[charCode]);
+                        }
+
+                        // Draw the character pattern with per-row colors (MSX Screen 2 style)
+                        for (let y = 0; y < 8; y++) {
+                            if (pattern[y] !== undefined) {
+                                // Get colors for this specific row
+                                let rowFgColor = fgColor;
+                                let rowBgColor = bgColor;
+
+                                if (fontColorAttrs && fontColorAttrs[charCode] && fontColorAttrs[charCode][y]) {
+                                    const rowColorAttr = fontColorAttrs[charCode][y];
+                                    if (rowColorAttr) {
+                                        rowFgColor = rowColorAttr.fg || fgColor;
+                                        rowBgColor = rowColorAttr.bg || bgColor;
+                                    }
+                                }
+
+                                // Draw each pixel in this row
+                                for (let x = 0; x < 8; x++) {
+                                    const bit = (pattern[y] >> (7 - x)) & 1;
+                                    ctx.fillStyle = bit ? rowFgColor : rowBgColor;
+                                    // Skip drawing background if it's transparent
+                                    if (bit || (rowBgColor !== 'transparent' && customBackgroundColor !== 'transparent')) {
+                                        ctx.fillRect(x, y, 1, 1);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Create image from canvas
+                        const img = new Image();
+                        img.src = canvas.toDataURL();
+                        tileBasedFont[char] = img;
+                        console.log(`📝 Created font image for '${char}' (charCode: ${charCode})`);
+                    } else {
+                        console.warn(`❌ No pattern found for '${char}' (charCode: ${charCode})`);
+                    }
+                });
+            });
+        }
+
+        // Try to match tiles by name patterns
+        bank0Tiles.forEach(tile => {
+            const tileName = tile.name.toLowerCase();
+            let matchedChars: string[] = [];
+
+            // Try to detect what character this tile represents
+            if (tileName.includes('0') || tileName.includes('zero')) matchedChars.push('0');
+            if (tileName.includes('1') || tileName.includes('one')) matchedChars.push('1');
+            if (tileName.includes('2') || tileName.includes('two')) matchedChars.push('2');
+            if (tileName.includes('3') || tileName.includes('three')) matchedChars.push('3');
+            if (tileName.includes('4') || tileName.includes('four')) matchedChars.push('4');
+            if (tileName.includes('5') || tileName.includes('five')) matchedChars.push('5');
+            if (tileName.includes('6') || tileName.includes('six')) matchedChars.push('6');
+            if (tileName.includes('7') || tileName.includes('seven')) matchedChars.push('7');
+            if (tileName.includes('8') || tileName.includes('eight')) matchedChars.push('8');
+            if (tileName.includes('9') || tileName.includes('nine')) matchedChars.push('9');
+
+            // Letters
+            'abcdefghijklmnopqrstuvwxyz'.split('').forEach(letter => {
+                if (tileName.includes(letter)) matchedChars.push(letter.toUpperCase());
+            });
+
+            // Special characters
+            if (tileName.includes('colon') || tileName.includes(':')) matchedChars.push(':');
+            if (tileName.includes('space') || tileName.includes(' ')) matchedChars.push(' ');
+            if (tileName.includes('dash') || tileName.includes('-')) matchedChars.push('-');
+
+            // Create images for each matched character
+            matchedChars.forEach(char => {
+                try {
+                    const img = new Image();
+                    img.src = createTileDataURL(tile, 'SCREEN 2 (Graphics I)', 8);
+                    tileBasedFont[char] = img;
+                    console.log(`📝 Mapped '${char}' to tile '${tile.name}'`);
+                } catch (error) {
+                    console.warn(`Failed to create image for tile ${tile.name}:`, error);
+                }
+            });
+        });
+
+        console.log('🎯 Final tile font mapping:', Object.keys(tileBasedFont));
+        return Object.keys(tileBasedFont).length > 0 ? tileBasedFont : null;
+    }, [tileBanks, allAssets]);
+
+    // HUD rendering function
+    const renderHUDElements = useCallback((ctx: CanvasRenderingContext2D) => {
+        const hudElements = screenMap.hudConfiguration?.elements;
+        if (!hudElements || hudElements.length === 0) return;
+
+        console.log('🎨 Rendering HUD elements:', hudElements.length);
+
+        hudElements.forEach(hudEl => {
+            if (!hudEl.visible) return;
+
+            // Check if it's a text-based HUD element
+            const isTextBased = [
+                'Score', 'HighScore', 'Lives', 'SceneName', 'CoinCounter',
+                'AttackAlert', 'TextBox', 'NumericField', 'CustomCounter'
+            ].includes(hudEl.type);
+
+            if (isTextBased && (hudEl.text || hudEl.name)) {
+                const textToRender = hudEl.text || hudEl.name || "TEXT";
+                const charSpacing = hudEl.details?.charSpacing || 0;
+
+                // Extract colors from HUD element details
+                const hudTextColor = hudEl.details?.textColor || undefined;
+                const hudBackgroundColor = hudEl.details?.textBackgroundColor || undefined;
+
+                console.log(`🖼️ Rendering HUD text: "${textToRender}" at (${hudEl.position.x}, ${hudEl.position.y})`);
+                console.log(`🎨 HUD Colors - Text: ${hudTextColor}, Background: ${hudBackgroundColor}`);
+
+                // Try to use tile-based font from Bank 0 first with custom colors
+                const tileBasedFont = createTileBasedFont(hudTextColor, hudBackgroundColor);
+                const fontToUse = msxFont || DEFAULT_MSX_FONT;
+                const fontColorAttrs = msxFontColorAttributes || {};
+
+                if (tileBasedFont) {
+                    console.log('✅ Using tile-based font');
+                    // Render character by character using tiles
+                    let xOffset = hudEl.position.x;
+
+                    for (const char of textToRender) {
+                        const tileImg = tileBasedFont[char.toUpperCase()] || tileBasedFont[char];
+
+                        if (tileImg && tileImg.complete && tileImg.naturalWidth > 0) {
+                            ctx.drawImage(tileImg, xOffset, hudEl.position.y, 8, 8);
+                            console.log(`✅ Drew tile for '${char}' at (${xOffset}, ${hudEl.position.y})`);
+                        } else {
+                            // Fallback with custom colors if provided
+                            const fallbackBgColor = hudBackgroundColor && hudBackgroundColor !== 'transparent' ? hudBackgroundColor : '#FF0000';
+                            const fallbackTextColor = hudTextColor || '#FFFFFF';
+
+                            if (hudBackgroundColor !== 'transparent') {
+                                ctx.fillStyle = fallbackBgColor;
+                                ctx.fillRect(xOffset, hudEl.position.y, 8, 8);
+                            }
+                            ctx.fillStyle = fallbackTextColor;
+                            ctx.font = '6px monospace';
+                            ctx.fillText(char, xOffset + 1, hudEl.position.y + 6);
+                            console.log(`⚠️ Used fallback for '${char}' at (${xOffset}, ${hudEl.position.y}) with colors ${fallbackTextColor}/${fallbackBgColor}`);
+                        }
+
+                        xOffset += 8 + charSpacing;
+                    }
+                } else {
+                    console.log('❌ No tile-based font, using MSX font fallback');
+                    // Fallback to MSX font rendering
+                    try {
+                        const textImageSrc = renderMSX1TextToDataURL(
+                            textToRender,
+                            fontToUse,
+                            fontColorAttrs,
+                            1,
+                            charSpacing,
+                            hudTextColor,
+                            hudBackgroundColor
+                        );
+
+                        const img = new Image();
+                        img.onload = () => {
+                            ctx.drawImage(img, hudEl.position.x, hudEl.position.y);
+                        };
+                        img.src = textImageSrc;
+                    } catch (error) {
+                        console.warn('Failed to render fallback HUD text:', textToRender, error);
+
+                        // Final fallback: simple text with custom colors
+                        ctx.fillStyle = hudTextColor || '#FFFFFF';
+                        ctx.font = '8px monospace';
+                        ctx.fillText(textToRender, hudEl.position.x, hudEl.position.y + 8);
+                    }
+                }
+            }
+        });
+    }, [screenMap.hudConfiguration?.elements, msxFont, msxFontColorAttributes, createTileBasedFont]);
+
     // Key tracking system
     useEffect(() => {
         if (!isOpen) return;
@@ -1724,6 +2025,9 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         const animate = () => {
             ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
             renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
+
+            // Render HUD elements
+            renderHUDElements(ctx);
 
             // Execute Active Game Engines Dynamically
             activeEnginesRef.current.forEach(engine => {
@@ -1977,7 +2281,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         };
-    }, [isOpen, screenMap, allAssets, currentScreenMode, debugMode]);
+    }, [isOpen, screenMap, allAssets, currentScreenMode, debugMode, renderHUDElements]);
 
     if (!isOpen) return null;
 

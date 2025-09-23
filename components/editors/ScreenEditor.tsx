@@ -848,6 +848,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             activeLayer={activeLayer}
             tileset={tileset}
             sprites={sprites}
+            allAssets={allProjectAssets}
             onTilePlace={handleTilePlace}
             onEntityPlace={handleEntityPlace}
             onEntitySelect={onSelectEntityInstance}
@@ -954,6 +955,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         entityTemplates={entityTemplates}
         componentDefinitions={componentDefinitions}
         currentScreenMode={currentScreenMode}
+        msxFont={msx1FontData}
+        msxFontColorAttributes={msxFontColorAttributes}
+        tileBanks={tileBanks}
       />
     </Panel>
   );

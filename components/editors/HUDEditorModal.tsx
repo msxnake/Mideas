@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { HUDConfiguration, HUDElement, HUDElementType, HUDElementProperties_Base, MSXColorValue, MSX1ColorValue, MSXFont, MSXFontColorAttributes } from '../../types';
+import { HUDConfiguration, HUDElement, HUDElementType, HUDElementProperties_Base, MSXColorValue, MSX1ColorValue, MSXFont, MSXFontColorAttributes, TileBank, Tile, ProjectAsset } from '../../types';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
-import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants'; 
-import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer'; 
+import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants';
+import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
+import { createTileDataURL } from '../utils/screenUtils'; 
 
 /**
  * Props for the HUDEditorModal component.
@@ -38,6 +39,10 @@ interface HUDEditorModalProps {
   msxFont: MSXFont; 
   /** The font color attributes for SCREEN 2 mode. */
   msxFontColorAttributes: MSXFontColorAttributes;
+  /** The tile banks configuration. */
+  tileBanks?: TileBank[];
+  /** All project assets for tile access. */
+  allAssets?: ProjectAsset[];
 }
 
 type HudTab = "Basic Stats" | "Game Elements" | "Boss Battle" | "Custom";
@@ -56,9 +61,9 @@ const DEFAULT_HUD_ELEMENT_PROPS: Omit<HUDElementProperties_Base, 'name'> = {
  */
 const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; defaultText?: string; defaultDetails?: Record<string, any> }[]> = {
   "Basic Stats": [
-    { type: HUDElementType.Score, name: "Score", defaultText: "SCORE: 000000", defaultDetails: { digits: 6, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent' } },
-    { type: HUDElementType.HighScore, name: "High Score", defaultText: "HI-SCORE: 000000", defaultDetails: { digits: 6, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent' } },
-    { type: HUDElementType.Lives, name: "Lives", defaultText: "LIVES:", defaultDetails: { icon: 'ship', max: 3, iconTileId: null, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.Score, name: "Score", defaultText: "SCORE: 000000", defaultDetails: { digits: 6, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.HighScore, name: "High Score", defaultText: "HI-SCORE: 000000", defaultDetails: { digits: 6, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.Lives, name: "Lives", defaultText: "LIVES:", defaultDetails: { icon: 'ship', max: 3, iconTileId: null, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
     { 
       type: HUDElementType.EnergyBar, 
       name: "Energy Bar", 
@@ -95,9 +100,9 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
         overallBackgroundColor: 'rgba(0,0,100,0.3)' as MSXColorValue,
       } 
     },
-    { type: HUDElementType.SceneName, name: "Scene Name Display", defaultText: "STAGE 1", defaultDetails: { animation: 'static', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.SceneName, name: "Scene Name Display", defaultText: "STAGE 1", defaultDetails: { animation: 'static', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
     { type: HUDElementType.MiniMap, name: "Mini-Map", defaultDetails: { style: 'grid', size: "64x64" } }, 
-    { type: HUDElementType.CoinCounter, name: "Coin Counter", defaultText: "$00", defaultDetails: { symbol: '$', format: 'X00', textColor: MSX1_PALETTE[11].hex, textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.CoinCounter, name: "Coin Counter", defaultText: "$00", defaultDetails: { symbol: '$', format: 'X00', textColor: MSX1_PALETTE[11].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
   ],
   "Boss Battle": [
     { 
@@ -121,12 +126,12 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
       } 
     },
     { type: HUDElementType.PhaseIndicator, name: "Boss Phase", defaultDetails: { icons: 3, iconTileId: null } },
-    { type: HUDElementType.AttackAlert, name: "Attack Alert", defaultText: "WARNING!", defaultDetails: { blink: true, textColor: MSX1_PALETTE[8].hex, textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.AttackAlert, name: "Attack Alert", defaultText: "WARNING!", defaultDetails: { blink: true, textColor: MSX1_PALETTE[8].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
   ],
   "Custom": [
-    { type: HUDElementType.TextBox, name: "Custom Text Box", defaultText: "Your text here...", defaultDetails: { border: 'decorative', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: MSX1_PALETTE[4].hex } },
-    { type: HUDElementType.NumericField, name: "Custom Numeric Field", defaultText: "DATA: 123", defaultDetails: { label: 'DATA:', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent' } },
-    { type: HUDElementType.CustomCounter, name: "Custom Counter", defaultText: "00", defaultDetails: { format: 'decimal', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.TextBox, name: "Custom Text Box", defaultText: "Your text here...", defaultDetails: { border: 'decorative', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: MSX1_PALETTE[4].hex, fontAssetId: '' } },
+    { type: HUDElementType.NumericField, name: "Custom Numeric Field", defaultText: "DATA: 123", defaultDetails: { label: 'DATA:', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.CustomCounter, name: "Custom Counter", defaultText: "00", defaultDetails: { format: 'decimal', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
   ],
 };
 
@@ -261,6 +266,15 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
 
   const selectedElement = localHudConfig.elements.find(el => el.id === selectedElementId);
 
+  // Función para verificar si es un elemento de texto
+  const isTextBasedElement = (elType: HUDElementType) => {
+    return [
+        HUDElementType.Score, HUDElementType.HighScore, HUDElementType.Lives,
+        HUDElementType.SceneName, HUDElementType.CoinCounter, HUDElementType.AttackAlert,
+        HUDElementType.TextBox, HUDElementType.NumericField, HUDElementType.CustomCounter
+    ].includes(elType);
+  };
+
   if (!isOpen) return null;
 
   const renderPropertyField = (element: HUDElement, key: string, value: any, pathPrefix: string) => {
@@ -373,6 +387,35 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         }
         return <p className="text-xs text-msx-textsecondary">{label}: [Object]</p>;
     }
+
+    // Selector de fuente para elementos de texto
+    if (key === 'fontAssetId' && pathPrefix === 'details') {
+        try {
+            const fontAssets = allAssets?.filter(asset => asset.type === 'font') || [];
+            const currentValue = value || '';
+            return (
+                <div key={fullPath}>
+                    <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">Font Asset:</label>
+                    <select
+                        id={inputId}
+                        value={currentValue}
+                        onChange={(e) => {
+                            const newValue = e.target.value;
+                            handlePropertyChange(element.id, fullPath, newValue === '' ? '' : newValue);
+                        }}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent">
+                        <option value="">Default MSX Font</option>
+                        {fontAssets.map(asset => (
+                            <option key={asset.id} value={asset.id}>{asset.name}</option>
+                        ))}
+                    </select>
+                </div>
+            );
+        } catch (error) {
+            return null;
+        }
+    }
+
     const isTextarea = key === 'text' && typeof value === 'string' && (value.length > 30 || value.includes('\n'));
     if (isTextarea) {
         return (
@@ -404,14 +447,6 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
 
   const scaledTileW = baseCellDimension * finalPreviewScale;
   const scaledTileH = baseCellDimension * finalPreviewScale;
-
-  const isTextBasedElement = (elType: HUDElementType) => {
-    return [
-        HUDElementType.Score, HUDElementType.HighScore, HUDElementType.Lives,
-        HUDElementType.SceneName, HUDElementType.CoinCounter, HUDElementType.AttackAlert,
-        HUDElementType.TextBox, HUDElementType.NumericField, HUDElementType.CustomCounter
-    ].includes(elType);
-  };
 
 
   const renderHudPreview = () => {
@@ -449,14 +484,33 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         if (isTextBasedElement(el.type) && (el.text || el.name)) {
             const textToRender = el.text || el.name || "TEXT";
             const charSpacing = typeof details.charSpacing === 'number' ? details.charSpacing : 0;
-            const fontToUse = msxFont || DEFAULT_MSX_FONT;
-             // Pass fontColorAttributes directly
-            const textImageSrc = renderMSX1TextToDataURL(textToRender, fontToUse, msxFontColorAttributes, 1, charSpacing);
+
+            // Usar fuente seleccionada si existe
+            let fontToUse = msxFont || DEFAULT_MSX_FONT;
+            let fontColorAttributesToUse = msxFontColorAttributes;
+
+            // Usar fuente seleccionada solo si es válida
+            try {
+                if (details && details.fontAssetId && allAssets && details.fontAssetId !== '') {
+                    const selectedFontAsset = allAssets.find(asset => asset.id === details.fontAssetId && asset.type === 'font');
+                    if (selectedFontAsset && selectedFontAsset.data && typeof selectedFontAsset.data === 'object' && selectedFontAsset.data !== null) {
+                        const fontAssetData = selectedFontAsset.data as any;
+                        if (fontAssetData.fontData && typeof fontAssetData.fontData === 'object') {
+                            fontToUse = fontAssetData.fontData;
+                            fontColorAttributesToUse = fontAssetData.fontColorAttributes || msxFontColorAttributes;
+                        }
+                    }
+                }
+            } catch (error) {
+                // Continuar con fuente por defecto
+            }
+
+            const textImageSrc = renderMSX1TextToDataURL(textToRender, fontToUse, fontColorAttributesToUse, 1, charSpacing);
             const dimensions = getTextDimensionsMSX1(textToRender, charSpacing);
             
             let bgColorForPreview = 'transparent';
-            if (isMSX1Screen && msxFontColorAttributes) {
-                const firstCharAttrs = msxFontColorAttributes[textToRender.charCodeAt(0)];
+            if (isMSX1Screen && fontColorAttributesToUse) {
+                const firstCharAttrs = fontColorAttributesToUse[textToRender.charCodeAt(0)];
                 if (firstCharAttrs && firstCharAttrs[0]) { // Use first row's BG for the image container if defined
                     bgColorForPreview = firstCharAttrs[0].bg;
                 }
