@@ -818,6 +818,57 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
             {selectedFontId && (
               <div className="mb-4">
                 <label className="block text-sm text-msx-cyan mb-2">Select Characters (A-Z, 0-9):</label>
+
+                {/* Quick selection buttons */}
+                <div className="flex gap-2 mb-3">
+                  <Button
+                    onClick={() => {
+                      const alphabet = Array.from({length: 26}, (_, i) => String.fromCharCode(65 + i));
+                      setSelectedCharacters(prev => {
+                        const newSelection = [...prev];
+                        alphabet.forEach(char => {
+                          if (!newSelection.includes(char)) {
+                            newSelection.push(char);
+                          }
+                        });
+                        return newSelection;
+                      });
+                    }}
+                    size="sm"
+                    variant="secondary"
+                    className="text-xs"
+                  >
+                    Select A-Z
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      const numbers = Array.from({length: 10}, (_, i) => String.fromCharCode(48 + i));
+                      setSelectedCharacters(prev => {
+                        const newSelection = [...prev];
+                        numbers.forEach(char => {
+                          if (!newSelection.includes(char)) {
+                            newSelection.push(char);
+                          }
+                        });
+                        return newSelection;
+                      });
+                    }}
+                    size="sm"
+                    variant="secondary"
+                    className="text-xs"
+                  >
+                    Select 0-9
+                  </Button>
+                  <Button
+                    onClick={() => setSelectedCharacters([])}
+                    size="sm"
+                    variant="danger"
+                    className="text-xs"
+                  >
+                    Clear All
+                  </Button>
+                </div>
+
                 <div className="grid grid-cols-8 gap-1 p-2 bg-msx-bgcolor border border-msx-border rounded max-h-40 overflow-y-auto">
                   {/* A-Z */}
                   {Array.from({length: 26}, (_, i) => String.fromCharCode(65 + i)).map(char => (
