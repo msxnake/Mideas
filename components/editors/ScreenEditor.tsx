@@ -946,6 +946,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         allAssets={allProjectAssets}
         currentScreenMode={currentScreenMode}
         entityTemplates={entityTemplates}
+        tileBanks={tileBanks}
+        msxFont={msx1FontData}
+        msxFontColorAttributes={msxFontColorAttributes}
       />
       <ScreenPlayModal
         isOpen={isPlayModalOpen}

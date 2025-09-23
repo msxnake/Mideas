@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ProjectAsset, ScreenMap, Tile, Sprite, EntityInstance, EntityTemplate, AssetType, PixelData } from '../../types';
+import { ProjectAsset, ScreenMap, Tile, Sprite, EntityInstance, EntityTemplate, AssetType, PixelData, TileBank, MSXFont, MSXFontColorAttributes } from '../../types';
 import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
+import { createTileBasedFont, renderMSX1TextToDataURL, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
 
 /** The width of the preview canvas in pixels. @constant */
 const PREVIEW_WIDTH = 256;
@@ -28,6 +29,12 @@ interface ScreenPreviewModalProps {
   currentScreenMode: string;
   /** A list of all entity templates in the project. */
   entityTemplates: EntityTemplate[];
+  /** The tile banks configuration for SCREEN 2 mode. */
+  tileBanks?: TileBank[];
+  /** The MSX font data for rendering text elements. */
+  msxFont?: MSXFont;
+  /** The MSX font color attributes for per-row coloring. */
+  msxFontColorAttributes?: MSXFontColorAttributes;
 }
 
 /**
@@ -75,11 +82,117 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
   allAssets,
   currentScreenMode,
   entityTemplates,
+  tileBanks,
+  msxFont,
+  msxFontColorAttributes,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number>();
   const entitiesRef = useRef<AnimatedEntity[]>([]);
+  const [enableScanlines, setEnableScanlines] = useState(false);
+
+  // HUD rendering function (simplified version from ScreenPlayModal)
+  const renderHUDElements = (ctx: CanvasRenderingContext2D) => {
+    const hudElements = screenMap.hudConfiguration?.elements;
+    if (!hudElements || hudElements.length === 0) return;
+
+    hudElements.forEach(hudEl => {
+      if (!hudEl.visible) return;
+
+      // Check if it's a text-based HUD element
+      const isTextBased = [
+        'Score', 'HighScore', 'Lives', 'SceneName', 'CoinCounter',
+        'AttackAlert', 'TextBox', 'NumericField', 'CustomCounter'
+      ].includes(hudEl.type);
+
+      if (isTextBased && (hudEl.text || hudEl.name)) {
+        const textToRender = hudEl.text || hudEl.name || "TEXT";
+        const charSpacing = hudEl.details?.charSpacing || 0;
+
+        // Extract colors from HUD element details
+        const hudTextColor = hudEl.details?.textColor || undefined;
+        const hudBackgroundColor = hudEl.details?.textBackgroundColor || undefined;
+
+        // Try to use tile-based font from Bank 0 first with custom colors
+        const tileBasedFont = createTileBasedFont(tileBanks, allAssets, msxFont || DEFAULT_MSX_FONT, msxFontColorAttributes, hudTextColor, hudBackgroundColor);
+        const fontToUse = msxFont || DEFAULT_MSX_FONT;
+        const fontColorAttrs = msxFontColorAttributes || {};
+
+        if (tileBasedFont) {
+          // Render character by character using tiles
+          let xOffset = hudEl.position.x;
+
+          for (const char of textToRender) {
+            const tileImg = tileBasedFont[char.toUpperCase()] || tileBasedFont[char];
+
+            if (tileImg && tileImg.complete && tileImg.naturalWidth > 0) {
+              ctx.drawImage(tileImg, xOffset, hudEl.position.y, 8, 8);
+            } else {
+              // Fallback with custom colors if provided
+              const fallbackBgColor = hudBackgroundColor && hudBackgroundColor !== 'transparent' ? hudBackgroundColor : '#FF0000';
+              const fallbackTextColor = hudTextColor || '#FFFFFF';
+
+              if (hudBackgroundColor !== 'transparent') {
+                ctx.fillStyle = fallbackBgColor;
+                ctx.fillRect(xOffset, hudEl.position.y, 8, 8);
+              }
+              ctx.fillStyle = fallbackTextColor;
+              ctx.font = '6px monospace';
+              ctx.fillText(char, xOffset + 1, hudEl.position.y + 6);
+            }
+
+            xOffset += 8 + charSpacing;
+          }
+        } else {
+          // Fallback to MSX font rendering
+          try {
+            const textImageSrc = renderMSX1TextToDataURL(
+              textToRender,
+              fontToUse,
+              fontColorAttrs,
+              1,
+              charSpacing,
+              hudTextColor,
+              hudBackgroundColor
+            );
+
+            const img = new Image();
+            img.onload = () => {
+              ctx.drawImage(img, hudEl.position.x, hudEl.position.y);
+            };
+            img.src = textImageSrc;
+          } catch (error) {
+            // Final fallback: simple text with custom colors
+            ctx.fillStyle = hudTextColor || '#FFFFFF';
+            ctx.font = '8px monospace';
+            ctx.fillText(textToRender, hudEl.position.x, hudEl.position.y + 8);
+          }
+        }
+      }
+    });
+  };
+
+  // Scanlines rendering function for CRT simulation
+  const renderScanlines = (ctx: CanvasRenderingContext2D) => {
+    if (!enableScanlines) return;
+
+    // Save current context state
+    ctx.save();
+
+    // Set scanlines properties - Subtle CRT scanlines
+    ctx.globalAlpha = 0.25; // Subtle but visible transparency
+    ctx.fillStyle = '#000000'; // Black scanlines
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Draw horizontal scanlines every 2 pixels (authentic CRT spacing)
+    for (let y = 1; y < PREVIEW_HEIGHT; y += 2) {
+      ctx.fillRect(0, y, PREVIEW_WIDTH, 1); // 1 pixel thick
+    }
+
+    // Restore context state
+    ctx.restore();
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -212,7 +325,10 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
         renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
 
-        // 2. Update and Draw Entities
+        // 2. Render HUD elements
+        renderHUDElements(ctx);
+
+        // 3. Update and Draw Entities
         const updatedEntities = entitiesRef.current.map(entity => {
             let { x, y, vx, vy, currentFrame, lastFrameUpdateTime } = entity;
 
@@ -265,6 +381,10 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         });
 
         entitiesRef.current = updatedEntities;
+
+        // 4. Render scanlines for CRT effect (on top of everything)
+        renderScanlines(ctx);
+
         animationFrameId.current = requestAnimationFrame(animate);
     };
 
@@ -275,17 +395,41 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, [isOpen, allAssets, currentScreenMode, screenMap]);
+  }, [isOpen, allAssets, currentScreenMode, screenMap, enableScanlines, tileBanks, msxFont, msxFontColorAttributes]);
 
   if (!isOpen) return null;
 
   return (
-    <div
+    <>
+      <style>{`
+        .crt-effect {
+          filter: contrast(1.1) brightness(1.1);
+          box-shadow:
+            inset 0 0 20px rgba(0, 255, 0, 0.1),
+            0 0 20px rgba(0, 255, 0, 0.2);
+          border-radius: 4px;
+          background: linear-gradient(
+            180deg,
+            transparent 50%,
+            rgba(0, 0, 0, 0.05) 50%
+          );
+          background-size: 100% 4px;
+          animation: crt-flicker 0.15s infinite linear alternate;
+        }
+
+        @keyframes crt-flicker {
+          0% { opacity: 1; }
+          98% { opacity: 1; }
+          99% { opacity: 0.98; }
+          100% { opacity: 1; }
+        }
+      `}</style>
+      <div
         ref={modalRef}
         className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4 outline-none"
         onClick={onClose}
         tabIndex={-1}
-    >
+      >
       <div
         className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
         onClick={e => e.stopPropagation()}
@@ -295,15 +439,25 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
             ref={canvasRef}
             width={PREVIEW_WIDTH}
             height={PREVIEW_HEIGHT}
-            className="border-2 border-msx-border"
+            className={`border-2 border-msx-border ${enableScanlines ? 'crt-effect' : ''}`}
             style={{
                 width: PREVIEW_WIDTH * 2,
                 height: PREVIEW_HEIGHT * 2,
                 imageRendering: 'pixelated'
             }}
         />
-        <Button onClick={onClose} variant="primary" size="md" className="mt-4">Close</Button>
+        <div className="flex gap-3 mt-4">
+          <Button
+            onClick={() => setEnableScanlines(!enableScanlines)}
+            variant={enableScanlines ? "primary" : "secondary"}
+            size="md"
+          >
+            {enableScanlines ? "CRT ON" : "CRT OFF"}
+          </Button>
+          <Button onClick={onClose} variant="primary" size="md">Close</Button>
+        </div>
       </div>
     </div>
+    </>
   );
 };
