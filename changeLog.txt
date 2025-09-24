@@ -228,3 +228,87 @@ Versión 1 - 21/9/2025
 - bugs
 - state m 1
 - state machine rev 2
+
+Versión 0.243 - 24/9/2025
+- fix bugs Preview, Play in Screen Editor
+- gameFlowNode fix
+- casi full screen
+- screen editor-scanlines
+- add buttons select a-z ,num
+- resuelto parcialmente
+- bugs Font Editor Bank Editor
+- continuacion tile bank mod.
+- insertar triple bank
+- Fix font assignment to Tile Banks and React setState issues
+- Font colors per-row support in Tile Banks
+- bug trash resolved
+- bank font -1-
+- last_end_rom.asm
+- Deleted Font Editor Project button
+- Finish Font Editor assets
+- empezar multi assets fuentes
+- Sistema Summary implementado con validación de dependencias
+- inicio control gameflow
+- punto inflexion asm , sistemas
+- add button run openmsx
+- fuente acabada
+- comenzamos fuente data
+- codigo corrupto
+- millorant asm msx part 1
+- memoria Ram y Rom
+- puntualizacion Ram y Rom
+- Merge branch 'main' of https://github.com/msxnake/Mideas
+- Delete .github/workflows directory
+- nova versio
+- clean 2
+- clean up archives
+- minor improvements
+- sorting structure
+- pacman2
+- bugs collision
+- prueba collision
+- varis, abans de gemini wallCollision
+- canvis  motor wallcollision
+- mejorando codigo asm
+
+Versión 0.244 - 24/9/2025
+- fix bugs Preview, Play in Screen Editor
+- gameFlowNode fix
+- casi full screen
+- screen editor-scanlines
+- add buttons select a-z ,num
+- resuelto parcialmente
+- bugs Font Editor Bank Editor
+- continuacion tile bank mod.
+- insertar triple bank
+- Fix font assignment to Tile Banks and React setState issues
+- Font colors per-row support in Tile Banks
+- bug trash resolved
+- bank font -1-
+- last_end_rom.asm
+- Deleted Font Editor Project button
+- Finish Font Editor assets
+- empezar multi assets fuentes
+- Sistema Summary implementado con validación de dependencias
+- inicio control gameflow
+- punto inflexion asm , sistemas
+- add button run openmsx
+- fuente acabada
+- comenzamos fuente data
+- codigo corrupto
+- millorant asm msx part 1
+- memoria Ram y Rom
+- puntualizacion Ram y Rom
+- Merge branch 'main' of https://github.com/msxnake/Mideas
+- Delete .github/workflows directory
+- nova versio
+- clean 2
+- clean up archives
+- minor improvements
+- sorting structure
+- pacman2
+- bugs collision
+- prueba collision
+- varis, abans de gemini wallCollision
+- canvis  motor wallcollision
+- mejorando codigo asm
