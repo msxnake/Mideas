@@ -569,6 +569,7 @@ const App: React.FC = () => {
             case 'entitytemplate':
             case 'statemachine':
             case 'font':
+            case 'tilebank':
               if (asset.data && typeof asset.data === 'object' && typeof updatedData === 'object') {
                 newAssetData = { ...asset.data, ...updatedData } as any;
               }
@@ -714,6 +715,21 @@ const App: React.FC = () => {
           fontColorAttributes: JSON.parse(JSON.stringify(msxFontColorAttributes))
         } as MSXFontAsset;
         newEditorType = EditorType.Font;
+        break;
+      case 'tilebank':
+        newAssetData = {
+          id,
+          name: defaultName,
+          vramPatternStart: 0x0000,
+          vramColorStart: 0x2000,
+          screenZone: { x: 0, y: 0, width: 32, height: 24 },
+          charsetRangeStart: 0,
+          charsetRangeEnd: 255,
+          defaultFgColor: 15,
+          defaultBgColor: 1,
+          tileAssignments: []
+        } as TileBank;
+        newEditorType = EditorType.TileBanks;
         break;
       default: setStatusBarMessage(`Asset type ${type} creation not implemented for this flow.`); return;
     }
