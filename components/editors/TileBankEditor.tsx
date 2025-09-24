@@ -137,18 +137,16 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     }
   }, [tileBank.banks, cleanupInvalidAssignments]);
 
+  // Handle selectedBankId updates separately without cleaning assignments
   useEffect(() => {
-    const cleanedBanks = cleanupInvalidAssignments(tileBank.banks);
-    setTileBank(prev => ({ ...prev, banks: cleanedBanks }));
-
-    if (!selectedBankId && cleanedBanks.length > 0) {
-        setSelectedBankId(cleanedBanks[0].id);
-    } else if (selectedBankId && !cleanedBanks.find(b => b.id === selectedBankId) && cleanedBanks.length > 0) {
-        setSelectedBankId(cleanedBanks[0].id);
-    } else if (cleanedBanks.length === 0) {
+    if (!selectedBankId && tileBank.banks.length > 0) {
+        setSelectedBankId(tileBank.banks[0].id);
+    } else if (selectedBankId && !tileBank.banks.find(b => b.id === selectedBankId) && tileBank.banks.length > 0) {
+        setSelectedBankId(tileBank.banks[0].id);
+    } else if (tileBank.banks.length === 0) {
         setSelectedBankId(null);
     }
-  }, [tileBank.banks, selectedBankId, cleanupInvalidAssignments]);
+  }, [tileBank.banks, selectedBankId]);
 
   const handleBankPropertyChange = (bankId: string, property: keyof TileBankDefinition | `screenZone.${keyof TileBankDefinition['screenZone']}`, value: any) => {
     setTileBank(prevTileBank => {

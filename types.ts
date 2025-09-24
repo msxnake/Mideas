@@ -687,8 +687,8 @@ export interface TileBankDefinition {
   isLocked: boolean;
   /** Whether the bank is currently enabled. */
   enabled?: boolean;
-  /** A record of tiles assigned to this bank, mapping tile ID to character code. */
-  assignedTiles: Record<string, { charCode: number }>;
+  /** A record of tiles assigned to this bank, mapping tile ID to assignment data. */
+  assignedTiles: Record<string, { charCode: number } | { charCode: number; fontCharacters: { character: string; bankCharCode: number; originalCharCode: number }[] }>;
 }
 
 /**
