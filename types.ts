@@ -662,33 +662,45 @@ export interface TileAssignment {
 }
 
 /**
- * Represents a tile bank for managing SCREEN 2 character sets and colors.
+ * Represents a single tile bank for managing SCREEN 2 character sets and colors.
  */
-export interface TileBank {
+export interface TileBankDefinition {
   /** A unique identifier for the tile bank. */
-  id: string; 
+  id: string;
   /** The name of the tile bank. */
-  name: string; 
+  name: string;
   /** The starting address in VRAM for the pattern data. */
-  vramPatternStart: number; 
+  vramPatternStart: number;
   /** The starting address in VRAM for the color data. */
-  vramColorStart: number;   
+  vramColorStart: number;
   /** The rectangular area on the screen this bank applies to. */
   screenZone: TileBankScreenZone;
   /** The starting character code for this bank's charset. */
   charsetRangeStart: number;
   /** The ending character code for this bank's charset. */
-  charsetRangeEnd: number;   
+  charsetRangeEnd: number;
   /** The default foreground color index for tiles in this bank. */
-  defaultFgColorIndex: number; 
+  defaultFgColorIndex: number;
   /** The default background color index for tiles in this bank. */
-  defaultBgColorIndex: number; 
+  defaultBgColorIndex: number;
   /** Whether the bank's configuration is locked. */
-  isLocked: boolean;         
+  isLocked: boolean;
   /** Whether the bank is currently enabled. */
-  enabled?: boolean;         
+  enabled?: boolean;
   /** A record of tiles assigned to this bank, mapping tile ID to character code. */
-  assignedTiles: Record<string, { charCode: number }>; 
+  assignedTiles: Record<string, { charCode: number }>;
+}
+
+/**
+ * Represents a complete tile bank configuration asset containing all 3 Screen 2 banks.
+ */
+export interface TileBank {
+  /** A unique identifier for the tile bank asset. */
+  id: string;
+  /** The name of the tile bank asset. */
+  name: string;
+  /** The three banks that make up Screen 2 (banks 0, 1, 2). */
+  banks: TileBankDefinition[];
 }
 
 /**

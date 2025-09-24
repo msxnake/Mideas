@@ -8,7 +8,7 @@ import { generateScreenLayoutASMCode, generateBehaviorMapASMCode, generateScreen
 import { generateTilePatternBytes, generateTileColorBytes } from '../components/utils/tileUtils';
 import { generateSpriteASMCode } from '../components/utils/spriteUtils';
 import { pixelDataToPattern } from './z80CodeGenerator';
-import { DEFAULT_TILE_BANKS_CONFIG } from '../constants';
+import { DEFAULT_TILE_BANK_DEFINITIONS } from '../constants';
 import { TileBank } from '../types';
 import { analyzeProject, ProjectAnalysis } from './asmTemplateGenerator';
 
@@ -2610,7 +2610,7 @@ function generateScreensFile(analysis: ProjectAnalysis): string {
         if (uniqueTileIds.size > 0) {
           // Create a single tile bank with all tiles
           const mainBank: TileBank = {
-            ...DEFAULT_TILE_BANKS_CONFIG[1], // Use main game bank as template
+            ...DEFAULT_TILE_BANK_DEFINITIONS[1], // Use main game bank as template
             assignedTiles: {},
             charsetRangeStart: 0,
             charsetRangeEnd: 255  // Ensure wide range

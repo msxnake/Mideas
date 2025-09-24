@@ -365,7 +365,7 @@ export const PT3_KEYBOARD_OCTAVE_MIN_MAX = { min: -2, max: 2 };
  * The default configuration for tile banks in a new project.
  * Divides the screen into HUD, main game area, and status bar.
  */
-export const DEFAULT_TILE_BANKS_CONFIG: TileBank[] = [
+export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
   {
     id: 'bank_0',
     name: 'Bank 0 - HUD/Fonts',

@@ -20,7 +20,7 @@ import {
   DEFAULT_SPRITE_SIZE, DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, 
   SCREEN_MODES, DEFAULT_SCREEN_MODE, MSX1_PALETTE,
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR,
-  DEFAULT_TILE_BANKS_CONFIG, Z80_SNIPPETS as DEFAULT_Z80_SNIPPENS, Z80_BEHAVIOR_SNIPPETS,
+  DEFAULT_TILE_BANK_DEFINITIONS, Z80_SNIPPETS as DEFAULT_Z80_SNIPPENS, Z80_BEHAVIOR_SNIPPETS,
   EDITOR_BASE_TILE_DIM_S2,
   DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED,
   DEFAULT_HELP_DOCS_DATA, HELP_DOCS_SYSTEM_ASSET_ID, MAX_HISTORY_LENGTH, DEFAULT_MAIN_MENU_CONFIG
@@ -126,12 +126,12 @@ const App: React.FC = () => {
 
       if (needsMigration) {
         console.log('Migrating to new triple bank system (3x256 characters)');
-        localStorage.setItem('tileBanksConfig', JSON.stringify(DEFAULT_TILE_BANKS_CONFIG));
-        return DEFAULT_TILE_BANKS_CONFIG;
+        localStorage.setItem('tileBanksConfig', JSON.stringify(DEFAULT_TILE_BANK_DEFINITIONS));
+        return DEFAULT_TILE_BANK_DEFINITIONS;
       }
       return parsedBanks;
     }
-    return DEFAULT_TILE_BANKS_CONFIG;
+    return DEFAULT_TILE_BANK_DEFINITIONS;
   });
   
   const [msxFont, setMsxFontState] = useState<MSXFont>(() => { 
@@ -614,7 +614,7 @@ const App: React.FC = () => {
         setSelectedAssetId(null);
         setCurrentProjectName(projectNameFromModal); 
         setCurrentEditor(EditorType.None);
-        setTileBanksState(DEFAULT_TILE_BANKS_CONFIG); 
+        setTileBanksState(DEFAULT_TILE_BANK_DEFINITIONS); 
         setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
         setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
         setMainMenuConfigState(DEFAULT_MAIN_MENU_CONFIG);
@@ -720,14 +720,7 @@ const App: React.FC = () => {
         newAssetData = {
           id,
           name: defaultName,
-          vramPatternStart: 0x0000,
-          vramColorStart: 0x2000,
-          screenZone: { x: 0, y: 0, width: 32, height: 24 },
-          charsetRangeStart: 0,
-          charsetRangeEnd: 255,
-          defaultFgColor: 15,
-          defaultBgColor: 1,
-          tileAssignments: []
+          banks: JSON.parse(JSON.stringify(DEFAULT_TILE_BANK_DEFINITIONS))
         } as TileBank;
         newEditorType = EditorType.TileBanks;
         break;
@@ -967,12 +960,12 @@ const App: React.FC = () => {
 
             if (needsMigration) {
               console.log('Migrating loaded project to new triple bank system');
-              setTileBanksState(DEFAULT_TILE_BANKS_CONFIG);
+              setTileBanksState(DEFAULT_TILE_BANK_DEFINITIONS);
             } else {
               setTileBanksState(projectData.tileBanks);
             }
           } else {
-            setTileBanksState(DEFAULT_TILE_BANKS_CONFIG);
+            setTileBanksState(DEFAULT_TILE_BANK_DEFINITIONS);
           }
           if (projectData.msxFont) setMsxFontState(projectData.msxFont); else setMsxFontState(DEFAULT_MSX_FONT); 
           if (projectData.msxFontColorAttributes) { setMsxFontColorAttributesState(projectData.msxFontColorAttributes); } else { const initialColors: MSXFontColorAttributes = {}; Object.keys(projectData.msxFont || msxFont).forEach(charCodeStr => { const charCodeNum = Number(charCodeStr); if (!isNaN(charCodeNum)) { const colors = getVariedColorsForChar(charCodeNum); initialColors[charCodeNum] = Array(8).fill(null).map(() => colors);}}); setMsxFontColorAttributesState(initialColors);}
