@@ -61,9 +61,9 @@ const DEFAULT_HUD_ELEMENT_PROPS: Omit<HUDElementProperties_Base, 'name'> = {
  */
 const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; defaultText?: string; defaultDetails?: Record<string, any> }[]> = {
   "Basic Stats": [
-    { type: HUDElementType.Score, name: "Score", defaultText: "SCORE: 000000", defaultDetails: { digits: 6, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
-    { type: HUDElementType.HighScore, name: "High Score", defaultText: "HI-SCORE: 000000", defaultDetails: { digits: 6, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
-    { type: HUDElementType.Lives, name: "Lives", defaultText: "LIVES:", defaultDetails: { icon: 'ship', max: 3, iconTileId: null, textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.Score, name: "Score", defaultText: "SCORE: 000000", defaultDetails: { digits: 6, tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.HighScore, name: "High Score", defaultText: "HI-SCORE: 000000", defaultDetails: { digits: 6, tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.Lives, name: "Lives", defaultText: "LIVES:", defaultDetails: { icon: 'ship', max: 3, iconTileId: null, tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
     { 
       type: HUDElementType.EnergyBar, 
       name: "Energy Bar", 
@@ -100,9 +100,9 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
         overallBackgroundColor: 'rgba(0,0,100,0.3)' as MSXColorValue,
       } 
     },
-    { type: HUDElementType.SceneName, name: "Scene Name Display", defaultText: "STAGE 1", defaultDetails: { animation: 'static', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.SceneName, name: "Scene Name Display", defaultText: "STAGE 1", defaultDetails: { animation: 'static', tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
     { type: HUDElementType.MiniMap, name: "Mini-Map", defaultDetails: { style: 'grid', size: "64x64" } }, 
-    { type: HUDElementType.CoinCounter, name: "Coin Counter", defaultText: "$00", defaultDetails: { symbol: '$', format: 'X00', textColor: MSX1_PALETTE[11].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.CoinCounter, name: "Coin Counter", defaultText: "$00", defaultDetails: { symbol: '$', format: 'X00', tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
   ],
   "Boss Battle": [
     { 
@@ -126,12 +126,12 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
       } 
     },
     { type: HUDElementType.PhaseIndicator, name: "Boss Phase", defaultDetails: { icons: 3, iconTileId: null } },
-    { type: HUDElementType.AttackAlert, name: "Attack Alert", defaultText: "WARNING!", defaultDetails: { blink: true, textColor: MSX1_PALETTE[8].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.AttackAlert, name: "Attack Alert", defaultText: "WARNING!", defaultDetails: { blink: true, tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
   ],
   "Custom": [
-    { type: HUDElementType.TextBox, name: "Custom Text Box", defaultText: "Your text here...", defaultDetails: { border: 'decorative', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: MSX1_PALETTE[4].hex, fontAssetId: '' } },
-    { type: HUDElementType.NumericField, name: "Custom Numeric Field", defaultText: "DATA: 123", defaultDetails: { label: 'DATA:', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
-    { type: HUDElementType.CustomCounter, name: "Custom Counter", defaultText: "00", defaultDetails: { format: 'decimal', textColor: MSX1_PALETTE[15].hex, textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.TextBox, name: "Custom Text Box", defaultText: "Your text here...", defaultDetails: { border: 'decorative', tileBankAssetId: '', textBackgroundColor: MSX1_PALETTE[4].hex, fontAssetId: '' } },
+    { type: HUDElementType.NumericField, name: "Custom Numeric Field", defaultText: "DATA: 123", defaultDetails: { label: 'DATA:', tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.CustomCounter, name: "Custom Counter", defaultText: "00", defaultDetails: { format: 'decimal', tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
   ],
 };
 
@@ -303,12 +303,34 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent" />
         </div>
       );
+    // Special handling for tileBankAssetId - use TileBank asset selector
+    } else if (key === 'tileBankAssetId' && pathPrefix === 'details') {
+        const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
+        const currentValue = value || '';
+        return (
+            <div key={fullPath}>
+                <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">TileBank Asset:</label>
+                <select
+                    id={inputId}
+                    value={currentValue}
+                    onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
+                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                >
+                    <option value="">No TileBank (use default font)</option>
+                    {tileBankAssets.map(asset => (
+                        <option key={asset.id} value={asset.id}>
+                            {asset.name}
+                        </option>
+                    ))}
+                </select>
+            </div>
+        );
     } else if ( (key.endsWith('Color') && pathPrefix === 'details') || (key.endsWith('ColorPrimary') && pathPrefix === 'details') || (key.endsWith('ColorSecondary') && pathPrefix === 'details') ) {
         return (
           <div key={fullPath}>
             <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">{label}:</label>
             <div className="flex items-center">
-                <input type="text" id={inputId} value={String(value || '')} 
+                <input type="text" id={inputId} value={String(value || '')}
                     onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
                     className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded-l text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
                     placeholder="e.g., #RRGGBB or transparent" />
@@ -499,6 +521,26 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                             fontToUse = fontAssetData.fontData;
                             fontColorAttributesToUse = fontAssetData.fontColorAttributes || msxFontColorAttributes;
                         }
+                    }
+                }
+
+                // Check for TileBank asset selection
+                if (details && details.tileBankAssetId && allAssets && details.tileBankAssetId !== '') {
+                    const selectedTileBankAsset = allAssets.find(asset => asset.id === details.tileBankAssetId && asset.type === 'tilebank');
+                    if (selectedTileBankAsset && selectedTileBankAsset.data && typeof selectedTileBankAsset.data === 'object') {
+                        const tileBankData = selectedTileBankAsset.data as TileBank;
+                        // Look for font assignments in the banks to use for rendering
+                        tileBankData.banks.forEach(bank => {
+                            if (bank.assignedTiles) {
+                                Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+                                    if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
+                                        // Found font characters in this bank, could use these for rendering
+                                        // For now, use the TileBank's reference to render with the associated font
+                                        // TODO: Implement proper font character mapping from TileBank
+                                    }
+                                });
+                            }
+                        });
                     }
                 }
             } catch (error) {
