@@ -198,20 +198,63 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
 
   // Full Screen functionality
   const handleFullScreen = () => {
-    setIsFullScreen(true);
+    console.log('🔥 handleFullScreen clicked! Current fullscreen:', !!document.fullscreenElement);
 
-    // Auto-close after 5 seconds
-    fullScreenTimerRef.current = setTimeout(() => {
-      setIsFullScreen(false);
-    }, 5000);
+    if (!document.fullscreenElement) {
+      console.log('📱 Requesting fullscreen...');
+      document.documentElement.requestFullscreen().then(() => {
+        console.log('✅ Fullscreen entered successfully');
+      }).catch((error) => {
+        console.error('❌ Error entering fullscreen:', error);
+        setIsFullScreen(false);
+      });
+    } else {
+      console.log('⚠️ Already in fullscreen mode');
+    }
   };
 
   const handleExitFullScreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    }
     setIsFullScreen(false);
     if (fullScreenTimerRef.current) {
       clearTimeout(fullScreenTimerRef.current);
     }
   };
+
+  // Handle fullscreen changes (both entering and exiting)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!document.fullscreenElement;
+      console.log('🔄 Fullscreen change event! isCurrentlyFullscreen:', isCurrentlyFullscreen);
+      setIsFullScreen(isCurrentlyFullscreen);
+
+      if (isCurrentlyFullscreen) {
+        console.log('🎯 Entered fullscreen - starting 15s timer');
+        // Entró a fullscreen - iniciar timer de auto-close
+        fullScreenTimerRef.current = setTimeout(() => {
+          console.log('⏰ Auto-closing fullscreen after 15s');
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          }
+        }, 15000);
+      } else {
+        console.log('🚪 Exited fullscreen - clearing timer');
+        // Salió de fullscreen - limpiar timer
+        if (fullScreenTimerRef.current) {
+          clearTimeout(fullScreenTimerRef.current);
+          fullScreenTimerRef.current = undefined;
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -486,63 +529,77 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
             onClick={e => e.stopPropagation()}
           >
             <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Screen Preview</h2>
+
+            {/* Canvas - preview screen */}
+            <canvas
+              ref={canvasRef}
+              width={PREVIEW_WIDTH}
+              height={PREVIEW_HEIGHT}
+              className={`${enableScanlines ? 'crt-effect' : ''} border-2 border-msx-border mb-4`}
+              style={{
+                width: PREVIEW_WIDTH * 2,
+                height: PREVIEW_HEIGHT * 2,
+                imageRendering: 'pixelated'
+              }}
+            />
+
+            {/* Controls below preview */}
+            <div className="flex gap-3">
+              <Button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEnableScanlines(!enableScanlines);
+                }}
+                variant={enableScanlines ? "primary" : "secondary"}
+                size="md"
+              >
+                {enableScanlines ? "CRT ON" : "CRT OFF"}
+              </Button>
+              <Button
+                onClick={(e) => {
+                  console.log('🔘 Button clicked - preventDefault and stopPropagation');
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleFullScreen();
+                }}
+                variant="secondary"
+                size="md"
+              >
+                Full Screen
+              </Button>
+              <Button onClick={onClose} variant="primary" size="md">Close</Button>
+            </div>
           </div>
         )}
 
-        {/* Canvas - always present but with different styles */}
-        <canvas
-          ref={canvasRef}
-          width={PREVIEW_WIDTH}
-          height={PREVIEW_HEIGHT}
-          className={`${enableScanlines ? 'crt-effect' : ''} ${
-            isFullScreen
-              ? ''
-              : 'border-2 border-msx-border'
-          }`}
-          style={
-            isFullScreen
-              ? {
-                  width: '90vw',
-                  height: '90vh',
-                  maxWidth: '90vw',
-                  maxHeight: '90vh',
-                  objectFit: 'contain',
-                  imageRendering: 'pixelated'
-                }
-              : {
-                  width: PREVIEW_WIDTH * 2,
-                  height: PREVIEW_HEIGHT * 2,
-                  imageRendering: 'pixelated'
-                }
-          }
-        />
-
-        {/* Full Screen indicator */}
+        {/* Fullscreen canvas */}
         {isFullScreen && (
-          <div className="absolute top-4 right-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-            Click to exit | Auto-close in 5s
-          </div>
-        )}
+          <>
+            <canvas
+              ref={canvasRef}
+              width={PREVIEW_WIDTH}
+              height={PREVIEW_HEIGHT}
+              className={enableScanlines ? 'crt-effect' : ''}
+              style={{
+                width: '90vw',
+                height: '90vh',
+                maxWidth: '90vw',
+                maxHeight: '90vh',
+                objectFit: 'contain',
+                imageRendering: 'pixelated',
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)'
+              }}
+            />
 
-        {/* Controls - only shows in normal mode */}
-        {!isFullScreen && (
-          <div className="flex gap-3 mt-4">
-            <Button
-              onClick={() => setEnableScanlines(!enableScanlines)}
-              variant={enableScanlines ? "primary" : "secondary"}
-              size="md"
-            >
-              {enableScanlines ? "CRT ON" : "CRT OFF"}
-            </Button>
-            <Button
-              onClick={handleFullScreen}
-              variant="secondary"
-              size="md"
-            >
-              Full Screen
-            </Button>
-            <Button onClick={onClose} variant="primary" size="md">Close</Button>
-          </div>
+            {/* Full Screen indicator */}
+            <div className="absolute top-4 right-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+              Click to exit | Auto-close in 15s
+            </div>
+          </>
         )}
       </div>
     </>

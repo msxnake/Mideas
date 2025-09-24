@@ -1079,21 +1079,58 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const currentDirection = useRef<string | null>(null);
 
     // Full Screen functionality
-    const handleFullScreen = () => {
-        setIsFullScreen(true);
-
-        // Auto-close after 5 seconds
-        fullScreenTimerRef.current = setTimeout(() => {
+    const handleFullScreen = async () => {
+        try {
+            if (!document.fullscreenElement) {
+                await document.documentElement.requestFullscreen();
+                // ⚠️ NO establecer setIsFullScreen(true) aquí
+                // El evento fullscreenchange se encargará de todos los cambios de estado
+            }
+        } catch (error) {
+            console.error('Error entering fullscreen:', error);
+            // Si falla, asegurar que el estado sea correcto
             setIsFullScreen(false);
-        }, 5000);
+        }
     };
 
     const handleExitFullScreen = () => {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        }
         setIsFullScreen(false);
         if (fullScreenTimerRef.current) {
             clearTimeout(fullScreenTimerRef.current);
         }
     };
+
+    // Handle fullscreen changes (both entering and exiting)
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            const isCurrentlyFullscreen = !!document.fullscreenElement;
+            setIsFullScreen(isCurrentlyFullscreen);
+
+            if (isCurrentlyFullscreen) {
+                // Entró a fullscreen - iniciar timer de auto-close
+                fullScreenTimerRef.current = setTimeout(() => {
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                }, 15000);
+            } else {
+                // Salió de fullscreen - limpiar timer
+                if (fullScreenTimerRef.current) {
+                    clearTimeout(fullScreenTimerRef.current);
+                    fullScreenTimerRef.current = undefined;
+                }
+            }
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+        return () => {
+            document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        };
+    }, []);
 
     // Clean up timer on unmount
     useEffect(() => {
@@ -2135,73 +2172,77 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     onClick={e => e.stopPropagation()}
                 >
                     <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Screen Play Mode</h2>
-                    <p className="text-xs text-msx-textsecondary mb-1">Use Arrow keys to move. Press Escape to close.</p>
-                    <p className="text-xs text-msx-textsecondary mb-1">
-                        Active Engines: {activeEnginesRef.current.map(e => e.name).join(', ') || 'None'}
-                    </p>
-                    <p className="text-xs text-msx-textsecondary mb-2">
-                        Total Entities: {entityCount} | Pending Spawns: {pendingSpawnsRef.current.length}
-                    </p>
+
+                    {/* Info text above game */}
+                    <div className="text-center mb-4">
+                        <p className="text-xs text-msx-textsecondary mb-1">Use Arrow keys to move. Press Escape to close.</p>
+                        <p className="text-xs text-msx-textsecondary mb-1">
+                            Active Engines: {activeEnginesRef.current.map(e => e.name).join(', ') || 'None'}
+                        </p>
+                        <p className="text-xs text-msx-textsecondary mb-2">
+                            Total Entities: {entityCount} | Pending Spawns: {pendingSpawnsRef.current.length}
+                        </p>
+                    </div>
+
+                    {/* Canvas - game screen */}
+                    <canvas
+                        ref={canvasRef}
+                        width={PREVIEW_WIDTH}
+                        height={PREVIEW_HEIGHT}
+                        className="border-2 border-msx-border mb-4"
+                        style={{
+                            width: PREVIEW_WIDTH * 2,
+                            height: PREVIEW_HEIGHT * 2,
+                            imageRendering: 'pixelated',
+                            backgroundColor: 'black'
+                        }}
+                    />
+
+                    {/* Controls below game */}
+                    <div className="flex gap-3">
+                        <Button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDebugMode(!debugMode);
+                            }}
+                            variant={debugMode ? "primary" : "secondary"}
+                            size="md"
+                        >
+                            {debugMode ? "Debug ON" : "Debug OFF"}
+                        </Button>
+                        <Button onClick={onClose} variant="primary" size="md">Close</Button>
+                    </div>
                 </div>
             )}
 
-            {/* Canvas container */}
-            <div
-                className={isFullScreen ? '' : 'relative'}
-                style={isFullScreen ? {} : { width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}
-            >
-                <canvas
-                    ref={canvasRef}
-                    width={PREVIEW_WIDTH}
-                    height={PREVIEW_HEIGHT}
-                    className={isFullScreen ? '' : 'border-2 border-msx-border'}
-                    style={
-                        isFullScreen
-                            ? {
-                                width: '90vw',
-                                height: '90vh',
-                                maxWidth: '90vw',
-                                maxHeight: '90vh',
-                                objectFit: 'contain',
-                                imageRendering: 'pixelated',
-                                backgroundColor: 'black'
-                            }
-                            : {
-                                width: PREVIEW_WIDTH * 2,
-                                height: PREVIEW_HEIGHT * 2,
-                                imageRendering: 'pixelated',
-                                backgroundColor: 'black'
-                            }
-                    }
-                />
-            </div>
-
-            {/* Full Screen indicator */}
+            {/* Fullscreen canvas */}
             {isFullScreen && (
-                <div className="absolute top-4 right-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
-                    Click to exit | Auto-close in 5s
-                </div>
-            )}
+                <>
+                    <canvas
+                        ref={canvasRef}
+                        width={PREVIEW_WIDTH}
+                        height={PREVIEW_HEIGHT}
+                        style={{
+                            width: '90vw',
+                            height: '90vh',
+                            maxWidth: '90vw',
+                            maxHeight: '90vh',
+                            objectFit: 'contain',
+                            imageRendering: 'pixelated',
+                            backgroundColor: 'black',
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)'
+                        }}
+                    />
 
-            {/* Controls - only shows in normal mode */}
-            {!isFullScreen && (
-                <div className="flex gap-3 mt-4">
-                    <Button
-                        onClick={() => setDebugMode(!debugMode)}
-                        variant={debugMode ? "primary" : "secondary"}
-                        size="md"
-                    >
-                        {debugMode ? "Debug ON" : "Debug OFF"}
-                    </Button>
-                    <Button
-                        onClick={handleFullScreen}
-                        variant="secondary"
-                        size="md"
-                    >
-                        Full Screen
-                    </Button>
-                    <Button onClick={onClose} variant="primary" size="md">Close</Button>
-                </div>
+                    {/* Full Screen indicator */}
+                    <div className="absolute top-4 right-4 text-white text-sm bg-black bg-opacity-50 px-2 py-1 rounded">
+                        Click to exit | Auto-close in 15s
+                    </div>
+                </>
             )}
         </div>
     );
