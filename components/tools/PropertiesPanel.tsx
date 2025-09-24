@@ -173,7 +173,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const [localEffectZoneDesc, setLocalEffectZoneDesc] = useState(effectZone?.description || "");
   
   useEffect(() => {
-    console.log("PropertiesPanel gameFlowNode updated:", gameFlowNode);
+    if (gameFlowNode) {
+      console.log("PropertiesPanel gameFlowNode updated:", gameFlowNode);
+    }
   }, [gameFlowNode]);
 
   const [assetPickerState, setAssetPickerState] = useState<{
