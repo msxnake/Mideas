@@ -41,7 +41,7 @@ interface ScreenEditorProps {
   /** Callback to set the selected tile ID. */
   setSelectedTileId: (id: string | null) => void;
   /** The entity template currently selected for placement. */
-  currentEntityTypeToPlace: EntityTemplate | null; 
+  currentEntityTypeToPlace: EntityTemplate | null;
   /** The current MSX screen mode. */
   currentScreenMode: string;
   /** The tile banks configuration for SCREEN 2 mode. */
@@ -910,12 +910,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       />
        {isExportLayoutModalOpen && layoutASMExportData && ( <ExportLayoutASMModal isOpen={isExportLayoutModalOpen} onClose={() => setIsExportLayoutModalOpen(false)} {...layoutASMExportData} /> )}
       {isExportBehaviorMapModalOpen && behaviorMapASMExportData && ( <ExportBehaviorMapASMModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} /> )}
-      {isHudEditorModalOpen && screenMap && ( 
-          <HUDEditorModal 
-            isOpen={isHudEditorModalOpen} 
-            onClose={() => setIsHudEditorModalOpen(false)} 
-            hudConfiguration={screenMap.hudConfiguration || { elements: [] }} 
-            onUpdateHUDConfiguration={handleUpdateHudConfiguration} 
+      {isHudEditorModalOpen && screenMap && (
+          <HUDEditorModal
+            isOpen={isHudEditorModalOpen}
+            onClose={() => setIsHudEditorModalOpen(false)}
+            hudConfiguration={screenMap.hudConfiguration || { elements: [] }}
+            onUpdateHUDConfiguration={handleUpdateHudConfiguration}
             currentScreenMode={currentScreenMode}
             screenMapWidth={screenMap.width}
             screenMapHeight={screenMap.height}
@@ -925,7 +925,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             screenMapActiveAreaHeight={screenMap.activeAreaHeight ?? screenMap.height}
             baseCellDimension={EDITOR_BASE_TILE_DIM}
             msxFont={msx1FontData}
-            msxFontColorAttributes={msxFontColorAttributes} 
+            msxFontColorAttributes={msxFontColorAttributes}
+            tileBanks={tileBanks}
+            allAssets={allProjectAssets}
           /> 
       )}
       {isPasteConfirmModalOpen && (

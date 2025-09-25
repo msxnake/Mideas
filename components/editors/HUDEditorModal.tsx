@@ -149,15 +149,17 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
   hudConfiguration,
   onUpdateHUDConfiguration,
   currentScreenMode,
-  screenMapWidth, 
-  screenMapHeight, 
-  screenMapActiveAreaX, 
-  screenMapActiveAreaY, 
-  screenMapActiveAreaWidth, 
-  screenMapActiveAreaHeight, 
-  baseCellDimension, 
-  msxFont, 
-  msxFontColorAttributes, // Received prop
+  screenMapWidth,
+  screenMapHeight,
+  screenMapActiveAreaX,
+  screenMapActiveAreaY,
+  screenMapActiveAreaWidth,
+  screenMapActiveAreaHeight,
+  baseCellDimension,
+  msxFont,
+  msxFontColorAttributes,
+  tileBanks,
+  allAssets,
 }) => {
   const [activeTab, setActiveTab] = useState<HudTab>("Basic Stats");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
@@ -305,26 +307,85 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
       );
     // Special handling for tileBankAssetId - use TileBank asset selector
     } else if (key === 'tileBankAssetId' && pathPrefix === 'details') {
-        const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
-        const currentValue = value || '';
-        return (
-            <div key={fullPath}>
-                <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">TileBank Asset:</label>
-                <select
-                    id={inputId}
-                    value={currentValue}
-                    onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
-                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-                >
-                    <option value="">No TileBank (use default font)</option>
-                    {tileBankAssets.map(asset => (
-                        <option key={asset.id} value={asset.id}>
-                            {asset.name}
-                        </option>
-                    ))}
-                </select>
-            </div>
-        );
+        try {
+            const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
+            const currentValue = value || '';
+            return (
+                <div key={fullPath}>
+                    <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">TileBank Asset:</label>
+                    <select
+                        id={inputId}
+                        value={currentValue}
+                        onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                    >
+                        <option value="">No TileBank (use default font)</option>
+                        {tileBankAssets.map(asset => (
+                            <option key={asset.id} value={asset.id}>
+                                {asset.name || 'Unnamed TileBank'}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            );
+        } catch (error) {
+            console.error('Error rendering tileBankAssetId selector:', error);
+            return (
+                <div key={fullPath}>
+                    <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">TileBank Asset (Error):</label>
+                    <input
+                        type="text"
+                        id={inputId}
+                        value={String(value || '')}
+                        onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                        placeholder="TileBank Asset ID"
+                    />
+                </div>
+            );
+        }
+    // Legacy textColor handling - convert to tileBankAssetId selector
+    } else if (key === 'textColor' && pathPrefix === 'details') {
+        try {
+            const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
+            const currentValue = ''; // Reset legacy textColor to empty tileBankAssetId
+            return (
+                <div key={fullPath}>
+                    <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">TileBank Asset:</label>
+                    <select
+                        id={inputId}
+                        value={currentValue}
+                        onChange={(e) => handlePropertyChange(element.id, 'details.tileBankAssetId', e.target.value)}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                    >
+                        <option value="">No TileBank (use default font)</option>
+                        {tileBankAssets.map(asset => (
+                            <option key={asset.id} value={asset.id}>
+                                {asset.name || 'Unnamed TileBank'}
+                            </option>
+                        ))}
+                    </select>
+                    <div className="text-xs text-yellow-600 mt-1">
+                        Legacy textColor detected - using TileBank selector instead
+                    </div>
+                </div>
+            );
+        } catch (error) {
+            console.error('Error rendering legacy textColor as tileBankAssetId selector:', error);
+            return (
+                <div key={fullPath}>
+                    <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">Text Color (Legacy):</label>
+                    <input
+                        type="text"
+                        id={inputId}
+                        value={String(value || '')}
+                        onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                        placeholder="e.g., #RRGGBB"
+                    />
+                </div>
+            );
+        }
     } else if ( (key.endsWith('Color') && pathPrefix === 'details') || (key.endsWith('ColorPrimary') && pathPrefix === 'details') || (key.endsWith('ColorSecondary') && pathPrefix === 'details') ) {
         return (
           <div key={fullPath}>
