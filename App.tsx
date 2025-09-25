@@ -950,9 +950,23 @@ const App: React.FC = () => {
           if (projectData.currentScreenMode) setCurrentScreenMode(projectData.currentScreenMode);
           if (projectData.selectedAssetId) setSelectedAssetId(projectData.selectedAssetId);
           if (projectData.currentEditor) setCurrentEditor(projectData.currentEditor);
+          // Load TileBanks from project - check both root level and assets
+          let loadedBanks = null;
+
           if (projectData.tileBanks) {
+            loadedBanks = projectData.tileBanks;
+            console.log('🔄 Loading TileBanks from project root:', loadedBanks);
+          } else if (projectData.assets) {
+            // Check for TileBank assets
+            const tileBankAssets = projectData.assets.filter((asset: ProjectAsset) => asset.type === 'tilebank');
+            if (tileBankAssets.length > 0 && tileBankAssets[0].data?.banks) {
+              loadedBanks = tileBankAssets[0].data.banks;
+              console.log('🔄 Loading TileBanks from asset:', loadedBanks);
+            }
+          }
+
+          if (loadedBanks) {
             // Check if loaded project has old bank system and migrate
-            const loadedBanks = projectData.tileBanks;
             const needsMigration = loadedBanks.some((bank: TileBank) =>
               bank.id === 'bank_hud' || bank.id === 'bank_main_game' || bank.id === 'bank_status_menu' ||
               (bank.charsetRangeEnd - bank.charsetRangeStart + 1) !== 256
@@ -962,9 +976,11 @@ const App: React.FC = () => {
               console.log('Migrating loaded project to new triple bank system');
               setTileBanksState(DEFAULT_TILE_BANK_DEFINITIONS);
             } else {
-              setTileBanksState(projectData.tileBanks);
+              console.log('✅ Using project TileBanks with assignedTiles');
+              setTileBanksState(loadedBanks);
             }
           } else {
+            console.log('⚠️ No TileBanks found, using defaults');
             setTileBanksState(DEFAULT_TILE_BANK_DEFINITIONS);
           }
           if (projectData.msxFont) setMsxFontState(projectData.msxFont); else setMsxFontState(DEFAULT_MSX_FONT); 

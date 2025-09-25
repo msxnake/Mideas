@@ -165,10 +165,23 @@ export function createTileBasedFont(
   customTextColor?: string,
   customBackgroundColor?: string
 ): { [ascii: string]: HTMLImageElement } | null {
-  if (!tileBanks || !allAssets) return null;
+  console.log('🔍 createTileBasedFont called:', { tileBanks, allAssetsCount: allAssets?.length });
 
+  if (!tileBanks || !allAssets) {
+    console.log('❌ createTileBasedFont: Missing tileBanks or allAssets');
+    return null;
+  }
+
+  console.log('🔍 Looking for bank_0 in tileBanks:', tileBanks.map(b => b.id));
   const bank0 = tileBanks.find(bank => bank.id === 'bank_0');
-  if (!bank0 || !bank0.assignedTiles || Object.keys(bank0.assignedTiles).length === 0) {
+  if (!bank0) {
+    console.log('❌ createTileBasedFont: bank_0 not found');
+    return null;
+  }
+
+  console.log('🔍 bank_0 found:', { id: bank0.id, assignedTiles: bank0.assignedTiles });
+  if (!bank0.assignedTiles || Object.keys(bank0.assignedTiles).length === 0) {
+    console.log('❌ createTileBasedFont: bank_0 has no assigned tiles');
     return null;
   }
 
@@ -176,14 +189,32 @@ export function createTileBasedFont(
   const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const fontAssets = allAssets.filter(a => a.type === 'font');
 
+  console.log('🔍 Available assets:', {
+    tileCount: tileset.length,
+    fontCount: fontAssets.length,
+    fontIds: fontAssets.map(f => f.id)
+  });
+
   const bank0TileIds = Object.keys(bank0.assignedTiles);
+  console.log('🔍 bank0TileIds:', bank0TileIds);
+
   let bank0Fonts = fontAssets.filter(font => bank0TileIds.includes(font.id));
+  console.log('🔍 Exact match bank0Fonts:', bank0Fonts.map(f => f.id));
 
   // If no exact match, try partial matching for font IDs
+  // Special logic for TileBank font assignments like "font_font_123_ABC_456"
   if (bank0Fonts.length === 0) {
     bank0Fonts = fontAssets.filter(font => {
-      return bank0TileIds.some(bankId => bankId.includes(font.id) || font.id.includes(bankId));
+      return bank0TileIds.some(bankId => {
+        // Check if bankId contains the font ID (for composite font names)
+        return bankId.includes(font.id) || font.id.includes(bankId);
+      });
     });
+    console.log('🔍 Partial match bank0Fonts:', bank0Fonts.map(f => f.id));
+    console.log('🔍 Matching details:', bank0TileIds.map(bankId => ({
+      bankId,
+      matchedFonts: fontAssets.filter(font => bankId.includes(font.id)).map(f => f.id)
+    })));
   }
 
   // If we have fonts assigned to Bank 0, use them for character mapping

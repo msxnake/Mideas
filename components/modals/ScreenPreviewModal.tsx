@@ -94,6 +94,19 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const fullScreenTimerRef = useRef<NodeJS.Timeout>();
 
+  // Debug TileBanks prop
+  React.useEffect(() => {
+    console.log('🔍 ScreenPreviewModal received tileBanks:', tileBanks);
+    tileBanks?.forEach((bank, index) => {
+      console.log(`🔍 TileBank ${index}:`, {
+        id: bank.id,
+        name: bank.name,
+        assignedTilesKeys: Object.keys(bank.assignedTiles || {}),
+        assignedTiles: bank.assignedTiles
+      });
+    });
+  }, [tileBanks]);
+
   // HUD rendering function (synced with ScreenPlayModal)
   const renderHUDElements = (ctx: CanvasRenderingContext2D) => {
     const hudElements = screenMap.hudConfiguration?.elements;
