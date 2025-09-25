@@ -1772,17 +1772,63 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 const textToRender = hudEl.text || hudEl.name || "TEXT";
                 const charSpacing = hudEl.details?.charSpacing || 0;
 
-                // Extract colors from HUD element details
-                const hudTextColor = hudEl.details?.textColor || undefined;
+                // Extract TileBank and colors from HUD element details
+                const tileBankAssetId = hudEl.details?.tileBankAssetId;
+                const hudTextColor = hudEl.details?.textColor || undefined; // Legacy support
                 const hudBackgroundColor = hudEl.details?.textBackgroundColor || undefined;
 
                 console.log(`🖼️ Rendering HUD text: "${textToRender}" at (${hudEl.position.x}, ${hudEl.position.y})`);
-                console.log(`🎨 HUD Colors - Text: ${hudTextColor}, Background: ${hudBackgroundColor}`);
+                console.log(`🎨 HUD Colors - Text: ${hudTextColor}, Background: ${hudBackgroundColor}, TileBank: ${tileBankAssetId}`);
 
-                // Try to use tile-based font from Bank 0 first with custom colors
-                const tileBasedFont = createTileBasedFont(tileBanks, allAssets, msxFont || DEFAULT_MSX_FONT, msxFontColorAttributes, hudTextColor, hudBackgroundColor);
-                const fontToUse = msxFont || DEFAULT_MSX_FONT;
-                const fontColorAttrs = msxFontColorAttributes || {};
+                // Use font from selected TileBank asset or fallback to MSX font
+                let fontToUse = msxFont || DEFAULT_MSX_FONT;
+                let fontColorAttrs = msxFontColorAttributes || {};
+
+                // Check for TileBank asset selection
+                if (tileBankAssetId && allAssets) {
+                    const selectedTileBankAsset = allAssets.find(asset =>
+                        asset.id === tileBankAssetId && asset.type === 'tilebank'
+                    );
+
+                    if (selectedTileBankAsset?.data) {
+                        console.log('✅ Found TileBank asset, using tile-based rendering');
+                        // TileBank selected - use tile-based rendering
+                        const tileBasedFont = createTileBasedFont(
+                            tileBanks,
+                            allAssets,
+                            fontToUse,
+                            fontColorAttrs,
+                            hudTextColor,
+                            hudBackgroundColor
+                        );
+
+                        if (tileBasedFont) {
+                            // Render using tile-based font from TileBank
+                            let xOffset = hudEl.position.x;
+
+                            for (const char of textToRender) {
+                                const tileImg = tileBasedFont[char.toUpperCase()] || tileBasedFont[char];
+
+                                if (tileImg && tileImg.complete && tileImg.naturalWidth > 0) {
+                                    ctx.drawImage(tileImg, xOffset, hudEl.position.y, 8, 8);
+                                    console.log(`✅ Drew TileBank tile for '${char}' at (${xOffset}, ${hudEl.position.y})`);
+                                } else {
+                                    // Fallback for missing characters
+                                    ctx.fillStyle = hudTextColor || '#FFFFFF';
+                                    ctx.font = '6px monospace';
+                                    ctx.fillText(char, xOffset + 1, hudEl.position.y + 6);
+                                    console.log(`⚠️ Used fallback text for '${char}' at (${xOffset}, ${hudEl.position.y})`);
+                                }
+
+                                xOffset += 8 + charSpacing;
+                            }
+                            return; // Exit early if tile-based rendering succeeded
+                        }
+                    }
+                }
+
+                // Fallback: Try legacy tile-based font or MSX font
+                const tileBasedFont = createTileBasedFont(tileBanks, allAssets, fontToUse, fontColorAttrs, hudTextColor, hudBackgroundColor);
 
                 if (tileBasedFont) {
                     console.log('✅ Using tile-based font');

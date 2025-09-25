@@ -94,10 +94,12 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const fullScreenTimerRef = useRef<NodeJS.Timeout>();
 
-  // HUD rendering function (simplified version from ScreenPlayModal)
+  // HUD rendering function (synced with ScreenPlayModal)
   const renderHUDElements = (ctx: CanvasRenderingContext2D) => {
     const hudElements = screenMap.hudConfiguration?.elements;
     if (!hudElements || hudElements.length === 0) return;
+
+    console.log('🎨 Rendering HUD elements:', hudElements.length);
 
     hudElements.forEach(hudEl => {
       if (!hudEl.visible) return;
@@ -112,16 +114,81 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         const textToRender = hudEl.text || hudEl.name || "TEXT";
         const charSpacing = hudEl.details?.charSpacing || 0;
 
-        // Extract colors from HUD element details
-        const hudTextColor = hudEl.details?.textColor || undefined;
+        // Extract TileBank and colors from HUD element details
+        const tileBankAssetId = hudEl.details?.tileBankAssetId;
+        const hudTextColor = hudEl.details?.textColor || undefined; // Legacy support
         const hudBackgroundColor = hudEl.details?.textBackgroundColor || undefined;
 
-        // Try to use tile-based font from Bank 0 first with custom colors
-        const tileBasedFont = createTileBasedFont(tileBanks, allAssets, msxFont || DEFAULT_MSX_FONT, msxFontColorAttributes, hudTextColor, hudBackgroundColor);
-        const fontToUse = msxFont || DEFAULT_MSX_FONT;
-        const fontColorAttrs = msxFontColorAttributes || {};
+        console.log(`🖼️ Rendering HUD text: "${textToRender}" at (${hudEl.position.x}, ${hudEl.position.y})`);
+        console.log(`🎨 HUD Colors - Text: ${hudTextColor}, Background: ${hudBackgroundColor}, TileBank: ${tileBankAssetId}`);
+
+        // Use font from HUD element's fontAssetId or fallback
+        let fontToUse = msxFont || DEFAULT_MSX_FONT;
+        let fontColorAttrs = msxFontColorAttributes || {};
+
+        // Check if HUD element specifies a specific font asset
+        const hudFontAssetId = hudEl.details?.fontAssetId;
+        if (hudFontAssetId && allAssets) {
+          const selectedFontAsset = allAssets.find(asset =>
+            asset.id === hudFontAssetId && asset.type === 'font'
+          );
+
+          if (selectedFontAsset?.data?.fontData) {
+            console.log(`✅ Found specific font asset: ${hudFontAssetId}`);
+            fontToUse = selectedFontAsset.data.fontData;
+            // Also check for font color attributes in the font asset
+            fontColorAttrs = selectedFontAsset.data.fontColorAttributes || fontColorAttrs;
+          }
+        }
+
+        // Check for TileBank asset selection
+        if (tileBankAssetId && allAssets) {
+          const selectedTileBankAsset = allAssets.find(asset =>
+            asset.id === tileBankAssetId && asset.type === 'tilebank'
+          );
+
+          if (selectedTileBankAsset?.data) {
+            console.log('✅ Found TileBank asset, using tile-based rendering');
+            // TileBank selected - use tile-based rendering
+            const tileBasedFont = createTileBasedFont(
+              tileBanks,
+              allAssets,
+              fontToUse,
+              fontColorAttrs,
+              hudTextColor,
+              hudBackgroundColor
+            );
+
+            if (tileBasedFont) {
+              // Render using tile-based font from TileBank
+              let xOffset = hudEl.position.x;
+
+              for (const char of textToRender) {
+                const tileImg = tileBasedFont[char.toUpperCase()] || tileBasedFont[char];
+
+                if (tileImg && tileImg.complete && tileImg.naturalWidth > 0) {
+                  ctx.drawImage(tileImg, xOffset, hudEl.position.y, 8, 8);
+                  console.log(`✅ Drew TileBank tile for '${char}' at (${xOffset}, ${hudEl.position.y})`);
+                } else {
+                  // Fallback for missing characters
+                  ctx.fillStyle = hudTextColor || '#FFFFFF';
+                  ctx.font = '6px monospace';
+                  ctx.fillText(char, xOffset + 1, hudEl.position.y + 6);
+                  console.log(`⚠️ Used fallback text for '${char}' at (${xOffset}, ${hudEl.position.y})`);
+                }
+
+                xOffset += 8 + charSpacing;
+              }
+              return; // Exit early if tile-based rendering succeeded
+            }
+          }
+        }
+
+        // Fallback: Try legacy tile-based font or MSX font
+        const tileBasedFont = createTileBasedFont(tileBanks, allAssets, fontToUse, fontColorAttrs, hudTextColor, hudBackgroundColor);
 
         if (tileBasedFont) {
+          console.log('✅ Using tile-based font');
           // Render character by character using tiles
           let xOffset = hudEl.position.x;
 
@@ -130,6 +197,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
 
             if (tileImg && tileImg.complete && tileImg.naturalWidth > 0) {
               ctx.drawImage(tileImg, xOffset, hudEl.position.y, 8, 8);
+              console.log(`✅ Drew tile for '${char}' at (${xOffset}, ${hudEl.position.y})`);
             } else {
               // Fallback with custom colors if provided
               const fallbackBgColor = hudBackgroundColor && hudBackgroundColor !== 'transparent' ? hudBackgroundColor : '#FF0000';
@@ -142,33 +210,60 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
               ctx.fillStyle = fallbackTextColor;
               ctx.font = '6px monospace';
               ctx.fillText(char, xOffset + 1, hudEl.position.y + 6);
+              console.log(`⚠️ Used fallback for '${char}' at (${xOffset}, ${hudEl.position.y}) with colors ${fallbackTextColor}/${fallbackBgColor}`);
             }
 
             xOffset += 8 + charSpacing;
           }
         } else {
-          // Fallback to MSX font rendering
+          console.log('✅ Using MSX font rendering fallback - drawing directly to canvas');
+          // Fallback to MSX font rendering - Draw directly without async image loading
           try {
-            const textImageSrc = renderMSX1TextToDataURL(
-              textToRender,
-              fontToUse,
-              fontColorAttrs,
-              1,
-              charSpacing,
-              hudTextColor,
-              hudBackgroundColor
-            );
+            // Draw MSX font text character by character directly
+            let xOffset = hudEl.position.x;
 
-            const img = new Image();
-            img.onload = () => {
-              ctx.drawImage(img, hudEl.position.x, hudEl.position.y);
-            };
-            img.src = textImageSrc;
+            for (const char of textToRender) {
+              const charCode = char.charCodeAt(0);
+              const pattern = fontToUse[charCode] || fontToUse[63]; // Use '?' if not found
+
+              if (pattern) {
+                // Get colors for this character
+                const charColors = fontColorAttrs?.[charCode];
+                const defaultFgColor = hudTextColor || '#FFFFFF';
+                const defaultBgColor = hudBackgroundColor || 'transparent';
+
+                // Draw character pixel by pixel
+                for (let y = 0; y < 8; y++) {
+                  const rowByte = pattern[y];
+                  const rowColors = charColors?.[y];
+                  const fgColor = rowColors?.fg || defaultFgColor;
+                  const bgColor = rowColors?.bg || defaultBgColor;
+
+                  for (let x = 0; x < 8; x++) {
+                    const isPixelSet = (rowByte >> (7 - x)) & 1;
+
+                    if (isPixelSet) {
+                      ctx.fillStyle = fgColor;
+                      ctx.fillRect(xOffset + x, hudEl.position.y + y, 1, 1);
+                    } else if (bgColor !== 'transparent') {
+                      ctx.fillStyle = bgColor;
+                      ctx.fillRect(xOffset + x, hudEl.position.y + y, 1, 1);
+                    }
+                  }
+                }
+
+                console.log(`✅ Drew MSX character '${char}' at (${xOffset}, ${hudEl.position.y})`);
+              }
+
+              xOffset += 8 + charSpacing;
+            }
           } catch (error) {
+            console.log(`❌ MSX font fallback failed, using final text fallback:`, error);
             // Final fallback: simple text with custom colors
             ctx.fillStyle = hudTextColor || '#FFFFFF';
             ctx.font = '8px monospace';
             ctx.fillText(textToRender, hudEl.position.x, hudEl.position.y + 8);
+            console.log(`⚠️ Used final fallback text "${textToRender}" at (${hudEl.position.x}, ${hudEl.position.y + 8})`);
           }
         }
       }
