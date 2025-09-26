@@ -5,7 +5,8 @@ import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
-import { createTileDataURL } from '../utils/screenUtils'; 
+import { createTileDataURL } from '../utils/screenUtils';
+import { InlineColorPicker } from '../common/InlineColorPicker'; 
 
 /**
  * Props for the HUDEditorModal component.
@@ -386,6 +387,45 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                 </div>
             );
         }
+    // Special handling for textBackgroundColor with MSX palette picker
+    } else if (key === 'textBackgroundColor' && pathPrefix === 'details') {
+        const currentValue = String(value || 'transparent');
+        const isTransparent = currentValue === 'transparent';
+        const displayColor = isTransparent ? MSX1_PALETTE[0].hex : currentValue;
+
+        return (
+            <div key={fullPath}>
+                <label className="block text-xs text-msx-textsecondary mb-0.5">{label}:</label>
+                <div className="flex items-center gap-1">
+                    {isTransparent ? (
+                        <div className="flex items-center bg-msx-bgcolor border border-msx-border rounded px-2 py-1">
+                            <div className="w-4 h-4 rounded border border-msx-border mr-2"
+                                 style={{
+                                     background: 'repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 50% / 8px 8px'
+                                 }}
+                                 title="Transparent background"
+                            ></div>
+                            <span className="text-xs text-msx-textsecondary">transparent</span>
+                        </div>
+                    ) : (
+                        <div className="flex-1">
+                            <InlineColorPicker
+                                label=""
+                                color={displayColor as MSX1ColorValue}
+                                onChange={(newColor) => handlePropertyChange(element.id, fullPath, newColor)}
+                            />
+                        </div>
+                    )}
+                    <button
+                        onClick={() => handlePropertyChange(element.id, fullPath, isTransparent ? MSX1_PALETTE[0].hex : 'transparent')}
+                        className="px-2 py-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary hover:bg-msx-darkblue/50"
+                        title={isTransparent ? 'Switch to color' : 'Make transparent'}
+                    >
+                        {isTransparent ? 'Color' : 'Clear'}
+                    </button>
+                </div>
+            </div>
+        );
     } else if ( (key.endsWith('Color') && pathPrefix === 'details') || (key.endsWith('ColorPrimary') && pathPrefix === 'details') || (key.endsWith('ColorSecondary') && pathPrefix === 'details') ) {
         return (
           <div key={fullPath}>

@@ -157,3 +157,5 @@ Cuando un usuario exporta un proyecto Mideas a MSX:
 3. ✅ **SE VE Y JUEGA EXACTAMENTE IGUAL** que el modo Play en Mideas
 
 
+- en Downloads\a1.json hay un proyecto Mideas con ejemplo HUD, Tiles, Screen asset
+- Hay una seccion de Mideas que es HUD Configuration Editor
