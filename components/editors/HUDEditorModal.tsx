@@ -267,7 +267,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
     onUpdateHUDConfiguration(updatedConfig);
   };
 
-  const handleSectorChange = (sectorIndex: 0 | 1 | 2, field: 'tileBankAssetId' | 'fontAssetId', value: string) => {
+  const handleSectorChange = (sectorIndex: 0 | 1 | 2, value: string) => {
     const sectorKey = `sector${sectorIndex}` as keyof typeof localHudConfig.screenSectors;
 
     const updatedConfig = {
@@ -275,8 +275,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
       screenSectors: {
         ...localHudConfig.screenSectors,
         [sectorKey]: {
-          ...localHudConfig.screenSectors?.[sectorKey],
-          [field]: value || undefined
+          tileBankAssetId: value || undefined
         }
       }
     };
@@ -307,16 +306,66 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
     return 2;
   };
 
-  // Función para obtener TileBank y Font del sector correspondiente
+  // Función para obtener TileBank del sector correspondiente
   const getSectorAssets = (y: number) => {
     const sector = getScreenSectorFromY(y);
     const sectorKey = `sector${sector}` as keyof typeof localHudConfig.screenSectors;
     const sectorConfig = localHudConfig.screenSectors?.[sectorKey];
     return {
       sector,
-      tileBankAssetId: sectorConfig?.tileBankAssetId || '',
-      fontAssetId: sectorConfig?.fontAssetId || ''
+      tileBankAssetId: sectorConfig?.tileBankAssetId || ''
     };
+  };
+
+  // Función para extraer fuentes automáticamente del TileBank
+  const extractFontFromTileBank = (tileBankAsset: ProjectAsset, sectorIndex: number) => {
+    try {
+      const tileBankData = tileBankAsset.data as TileBank;
+      const sectorBank = tileBankData.banks[sectorIndex];
+
+      if (!sectorBank?.assignedTiles) return null;
+
+      // Buscar assignments que contengan fontCharacters
+      const fontAssignment = Object.entries(sectorBank.assignedTiles).find(([tileId, assignment]) => {
+        return tileId.startsWith('font_') && (assignment as any).fontCharacters;
+      });
+
+      if (!fontAssignment) return null;
+
+      const [fontTileId, assignment] = fontAssignment;
+      const fontCharacters = (assignment as any).fontCharacters;
+
+      // Buscar el asset de fuente original
+      if (allAssets) {
+        const fontAsset = allAssets.find(asset => fontTileId.includes(asset.id) && asset.type === 'font');
+        if (fontAsset && fontAsset.data) {
+          const fontAssetData = fontAsset.data as any;
+          if (fontAssetData.fontData && fontAssetData.fontColorAttributes) {
+            // Crear mapeo de colores personalizado basado en el TileBank
+            const customFontColorAttributes = { ...fontAssetData.fontColorAttributes };
+
+            // Aplicar colores por defecto del sector
+            const defaultFg = sectorBank.defaultFgColorIndex;
+            const defaultBg = sectorBank.defaultBgColorIndex;
+
+            // TODO: Aquí se podría personalizar más los colores por carácter
+            // basado en la información específica del TileBank
+
+            return {
+              fontData: fontAssetData.fontData,
+              fontColorAttributes: customFontColorAttributes,
+              fontCharacters,
+              sectorColors: { fg: defaultFg, bg: defaultBg }
+            };
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error extracting font from TileBank:', error);
+      return null;
+    }
   };
 
   if (!isOpen) return null;
@@ -530,23 +579,9 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         return <p className="text-xs text-msx-textsecondary">{label}: [Object]</p>;
     }
 
-    // Show Font info (read-only, determined by screen sector)
+    // Skip fontAssetId - fonts are automatically extracted from TileBank
     if (key === 'fontAssetId' && pathPrefix === 'details') {
-        const sectorInfo = getSectorAssets(element.position.y);
-        const fontAssets = allAssets?.filter(asset => asset.type === 'font') || [];
-        const selectedFont = fontAssets.find(asset => asset.id === sectorInfo.fontAssetId);
-
-        return (
-            <div key={fullPath}>
-                <label className="block text-xs text-msx-textsecondary mb-0.5">Font (Auto - Sector {sectorInfo.sector}):</label>
-                <div className="w-full p-1 text-xs bg-msx-darkblue/30 border border-msx-border/50 rounded text-msx-textprimary">
-                    {selectedFont ? selectedFont.name : 'Default MSX Font'}
-                </div>
-                <div className="text-xs text-msx-textsecondary mt-1">
-                    Assigned to Screen Sector {sectorInfo.sector} (Y: {sectorInfo.sector * 64}-{sectorInfo.sector * 64 + 63})
-                </div>
-            </div>
-        );
+        return null; // Font is automatically determined from the TileBank
     }
 
     const isTextarea = key === 'text' && typeof value === 'string' && (value.length > 30 || value.includes('\n'));
@@ -622,40 +657,25 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             let fontToUse = msxFont || DEFAULT_MSX_FONT;
             let fontColorAttributesToUse = msxFontColorAttributes;
 
-            // Usar fuente y TileBank según el sector de pantalla
+            // Usar fuente extraída automáticamente del TileBank del sector
             try {
                 const sectorInfo = getSectorAssets(el.position.y);
 
-                // Usar fuente del sector si existe
-                if (sectorInfo.fontAssetId && allAssets) {
-                    const selectedFontAsset = allAssets.find(asset => asset.id === sectorInfo.fontAssetId && asset.type === 'font');
-                    if (selectedFontAsset && selectedFontAsset.data && typeof selectedFontAsset.data === 'object' && selectedFontAsset.data !== null) {
-                        const fontAssetData = selectedFontAsset.data as any;
-                        if (fontAssetData.fontData && typeof fontAssetData.fontData === 'object') {
-                            fontToUse = fontAssetData.fontData;
-                            fontColorAttributesToUse = fontAssetData.fontColorAttributes || msxFontColorAttributes;
-                        }
-                    }
-                }
-
-                // Usar TileBank del sector si existe
+                // Extraer fuente del TileBank del sector si existe
                 if (sectorInfo.tileBankAssetId && allAssets) {
                     const selectedTileBankAsset = allAssets.find(asset => asset.id === sectorInfo.tileBankAssetId && asset.type === 'tilebank');
-                    if (selectedTileBankAsset && selectedTileBankAsset.data && typeof selectedTileBankAsset.data === 'object') {
-                        const tileBankData = selectedTileBankAsset.data as TileBank;
-                        // Look for font assignments in the sector's bank
-                        const sectorBank = tileBankData.banks[sectorInfo.sector];
-                        if (sectorBank?.assignedTiles) {
-                            Object.entries(sectorBank.assignedTiles).forEach(([tileId, assignment]) => {
-                                if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
-                                    // Found font characters in this sector's bank, could use these for rendering
-                                    // TODO: Implement proper font character mapping from TileBank
-                                }
-                            });
+                    if (selectedTileBankAsset) {
+                        const extractedFont = extractFontFromTileBank(selectedTileBankAsset, sectorInfo.sector);
+                        if (extractedFont) {
+                            fontToUse = extractedFont.fontData;
+                            fontColorAttributesToUse = extractedFont.fontColorAttributes;
+                            // TODO: Aplicar colores específicos del sector si es necesario
+                            // const { fg, bg } = extractedFont.sectorColors;
                         }
                     }
                 }
             } catch (error) {
+                console.error('Error using TileBank font:', error);
                 // Continuar con fuente por defecto
             }
 
@@ -878,50 +898,36 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             </div>
 
             {/* MSX Screen 2 Sector Configuration */}
-            <div className="p-2 border-b-2 border-msx-lightyellow/50">
+            <div className="p-2 border-b-2 border-msx-lightyellow/50 overflow-y-auto flex-shrink-0" style={{ maxHeight: '300px' }}>
               <h3 className="text-sm text-msx-highlight mb-2 select-none">MSX Screen 2 Sectors:</h3>
+              <div className="text-xs text-msx-textsecondary mb-2 italic">
+                Fonts are automatically extracted from TileBank character definitions (A-Z, 0-9)
+              </div>
               {[0, 1, 2].map((sectorIndex) => {
                 const sectorKey = `sector${sectorIndex}` as const;
                 const sectorConfig = localHudConfig.screenSectors?.[sectorKey];
                 const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
-                const fontAssets = allAssets?.filter(asset => asset.type === 'font') || [];
 
                 return (
-                  <div key={sectorIndex} className="mb-3 p-2 border border-msx-border/30 rounded text-xs">
+                  <div key={sectorIndex} className="mb-2 p-2 border border-msx-border/30 rounded text-xs">
                     <div className="text-msx-cyan font-semibold mb-1">
                       Bank {sectorIndex} (Lines {sectorIndex * 8}-{sectorIndex * 8 + 7})
                     </div>
-                    <div className="text-msx-textsecondary mb-2">
+                    <div className="text-msx-textsecondary mb-1 text-xs">
                       Y: {sectorIndex * 64}-{sectorIndex * 64 + 63} pixels
                     </div>
 
-                    <div className="mb-2">
-                      <label className="block text-msx-textsecondary mb-1">TileBank Asset:</label>
+                    <div>
+                      <label className="block text-msx-textsecondary mb-1 text-xs">TileBank Asset (includes tiles + font):</label>
                       <select
                         value={sectorConfig?.tileBankAssetId || ''}
-                        onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, 'tileBankAssetId', e.target.value)}
-                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-                      >
-                        <option value="">Default Font</option>
-                        {tileBankAssets.map(asset => (
-                          <option key={asset.id} value={asset.id}>
-                            {asset.name || 'Unnamed TileBank'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-msx-textsecondary mb-1">Font Asset:</label>
-                      <select
-                        value={sectorConfig?.fontAssetId || ''}
-                        onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, 'fontAssetId', e.target.value)}
+                        onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, e.target.value)}
                         className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
                       >
                         <option value="">Default MSX Font</option>
-                        {fontAssets.map(asset => (
+                        {tileBankAssets.map(asset => (
                           <option key={asset.id} value={asset.id}>
-                            {asset.name}
+                            {asset.name || 'Unnamed TileBank'}
                           </option>
                         ))}
                       </select>
