@@ -218,9 +218,32 @@ export interface HUDElement extends HUDElementProperties_Base {
 /**
  * Represents the complete configuration for a screen's HUD.
  */
+/**
+ * Represents the TileBank and Font assignment for a screen sector in MSX Screen 2.
+ * MSX Screen 2 divides the 24-line screen into 3 sectors of 8 lines each.
+ */
+export interface HUDScreenSector {
+  /** The TileBank asset ID to use for this sector. */
+  tileBankAssetId?: string;
+  /** The Font asset ID to use for this sector. */
+  fontAssetId?: string;
+}
+
+/**
+ * Represents the HUD configuration with proper MSX Screen 2 sector management.
+ */
 export interface HUDConfiguration {
   /** An array of all HUD elements. */
   elements: HUDElement[];
+  /** TileBank and Font assignments per screen sector (MSX Screen 2 compatible). */
+  screenSectors?: {
+    /** Sector 0: Lines 0-7 (Y: 0-63 pixels) - VRAM Bank 0 */
+    sector0?: HUDScreenSector;
+    /** Sector 1: Lines 8-15 (Y: 64-127 pixels) - VRAM Bank 1 */
+    sector1?: HUDScreenSector;
+    /** Sector 2: Lines 16-23 (Y: 128-191 pixels) - VRAM Bank 2 */
+    sector2?: HUDScreenSector;
+  };
 }
 
 // --- ECS Core Types ---

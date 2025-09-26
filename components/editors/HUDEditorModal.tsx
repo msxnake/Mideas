@@ -62,9 +62,9 @@ const DEFAULT_HUD_ELEMENT_PROPS: Omit<HUDElementProperties_Base, 'name'> = {
  */
 const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; defaultText?: string; defaultDetails?: Record<string, any> }[]> = {
   "Basic Stats": [
-    { type: HUDElementType.Score, name: "Score", defaultText: "SCORE: 000000", defaultDetails: { digits: 6, tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
-    { type: HUDElementType.HighScore, name: "High Score", defaultText: "HI-SCORE: 000000", defaultDetails: { digits: 6, tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
-    { type: HUDElementType.Lives, name: "Lives", defaultText: "LIVES:", defaultDetails: { icon: 'ship', max: 3, iconTileId: null, tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.Score, name: "Score", defaultText: "SCORE: 000000", defaultDetails: { digits: 6, textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.HighScore, name: "High Score", defaultText: "HI-SCORE: 000000", defaultDetails: { digits: 6, textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.Lives, name: "Lives", defaultText: "LIVES:", defaultDetails: { icon: 'ship', max: 3, iconTileId: null, textBackgroundColor: 'transparent' } },
     { 
       type: HUDElementType.EnergyBar, 
       name: "Energy Bar", 
@@ -101,9 +101,9 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
         overallBackgroundColor: 'rgba(0,0,100,0.3)' as MSXColorValue,
       } 
     },
-    { type: HUDElementType.SceneName, name: "Scene Name Display", defaultText: "STAGE 1", defaultDetails: { animation: 'static', tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
-    { type: HUDElementType.MiniMap, name: "Mini-Map", defaultDetails: { style: 'grid', size: "64x64" } }, 
-    { type: HUDElementType.CoinCounter, name: "Coin Counter", defaultText: "$00", defaultDetails: { symbol: '$', format: 'X00', tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.SceneName, name: "Scene Name Display", defaultText: "STAGE 1", defaultDetails: { animation: 'static', textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.MiniMap, name: "Mini-Map", defaultDetails: { style: 'grid', size: "64x64" } },
+    { type: HUDElementType.CoinCounter, name: "Coin Counter", defaultText: "$00", defaultDetails: { symbol: '$', format: 'X00', textBackgroundColor: 'transparent' } },
   ],
   "Boss Battle": [
     { 
@@ -127,12 +127,12 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
       } 
     },
     { type: HUDElementType.PhaseIndicator, name: "Boss Phase", defaultDetails: { icons: 3, iconTileId: null } },
-    { type: HUDElementType.AttackAlert, name: "Attack Alert", defaultText: "WARNING!", defaultDetails: { blink: true, tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.AttackAlert, name: "Attack Alert", defaultText: "WARNING!", defaultDetails: { blink: true, textBackgroundColor: 'transparent' } },
   ],
   "Custom": [
-    { type: HUDElementType.TextBox, name: "Custom Text Box", defaultText: "Your text here...", defaultDetails: { border: 'decorative', tileBankAssetId: '', textBackgroundColor: MSX1_PALETTE[4].hex, fontAssetId: '' } },
-    { type: HUDElementType.NumericField, name: "Custom Numeric Field", defaultText: "DATA: 123", defaultDetails: { label: 'DATA:', tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
-    { type: HUDElementType.CustomCounter, name: "Custom Counter", defaultText: "00", defaultDetails: { format: 'decimal', tileBankAssetId: '', textBackgroundColor: 'transparent', fontAssetId: '' } },
+    { type: HUDElementType.TextBox, name: "Custom Text Box", defaultText: "Your text here...", defaultDetails: { border: 'decorative', textBackgroundColor: MSX1_PALETTE[4].hex } },
+    { type: HUDElementType.NumericField, name: "Custom Numeric Field", defaultText: "DATA: 123", defaultDetails: { label: 'DATA:', textBackgroundColor: 'transparent' } },
+    { type: HUDElementType.CustomCounter, name: "Custom Counter", defaultText: "00", defaultDetails: { format: 'decimal', textBackgroundColor: 'transparent' } },
   ],
 };
 
@@ -220,7 +220,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
 
   const handlePropertyChange = (elementId: string, propertyPath: string, value: any) => {
     const pathParts = propertyPath.split('.');
-    
+
     const updatedElements = localHudConfig.elements.map(el => {
       if (el.id === elementId) {
         let newEl = { ...el };
@@ -228,22 +228,22 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
 
         for (let i = 0; i < pathParts.length - 1; i++) {
           if (!currentLevel[pathParts[i]] || typeof currentLevel[pathParts[i]] !== 'object') {
-            currentLevel[pathParts[i]] = {}; 
+            currentLevel[pathParts[i]] = {};
           }
           currentLevel = currentLevel[pathParts[i]];
         }
-        
+
         let valToSet = value;
         if (propertyPath === "position.x" || propertyPath === "position.y") {
             const numVal = parseInt(value, 10);
-            valToSet = isNaN(numVal) ? (currentLevel[pathParts[pathParts.length - 1]] || 0) : Math.round(numVal / 8) * 8; 
-        } else if ( (propertyPath.endsWith('Value') && propertyPath.startsWith('details.')) || 
+            valToSet = isNaN(numVal) ? (currentLevel[pathParts[pathParts.length - 1]] || 0) : Math.round(numVal / 8) * 8;
+        } else if ( (propertyPath.endsWith('Value') && propertyPath.startsWith('details.')) ||
                     (propertyPath.endsWith('Width') && propertyPath.startsWith('details.')) ||
                     (propertyPath.endsWith('Height') && propertyPath.startsWith('details.')) ||
                     (propertyPath.endsWith('Thickness') && propertyPath.startsWith('details.')) ||
                     (propertyPath.endsWith('Spacing') && propertyPath.startsWith('details.')) ||
                     (propertyPath.endsWith('Digits') && propertyPath.startsWith('details.')) ||
-                     propertyPath === 'details.itemIconSize' || 
+                     propertyPath === 'details.itemIconSize' ||
                      propertyPath === 'details.spacing' ||
                      propertyPath === 'details.criticalThresholdPercent'
                    ) {
@@ -252,8 +252,8 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         } else if (propertyPath.startsWith('details.') && (propertyPath.endsWith('Color') || propertyPath.endsWith('ColorPrimary') || propertyPath.endsWith('ColorSecondary'))) {
             if (typeof value === 'string' && (value.startsWith('#') || value.startsWith('rgba') || value === 'transparent')) {
             } else if (typeof value === 'string' && value.trim() === '') {
-                valToSet = undefined; 
-            } 
+                valToSet = undefined;
+            }
         }
 
 
@@ -267,6 +267,24 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
     onUpdateHUDConfiguration(updatedConfig);
   };
 
+  const handleSectorChange = (sectorIndex: 0 | 1 | 2, field: 'tileBankAssetId' | 'fontAssetId', value: string) => {
+    const sectorKey = `sector${sectorIndex}` as keyof typeof localHudConfig.screenSectors;
+
+    const updatedConfig = {
+      ...localHudConfig,
+      screenSectors: {
+        ...localHudConfig.screenSectors,
+        [sectorKey]: {
+          ...localHudConfig.screenSectors?.[sectorKey],
+          [field]: value || undefined
+        }
+      }
+    };
+
+    setLocalHudConfig(updatedConfig);
+    onUpdateHUDConfiguration(updatedConfig);
+  };
+
   const selectedElement = localHudConfig.elements.find(el => el.id === selectedElementId);
 
   // Función para verificar si es un elemento de texto
@@ -276,6 +294,29 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         HUDElementType.SceneName, HUDElementType.CoinCounter, HUDElementType.AttackAlert,
         HUDElementType.TextBox, HUDElementType.NumericField, HUDElementType.CustomCounter
     ].includes(elType);
+  };
+
+  // Función para calcular el sector MSX Screen 2 basado en coordenada Y
+  const getScreenSectorFromY = (y: number): 0 | 1 | 2 => {
+    // MSX Screen 2: 192 pixels / 24 lines = 8 pixels per line
+    // Sector 0: Lines 0-7   (Y: 0-63)
+    // Sector 1: Lines 8-15  (Y: 64-127)
+    // Sector 2: Lines 16-23 (Y: 128-191)
+    if (y < 64) return 0;
+    if (y < 128) return 1;
+    return 2;
+  };
+
+  // Función para obtener TileBank y Font del sector correspondiente
+  const getSectorAssets = (y: number) => {
+    const sector = getScreenSectorFromY(y);
+    const sectorKey = `sector${sector}` as keyof typeof localHudConfig.screenSectors;
+    const sectorConfig = localHudConfig.screenSectors?.[sectorKey];
+    return {
+      sector,
+      tileBankAssetId: sectorConfig?.tileBankAssetId || '',
+      fontAssetId: sectorConfig?.fontAssetId || ''
+    };
   };
 
   if (!isOpen) return null;
@@ -306,45 +347,23 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent" />
         </div>
       );
-    // Special handling for tileBankAssetId - use TileBank asset selector
+    // Show TileBank info (read-only, determined by screen sector)
     } else if (key === 'tileBankAssetId' && pathPrefix === 'details') {
-        try {
-            const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
-            const currentValue = value || '';
-            return (
-                <div key={fullPath}>
-                    <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">TileBank Asset:</label>
-                    <select
-                        id={inputId}
-                        value={currentValue}
-                        onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
-                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-                    >
-                        <option value="">No TileBank (use default font)</option>
-                        {tileBankAssets.map(asset => (
-                            <option key={asset.id} value={asset.id}>
-                                {asset.name || 'Unnamed TileBank'}
-                            </option>
-                        ))}
-                    </select>
+        const sectorInfo = getSectorAssets(element.position.y);
+        const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
+        const selectedTileBank = tileBankAssets.find(asset => asset.id === sectorInfo.tileBankAssetId);
+
+        return (
+            <div key={fullPath}>
+                <label className="block text-xs text-msx-textsecondary mb-0.5">TileBank (Auto - Sector {sectorInfo.sector}):</label>
+                <div className="w-full p-1 text-xs bg-msx-darkblue/30 border border-msx-border/50 rounded text-msx-textprimary">
+                    {selectedTileBank ? selectedTileBank.name : 'Default MSX Font'}
                 </div>
-            );
-        } catch (error) {
-            console.error('Error rendering tileBankAssetId selector:', error);
-            return (
-                <div key={fullPath}>
-                    <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">TileBank Asset (Error):</label>
-                    <input
-                        type="text"
-                        id={inputId}
-                        value={String(value || '')}
-                        onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
-                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-                        placeholder="TileBank Asset ID"
-                    />
+                <div className="text-xs text-msx-textsecondary mt-1">
+                    MSX Screen 2: Y={element.position.y} → Bank {sectorInfo.sector} (Lines {sectorInfo.sector * 8}-{sectorInfo.sector * 8 + 7})
                 </div>
-            );
-        }
+            </div>
+        );
     // Legacy textColor handling - convert to tileBankAssetId selector
     } else if (key === 'textColor' && pathPrefix === 'details') {
         try {
@@ -511,32 +530,23 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         return <p className="text-xs text-msx-textsecondary">{label}: [Object]</p>;
     }
 
-    // Selector de fuente para elementos de texto
+    // Show Font info (read-only, determined by screen sector)
     if (key === 'fontAssetId' && pathPrefix === 'details') {
-        try {
-            const fontAssets = allAssets?.filter(asset => asset.type === 'font') || [];
-            const currentValue = value || '';
-            return (
-                <div key={fullPath}>
-                    <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">Font Asset:</label>
-                    <select
-                        id={inputId}
-                        value={currentValue}
-                        onChange={(e) => {
-                            const newValue = e.target.value;
-                            handlePropertyChange(element.id, fullPath, newValue === '' ? '' : newValue);
-                        }}
-                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent">
-                        <option value="">Default MSX Font</option>
-                        {fontAssets.map(asset => (
-                            <option key={asset.id} value={asset.id}>{asset.name}</option>
-                        ))}
-                    </select>
+        const sectorInfo = getSectorAssets(element.position.y);
+        const fontAssets = allAssets?.filter(asset => asset.type === 'font') || [];
+        const selectedFont = fontAssets.find(asset => asset.id === sectorInfo.fontAssetId);
+
+        return (
+            <div key={fullPath}>
+                <label className="block text-xs text-msx-textsecondary mb-0.5">Font (Auto - Sector {sectorInfo.sector}):</label>
+                <div className="w-full p-1 text-xs bg-msx-darkblue/30 border border-msx-border/50 rounded text-msx-textprimary">
+                    {selectedFont ? selectedFont.name : 'Default MSX Font'}
                 </div>
-            );
-        } catch (error) {
-            return null;
-        }
+                <div className="text-xs text-msx-textsecondary mt-1">
+                    Assigned to Screen Sector {sectorInfo.sector} (Y: {sectorInfo.sector * 64}-{sectorInfo.sector * 64 + 63})
+                </div>
+            </div>
+        );
     }
 
     const isTextarea = key === 'text' && typeof value === 'string' && (value.length > 30 || value.includes('\n'));
@@ -612,10 +622,13 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             let fontToUse = msxFont || DEFAULT_MSX_FONT;
             let fontColorAttributesToUse = msxFontColorAttributes;
 
-            // Usar fuente seleccionada solo si es válida
+            // Usar fuente y TileBank según el sector de pantalla
             try {
-                if (details && details.fontAssetId && allAssets && details.fontAssetId !== '') {
-                    const selectedFontAsset = allAssets.find(asset => asset.id === details.fontAssetId && asset.type === 'font');
+                const sectorInfo = getSectorAssets(el.position.y);
+
+                // Usar fuente del sector si existe
+                if (sectorInfo.fontAssetId && allAssets) {
+                    const selectedFontAsset = allAssets.find(asset => asset.id === sectorInfo.fontAssetId && asset.type === 'font');
                     if (selectedFontAsset && selectedFontAsset.data && typeof selectedFontAsset.data === 'object' && selectedFontAsset.data !== null) {
                         const fontAssetData = selectedFontAsset.data as any;
                         if (fontAssetData.fontData && typeof fontAssetData.fontData === 'object') {
@@ -625,23 +638,21 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                     }
                 }
 
-                // Check for TileBank asset selection
-                if (details && details.tileBankAssetId && allAssets && details.tileBankAssetId !== '') {
-                    const selectedTileBankAsset = allAssets.find(asset => asset.id === details.tileBankAssetId && asset.type === 'tilebank');
+                // Usar TileBank del sector si existe
+                if (sectorInfo.tileBankAssetId && allAssets) {
+                    const selectedTileBankAsset = allAssets.find(asset => asset.id === sectorInfo.tileBankAssetId && asset.type === 'tilebank');
                     if (selectedTileBankAsset && selectedTileBankAsset.data && typeof selectedTileBankAsset.data === 'object') {
                         const tileBankData = selectedTileBankAsset.data as TileBank;
-                        // Look for font assignments in the banks to use for rendering
-                        tileBankData.banks.forEach(bank => {
-                            if (bank.assignedTiles) {
-                                Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
-                                    if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
-                                        // Found font characters in this bank, could use these for rendering
-                                        // For now, use the TileBank's reference to render with the associated font
-                                        // TODO: Implement proper font character mapping from TileBank
-                                    }
-                                });
-                            }
-                        });
+                        // Look for font assignments in the sector's bank
+                        const sectorBank = tileBankData.banks[sectorInfo.sector];
+                        if (sectorBank?.assignedTiles) {
+                            Object.entries(sectorBank.assignedTiles).forEach(([tileId, assignment]) => {
+                                if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
+                                    // Found font characters in this sector's bank, could use these for rendering
+                                    // TODO: Implement proper font character mapping from TileBank
+                                }
+                            });
+                        }
                     }
                 }
             } catch (error) {
@@ -865,6 +876,61 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                 </Button>
               ))}
             </div>
+
+            {/* MSX Screen 2 Sector Configuration */}
+            <div className="p-2 border-b-2 border-msx-lightyellow/50">
+              <h3 className="text-sm text-msx-highlight mb-2 select-none">MSX Screen 2 Sectors:</h3>
+              {[0, 1, 2].map((sectorIndex) => {
+                const sectorKey = `sector${sectorIndex}` as const;
+                const sectorConfig = localHudConfig.screenSectors?.[sectorKey];
+                const tileBankAssets = allAssets?.filter(asset => asset.type === 'tilebank') || [];
+                const fontAssets = allAssets?.filter(asset => asset.type === 'font') || [];
+
+                return (
+                  <div key={sectorIndex} className="mb-3 p-2 border border-msx-border/30 rounded text-xs">
+                    <div className="text-msx-cyan font-semibold mb-1">
+                      Bank {sectorIndex} (Lines {sectorIndex * 8}-{sectorIndex * 8 + 7})
+                    </div>
+                    <div className="text-msx-textsecondary mb-2">
+                      Y: {sectorIndex * 64}-{sectorIndex * 64 + 63} pixels
+                    </div>
+
+                    <div className="mb-2">
+                      <label className="block text-msx-textsecondary mb-1">TileBank Asset:</label>
+                      <select
+                        value={sectorConfig?.tileBankAssetId || ''}
+                        onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, 'tileBankAssetId', e.target.value)}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                      >
+                        <option value="">Default Font</option>
+                        {tileBankAssets.map(asset => (
+                          <option key={asset.id} value={asset.id}>
+                            {asset.name || 'Unnamed TileBank'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-msx-textsecondary mb-1">Font Asset:</label>
+                      <select
+                        value={sectorConfig?.fontAssetId || ''}
+                        onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, 'fontAssetId', e.target.value)}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                      >
+                        <option value="">Default MSX Font</option>
+                        {fontAssets.map(asset => (
+                          <option key={asset.id} value={asset.id}>
+                            {asset.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
             <div className="p-2 flex-grow overflow-y-auto">
               <h3 className="text-sm text-msx-highlight mb-1 select-none">Screen HUD Elements:</h3>
               {localHudConfig.elements.length === 0 && <p className="text-xs text-msx-textsecondary italic">No HUD elements added yet.</p>}
