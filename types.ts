@@ -376,7 +376,13 @@ export interface ScreenMap {
   /** The height of the active (playable) area of the map. */
   activeAreaHeight?: number; 
   /** The HUD configuration for this screen. */
-  hudConfiguration?: HUDConfiguration; 
+  hudConfiguration?: HUDConfiguration;
+  /** MSX Screen 2 sector configuration for TileBank/Font assignment per 8-line sector. */
+  screenSectors?: {
+    sector0?: HUDScreenSector;
+    sector1?: HUDScreenSector;
+    sector2?: HUDScreenSector;
+  };
 }
 
 /** A type representing the possible layer names in the screen editor. */

@@ -788,6 +788,22 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     });
   };
 
+  // Function to handle MSX Screen 2 sector changes
+  const handleSectorChange = (sectorIndex: 0 | 1 | 2, value: string) => {
+    const sectorKey = `sector${sectorIndex}` as keyof NonNullable<ScreenMap['screenSectors']>;
+
+    const updatedScreenSectors = {
+      ...screenMap.screenSectors,
+      [sectorKey]: {
+        tileBankAssetId: value || undefined
+      }
+    };
+
+    onUpdate({
+      screenSectors: updatedScreenSectors
+    });
+  };
+
   return (
     <Panel title={`Screen Editor: ${screenMap.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})` : `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
       <ScreenEditorToolbar
@@ -835,6 +851,51 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           selectedEffectZoneId={selectedEffectZoneId}
           onSelectEffectZone={onSelectEffectZone}
         />
+
+        {/* MSX Screen 2 Sector Configuration Panel */}
+        {currentScreenMode === "SCREEN 2 (Graphics I)" && (
+          <div className="w-64 border-r-2 border-msx-lightyellow bg-msx-panelbg flex flex-col">
+            <div className="p-2 border-b-2 border-msx-lightyellow/50">
+              <h3 className="text-sm text-msx-highlight mb-2 pixel-font">MSX Screen 2 Sectors</h3>
+              <div className="text-xs text-msx-textsecondary mb-2 italic">
+                Fonts are automatically extracted from TileBank character definitions (A-Z, 0-9)
+              </div>
+              {[0, 1, 2].map((sectorIndex) => {
+                const sectorKey = `sector${sectorIndex}` as const;
+                const sectorConfig = screenMap.screenSectors?.[sectorKey];
+                const tileBankAssets = allProjectAssets?.filter(asset => asset.type === 'tilebank') || [];
+
+                return (
+                  <div key={sectorIndex} className="mb-2 p-2 border border-msx-border/30 rounded text-xs">
+                    <div className="text-msx-cyan font-semibold mb-1 pixel-font">
+                      Bank {sectorIndex} (Lines {sectorIndex * 8}-{sectorIndex * 8 + 7})
+                    </div>
+                    <div className="text-msx-textsecondary mb-1 text-xs">
+                      Y: {sectorIndex * 64}-{sectorIndex * 64 + 63} pixels
+                    </div>
+
+                    <div>
+                      <label className="block text-msx-textsecondary mb-1 text-xs">TileBank Asset (includes tiles + font):</label>
+                      <select
+                        value={sectorConfig?.tileBankAssetId || ''}
+                        onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, e.target.value)}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+                      >
+                        <option value="">Default MSX Font</option>
+                        {tileBankAssets.map(asset => (
+                          <option key={asset.id} value={asset.id}>
+                            {asset.name || 'Unnamed TileBank'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <div className="flex-grow p-2 overflow-auto flex items-start justify-start relative">
           {waypointPickerState.isPicking && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50 pointer-events-none">
