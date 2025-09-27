@@ -46,7 +46,8 @@
       "Bash(start http://localhost:5173)",
       "mcp__ide__getDiagnostics",
       "Bash(python test_hud_colors.py:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(start http://localhost:5174)"
     ],
     "deny": [],
     "ask": []

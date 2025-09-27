@@ -321,44 +321,121 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
   const extractFontFromTileBank = (tileBankAsset: ProjectAsset, sectorIndex: number) => {
     try {
       const tileBankData = tileBankAsset.data as TileBank;
-      const sectorBank = tileBankData.banks[sectorIndex];
+      const sectorBank = tileBankData.banks[sectorIndex]; // Acceder al banco específico del sector
+      console.log(`🔧 extractFontFromTileBank - Bank ${sectorIndex}:`, sectorBank);
 
-      if (!sectorBank?.assignedTiles) return null;
+      if (!sectorBank?.assignedTiles) {
+        console.log(`❌ No assignedTiles in Bank ${sectorIndex}`);
+        return null;
+      }
 
-      // Buscar assignments que contengan fontCharacters
-      const fontAssignment = Object.entries(sectorBank.assignedTiles).find(([tileId, assignment]) => {
-        return tileId.startsWith('font_') && (assignment as any).fontCharacters;
+      // Buscar assignments que contengan fontCharacters, específicamente caracteres A-Z
+      const fontAssignments = Object.entries(sectorBank.assignedTiles).filter(([tileId, assignment]) => {
+        return tileId.startsWith('font_') && Array.isArray((assignment as any).fontCharacters);
       });
+      console.log(`🔍 Font assignments found in Bank ${sectorIndex}:`, fontAssignments.length);
+      console.log(`📋 All assignedTiles in Bank ${sectorIndex}:`, Object.keys(sectorBank.assignedTiles));
+      console.log(`🔎 Looking for font_ prefixed tiles:`, Object.keys(sectorBank.assignedTiles).filter(k => k.startsWith('font_')));
 
-      if (!fontAssignment) return null;
+      if (fontAssignments.length === 0) {
+        console.log(`❌ No font assignments found in Bank ${sectorIndex}`);
+        return null;
+      }
 
-      const [fontTileId, assignment] = fontAssignment;
-      const fontCharacters = (assignment as any).fontCharacters;
+      // Construir fontData y fontColorAttributes desde los tiles asignados en este banco específico
+      const extractedFontData: { [charCode: number]: number[] } = {};
+      const extractedFontColorAttributes: { [charCode: number]: Array<{fg: string, bg: string}> } = {};
 
-      // Buscar el asset de fuente original
-      if (allAssets) {
-        const fontAsset = allAssets.find(asset => fontTileId.includes(asset.id) && asset.type === 'font');
-        if (fontAsset && fontAsset.data) {
-          const fontAssetData = fontAsset.data as any;
-          if (fontAssetData.fontData && fontAssetData.fontColorAttributes) {
-            // Crear mapeo de colores personalizado basado en el TileBank
-            const customFontColorAttributes = { ...fontAssetData.fontColorAttributes };
+      // Buscar los assets de fuente originales y extraer solo los caracteres A-Z (65-90)
+      for (const [fontTileId, assignment] of fontAssignments) {
+        const fontCharacters = (assignment as any).fontCharacters;
 
-            // Aplicar colores por defecto del sector
-            const defaultFg = sectorBank.defaultFgColorIndex;
-            const defaultBg = sectorBank.defaultBgColorIndex;
+        if (allAssets && Array.isArray(fontCharacters)) {
+          // Extraer el ID base de la fuente del fontTileId complejo
+          // Formato: font_font_1758743064660_YABCDEFG..._1758802782573
+          const fontIdMatch = fontTileId.match(/^font_(font_\d+)_/);
+          const baseFontId = fontIdMatch ? fontIdMatch[1] : null;
 
-            // TODO: Aquí se podría personalizar más los colores por carácter
-            // basado en la información específica del TileBank
+          console.log(`🔍 Searching for font asset - fontTileId: ${fontTileId}, baseFontId: ${baseFontId}`);
 
-            return {
-              fontData: fontAssetData.fontData,
-              fontColorAttributes: customFontColorAttributes,
-              fontCharacters,
-              sectorColors: { fg: defaultFg, bg: defaultBg }
-            };
+          const fontAsset = allAssets.find(asset => {
+            const isMatch = baseFontId && asset.id === baseFontId && asset.type === 'font';
+            if (isMatch) {
+              console.log(`✅ Found matching font asset: ${asset.id}`);
+            }
+            return isMatch;
+          });
+
+          if (!fontAsset) {
+            console.log(`❌ Font asset not found for baseFontId: ${baseFontId}`);
+            console.log(`📋 Available font assets:`, allAssets.filter(a => a.type === 'font').map(a => ({ id: a.id, name: a.name })));
+          }
+
+          if (fontAsset?.data) {
+            const fontAssetData = fontAsset.data as any;
+            console.log(`📋 Font asset data structure:`, {
+              hasData: !!fontAssetData,
+              hasFontData: !!fontAssetData.fontData,
+              fontDataKeys: fontAssetData.fontData ? Object.keys(fontAssetData.fontData).slice(0, 10) : 'none'
+            });
+
+            // Extraer caracteres del array fontCharacters
+            for (const fontChar of fontCharacters) {
+              const charCode = fontChar.charCode;
+
+              // Solo procesar A-Z (65-90) y 0-9 (48-57)
+              if ((charCode >= 48 && charCode <= 57) || (charCode >= 65 && charCode <= 90)) {
+                if (fontAssetData.fontData?.[charCode]) {
+                  extractedFontData[charCode] = fontAssetData.fontData[charCode];
+                  console.log(`✅ Extracted character ${String.fromCharCode(charCode)} (${charCode}):`, fontAssetData.fontData[charCode]);
+
+                  // Usar colores específicos del Font Asset (traspasados al TileBank)
+                  extractedFontColorAttributes[charCode] = [];
+
+                  if (fontAssetData.fontColorAttributes?.[charCode]) {
+                    // Usar colores específicos por fila del Font Asset original
+                    extractedFontColorAttributes[charCode] = fontAssetData.fontColorAttributes[charCode];
+                    console.log(`✅ Using Font Asset colors for ${String.fromCharCode(charCode)}:`, fontAssetData.fontColorAttributes[charCode]);
+                  } else {
+                    // Fallback: usar colores por defecto del TileBank si no hay específicos
+                    const fgColorHex = MSX1_PALETTE[sectorBank.defaultFgColorIndex]?.hex || MSX1_DEFAULT_COLOR;
+                    const bgColorHex = MSX1_PALETTE[sectorBank.defaultBgColorIndex]?.hex || MSX1_DEFAULT_COLOR;
+
+                    for (let row = 0; row < 8; row++) {
+                      extractedFontColorAttributes[charCode][row] = {
+                        fg: fgColorHex,
+                        bg: bgColorHex
+                      };
+                    }
+                    console.log(`⚠️ No specific Font Asset colors for ${String.fromCharCode(charCode)}, using TileBank defaults: fg=${fgColorHex}, bg=${bgColorHex}`);
+                  }
+                } else {
+                  console.log(`❌ Character ${String.fromCharCode(charCode)} (${charCode}) not found in fontData`);
+                }
+              }
+            }
           }
         }
+      }
+
+      // Solo retornar si encontramos al menos algunos caracteres A-Z y 0-9
+      if (Object.keys(extractedFontData).length > 0) {
+        const extractedChars = Object.keys(extractedFontData).map(code => String.fromCharCode(parseInt(code))).join('');
+        console.log(`✅ Font extracted for Bank ${sectorIndex}:`, {
+          charactersFound: extractedChars,
+          totalCharacters: Object.keys(extractedFontData).length,
+          sectorColors: { fg: sectorBank.defaultFgColorIndex, bg: sectorBank.defaultBgColorIndex },
+          sampleColorAttributes_A_row0: extractedFontColorAttributes[65] ? extractedFontColorAttributes[65][0] : 'none',
+          sampleColorAttributes_A_all8rows: extractedFontColorAttributes[65] || 'none',
+          totalColorAttributesExtracted: Object.keys(extractedFontColorAttributes).length
+        });
+
+        return {
+          fontData: extractedFontData,
+          fontColorAttributes: extractedFontColorAttributes,
+          fontCharacters: extractedChars,
+          sectorColors: { fg: sectorBank.defaultFgColorIndex, bg: sectorBank.defaultBgColorIndex }
+        };
       }
 
       return null;
@@ -657,27 +734,59 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             let fontToUse = msxFont || DEFAULT_MSX_FONT;
             let fontColorAttributesToUse = msxFontColorAttributes;
 
-            // Usar fuente extraída automáticamente del TileBank del sector
+            // Extraer fuente automáticamente del TileBank del sector
             try {
                 const sectorInfo = getSectorAssets(el.position.y);
+                console.log(`🔍 HUD Preview - Element "${el.name}" at Y=${el.position.y} → Sector ${sectorInfo.sector}, TileBank: ${sectorInfo.tileBankAssetId || 'none'}`);
 
                 // Extraer fuente del TileBank del sector si existe
                 if (sectorInfo.tileBankAssetId && allAssets) {
                     const selectedTileBankAsset = allAssets.find(asset => asset.id === sectorInfo.tileBankAssetId && asset.type === 'tilebank');
                     if (selectedTileBankAsset) {
+                        console.log(`📦 Found TileBank asset: ${selectedTileBankAsset.name}`);
                         const extractedFont = extractFontFromTileBank(selectedTileBankAsset, sectorInfo.sector);
                         if (extractedFont) {
+                            console.log(`✅ Extracted font from Bank ${sectorInfo.sector}, characters: ${extractedFont.fontCharacters}`);
+                            console.log(`🔧 Font data keys:`, Object.keys(extractedFont.fontData).slice(0, 5));
+                            console.log(`🔧 Sample font data for 'A' (65):`, extractedFont.fontData[65]);
+                            console.log(`🔧 Sample color attributes for 'A' (65):`, extractedFont.fontColorAttributes[65]);
+
                             fontToUse = extractedFont.fontData;
                             fontColorAttributesToUse = extractedFont.fontColorAttributes;
-                            // TODO: Aplicar colores específicos del sector si es necesario
-                            // const { fg, bg } = extractedFont.sectorColors;
+                        } else {
+                            console.log(`❌ No font extracted from Bank ${sectorInfo.sector}`);
                         }
+                    } else {
+                        console.log(`❌ TileBank asset not found: ${sectorInfo.tileBankAssetId}`);
                     }
+                } else {
+                    console.log(`ℹ️ No TileBank assigned to sector ${sectorInfo.sector}, using default font`);
                 }
             } catch (error) {
                 console.error('Error using TileBank font:', error);
                 // Continuar con fuente por defecto
             }
+
+            // Verificar que todos los caracteres del texto estén disponibles en la fuente
+            const missingChars = [];
+            const availableChars = [];
+            for (let i = 0; i < textToRender.length; i++) {
+                const charCode = textToRender.charCodeAt(i);
+                if (fontToUse && fontToUse[charCode]) {
+                    availableChars.push(textToRender[i]);
+                } else {
+                    missingChars.push(textToRender[i]);
+                }
+            }
+
+            console.log(`🎨 About to render text "${textToRender}" with:`, {
+                fontType: typeof fontToUse,
+                totalFontKeys: fontToUse ? Object.keys(fontToUse).length : 0,
+                availableChars: availableChars.join(''),
+                missingChars: missingChars.join(''),
+                colorAttributesType: typeof fontColorAttributesToUse,
+                fontSample: fontToUse && fontToUse[65] ? fontToUse[65] : 'no A'
+            });
 
             const textImageSrc = renderMSX1TextToDataURL(textToRender, fontToUse, fontColorAttributesToUse, 1, charSpacing);
             const dimensions = getTextDimensionsMSX1(textToRender, charSpacing);
