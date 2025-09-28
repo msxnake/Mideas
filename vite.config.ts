@@ -17,6 +17,33 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              // Separate vendor libraries
+              'vendor-react': ['react', 'react-dom'],
+              'vendor-ui': ['@xyflow/react'],
+              // MSX utilities and generators
+              'msx-utils': ['./utils/msxModularGenerator.ts', './utils/summaryExtractor.ts'],
+              // Editors chunk
+              'editors': [
+                './components/editors/TileEditor.tsx',
+                './components/editors/SpriteEditor.tsx',
+                './components/editors/ScreenEditor.tsx',
+                './components/editors/WorldMapEditor.tsx'
+              ],
+              // Tools and modals
+              'tools': [
+                './components/tools/FileExplorerPanel.tsx',
+                './components/tools/PropertiesPanel.tsx',
+                './components/tools/PalettePanel.tsx'
+              ]
+            }
+          }
+        },
+        chunkSizeWarningLimit: 600
       }
     };
 });
