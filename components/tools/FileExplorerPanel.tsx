@@ -28,21 +28,7 @@ interface FileExplorerPanelProps {
   onRequestLoadTile: (assetId: string) => void;
   /** Callback function to request saving multiple selected tile assets. */
   onRequestSaveSelectedTiles: (assetIds: string[]) => void;
-  /** Whether to show the 'Tile Banks' entry. */
-  showTileBanksEntry?: boolean;
-  /** Whether the 'Tile Banks' editor is currently active. */
-  isTileBanksActive?: boolean;
  
-  /** Whether the 'Help & Docs' viewer is currently active. */
-  isHelpDocsActive?: boolean; 
-  /** Whether the 'Component Definitions' editor is currently active. */
-  isComponentDefEditorActive?: boolean;
-  /** Whether the 'Entity Templates' editor is currently active. */
-  isEntityTemplateEditorActive?: boolean;
-  /** Whether the 'World View' is currently active. */
-  isWorldViewActive?: boolean;
-  /** Whether the 'Game Flow' editor is currently active. */
-  isGameFlowActive?: boolean;
   /** Optional CSS class name for the panel. */
   className?: string;
 }
@@ -154,14 +140,6 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   onImportTrack,
   onRequestLoadTile,
   onRequestSaveSelectedTiles,
-  showTileBanksEntry = false,
-  isTileBanksActive = false,
-  isFontEditorActive = false,
-  isHelpDocsActive = false,
-  isComponentDefEditorActive = false,
-  isEntityTemplateEditorActive = false,
-  isWorldViewActive = false,
-  isGameFlowActive = false,
   className = '',
 }) => {
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
@@ -270,14 +248,7 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   const inactiveItemClass = "text-msx-textsecondary hover:bg-msx-border hover:text-msx-textprimary";
   const selectedTileClass = "bg-msx-highlight text-white";
 
-  const systemTools = [
-    { id: WORLD_VIEW_SYSTEM_ASSET_ID, name: "World View", iconType: "worldview" as const, editorType: EditorType.WorldView, isActive: isWorldViewActive, title: "View Composite World Map" },
-    // { id: GAME_FLOW_SYSTEM_ASSET_ID, name: "Game Flow", iconType: "gameflow" as const, editorType: EditorType.GameFlow, isActive: isGameFlowActive, title: "Manage the game flow" },
-    { id: COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, name: "Component Definitions", iconType: "componentdefinitioneditor" as const, editorType: EditorType.ComponentDefinitionEditor, isActive: isComponentDefEditorActive, title: "Manage Component Definitions" },
-    { id: ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, name: "Entity Templates", iconType: "entitytemplateeditor" as const, editorType: EditorType.EntityTemplateEditor, isActive: isEntityTemplateEditorActive, title: "Manage Entity Templates" },
-    ...(showTileBanksEntry ? [{ id: TILE_BANKS_SYSTEM_ASSET_ID, name: "Tile Banks", iconType: "tilebanks" as const, editorType: EditorType.TileBanks, isActive: isTileBanksActive, title: "Manage Tile Banks (Screen 2)" }] : []),
-   // { id: HELP_DOCS_SYSTEM_ASSET_ID, name: "Help & Tutorials", iconType: "helpdocs" as const, editorType: EditorType.HelpDocs, isActive: isHelpDocsActive, title: "View Help & Tutorials" },
-  ];
+  const systemTools: any[] = [];
 
 
   const getContextMenuItems = (): ContextMenuItem[] => {
@@ -347,7 +318,6 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
 
       <ul className="space-y-0.5 text-sm font-sans">
         {systemTools.map(tool => (
-          tool.id === TILE_BANKS_SYSTEM_ASSET_ID && !showTileBanksEntry ? null : (
             <li key={tool.id}>
               <button
                 onClick={() => onSelectAsset(tool.id, tool.editorType)}
@@ -359,7 +329,6 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                 <span className="font-medium truncate">{tool.name}</span>
               </button>
             </li>
-          )
         ))}
 
         {FOLDER_TYPE_ORDER.map(folderType => {

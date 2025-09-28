@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
 import { ProjectAsset, DataFormat, EditorType } from '../../types'; 
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon } from '../icons/MsxIcons';
+import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 
 /**
@@ -63,6 +63,8 @@ interface ToolbarProps {
   onOpenComponentDefEditor: () => void;
   /** Callback to open the entity template editor. */
   onOpenEntityTemplateEditor: () => void;
+  /** Callback to open the world view editor. */
+  onOpenWorldView: () => void;
   /** Callback to open the data compression modal. */
   onCompressAllDataFiles: () => void;
   /** Callback for the "Compile and Run" action. */
@@ -184,7 +186,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenWorldView, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled
 }) => {
@@ -287,6 +289,37 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onOpenHelpDocs} icon={<QuestionMarkCircleIcon/>}>Tutorials</DropdownItem>
         <DropdownItem onClick={onOpenAbout}>About</DropdownItem>
       </DropdownMenu>
+
+      {/* System Tools */}
+      <Button
+        onClick={onOpenWorldView}
+        variant="ghost"
+        size="sm"
+        icon={<WorldViewIcon />}
+        title="World View"
+      >
+        World View
+      </Button>
+
+      <Button
+        onClick={onOpenComponentDefEditor}
+        variant="ghost"
+        size="sm"
+        icon={<PuzzlePieceIcon />}
+        title="Component Definitions"
+      >
+        Component Definitions
+      </Button>
+
+      <Button
+        onClick={onOpenEntityTemplateEditor}
+        variant="ghost"
+        size="sm"
+        icon={<SpriteIcon />}
+        title="Entity Templates"
+      >
+        Entity Templates
+      </Button>
 
       <Button
         onClick={onToggleEditor}

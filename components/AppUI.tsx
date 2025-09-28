@@ -352,6 +352,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenAbout={() => setIsAboutModalOpen(true)}
         onOpenComponentDefEditor={() => memoizedHandleSelectAsset(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, EditorType.ComponentDefinitionEditor)}
         onOpenEntityTemplateEditor={() => memoizedHandleSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
+        onOpenWorldView={() => memoizedHandleSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
         onCompressAllDataFiles={() => setIsCompressDataModalOpen(true)}
         onCompileAndRun={() => setStatusBarMessage("Compile and Run: Mock Action")}
         onCompressExportCompileRun={() => setStatusBarMessage("Compress, Export, Compile, Run: Mock Action")}
@@ -369,14 +370,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             selectedAssetId={selectedAssetId} 
             onSelectAsset={memoizedHandleSelectAsset} 
             onRequestRename={memoizedOnRequestRename} 
-            showTileBanksEntry={currentScreenMode === "SCREEN 2 (Graphics I)"} 
-            isTileBanksActive={currentEditor === EditorType.TileBanks} 
  
-            isHelpDocsActive={currentEditor === EditorType.HelpDocs}
-            isComponentDefEditorActive={currentEditor === EditorType.ComponentDefinitionEditor}
-            isEntityTemplateEditorActive={currentEditor === EditorType.EntityTemplateEditor}
-            isWorldViewActive={currentEditor === EditorType.WorldView}
-            isGameFlowActive={currentEditor === EditorType.GameFlow}
+ 
             isMainMenuActive={currentEditor === EditorType.MainMenu}
             onRequestDelete={handleDeleteAsset}
             onRequestSaveTile={onRequestSaveTile}
