@@ -5,7 +5,7 @@ import { Sprite, MSXColorValue, PixelData, Point, SpriteFrame, DataFormat, Explo
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, RefreshCwIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon } from '../icons/MsxIcons';
 import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
 import { ExplosionGeneratorModal } from '../modals/ExplosionGeneratorModal'; 
 import { DisintegrationGeneratorModal, DisintegrationParams } from '../modals/DisintegrationGeneratorModal';
@@ -243,11 +243,6 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const [isExplosionModalOpen, setIsExplosionModalOpen] = useState<boolean>(false);
   const [isDisintegrationModalOpen, setIsDisintegrationModalOpen] = useState<boolean>(false);
 
-  const [isMovementEnabled, setIsMovementEnabled] = useState<boolean>(false);
-  const [movementDirection, setMovementDirection] = useState<'left-to-right' | 'right-to-left'>('right-to-left');
-  const [movementSpeed, setMovementSpeed] = useState<number>(100); 
-  const [spriteXPosition, setSpriteXPosition] = useState<number>(0);
-  const animationPreviewAreaRef = useRef<HTMLDivElement>(null);
   const animationFrameIdRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
 
@@ -909,57 +904,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   };
 
 
-  useEffect(() => {
-    const animate = (timestamp: number) => {
-        if (!isMovementEnabled || !animationPreviewAreaRef.current || !currentFrameData) {
-            if(animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
-            animationFrameIdRef.current = null;
-            return;
-        }
-
-        const elapsed = timestamp - lastUpdateTimeRef.current;
-        const actualMovementSpeed = 201 - movementSpeed; 
-
-        if (elapsed > actualMovementSpeed) {
-            lastUpdateTimeRef.current = timestamp;
-            setSpriteXPosition(prevX => {
-                const previewAreaWidth = animationPreviewAreaRef.current?.offsetWidth || 300;
-                const spriteVisualWidth = sprite.size.width * 2; 
-                let newX = prevX;
-                const step = 2; 
-
-                if (movementDirection === 'left-to-right') {
-                    newX = prevX + step;
-                    if (newX > previewAreaWidth) {
-                        newX = -spriteVisualWidth;
-                    }
-                } else { 
-                    newX = prevX - step;
-                    if (newX < -spriteVisualWidth) {
-                        newX = previewAreaWidth;
-                    }
-                }
-                return newX;
-            });
-        }
-        animationFrameIdRef.current = requestAnimationFrame(animate);
-    };
-
-    if (isMovementEnabled) {
-        lastUpdateTimeRef.current = performance.now();
-        animationFrameIdRef.current = requestAnimationFrame(animate);
-    } else {
-        if (animationFrameIdRef.current) {
-            cancelAnimationFrame(animationFrameIdRef.current);
-            animationFrameIdRef.current = null;
-        }
-    }
-    return () => {
-        if (animationFrameIdRef.current) {
-            cancelAnimationFrame(animationFrameIdRef.current);
-        }
-    };
-  }, [isMovementEnabled, movementDirection, movementSpeed, sprite.size.width, currentFrameData]); 
+ 
 
   useEffect(() => {
     if (animationIntervalRef.current) {
@@ -1175,51 +1120,19 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               {sprite.frames.length === 0 ? "No frames in sprite. Add one!" : "Select a frame or check sprite size."}
             </div>
           )}
-          <div className="mt-2 text-xs pixel-font text-msx-textsecondary">
-            Frame: {sprite.currentFrameIndex + 1} / {sprite.frames.length} |
-            Grid Zoom:
-            <input type="range" min={sprite.size.width > 32 ? 4 : 8} max="32" value={pixelSize} onChange={(e) => setPixelSize(parseInt(e.target.value))} className="w-20 ml-1 accent-msx-accent" />
+          <div className="mt-2 text-xs pixel-font text-msx-textsecondary flex flex-wrap items-center justify-center gap-2">
+            <span>Frame: {sprite.currentFrameIndex + 1} / {sprite.frames.length}</span>
+            <span>|</span>
+            <span>Grid Zoom:</span>
+            <input type="range" min={(sprite.size?.width ?? 16) > 32 ? 4 : 8} max="32" value={pixelSize} onChange={(e) => setPixelSize(parseInt(e.target.value))} className="w-20 accent-msx-accent" />
+            <div className="flex gap-1">
+              <button onClick={() => setPixelSize(8)} className={`px-1.5 py-0.5 rounded ${pixelSize === 8 ? 'bg-msx-accent text-msx-black' : 'bg-msx-panelbg hover:bg-msx-border'}`}>100%</button>
+              <button onClick={() => setPixelSize(16)} className={`px-1.5 py-0.5 rounded ${pixelSize === 16 ? 'bg-msx-accent text-msx-black' : 'bg-msx-panelbg hover:bg-msx-border'}`}>200%</button>
+              <button onClick={() => setPixelSize(24)} className={`px-1.5 py-0.5 rounded ${pixelSize === 24 ? 'bg-msx-accent text-msx-black' : 'bg-msx-panelbg hover:bg-msx-border'}`}>400%</button>
+              <button onClick={() => setPixelSize(32)} className={`px-1.5 py-0.5 rounded ${pixelSize === 32 ? 'bg-msx-accent text-msx-black' : 'bg-msx-panelbg hover:bg-msx-border'}`}>800%</button>
+            </div>
           </div>
           
-          <div className="mt-3 w-full flex flex-col items-center">
-            <div 
-                ref={animationPreviewAreaRef} 
-                className="w-full h-16 border border-msx-border rounded overflow-hidden relative shadow-inner"
-                style={{ backgroundColor: sprite.backgroundColor }}
-            >
-              {currentFrameData && sprite.size.width > 0 && sprite.size.height > 0 && (
-                <div style={{ position: 'absolute', left: `${spriteXPosition}px`, top: `50%`, transform: 'translateY(-50%)' }}>
-                    <SpritePixelGrid
-                        pixelData={currentFrameData} 
-                        spriteWidth={sprite.size.width}
-                        spriteHeight={sprite.size.height}
-                        pixelSize={2}
-                        backgroundColor={sprite.backgroundColor}
-                    />
-                </div>
-              )}
-            </div>
-            <div className="mt-1.5 flex items-center space-x-2">
-              <Button 
-                onClick={() => {
-                    const nextIsEnabled = !isMovementEnabled;
-                    setIsMovementEnabled(nextIsEnabled);
-                    if (nextIsEnabled && sprite.frames.length > 1 && !isAnimationPlaying) {
-                        setIsAnimationPlaying(true); // Also start frame animation
-                    }
-                }} 
-                variant="ghost" 
-                size="sm" 
-                icon={isMovementEnabled ? <StopIcon /> : <PlayIcon />} 
-                title={isMovementEnabled ? "Pause Horizontal Movement" : "Enable Horizontal Movement & Frame Animation"}
-              >
-                {isMovementEnabled ? 'Pause Horiz.' : 'Play Horiz.'}
-              </Button>
-              <Button onClick={() => setMovementDirection(p => p === 'left-to-right' ? 'right-to-left' : 'left-to-right')} variant="ghost" size="sm" icon={<RefreshCwIcon />} title="Switch Direction">{null}</Button>
-              <label htmlFor="movementSpeed" className="text-xs text-msx-textsecondary">Speed:</label>
-              <input type="range" id="movementSpeed" min="10" max="200" value={movementSpeed} onChange={e => setMovementSpeed(parseInt(e.target.value))} className="w-24 accent-msx-accent" title={`Horizontal Movement Speed (Interval: ${movementSpeed}ms)`}/>
-            </div>
-          </div>
         </div>
 
         {/* Right Panel: Frame Management & Animation Preview */}
@@ -1286,8 +1199,8 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 <span>Offset X</span>
                 <input
                   type="number"
-                  min={-(sprite.size.width)}
-                  max={sprite.size.width}
+                  min={-(sprite.size?.width ?? 16)}
+                  max={sprite.size?.width ?? 16}
                   value={sprite.hitbox?.offsetX ?? 0}
                   onChange={e => onUpdate({ 
                     hitbox: { 
@@ -1305,8 +1218,8 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 <span>Offset Y</span>
                 <input
                   type="number"
-                  min={-(sprite.size.height)}
-                  max={sprite.size.height}
+                  min={-(sprite.size?.height ?? 16)}
+                  max={sprite.size?.height ?? 16}
                   value={sprite.hitbox?.offsetY ?? 0}
                   onChange={e => onUpdate({ 
                     hitbox: { 
