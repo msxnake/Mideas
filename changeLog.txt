@@ -1,4 +1,12 @@
 
+Versión 0.249 - 30/9/2025
+- feat: Añadir efecto "Warp" en Sprite Editor - desintegración en espiral
+- feat: Crear WarpGeneratorModal con parámetros (numFrames, spiralTightness, rotationSpeed)
+- feat: Implementar algoritmo de espiral que rota píxeles hacia el centro
+- ui: Mover sección "Define Sprite Colors" del panel izquierdo al panel derecho
+- ui: Crear cuarta columna en Sprite Editor para "Animation Tools"
+- ui: Reorganizar paneles - "Frame Control" ahora bajo "Animation Tools"
+
 Versión 0.248 - 30/9/2025
 - fix: Corregir selección y conexión de nodos en GameFlow Editor
 - fix: Implementar menú contextual (click derecho) en nodos de GameFlow

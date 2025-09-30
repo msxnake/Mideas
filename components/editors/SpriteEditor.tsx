@@ -10,6 +10,7 @@ import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
 import { ExplosionGeneratorModal } from '../modals/ExplosionGeneratorModal';
 import { DisintegrationGeneratorModal, DisintegrationParams } from '../modals/DisintegrationGeneratorModal';
 import { FragmentGeneratorModal, FragmentParams } from '../modals/FragmentGeneratorModal';
+import { WarpGeneratorModal, WarpParams } from '../modals/WarpGeneratorModal';
 import { MSX_SCREEN5_PALETTE } from '../../constants'; 
 import { SpriteImportConfigModal, SpriteImportConfig } from '../modals/SpriteImportConfigModal';
 import { AnimationWatcherModal } from '../modals/AnimationWatcherModal';
@@ -244,6 +245,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const [isExplosionModalOpen, setIsExplosionModalOpen] = useState<boolean>(false);
   const [isDisintegrationModalOpen, setIsDisintegrationModalOpen] = useState<boolean>(false);
   const [isFragmentModalOpen, setIsFragmentModalOpen] = useState<boolean>(false);
+  const [isWarpModalOpen, setIsWarpModalOpen] = useState<boolean>(false);
 
   const animationFrameIdRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
@@ -928,6 +930,105 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
     setIsFragmentModalOpen(false);
   };
 
+  const handleGenerateWarp = (params: WarpParams) => {
+    if (!currentFrameData) return;
+
+    const { numFrames, spiralTightness, rotationSpeed } = params;
+    const W = sprite.size.width;
+    const H = sprite.size.height;
+    const centerX = W / 2;
+    const centerY = H / 2;
+
+    // Collect all non-background pixels with their positions and colors
+    interface PixelInfo {
+      x: number;
+      y: number;
+      color: MSXColorValue;
+      angle: number;
+      distance: number;
+    }
+
+    const pixels: PixelInfo[] = [];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (currentFrameData[y][x] !== sprite.backgroundColor) {
+          const dx = x - centerX;
+          const dy = y - centerY;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx);
+
+          pixels.push({
+            x,
+            y,
+            color: currentFrameData[y][x],
+            angle,
+            distance
+          });
+        }
+      }
+    }
+
+    if (pixels.length === 0) {
+      alert("No pixels to warp - sprite is empty");
+      return;
+    }
+
+    console.log(`🌀 Generating ${numFrames} warp frames from ${pixels.length} pixels`);
+
+    const newFramesArray: SpriteFrame[] = [];
+    const maxDistance = Math.sqrt((W/2) * (W/2) + (H/2) * (H/2));
+
+    // Generate frames
+    for (let frameIndex = 0; frameIndex < numFrames; frameIndex++) {
+      const frameData: PixelData = Array(H).fill(null).map(() => Array(W).fill(sprite.backgroundColor));
+      const progress = frameIndex / (numFrames - 1);
+
+      // Calculate spiral parameters for this frame
+      const spiralFactor = (spiralTightness / 100) * 6; // How many rotations
+      const rotationFactor = (rotationSpeed / 100) * Math.PI * 4; // Total rotation amount
+
+      pixels.forEach(pixel => {
+        // Calculate how much this pixel has moved toward center
+        const pixelProgress = Math.min(1, progress + (pixel.distance / maxDistance) * 0.3);
+
+        // Distance from center shrinks over time
+        const newDistance = pixel.distance * (1 - pixelProgress);
+
+        // Angle rotates based on distance (spiral effect)
+        const spiralAngle = pixel.angle + (pixelProgress * spiralFactor * Math.PI * 2) +
+                           (progress * rotationFactor);
+
+        // Calculate new position
+        const newX = centerX + newDistance * Math.cos(spiralAngle);
+        const newY = centerY + newDistance * Math.sin(spiralAngle);
+
+        // Only draw if pixel is still visible (not converged to center yet)
+        if (newDistance > 0.5 && pixelProgress < 0.95) {
+          const pixelX = Math.round(newX);
+          const pixelY = Math.round(newY);
+
+          if (pixelX >= 0 && pixelX < W && pixelY >= 0 && pixelY < H) {
+            frameData[pixelY][pixelX] = pixel.color;
+          }
+        }
+      });
+
+      newFramesArray.push({
+        id: `warp_frame_${Date.now()}_${frameIndex}`,
+        data: frameData
+      });
+
+      console.log(`🌀 Frame ${frameIndex + 1}: Warp progress ${Math.round(progress * 100)}%`);
+    }
+
+    onUpdate({
+      frames: newFramesArray,
+      currentFrameIndex: 0
+    });
+
+    setIsWarpModalOpen(false);
+  };
+
   const handleExportAsm = () => {
     setAsmExportConfig({ spriteToExport: sprite, dataOutputFormat: dataOutputFormat }); 
     setIsExportAsmModalOpen(true);
@@ -1170,7 +1271,19 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 >
                     Gen Disintegration
                 </Button>
-                <Button 
+                <Button
+                    onClick={() => setIsWarpModalOpen(true)}
+                    variant="secondary"
+                    size="sm"
+                    icon={<FireIcon className="w-3.5 h-3.5" />}
+                    className="w-full mb-1"
+                    justify="start"
+                    title="Generate warp spiral effect converging to center"
+                    disabled={isFrameEmpty}
+                >
+                    Gen Warp
+                </Button>
+                <Button
                     onClick={handleAddContour}
                     variant="secondary"
                     size="sm"
@@ -1182,37 +1295,6 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 >
                     Add Contour
                 </Button>
-            </div>
-
-            <div className="mt-auto pt-3 border-t border-msx-border">
-                <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">Define Sprite Colors</h4>
-                <p className="text-[0.65rem] text-msx-textsecondary mb-1.5">Click a slot, then pick from main MSX Palette Panel.</p>
-                 <div className="space-y-2">
-                    {sprite.spritePalette.map((color, index) => (
-                        <div key={`setup-slot-${index}`} className="flex items-center space-x-2">
-                            <span className="text-xs text-msx-textsecondary w-12 pixel-font">Slot {index + 1}:</span>
-                            <button
-                                onClick={() => setActivePaletteSetupSlotIndex(index)}
-                                className={`flex-grow h-6 border-2 rounded ${activePaletteSetupSlotIndex === index ? 'border-msx-white ring-2 ring-offset-1 ring-msx-panelbg ring-msx-white' : 'border-msx-border hover:border-msx-highlight'}`}
-                                style={{backgroundColor: color}}
-                                title={`Assign color to Palette Slot ${index + 1}. Current: ${color}`}
-                                aria-pressed={activePaletteSetupSlotIndex === index}
-                                aria-label={`Set color for palette slot ${index + 1}`}
-                            />
-                        </div>
-                    ))}
-                    <div className="flex items-center space-x-2 pt-1 border-t border-msx-border/50">
-                        <span className="text-xs text-msx-textsecondary w-12 pixel-font">BG:</span>
-                        <button
-                             onClick={() => setActivePaletteSetupSlotIndex('bg')}
-                             className={`flex-grow h-6 border-2 rounded ${activePaletteSetupSlotIndex === 'bg' ? 'border-msx-white ring-2 ring-offset-1 ring-msx-panelbg ring-msx-white' : 'border-msx-border hover:border-msx-highlight'}`}
-                             style={{backgroundColor: sprite.backgroundColor,  outline: activePaletteSetupSlotIndex === 'bg' ? '1px dashed #FF8E81' : undefined }}
-                             title={`Assign Background Color. Current: ${sprite.backgroundColor}`}
-                             aria-pressed={activePaletteSetupSlotIndex === 'bg'}
-                             aria-label="Set background color"
-                        />
-                    </div>
-                </div>
             </div>
         </div>
 
@@ -1252,8 +1334,37 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
           
         </div>
 
-        {/* Right Panel: Frame Management & Animation Preview */}
+        {/* Right Panel 1: Sprite Configuration */}
         <div className="w-48 p-2 border-l border-msx-border flex-shrink-0 flex flex-col space-y-3 overflow-y-auto">
+          <Panel title="Define Sprite Colors">
+            <p className="text-[0.65rem] text-msx-textsecondary mb-2">Click a slot, then pick from main MSX Palette Panel.</p>
+            <div className="space-y-2">
+              {sprite.spritePalette.map((color, index) => (
+                <div key={`setup-slot-${index}`} className="flex items-center space-x-2">
+                  <span className="text-xs text-msx-textsecondary w-12 pixel-font">Slot {index + 1}:</span>
+                  <button
+                    onClick={() => setActivePaletteSetupSlotIndex(index)}
+                    className={`flex-grow h-6 border-2 rounded ${activePaletteSetupSlotIndex === index ? 'border-msx-white ring-2 ring-offset-1 ring-msx-panelbg ring-msx-white' : 'border-msx-border hover:border-msx-highlight'}`}
+                    style={{backgroundColor: color}}
+                    title={`Assign color to Palette Slot ${index + 1}. Current: ${color}`}
+                    aria-pressed={activePaletteSetupSlotIndex === index}
+                    aria-label={`Set color for palette slot ${index + 1}`}
+                  />
+                </div>
+              ))}
+              <div className="flex items-center space-x-2 pt-1 border-t border-msx-border/50">
+                <span className="text-xs text-msx-textsecondary w-12 pixel-font">BG:</span>
+                <button
+                  onClick={() => setActivePaletteSetupSlotIndex('bg')}
+                  className={`flex-grow h-6 border-2 rounded ${activePaletteSetupSlotIndex === 'bg' ? 'border-msx-white ring-2 ring-offset-1 ring-msx-panelbg ring-msx-white' : 'border-msx-border hover:border-msx-highlight'}`}
+                  style={{backgroundColor: sprite.backgroundColor, outline: activePaletteSetupSlotIndex === 'bg' ? '1px dashed #FF8E81' : undefined}}
+                  title={`Assign Background Color. Current: ${sprite.backgroundColor}`}
+                  aria-pressed={activePaletteSetupSlotIndex === 'bg'}
+                  aria-label="Set background color"
+                />
+              </div>
+            </div>
+          </Panel>
           <Panel title="Sprite Settings">
             <div className="space-y-2 text-xs">
               <label className="flex items-center justify-between">
@@ -1352,6 +1463,10 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               </label>
             </div>
           </Panel>
+        </div>
+
+        {/* Right Panel 2: Animation Tools */}
+        <div className="w-48 p-2 border-l border-msx-border flex-shrink-0 flex flex-col space-y-3 overflow-y-auto">
           <Panel title="Animation Tools">
             <div className="text-center">
               {currentFrameData && sprite.size.width > 0 && sprite.size.height > 0 ? (
@@ -1436,6 +1551,13 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
             isOpen={isFragmentModalOpen}
             onClose={() => setIsFragmentModalOpen(false)}
             onGenerate={handleGenerateFragment}
+        />
+      )}
+      {isWarpModalOpen && (
+        <WarpGeneratorModal
+            isOpen={isWarpModalOpen}
+            onClose={() => setIsWarpModalOpen(false)}
+            onGenerate={handleGenerateWarp}
         />
       )}
       {isImportConfigModalOpen && importedImageData && (
