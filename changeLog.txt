@@ -1,4 +1,12 @@
 
+Versión 0.248 - 30/9/2025
+- fix: Corregir selección y conexión de nodos en GameFlow Editor
+- fix: Implementar menú contextual (click derecho) en nodos de GameFlow
+- feat: Mejorar modo linking - puerto amarillo (salida) a puerto azul (entrada)
+- feat: Todo el cuerpo del nodo es clickeable cuando está en linking mode
+- fix: Diferenciar correctamente eventos de click izquierdo y derecho
+- fix: Agregar estado contextMenu y handlers en App.tsx
+
 Versión 0.247 - 30/9/2025
 - feat: Añadir generador de fragmentación en Sprite Editor (Gen Fragment)
 - feat: Divide sprite en 4 cuadrantes con separación línea por línea

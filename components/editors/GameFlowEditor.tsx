@@ -171,7 +171,12 @@ const GameFlowNodeComponent: React.FC<{
       <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" fill="white" fontSize="10px" className="pixel-font select-none pointer-events-none">{node.type}</text>
       <text x={NODE_WIDTH / 2} y={35} textAnchor="middle" fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none">{nodeName}</text>
 
-      {hasInput && <rect x={-PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(200, 80%, 60%)" stroke="hsl(200, 80%, 70%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}/>}
+      {hasInput && (
+        <g>
+          {/* Puerto de entrada - solo visual cuando estamos en linking mode, todo el nodo es clickeable */}
+          <rect x={-PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(200, 80%, 60%)" stroke="hsl(200, 80%, 70%)" style={{ pointerEvents: isLinkingMode ? 'none' : 'auto', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}/>
+        </g>
+      )}
 
       {node.type === 'Start' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
       {node.type === 'WorldLink' && <rect x={NODE_WIDTH - PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />}
