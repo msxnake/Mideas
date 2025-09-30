@@ -1356,7 +1356,7 @@ UPDATE_MAIN_MENU_STATE:
 
 UPDATE_GAME_STATE:
     ; Main gameplay logic - update all component systems in correct order
-    CALL UPDATE_INPUT_COMPONENT     ; Read input
+${analysis.entities && analysis.entities.length > 0 ? `    CALL UPDATE_INPUT_COMPONENT     ; Read input
     CALL UPDATE_BEHAVIOR_COMPONENT  ; AI/Logic decisions
     CALL UPDATE_MOVEMENT_COMPONENT  ; Apply physics/movement
     CALL UPDATE_POSITION_COMPONENT  ; Update positions
@@ -1373,7 +1373,8 @@ UPDATE_GAME_STATE:
     JP NZ, PAUSE_GAME
 
     ; Check for game over conditions
-    CALL CHECK_GAME_OVER_CONDITIONS
+    CALL CHECK_GAME_OVER_CONDITIONS` : `    ; No entities - minimal game state update
+    ; Simple projects just display static sprite`}
     RET
 
 UPDATE_PAUSE_STATE:
