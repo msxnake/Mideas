@@ -95,7 +95,9 @@ const GameFlowNodeComponent: React.FC<{
     onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
     /** Callback to open the appearance editor for a submenu node. */
     onEditAppearance: (node: GameFlowSubMenuNode) => void;
-}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance }) => {
+    /** Whether we are currently in linking mode (creating a connection). */
+    isLinkingMode: boolean;
+}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance, isLinkingMode }) => {
   const [isHovered, setIsHovered] = useState(false);
   const nodeHeight = getNodeHeight(node);
   const nodeColor =
@@ -120,16 +122,52 @@ const GameFlowNodeComponent: React.FC<{
     : node.id;
   const hasInput = node.type !== 'Start';
 
+  const handleNodeClick = (e: React.MouseEvent) => {
+    // Solo procesar click izquierdo (button 0)
+    if (e.button !== 0) return;
+
+    e.stopPropagation();
+
+    if (isLinkingMode && hasInput) {
+      onPortClick(node.id, 'in');
+    } else {
+      onSelect(e, node.id);
+    }
+  };
+
+  const handleNodeMouseDown = (e: React.MouseEvent) => {
+    // Click derecho (button 2) - stopPropagation para prevenir otros handlers, luego dejar que onContextMenu lo maneje
+    if (e.button === 2) {
+      e.stopPropagation();
+      return;
+    }
+
+    if (isLinkingMode) {
+      e.stopPropagation();
+    } else {
+      onMouseDown(e, node.id);
+    }
+  };
+
   return (
-    <g 
-      transform={`translate(${node.position.x}, ${node.position.y})`} 
-      onMouseDown={(e) => onMouseDown(e, node.id)} 
-      onClick={(e) => onSelect(e, node.id)} 
+    <g
+      transform={`translate(${node.position.x}, ${node.position.y})`}
+      onMouseDown={handleNodeMouseDown}
+      onClick={handleNodeClick}
       onContextMenu={(e) => onContextMenu(e, node.id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <rect width={NODE_WIDTH} height={nodeHeight} fill={nodeColor} stroke={strokeColor} strokeWidth={isSelected ? 2.5 : 1.5} rx={5} ry={5} style={{ cursor: 'grab' }} />
+      <rect
+        width={NODE_WIDTH}
+        height={nodeHeight}
+        fill={nodeColor}
+        stroke={strokeColor}
+        strokeWidth={isSelected ? 2.5 : 1.5}
+        rx={5}
+        ry={5}
+        style={{ cursor: isLinkingMode && hasInput ? 'crosshair' : 'grab' }}
+      />
       <text x={NODE_WIDTH / 2} y={15} textAnchor="middle" fill="white" fontSize="10px" className="pixel-font select-none pointer-events-none">{node.type}</text>
       <text x={NODE_WIDTH / 2} y={35} textAnchor="middle" fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none">{nodeName}</text>
 
@@ -165,6 +203,7 @@ const GameFlowNodeComponent: React.FC<{
  */
 export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, componentDefinitions }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
+  const [isLinkingMode, setIsLinkingMode] = useState(false);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewBox, setViewBox] = useState(`0 0 1000 700`);
@@ -237,13 +276,33 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   };
 
   const handlePortClick = (nodeId: string, portId: string) => {
-      if (!linkingState) {
-          setLinkingState({ fromNodeId: nodeId, fromPortId: portId });
-      } else {
-          if (linkingState.fromNodeId === nodeId) { setLinkingState(null); return; }
+      // Si es un puerto de entrada (in) y estamos en linking mode, completar la conexión
+      if (linkingState && portId === 'in') {
+          if (linkingState.fromNodeId === nodeId) {
+              // Cancelar si intentamos conectar al mismo nodo
+              setLinkingState(null);
+              setIsLinkingMode(false);
+              return;
+          }
           const newConnection: GameFlowConnection = { id: `gfc_${Date.now()}`, from: { nodeId: linkingState.fromNodeId, sourceId: linkingState.fromPortId }, to: { nodeId: nodeId } };
           onUpdate({ connections: [...connections, newConnection] });
           setLinkingState(null);
+          setIsLinkingMode(false);
+          return;
+      }
+
+      // Si es un puerto de salida (out o option) y NO estamos en linking mode, iniciar conexión
+      if (!linkingState && portId !== 'in') {
+          setLinkingState({ fromNodeId: nodeId, fromPortId: portId });
+          setIsLinkingMode(true);
+          return;
+      }
+
+      // Si es un puerto de salida y YA estamos en linking mode, cancelar y empezar uno nuevo
+      if (linkingState && portId !== 'in') {
+          setLinkingState({ fromNodeId: nodeId, fromPortId: portId });
+          setIsLinkingMode(true);
+          return;
       }
   };
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
@@ -303,9 +362,11 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
       if (e.currentTarget) e.currentTarget.style.cursor = 'grabbing';
-    } else {
+    } else if (!isLinkingMode) {
         setSelectedNodeId(null);
+    } else {
         setLinkingState(null);
+        setIsLinkingMode(false);
     }
   };
   const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
@@ -378,9 +439,9 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               return <path key={conn.id} data-testid={`connection-${conn.id}`} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
           })}
           {nodes.map(node => (
-            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} />
+            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} isLinkingMode={isLinkingMode} />
           ))}
-          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} /></g>}
+          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - NODE_WIDTH/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} isLinkingMode={false} /></g>}
           {linkingState && mousePosition && (() => {
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;

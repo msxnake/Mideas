@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import { EditorType, ProjectAsset } from './types';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { EditorType, ProjectAsset, ContextMenuItem } from './types';
 import { AppUI } from './components/AppUI';
 import { ThemeProvider } from './contexts/ThemeContext';
 
@@ -130,6 +130,17 @@ const App: React.FC = () => {
     worldViewGridVisible,
     setWorldViewGridVisible
   } = appState;
+
+  // Context Menu state
+  const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; position: { x: number; y: number }; items: ContextMenuItem[] } | null>(null);
+
+  const showContextMenu = (position: { x: number; y: number }, items: ContextMenuItem[]) => {
+    setContextMenu({ isOpen: true, position, items });
+  };
+
+  const closeContextMenu = () => {
+    setContextMenu(null);
+  };
 
   // Initialize history handlers
   const historyHandlers = useHistoryHandlers({
@@ -542,10 +553,10 @@ const App: React.FC = () => {
     saveIdeConfig,
     resetIdeConfig,
 
-    // Additional handlers and missing props
-    showContextMenu: () => {},
-    closeContextMenu: () => {},
-    contextMenu: null,
+    // Context menu handlers
+    showContextMenu,
+    closeContextMenu,
+    contextMenu,
     handleDeleteEntityInstance: () => {},
     handleRequestSaveTile: () => {},
     onRequestSaveTile: () => {},
