@@ -1508,9 +1508,11 @@ CHECK_GAME_OVER_CONDITIONS:
 
 INIT_GAME_ENTITIES:
     ; Initialize all game entities for new game
-    CALL INIT_ENTITIES
-    CALL INIT_SPRITES
-    RET
+${analysis.entities && analysis.entities.length > 0 ? `    CALL INIT_ENTITIES
+` : `    ; No entities to initialize
+`}${analysis.sprites && analysis.sprites.length > 0 ? `    CALL INIT_SPRITES
+` : `    ; No sprites system (using direct display)
+`}    RET
 
 RESET_GAME_VARIABLES:
     ; Reset score, health, etc.
