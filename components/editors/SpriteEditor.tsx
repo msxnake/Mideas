@@ -7,8 +7,9 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon } from '../icons/MsxIcons';
 import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
-import { ExplosionGeneratorModal } from '../modals/ExplosionGeneratorModal'; 
+import { ExplosionGeneratorModal } from '../modals/ExplosionGeneratorModal';
 import { DisintegrationGeneratorModal, DisintegrationParams } from '../modals/DisintegrationGeneratorModal';
+import { FragmentGeneratorModal, FragmentParams } from '../modals/FragmentGeneratorModal';
 import { MSX_SCREEN5_PALETTE } from '../../constants'; 
 import { SpriteImportConfigModal, SpriteImportConfig } from '../modals/SpriteImportConfigModal';
 import { AnimationWatcherModal } from '../modals/AnimationWatcherModal';
@@ -242,6 +243,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
   const [isExplosionModalOpen, setIsExplosionModalOpen] = useState<boolean>(false);
   const [isDisintegrationModalOpen, setIsDisintegrationModalOpen] = useState<boolean>(false);
+  const [isFragmentModalOpen, setIsFragmentModalOpen] = useState<boolean>(false);
 
   const animationFrameIdRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
@@ -764,10 +766,10 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
 
     const { numFrames, convertToGrayscale: shouldConvertToGrayscale } = params;
     const newFramesArray: SpriteFrame[] = [];
-    
+
     // Start with current frame data
     let basePixelData = currentFrameData.map(row => [...row]);
-    
+
     // Convert to grayscale if requested
     if (shouldConvertToGrayscale) {
       basePixelData = convertToGrayscale(basePixelData, sprite.backgroundColor);
@@ -788,24 +790,24 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
     // Generate frames with progressive pixel removal
     for (let frameIndex = 0; frameIndex < numFrames; frameIndex++) {
       const frameData = basePixelData.map(row => [...row]);
-      
+
       // Calculate how many pixels to remove for this frame
       const totalPixels = nonBackgroundPixels.length;
       const pixelsToRemoveByThisFrame = Math.floor((frameIndex + 1) * totalPixels / numFrames);
-      
+
       // Shuffle pixels for random removal order (but deterministic)
       const shuffledPixels = [...nonBackgroundPixels];
       for (let i = shuffledPixels.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffledPixels[i], shuffledPixels[j]] = [shuffledPixels[j], shuffledPixels[i]];
       }
-      
+
       // Remove pixels for this frame
       for (let i = 0; i < pixelsToRemoveByThisFrame; i++) {
         const pixel = shuffledPixels[i];
         frameData[pixel.y][pixel.x] = sprite.backgroundColor;
       }
-      
+
       newFramesArray.push({
         id: `disintegration_frame_${Date.now()}_${frameIndex}`,
         data: frameData
@@ -821,6 +823,109 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
     });
 
     setIsDisintegrationModalOpen(false);
+  };
+
+  const handleGenerateFragment = (params: FragmentParams) => {
+    if (!currentFrameData) return;
+
+    const { numFrames, separationSpeed } = params;
+    const W = sprite.size.width;
+    const H = sprite.size.height;
+    const midX = Math.floor(W / 2);
+    const midY = Math.floor(H / 2);
+
+    // Store the original sprite data
+    const originalData = currentFrameData.map(row => [...row]);
+
+    // Create 4 quadrants
+    const quadrants = {
+      topLeft: [] as PixelData,
+      topRight: [] as PixelData,
+      bottomLeft: [] as PixelData,
+      bottomRight: [] as PixelData
+    };
+
+    // Split sprite into 4 quadrants
+    for (let y = 0; y < midY; y++) {
+      quadrants.topLeft.push(originalData[y].slice(0, midX));
+      quadrants.topRight.push(originalData[y].slice(midX, W));
+    }
+    for (let y = midY; y < H; y++) {
+      quadrants.bottomLeft.push(originalData[y].slice(0, midX));
+      quadrants.bottomRight.push(originalData[y].slice(midX, W));
+    }
+
+    const newFramesArray: SpriteFrame[] = [];
+    const maxSeparation = Math.max(midX, midY);
+    const separationFactor = (separationSpeed / 100);
+
+    // Generate frames with progressive separation
+    for (let frameIndex = 0; frameIndex < numFrames; frameIndex++) {
+      const frameData: PixelData = Array(H).fill(null).map(() => Array(W).fill(sprite.backgroundColor));
+
+      // Calculate separation distance for this frame
+      const progress = frameIndex / (numFrames - 1);
+      const separation = Math.floor(progress * maxSeparation * separationFactor);
+
+      // Calculate line-by-line removal (from edges inward)
+      const linesToRemove = Math.floor(progress * Math.min(midX, midY));
+
+      // Place top-left quadrant (moving up-left)
+      for (let y = linesToRemove; y < quadrants.topLeft.length; y++) {
+        for (let x = linesToRemove; x < quadrants.topLeft[0].length; x++) {
+          const newY = y - separation;
+          const newX = x - separation;
+          if (newY >= 0 && newY < H && newX >= 0 && newX < W) {
+            frameData[newY][newX] = quadrants.topLeft[y][x];
+          }
+        }
+      }
+
+      // Place top-right quadrant (moving up-right)
+      for (let y = linesToRemove; y < quadrants.topRight.length; y++) {
+        for (let x = 0; x < quadrants.topRight[0].length - linesToRemove; x++) {
+          const newY = y - separation;
+          const newX = midX + x + separation;
+          if (newY >= 0 && newY < H && newX >= 0 && newX < W) {
+            frameData[newY][newX] = quadrants.topRight[y][x];
+          }
+        }
+      }
+
+      // Place bottom-left quadrant (moving down-left)
+      for (let y = 0; y < quadrants.bottomLeft.length - linesToRemove; y++) {
+        for (let x = linesToRemove; x < quadrants.bottomLeft[0].length; x++) {
+          const newY = midY + y + separation;
+          const newX = x - separation;
+          if (newY >= 0 && newY < H && newX >= 0 && newX < W) {
+            frameData[newY][newX] = quadrants.bottomLeft[y][x];
+          }
+        }
+      }
+
+      // Place bottom-right quadrant (moving down-right)
+      for (let y = 0; y < quadrants.bottomRight.length - linesToRemove; y++) {
+        for (let x = 0; x < quadrants.bottomRight[0].length - linesToRemove; x++) {
+          const newY = midY + y + separation;
+          const newX = midX + x + separation;
+          if (newY >= 0 && newY < H && newX >= 0 && newX < W) {
+            frameData[newY][newX] = quadrants.bottomRight[y][x];
+          }
+        }
+      }
+
+      newFramesArray.push({
+        id: `fragment_frame_${Date.now()}_${frameIndex}`,
+        data: frameData
+      });
+    }
+
+    onUpdate({
+      frames: newFramesArray,
+      currentFrameIndex: 0
+    });
+
+    setIsFragmentModalOpen(false);
   };
 
   const handleExportAsm = () => {
@@ -1030,22 +1135,34 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     <Button onClick={() => handleTransform('flipHorizontal')} variant="ghost" size="sm" className="w-full" justify="start">Flip H</Button>
                     <Button onClick={() => handleTransform('flipVertical')} variant="ghost" size="sm" className="w-full" justify="start">Flip V</Button>
                 </div>
-                <Button 
-                    onClick={() => setIsExplosionModalOpen(true)} 
-                    variant="secondary" 
-                    size="sm" 
-                    icon={<FireIcon className="w-3.5 h-3.5" />} 
+                <Button
+                    onClick={() => setIsExplosionModalOpen(true)}
+                    variant="secondary"
+                    size="sm"
+                    icon={<FireIcon className="w-3.5 h-3.5" />}
                     className="w-full mb-1"
                     justify="start"
                     title="Crear secuencia animada de explosión (MSX1)"
                 >
                     Gen Explosion
                 </Button>
-                <Button 
-                    onClick={() => setIsDisintegrationModalOpen(true)} 
-                    variant="secondary" 
-                    size="sm" 
-                    icon={<DisintegrationIcon className="w-3.5 h-3.5" />} 
+                <Button
+                    onClick={() => setIsFragmentModalOpen(true)}
+                    variant="secondary"
+                    size="sm"
+                    icon={<FireIcon className="w-3.5 h-3.5" />}
+                    className="w-full mb-1"
+                    justify="start"
+                    title="Break sprite into 4 fragments with line-by-line separation"
+                    disabled={isFrameEmpty}
+                >
+                    Gen Fragment
+                </Button>
+                <Button
+                    onClick={() => setIsDisintegrationModalOpen(true)}
+                    variant="secondary"
+                    size="sm"
+                    icon={<DisintegrationIcon className="w-3.5 h-3.5" />}
                     className="w-full mb-1"
                     justify="start"
                     title="Generate disintegration animation with progressive pixel removal"
@@ -1312,6 +1429,13 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
             isOpen={isDisintegrationModalOpen}
             onClose={() => setIsDisintegrationModalOpen(false)}
             onGenerate={handleGenerateDisintegration}
+        />
+      )}
+      {isFragmentModalOpen && (
+        <FragmentGeneratorModal
+            isOpen={isFragmentModalOpen}
+            onClose={() => setIsFragmentModalOpen(false)}
+            onGenerate={handleGenerateFragment}
         />
       )}
       {isImportConfigModalOpen && importedImageData && (
