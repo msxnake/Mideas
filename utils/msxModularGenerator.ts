@@ -1259,14 +1259,15 @@ INIT_GAME_SYSTEMS:
     CALL INIT_SPRITES
     CALL LOAD_SPRITE_PATTERNS  ; Load sprite patterns to VRAM
 
-    ; Load pattern and color data
+${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color data (tiles detected)
     CALL LOAD_PATTERN_BANK0
     CALL LOAD_PATTERN_BANK1
     CALL LOAD_PATTERN_BANK2
     CALL LOAD_COLOR_BANK0
     CALL LOAD_COLOR_BANK1
     CALL LOAD_COLOR_BANK2
-
+` : `    ; No tiles detected - skipping pattern/color loading
+`}
     ; Initialize game entities with real positions from JSON
     CALL INIT_ENTITIES
 
