@@ -375,8 +375,7 @@ INIT_FONT_SYSTEM:
 PRINT_STRING_SCREEN2:
     ; Print string using custom font in Screen 2
     ; HL = string, DE = VRAM position
-    ; For BasicEnemy, use basic character printing
-    CALL PRINT_STRING
+    ; Stub function - text rendering handled by font.asm if needed
     RET
 
 ; ==================================================================
