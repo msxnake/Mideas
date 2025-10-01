@@ -481,3 +481,45 @@ Versión 0.246 - 30/9/2025
 - memoria Ram y Rom
 - puntualizacion Ram y Rom
 - Merge branch 'main' of https://github.com/msxnake/Mideas
+
+Versión 0.250 - 1/10/2025
+- fix: Make INIT_GAME_ENTITIES conditional on entities/sprites
+- fix: Make UPDATE_GAME_STATE conditional on entities
+- fix: Remove PRINT_STRING call in BIOS stub - function doesn't exist
+- feat: Optimize ASM generator - only generate necessary code
+- fix: Skip LOAD_PATTERN/COLOR calls when no tiles exist in project
+- Fix GameFlow node selection and context menu
+- Project optimizations: cleanup and code splitting
+- Move system tools to top menu bar: World View, Component Definitions, Entity Templates moved from sidebar to toolbar
+- Screen Editor: MSX Screen 2 sector fonts same logic as HUD Editor
+- colores Hud editor OK
+- HUD Editor: Automatic font extraction from TileBank + UI fixes
+- HUD Editor: MSX Screen 2 sector-based TileBank/Font assignment
+- color HUD background
+- menu hud mejorado con asignacion de fuentes
+- funciona con la opcion font, pero no carga tilebank
+- mixed tilebanks in hud
+- Replace HUD Text Color with TileBank Asset selector
+- bastante bien asignar bancos
+- Fix TileBank tile and font assignment issues
+- Fix TileBank asset individual data persistence and loading
+- Add Tile Banks as new asset type
+- fix bugs Preview, Play in Screen Editor
+- gameFlowNode fix
+- casi full screen
+- screen editor-scanlines
+- add buttons select a-z ,num
+- resuelto parcialmente
+- bugs Font Editor Bank Editor
+- continuacion tile bank mod.
+- insertar triple bank
+- Fix font assignment to Tile Banks and React setState issues
+- Font colors per-row support in Tile Banks
+- bug trash resolved
+- bank font -1-
+- last_end_rom.asm
+- Deleted Font Editor Project button
+- Finish Font Editor assets
+- empezar multi assets fuentes
+- Sistema Summary implementado con validación de dependencias
+- inicio control gameflow

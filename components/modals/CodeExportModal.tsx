@@ -51,7 +51,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   currentProjectName,
   projectData
 }) => {
-  const [exportType, setExportType] = useState<ExportType>('complete');
+  const [exportType, setExportType] = useState<ExportType>('asm_all_in_one');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
   const [generatedCode, setGeneratedCode] = useState<string>('');
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
@@ -344,7 +344,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          code: generatedCode
+          code: generatedCode,
+          generateSymbols: options.generateSymbols || false
         }),
       });
 
@@ -470,17 +471,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   onChange={(e) => setExportType(e.target.value as ExportType)}
                   className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
                 >
-                  <option value="complete">Complete Game ({assets.length} assets)</option>
-                  <option value="complete_with_statemachine">Complete Game + State Machine</option>
-                  <option value="statemachine_only">State Machine Only</option>
-                  <option value="dynamic_project_asm">🔥 Dynamic Project ASM (Recommended)</option>
-                  <option value="msx_main_asm">📁 MSX Main.asm with Includes</option>
-                  <option value="msx_full_project">🎮 Complete MSX Project Structure</option>
                   <option value="asm_all_in_one">🔧 ASM (all in one) - Konami ROM</option>
-                  <option value="tiles">Tiles Only ({getAssetCount('tile')} tiles)</option>
-                  <option value="sprites">Sprites Only ({getAssetCount('sprite')} sprites)</option>
-                  <option value="screens">Screen Maps ({getAssetCount('screenmap')} screens)</option>
-                  <option value="entities">Entities ({getAssetCount('entitytemplate')} templates)</option>
                 </select>
               </div>
 
@@ -595,6 +586,19 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 />
                 <label htmlFor="includeStateMachine" className="text-sm text-msx-textsecondary">
                   Include State Machine
+                </label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="generateSymbols"
+                  checked={options.generateSymbols || false}
+                  onChange={(e) => setOptions({...options, generateSymbols: e.target.checked})}
+                  className="rounded"
+                />
+                <label htmlFor="generateSymbols" className="text-sm text-msx-textsecondary">
+                  Generate .sym (symbols file)
                 </label>
               </div>
 
@@ -1106,6 +1110,61 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           📂 View All ROMs
                         </button>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Symbol File Download Button */}
+                {compilationResult.success && (compilationResult as any).symbolFile && (
+                  <div className="mt-2 p-2 bg-blue-900 bg-opacity-30 rounded border border-blue-500">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm text-blue-400 font-semibold">📋 Symbols Files Generated!</div>
+                          <div className="text-xs text-msx-textsecondary">
+                            Glass format: {(compilationResult as any).symbolFile}
+                          </div>
+                          <div className="text-xs text-msx-textsecondary">
+                            Size: {(compilationResult as any).symbolSize} bytes
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const downloadUrl = `http://localhost:3001${(compilationResult as any).symbolDownloadUrl}`;
+                            const link = document.createElement('a');
+                            link.href = downloadUrl;
+                            link.download = (compilationResult as any).symbolFile;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition-colors"
+                        >
+                          📥 Download Glass .sym
+                        </button>
+                      </div>
+                      {(compilationResult as any).openmsxSymbolFile && (
+                        <div className="flex items-center justify-between pt-2 border-t border-blue-700">
+                          <div>
+                            <div className="text-xs text-blue-300">OpenMSX format: {(compilationResult as any).openmsxSymbolFile}</div>
+                            <div className="text-xs text-msx-textsecondary">Ready for OpenMSX debugger</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              const downloadUrl = `http://localhost:3001${(compilationResult as any).openmsxSymbolDownloadUrl}`;
+                              const link = document.createElement('a');
+                              link.href = downloadUrl;
+                              link.download = (compilationResult as any).openmsxSymbolFile;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            }}
+                            className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded transition-colors"
+                          >
+                            📥 Download OpenMSX .sym
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
