@@ -1,4 +1,12 @@
 
+Versión 0.250 - 1/10/2025
+- fix: Corregir botón de zoom en Screen Editor - agregar estados useState para zoom
+- fix: Corregir switch de autosave en menú Configure - agregar setters de IDE config
+- feat: Añadir generador "Frame" en Tile Editor para marcos de HUD/SCORE
+- feat: Implementar 3 estilos de marco (simple, double, decorative)
+- feat: Agregar 3 estilos de esquinas (square, rounded, fancy)
+- feat: Grosor configurable de marco (1-4 píxeles)
+
 Versión 0.249 - 30/9/2025
 - feat: Añadir efecto "Warp" en Sprite Editor - desintegración en espiral
 - feat: Crear WarpGeneratorModal con parámetros (numFrames, spiralTightness, rotationSpeed)

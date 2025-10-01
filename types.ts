@@ -1076,7 +1076,7 @@ export type ContextMenuItem =
     };
 
 // --- Texture Generator Types ---
-export type TextureGeneratorType = 'Rock' | 'Brick' | 'Ladder' | 'CellBars' | 'Ice' | 'Grass' | 'StylizedGrass';
+export type TextureGeneratorType = 'Rock' | 'Brick' | 'Ladder' | 'CellBars' | 'Ice' | 'Grass' | 'StylizedGrass' | 'Frame';
 
 export interface RockGeneratorParams {
     baseColor: MSXColorValue;
@@ -1136,6 +1136,14 @@ export interface StylizedGrassGeneratorParams {
     style: 'wavy' | 'straight' | 'random';
 }
 
+export interface FrameGeneratorParams {
+    frameColor: MSXColorValue;
+    backgroundColor: MSXColorValue;
+    thickness: number; // 1-4 pixels
+    style: 'simple' | 'double' | 'decorative';
+    corners: 'square' | 'rounded' | 'fancy';
+}
+
 export interface AllGeneratorParams {
     Rock: RockGeneratorParams;
     Brick: BrickGeneratorParams;
@@ -1144,6 +1152,7 @@ export interface AllGeneratorParams {
     Ice: IceGeneratorParams;
     Grass: GrassGeneratorParams;
     StylizedGrass: StylizedGrassGeneratorParams;
+    Frame: FrameGeneratorParams;
 }
 // --- End Texture Generator Types ---
 

@@ -52,9 +52,13 @@ const App: React.FC = () => {
     userSnippets,
     setUserSnippets,
     dataOutputFormat,
+    setDataOutputFormat,
     autosaveEnabled,
+    setAutosaveEnabled,
     snippetsEnabled,
+    setSnippetsEnabled,
     syntaxHighlightingEnabled,
+    setSyntaxHighlightingEnabled,
     componentDefinitions,
     setComponentDefinitionsState,
     entityTemplates,
@@ -133,6 +137,11 @@ const App: React.FC = () => {
 
   // Context Menu state
   const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; position: { x: number; y: number }; items: ContextMenuItem[] } | null>(null);
+
+  // Editor zoom states
+  const [screenEditorZoom, setScreenEditorZoom] = useState(16);
+  const [tileEditorZoom, setTileEditorZoom] = useState(20);
+  const [bossEditorZoom, setBossEditorZoom] = useState(1);
 
   const showContextMenu = (position: { x: number; y: number }, items: ContextMenuItem[]) => {
     setContextMenu({ isOpen: true, position, items });
@@ -491,10 +500,15 @@ const App: React.FC = () => {
 
     // IDE Configuration
     dataOutputFormat,
+    setDataOutputFormat,
     autosaveEnabled,
+    setAutosaveEnabled,
     snippetsEnabled,
+    setSnippetsEnabled,
     syntaxHighlightingEnabled,
+    setSyntaxHighlightingEnabled,
     worldViewGridVisible,
+    setWorldViewGridVisible,
 
     // History
     history,
@@ -575,12 +589,12 @@ const App: React.FC = () => {
     setSnippetToInsert: () => {},
     isAutosaving: false,
     setIsAutosaving: () => {},
-    bossEditorZoom: 1,
-    setBossEditorZoom: () => {},
-    tileEditorZoom: 20,
-    setTileEditorZoom: () => {},
-    screenEditorZoom: 16,
-    setScreenEditorZoom: () => {},
+    bossEditorZoom,
+    setBossEditorZoom,
+    tileEditorZoom,
+    setTileEditorZoom,
+    screenEditorZoom,
+    setScreenEditorZoom,
     onRequestSaveTrack: () => {},
     onImportTrack: importExportHandlers.handleImportTrack
   };

@@ -128,13 +128,13 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
       <div className="flex items-center space-x-1 pt-1 sm:pt-0 border-t sm:border-t-0 sm:border-l border-msx-border/50 sm:pl-2 mt-1 sm:mt-0">
         <span className="pixel-font text-msx-textsecondary">Active Area (Cells):</span>
         <label htmlFor="activeX" className="text-msx-textsecondary sr-only">Active X</label>
-        <input title="Active Area X (offset)" type="number" id="activeX" value={activeAreaX} onChange={(e) => onActiveAreaChange('activeAreaX', e.target.value)} min="0" max={maxActiveAreaX} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
+        <input title="Active Area X (offset)" type="number" id="activeX" value={isNaN(activeAreaX) ? '' : activeAreaX} onChange={(e) => onActiveAreaChange('activeAreaX', e.target.value)} min="0" max={maxActiveAreaX} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
         <label htmlFor="activeY" className="text-msx-textsecondary sr-only">Active Y</label>
-        <input title="Active Area Y (offset)" type="number" id="activeY" value={activeAreaY} onChange={(e) => onActiveAreaChange('activeAreaY', e.target.value)} min="0" max={maxActiveAreaY} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
+        <input title="Active Area Y (offset)" type="number" id="activeY" value={isNaN(activeAreaY) ? '' : activeAreaY} onChange={(e) => onActiveAreaChange('activeAreaY', e.target.value)} min="0" max={maxActiveAreaY} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
         <label htmlFor="activeW" className="text-msx-textsecondary sr-only">Active Width</label>
-        <input title="Active Area Width (cells)" type="number" id="activeW" value={activeAreaWidth} onChange={(e) => onActiveAreaChange('activeAreaWidth', e.target.value)} min="1" max={maxActiveAreaWidth} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
+        <input title="Active Area Width (cells)" type="number" id="activeW" value={isNaN(activeAreaWidth) ? '' : activeAreaWidth} onChange={(e) => onActiveAreaChange('activeAreaWidth', e.target.value)} min="1" max={maxActiveAreaWidth} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
         <label htmlFor="activeH" className="text-msx-textsecondary sr-only">Active Height</label>
-        <input title="Active Area Height (cells)" type="number" id="activeH" value={activeAreaHeight} onChange={(e) => onActiveAreaChange('activeAreaHeight', e.target.value)} min="1" max={maxActiveAreaHeight} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
+        <input title="Active Area Height (cells)" type="number" id="activeH" value={isNaN(activeAreaHeight) ? '' : activeAreaHeight} onChange={(e) => onActiveAreaChange('activeAreaHeight', e.target.value)} min="1" max={maxActiveAreaHeight} className="w-10 p-0.5 bg-msx-bgcolor border-msx-border rounded"/>
       </div>
 
       <div className="flex items-center space-x-1 ml-auto">

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Tile, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams } from '../../types';
+import { Tile, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams, FrameGeneratorParams } from '../../types';
 import { Panel } from '../common/Panel';
 import { 
   EDITABLE_TILE_DIMENSIONS, MSX1_PALETTE, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP,
@@ -726,6 +726,77 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                     }
                 }
             }
+        } else if (generatorType === 'Frame') {
+            const frameParams = currentParams as FrameGeneratorParams;
+            const { thickness, style, corners } = frameParams;
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const { fg, bg } = isScreen2
+                        ? currentTile.lineAttributes?.[y]?.[Math.floor(x / SCREEN2_PIXELS_PER_COLOR_SEGMENT)] || { fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR }
+                        : { fg: frameParams.frameColor, bg: frameParams.backgroundColor };
+
+                    let isFramePixel = false;
+
+                    // Determine if pixel is part of frame
+                    const isTop = y < thickness;
+                    const isBottom = y >= height - thickness;
+                    const isLeft = x < thickness;
+                    const isRight = x >= width - thickness;
+
+                    // Basic frame border
+                    if (isTop || isBottom || isLeft || isRight) {
+                        isFramePixel = true;
+
+                        // Handle corners based on corner style
+                        if (corners === 'rounded' || corners === 'fancy') {
+                            const inTopLeftCorner = x < thickness && y < thickness;
+                            const inTopRightCorner = x >= width - thickness && y < thickness;
+                            const inBottomLeftCorner = x < thickness && y >= height - thickness;
+                            const inBottomRightCorner = x >= width - thickness && y >= height - thickness;
+
+                            if (corners === 'rounded') {
+                                // Simple rounded corners - cut off diagonal pixel
+                                if (inTopLeftCorner && (x + y < thickness)) isFramePixel = false;
+                                if (inTopRightCorner && ((width - 1 - x) + y < thickness)) isFramePixel = false;
+                                if (inBottomLeftCorner && (x + (height - 1 - y) < thickness)) isFramePixel = false;
+                                if (inBottomRightCorner && ((width - 1 - x) + (height - 1 - y) < thickness)) isFramePixel = false;
+                            } else if (corners === 'fancy') {
+                                // Fancy corners with decorative pattern
+                                if (inTopLeftCorner && x === y) isFramePixel = true;
+                                if (inTopRightCorner && (width - 1 - x) === y) isFramePixel = true;
+                                if (inBottomLeftCorner && x === (height - 1 - y)) isFramePixel = true;
+                                if (inBottomRightCorner && (width - 1 - x) === (height - 1 - y)) isFramePixel = true;
+                            }
+                        }
+
+                        // Handle double frame style
+                        if (style === 'double' && thickness >= 2) {
+                            const midPoint = Math.floor(thickness / 2);
+                            const isMidLine = (isTop || isBottom) && (y === midPoint || y === height - 1 - midPoint);
+                            const isMidCol = (isLeft || isRight) && (x === midPoint || x === width - 1 - midPoint);
+
+                            if (!isMidLine && !isMidCol) {
+                                // Only draw the outer and an inner line for double style
+                                if (isTop && y !== 0 && y !== thickness - 1) isFramePixel = false;
+                                if (isBottom && y !== height - 1 && y !== height - thickness) isFramePixel = false;
+                                if (isLeft && x !== 0 && x !== thickness - 1) isFramePixel = false;
+                                if (isRight && x !== width - 1 && x !== width - thickness) isFramePixel = false;
+                            }
+                        } else if (style === 'decorative' && thickness >= 2) {
+                            // Decorative style with dots pattern
+                            if ((isTop || isBottom) && !isLeft && !isRight) {
+                                if (x % 2 === 0 && y % 2 !== 0) isFramePixel = false;
+                            }
+                            if ((isLeft || isRight) && !isTop && !isBottom) {
+                                if (y % 2 === 0 && x % 2 !== 0) isFramePixel = false;
+                            }
+                        }
+                    }
+
+                    newData[y][x] = isFramePixel ? fg : bg;
+                }
+            }
         }
         return newData;
     }, [generatorType, params, currentTile, currentScreenMode, isScreen2]);
@@ -769,7 +840,7 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                 {/* Left: Controls */}
                 <div className="w-1/2 space-y-3 text-xs">
                     <div className="flex space-x-1 flex-wrap gap-1">
-                        {(['Rock', 'Brick', 'Ladder', 'CellBars', 'Ice', 'Grass', 'StylizedGrass'] as TextureGeneratorType[]).map(type => (
+                        {(['Rock', 'Brick', 'Ladder', 'CellBars', 'Ice', 'Grass', 'StylizedGrass', 'Frame'] as TextureGeneratorType[]).map(type => (
                             <Button key={type} onClick={() => setGeneratorType(type)} variant={generatorType === type ? 'primary' : 'ghost'}>{type}</Button>
                         ))}
                     </div>
@@ -886,6 +957,42 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                                     <option value="random">Random</option>
                                 </select>
                             </div>
+                        </div>
+                    ) : generatorType === 'Frame' ? (
+                        <div className="space-y-2">
+                            {!isScreen2 ? (
+                                <>
+                                <PalettePicker label="Frame Color:" selectedColor={(params.Frame as FrameGeneratorParams).frameColor} onChange={color => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), frameColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                <PalettePicker label="Background Color:" selectedColor={(params.Frame as FrameGeneratorParams).backgroundColor} onChange={color => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), backgroundColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                </>
+                            ) : (
+                                <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
+                                    Frame generator uses <strong>FG</strong> for the frame border and <strong>BG</strong> for the interior. Perfect for HUD elements like SCORE displays.
+                                </p>
+                            )}
+                            <div>
+                                <label>Thickness ({(params.Frame as FrameGeneratorParams).thickness}px):</label>
+                                <input type="range" min="1" max="4" value={(params.Frame as FrameGeneratorParams).thickness} onChange={e => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), thickness: parseInt(e.target.value)}})} className="w-full"/>
+                            </div>
+                            <div>
+                                <label>Frame Style:</label>
+                                <select value={(params.Frame as FrameGeneratorParams).style} onChange={e => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), style: e.target.value as 'simple' | 'double' | 'decorative'}})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
+                                    <option value="simple">Simple</option>
+                                    <option value="double">Double Line</option>
+                                    <option value="decorative">Decorative</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Corner Style:</label>
+                                <select value={(params.Frame as FrameGeneratorParams).corners} onChange={e => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), corners: e.target.value as 'square' | 'rounded' | 'fancy'}})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
+                                    <option value="square">Square</option>
+                                    <option value="rounded">Rounded</option>
+                                    <option value="fancy">Fancy</option>
+                                </select>
+                            </div>
+                            <p className="text-xs text-msx-textsecondary italic mt-2 p-2 bg-msx-bgcolor/50 rounded border border-msx-border">
+                                💡 Tip: Create multiple frame tiles with different thicknesses to build complete SCORE borders.
+                            </p>
                         </div>
                     ) : ( // CellBars
                         (() => { // IIFE to create a scope for dynamic values
@@ -1079,6 +1186,13 @@ export const TileEditor: React.FC<TileEditorProps> = ({
           darkGrassColor: isScreen2 ? MSX1_PALETTE[12].hex : '#2A7D2E', // Dark Green
           bladeDensity: 0.6,
           style: 'wavy',
+      },
+      Frame: {
+          frameColor: isScreen2 ? MSX1_PALETTE[15].hex : MSX_SCREEN5_PALETTE[15].hex, // White
+          backgroundColor: isScreen2 ? MSX1_PALETTE[0].hex : MSX_SCREEN5_PALETTE[0].hex, // Black/Transparent
+          thickness: 2,
+          style: 'simple',
+          corners: 'square',
       }
   }));
 
