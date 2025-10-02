@@ -5,6 +5,7 @@ import {
     GameFlowNode,
     GameFlowSubMenuNode,
     GameFlowWorldLinkNode,
+    GameFlowTextNode,
     MSXFont,
     MSXFontColorAttributes,
     EntityTemplate,
@@ -235,11 +236,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         if (!selectedOption) return;
         const connection = connections.find(c => c.from.nodeId === currentNode.id && c.from.sourceId === selectedOption.id);
         if (connection) {
+            // Skip through waypoints automatically
+            let targetNodeId = connection.to.nodeId;
+            let targetNode = nodes.find(n => n.id === targetNodeId);
+
+            // Keep following waypoints until we reach a non-waypoint node
+            while (targetNode && targetNode.type === 'Waypoint') {
+                const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                if (nextConn) {
+                    targetNodeId = nextConn.to.nodeId;
+                    targetNode = nodes.find(n => n.id === targetNodeId);
+                } else {
+                    break;
+                }
+            }
+
             setNavigationStack(prev => [...prev, currentNode.id]);
-            setCurrentNodeId(connection.to.nodeId);
+            setCurrentNodeId(targetNodeId);
             setSelectedOptionIndex(0);
         }
-    }, [currentNode, connections, selectedOptionIndex]);
+    }, [currentNode, connections, selectedOptionIndex, nodes]);
 
     const handleGoBack = useCallback(() => {
         if (navigationStack.length > 0) {
@@ -279,6 +295,41 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 case 'ArrowUp': setSelectedOptionIndex(prev => Math.max(0, prev - 1)); break;
                 case 'ArrowDown': setSelectedOptionIndex(prev => Math.min(subMenuNode.options.length - 1, prev + 1)); break;
                 case ' ': case 'Enter': handleAction(); break;
+                case 'Escape': handleGoBack(); break;
+            }
+        } else if (currentNode.type === 'Text' || currentNode.type === 'Restart') {
+            switch (e.key) {
+                case ' ': case 'Enter':
+                    // Restart node automatically goes to Start
+                    if (currentNode.type === 'Restart') {
+                        const startNode = nodes.find(n => n.type === 'Start');
+                        if (startNode) {
+                            setCurrentNodeId(startNode.id);
+                            setNavigationStack([]);
+                        }
+                        break;
+                    }
+
+                    const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                    if (conn) {
+                        // Skip through waypoints automatically
+                        let targetNodeId = conn.to.nodeId;
+                        let targetNode = nodes.find(n => n.id === targetNodeId);
+
+                        // Keep following waypoints until we reach a non-waypoint node
+                        while (targetNode && targetNode.type === 'Waypoint') {
+                            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                            if (nextConn) {
+                                targetNodeId = nextConn.to.nodeId;
+                                targetNode = nodes.find(n => n.id === targetNodeId);
+                            } else {
+                                break;
+                            }
+                        }
+
+                        setCurrentNodeId(targetNodeId);
+                    }
+                    break;
                 case 'Escape': handleGoBack(); break;
             }
         } else if (currentNode.type === 'WorldLink') {
@@ -450,11 +501,132 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 textImg.src = renderMSX1TextToDataURL(text, msxFont, colorAttrs, 1, 1);
             });
         };
-        
+
+        const applyTransitionEffect = async (effect: string, duration: number) => {
+            const steps = Math.max(10, Math.floor(duration / 50)); // At least 10 steps, 50ms per step
+
+            switch (effect) {
+                case 'cls':
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    break;
+
+                case 'dissolve_pixels':
+                    for (let i = 0; i < steps; i++) {
+                        const pixelsPerStep = Math.floor((PREVIEW_WIDTH * PREVIEW_HEIGHT) / steps);
+                        for (let j = 0; j < pixelsPerStep; j++) {
+                            const x = Math.floor(Math.random() * PREVIEW_WIDTH);
+                            const y = Math.floor(Math.random() * PREVIEW_HEIGHT);
+                            ctx.fillStyle = '#000000';
+                            ctx.fillRect(x, y, 1, 1);
+                        }
+                        await new Promise(resolve => setTimeout(resolve, duration / steps));
+                    }
+                    break;
+
+                case 'dissolve_chars':
+                    const charWidth = 8;
+                    const charHeight = 8;
+                    const charsX = Math.floor(PREVIEW_WIDTH / charWidth);
+                    const charsY = Math.floor(PREVIEW_HEIGHT / charHeight);
+                    const totalChars = charsX * charsY;
+                    const charsPerStep = Math.max(1, Math.floor(totalChars / steps));
+                    const positions = Array.from({ length: totalChars }, (_, i) => i);
+                    for (let i = positions.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [positions[i], positions[j]] = [positions[j], positions[i]];
+                    }
+                    for (let i = 0; i < steps && positions.length > 0; i++) {
+                        for (let j = 0; j < charsPerStep && positions.length > 0; j++) {
+                            const pos = positions.pop()!;
+                            const cx = (pos % charsX) * charWidth;
+                            const cy = Math.floor(pos / charsX) * charHeight;
+                            ctx.fillStyle = '#000000';
+                            ctx.fillRect(cx, cy, charWidth, charHeight);
+                        }
+                        await new Promise(resolve => setTimeout(resolve, duration / steps));
+                    }
+                    break;
+
+                case 'vertical_lines':
+                    for (let x = 0; x < PREVIEW_WIDTH; x += Math.max(1, Math.floor(PREVIEW_WIDTH / steps))) {
+                        ctx.fillStyle = '#000000';
+                        ctx.fillRect(x, 0, Math.max(1, Math.floor(PREVIEW_WIDTH / steps)), PREVIEW_HEIGHT);
+                        await new Promise(resolve => setTimeout(resolve, duration / steps));
+                    }
+                    break;
+
+                case 'horizontal_lines':
+                    for (let y = 0; y < PREVIEW_HEIGHT; y += Math.max(1, Math.floor(PREVIEW_HEIGHT / steps))) {
+                        ctx.fillStyle = '#000000';
+                        ctx.fillRect(0, y, PREVIEW_WIDTH, Math.max(1, Math.floor(PREVIEW_HEIGHT / steps)));
+                        await new Promise(resolve => setTimeout(resolve, duration / steps));
+                    }
+                    break;
+
+                case 'spiral':
+                    let left = 0, right = PREVIEW_WIDTH - 1, top = 0, bottom = PREVIEW_HEIGHT - 1;
+                    const spiralStep = Math.max(1, Math.floor(Math.min(PREVIEW_WIDTH, PREVIEW_HEIGHT) / (steps * 2)));
+                    while (left <= right && top <= bottom) {
+                        // Top
+                        ctx.fillStyle = '#000000';
+                        ctx.fillRect(left, top, right - left + 1, spiralStep);
+                        top += spiralStep;
+                        // Right
+                        if (left <= right && top <= bottom) {
+                            ctx.fillRect(right - spiralStep + 1, top, spiralStep, bottom - top + 1);
+                            right -= spiralStep;
+                        }
+                        // Bottom
+                        if (left <= right && top <= bottom) {
+                            ctx.fillRect(left, bottom - spiralStep + 1, right - left + 1, spiralStep);
+                            bottom -= spiralStep;
+                        }
+                        // Left
+                        if (left <= right && top <= bottom) {
+                            ctx.fillRect(left, top, spiralStep, bottom - top + 1);
+                            left += spiralStep;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, duration / Math.ceil(steps / 4)));
+                    }
+                    break;
+
+                case 'fill_white_squares':
+                    const squareSize = 16;
+                    const squaresX = Math.ceil(PREVIEW_WIDTH / squareSize);
+                    const squaresY = Math.ceil(PREVIEW_HEIGHT / squareSize);
+                    const totalSquares = squaresX * squaresY;
+                    const squarePositions = Array.from({ length: totalSquares }, (_, i) => i);
+                    for (let i = squarePositions.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [squarePositions[i], squarePositions[j]] = [squarePositions[j], squarePositions[i]];
+                    }
+                    const squaresPerStep = Math.max(1, Math.floor(totalSquares / steps));
+                    for (let i = 0; i < steps && squarePositions.length > 0; i++) {
+                        for (let j = 0; j < squaresPerStep && squarePositions.length > 0; j++) {
+                            const pos = squarePositions.pop()!;
+                            const sx = (pos % squaresX) * squareSize;
+                            const sy = Math.floor(pos / squaresX) * squareSize;
+                            ctx.fillStyle = '#FFFFFF';
+                            ctx.fillRect(sx, sy, squareSize, squareSize);
+                        }
+                        await new Promise(resolve => setTimeout(resolve, duration / steps));
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                    break;
+            }
+        };
+
         const renderTextNodes = async () => {
-             ctx.fillStyle = '#000000';
-             ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-             if (screenMapToRender) renderScreenToCanvas(canvas, screenMapToRender, tileset, currentScreenMode, TILE_SIZE);
+             // Don't clear screen for Transition nodes - they work on existing content
+             if (currentNode.type !== 'Transition') {
+                 ctx.fillStyle = '#000000';
+                 ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                 if (screenMapToRender) renderScreenToCanvas(canvas, screenMapToRender, tileset, currentScreenMode, TILE_SIZE);
+             }
             switch (currentNode.type) {
                 case 'Start':
                     const startText = 'Game Start';
@@ -484,10 +656,96 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         await drawTextAsync(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, colorAttrs);
                     }
                     break;
+                case 'Text':
+                    const textNode = currentNode as GameFlowTextNode;
+                    const textNodeTitle = textNode.title;
+                    const textNodeMessage = textNode.message;
+                    const textNodeTitleDims = getTextDimensionsMSX1(textNodeTitle, 1);
+
+                    // Render title
+                    await drawTextAsync(textNodeTitle, (PREVIEW_WIDTH - textNodeTitleDims.width) / 2, 30, msxFontColorAttributes);
+
+                    // Render message (split into lines if needed)
+                    const words = textNodeMessage.split(' ');
+                    let lines: string[] = [];
+                    let currentLine = '';
+                    const maxLineWidth = PREVIEW_WIDTH - 20; // 10px padding on each side
+
+                    for (const word of words) {
+                        const testLine = currentLine ? currentLine + ' ' + word : word;
+                        const testDims = getTextDimensionsMSX1(testLine, 1);
+                        if (testDims.width > maxLineWidth && currentLine) {
+                            lines.push(currentLine);
+                            currentLine = word;
+                        } else {
+                            currentLine = testLine;
+                        }
+                    }
+                    if (currentLine) lines.push(currentLine);
+
+                    const lineHeight = 10;
+                    const startY = 60;
+                    for (let i = 0; i < lines.length; i++) {
+                        const lineDims = getTextDimensionsMSX1(lines[i], 1);
+                        await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes);
+                    }
+
+                    // Render "Press Fire to continue" prompt
+                    const promptText = 'Press Fire to continue';
+                    const promptDims = getTextDimensionsMSX1(promptText, 1);
+                    const promptColorAttrs = JSON.parse(JSON.stringify(msxFontColorAttributes));
+                    for(let i=0; i<promptText.length; i++){
+                        promptColorAttrs[promptText.charCodeAt(i)] = Array(8).fill({
+                            fg: textNode.appearance?.colors?.promptText || '#F3F3F3',
+                            bg: textNode.appearance?.colors?.background || '#000000'
+                        });
+                    }
+                    await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, promptColorAttrs);
+                    break;
                 case 'End':
                     const endText = 'Game Over';
                     const endDims = getTextDimensionsMSX1(endText, 1);
                     await drawTextAsync(endText, (PREVIEW_WIDTH - endDims.width) / 2, (PREVIEW_HEIGHT - endDims.height) / 2, msxFontColorAttributes);
+                    break;
+                case 'Restart':
+                    const restartNode = currentNode as any; // GameFlowRestartNode
+                    const restartTitle = restartNode.title || 'Restart';
+                    const restartMessage = restartNode.message || 'Press Fire to restart';
+                    const restartTitleDims = getTextDimensionsMSX1(restartTitle, 1);
+                    // Render title
+                    await drawTextAsync(restartTitle, (PREVIEW_WIDTH - restartTitleDims.width) / 2, 60, msxFontColorAttributes);
+                    // Render message
+                    const restartMsgDims = getTextDimensionsMSX1(restartMessage, 1);
+                    await drawTextAsync(restartMessage, (PREVIEW_WIDTH - restartMsgDims.width) / 2, 90, msxFontColorAttributes);
+                    // Render prompt
+                    const restartPrompt = 'Press Fire to restart';
+                    const restartPromptDims = getTextDimensionsMSX1(restartPrompt, 1);
+                    await drawTextAsync(restartPrompt, (PREVIEW_WIDTH - restartPromptDims.width) / 2, PREVIEW_HEIGHT - 30, msxFontColorAttributes);
+                    break;
+                case 'Transition':
+                    const transitionNode = currentNode as any;
+                    const effect = transitionNode.effect || 'cls';
+                    const duration = transitionNode.duration || 1000;
+                    await applyTransitionEffect(effect, duration);
+
+                    // Auto-advance to next node after transition
+                    const transitionConn = connections.find(c => c.from.nodeId === currentNode.id);
+                    if (transitionConn) {
+                        let targetNodeId = transitionConn.to.nodeId;
+                        let targetNode = nodes.find(n => n.id === targetNodeId);
+
+                        // Skip through waypoints
+                        while (targetNode && targetNode.type === 'Waypoint') {
+                            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                            if (nextConn) {
+                                targetNodeId = nextConn.to.nodeId;
+                                targetNode = nodes.find(n => n.id === targetNodeId);
+                            } else {
+                                break;
+                            }
+                        }
+                        setCurrentNodeId(targetNodeId);
+                    }
                     break;
             }
         };

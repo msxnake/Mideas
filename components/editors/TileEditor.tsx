@@ -791,6 +791,159 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                             if ((isLeft || isRight) && !isTop && !isBottom) {
                                 if (y % 2 === 0 && x % 2 !== 0) isFramePixel = false;
                             }
+                        } else if (style === 'braided' && thickness >= 2) {
+                            // Braided pattern - alternating diagonal weave
+                            const inTopLeftCorner = x < thickness && y < thickness;
+                            const inTopRightCorner = x >= width - thickness && y < thickness;
+                            const inBottomLeftCorner = x < thickness && y >= height - thickness;
+                            const inBottomRightCorner = x >= width - thickness && y >= height - thickness;
+
+                            // Skip corners for braided effect
+                            if (inTopLeftCorner || inTopRightCorner || inBottomLeftCorner || inBottomRightCorner) {
+                                // Keep corners solid
+                            } else {
+                                // Create braided pattern
+                                const period = Math.max(2, thickness);
+
+                                if (isTop || isBottom) {
+                                    // Horizontal braiding
+                                    const phase = Math.floor(x / period) % 2;
+                                    const localY = isTop ? y : (height - 1 - y);
+
+                                    if (phase === 0) {
+                                        // Over pattern
+                                        if (localY % 2 === 1 && localY < thickness - 1) isFramePixel = false;
+                                    } else {
+                                        // Under pattern
+                                        if (localY % 2 === 0 && localY > 0) isFramePixel = false;
+                                    }
+                                }
+
+                                if (isLeft || isRight) {
+                                    // Vertical braiding
+                                    const phase = Math.floor(y / period) % 2;
+                                    const localX = isLeft ? x : (width - 1 - x);
+
+                                    if (phase === 0) {
+                                        // Over pattern
+                                        if (localX % 2 === 1 && localX < thickness - 1) isFramePixel = false;
+                                    } else {
+                                        // Under pattern
+                                        if (localX % 2 === 0 && localX > 0) isFramePixel = false;
+                                    }
+                                }
+                            }
+                        } else if (style === 'chain' && thickness >= 3) {
+                            // Chain/Link pattern - interlocking rings
+                            const inTopLeftCorner = x < thickness && y < thickness;
+                            const inTopRightCorner = x >= width - thickness && y < thickness;
+                            const inBottomLeftCorner = x < thickness && y >= height - thickness;
+                            const inBottomRightCorner = x >= width - thickness && y >= height - thickness;
+
+                            if (!inTopLeftCorner && !inTopRightCorner && !inBottomLeftCorner && !inBottomRightCorner) {
+                                const linkSize = Math.max(3, Math.floor(thickness * 1.5));
+
+                                if (isTop || isBottom) {
+                                    const linkPos = x % linkSize;
+                                    const localY = isTop ? y : (height - 1 - y);
+                                    const midY = Math.floor(thickness / 2);
+
+                                    // Create oval link shapes
+                                    if (linkPos < linkSize / 3 || linkPos >= 2 * linkSize / 3) {
+                                        if (localY === 0 || localY === thickness - 1) {
+                                            // Outer edges
+                                        } else if (localY === midY) {
+                                            isFramePixel = false; // Center gap
+                                        }
+                                    } else {
+                                        // Middle section of link
+                                        if (localY > 0 && localY < thickness - 1 && localY !== midY - 1 && localY !== midY + 1) {
+                                            isFramePixel = false;
+                                        }
+                                    }
+                                }
+
+                                if (isLeft || isRight) {
+                                    const linkPos = y % linkSize;
+                                    const localX = isLeft ? x : (width - 1 - x);
+                                    const midX = Math.floor(thickness / 2);
+
+                                    if (linkPos < linkSize / 3 || linkPos >= 2 * linkSize / 3) {
+                                        if (localX === 0 || localX === thickness - 1) {
+                                            // Outer edges
+                                        } else if (localX === midX) {
+                                            isFramePixel = false; // Center gap
+                                        }
+                                    } else {
+                                        if (localX > 0 && localX < thickness - 1 && localX !== midX - 1 && localX !== midX + 1) {
+                                            isFramePixel = false;
+                                        }
+                                    }
+                                }
+                            }
+                        } else if (style === 'carved' && thickness >= 2) {
+                            // Carved 3D effect - simulates depth with light/shadow
+                            const inTopLeftCorner = x < thickness && y < thickness;
+                            const inTopRightCorner = x >= width - thickness && y < thickness;
+                            const inBottomLeftCorner = x < thickness && y >= height - thickness;
+                            const inBottomRightCorner = x >= width - thickness && y >= height - thickness;
+
+                            if (!inTopLeftCorner && !inTopRightCorner && !inBottomLeftCorner && !inBottomRightCorner) {
+                                // For Screen2, we'll use fg/bg to create the carved effect
+                                // For other modes, we'd need a third color but we'll work with what we have
+
+                                if (isTop) {
+                                    // Top edge - simulate raised edge
+                                    if (y === 0) {
+                                        // Outermost line stays solid (highlight)
+                                    } else if (y < thickness / 2) {
+                                        // Upper half - lighter (highlight)
+                                    } else {
+                                        // Lower half - darker (shadow)
+                                        if (x % 2 === (y % 2)) {
+                                            isFramePixel = false; // Dithered shadow
+                                        }
+                                    }
+                                } else if (isBottom) {
+                                    // Bottom edge - simulate depressed edge
+                                    const localY = height - 1 - y;
+                                    if (localY === 0) {
+                                        // Outermost line stays solid (shadow)
+                                        if (x % 2 === 0) {
+                                            isFramePixel = false; // Dithered for depth
+                                        }
+                                    } else if (localY < thickness / 2) {
+                                        if (x % 2 === (localY % 2)) {
+                                            isFramePixel = false;
+                                        }
+                                    }
+                                }
+
+                                if (isLeft) {
+                                    // Left edge - raised
+                                    if (x === 0) {
+                                        // Highlight edge
+                                    } else if (x < thickness / 2) {
+                                        // Light side
+                                    } else {
+                                        if (y % 2 === (x % 2)) {
+                                            isFramePixel = false;
+                                        }
+                                    }
+                                } else if (isRight) {
+                                    // Right edge - shadow
+                                    const localX = width - 1 - x;
+                                    if (localX === 0) {
+                                        if (y % 2 === 0) {
+                                            isFramePixel = false;
+                                        }
+                                    } else if (localX < thickness / 2) {
+                                        if (y % 2 === (localX % 2)) {
+                                            isFramePixel = false;
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -972,14 +1125,17 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                             )}
                             <div>
                                 <label>Thickness ({(params.Frame as FrameGeneratorParams).thickness}px):</label>
-                                <input type="range" min="1" max="4" value={(params.Frame as FrameGeneratorParams).thickness} onChange={e => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), thickness: parseInt(e.target.value)}})} className="w-full"/>
+                                <input type="range" min="1" max="8" value={(params.Frame as FrameGeneratorParams).thickness} onChange={e => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), thickness: parseInt(e.target.value)}})} className="w-full"/>
                             </div>
                             <div>
                                 <label>Frame Style:</label>
-                                <select value={(params.Frame as FrameGeneratorParams).style} onChange={e => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), style: e.target.value as 'simple' | 'double' | 'decorative'}})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
+                                <select value={(params.Frame as FrameGeneratorParams).style} onChange={e => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), style: e.target.value as 'simple' | 'double' | 'decorative' | 'braided' | 'chain' | 'carved'}})} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
                                     <option value="simple">Simple</option>
                                     <option value="double">Double Line</option>
                                     <option value="decorative">Decorative</option>
+                                    <option value="braided">Braided</option>
+                                    <option value="chain">Chain</option>
+                                    <option value="carved">Carved (3D)</option>
                                 </select>
                             </div>
                             <div>

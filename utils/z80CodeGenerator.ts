@@ -35,6 +35,8 @@ export interface CodeGenerationOptions {
   includeStateMachine?: boolean;
   /** State machine configuration */
   stateMachineConfig?: StateMachineConfig;
+  /** Generate symbols file (.sym) with glass.jar compilation */
+  generateSymbols?: boolean;
 }
 
 /**

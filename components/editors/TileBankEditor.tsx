@@ -60,7 +60,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   currentScreenMode,
 }) => {
   const [tileBank, setTileBank] = useState<TileBank>(initialTileBank);
-  const [selectedBankId, setSelectedBankId] = useState<string | null>(initialTileBank.banks.length > 0 ? initialTileBank.banks[0].id : null);
+  const [selectedBankId, setSelectedBankId] = useState<string | null>(
+    initialTileBank?.banks?.length > 0 ? initialTileBank.banks[0].id : null
+  );
   const [isAssignTileModalOpen, setIsAssignTileModalOpen] = useState<boolean>(false);
   const [bankToAssignTileTo, setBankToAssignTileTo] = useState<string | null>(null);
   const [isFontAssetModalOpen, setIsFontAssetModalOpen] = useState<boolean>(false);
@@ -73,7 +75,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   // Effect to sync with prop changes (when a different asset is selected)
   useEffect(() => {
     setTileBank(initialTileBank);
-    setSelectedBankId(initialTileBank.banks.length > 0 ? initialTileBank.banks[0].id : null);
+    setSelectedBankId(initialTileBank?.banks?.length > 0 ? initialTileBank.banks[0].id : null);
     setShouldUpdateParent(false);
   }, [initialTileBank]);
 
@@ -86,11 +88,14 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   }, [tileBank, shouldUpdateParent, onUpdate]);
 
   // Clean up invalid tile assignments
-  const cleanupInvalidAssignments = useCallback((banksToClean: TileBankDefinition[]) => {
+  const cleanupInvalidAssignments = useCallback((banksToClean: TileBankDefinition[] | undefined) => {
+    if (!banksToClean || !Array.isArray(banksToClean)) {
+      return [];
+    }
     return banksToClean.map(bank => {
       const cleanedAssignedTiles: { [key: string]: any } = {};
 
-      Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+      Object.entries(bank.assignedTiles || {}).forEach(([tileId, assignment]) => {
         // Check if this is a font assignment
         if (tileId.startsWith('font_')) {
           // For font assignments, check if the font asset still exists
@@ -121,11 +126,11 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
 
   // Update parent with cleaned banks if needed
   useEffect(() => {
-    const cleanedBanks = cleanupInvalidAssignments(tileBank.banks);
+    const cleanedBanks = cleanupInvalidAssignments(tileBank?.banks);
 
     // Check if there were changes
     const hasChanges = cleanedBanks.some((cleanedBank, index) =>
-      Object.keys(cleanedBank.assignedTiles).length !== Object.keys(tileBank.banks[index]?.assignedTiles || {}).length
+      Object.keys(cleanedBank.assignedTiles).length !== Object.keys(tileBank?.banks?.[index]?.assignedTiles || {}).length
     );
 
     if (hasChanges) {
@@ -135,18 +140,18 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         setShouldUpdateParent(true);
       }, 0);
     }
-  }, [tileBank.banks, cleanupInvalidAssignments]);
+  }, [tileBank?.banks, cleanupInvalidAssignments]);
 
   // Handle selectedBankId updates separately without cleaning assignments
   useEffect(() => {
-    if (!selectedBankId && tileBank.banks.length > 0) {
+    if (!selectedBankId && tileBank?.banks?.length > 0) {
         setSelectedBankId(tileBank.banks[0].id);
-    } else if (selectedBankId && !tileBank.banks.find(b => b.id === selectedBankId) && tileBank.banks.length > 0) {
+    } else if (selectedBankId && !tileBank?.banks?.find(b => b.id === selectedBankId) && tileBank?.banks?.length > 0) {
         setSelectedBankId(tileBank.banks[0].id);
-    } else if (tileBank.banks.length === 0) {
+    } else if (tileBank?.banks?.length === 0) {
         setSelectedBankId(null);
     }
-  }, [tileBank.banks, selectedBankId]);
+  }, [tileBank?.banks, selectedBankId]);
 
   const handleBankPropertyChange = (bankId: string, property: keyof TileBankDefinition | `screenZone.${keyof TileBankDefinition['screenZone']}`, value: any) => {
     setTileBank(prevTileBank => {
@@ -272,9 +277,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
 
   const handleRemoveTileFromBank = (bankId: string, tileAssetId: string) => {
     setTileBank(prevTileBank => {
-        const newBanks = prevTileBank.banks.map(bank => {
+        const newBanks = (prevTileBank?.banks || []).map(bank => {
             if (bank.id === bankId) {
-                const newAssignedTiles = { ...bank.assignedTiles };
+                const newAssignedTiles = { ...bank.assignedTiles || {} };
                 delete newAssignedTiles[tileAssetId];
                 return { ...bank, assignedTiles: newAssignedTiles };
             }
@@ -292,11 +297,11 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     let hasAssignment = false;
 
     // If bankIndex is provided, only check that specific bank
-    const banksToCheck = bankIndex !== undefined ? [tileBank.banks[bankIndex]] : tileBank.banks;
+    const banksToCheck = bankIndex !== undefined ? [tileBank?.banks?.[bankIndex]].filter(Boolean) : (tileBank?.banks || []);
 
     banksToCheck.forEach(bank => {
       if (bank && charCode >= bank.charsetRangeStart && charCode <= bank.charsetRangeEnd) {
-        Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+        Object.entries(bank.assignedTiles || {}).forEach(([tileId, assignment]) => {
           if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
             // Font character assignment
             const fontChars = (assignment as any).fontCharacters;
@@ -362,7 +367,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
       // Try to get colors from font color attributes if available
       banksToCheck.forEach(bank => {
         if (bank && charCode >= bank.charsetRangeStart && charCode <= bank.charsetRangeEnd) {
-          Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+          Object.entries(bank.assignedTiles || {}).forEach(([tileId, assignment]) => {
             if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
               const fontChar = (assignment as any).fontCharacters.find((fc: any) => fc.bankCharCode === charCode);
               if (fontChar) {
@@ -513,7 +518,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                     if (asciiCode >= bank.charsetRangeStart && asciiCode <= bank.charsetRangeEnd) {
                         // Check if this position is already occupied by a tile
                         let isOccupied = false;
-                        Object.entries(bank.assignedTiles).forEach(([tileId, assignment]) => {
+                        Object.entries(bank.assignedTiles || {}).forEach(([tileId, assignment]) => {
                             if (!tileId.startsWith('font_')) {
                                 // Check if ASCII position conflicts with tile assignment
                                 const tileAsset = allTiles.find(t => t.id === tileId)?.data as Tile | undefined;
@@ -572,7 +577,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     setShouldUpdateParent(true);
   };
 
-  const selectedBankDetails = tileBank.banks.find(b => b.id === selectedBankId);
+  const selectedBankDetails = tileBank?.banks?.find(b => b.id === selectedBankId);
 
   if (currentScreenMode !== "SCREEN 2 (Graphics I)") {
     return (
@@ -751,7 +756,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         </Button>
       </div>
       <div className="space-y-3">
-        {tileBank.banks.map(bank => (
+        {(tileBank?.banks || []).map(bank => (
           <React.Fragment key={bank.id}>
             <button
                 onClick={() => setSelectedBankId(bank.id)}
@@ -767,9 +772,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
       {isAssignTileModalOpen && bankToAssignTileTo && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={() => setIsAssignTileModalOpen(false)}>
           <div className="bg-msx-panelbg p-4 rounded-lg shadow-xl w-full max-w-md animate-slideIn pixel-font" onClick={e => e.stopPropagation()}>
-            <h3 className="text-md text-msx-highlight mb-3">Assign Tile to Bank: {tileBank.banks.find(b=>b.id===bankToAssignTileTo)?.name}</h3>
+            <h3 className="text-md text-msx-highlight mb-3">Assign Tile to Bank: {tileBank?.banks?.find(b=>b.id===bankToAssignTileTo)?.name}</h3>
             <div className="max-h-60 overflow-y-auto space-y-1">
-                {allTiles.filter(asset => asset.type === 'tile' && !(tileBank.banks.find(b=>b.id===bankToAssignTileTo)?.assignedTiles[asset.id])).map(tileAssetItem => {
+                {allTiles.filter(asset => asset.type === 'tile' && !(tileBank?.banks?.find(b=>b.id===bankToAssignTileTo)?.assignedTiles[asset.id])).map(tileAssetItem => {
                     const tileAsset = tileAssetItem.data as Tile;
                     return (
                         <Button
@@ -783,7 +788,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                         </Button>
                     );
                 })}
-                {allTiles.filter(asset => asset.type === 'tile' && !(tileBank.banks.find(b=>b.id===bankToAssignTileTo)?.assignedTiles[asset.id])).length === 0 &&
+                {allTiles.filter(asset => asset.type === 'tile' && !(tileBank?.banks?.find(b=>b.id===bankToAssignTileTo)?.assignedTiles[asset.id])).length === 0 &&
                     <p className="text-xs text-msx-textsecondary p-2">All available tiles are already assigned to this bank or no suitable tiles exist.</p>
                 }
             </div>
@@ -795,7 +800,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
       {isFontAssetModalOpen && bankToAssignTileTo && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={() => setIsFontAssetModalOpen(false)}>
           <div className="bg-msx-panelbg p-4 rounded-lg shadow-xl w-full max-w-2xl animate-slideIn pixel-font" onClick={e => e.stopPropagation()}>
-            <h3 className="text-md text-msx-highlight mb-3">Font Asset for Bank: {tileBank.banks.find(b=>b.id===bankToAssignTileTo)?.name}</h3>
+            <h3 className="text-md text-msx-highlight mb-3">Font Asset for Bank: {tileBank?.banks?.find(b=>b.id===bankToAssignTileTo)?.name}</h3>
 
             <div className="mb-4">
               <label className="block text-sm text-msx-cyan mb-2">Select Font:</label>
@@ -962,7 +967,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                     ← Anterior
                   </button>
                   <span className="text-sm font-medium text-gray-700">
-                    {tileBank.banks[currentPreviewBank]?.name || `Bank ${currentPreviewBank}`} ({currentPreviewBank + 1}/3)
+                    {tileBank?.banks?.[currentPreviewBank]?.name || `Bank ${currentPreviewBank}`} ({currentPreviewBank + 1}/3)
                   </span>
                   <button
                     onClick={() => setCurrentPreviewBank(Math.min(2, currentPreviewBank + 1))}
@@ -987,11 +992,11 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                   🎯 Triple Bank System: 3 × 256 = 768 Total Characters
                 </div>
                 <div className="text-sm text-blue-600">
-                  Bank {currentPreviewBank}: {tileBank.banks[currentPreviewBank]?.name || 'Unknown'} - 256 Independent Characters (0-255)
+                  Bank {currentPreviewBank}: {tileBank?.banks?.[currentPreviewBank]?.name || 'Unknown'} - 256 Independent Characters (0-255)
                 </div>
                 <div className="text-xs text-blue-500 mt-1">
-                  VRAM: {tileBank.banks[currentPreviewBank]?.vramPatternStart ? `0x${tileBank.banks[currentPreviewBank].vramPatternStart.toString(16).toUpperCase()}` : 'N/A'} (Patterns) |
-                  {tileBank.banks[currentPreviewBank]?.vramColorStart ? ` 0x${tileBank.banks[currentPreviewBank].vramColorStart.toString(16).toUpperCase()}` : ' N/A'} (Colors)
+                  VRAM: {tileBank?.banks?.[currentPreviewBank]?.vramPatternStart ? `0x${tileBank.banks[currentPreviewBank].vramPatternStart.toString(16).toUpperCase()}` : 'N/A'} (Patterns) |
+                  {tileBank?.banks?.[currentPreviewBank]?.vramColorStart ? ` 0x${tileBank.banks[currentPreviewBank].vramColorStart.toString(16).toUpperCase()}` : ' N/A'} (Colors)
                 </div>
               </div>
               {/* Complete 256 characters in 16x16 grid for current bank */}

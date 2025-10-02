@@ -339,11 +339,11 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
                         <div className="grid grid-cols-2 gap-2">
                            <div>
                                <label>Initial X:</label>
-                               <input type="number" value={initialX} onChange={e => setInitialX(parseInt(e.target.value))} max={PREVIEW_WIDTH - sprite.size.width} min={0} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                               <input type="number" value={initialX} onChange={e => setInitialX(parseInt(e.target.value))} max={PREVIEW_WIDTH - (sprite.size?.width ?? 16)} min={0} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                            </div>
                            <div>
                                <label>Initial Y:</label>
-                               <input type="number" value={initialY} onChange={e => setInitialY(parseInt(e.target.value))} max={PREVIEW_HEIGHT - sprite.size.height} min={0} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                               <input type="number" value={initialY} onChange={e => setInitialY(parseInt(e.target.value))} max={PREVIEW_HEIGHT - (sprite.size?.height ?? 16)} min={0} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
                            </div>
                         </div>
                     </Panel>

@@ -146,6 +146,10 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
   const [tileSortOrder, setTileSortOrder] = useState<'default' | 'alpha'>('default');
   const [tileFilterChar, setTileFilterChar] = useState<string>('');
   const [selectedTileIds, setSelectedTileIds] = useState<string[]>([]);
+  const [spriteSortOrder, setSpriteSortOrder] = useState<'default' | 'alpha'>('default');
+  const [spriteFilterChar, setSpriteFilterChar] = useState<string>('');
+  const [screenmapSortOrder, setScreenmapSortOrder] = useState<'default' | 'alpha'>('default');
+  const [screenmapFilterChar, setScreenmapFilterChar] = useState<string>('');
   const [contextMenu, setContextMenu] = useState<{
     isOpen: boolean;
     position: { x: number; y: number };
@@ -348,6 +352,30 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
             }
             processedAssets = tempAssets;
           }
+          if (folderType === 'sprite') {
+            let tempAssets = [...assetsInFolder];
+            if (spriteSortOrder === 'alpha') {
+              tempAssets.sort((a, b) => a.name.localeCompare(b.name));
+            }
+            if (spriteFilterChar) {
+              tempAssets = tempAssets.filter(asset =>
+                asset.name.toLowerCase().startsWith(spriteFilterChar.toLowerCase())
+              );
+            }
+            processedAssets = tempAssets;
+          }
+          if (folderType === 'screenmap') {
+            let tempAssets = [...assetsInFolder];
+            if (screenmapSortOrder === 'alpha') {
+              tempAssets.sort((a, b) => a.name.localeCompare(b.name));
+            }
+            if (screenmapFilterChar) {
+              tempAssets = tempAssets.filter(asset =>
+                asset.name.toLowerCase().startsWith(screenmapFilterChar.toLowerCase())
+              );
+            }
+            processedAssets = tempAssets;
+          }
 
           return (
             <li key={folderType}>
@@ -385,6 +413,52 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                   </div>
                 </div>
               )}
+              {isExpanded && folderType === 'sprite' && (
+                <div className="pl-4 pt-1 pb-2 flex items-center gap-2 text-xs">
+                  <button
+                    onClick={() => setSpriteSortOrder(prev => prev === 'alpha' ? 'default' : 'alpha')}
+                    className="px-2 py-1 rounded bg-msx-border hover:bg-msx-highlight text-msx-textprimary transition-colors"
+                    title={spriteSortOrder === 'alpha' ? "Restore default order" : "Sort alphabetically"}
+                  >
+                    Sort ({spriteSortOrder === 'alpha' ? 'A-Z' : 'Default'})
+                  </button>
+                  <div className="flex items-center gap-1">
+                    <label htmlFor="sprite-filter" className="text-msx-textsecondary">Filter:</label>
+                    <select
+                      id="sprite-filter"
+                      value={spriteFilterChar}
+                      onChange={e => setSpriteFilterChar(e.target.value)}
+                      className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 text-xs focus:ring-msx-accent focus:border-msx-accent"
+                    >
+                      <option value="">All</option>
+                      {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(char => <option key={char} value={char}>{char}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+              {isExpanded && folderType === 'screenmap' && (
+                <div className="pl-4 pt-1 pb-2 flex items-center gap-2 text-xs">
+                  <button
+                    onClick={() => setScreenmapSortOrder(prev => prev === 'alpha' ? 'default' : 'alpha')}
+                    className="px-2 py-1 rounded bg-msx-border hover:bg-msx-highlight text-msx-textprimary transition-colors"
+                    title={screenmapSortOrder === 'alpha' ? "Restore default order" : "Sort alphabetically"}
+                  >
+                    Sort ({screenmapSortOrder === 'alpha' ? 'A-Z' : 'Default'})
+                  </button>
+                  <div className="flex items-center gap-1">
+                    <label htmlFor="screenmap-filter" className="text-msx-textsecondary">Filter:</label>
+                    <select
+                      id="screenmap-filter"
+                      value={screenmapFilterChar}
+                      onChange={e => setScreenmapFilterChar(e.target.value)}
+                      className="bg-msx-bgcolor border border-msx-border rounded px-1 py-0.5 text-xs focus:ring-msx-accent focus:border-msx-accent"
+                    >
+                      <option value="">All</option>
+                      {'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(char => <option key={char} value={char}>{char}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
               {isExpanded && (
                 <ul id={`folder-content-${folderType}`} className="pl-4 mt-0.5 space-y-0.5">
                   {folderType === 'track' && (
@@ -406,6 +480,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
                   )}
                   {assetsInFolder.length === 0 && <li className="px-2 py-1 text-xs text-msx-textsecondary italic">No {FOLDER_DISPLAY_NAMES[folderType].toLowerCase()} yet.</li>}
                   {assetsInFolder.length > 0 && processedAssets.length === 0 && folderType === 'tile' && <li className="px-2 py-1 text-xs text-msx-textsecondary italic">No tiles match filter.</li>}
+                  {assetsInFolder.length > 0 && processedAssets.length === 0 && folderType === 'sprite' && <li className="px-2 py-1 text-xs text-msx-textsecondary italic">No sprites match filter.</li>}
+                  {assetsInFolder.length > 0 && processedAssets.length === 0 && folderType === 'screenmap' && <li className="px-2 py-1 text-xs text-msx-textsecondary italic">No screen maps match filter.</li>}
                   {processedAssets.map(asset => {
                     const isSelected = selectedAssetId === asset.id;
                     const isTileSelected = folderType === 'tile' && selectedTileIds.includes(asset.id);

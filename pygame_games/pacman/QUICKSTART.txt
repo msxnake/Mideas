@@ -1,0 +1,92 @@
+================================================================================
+                      PACMAN - QUICK START GUIDE
+================================================================================
+
+INSTALLATION
+------------
+1. Open terminal/command prompt
+2. Navigate to project folder:
+   cd C:\Users\salam\Documents\Programacion\Mideas\pygame_games\pacman
+
+3. Install Pygame:
+   pip install pygame
+
+RUN THE GAME
+------------
+   python main.py
+
+CONTROLS
+--------
+   Arrow Keys / WASD  - Move Pacman
+   ENTER              - Start game
+   ESC / P            - Pause
+   Close Window       - Exit game
+
+WHAT TO EXPECT
+--------------
+1. Game window opens (768x576 pixels)
+2. Main menu shows "PACMAN" title
+3. Press ENTER to start
+4. Yellow Pacman appears in center
+5. Move with arrow keys or WASD
+6. Pacman animates (mouth opens/closes)
+7. Press ESC to pause
+
+PROJECT INFO
+------------
+Source:      Mideas MSX project (pacman_reply(35).json)
+Resolution:  256x192 (MSX native), scaled 3x
+Frame Rate:  60 FPS
+Language:    Python 3.7+
+Library:     Pygame 2.5.0+
+
+ASSETS
+------
+Sprites:  1 (Pacman with 2 animation frames)
+Tiles:    12 (maze walls and pellet)
+Entities: 1 (Player)
+
+FILES GENERATED
+---------------
+main.py            - Game entry point
+config.py          - Game settings
+assets.py          - Asset loader
+entities.py        - Player class
+game_states.py     - Menu, Game, Pause states
+utils.py           - Helper functions
+README.md          - Full documentation
+CONVERSION_REPORT.md - Technical details
+
+TROUBLESHOOTING
+---------------
+Q: Game won't start?
+A: Make sure pygame is installed: pip install pygame
+
+Q: Window is too small/large?
+A: Edit config.py, change SCALE value (default: 3)
+
+Q: Sprites not showing?
+A: Check assets.py loaded correctly (should see "Loaded 1 sprites")
+
+Q: Slow performance?
+A: Check FPS display, should be 60. Lower SCALE if needed.
+
+NEXT STEPS
+----------
+Ready to enhance? See CONVERSION_REPORT.md for ideas:
+- Add ghost enemies
+- Implement pellet collection
+- Create proper maze from tiles
+- Add sound effects
+- Multiple levels
+
+SUPPORT
+-------
+For issues, check:
+- README.md (user guide)
+- CONVERSION_REPORT.md (technical details)
+- test_game.py (run automated tests)
+
+================================================================================
+                         ENJOY THE GAME!
+================================================================================

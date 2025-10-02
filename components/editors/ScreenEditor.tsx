@@ -126,10 +126,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isPlayModalOpen, setIsPlayModalOpen] = useState(false);
 
-  const [localActiveX, setLocalActiveX] = useState<string>((screenMap.activeAreaX ?? 0).toString());
-  const [localActiveY, setLocalActiveY] = useState<string>((screenMap.activeAreaY ?? 0).toString());
-  const [localActiveW, setLocalActiveW] = useState<string>((screenMap.activeAreaWidth ?? screenMap.width).toString());
-  const [localActiveH, setLocalActiveH] = useState<string>((screenMap.activeAreaHeight ?? screenMap.height).toString());
+  const [localActiveX, setLocalActiveX] = useState<string>(String(screenMap.activeAreaX ?? 0));
+  const [localActiveY, setLocalActiveY] = useState<string>(String(screenMap.activeAreaY ?? 0));
+  const [localActiveW, setLocalActiveW] = useState<string>(String(screenMap.activeAreaWidth ?? screenMap.width ?? 0));
+  const [localActiveH, setLocalActiveH] = useState<string>(String(screenMap.activeAreaHeight ?? screenMap.height ?? 0));
   
   const [isPasteConfirmModalOpen, setIsPasteConfirmModalOpen] = useState(false);
   
@@ -145,8 +145,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   useEffect(() => {
     setLocalActiveX((screenMap.activeAreaX ?? 0).toString());
     setLocalActiveY((screenMap.activeAreaY ?? 0).toString());
-    setLocalActiveW((screenMap.activeAreaWidth ?? screenMap.width).toString());
-    setLocalActiveH((screenMap.activeAreaHeight ?? screenMap.height).toString());
+    setLocalActiveW((screenMap.activeAreaWidth ?? screenMap.width ?? 0).toString());
+    setLocalActiveH((screenMap.activeAreaHeight ?? screenMap.height ?? 0).toString());
   }, [screenMap.activeAreaX, screenMap.activeAreaY, screenMap.activeAreaWidth, screenMap.activeAreaHeight, screenMap.width, screenMap.height]);
 
 
@@ -817,10 +817,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         activeAreaWidth={localActiveW}
         activeAreaHeight={localActiveH}
         onActiveAreaChange={handleActiveAreaInputChange}
-        maxActiveAreaX={screenMap.width - 1}
-        maxActiveAreaY={screenMap.height - 1}
-        maxActiveAreaWidth={screenMap.width - (parseInt(localActiveX,10) || 0)}
-        maxActiveAreaHeight={screenMap.height - (parseInt(localActiveY,10) || 0)}
+        maxActiveAreaX={Math.max(0, (screenMap.width || 0) - 1)}
+        maxActiveAreaY={Math.max(0, (screenMap.height || 0) - 1)}
+        maxActiveAreaWidth={Math.max(1, (screenMap.width || 0) - (parseInt(localActiveX, 10) || 0))}
+        maxActiveAreaHeight={Math.max(1, (screenMap.height || 0) - (parseInt(localActiveY, 10) || 0))}
         onOpenHudEditor={openHudEditor}
         isHudAreaDefined={isHudAreaDefined}
         onExportLayout={prepareAndOpenLayoutExportModal}

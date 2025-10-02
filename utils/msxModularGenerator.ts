@@ -13,6 +13,34 @@ import { TileBank } from '../types';
 import { analyzeProject, ProjectAnalysis } from './asmTemplateGenerator';
 
 /**
+ * ASM Naming Convention Helpers
+ * - UPPERCASE: Constants (EQU values, sprite IDs, screen IDs, etc.)
+ * - lowercase: Routine labels, variables, jump targets
+ */
+
+/** Convert routine name to lowercase (for labels, CALL, JP, JR targets) */
+function toRoutineLabel(name: string): string {
+  return name.toLowerCase();
+}
+
+/** Keep constant name in UPPERCASE (for EQU definitions) */
+function toConstantName(name: string): string {
+  return name.toUpperCase();
+}
+
+/** Sanitize and convert asset ID to routine label */
+function toAssetRoutineLabel(id: string, prefix: string = ''): string {
+  const sanitized = id.replace(/[^a-zA-Z0-9_]/g, '_');
+  return toRoutineLabel(prefix + sanitized);
+}
+
+/** Sanitize and convert asset ID to constant name */
+function toAssetConstant(id: string, prefix: string = ''): string {
+  const sanitized = id.replace(/[^a-zA-Z0-9_]/g, '_');
+  return toConstantName(prefix + sanitized);
+}
+
+/**
  * Project Summary interfaces (extracted from summary system)
  */
 export interface ProjectSummary {

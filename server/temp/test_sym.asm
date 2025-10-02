@@ -1,0 +1,17 @@
+    ORG 4000H
+
+START:
+    DB "AB"
+
+INIT_GAME:
+    LD A,0
+    RET
+
+MAIN_LOOP:
+    CALL INIT_GAME
+    JP MAIN_LOOP
+
+DATA_BLOCK:
+    DB 00H,0FFH,0AAH,55H
+
+    END

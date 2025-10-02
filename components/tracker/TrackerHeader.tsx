@@ -95,11 +95,11 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
       <span className="border-l border-msx-border h-5 mx-1"></span>
       <div>
         <label className="text-msx-textsecondary mr-1">BPM:</label>
-        <input type="number" value={bpm} min="30" max="300" onChange={e => onBpmChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-14"/>
+        <input type="number" value={isNaN(bpm) ? '' : bpm} min="30" max="300" onChange={e => onBpmChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-14"/>
       </div>
       <div>
         <label className="text-msx-textsecondary mr-1">Speed:</label>
-        <input type="number" value={speed} min="1" max="31" onChange={e => onSpeedChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
+        <input type="number" value={isNaN(speed) ? '' : speed} min="1" max="31" onChange={e => onSpeedChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
       </div>
        <div className="flex items-center">
         <label className="text-msx-textsecondary mr-1">Rows ({patternRows}):</label>
@@ -134,7 +134,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
       </div>
       <div>
         <label className="text-msx-textsecondary mr-1">Vol:</label>
-        <input type="number" value={globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
+        <input type="number" value={isNaN(globalVolume) ? '' : globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
       </div>
       <div className="flex-grow"></div>
       <Button onClick={onPlayStop} size="sm" variant={isPlaying ? "danger" : "primary"} icon={isPlaying ? <StopIcon /> : <PlayIcon />}>

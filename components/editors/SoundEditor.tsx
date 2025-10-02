@@ -72,7 +72,7 @@ const createDefaultStep = (isFirst: boolean): PSGSoundChannelStep => ({
  * It provides controls for editing sound channels, steps, and global sound properties.
  */
 export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate }) => {
-  const [localSoundName, setLocalSoundName] = useState(soundData.name);
+  const [localSoundName, setLocalSoundName] = useState(soundData?.name || "Untitled Sound");
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   
@@ -140,24 +140,30 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
     };
   }, []); 
 
-  useEffect(() => { setLocalSoundName(soundData.name); }, [soundData.name]);
+  useEffect(() => { setLocalSoundName(soundData?.name || "Untitled Sound"); }, [soundData?.name]);
   useEffect(() => {
     if (masterGainRef.current && audioContext) {
-      masterGainRef.current.gain.setValueAtTime(soundData.masterVolume, audioContext.currentTime);
+      const volume = typeof soundData.masterVolume === 'number' && isFinite(soundData.masterVolume)
+        ? Math.max(0, Math.min(1, soundData.masterVolume))
+        : 1.0;
+      masterGainRef.current.gain.setValueAtTime(volume, audioContext.currentTime);
     }
   }, [soundData.masterVolume, audioContext]);
   useEffect(() => {
     if (noiseFilterNodeRef.current && audioContext) {
-      const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod);
-      const maxFilterFreq = audioContext.sampleRate / 2; 
+      const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod || 16);
+      const maxFilterFreq = audioContext.sampleRate / 2;
       const minPracticalFreq = 20;
-      noiseFilterNodeRef.current.frequency.setValueAtTime( Math.min(Math.max(minPracticalFreq, noiseFreq), maxFilterFreq), audioContext.currentTime);
+      const frequency = Math.min(Math.max(minPracticalFreq, noiseFreq), maxFilterFreq);
+      if (isFinite(frequency)) {
+        noiseFilterNodeRef.current.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      }
     }
   }, [soundData.noisePeriod, audioContext]);
 
   const playStepForChannel = useCallback((channelId: 'A' | 'B' | 'C', stepIndex: number) => {
     if (!audioContext || !masterGainRef.current) return;
-    const channelState = soundData.channels.find(ch => ch.id === channelId);
+    const channelState = soundData?.channels?.find(ch => ch.id === channelId);
     if (!channelState || stepIndex >= channelState.steps.length) {
       if (channelState?.loop && channelState.steps.length > 0) { playStepForChannel(channelId, 0); } 
       else { currentPlayingStepIndices.current[channelId] = undefined; }
@@ -177,8 +183,8 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
     if (step.toneEnabled) {
       const osc = audioContext.createOscillator();
       osc.type = 'square';
-      const freq = calculateFrequencyFromTonePeriod(step.tonePeriod);
-      if (freq > 0) {
+      const freq = calculateFrequencyFromTonePeriod(step.tonePeriod || 257);
+      if (freq > 0 && isFinite(freq)) {
         osc.frequency.setValueAtTime(freq, audioContext.currentTime);
         osc.connect(channelGain);
         try { osc.start(); } catch(e) { console.warn("Error starting oscillator", e); }
@@ -197,10 +203,12 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
      if (step.useEnvelope && channelGainsRef.current[channelId]) {
         const gainNode = channelGainsRef.current[channelId]!;
         const now = audioContext.currentTime;
-        const peakVolume = step.volume / 15; 
-        
+        const peakVolume = Math.max(0, Math.min(1, (step.volume || 0) / 15));
+
         gainNode.gain.cancelScheduledValues(now);
-        gainNode.gain.setValueAtTime(0, now); 
+        if (isFinite(peakVolume)) {
+          gainNode.gain.setValueAtTime(0, now);
+        } 
         
         const shape = soundData.envelopeShape;
         const isAttack = (shape & 0b0100) !== 0;
@@ -210,7 +218,9 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
             gainNode.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
             if (isAlternate) gainNode.gain.linearRampToValueAtTime(0, now + effectiveDurationSec);
         } else { // Fall
-            gainNode.gain.setValueAtTime(peakVolume, now);
+            if (isFinite(peakVolume)) {
+              gainNode.gain.setValueAtTime(peakVolume, now);
+            }
             gainNode.gain.linearRampToValueAtTime(0, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
             if (isAlternate) gainNode.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec);
         }
@@ -245,9 +255,12 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
       if (audioContext.state === 'suspended') { audioContext.resume(); }
       setIsPlaying(true);
       if (noiseFilterNodeRef.current && audioContext) {
-            const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod);
+            const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod || 16);
             const maxFilterFreq = audioContext.sampleRate / 2;
-            noiseFilterNodeRef.current.frequency.setValueAtTime( Math.min(Math.max(20, noiseFreq), maxFilterFreq), audioContext.currentTime);
+            const frequency = Math.min(Math.max(20, noiseFreq), maxFilterFreq);
+            if (isFinite(frequency)) {
+              noiseFilterNodeRef.current.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            }
         }
       playStepForChannel('A', 0); playStepForChannel('B', 0); playStepForChannel('C', 0);
     }
@@ -256,12 +269,15 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
   const handleStepAddBufferChange = (channelId: 'A' | 'B' | 'C', key: keyof PSGSoundChannelStep, value: any) => {
     const numKeys: (keyof PSGSoundChannelStep)[] = ['tonePeriod', 'volume', 'durationMs'];
     const val = numKeys.includes(key) ? parseInt(value, 10) || 0 : value;
-    setStepAddBuffers(prev => ({ ...prev, [channelId]: { ...prev[channelId], [key]: val } }));
+    setStepAddBuffers(prev => ({
+      ...prev,
+      [channelId]: prev[channelId] ? { ...prev[channelId], [key]: val } : createDefaultStep(false)
+    }));
   };
 
   const handleAddStep = (channelId: 'A' | 'B' | 'C') => {
     const newStep = { ...stepAddBuffers[channelId], id: `step_${Date.now()}_${Math.random().toString(36).substring(2,7)}` };
-    const newChannels = soundData.channels.map(ch => 
+    const newChannels = soundData?.channels?.map(ch => 
       ch.id === channelId ? { ...ch, steps: [...ch.steps, newStep] } : ch
     ) as [PSGSoundChannelState, PSGSoundChannelState, PSGSoundChannelState];
     onUpdate({ channels: newChannels });
@@ -289,7 +305,7 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
     const { channelId, stepId } = editingStepInfo;
     const updatedStepData = { ...modalEditBuffer, id: stepId }; // Ensure ID remains the same
 
-    const newChannels = soundData.channels.map(ch => 
+    const newChannels = soundData?.channels?.map(ch => 
       ch.id === channelId 
         ? { ...ch, steps: ch.steps.map(s => s.id === stepId ? updatedStepData : s) } 
         : ch
@@ -308,7 +324,7 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
   };
 
   const handleDeleteStep = (channelId: 'A' | 'B' | 'C', stepId: string) => {
-    const newChannels = soundData.channels.map(ch => 
+    const newChannels = soundData?.channels?.map(ch => 
       ch.id === channelId ? { ...ch, steps: ch.steps.filter(s => s.id !== stepId) } : ch
     ) as [PSGSoundChannelState, PSGSoundChannelState, PSGSoundChannelState];
     onUpdate({ channels: newChannels });
@@ -326,14 +342,14 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
     const stepToMove = newSteps.splice(index, 1)[0];
     const newIndex = direction === 'up' ? Math.max(0, index - 1) : Math.min(newSteps.length, index + 1);
     newSteps.splice(newIndex, 0, stepToMove);
-    const newChannels = soundData.channels.map(ch => 
+    const newChannels = soundData?.channels?.map(ch => 
       ch.id === channelId ? { ...ch, steps: newSteps } : ch
     ) as [PSGSoundChannelState, PSGSoundChannelState, PSGSoundChannelState];
     onUpdate({ channels: newChannels });
   };
   
   const handleChannelLoopToggle = (channelId: 'A' | 'B' | 'C') => {
-    const newChannels = soundData.channels.map(ch =>
+    const newChannels = soundData?.channels?.map(ch =>
       ch.id === channelId ? { ...ch, loop: !ch.loop } : ch
     ) as [PSGSoundChannelState, PSGSoundChannelState, PSGSoundChannelState];
     onUpdate({ channels: newChannels });
@@ -349,6 +365,10 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
   const channelSequenceControl = (channelState: PSGSoundChannelState) => {
     const channelId = channelState.id;
     const buffer = stepAddBuffers[channelId]; // Main template buffer for new steps
+
+    if (!buffer) {
+      return null; // Return early if buffer is undefined
+    }
 
     return (
       <div key={channelId} className="p-3 border border-msx-border rounded bg-msx-panelbg/60 space-y-3">
@@ -454,7 +474,7 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
 
       <div className="flex-grow p-2 space-y-3 overflow-y-auto" style={{ userSelect: 'none' }}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          {soundData.channels.map(channelState => channelSequenceControl(channelState))}
+          {soundData.channels.map(channelState => channelSequenceControl(channelState)).filter(Boolean)}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

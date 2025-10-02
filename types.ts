@@ -899,7 +899,7 @@ export interface MainMenuConfig {
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
-export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End';
+export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint';
 
 /** The base interface for a game flow node. */
 export interface GameFlowNode_Base {
@@ -950,8 +950,50 @@ export interface GameFlowEndNode extends GameFlowNode_Base {
   message: string;
 }
 
+/** Represents a text screen with message and "Press Fire to continue" prompt. */
+export interface GameFlowTextNode extends GameFlowNode_Base {
+  type: 'Text';
+  title: string;
+  message: string;
+  appearance?: {
+    backgroundScreenAssetId?: string;
+    colors: {
+      text: string;
+      background: string;
+      promptText: string;
+    };
+  };
+}
+
+/** Represents a restart node that loops back to the start of the game. */
+export interface GameFlowRestartNode extends GameFlowNode_Base {
+  type: 'Restart';
+  title: string;
+  message: string;
+  appearance?: {
+    backgroundScreenAssetId?: string;
+    colors: {
+      text: string;
+      background: string;
+      promptText: string;
+    };
+  };
+}
+
+/** Represents a waypoint node for visual organization (no game functionality). */
+export interface GameFlowWaypointNode extends GameFlowNode_Base {
+  type: 'Waypoint';
+}
+
+/** Represents a screen transition effect node. */
+export interface GameFlowTransitionNode extends GameFlowNode_Base {
+  type: 'Transition';
+  effect: 'cls' | 'dissolve_pixels' | 'dissolve_chars' | 'vertical_lines' | 'horizontal_lines' | 'spiral' | 'fill_white_squares';
+  duration?: number; // milliseconds (optional, for preview timing)
+}
+
 /** A union type for all possible game flow node types. */
-export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode;
+export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowTransitionNode;
 
 /** Represents a connection between two nodes in the game flow graph. */
 export interface GameFlowConnection {
@@ -1139,8 +1181,8 @@ export interface StylizedGrassGeneratorParams {
 export interface FrameGeneratorParams {
     frameColor: MSXColorValue;
     backgroundColor: MSXColorValue;
-    thickness: number; // 1-4 pixels
-    style: 'simple' | 'double' | 'decorative';
+    thickness: number; // 1-8 pixels
+    style: 'simple' | 'double' | 'decorative' | 'braided' | 'chain' | 'carved';
     corners: 'square' | 'rounded' | 'fancy';
 }
 

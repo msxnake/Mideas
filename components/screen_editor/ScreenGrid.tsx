@@ -229,11 +229,11 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     };
   }, [isMouseDown, currentScreenTool, activeLayer]); 
 
-  const layerDataToRender = (activeLayer === 'background' || activeLayer === 'collision' || activeLayer === 'effects') && activeLayer !== 'effects' 
-    ? layers[activeLayer as 'background' | 'collision' | 'effects'] 
-    : layers.background; 
+  const layerDataToRender = (activeLayer === 'background' || activeLayer === 'collision' || activeLayer === 'effects')
+    ? layers[activeLayer as 'background' | 'collision' | 'effects']
+    : layers.background;
 
-  if (!layerDataToRender || layerDataToRender.length === 0) {
+  if (!layerDataToRender || !Array.isArray(layerDataToRender) || layerDataToRender.length === 0) {
     return <div className="text-xs text-red-400">Layer data is empty or invalid.</div>;
   }
 

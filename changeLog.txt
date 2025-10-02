@@ -1,3 +1,16 @@
+Versión 0.252 - 2/10/2025
+- feat: Añadir sistema de transiciones visuales en Game Flow Editor
+- feat: Implementar 7 efectos de transición (CLS, Disolver Píxeles, Disolver Chars, Líneas Verticales, Líneas Horizontales, Espiral, Cuadrados Blancos)
+- feat: Añadir nodo "Transition" con editor modal para configurar efecto y duración
+- feat: Auto-avance automático después de completar transición
+- fix: Corregir renderizado de transiciones - no limpiar pantalla antes de ejecutar efecto
+- feat: Transiciones compatibles con waypoints (los salta automáticamente)
+
+Versión 0.251 - 1/10/2025
+- feat: Simplificar opciones de exportación - solo ROM Konami disponible
+- fix: Hacer condicional INIT_GAME_ENTITIES según existencia de entidades/sprites
+- fix: Hacer condicional UPDATE_GAME_STATE según existencia de entidades
+- fix: Eliminar llamada PRINT_STRING en BIOS stub - función no existe
 
 Versión 0.250 - 1/10/2025
 - fix: Corregir botón de zoom en Screen Editor - agregar estados useState para zoom

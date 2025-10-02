@@ -310,7 +310,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             return songData.currentPatternId;
         }
         const orderIndex = songData.currentPatternIndexInOrder;
-        if (orderIndex >= 0 && orderIndex < songData.order.length) {
+        if (songData.order && orderIndex >= 0 && orderIndex < songData.order.length) {
             const patternIndexInStorage = songData.order[orderIndex];
             if (patternIndexInStorage >= 0 && patternIndexInStorage < songData.patterns.length) {
                 return songData.patterns[patternIndexInStorage].id;
@@ -377,7 +377,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
 
   useEffect(() => {
-    if (songData.instruments.length > 0) {
+    if (songData.instruments && songData.instruments.length > 0) {
       if (activeInstrumentId === null || !songData.instruments.some(instr => instr.id === activeInstrumentId)) {
         setActiveInstrumentId(songData.instruments[0].id);
       }
@@ -389,7 +389,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [songData.instruments, activeInstrumentId]);
 
   useEffect(() => {
-    if (songData.ornaments.length > 0) {
+    if (songData.ornaments && songData.ornaments.length > 0) {
       if (activeOrnamentId === null || !songData.ornaments.some(orn => orn.id === activeOrnamentId)) {
         setActiveOrnamentId(songData.ornaments[0].id);
       }
@@ -433,11 +433,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
     if (field === 'bpm') valToUpdate = Math.max(30, Math.min(300, valToUpdate));
     if (field === 'speed') valToUpdate = Math.max(1, Math.min(31, valToUpdate)); 
-    if (field === 'lengthInPatterns') valToUpdate = Math.max(1, Math.min(songData.order.length, valToUpdate));
+    if (field === 'lengthInPatterns') valToUpdate = Math.max(1, Math.min(songData.order?.length || 1, valToUpdate));
     if (field === 'restartPosition') valToUpdate = Math.max(0, Math.min(Math.max(0, songData.lengthInPatterns - 1), valToUpdate));
 
     onUpdate({ [field]: valToUpdate });
-  }, [onUpdate, synthesizer, songData.order.length, songData.lengthInPatterns]);
+  }, [onUpdate, synthesizer, songData.order?.length, songData.lengthInPatterns]);
 
   const handlePatternRowsChange = useCallback((newRowsString: string) => {
     if (!currentPattern) return;
@@ -609,7 +609,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
                 }
 
                 if (nextPatternOrderIdx !== patternIndexInOrderToProcess) {
-                    const nextPatternIdxInStorage = songData.order[nextPatternOrderIdx];
+                    const nextPatternIdxInStorage = songData.order?.[nextPatternOrderIdx];
                     const nextPatternObj = songData.patterns[nextPatternIdxInStorage];
                     onUpdate({ currentPatternIndexInOrder: nextPatternOrderIdx, currentPatternId: nextPatternObj?.id });
                 }
@@ -713,7 +713,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [focusedCell, currentPattern, PT3_CHANNELS, handleCellChange, focusCellAndSelectText, keyboardOctaveOffset, synthesizer, activeInstrumentId, activeOrnamentId, editStepJump, fieldsOrder, songData.instruments, songData.ornaments]);
 
   const handleCurrentPatternIndexInOrderChange = useCallback((newIndex: number) => {
-    if (newIndex >= 0 && newIndex < songData.order.length) {
+    if (songData.order && newIndex >= 0 && newIndex < songData.order.length) {
       const newPatternIndexInStorage = songData.order[newIndex];
       if (newPatternIndexInStorage >= 0 && newPatternIndexInStorage < songData.patterns.length) {
         onUpdate({ currentPatternIndexInOrder: newIndex, currentPatternId: songData.patterns[newPatternIndexInStorage].id });
@@ -722,7 +722,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }, [songData.order, songData.patterns, onUpdate]);
 
   const handleOrderListChange = useCallback((orderIndex: number, newPatternArrayIndex: number) => {
-    const newOrder = [...songData.order];
+    const newOrder = [...(songData.order || [])];
     if (newPatternArrayIndex >= 0 && newPatternArrayIndex < songData.patterns.length) {
       newOrder[orderIndex] = newPatternArrayIndex;
       let updatePayload: Partial<TrackerSongData> = { order: newOrder };
@@ -735,12 +735,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   const addPatternToOrder = useCallback(() => {
     if (songData.patterns.length === 0) { alert("Please create a pattern first."); return; }
-    const newOrder = [...songData.order, 0]; 
+    const newOrder = [...(songData.order || []), 0]; 
     onUpdate({ order: newOrder, lengthInPatterns: newOrder.length });
   }, [songData.order, songData.patterns.length, onUpdate]);
 
   const removePatternFromOrder = useCallback((orderIndexToRemove: number) => {
-    if (songData.order.length <= 1) { alert("Cannot remove the last pattern from the order list."); return; }
+    if (!songData.order || songData.order.length <= 1) { alert("Cannot remove the last pattern from the order list."); return; }
     const newOrder = songData.order.filter((_, idx) => idx !== orderIndexToRemove);
     let newCurrentPatternIndexInOrder = songData.currentPatternIndexInOrder;
     if (orderIndexToRemove < songData.currentPatternIndexInOrder || (orderIndexToRemove === songData.currentPatternIndexInOrder && songData.currentPatternIndexInOrder === newOrder.length) ) {
@@ -770,9 +770,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     
     onUpdate({
         patterns: newPatterns,
-        order: [...songData.order, newPatternIndexInStorage], 
-        lengthInPatterns: songData.order.length + 1,
-        currentPatternIndexInOrder: songData.order.length, 
+        order: [...(songData.order || []), newPatternIndexInStorage],
+        lengthInPatterns: (songData.order?.length || 0) + 1,
+        currentPatternIndexInOrder: songData.order?.length || 0, 
         currentPatternId: newPattern.id, 
     });
   }, [songData.patterns, songData.order, onUpdate]);
@@ -785,7 +785,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (currentPatternArrayIndex === -1) return;
 
     const newPatterns = songData.patterns.filter(p => p.id !== currentPattern.id);
-    const newOrder = songData.order
+    const newOrder = (songData.order || [])
         .map(orderPatternIndex => {
             if (orderPatternIndex === currentPatternArrayIndex) return -1; 
             return orderPatternIndex > currentPatternArrayIndex ? orderPatternIndex - 1 : orderPatternIndex;
@@ -833,13 +833,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
     let updatedInstruments;
     if (editingInstrument) {
-      updatedInstruments = songData.instruments.map(instr => instr.id === editingInstrument.id ? newInstrumentData : instr);
+      updatedInstruments = (songData.instruments || []).map(instr => instr.id === editingInstrument.id ? newInstrumentData : instr);
     } else {
-      if (songData.instruments.find(i => i.id === newInstrumentData.id)) {
+      if (songData.instruments?.find(i => i.id === newInstrumentData.id)) {
         alert(`Instrument with ID ${newInstrumentData.id} already exists.`);
         return;
       }
-      updatedInstruments = [...songData.instruments, newInstrumentData];
+      updatedInstruments = [...(songData.instruments || []), newInstrumentData];
     }
     updatedInstruments.sort((a, b) => a.id - b.id);
     onUpdate({ instruments: updatedInstruments });
@@ -866,13 +866,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
     let updatedOrnaments;
     if (editingOrnament) {
-      updatedOrnaments = songData.ornaments.map(orn => orn.id === editingOrnament.id ? newOrnamentData : orn);
+      updatedOrnaments = (songData.ornaments || []).map(orn => orn.id === editingOrnament.id ? newOrnamentData : orn);
     } else {
-      if (songData.ornaments.find(o => o.id === newOrnamentData.id)) {
+      if (songData.ornaments?.find(o => o.id === newOrnamentData.id)) {
         alert(`Ornament with ID ${newOrnamentData.id} already exists.`);
         return;
       }
-      updatedOrnaments = [...songData.ornaments, newOrnamentData];
+      updatedOrnaments = [...(songData.ornaments || []), newOrnamentData];
     }
     updatedOrnaments.sort((a,b) => a.id - b.id);
     onUpdate({ ornaments: updatedOrnaments });
@@ -907,7 +907,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         toneEnvelope: instrument.toneEnvelope?.join(','),
       });
     } else {
-      const existingIds = songData.instruments.map(i => i.id);
+      const existingIds = (songData.instruments || []).map(i => i.id);
       let newId = 1;
       while (existingIds.includes(newId) && newId <= PT3_MAX_INSTRUMENTS) {
         newId++;
@@ -940,7 +940,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             data: ornament.data?.join(','),
         });
     } else {
-        const existingIds = songData.ornaments.map(o => o.id);
+        const existingIds = (songData.ornaments || []).map(o => o.id);
         let newId = 1;
         while (existingIds.includes(newId) && newId <= PT3_MAX_ORNAMENTS) {
             newId++;
@@ -988,7 +988,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     const patternObject = songData.patterns.find(p => p.id === id);
     if (patternObject) {
         const patternArrayIndex = songData.patterns.indexOf(patternObject);
-        const orderIndex = songData.order.findIndex(idx => idx === patternArrayIndex);
+        const orderIndex = songData.order?.findIndex(idx => idx === patternArrayIndex) ?? -1;
         
         setFocusedCell(null); 
         onUpdate({
@@ -1032,7 +1032,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       <div className="flex flex-grow overflow-hidden"> {/* Main content area (scrollable) */}
         <div className="w-60 p-2 border-r border-msx-border flex flex-col space-y-2 overflow-y-auto text-xs flex-shrink-0"> {/* Left panels column */}
           <PatternOrderPanel
-            order={songData.order} patterns={songData.patterns}
+            order={songData.order || []} patterns={songData.patterns}
             currentPatternIndexInOrder={songData.currentPatternIndexInOrder}
             onOrderListChange={handleOrderListChange}
             onCurrentPatternIndexInOrderChange={handleCurrentPatternIndexInOrderChange}
@@ -1046,11 +1046,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
             onAddPattern={handleAddPattern} onDeleteCurrentPattern={handleDeleteCurrentPattern}
           />
           <InstrumentsPanel
-            instruments={songData.instruments} activeInstrumentId={activeInstrumentId}
+            instruments={songData.instruments || []} activeInstrumentId={activeInstrumentId}
             onSetActiveInstrumentId={setActiveInstrumentId} onOpenInstrumentModal={handleOpenInstrumentModal}
           />
           <OrnamentsPanel 
-            ornaments={songData.ornaments} 
+            ornaments={songData.ornaments || []} 
             activeOrnamentId={activeOrnamentId}
             onSetActiveOrnamentId={setActiveOrnamentId}
             onOpenOrnamentModal={handleOpenOrnamentModal} 

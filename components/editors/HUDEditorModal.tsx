@@ -467,8 +467,8 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         <div key={fullPath}>
           <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">{label}:</label>
           <input type="number" id={inputId} value={value} step={isPositionCoordinate ? 8 : 1}
-            min={key === 'criticalThresholdPercent' ? 0 : undefined}
-            max={key === 'criticalThresholdPercent' ? 100 : undefined}
+            {...(key === 'criticalThresholdPercent' ? { min: 0 } : {})}
+            {...(key === 'criticalThresholdPercent' ? { max: 100 } : {})}
             onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
             className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent" />
         </div>

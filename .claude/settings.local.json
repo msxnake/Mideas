@@ -47,7 +47,13 @@
       "mcp__ide__getDiagnostics",
       "Bash(python test_hud_colors.py:*)",
       "Bash(pip install:*)",
-      "Bash(start http://localhost:5174)"
+      "Bash(start http://localhost:5174)",
+      "Bash(python test_onSelectAsset_fix.py)",
+      "Bash(python:*)",
+      "Bash(start http://localhost:5175)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(if exist \"server\\nul\" del \"server\\nul\")"
     ],
     "deny": [],
     "ask": []

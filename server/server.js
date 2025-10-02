@@ -35,7 +35,11 @@ app.get('/', (req, res) => {
  * @function
  */
 app.post('/compile', (req, res) => {
-  const { code } = req.body;
+  const { code, generateSymbols } = req.body;
+
+  console.log('📨 Compilation request received');
+  console.log('  generateSymbols parameter:', generateSymbols);
+  console.log('  Code length:', code?.length || 0);
 
   if (!code) {
     return res.status(400).send({ error: 'No code provided' });
@@ -49,6 +53,7 @@ app.post('/compile', (req, res) => {
   const timestamp = Date.now();
   const tempFilePath = path.join(tempDir, `source_${timestamp}.asm`);
   const outputFilePath = tempFilePath.replace('.asm', '.rom');
+  const symbolFilePath = generateSymbols ? tempFilePath.replace('.asm', '.sym') : null;
 
   fs.writeFile(tempFilePath, code, (err) => {
     if (err) {
@@ -56,9 +61,15 @@ app.post('/compile', (req, res) => {
     }
 
     const jarPath = path.join(__dirname, 'glass.jar');
-    const command = `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}"`;
+    // Add symbol file path if generateSymbols is true
+    const command = symbolFilePath
+      ? `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}" "${symbolFilePath}"`
+      : `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}"`;
 
     console.log(`🔧 Executing Glass: ${command}`);
+    if (generateSymbols) {
+      console.log(`📋 Symbols will be saved to: ${symbolFilePath}`);
+    }
 
     exec(command, (error, stdout, stderr) => {
       // Log detailed information for debugging
@@ -123,9 +134,71 @@ app.post('/compile', (req, res) => {
           console.log(`✅ ROM Size OK: ${originalSize} bytes (${originalSize / KB_8}×8KB)`);
         }
 
+        // Check if symbol file was generated
+        let symbolFileInfo = null;
+        if (symbolFilePath && fs.existsSync(symbolFilePath)) {
+          const symbolStats = fs.statSync(symbolFilePath);
+          const symbolFileName = path.basename(symbolFilePath);
+
+          // Convert Glass .sym format to OpenMSX format
+          const openmsxSymFilePath = symbolFilePath.replace('.sym', '_openmsx.sym');
+          try {
+            const symbolContent = fs.readFileSync(symbolFilePath, 'utf-8');
+            const lines = symbolContent.split('\n');
+            const openmsxSymbols = [];
+
+            // Parse Glass format: LABEL: equ 4000H
+            // Filter: Only include symbols in ROM range (0x4000-0xFFFF)
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed || trimmed.startsWith(';')) continue;
+
+              const match = trimmed.match(/^([A-Za-z0-9_]+):\s+equ\s+([0-9A-Fa-f]+)H?$/);
+              if (match) {
+                const label = match[1];
+                const address = match[2];
+                const addrValue = parseInt(address, 16);
+
+                // Only include symbols in ROM address range (0x4000-0xFFFF)
+                // This filters out constants and BIOS addresses
+                if (addrValue >= 0x4000 && addrValue <= 0xFFFF) {
+                  // Keep original Glass format for OpenMSX compatibility
+                  openmsxSymbols.push(`${label}: equ ${address}H`);
+                }
+              }
+            }
+
+            // Sort by address
+            openmsxSymbols.sort((a, b) => {
+              const addrA = parseInt(a.match(/equ ([0-9A-Fa-f]+)H/)[1], 16);
+              const addrB = parseInt(b.match(/equ ([0-9A-Fa-f]+)H/)[1], 16);
+              return addrA - addrB;
+            });
+
+            fs.writeFileSync(openmsxSymFilePath, openmsxSymbols.join('\n') + '\n', 'utf-8');
+            console.log(`📋 OpenMSX symbols: ${openmsxSymbols.length} ROM symbols (filtered 0x4000-0xFFFF)`);
+          } catch (convError) {
+            console.error('⚠️ Failed to convert to OpenMSX format:', convError);
+          }
+
+          const openmsxSymFileName = path.basename(openmsxSymFilePath);
+          symbolFileInfo = {
+            symbolFile: symbolFileName,
+            symbolPath: symbolFilePath,
+            symbolDownloadUrl: `/download/${symbolFileName}`,
+            symbolSize: symbolStats.size,
+            // Add OpenMSX format info
+            openmsxSymbolFile: openmsxSymFileName,
+            openmsxSymbolDownloadUrl: `/download/${openmsxSymFileName}`
+          };
+          console.log(`✅ Symbol file generated: ${symbolFileName} (${symbolStats.size} bytes)`);
+        } else if (symbolFilePath) {
+          console.log(`⚠️ Symbol file was requested but not generated: ${symbolFilePath}`);
+        }
+
         // Return ROM file information for download
         const romFileName = path.basename(outputFilePath);
-        res.send({
+        const responseData = {
           success: true,
           data: paddedData.toString('hex'),
           message: stdout,
@@ -138,7 +211,14 @@ app.post('/compile', (req, res) => {
             paddingAdded: paddedData.length - originalSize,
             sizeIn8KB: paddedData.length / KB_8
           }
-        });
+        };
+
+        // Add symbol file info if available
+        if (symbolFileInfo) {
+          Object.assign(responseData, symbolFileInfo);
+        }
+
+        res.send(responseData);
       });
     });
   });
@@ -226,9 +306,12 @@ app.post('/run-compressor', async (req, res) => {
 app.get('/download/:filename', (req, res) => {
   const filename = req.params.filename;
 
-  // Validate filename (only allow .rom files)
-  if (!filename.endsWith('.rom') || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
-    return res.status(400).send({ error: 'Invalid filename' });
+  // Validate filename (allow .rom and .sym files)
+  const isValidExtension = filename.endsWith('.rom') || filename.endsWith('.sym');
+  const hasInvalidChars = filename.includes('..') || filename.includes('/') || filename.includes('\\');
+
+  if (!isValidExtension || hasInvalidChars) {
+    return res.status(400).send({ error: 'Invalid filename. Only .rom and .sym files are allowed.' });
   }
 
   const tempDir = path.join(__dirname, 'temp');
@@ -236,17 +319,25 @@ app.get('/download/:filename', (req, res) => {
 
   // Check if file exists
   if (!fs.existsSync(filePath)) {
-    return res.status(404).send({ error: 'ROM file not found' });
+    const fileType = filename.endsWith('.sym') ? 'Symbol' : 'ROM';
+    return res.status(404).send({ error: `${fileType} file not found: ${filename}` });
   }
 
   // Set headers for download
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.setHeader('Content-Type', 'application/octet-stream');
+
+  // Set content type based on file extension
+  if (filename.endsWith('.sym')) {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  } else {
+    res.setHeader('Content-Type', 'application/octet-stream');
+  }
 
   // Send the file
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      return res.status(500).send({ error: 'Failed to read ROM file', details: err });
+      const fileType = filename.endsWith('.sym') ? 'symbol' : 'ROM';
+      return res.status(500).send({ error: `Failed to read ${fileType} file`, details: err });
     }
 
     res.send(data);
