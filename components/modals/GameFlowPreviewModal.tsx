@@ -93,6 +93,8 @@ interface GameFlowPreviewModalProps {
     componentDefinitions: ComponentDefinition[];
     /** The initial state of the 'dynamic' toggle. */
     initialIsDynamic?: boolean;
+    /** The name of the current GameFlow asset. */
+    gameFlowAssetName: string;
 }
 
 /**
@@ -123,6 +125,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     currentScreenMode,
     componentDefinitions,
     initialIsDynamic = false,
+    gameFlowAssetName,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const modalRef = useRef<HTMLDivElement>(null);
@@ -137,8 +140,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [currentScreenMap, setCurrentScreenMap] = useState<ScreenMap | null>(null);
     const [currentWorldMapGraph, setCurrentWorldMapGraph] = useState<WorldMapGraph | null>(null);
     const [isDynamic, setIsDynamic] = useState(initialIsDynamic);
+    const [gameGlobalVariables, setGameGlobalVariables] = useState<Record<string, any>>({});
+    const [gameFlowStack, setGameFlowStack] = useState<Array<{parentGraphData: GameFlowGraph, returnNodeId: string, parentGameFlowName: string}>>([]);
+    const [currentNestedGraphData, setCurrentNestedGraphData] = useState<GameFlowGraph | null>(null);
+    const [currentExecutingGameFlowName, setCurrentExecutingGameFlowName] = useState<string>(gameFlowAssetName);
 
-    const { nodes, connections } = graphData;
+    // Use nested graph if available, otherwise use the main graphData
+    const currentGraphData = currentNestedGraphData || graphData;
+    const { nodes, connections } = currentGraphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
 
     const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
@@ -216,24 +225,58 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     useEffect(() => {
         if (isOpen) {
             modalRef.current?.focus();
-            const startNode = nodes.find(n => n.type === 'Start');
+            const startNode = graphData.nodes.find(n => n.type === 'Start');
             if (startNode) setCurrentNodeId(startNode.id);
             setNavigationStack([]);
             setSelectedOptionIndex(0);
             setCurrentScreenMap(null);
             setCurrentWorldMapGraph(null);
+            setGameFlowStack([]);
+            setCurrentNestedGraphData(null);
+            setCurrentExecutingGameFlowName(gameFlowAssetName);
             heroRef.current = null;
             pressedKeys.current.clear();
         } else {
              if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         }
-    }, [isOpen, nodes]);
+    }, [isOpen, graphData, gameFlowAssetName]);
+
+    // Helper function to expand control options
+    const expandMenuOptions = useCallback((subMenuNode: GameFlowSubMenuNode) => {
+        const expandedOptions: Array<{text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string}> = [];
+        subMenuNode.options.forEach((option, idx) => {
+            if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
+                option.controlOptions.forEach(ctrl => {
+                    expandedOptions.push({text: ctrl, originalIndex: idx, isControlOption: true, controlValue: ctrl});
+                });
+            } else {
+                expandedOptions.push({text: option.text, originalIndex: idx});
+            }
+        });
+        return expandedOptions;
+    }, []);
 
     const handleAction = useCallback(() => {
         if (!currentNode || currentNode.type !== 'SubMenu') return;
         const subMenuNode = currentNode as GameFlowSubMenuNode;
-        const selectedOption = subMenuNode.options[selectedOptionIndex];
+
+        // Expand options to handle control selections
+        const expandedOptions = expandMenuOptions(subMenuNode);
+        const selectedExpanded = expandedOptions[selectedOptionIndex];
+        if (!selectedExpanded) return;
+
+        const selectedOption = subMenuNode.options[selectedExpanded.originalIndex];
         if (!selectedOption) return;
+
+        // If it's a control option, save the selected control value to global variable
+        if (selectedExpanded.isControlOption && selectedExpanded.controlValue && selectedOption.globalVariableName) {
+            setGameGlobalVariables(prev => ({
+                ...prev,
+                [selectedOption.globalVariableName!]: selectedExpanded.controlValue
+            }));
+            console.log(`Global variable ${selectedOption.globalVariableName} set to: ${selectedExpanded.controlValue}`);
+        }
+
         const connection = connections.find(c => c.from.nodeId === currentNode.id && c.from.sourceId === selectedOption.id);
         if (connection) {
             // Skip through waypoints automatically
@@ -255,7 +298,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             setCurrentNodeId(targetNodeId);
             setSelectedOptionIndex(0);
         }
-    }, [currentNode, connections, selectedOptionIndex, nodes]);
+    }, [currentNode, connections, selectedOptionIndex, nodes, expandMenuOptions]);
 
     const handleGoBack = useCallback(() => {
         if (navigationStack.length > 0) {
@@ -291,9 +334,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         if (!currentNode) return;
         if (currentNode.type === 'SubMenu') {
             const subMenuNode = currentNode as GameFlowSubMenuNode;
+            const expandedOptions = expandMenuOptions(subMenuNode);
+            const maxIndex = expandedOptions.length - 1;
             switch (e.key) {
                 case 'ArrowUp': setSelectedOptionIndex(prev => Math.max(0, prev - 1)); break;
-                case 'ArrowDown': setSelectedOptionIndex(prev => Math.min(subMenuNode.options.length - 1, prev + 1)); break;
+                case 'ArrowDown': setSelectedOptionIndex(prev => Math.min(maxIndex, prev + 1)); break;
                 case ' ': case 'Enter': handleAction(); break;
                 case 'Escape': handleGoBack(); break;
             }
@@ -359,7 +404,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 case 'Escape': handleGoBack(); break;
             }
         }
-    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions]);
+    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions]);
 
     useEffect(() => {
         if (!isOpen || currentNode?.type !== 'WorldLink' || currentScreenMap) return;
@@ -494,11 +539,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
         const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
         
-        const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes) => {
+        const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes, customFont?: MSXFont, customColorAttrs?: MSXFontColorAttributes) => {
             return new Promise<void>((resolve) => {
                 const textImg = new Image();
                 textImg.onload = () => { ctx.drawImage(textImg, x, y); resolve(); };
-                textImg.src = renderMSX1TextToDataURL(text, msxFont, colorAttrs, 1, 1);
+                const fontToUse = customFont || msxFont;
+                const colorAttrsToUse = customColorAttrs || colorAttrs;
+                textImg.src = renderMSX1TextToDataURL(text, fontToUse, colorAttrsToUse, 1, 1);
             });
         };
 
@@ -629,9 +676,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
              }
             switch (currentNode.type) {
                 case 'Start':
-                    const startText = 'Game Start';
-                    const startDims = getTextDimensionsMSX1(startText, 1);
-                    await drawTextAsync(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
+                    // Only show text if this is the Main GameFlow
+                    if (currentExecutingGameFlowName === 'Main') {
+                        const startText = 'Build with Mideas';
+                        const startDims = getTextDimensionsMSX1(startText, 1);
+                        await drawTextAsync(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
+                    }
                     setTimeout(() => {
                         const conn = connections.find(c => c.from.nodeId === currentNode.id);
                         if (conn) setCurrentNodeId(conn.to.nodeId);
@@ -639,31 +689,56 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     break;
                 case 'SubMenu':
                     const subMenu = currentNode as GameFlowSubMenuNode;
+                    const subMenuFontAsset = (subMenu.appearance as any)?.fontAssetId
+                        ? allAssets.find(a => a.id === (subMenu.appearance as any).fontAssetId)
+                        : null;
+                    const subMenuFont = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
+                    const subMenuFontColorAttrs = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
+
                     const titleDims = getTextDimensionsMSX1(subMenu.title, 1);
-                    await drawTextAsync(subMenu.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes);
-                    for (const [index, option] of subMenu.options.entries()) {
-                         const optionText = option.text;
+                    await drawTextAsync(subMenu.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes, subMenuFont, subMenuFontColorAttrs);
+
+                    // Expand control options into separate menu items
+                    const expandedOptions: Array<{text: string, originalIndex: number, isControlOption?: boolean}> = [];
+                    subMenu.options.forEach((option, idx) => {
+                        if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
+                            option.controlOptions.forEach(ctrl => {
+                                expandedOptions.push({text: ctrl, originalIndex: idx, isControlOption: true});
+                            });
+                        } else {
+                            expandedOptions.push({text: option.text, originalIndex: idx});
+                        }
+                    });
+
+                    for (const [displayIndex, expandedOption] of expandedOptions.entries()) {
+                         const optionText = expandedOption.text;
                          const optionDims = getTextDimensionsMSX1(optionText, 1);
-                         const isSelected = index === selectedOptionIndex;
-                         let colorAttrs = msxFontColorAttributes;
+                         const isSelected = displayIndex === selectedOptionIndex;
+                         let colorAttrs = subMenuFontColorAttrs || msxFontColorAttributes;
                          if (isSelected) {
-                             const highlightedColorAttrs = JSON.parse(JSON.stringify(msxFontColorAttributes));
+                             const highlightedColorAttrs = JSON.parse(JSON.stringify(colorAttrs));
                              for(let i=0; i<optionText.length; i++){
                                  highlightedColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
                              }
                              colorAttrs = highlightedColorAttrs;
                          }
-                        await drawTextAsync(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + index * 12, colorAttrs);
+                        await drawTextAsync(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + displayIndex * 12, colorAttrs, subMenuFont, colorAttrs);
                     }
                     break;
                 case 'Text':
                     const textNode = currentNode as GameFlowTextNode;
+                    const textNodeFontAsset = textNode.appearance?.fontAssetId
+                        ? allAssets.find(a => a.id === textNode.appearance.fontAssetId)
+                        : null;
+                    const textNodeFont = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
+                    const textNodeFontColorAttrs = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
+
                     const textNodeTitle = textNode.title;
                     const textNodeMessage = textNode.message;
                     const textNodeTitleDims = getTextDimensionsMSX1(textNodeTitle, 1);
 
                     // Render title
-                    await drawTextAsync(textNodeTitle, (PREVIEW_WIDTH - textNodeTitleDims.width) / 2, 30, msxFontColorAttributes);
+                    await drawTextAsync(textNodeTitle, (PREVIEW_WIDTH - textNodeTitleDims.width) / 2, 30, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
 
                     // Render message (split into lines if needed)
                     const words = textNodeMessage.split(' ');
@@ -687,25 +762,62 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const startY = 60;
                     for (let i = 0; i < lines.length; i++) {
                         const lineDims = getTextDimensionsMSX1(lines[i], 1);
-                        await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes);
+                        await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
                     }
 
                     // Render "Press Fire to continue" prompt
                     const promptText = 'Press Fire to continue';
                     const promptDims = getTextDimensionsMSX1(promptText, 1);
-                    const promptColorAttrs = JSON.parse(JSON.stringify(msxFontColorAttributes));
+                    const baseColorAttrs = textNodeFontColorAttrs || msxFontColorAttributes;
+                    const promptColorAttrs = JSON.parse(JSON.stringify(baseColorAttrs));
                     for(let i=0; i<promptText.length; i++){
                         promptColorAttrs[promptText.charCodeAt(i)] = Array(8).fill({
                             fg: textNode.appearance?.colors?.promptText || '#F3F3F3',
                             bg: textNode.appearance?.colors?.background || '#000000'
                         });
                     }
-                    await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, promptColorAttrs);
+                    await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, promptColorAttrs, textNodeFont, promptColorAttrs);
                     break;
                 case 'End':
-                    const endText = 'Game Over';
-                    const endDims = getTextDimensionsMSX1(endText, 1);
-                    await drawTextAsync(endText, (PREVIEW_WIDTH - endDims.width) / 2, (PREVIEW_HEIGHT - endDims.height) / 2, msxFontColorAttributes);
+                    // End node simply returns control to parent if exists, otherwise terminates
+                    if (gameFlowStack.length > 0) {
+                        // Pop back to parent GameFlow
+                        const { parentGraphData, returnNodeId, parentGameFlowName } = gameFlowStack[gameFlowStack.length - 1];
+                        setGameFlowStack(prev => prev.slice(0, -1));
+
+                        // Restore parent graph or null if returning to main
+                        const restoredGraphData = gameFlowStack.length > 1
+                            ? gameFlowStack[gameFlowStack.length - 2].parentGraphData
+                            : graphData;
+
+                        if (gameFlowStack.length > 1) {
+                            setCurrentNestedGraphData(gameFlowStack[gameFlowStack.length - 2].parentGraphData);
+                        } else {
+                            setCurrentNestedGraphData(null);
+                        }
+
+                        // Restore parent GameFlow name
+                        setCurrentExecutingGameFlowName(parentGameFlowName);
+
+                        // Skip through waypoints to find the actual destination node
+                        let finalNodeId = returnNodeId;
+                        let finalNode = restoredGraphData.nodes.find(n => n.id === finalNodeId);
+
+                        while (finalNode && finalNode.type === 'Waypoint') {
+                            const nextConn = restoredGraphData.connections.find(c => c.from.nodeId === finalNodeId);
+                            if (nextConn) {
+                                finalNodeId = nextConn.to.nodeId;
+                                finalNode = restoredGraphData.nodes.find(n => n.id === finalNodeId);
+                            } else {
+                                break;
+                            }
+                        }
+
+                        setCurrentNodeId(finalNodeId);
+                        setNavigationStack([]);
+                        setSelectedOptionIndex(0);
+                    }
+                    // If no parent, execution just stops here (no visual output)
                     break;
                 case 'Restart':
                     const restartNode = currentNode as any; // GameFlowRestartNode
@@ -745,6 +857,49 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             }
                         }
                         setCurrentNodeId(targetNodeId);
+                    }
+                    break;
+                case 'Group':
+                    const groupNode = currentNode as any; // GameFlowGroupNode
+                    const groupGameFlowAsset = allAssets.find(a => a.id === groupNode.gameFlowAssetId && a.type === 'gameflow');
+
+                    if (!groupNode.gameFlowAssetId || !groupGameFlowAsset) {
+                        // Display error message
+                        const groupTitle = groupNode.name || 'Group';
+                        const groupTitleDims = getTextDimensionsMSX1(groupTitle, 1);
+                        await drawTextAsync(groupTitle, (PREVIEW_WIDTH - groupTitleDims.width) / 2, 60, msxFontColorAttributes);
+
+                        const noFlowText = groupNode.gameFlowAssetId ? 'GameFlow not found' : 'No GameFlow assigned';
+                        const noFlowDims = getTextDimensionsMSX1(noFlowText, 1);
+                        await drawTextAsync(noFlowText, (PREVIEW_WIDTH - noFlowDims.width) / 2, 90, msxFontColorAttributes);
+                    } else {
+                        // Execute nested GameFlow
+                        const nestedGraphData = groupGameFlowAsset.data as GameFlowGraph;
+
+                        // Find the connection from this Group node to determine return point
+                        const exitConnection = connections.find(c => c.from.nodeId === currentNode.id);
+                        const returnNodeId = exitConnection ? exitConnection.to.nodeId : currentNode.id;
+
+                        // Push current parent context onto stack
+                        setGameFlowStack(prev => [...prev, {
+                            parentGraphData: currentGraphData,
+                            returnNodeId,
+                            parentGameFlowName: currentExecutingGameFlowName
+                        }]);
+
+                        // Set the nested graph as current
+                        setCurrentNestedGraphData(nestedGraphData);
+
+                        // Update the executing GameFlow name
+                        setCurrentExecutingGameFlowName(groupGameFlowAsset.name);
+
+                        // Find and navigate to the Start node of the nested GameFlow
+                        const nestedStartNode = nestedGraphData.nodes.find(n => n.type === 'Start');
+                        if (nestedStartNode) {
+                            setCurrentNodeId(nestedStartNode.id);
+                            setNavigationStack([]);
+                            setSelectedOptionIndex(0);
+                        }
                     }
                     break;
             }
@@ -940,7 +1095,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         };
     }, [
-        isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections,
+        isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
         msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions
     ]);
 
@@ -1005,20 +1160,24 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             backgroundColor: 'black'
                         }}
                     />
-                    {cursorAsset && subMenuNode && (
-                        <img
-                            src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
-                            alt="cursor"
-                            className="absolute pointer-events-none"
-                            style={{
-                                left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(subMenuNode.options[selectedOptionIndex].text, 1).width) / 2 - 16) * 2,
-                                top: (80 + selectedOptionIndex * 12) * 2,
-                                imageRendering: 'pixelated',
-                                width: (cursorAsset.data as Sprite).size.width * 2,
-                                height: (cursorAsset.data as Sprite).size.height * 2,
-                            }}
-                        />
-                    )}
+                    {cursorAsset && subMenuNode && (() => {
+                        const expandedOpts = expandMenuOptions(subMenuNode);
+                        const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
+                        return (
+                            <img
+                                src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
+                                alt="cursor"
+                                className="absolute pointer-events-none"
+                                style={{
+                                    left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(selectedText, 1).width) / 2 - 16) * 2,
+                                    top: ((80 + selectedOptionIndex * 12) - 4) * 2,
+                                    imageRendering: 'pixelated',
+                                    width: (cursorAsset.data as Sprite).size.width * 2,
+                                    height: (cursorAsset.data as Sprite).size.height * 2,
+                                }}
+                            />
+                        );
+                    })()}
                     {currentScreenMap && (
                         <>
                             {northExits.map((conn, index) => (

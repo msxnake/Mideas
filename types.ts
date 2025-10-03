@@ -917,6 +917,9 @@ export interface GameFlowStartNode extends GameFlowNode_Base {
 export interface GameFlowSubMenuOption {
   id: string;
   text: string;
+  type?: 'normal' | 'controls';
+  controlOptions?: ('CURSORS' | 'JOYSTICK' | 'KEYS')[];
+  globalVariableName?: string;
 }
 
 /** Represents a submenu node in the game flow. */
@@ -927,6 +930,7 @@ export interface GameFlowSubMenuNode extends GameFlowNode_Base {
   appearance?: {
     backgroundScreenAssetId?: string;
     cursorSpriteAssetId?: string;
+    fontAssetId?: string;
     colors: {
       text: string;
       background: string;
@@ -957,6 +961,7 @@ export interface GameFlowTextNode extends GameFlowNode_Base {
   message: string;
   appearance?: {
     backgroundScreenAssetId?: string;
+    fontAssetId?: string;
     colors: {
       text: string;
       background: string;
@@ -992,8 +997,15 @@ export interface GameFlowTransitionNode extends GameFlowNode_Base {
   duration?: number; // milliseconds (optional, for preview timing)
 }
 
+/** Represents a group node that calls another GameFlow asset (nested GameFlow). */
+export interface GameFlowGroupNode extends GameFlowNode_Base {
+  type: 'Group';
+  gameFlowAssetId?: string; // ID of the GameFlow asset to execute
+  name: string; // Display name for the group
+}
+
 /** A union type for all possible game flow node types. */
-export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowTransitionNode;
+export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowTransitionNode | GameFlowGroupNode;
 
 /** Represents a connection between two nodes in the game flow graph. */
 export interface GameFlowConnection {

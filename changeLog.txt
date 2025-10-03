@@ -1,3 +1,19 @@
+Versión 0.253 - 3/10/2025
+- feat: Implementar sistema de GameFlows anidados con nodo "Group"
+- feat: Añadir nodo "End" para terminar flujos y regresar al padre
+- feat: Stack de GameFlows para soportar múltiples niveles de anidación
+- feat: Salto automático de waypoints al regresar de GameFlow anidado
+- feat: Diferenciación visual del nodo "Start" en GameFlow "Main" (rojo, texto negro, negrita)
+- feat: Texto "Build with Mideas" solo en nodo Start de GameFlow "Main"
+- feat: Selección de fuente personalizada en nodos Text y SubMenu
+- feat: Renderizado de fuentes personalizadas en Game Flow Preview
+- feat: Opción "Add Controls" en SubMenu con checkboxes para CURSORS/JOYSTICK/KEYS
+- feat: Almacenamiento de selección de controles en variables globales
+- feat: Naming automático de GameFlows - primero "Main", siguientes "New Gameflow N"
+- fix: Corregir retorno de GameFlows anidados - restaurar contexto padre correctamente
+- fix: Corregir renderizado de colores en fuentes personalizadas (usar fontColorAttributes)
+- fix: Añadir dependencia currentGraphData al useEffect de renderizado
+
 Versión 0.252 - 2/10/2025
 - feat: Añadir sistema de transiciones visuales en Game Flow Editor
 - feat: Implementar 7 efectos de transición (CLS, Disolver Píxeles, Disolver Chars, Líneas Verticales, Líneas Horizontales, Espiral, Cuadrados Blancos)

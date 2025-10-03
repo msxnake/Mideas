@@ -396,6 +396,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               entityTemplates={entityTemplates}
               currentScreenMode={currentScreenMode}
               componentDefinitions={componentDefinitions}
+              gameFlowAssetName={activeAsset.name}
             />
           )}
           

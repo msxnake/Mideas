@@ -18,6 +18,7 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
 }) => {
   const [assetPickerState, setAssetPickerState] = useState<{
     isOpen: boolean;
+    assetType: 'screenmap' | 'font';
     onSelect: (assetId: string) => void;
   } | null>(null);
 
@@ -56,11 +57,27 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
     });
   };
 
-  const openAssetPicker = (onSelect: (assetId: string) => void) => {
-    setAssetPickerState({ isOpen: true, onSelect });
+  const handleFontAssetChange = (assetId: string | null) => {
+    onNodeChange({
+      ...node,
+      appearance: {
+        ...node.appearance,
+        colors: node.appearance?.colors || {
+          text: '#F3F3F3',
+          background: '#000000',
+          promptText: '#F3F3F3',
+        },
+        fontAssetId: assetId || undefined,
+      },
+    });
+  };
+
+  const openAssetPicker = (assetType: 'screenmap' | 'font', onSelect: (assetId: string) => void) => {
+    setAssetPickerState({ isOpen: true, assetType, onSelect });
   };
 
   const bgAsset = allAssets.find(a => a.id === node.appearance?.backgroundScreenAssetId);
+  const fontAsset = allAssets.find(a => a.id === node.appearance?.fontAssetId);
 
   return (
     <div className="space-y-3 p-4">
@@ -86,26 +103,54 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
       </Panel>
 
       <Panel title="Visuals">
-        <div className="flex items-center space-x-2">
-          <Button
-            onClick={() => openAssetPicker((id) => handleBackgroundAssetChange(id))}
-            variant="secondary"
-            size="sm"
-          >
-            Select Background Screen
-          </Button>
-          {node.appearance?.backgroundScreenAssetId && (
+        <div className="mb-3">
+          <label className="block text-msx-textprimary text-sm mb-1">Background Screen</label>
+          <div className="flex items-center space-x-2">
             <Button
-              onClick={() => handleBackgroundAssetChange(null)}
-              variant="ghost"
+              onClick={() => openAssetPicker('screenmap', (id) => handleBackgroundAssetChange(id))}
+              variant="secondary"
               size="sm"
             >
-              Clear
+              Select
             </Button>
-          )}
-          <span className="text-msx-textsecondary truncate">
-            {bgAsset ? `${bgAsset.name}` : 'None'}
-          </span>
+            {node.appearance?.backgroundScreenAssetId && (
+              <Button
+                onClick={() => handleBackgroundAssetChange(null)}
+                variant="ghost"
+                size="sm"
+              >
+                Clear
+              </Button>
+            )}
+            <span className="text-msx-textsecondary truncate">
+              {bgAsset ? `${bgAsset.name}` : 'None'}
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-msx-textprimary text-sm mb-1">Font</label>
+          <div className="flex items-center space-x-2">
+            <Button
+              onClick={() => openAssetPicker('font', (id) => handleFontAssetChange(id))}
+              variant="secondary"
+              size="sm"
+            >
+              Select Font
+            </Button>
+            {node.appearance?.fontAssetId && (
+              <Button
+                onClick={() => handleFontAssetChange(null)}
+                variant="ghost"
+                size="sm"
+              >
+                Clear
+              </Button>
+            )}
+            <span className="text-msx-textsecondary truncate">
+              {fontAsset ? `${fontAsset.name}` : 'Default'}
+            </span>
+          </div>
         </div>
       </Panel>
 
@@ -132,9 +177,13 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
           isOpen={assetPickerState.isOpen}
           onClose={() => setAssetPickerState(null)}
           onSelectAsset={assetPickerState.onSelect}
-          assetTypeToPick="screenmap"
+          assetTypeToPick={assetPickerState.assetType}
           allAssets={allAssets}
-          currentSelectedId={node.appearance?.backgroundScreenAssetId || null}
+          currentSelectedId={
+            assetPickerState.assetType === 'screenmap'
+              ? node.appearance?.backgroundScreenAssetId || null
+              : node.appearance?.fontAssetId || null
+          }
         />
       )}
     </div>

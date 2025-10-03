@@ -95,6 +95,25 @@ export const useAssetHandlers = ({
     const id = `${type}_${Date.now()}`;
     let newAssetData: any;
     let defaultName = `New ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+
+    // Special naming for gameflow assets
+    if (type === 'gameflow') {
+      const existingGameflows = assets.filter(a => a.type === 'gameflow');
+      if (existingGameflows.length === 0) {
+        // First gameflow is always "Main"
+        defaultName = 'Main';
+      } else {
+        // Find unique name for subsequent gameflows
+        let counter = 1;
+        let candidateName = `New Gameflow ${counter}`;
+        while (existingGameflows.some(a => a.name === candidateName)) {
+          counter++;
+          candidateName = `New Gameflow ${counter}`;
+        }
+        defaultName = candidateName;
+      }
+    }
+
     let newEditorType: EditorType = EditorType.None;
     const defaultLogicalProps: TileLogicalProperties = {
       mapId: 0, familyId: 0, instanceId: 0,

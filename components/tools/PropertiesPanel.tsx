@@ -611,44 +611,139 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <label className="block text-xs text-msx-textsecondary mb-0.5">Options:</label>
             <div className="space-y-1">
               {node.options.map((option, index) => (
-                <div key={option.id} className="flex items-center space-x-1">
-                  <input
-                    type="text"
-                    value={option.text}
-                    onChange={(e) => {
-                      const newOptions = [...node.options];
-                      newOptions[index] = { ...option, text: e.target.value };
-                      onUpdateGameFlowNode(node.id, { options: newOptions });
-                    }}
-                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
-                  />
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => {
-                      const newOptions = node.options.filter(o => o.id !== option.id);
-                      onUpdateGameFlowNode(node.id, { options: newOptions });
-                    }}
-                  >
-                    <TrashIcon className="w-3 h-3"/>
-                  </Button>
+                <div key={option.id} className="space-y-1">
+                  <div className="flex items-center space-x-1">
+                    <input
+                      type="text"
+                      value={option.text}
+                      onChange={(e) => {
+                        const newOptions = [...node.options];
+                        newOptions[index] = { ...option, text: e.target.value };
+                        onUpdateGameFlowNode(node.id, { options: newOptions });
+                      }}
+                      className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+                    />
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => {
+                        const newOptions = node.options.filter(o => o.id !== option.id);
+                        onUpdateGameFlowNode(node.id, { options: newOptions });
+                      }}
+                    >
+                      <TrashIcon className="w-3 h-3"/>
+                    </Button>
+                  </div>
+                  {option.type === 'controls' && (
+                    <div className="ml-2 pl-2 border-l-2 border-msx-border space-y-1">
+                      <div className="text-xs text-msx-textsecondary">Control Options:</div>
+                      {['CURSORS', 'JOYSTICK', 'KEYS'].map((ctrl) => (
+                        <label key={ctrl} className="flex items-center space-x-1 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={option.controlOptions?.includes(ctrl as any) || false}
+                            onChange={(e) => {
+                              const newOptions = [...node.options];
+                              const currentControls = option.controlOptions || [];
+                              newOptions[index] = {
+                                ...option,
+                                controlOptions: e.target.checked
+                                  ? [...currentControls, ctrl as any]
+                                  : currentControls.filter(c => c !== ctrl)
+                              };
+                              onUpdateGameFlowNode(node.id, { options: newOptions });
+                            }}
+                          />
+                          <span>{ctrl}</span>
+                        </label>
+                      ))}
+                      <div className="text-xs text-msx-textsecondary mt-1">Global Variable:</div>
+                      <input
+                        type="text"
+                        value={option.globalVariableName || ''}
+                        onChange={(e) => {
+                          const newOptions = [...node.options];
+                          newOptions[index] = { ...option, globalVariableName: e.target.value };
+                          onUpdateGameFlowNode(node.id, { options: newOptions });
+                        }}
+                        placeholder="e.g. CONTROL_TYPE"
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="mt-2 w-full"
-              onClick={() => {
-                const newOption = { id: `opt_${Date.now()}`, text: 'New Option' };
-                onUpdateGameFlowNode(node.id, { options: [...node.options, newOption] });
-              }}
-            >
-              Add Option
-            </Button>
+            <div className="mt-2 flex space-x-1">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="flex-1"
+                onClick={() => {
+                  const newOption = { id: `opt_${Date.now()}`, text: 'New Option', type: 'normal' as const };
+                  onUpdateGameFlowNode(node.id, { options: [...node.options, newOption] });
+                }}
+              >
+                Add Option
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                className="flex-1"
+                onClick={() => {
+                  const newOption = {
+                    id: `ctrl_${Date.now()}`,
+                    text: 'CHOOSE',
+                    type: 'controls' as 'controls',
+                    controlOptions: ['CURSORS', 'JOYSTICK', 'KEYS'] as ('CURSORS' | 'JOYSTICK' | 'KEYS')[],
+                    globalVariableName: 'CONTROL_TYPE'
+                  };
+                  onUpdateGameFlowNode(node.id, { options: [...node.options, newOption] });
+                }}
+              >
+                Add Controls
+              </Button>
+            </div>
           </div>
         </div>
       );
+    }
+    if (gameFlowNode.type === 'Group') {
+        const node = gameFlowNode as any; // GameFlowGroupNode
+        const gameFlowAssets = allAssets.filter(a => a.type === 'gameflow');
+        const selectedGameFlow = gameFlowAssets.find(a => a.id === node.gameFlowAssetId);
+        return (
+            <div className="space-y-2">
+                <div>
+                    <label className="block text-xs text-msx-textsecondary mb-0.5">Group Name:</label>
+                    <input
+                        type="text"
+                        value={node.name || ''}
+                        onChange={(e) => onUpdateGameFlowNode(node.id, { name: e.target.value })}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+                        placeholder="Group name..."
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs text-msx-textsecondary mb-0.5">GameFlow Asset:</label>
+                    <select
+                        value={node.gameFlowAssetId || ''}
+                        onChange={(e) => onUpdateGameFlowNode(node.id, { gameFlowAssetId: e.target.value || undefined })}
+                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+                    >
+                        <option value="">-- Select GameFlow --</option>
+                        {gameFlowAssets.map(gf => (
+                            <option key={gf.id} value={gf.id}>{gf.name}</option>
+                        ))}
+                    </select>
+                </div>
+                {selectedGameFlow && (
+                    <div className="text-xs text-msx-textsecondary p-2 bg-msx-bgcolor-darker rounded">
+                        <div>Selected: <span className="text-msx-primary">{selectedGameFlow.name}</span></div>
+                    </div>
+                )}
+            </div>
+        );
     }
     if (gameFlowNode.type === 'End') {
         const node = gameFlowNode as GameFlowEndNode;

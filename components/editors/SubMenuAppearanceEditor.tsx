@@ -18,7 +18,7 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
 }) => {
   const [assetPickerState, setAssetPickerState] = useState<{
     isOpen: boolean;
-    assetType: 'screenmap' | 'sprite';
+    assetType: 'screenmap' | 'sprite' | 'font';
     onSelect: (assetId: string) => void;
   } | null>(null);
 
@@ -36,31 +36,66 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
     });
   };
 
-  const openAssetPicker = (assetType: 'screenmap' | 'sprite', onSelect: (assetId: string) => void) => {
+  const openAssetPicker = (assetType: 'screenmap' | 'sprite' | 'font', onSelect: (assetId: string) => void) => {
     setAssetPickerState({ isOpen: true, assetType, onSelect });
   };
 
   const bgAsset = allAssets.find(a => a.id === appearance.backgroundScreenAssetId);
   const cursorAsset = allAssets.find(a => a.id === appearance.cursorSpriteAssetId);
+  const fontAsset = allAssets.find(a => a.id === (appearance as any).fontAssetId);
 
   return (
     <div className="space-y-3 p-4">
       <Panel title="Visuals">
-        <div className="flex items-center space-x-2">
-          <Button onClick={() => openAssetPicker('screenmap', (id) => handleConfigChange('backgroundScreenAssetId', id))} variant="secondary" size="sm">
-            Select Background Screen
-          </Button>
-          <span className="text-msx-textsecondary truncate">
-            Selected: {bgAsset ? `${bgAsset.name}` : 'None'}
-          </span>
+        <div className="mb-3">
+          <label className="block text-msx-textprimary text-sm mb-1">Background Screen</label>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => openAssetPicker('screenmap', (id) => handleConfigChange('backgroundScreenAssetId', id))} variant="secondary" size="sm">
+              Select
+            </Button>
+            {appearance.backgroundScreenAssetId && (
+              <Button onClick={() => handleConfigChange('backgroundScreenAssetId', undefined)} variant="ghost" size="sm">
+                Clear
+              </Button>
+            )}
+            <span className="text-msx-textsecondary truncate">
+              {bgAsset ? `${bgAsset.name}` : 'None'}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center space-x-2 mt-2">
-          <Button onClick={() => openAssetPicker('sprite', (id) => handleConfigChange('cursorSpriteAssetId', id))} variant="secondary" size="sm">
-            Select Cursor Sprite
-          </Button>
-          <span className="text-msx-textsecondary truncate">
-            Selected: {cursorAsset ? `${cursorAsset.name}` : 'None'}
-          </span>
+
+        <div className="mb-3">
+          <label className="block text-msx-textprimary text-sm mb-1">Cursor Sprite</label>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => openAssetPicker('sprite', (id) => handleConfigChange('cursorSpriteAssetId', id))} variant="secondary" size="sm">
+              Select
+            </Button>
+            {appearance.cursorSpriteAssetId && (
+              <Button onClick={() => handleConfigChange('cursorSpriteAssetId', undefined)} variant="ghost" size="sm">
+                Clear
+              </Button>
+            )}
+            <span className="text-msx-textsecondary truncate">
+              {cursorAsset ? `${cursorAsset.name}` : 'None'}
+            </span>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-msx-textprimary text-sm mb-1">Font</label>
+          <div className="flex items-center space-x-2">
+            <Button onClick={() => openAssetPicker('font', (id) => handleConfigChange('fontAssetId' as any, id))} variant="secondary" size="sm">
+              Select Font
+            </Button>
+            {(appearance as any).fontAssetId && (
+              <Button onClick={() => handleConfigChange('fontAssetId' as any, undefined)} variant="ghost" size="sm">
+                Clear
+              </Button>
+            )}
+            <span className="text-msx-textsecondary truncate">
+              {fontAsset ? `${fontAsset.name}` : 'Default'}
+            </span>
+          </div>
         </div>
       </Panel>
       <Panel title="Colors">
@@ -78,7 +113,11 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
           onSelectAsset={assetPickerState.onSelect}
           assetTypeToPick={assetPickerState.assetType}
           allAssets={allAssets}
-          currentSelectedId={appearance.backgroundScreenAssetId || appearance.cursorSpriteAssetId || null}
+          currentSelectedId={
+            assetPickerState.assetType === 'screenmap' ? appearance.backgroundScreenAssetId || null :
+            assetPickerState.assetType === 'sprite' ? appearance.cursorSpriteAssetId || null :
+            (appearance as any).fontAssetId || null
+          }
         />
       )}
     </div>

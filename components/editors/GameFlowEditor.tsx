@@ -63,6 +63,8 @@ interface GameFlowEditorProps {
   currentScreenMode: string;
   /** The list of all component definitions. */
   componentDefinitions: ComponentDefinition[];
+  /** The name of the current GameFlow asset. */
+  gameFlowAssetName: string;
 }
 
 /**
@@ -125,27 +127,32 @@ const GameFlowNodeComponent: React.FC<{
     onEditTransitionNode: (node: any) => void;
     /** Whether we are currently in linking mode (creating a connection). */
     isLinkingMode: boolean;
-}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance, onEditTextNode, onEditRestartNode, onEditTransitionNode, isLinkingMode }) => {
+    /** The name of the current GameFlow asset. */
+    gameFlowAssetName?: string;
+}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance, onEditTextNode, onEditRestartNode, onEditTransitionNode, isLinkingMode, gameFlowAssetName }) => {
   const [isHovered, setIsHovered] = useState(false);
   const nodeHeight = getNodeHeight(node);
+  const isMainGameFlow = gameFlowAssetName === 'Main';
   const nodeColor =
-      node.type === 'Start' ? 'hsl(120, 30%, 40%)'
+      node.type === 'Start' ? (isMainGameFlow ? 'hsl(0, 100%, 50%)' : 'hsl(120, 30%, 40%)')
     : node.type === 'SubMenu' ? 'hsl(220, 30%, 40%)'
     : node.type === 'WorldLink' ? 'hsl(340, 30%, 40%)'
     : node.type === 'Text' ? 'hsl(180, 30%, 40%)'
     : node.type === 'Restart' ? 'hsl(280, 30%, 40%)'
     : node.type === 'Transition' ? 'hsl(40, 60%, 40%)'
+    : node.type === 'Group' ? 'hsl(270, 50%, 45%)'
     : node.type === 'Waypoint' ? 'hsl(0, 0%, 30%)'
     : 'hsl(260, 30%, 40%)';
 
   const strokeColor = isSelected ? 'hsl(50, 100%, 70%)' :
       isHovered ? 'hsl(50, 100%, 85%)' :
-      node.type === 'Start' ? 'hsl(120, 50%, 70%)'
+      node.type === 'Start' ? (isMainGameFlow ? 'hsl(0, 100%, 60%)' : 'hsl(120, 50%, 70%)')
     : node.type === 'SubMenu' ? 'hsl(220, 50%, 70%)'
     : node.type === 'WorldLink' ? 'hsl(340, 50%, 70%)'
     : node.type === 'Text' ? 'hsl(180, 50%, 70%)'
     : node.type === 'Restart' ? 'hsl(280, 50%, 70%)'
     : node.type === 'Transition' ? 'hsl(40, 70%, 60%)'
+    : node.type === 'Group' ? 'hsl(270, 60%, 65%)'
     : node.type === 'Waypoint' ? 'hsl(0, 0%, 50%)'
     : 'hsl(260, 50%, 70%)';
 
@@ -164,14 +171,17 @@ const GameFlowNodeComponent: React.FC<{
     return labels[effect] || effect;
   };
 
+  const groupGameFlow = node.type === 'Group' ? allAssets.find(a => a.id === (node as any).gameFlowAssetId && a.type === 'gameflow') : null;
+
   const nodeName =
-      node.type === 'Start' ? 'Iniciar Partida'
+      node.type === 'Start' ? (isMainGameFlow ? 'Main' : 'Start')
     : node.type === 'SubMenu' ? (node as GameFlowSubMenuNode).title
     : node.type === 'WorldLink' ? `Mundo: ${worldNode?.name || '???'}`
     : node.type === 'End' ? (node as GameFlowEndNode).endType
     : node.type === 'Text' ? (node as GameFlowTextNode).title
     : node.type === 'Restart' ? 'Reiniciar'
     : node.type === 'Transition' ? getTransitionEffectLabel((node as any).effect)
+    : node.type === 'Group' ? (node as any).name || 'Group'
     : node.type === 'Waypoint' ? '•'
     : node.id;
   const hasInput = node.type !== 'Start';
@@ -260,7 +270,17 @@ const GameFlowNodeComponent: React.FC<{
             style={{ cursor: isLinkingMode && hasInput ? 'crosshair' : 'grab' }}
           />
           <text x={nodeWidth / 2} y={15} textAnchor="middle" fill="white" fontSize="10px" className="pixel-font select-none pointer-events-none">{node.type}</text>
-          <text x={nodeWidth / 2} y={35} textAnchor="middle" fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none">{nodeName}</text>
+          <text
+            x={nodeWidth / 2}
+            y={35}
+            textAnchor="middle"
+            fill={node.type === 'Start' && isMainGameFlow ? '#000000' : 'white'}
+            fontSize="14px"
+            fontWeight={node.type === 'Start' && isMainGameFlow ? 'bold' : 'normal'}
+            className="pixel-font select-none pointer-events-none"
+          >
+            {nodeName}
+          </text>
         </>
       )}
 
@@ -314,6 +334,17 @@ const GameFlowNodeComponent: React.FC<{
           </foreignObject>
         </>
       )}
+
+      {node.type === 'Group' && (
+        <>
+          <text x={nodeWidth / 2} y={nodeHeight - 35} textAnchor="middle" fill="hsl(270, 100%, 85%)" fontSize="9px" className="pixel-font select-none pointer-events-none">
+            {groupGameFlow ? `→ ${groupGameFlow.name}` : 'Sin asignar'}
+          </text>
+          <text x={nodeWidth / 2} y={nodeHeight - 23} textAnchor="middle" fill="hsl(270, 80%, 70%)" fontSize="8px" className="pixel-font select-none pointer-events-none">
+            GameFlow
+          </text>
+        </>
+      )}
     </g>
   );
 };
@@ -323,7 +354,7 @@ const GameFlowNodeComponent: React.FC<{
  * A node-based editor for creating and managing the game's flow and logic.
  * It provides a canvas for placing nodes, connecting them, and editing their properties.
  */
-export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, componentDefinitions }) => {
+export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, componentDefinitions, gameFlowAssetName }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [isLinkingMode, setIsLinkingMode] = useState(false);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
@@ -502,7 +533,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       }
   };
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
-  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'Restart' | 'Waypoint') => {
+  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint') => {
     let newNodeData: NodeToPlace;
     if (type === 'SubMenu') {
         newNodeData = {
@@ -533,6 +564,11 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
             }
         };
         setNodeToPlace(newNodeData);
+    } else if (type === 'End') {
+        newNodeData = {
+            type: 'End'
+        };
+        setNodeToPlace(newNodeData);
     } else if (type === 'Restart') {
         newNodeData = {
             type: 'Restart',
@@ -552,6 +588,13 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
             type: 'Transition',
             effect: 'cls',
             duration: 1000
+        };
+        setNodeToPlace(newNodeData);
+    } else if (type === 'Group') {
+        newNodeData = {
+            type: 'Group',
+            name: 'New Group',
+            gameFlowAssetId: undefined
         };
         setNodeToPlace(newNodeData);
     } else if (type === 'Waypoint') {
@@ -754,8 +797,10 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('SubMenu')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Submenu</Button>
         <Button onClick={() => handleAddNode('WorldLink')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add World Link</Button>
         <Button onClick={() => handleAddNode('Text')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Text</Button>
+        <Button onClick={() => handleAddNode('End')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add End</Button>
         <Button onClick={() => handleAddNode('Restart')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Restart</Button>
         <Button onClick={() => handleAddNode('Transition')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Transition</Button>
+        <Button onClick={() => handleAddNode('Group')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Group</Button>
         <Button onClick={() => handleAddNode('Waypoint')} size="sm" variant="ghost" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add waypoint for visual organization">Waypoint</Button>
         <Button onClick={handleAutoLayout} size="sm" variant="primary" icon={<ArrowsPointingOutIcon className="w-4 h-4"/>} title="Auto-arrange nodes in hierarchical layout">Auto Layout</Button>
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
@@ -779,9 +824,9 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               return <path key={conn.id} data-testid={`connection-${conn.id}`} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
           })}
           {nodes.map(node => (
-            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} onEditTextNode={handleOpenTextNodeModal} onEditRestartNode={handleOpenRestartNodeModal} onEditTransitionNode={handleOpenTransitionNodeModal} isLinkingMode={isLinkingMode} />
+            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} onEditTextNode={handleOpenTextNodeModal} onEditRestartNode={handleOpenRestartNodeModal} onEditTransitionNode={handleOpenTransitionNodeModal} isLinkingMode={isLinkingMode} gameFlowAssetName={gameFlowAssetName} />
           ))}
-          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - getNodeWidth(nodeToPlace)/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} onEditTextNode={() => {}} onEditRestartNode={() => {}} onEditTransitionNode={() => {}} isLinkingMode={false} /></g>}
+          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - getNodeWidth(nodeToPlace)/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} onEditTextNode={() => {}} onEditRestartNode={() => {}} onEditTransitionNode={() => {}} isLinkingMode={false} gameFlowAssetName={gameFlowAssetName} /></g>}
           {linkingState && mousePosition && (() => {
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;
@@ -880,6 +925,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           entityTemplates={entityTemplates}
           currentScreenMode={currentScreenMode}
           componentDefinitions={componentDefinitions}
+          gameFlowAssetName={gameFlowAssetName}
         />
       )}
     </Panel>
