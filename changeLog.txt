@@ -1,554 +1,138 @@
-VersiÃ³n 0.253 - 3/10/2025
+Versión 0.254 - 4/10/2025
+- fix: Corregir desplazamiento del menú en World Map Editor al hacer zoom
+- feat: Menú superior siempre visible con z-index y shrink-0
+
+Versión 0.253 - 4/10/2025
+- refactor: modularizar msxModularGenerator en arquitectura escalable
+- asm a minusculas
+
+Versión 0.253 - 3/10/2025
 - feat: Implementar sistema de GameFlows anidados con nodo "Group"
-- feat: AÃ±adir nodo "End" para terminar flujos y regresar al padre
-- feat: Stack de GameFlows para soportar mÃºltiples niveles de anidaciÃ³n
-- feat: Salto automÃ¡tico de waypoints al regresar de GameFlow anidado
-- feat: DiferenciaciÃ³n visual del nodo "Start" en GameFlow "Main" (rojo, texto negro, negrita)
+- feat: Añadir nodo "End" para terminar flujos y regresar al padre
+- feat: Stack de GameFlows para soportar múltiples niveles de anidación
+- feat: Salto automático de waypoints al regresar de GameFlow anidado
+- feat: Diferenciación visual del nodo "Start" en GameFlow "Main" (rojo, texto negro, negrita)
 - feat: Texto "Build with Mideas" solo en nodo Start de GameFlow "Main"
-- feat: SelecciÃ³n de fuente personalizada en nodos Text y SubMenu
+- feat: Selección de fuente personalizada en nodos Text y SubMenu
 - feat: Renderizado de fuentes personalizadas en Game Flow Preview
-- feat: OpciÃ³n "Add Controls" en SubMenu con checkboxes para CURSORS/JOYSTICK/KEYS
-- feat: Almacenamiento de selecciÃ³n de controles en variables globales
-- feat: Naming automÃ¡tico de GameFlows - primero "Main", siguientes "New Gameflow N"
+- feat: Opción "Add Controls" en SubMenu con checkboxes para CURSORS/JOYSTICK/KEYS
+- feat: Almacenamiento de selección de controles en variables globales
+- feat: Naming automático de GameFlows - primero "Main", siguientes "New Gameflow N"
 - fix: Corregir retorno de GameFlows anidados - restaurar contexto padre correctamente
 - fix: Corregir renderizado de colores en fuentes personalizadas (usar fontColorAttributes)
-- fix: AÃ±adir dependencia currentGraphData al useEffect de renderizado
+- fix: Añadir dependencia currentGraphData al useEffect de renderizado
 
-VersiÃ³n 0.252 - 2/10/2025
-- feat: AÃ±adir sistema de transiciones visuales en Game Flow Editor
-- feat: Implementar 7 efectos de transiciÃ³n (CLS, Disolver PÃ­xeles, Disolver Chars, LÃ­neas Verticales, LÃ­neas Horizontales, Espiral, Cuadrados Blancos)
-- feat: AÃ±adir nodo "Transition" con editor modal para configurar efecto y duraciÃ³n
-- feat: Auto-avance automÃ¡tico despuÃ©s de completar transiciÃ³n
+Versión 0.252 - 2/10/2025
+- feat: Añadir sistema de transiciones visuales en Game Flow Editor
+- feat: Implementar 7 efectos de transición (CLS, Disolver Píxeles, Disolver Chars, Líneas Verticales, Líneas Horizontales, Espiral, Cuadrados Blancos)
+- feat: Añadir nodo "Transition" con editor modal para configurar efecto y duración
+- feat: Auto-avance automático después de completar transición
 - fix: Corregir renderizado de transiciones - no limpiar pantalla antes de ejecutar efecto
-- feat: Transiciones compatibles con waypoints (los salta automÃ¡ticamente)
+- feat: Transiciones compatibles con waypoints (los salta automáticamente)
 
-VersiÃ³n 0.251 - 1/10/2025
-- feat: Simplificar opciones de exportaciÃ³n - solo ROM Konami disponible
-- fix: Hacer condicional INIT_GAME_ENTITIES segÃºn existencia de entidades/sprites
-- fix: Hacer condicional UPDATE_GAME_STATE segÃºn existencia de entidades
-- fix: Eliminar llamada PRINT_STRING en BIOS stub - funciÃ³n no existe
+Versión 0.251 - 1/10/2025
+- feat: Simplificar opciones de exportación - solo ROM Konami disponible
+- fix: Hacer condicional INIT_GAME_ENTITIES según existencia de entidades/sprites
+- fix: Hacer condicional UPDATE_GAME_STATE según existencia de entidades
+- fix: Eliminar llamada PRINT_STRING en BIOS stub - función no existe
 
-VersiÃ³n 0.250 - 1/10/2025
-- fix: Corregir botÃ³n de zoom en Screen Editor - agregar estados useState para zoom
-- fix: Corregir switch de autosave en menÃº Configure - agregar setters de IDE config
-- feat: AÃ±adir generador "Frame" en Tile Editor para marcos de HUD/SCORE
+Versión 0.250 - 1/10/2025
+- fix: Corregir botón de zoom en Screen Editor - agregar estados useState para zoom
+- fix: Corregir switch de autosave en menú Configure - agregar setters de IDE config
+- feat: Añadir generador "Frame" en Tile Editor para marcos de HUD/SCORE
 - feat: Implementar 3 estilos de marco (simple, double, decorative)
 - feat: Agregar 3 estilos de esquinas (square, rounded, fancy)
-- feat: Grosor configurable de marco (1-4 pÃ­xeles)
+- feat: Grosor configurable de marco (1-4 píxeles)
 
-VersiÃ³n 0.249 - 30/9/2025
-- feat: AÃ±adir efecto "Warp" en Sprite Editor - desintegraciÃ³n en espiral
-- feat: Crear WarpGeneratorModal con parÃ¡metros (numFrames, spiralTightness, rotationSpeed)
-- feat: Implementar algoritmo de espiral que rota pÃ­xeles hacia el centro
-- ui: Mover secciÃ³n "Define Sprite Colors" del panel izquierdo al panel derecho
+Versión 0.249 - 30/9/2025
+- feat: Añadir efecto "Warp" en Sprite Editor - desintegración en espiral
+- feat: Crear WarpGeneratorModal con parámetros (numFrames, spiralTightness, rotationSpeed)
+- feat: Implementar algoritmo de espiral que rota píxeles hacia el centro
+- ui: Mover sección "Define Sprite Colors" del panel izquierdo al panel derecho
 - ui: Crear cuarta columna en Sprite Editor para "Animation Tools"
 - ui: Reorganizar paneles - "Frame Control" ahora bajo "Animation Tools"
 
-VersiÃ³n 0.248 - 30/9/2025
-- fix: Corregir selecciÃ³n y conexiÃ³n de nodos en GameFlow Editor
-- fix: Implementar menÃº contextual (click derecho) en nodos de GameFlow
+Versión 0.248 - 30/9/2025
+- fix: Corregir selección y conexión de nodos en GameFlow Editor
+- fix: Implementar menú contextual (click derecho) en nodos de GameFlow
 - feat: Mejorar modo linking - puerto amarillo (salida) a puerto azul (entrada)
-- feat: Todo el cuerpo del nodo es clickeable cuando estÃ¡ en linking mode
+- feat: Todo el cuerpo del nodo es clickeable cuando está en linking mode
 - fix: Diferenciar correctamente eventos de click izquierdo y derecho
 - fix: Agregar estado contextMenu y handlers en App.tsx
 
-VersiÃ³n 0.247 - 30/9/2025
-- feat: AÃ±adir generador de fragmentaciÃ³n en Sprite Editor (Gen Fragment)
-- feat: Divide sprite en 4 cuadrantes con separaciÃ³n lÃ­nea por lÃ­nea
-- fix: Corregir botÃ³n "Sheet" en Sprite Editor - aÃ±adir estado isSpriteSheetModalOpen
+Versión 0.247 - 30/9/2025
+- feat: Añadir generador de fragmentación en Sprite Editor (Gen Fragment)
+- feat: Divide sprite en 4 cuadrantes con separación línea por línea
+- fix: Corregir botón "Sheet" en Sprite Editor - añadir estado isSpriteSheetModalOpen
 
-VersiÃ³n 0.246 - 29/9/2025
-- feat: AÃ±adir presets de zoom (100%, 200%, 400%, 800%) en Sprite Editor
+Versión 0.246 - 30/9/2025
+- feat: Añadir presets de zoom (100%, 200%, 400%, 800%) en Sprite Editor
 
-VersiÃ³n 0.242 - 16/9/2025
-- fix: Corregir error de redefiniciÃ³n de sÃ­mbolos - SCREEN_*_ID ahora incluye Ã­ndice Ãºnico
-- fix: Resolver sÃ­mbolos de sprite no encontrados - SPRITE_*_PATTERN ahora apunta a capas correctas
-- fix: Corregir sÃ­mbolo NAMTBL no encontrado - usar NAMETBL segÃºn definiciÃ³n en constantes
-- fix: Resolver referencias de layout de pantalla - usar nombres con Ã­ndice para evitar conflictos
+Versión 0.245 - 29/9/2025
+- feat: Project optimizations - cleanup and code splitting
+
+Versión 0.244 - 28/9/2025
+- feat: Move system tools to top menu bar - World View, Component Definitions, Entity Templates
+
+Versión 0.243 - 24/9/2025
+- fix: bugs Preview, Play in Screen Editor
+- feat: gameFlowNode fix
+
+Versión 0.242 - 16/9/2025
+- fix: Corregir error de redefinición de símbolos - SCREEN_*_ID ahora incluye índice único
+- fix: Resolver símbolos de sprite no encontrados - SPRITE_*_PATTERN ahora apunta a capas correctas
+- fix: Corregir símbolo NAMTBL no encontrado - usar NAMETBL según definición en constantes
+- fix: Resolver referencias de layout de pantalla - usar nombres con índice para evitar conflictos
 - fix: Resolver estados de flujo de juego no definidos - FLOW_STATE_* ahora siempre disponibles
 - fix: Corregir orden de archivos en unitedFiles.asm - header.asm ahora es el primer archivo
-- feat: Mejorar generaciÃ³n de ASM con detecciÃ³n dinÃ¡mica de capas de sprite
-- feat: AÃ±adir aliases unificados para patrones de sprite para facilitar carga
-- feat: Implementar nomenclatura indexada para evitar conflictos de sÃ­mbolos
+- feat: Mejorar generación de ASM con detección dinámica de capas de sprite
+- feat: Añadir aliases unificados para patrones de sprite para facilitar carga
+- feat: Implementar nomenclatura indexada para evitar conflictos de símbolos
 
-VersiÃ³n 0.241 - 14/9/2025
-- docs: Actualizar guÃ­a MSX_ASM_GUIDE.md
-- fix: Eliminar referencias "Konami" de documentaciÃ³n ASM
-- fix: Corregir posiciÃ³n ORG #4000 al inicio del archivo ASM
-- feat: Integrar funciones existentes del proyecto en guÃ­a ASM
-- feat: Agregar ejemplos prÃ¡cticos basados en cÃ³digo real
-- feat: Documentar estructura Game Flow y sistema de menÃº principal
-- feat: Agregar sistema de renderizado Screen1 â†’ Screen2
-- test: Crear test de verificaciÃ³n para guÃ­a MSX_ASM_GUIDE.md
-- docs: Sincronizar guÃ­a con cÃ³digo de producciÃ³n de Mideas
+Versión 0.241 - 14/9/2025
+- docs: Actualizar guía MSX_ASM_GUIDE.md
+- fix: Eliminar referencias "Konami" de documentación ASM
+- fix: Corregir posición ORG #4000 al inicio del archivo ASM
+- feat: Integrar funciones existentes del proyecto en guía ASM
+- feat: Agregar ejemplos prácticos basados en código real
+- feat: Documentar estructura Game Flow y sistema de menú principal
+- feat: Agregar sistema de renderizado Screen1 ’ Screen2
+- test: Crear test de verificación para guía MSX_ASM_GUIDE.md
+- docs: Sincronizar guía con código de producción de Mideas
 
-VersiÃ³n 0.18 - 31/8/2025
-- feat: Implemented tile selection and context menu
-- save individual tiles
-- mode Dinamic en Preview
-- submenu adaptable alt
-- mejoras de bugs
-- submenu appearance ok
-- game flow new features
-- Game flow bugs
-- modifica 2
-- limpiar opciones menu vertical izquierda
-- millores colapsar pestaÃ±es
-- Feat: Add app version to main menu toolbar
-- Merge branch 'main' into feat/boss-editor-select-tile
-- feat: Add sorting and filtering to tile assets panel
-- feat(boss-editor): Add 'Select Current Tile' option to context menu
-- Add files via upload
-- fix: Revert Boss Phase paste to a shallow copy
-- fix: Implement deep copy for Boss Editor phase paste
-- feat: Add Copy/Paste functionality for Boss Editor phases
-- feat: Link Boss to screen for preview and update version
-- feat: Align ScreenEditor grid and update version
-- feat: Implement Boss Editor animation preview and persistent zoom
-- feat(screen-editor): Add zoom memory persistence
-- feat(tile-editor): Add zoom memory persistence
-- fix(boss-editor): Adjust grid layout and scrolling
-- feat(boss-editor): Add animated preview modal
-- fix(boss-editor): Set fixed height for tileset panel
-- fix(boss-editor): Enlarge tileset panel and previews
+Versión 0.238 - 14/9/2025
+- clean up archives
+- minor improvements
+- sorting structure
 
-VersiÃ³n 0.21 - 7/9/2025
+Versión 0.21 - 7/9/2025
+NUEVA FUNCIONALIDAD: Sistema de Motores Dinámicos y Spawner Engine
+-  Botón Play añadido al Screen Editor para ejecutar juegos directamente
+-  Sistema de motores dinámicos que activa solo los engines necesarios según componentes de entidades
+-  Spawner Engine: Sistema de spawn automático de entidades con configuración de zona, tiempo y límites
+-  Nuevo componente comp_spawner con propiedades completas (spawnRate, maxEntities, spawnZone, etc.)
+-  Template tpl_enemy_spawner predefinido para facilitar uso
+-  Sistema de fallback inteligente para sprites faltantes
+-  Animación automática para entidades spawneadas (frames artificiales si es necesario)
+-  UI reactiva con contador de entidades en tiempo real
+-  Engines disponibles: Gravity, Physics, Animation, Patrol, Spawner
+-  Performance optimizado: solo ejecuta motores cuando hay entidades que los necesitan
+-  Logs detallados de debug para desarrollo y troubleshooting
 
-NUEVA FUNCIONALIDAD: Sistema de Motores DinÃ¡micos y Spawner Engine
-- âœ… BotÃ³n Play aÃ±adido al Screen Editor para ejecutar juegos directamente
-- âœ… Sistema de motores dinÃ¡micos que activa solo los engines necesarios segÃºn componentes de entidades
-- âœ… Spawner Engine: Sistema de spawn automÃ¡tico de entidades con configuraciÃ³n de zona, tiempo y lÃ­mites
-- âœ… Nuevo componente comp_spawner con propiedades completas (spawnRate, maxEntities, spawnZone, etc.)
-- âœ… Template tpl_enemy_spawner predefinido para facilitar uso
-- âœ… Sistema de fallback inteligente para sprites faltantes
-- âœ… AnimaciÃ³n automÃ¡tica para entidades spawneadas (frames artificiales si es necesario)
-- âœ… UI reactiva con contador de entidades en tiempo real
-- âœ… Engines disponibles: Gravity, Physics, Animation, Patrol, Spawner
-- âœ… Performance optimizado: solo ejecuta motores cuando hay entidades que los necesitan
-- âœ… Logs detallados de debug para desarrollo y troubleshooting
-
-VersiÃ³n 0.19 - 31/8/2025
+Versión 0.19 - 31/8/2025
 - fix: Implement multi-language presets for State Machine editor
 - feat: Expand preset states list in State Machine editor
 - fix: Adjust default state machine and improve editor
 - feat: Add input type to State Machine events
-- fix: Fix UI not updating and add preset selectors
-- fix: Fix re-rendering bug and add preset selectors
 - feat: Implement State Machine editor functionality
 - feat: Add State Machine editor UI
 - feat: Add State Machine asset type
 - feat: Implemented tile selection and context menu
-- save individual tiles
-- mode Dinamic en Preview
-- submenu adaptable alt
-- mejoras de bugs
-- submenu appearance ok
-- game flow new features
-- Game flow bugs
-- modifica 2
-- limpiar opciones menu vertical izquierda
-- millores colapsar pestaÃ±es
-- Feat: Add app version to main menu toolbar
-- Merge branch 'main' into feat/boss-editor-select-tile
+
+Versión 0.18 - 31/8/2025
+- feat: Implemented tile selection and context menu
+- feat: Add app version to main menu toolbar
 - feat: Add sorting and filtering to tile assets panel
-- feat(boss-editor): Add 'Select Current Tile' option to context menu
-- Add files via upload
-- fix: Revert Boss Phase paste to a shallow copy
-- fix: Implement deep copy for Boss Editor phase paste
 - feat: Add Copy/Paste functionality for Boss Editor phases
-- feat: Link Boss to screen for preview and update version
-- feat: Align ScreenEditor grid and update version
-
-VersiÃ³n 0.238 - 13/9/2025
-- pacman2
-- bugs collision
-- prueba collision
-- varis, abans de gemini wallCollision
-- canvis  motor wallcollision
-- mejorando codigo asm
-- Add Play button to Screen Editor with dynamic game engine system
-- bugs 5
-- bugs 3
-- bug 2
-- bugs
-- state m 1
-- state machine rev 2
-- feat: Add import/export functionality for pt3tracker
-- Fix instruments always sounding like a piano
-- docs: Add JSDoc comments and update README
-- control_hero and gravity
-- fix: Restore all lost game-play features
-- feat(game-preview): Implement gravity physics
-- feat: Restore game preview, hero controls, and collision system
-- feat(components): Add import/export and fix TileBankEditor
-- fix(components): Add missing icons for import/export buttons
-- feat(components): Add import/export for component definitions
-- feat(game-preview): Implement collision detection system
-- feat(state-machine): Add presets for common events
-- refactor(game-preview): Drive entity movement from state machine properties
-- feat(game-preview): Implement player controls and state machine for Hero entity
-- feat(ecs): Add 'statemachine_ref' as a component property type
-- canvi de tecles per salvar tiles individualment
-
-VersiÃ³n 0.238 - 13/9/2025
-- clean 2
-- clean up archives
-- minor improvements
-- sorting structure
-- pacman2
-- bugs collision
-- prueba collision
-- varis, abans de gemini wallCollision
-- canvis  motor wallcollision
-- mejorando codigo asm
-- Add Play button to Screen Editor with dynamic game engine system
-- bugs 5
-- bugs 3
-- bug 2
-- bugs
-- state m 1
-- state machine rev 2
-- feat: Add import/export functionality for pt3tracker
-- Fix instruments always sounding like a piano
-- docs: Add JSDoc comments and update README
-- control_hero and gravity
-- fix: Restore all lost game-play features
-- feat(game-preview): Implement gravity physics
-- feat: Restore game preview, hero controls, and collision system
-- feat(components): Add import/export and fix TileBankEditor
-- fix(components): Add missing icons for import/export buttons
-- feat(components): Add import/export for component definitions
-- feat(game-preview): Implement collision detection system
-- feat(state-machine): Add presets for common events
-- refactor(game-preview): Drive entity movement from state machine properties
-- feat(game-preview): Implement player controls and state machine for Hero entity
-
-VersiÃ³n 0.238 - 14/9/2025
-- nova versio
-- clean 2
-- clean up archives
-- minor improvements
-- sorting structure
-- pacman2
-- bugs collision
-- prueba collision
-- varis, abans de gemini wallCollision
-- canvis  motor wallcollision
-- mejorando codigo asm
-- Add Play button to Screen Editor with dynamic game engine system
-- bugs 5
-- bugs 3
-- bug 2
-- bugs
-- state m 1
-- state machine rev 2
-- feat: Add import/export functionality for pt3tracker
-- Fix instruments always sounding like a piano
-- docs: Add JSDoc comments and update README
-- control_hero and gravity
-- fix: Restore all lost game-play features
-- feat(game-preview): Implement gravity physics
-- feat: Restore game preview, hero controls, and collision system
-- feat(components): Add import/export and fix TileBankEditor
-- fix(components): Add missing icons for import/export buttons
-- feat(components): Add import/export for component definitions
-- feat(game-preview): Implement collision detection system
-- feat(state-machine): Add presets for common events
-
-VersiÃ³n 1 - 21/9/2025
-- Deleted Font Editor Project button
-- Finish Font Editor assets
-- empezar multi assets fuentes
-- Sistema Summary implementado con validaciÃ³n de dependencias
-- inicio control gameflow
-- punto inflexion asm , sistemas
-- add button run openmsx
-- fuente acabada
-- comenzamos fuente data
-- codigo corrupto
-- millorant asm msx part 1
-- memoria Ram y Rom
-- puntualizacion Ram y Rom
-- Merge branch 'main' of https://github.com/msxnake/Mideas
-- Delete .github/workflows directory
-- nova versio
-- clean 2
-- clean up archives
-- minor improvements
-- sorting structure
-- pacman2
-- bugs collision
-- prueba collision
-- varis, abans de gemini wallCollision
-- canvis  motor wallcollision
-- mejorando codigo asm
-- Add Play button to Screen Editor with dynamic game engine system
-- bugs 5
-- bugs 3
-- bug 2
-- bugs
-- state m 1
-- state machine rev 2
-
-VersiÃ³n 0.243 - 24/9/2025
-- fix bugs Preview, Play in Screen Editor
-- gameFlowNode fix
-- casi full screen
-- screen editor-scanlines
-- add buttons select a-z ,num
-- resuelto parcialmente
-- bugs Font Editor Bank Editor
-- continuacion tile bank mod.
-- insertar triple bank
-- Fix font assignment to Tile Banks and React setState issues
-- Font colors per-row support in Tile Banks
-- bug trash resolved
-- bank font -1-
-- last_end_rom.asm
-- Deleted Font Editor Project button
-- Finish Font Editor assets
-- empezar multi assets fuentes
-- Sistema Summary implementado con validaciÃ³n de dependencias
-- inicio control gameflow
-- punto inflexion asm , sistemas
-- add button run openmsx
-- fuente acabada
-- comenzamos fuente data
-- codigo corrupto
-- millorant asm msx part 1
-- memoria Ram y Rom
-- puntualizacion Ram y Rom
-- Merge branch 'main' of https://github.com/msxnake/Mideas
-- Delete .github/workflows directory
-- nova versio
-- clean 2
-- clean up archives
-- minor improvements
-- sorting structure
-- pacman2
-- bugs collision
-- prueba collision
-- varis, abans de gemini wallCollision
-- canvis  motor wallcollision
-- mejorando codigo asm
-
-VersiÃ³n 0.244 - 24/9/2025
-- fix bugs Preview, Play in Screen Editor
-- gameFlowNode fix
-- casi full screen
-- screen editor-scanlines
-- add buttons select a-z ,num
-- resuelto parcialmente
-- bugs Font Editor Bank Editor
-- continuacion tile bank mod.
-- insertar triple bank
-- Fix font assignment to Tile Banks and React setState issues
-- Font colors per-row support in Tile Banks
-- bug trash resolved
-- bank font -1-
-- last_end_rom.asm
-- Deleted Font Editor Project button
-- Finish Font Editor assets
-- empezar multi assets fuentes
-- Sistema Summary implementado con validaciÃ³n de dependencias
-- inicio control gameflow
-- punto inflexion asm , sistemas
-- add button run openmsx
-- fuente acabada
-- comenzamos fuente data
-- codigo corrupto
-- millorant asm msx part 1
-- memoria Ram y Rom
-- puntualizacion Ram y Rom
-- Merge branch 'main' of https://github.com/msxnake/Mideas
-- Delete .github/workflows directory
-- nova versio
-- clean 2
-- clean up archives
-- minor improvements
-- sorting structure
-- pacman2
-- bugs collision
-- prueba collision
-- varis, abans de gemini wallCollision
-- canvis  motor wallcollision
-- mejorando codigo asm
-
-VersiÃ³n 0.244 - 28/9/2025
-- Move system tools to top menu bar: World View, Component Definitions, Entity Templates moved from sidebar to toolbar
-- Screen Editor: MSX Screen 2 sector fonts same logic as HUD Editor
-- colores Hud editor OK
-- HUD Editor: Automatic font extraction from TileBank + UI fixes
-- HUD Editor: MSX Screen 2 sector-based TileBank/Font assignment
-- color HUD background
-- menu hud mejorado con asignacion de fuentes
-- funciona con la opcion font, pero no carga tilebank
-- mixed tilebanks in hud
-- Replace HUD Text Color with TileBank Asset selector
-- bastante bien asignar bancos
-- Fix TileBank tile and font assignment issues
-- Fix TileBank asset individual data persistence and loading
-- Add Tile Banks as new asset type
-- fix bugs Preview, Play in Screen Editor
-- gameFlowNode fix
-- casi full screen
-- screen editor-scanlines
-- add buttons select a-z ,num
-- resuelto parcialmente
-- bugs Font Editor Bank Editor
-- continuacion tile bank mod.
-- insertar triple bank
-- Fix font assignment to Tile Banks and React setState issues
-- Font colors per-row support in Tile Banks
-- bug trash resolved
-- bank font -1-
-- last_end_rom.asm
-- Deleted Font Editor Project button
-- Finish Font Editor assets
-- empezar multi assets fuentes
-- Sistema Summary implementado con validaciÃ³n de dependencias
-- inicio control gameflow
-- punto inflexion asm , sistemas
-- add button run openmsx
-- fuente acabada
-- comenzamos fuente data
-- codigo corrupto
-- millorant asm msx part 1
-- memoria Ram y Rom
-- puntualizacion Ram y Rom
-- Merge branch 'main' of https://github.com/msxnake/Mideas
-- Delete .github/workflows directory
-- nova versio
-
-VersiÃ³n 0.245 - 29/9/2025
-- Project optimizations: cleanup and code splitting
-- Move system tools to top menu bar: World View, Component Definitions, Entity Templates moved from sidebar to toolbar
-- Screen Editor: MSX Screen 2 sector fonts same logic as HUD Editor
-- colores Hud editor OK
-- HUD Editor: Automatic font extraction from TileBank + UI fixes
-- HUD Editor: MSX Screen 2 sector-based TileBank/Font assignment
-- color HUD background
-- menu hud mejorado con asignacion de fuentes
-- funciona con la opcion font, pero no carga tilebank
-- mixed tilebanks in hud
-- Replace HUD Text Color with TileBank Asset selector
-- bastante bien asignar bancos
-- Fix TileBank tile and font assignment issues
-- Fix TileBank asset individual data persistence and loading
-- Add Tile Banks as new asset type
-- fix bugs Preview, Play in Screen Editor
-- gameFlowNode fix
-- casi full screen
-- screen editor-scanlines
-- add buttons select a-z ,num
-- resuelto parcialmente
-- bugs Font Editor Bank Editor
-- continuacion tile bank mod.
-- insertar triple bank
-- Fix font assignment to Tile Banks and React setState issues
-- Font colors per-row support in Tile Banks
-- bug trash resolved
-- bank font -1-
-- last_end_rom.asm
-- Deleted Font Editor Project button
-- Finish Font Editor assets
-- empezar multi assets fuentes
-- Sistema Summary implementado con validaciÃ³n de dependencias
-- inicio control gameflow
-- punto inflexion asm , sistemas
-- add button run openmsx
-- fuente acabada
-- comenzamos fuente data
-- codigo corrupto
-- millorant asm msx part 1
-- memoria Ram y Rom
-- puntualizacion Ram y Rom
-- Merge branch 'main' of https://github.com/msxnake/Mideas
-- Delete .github/workflows directory
-
-VersiÃ³n 0.246 - 30/9/2025
-- Project optimizations: cleanup and code splitting
-- Move system tools to top menu bar: World View, Component Definitions, Entity Templates moved from sidebar to toolbar
-- Screen Editor: MSX Screen 2 sector fonts same logic as HUD Editor
-- colores Hud editor OK
-- HUD Editor: Automatic font extraction from TileBank + UI fixes
-- HUD Editor: MSX Screen 2 sector-based TileBank/Font assignment
-- color HUD background
-- menu hud mejorado con asignacion de fuentes
-- funciona con la opcion font, pero no carga tilebank
-- mixed tilebanks in hud
-- Replace HUD Text Color with TileBank Asset selector
-- bastante bien asignar bancos
-- Fix TileBank tile and font assignment issues
-- Fix TileBank asset individual data persistence and loading
-- Add Tile Banks as new asset type
-- fix bugs Preview, Play in Screen Editor
-- gameFlowNode fix
-- casi full screen
-- screen editor-scanlines
-- add buttons select a-z ,num
-- resuelto parcialmente
-- bugs Font Editor Bank Editor
-- continuacion tile bank mod.
-- insertar triple bank
-- Fix font assignment to Tile Banks and React setState issues
-- Font colors per-row support in Tile Banks
-- bug trash resolved
-- bank font -1-
-- last_end_rom.asm
-- Deleted Font Editor Project button
-- Finish Font Editor assets
-- empezar multi assets fuentes
-- Sistema Summary implementado con validaciÃ³n de dependencias
-- inicio control gameflow
-- punto inflexion asm , sistemas
-- add button run openmsx
-- fuente acabada
-- comenzamos fuente data
-- codigo corrupto
-- millorant asm msx part 1
-- memoria Ram y Rom
-- puntualizacion Ram y Rom
-- Merge branch 'main' of https://github.com/msxnake/Mideas
-
-VersiÃ³n 0.250 - 1/10/2025
-- fix: Make INIT_GAME_ENTITIES conditional on entities/sprites
-- fix: Make UPDATE_GAME_STATE conditional on entities
-- fix: Remove PRINT_STRING call in BIOS stub - function doesn't exist
-- feat: Optimize ASM generator - only generate necessary code
-- fix: Skip LOAD_PATTERN/COLOR calls when no tiles exist in project
-- Fix GameFlow node selection and context menu
-- Project optimizations: cleanup and code splitting
-- Move system tools to top menu bar: World View, Component Definitions, Entity Templates moved from sidebar to toolbar
-- Screen Editor: MSX Screen 2 sector fonts same logic as HUD Editor
-- colores Hud editor OK
-- HUD Editor: Automatic font extraction from TileBank + UI fixes
-- HUD Editor: MSX Screen 2 sector-based TileBank/Font assignment
-- color HUD background
-- menu hud mejorado con asignacion de fuentes
-- funciona con la opcion font, pero no carga tilebank
-- mixed tilebanks in hud
-- Replace HUD Text Color with TileBank Asset selector
-- bastante bien asignar bancos
-- Fix TileBank tile and font assignment issues
-- Fix TileBank asset individual data persistence and loading
-- Add Tile Banks as new asset type
-- fix bugs Preview, Play in Screen Editor
-- gameFlowNode fix
-- casi full screen
-- screen editor-scanlines
-- add buttons select a-z ,num
-- resuelto parcialmente
-- bugs Font Editor Bank Editor
-- continuacion tile bank mod.
-- insertar triple bank
-- Fix font assignment to Tile Banks and React setState issues
-- Font colors per-row support in Tile Banks
-- bug trash resolved
-- bank font -1-
-- last_end_rom.asm
-- Deleted Font Editor Project button
-- Finish Font Editor assets
-- empezar multi assets fuentes
-- Sistema Summary implementado con validaciÃ³n de dependencias
-- inicio control gameflow
+- feat: Implement Boss Editor animation preview and persistent zoom
+- feat: Add zoom memory persistence

@@ -764,12 +764,12 @@ NodeComponent.displayName = 'NodeComponent';
 
 
   return (
-    <Panel title={`World Map Editor: ${worldMapGraph.name}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
-      <div className="p-2 border-b border-msx-border flex space-x-2 items-center flex-wrap">
+    <Panel title={`World Map Editor: ${worldMapGraph.name}`} className="flex-grow flex flex-col bg-msx-bgcolor select-none">
+      <div className="p-2 border-b border-msx-border flex space-x-2 items-center flex-wrap shrink-0 z-10 relative bg-msx-bgcolor">
         <div className="flex items-center space-x-1">
             <label className="text-xs pixel-font text-msx-textsecondary">Add Screen:</label>
-            <select 
-                onChange={(e) => { if(e.target.value) handleAddNode(e.target.value); e.target.value = "";}} 
+            <select
+                onChange={(e) => { if(e.target.value) handleAddNode(e.target.value); e.target.value = "";}}
                 className="p-1 text-xs bg-msx-panelbg border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
                 value=""
                 aria-label="Add screen to world map"
