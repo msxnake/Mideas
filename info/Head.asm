@@ -5,38 +5,38 @@
 ; Description: Standard MSX cartridge initialization
 ; ==================================================================
 
-    ORG #4000           ; MSX cartridge start address
+    org #4000           ; MSX cartridge start address
 
 ; ==================================================================
 ; CARTRIDGE HEADER
 ; ==================================================================
-    DB "AB"             ; MSX cartridge signature
-    DW INIT_ROM         ; Initialization address
-    DW 0                ; Statement handler (not used)
-    DW 0                ; Device handler (not used)
-    DW 0                ; Text handler (not used)
-    DW 0                ; Reserved
-    DW 0                ; Reserved
-    DW 0                ; Reserved
+    db "AB"             ; MSX cartridge signature
+    dw init_rom         ; Initialization address
+    dw 0                ; Statement handler (not used)
+    dw 0                ; Device handler (not used)
+    dw 0                ; Text handler (not used)
+    dw 0                ; Reserved
+    dw 0                ; Reserved
+    dw 0                ; Reserved
 
 ; ==================================================================
 ; ROM INITIALIZATION ENTRY POINT
 ; ==================================================================
-INIT_ROM:
+init_rom:
     ; Disable interrupts during initialization
-    DI
+    di
 
-    
+
     ; init the stack:
     ld sp,#F380
-    ; reset some interrupts to make sure it runs in some MSX computers 
+    ; reset some interrupts to make sure it runs in some MSX computers
     ; with disk controllers installed in some interrupt handlers
     ld a,#C9
     ld (HKEY),a
     ld (TIMI),a
 
-    EI
-    
+    ei
+
 
     ; call SETPAGES32K  ; commented out - function not defined
 
@@ -51,7 +51,7 @@ INIT_ROM:
     call CHGCLR
 
 
-    
+
     ld a,2      ; Change screen mode
     call CHGMOD
 
@@ -60,10 +60,10 @@ INIT_ROM:
     call WRTVDP
 
 
-  
+
 
     ; Jump to main program
-    JP MAIN_PROGRAM
+    jp main_program
 
 ; ==================================================================
 ; END OF HEADER

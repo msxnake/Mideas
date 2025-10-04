@@ -202,851 +202,851 @@ ANIM_FLAG_PINGPONG   EQU #08
 ; Crear nueva entidad
 ; Input: B = component mask
 ; Output: A = entity ID (0 if failed)
-CREATE_ENTITY:
-    PUSH HL
-    PUSH BC
-    PUSH DE
+create_entity:
+    push hl
+    push bc
+    push de
 
     ; Buscar slot libre en entity_comp_masks
-    LD HL, entity_comp_masks
-    LD D, 0                    ; Entity ID counter
+    ld hl, entity_comp_masks
+    ld d, 0                    ; Entity ID counter
 
 create_entity_loop:
-    LD A, (HL)                 ; Get component mask
-    OR A                       ; Check if zero (free slot)
-    JR Z, create_entity_found  ; Found free slot
+    ld a, (hl)                 ; Get component mask
+    or a                       ; Check if zero (free slot)
+    jr z, create_entity_found  ; Found free slot
 
-    INC HL                     ; Next entity
-    INC D                      ; Increment ID
-    LD A, D
-    CP MAX_ENTITIES
-    JR C, create_entity_loop   ; Continue if not at limit
+    inc hl                     ; Next entity
+    inc d                      ; Increment ID
+    ld a, d
+    cp MAX_ENTITIES
+    jr c, create_entity_loop   ; Continue if not at limit
 
     ; No free slots
-    XOR A                      ; Return 0 (failed)
-    JR create_entity_exit
+    xor a                      ; Return 0 (failed)
+    jr create_entity_exit
 
 create_entity_found:
     ; Set component mask
-    LD (HL), B                 ; Set component mask
+    ld (hl), b                 ; Set component mask
 
     ; Initialize component data based on mask
-    LD A, D                    ; Entity ID in A
-    BIT 0, B                   ; Check COMP_MASK_POSITION
-    CALL NZ, INIT_ENTITY_POSITION
+    ld a, d                    ; Entity ID in A
+    bit 0, b                   ; Check COMP_MASK_POSITION
+    call nz, init_entity_position
 
-    BIT 1, B                   ; Check COMP_MASK_SPRITE
-    CALL NZ, INIT_ENTITY_SPRITE
+    bit 1, b                   ; Check COMP_MASK_SPRITE
+    call nz, init_entity_sprite
 
-    BIT 2, B                   ; Check COMP_MASK_MOVEMENT
-    CALL NZ, INIT_ENTITY_MOVEMENT
+    bit 2, b                   ; Check COMP_MASK_MOVEMENT
+    call nz, init_entity_movement
 
-    BIT 3, B                   ; Check COMP_MASK_COLLISION
-    CALL NZ, INIT_ENTITY_COLLISION
+    bit 3, b                   ; Check COMP_MASK_COLLISION
+    call nz, init_entity_collision
 
-    BIT 4, B                   ; Check COMP_MASK_INPUT
-    CALL NZ, INIT_ENTITY_INPUT
+    bit 4, b                   ; Check COMP_MASK_INPUT
+    call nz, init_entity_input
 
-    BIT 5, B                   ; Check COMP_MASK_BEHAVIOR
-    CALL NZ, INIT_ENTITY_BEHAVIOR
+    bit 5, b                   ; Check COMP_MASK_BEHAVIOR
+    call nz, init_entity_behavior
 
-    BIT 6, B                   ; Check COMP_MASK_HEALTH
-    CALL NZ, INIT_ENTITY_HEALTH
+    bit 6, b                   ; Check COMP_MASK_HEALTH
+    call nz, init_entity_health
 
-    BIT 7, B                   ; Check COMP_MASK_ANIMATION
-    CALL NZ, INIT_ENTITY_ANIMATION
+    bit 7, b                   ; Check COMP_MASK_ANIMATION
+    call nz, init_entity_animation
 
-    LD A, D                    ; Return entity ID
+    ld a, d                    ; Return entity ID
 
 create_entity_exit:
-    POP DE
-    POP BC
-    POP HL
-    RET
+    pop de
+    pop bc
+    pop hl
+    ret
 
 ; Destruir entidad
 ; Input: A = entity ID
-DESTROY_ENTITY:
-    CP MAX_ENTITIES
-    RET NC                     ; Invalid entity ID
+destroy_entity:
+    cp MAX_ENTITIES
+    ret nc                     ; Invalid entity ID
 
-    PUSH HL
-    PUSH DE
+    push hl
+    push de
 
     ; Clear component mask
-    LD HL, entity_comp_masks
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), 0                 ; Clear mask (mark as free)
+    ld hl, entity_comp_masks
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 0                 ; Clear mask (mark as free)
 
     ; TODO: Clear component data if needed
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; ==================================================================
 ; INICIALIZADORES DE COMPONENTES
 ; ==================================================================
 
 ; Inicializar componente POSITION para entidad A
-INIT_ENTITY_POSITION:
-    PUSH HL
-    PUSH DE
+init_entity_position:
+    push hl
+    push de
 
     ; Initialize X position to 0
-    LD HL, entity_x_pos
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), 0                 ; X position (8-bit)
+    ld hl, entity_x_pos
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 0                 ; X position (8-bit)
 
     ; Initialize Y position to 0
-    LD HL, entity_y_pos
-    ADD HL, DE
-    LD (HL), 0                 ; Y position (8-bit)
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 0                 ; Y position (8-bit)
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Inicializar componente SPRITE para entidad A
-INIT_ENTITY_SPRITE:
-    PUSH HL
-    PUSH DE
+init_entity_sprite:
+    push hl
+    push de
 
-    LD HL, sprite_pattern
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), 0                 ; Pattern 0
+    ld hl, sprite_pattern
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 0                 ; Pattern 0
 
-    LD HL, sprite_color
-    ADD HL, DE
-    LD (HL), 15                ; White color
+    ld hl, sprite_color
+    add hl, de
+    ld (hl), 15                ; White color
 
-    LD HL, sprite_flags
-    ADD HL, DE
-    LD (HL), SPRITE_VISIBLE    ; Visible by default
+    ld hl, sprite_flags
+    add hl, de
+    ld (hl), SPRITE_VISIBLE    ; Visible by default
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Inicializar componente MOVEMENT para entidad A
-INIT_ENTITY_MOVEMENT:
-    PUSH HL
-    PUSH DE
+init_entity_movement:
+    push hl
+    push de
 
     ; Clear velocity X
-    LD HL, entity_vel_x
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), 0                 ; Vel X (8-bit)
+    ld hl, entity_vel_x
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 0                 ; Vel X (8-bit)
 
     ; Clear velocity Y
-    LD HL, entity_vel_y
-    ADD HL, DE
-    LD (HL), 0                 ; Vel Y (8-bit)
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0                 ; Vel Y (8-bit)
 
     ; Clear acceleration X
-    LD HL, entity_accel_x
-    ADD HL, DE
-    LD (HL), 0                 ; Accel X (8-bit)
+    ld hl, entity_accel_x
+    add hl, de
+    ld (hl), 0                 ; Accel X (8-bit)
 
     ; Clear acceleration Y
-    LD HL, entity_accel_y
-    ADD HL, DE
-    LD (HL), 0                 ; Accel Y (8-bit)
+    ld hl, entity_accel_y
+    add hl, de
+    ld (hl), 0                 ; Accel Y (8-bit)
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Inicializar componente COLLISION para entidad A
-INIT_ENTITY_COLLISION:
-    PUSH HL
-    PUSH DE
+init_entity_collision:
+    push hl
+    push de
 
-    LD HL, collision_left
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), 0                 ; Left offset
+    ld hl, collision_left
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 0                 ; Left offset
 
-    LD HL, collision_top
-    ADD HL, DE
-    LD (HL), 0                 ; Top offset
+    ld hl, collision_top
+    add hl, de
+    ld (hl), 0                 ; Top offset
 
-    LD HL, collision_width
-    ADD HL, DE
-    LD (HL), 16                ; Default 16x16 bounding box
+    ld hl, collision_width
+    add hl, de
+    ld (hl), 16                ; Default 16x16 bounding box
 
-    LD HL, collision_height
-    ADD HL, DE
-    LD (HL), 16
+    ld hl, collision_height
+    add hl, de
+    ld (hl), 16
 
-    LD HL, collision_layer
-    ADD HL, DE
-    LD (HL), COLLISION_LAYER_ENEMY ; Default layer
+    ld hl, collision_layer
+    add hl, de
+    ld (hl), COLLISION_LAYER_ENEMY ; Default layer
 
-    LD HL, collision_mask
-    ADD HL, DE
-    LD (HL), COLLISION_LAYER_PLAYER ; Collides with player
+    ld hl, collision_mask
+    add hl, de
+    ld (hl), COLLISION_LAYER_PLAYER ; Collides with player
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Inicializar componente INPUT para entidad A
-INIT_ENTITY_INPUT:
-    PUSH HL
-    PUSH DE
+init_entity_input:
+    push hl
+    push de
 
-    LD HL, input_current
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), 0                 ; No input
+    ld hl, input_current
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 0                 ; No input
 
-    LD HL, input_previous
-    ADD HL, DE
-    LD (HL), 0                 ; No previous input
+    ld hl, input_previous
+    add hl, de
+    ld (hl), 0                 ; No previous input
 
-    LD HL, input_type
-    ADD HL, DE
-    LD (HL), INPUT_TYPE_KEYBOARD ; Default to keyboard control
+    ld hl, input_type
+    add hl, de
+    ld (hl), INPUT_TYPE_KEYBOARD ; Default to keyboard control
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Inicializar componente BEHAVIOR para entidad A
-INIT_ENTITY_BEHAVIOR:
-    PUSH HL
-    PUSH DE
+init_entity_behavior:
+    push hl
+    push de
 
-    LD HL, behavior_type
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), BEHAVIOR_STATIC   ; Default static behavior
+    ld hl, behavior_type
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), BEHAVIOR_STATIC   ; Default static behavior
 
-    LD HL, behavior_state
-    ADD HL, DE
-    LD (HL), 0                 ; State 0
+    ld hl, behavior_state
+    add hl, de
+    ld (hl), 0                 ; State 0
 
     ; Clear timer
-    LD HL, behavior_timer
-    ADD HL, DE
-    LD (HL), 0                 ; Timer (8-bit)
+    ld hl, behavior_timer
+    add hl, de
+    ld (hl), 0                 ; Timer (8-bit)
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Inicializar componente HEALTH para entidad A
-INIT_ENTITY_HEALTH:
-    PUSH HL
-    PUSH DE
+init_entity_health:
+    push hl
+    push de
 
-    LD HL, entity_health
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), 3                 ; Default 3 health
+    ld hl, entity_health
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 3                 ; Default 3 health
 
-    LD HL, entity_max_health
-    ADD HL, DE
-    LD (HL), 3                 ; Max 3 health
+    ld hl, entity_max_health
+    add hl, de
+    ld (hl), 3                 ; Max 3 health
 
-    LD HL, entity_invuln_timer
-    ADD HL, DE
-    LD (HL), 0                 ; No invulnerability
+    ld hl, entity_invuln_timer
+    add hl, de
+    ld (hl), 0                 ; No invulnerability
 
-    LD HL, entity_health_flags
-    ADD HL, DE
-    LD (HL), 0                 ; No special flags
+    ld hl, entity_health_flags
+    add hl, de
+    ld (hl), 0                 ; No special flags
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Inicializar componente ANIMATION para entidad A
-INIT_ENTITY_ANIMATION:
-    PUSH HL
-    PUSH DE
+init_entity_animation:
+    push hl
+    push de
 
-    LD HL, anim_sequence
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), 0                 ; Sequence 0
+    ld hl, anim_sequence
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 0                 ; Sequence 0
 
-    LD HL, anim_frame
-    ADD HL, DE
-    LD (HL), 0                 ; Frame 0
+    ld hl, anim_frame
+    add hl, de
+    ld (hl), 0                 ; Frame 0
 
-    LD HL, anim_timer
-    ADD HL, DE
-    LD (HL), 0                 ; Timer 0
+    ld hl, anim_timer
+    add hl, de
+    ld (hl), 0                 ; Timer 0
 
-    LD HL, anim_speed
-    ADD HL, DE
-    LD (HL), 4                 ; 4 frames delay
+    ld hl, anim_speed
+    add hl, de
+    ld (hl), 4                 ; 4 frames delay
 
-    LD HL, anim_flags
-    ADD HL, DE
-    LD (HL), ANIM_FLAG_PLAYING ; Playing by default
+    ld hl, anim_flags
+    add hl, de
+    ld (hl), ANIM_FLAG_PLAYING ; Playing by default
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; ==================================================================
 ; MOTORES DE COMPONENTES - Sistemas de actualización
 ; ==================================================================
 
 ; Motor del componente POSITION - Aplica velocidad a posición
-UPDATE_POSITION_COMPONENT:
-    PUSH HL
-    PUSH BC
-    PUSH DE
+update_position_component:
+    push hl
+    push bc
+    push de
 
-    LD HL, entity_comp_masks
-    LD B, MAX_ENTITIES
-    LD C, 0                    ; Entity counter
+    ld hl, entity_comp_masks
+    ld b, MAX_ENTITIES
+    ld c, 0                    ; Entity counter
 
 position_update_loop:
-    LD A, (HL)                 ; Get entity component mask
-    AND COMP_MASK_POSITION     ; Check if has position component
-    JR Z, position_next_entity ; Skip if no position component
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_POSITION     ; Check if has position component
+    jr z, position_next_entity ; Skip if no position component
 
     ; Check if also has movement component
-    LD A, (HL)
-    AND COMP_MASK_MOVEMENT
-    JR Z, position_next_entity ; Skip velocity if no movement
+    ld a, (hl)
+    and COMP_MASK_MOVEMENT
+    jr z, position_next_entity ; Skip velocity if no movement
 
     ; Apply velocity to position
-    LD A, C                    ; Entity ID
-    CALL APPLY_VELOCITY_TO_POSITION
+    ld a, c                    ; Entity ID
+    call apply_velocity_to_position
 
 position_next_entity:
-    INC HL                     ; Next entity
-    INC C                      ; Next entity ID
-    DJNZ position_update_loop
+    inc hl                     ; Next entity
+    inc c                      ; Next entity ID
+    djnz position_update_loop
 
-    POP DE
-    POP BC
-    POP HL
-    RET
+    pop de
+    pop bc
+    pop hl
+    ret
 
 ; Aplicar velocidad a posición de entidad A
-APPLY_VELOCITY_TO_POSITION:
-    PUSH HL
-    PUSH DE
-    PUSH BC
+apply_velocity_to_position:
+    push hl
+    push de
+    push bc
 
     ; Get current position X
-    LD HL, entity_x_pos
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD B, (HL)                 ; B = current X position
+    ld hl, entity_x_pos
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld b, (hl)                 ; B = current X position
 
     ; Get velocity X
-    LD HL, entity_vel_x
-    ADD HL, DE
-    LD C, (HL)                 ; C = velocity X (signed)
+    ld hl, entity_vel_x
+    add hl, de
+    ld c, (hl)                 ; C = velocity X (signed)
 
     ; Add velocity to position: B = B + C (8-bit arithmetic)
-    LD A, B
-    ADD A, C                   ; A = new X position
+    ld a, b
+    add a, c                   ; A = new X position
 
     ; Check bounds (0-255 for X)
-    CP 0
-    JR NC, x_not_negative
-    LD A, 0                    ; Clamp to 0
+    cp 0
+    jr nc, x_not_negative
+    ld a, 0                    ; Clamp to 0
 x_not_negative:
     ; X can go to 255, no upper bound check needed for MSX
 
     ; Store new position X
-    PUSH AF                    ; Save new X position
-    LD HL, entity_x_pos
-    LD E, A                    ; Entity ID (original A)
-    LD D, 0
-    ADD HL, DE
-    POP AF                     ; Restore new X position
-    LD (HL), A                 ; Store new X position
+    push af                    ; Save new X position
+    ld hl, entity_x_pos
+    ld e, a                    ; Entity ID (original A)
+    ld d, 0
+    add hl, de
+    pop af                     ; Restore new X position
+    ld (hl), a                 ; Store new X position
 
     ; Get current position Y
-    LD HL, entity_y_pos
-    ADD HL, DE
-    LD B, (HL)                 ; B = current Y position
+    ld hl, entity_y_pos
+    add hl, de
+    ld b, (hl)                 ; B = current Y position
 
     ; Get velocity Y
-    LD HL, entity_vel_y
-    ADD HL, DE
-    LD C, (HL)                 ; C = velocity Y (signed)
+    ld hl, entity_vel_y
+    add hl, de
+    ld c, (hl)                 ; C = velocity Y (signed)
 
     ; Add velocity to position: B = B + C (8-bit arithmetic)
-    LD A, B
-    ADD A, C                   ; A = new Y position
+    ld a, b
+    add a, c                   ; A = new Y position
 
     ; Check bounds (0-191 for Y)
-    CP 0
-    JR NC, y_not_negative
-    LD A, 0                    ; Clamp to 0
+    cp 0
+    jr nc, y_not_negative
+    ld a, 0                    ; Clamp to 0
 y_not_negative:
-    CP 192
-    JR C, y_in_bounds
-    LD A, 191                  ; Clamp to 191 (screen height)
+    cp 192
+    jr c, y_in_bounds
+    ld a, 191                  ; Clamp to 191 (screen height)
 y_in_bounds:
 
     ; Store new position Y
-    LD HL, entity_y_pos
-    ADD HL, DE
-    LD (HL), A                 ; Store new Y position
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), a                 ; Store new Y position
 
-    POP BC
-    POP DE
-    POP HL
-    RET
+    pop bc
+    pop de
+    pop hl
+    ret
 
 ; Motor del componente SPRITE - Actualiza sprites en VRAM
-UPDATE_SPRITE_COMPONENT:
-    PUSH HL
-    PUSH BC
-    PUSH DE
+update_sprite_component:
+    push hl
+    push bc
+    push de
 
-    LD HL, entity_comp_masks
-    LD B, MAX_ENTITIES
-    LD C, 0                    ; Entity counter
+    ld hl, entity_comp_masks
+    ld b, MAX_ENTITIES
+    ld c, 0                    ; Entity counter
 
 sprite_update_loop:
-    LD A, (HL)                 ; Get entity component mask
-    AND COMP_MASK_SPRITE       ; Check if has sprite component
-    JR Z, sprite_next_entity   ; Skip if no sprite component
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_SPRITE       ; Check if has sprite component
+    jr z, sprite_next_entity   ; Skip if no sprite component
 
     ; Check if also has position component
-    LD A, (HL)
-    AND COMP_MASK_POSITION
-    JR Z, sprite_next_entity   ; Skip if no position
+    ld a, (hl)
+    and COMP_MASK_POSITION
+    jr z, sprite_next_entity   ; Skip if no position
 
     ; Update sprite at position
-    LD A, C                    ; Entity ID
-    CALL UPDATE_ENTITY_SPRITE_POSITION
+    ld a, c                    ; Entity ID
+    call update_entity_sprite_position
 
 sprite_next_entity:
-    INC HL                     ; Next entity
-    INC C                      ; Next entity ID
-    DJNZ sprite_update_loop
+    inc hl                     ; Next entity
+    inc c                      ; Next entity ID
+    djnz sprite_update_loop
 
-    POP DE
-    POP BC
-    POP HL
-    RET
+    pop de
+    pop bc
+    pop hl
+    ret
 
 ; Actualizar posición del sprite de entidad A
-UPDATE_ENTITY_SPRITE_POSITION:
-    PUSH HL
-    PUSH DE
-    PUSH BC
+update_entity_sprite_position:
+    push hl
+    push de
+    push bc
 
     ; TODO: Get entity position and update sprite in VRAM
     ; This would involve writing to sprite attribute table
 
-    POP BC
-    POP DE
-    POP HL
-    RET
+    pop bc
+    pop de
+    pop hl
+    ret
 
 ; Motor del componente INPUT - Actualiza input de entidades
-UPDATE_INPUT_COMPONENT:
-    PUSH HL
-    PUSH BC
-    PUSH DE
+update_input_component:
+    push hl
+    push bc
+    push de
 
     ; Read different input sources
-    CALL READ_JOYSTICK_STATE   ; Returns joystick state in A
-    LD D, A                    ; Store joystick state
-    CALL READ_KEYBOARD_STATE   ; Returns keyboard state in A
-    LD E, A                    ; Store keyboard state
+    call read_joystick_state   ; Returns joystick state in A
+    ld d, a                    ; Store joystick state
+    call read_keyboard_state   ; Returns keyboard state in A
+    ld e, a                    ; Store keyboard state
 
-    LD HL, entity_comp_masks
-    LD B, MAX_ENTITIES
-    LD C, 0                    ; Entity counter
+    ld hl, entity_comp_masks
+    ld b, MAX_ENTITIES
+    ld c, 0                    ; Entity counter
 
 input_update_loop:
-    LD A, (HL)                 ; Get entity component mask
-    AND COMP_MASK_INPUT        ; Check if has input component
-    JR Z, input_next_entity    ; Skip if no input component
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_INPUT        ; Check if has input component
+    jr z, input_next_entity    ; Skip if no input component
 
     ; Store current input as previous
-    PUSH HL
-    LD HL, input_current
-    LD A, C
-    PUSH DE
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD A, (HL)                 ; Get current input
+    push hl
+    ld hl, input_current
+    ld a, c
+    push de
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, (hl)                 ; Get current input
 
     ; Store as previous
-    LD HL, input_previous
-    ADD HL, DE
-    LD (HL), A                 ; Store as previous
-    POP DE
-    POP HL
+    ld hl, input_previous
+    add hl, de
+    ld (hl), a                 ; Store as previous
+    pop de
+    pop hl
 
     ; Check input type for this entity
-    PUSH HL
-    LD HL, input_type
-    LD A, C
-    PUSH DE
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD A, (HL)                 ; Get input type
-    POP DE
-    POP HL
+    push hl
+    ld hl, input_type
+    ld a, c
+    push de
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, (hl)                 ; Get input type
+    pop de
+    pop hl
 
-    CP INPUT_TYPE_PLAYER1
-    JR Z, input_apply_joystick
-    CP INPUT_TYPE_PLAYER2
-    JR Z, input_apply_joystick
-    CP INPUT_TYPE_KEYBOARD
-    JR Z, input_apply_keyboard
+    cp INPUT_TYPE_PLAYER1
+    jr z, input_apply_joystick
+    cp INPUT_TYPE_PLAYER2
+    jr z, input_apply_joystick
+    cp INPUT_TYPE_KEYBOARD
+    jr z, input_apply_keyboard
 
     ; For AI and other types, skip input update
-    JR input_next_entity
+    jr input_next_entity
 
 input_apply_joystick:
     ; Apply joystick state to this entity
-    PUSH HL
-    LD HL, input_current
-    LD A, C
-    PUSH DE
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    POP DE
-    LD (HL), D                 ; Store joystick state
-    POP HL
-    JR input_next_entity
+    push hl
+    ld hl, input_current
+    ld a, c
+    push de
+    ld e, a
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), d                 ; Store joystick state
+    pop hl
+    jr input_next_entity
 
 input_apply_keyboard:
     ; Apply keyboard state to this entity
-    PUSH HL
-    LD HL, input_current
-    LD A, C
-    PUSH DE
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    POP DE
-    LD (HL), E                 ; Store keyboard state
-    POP HL
+    push hl
+    ld hl, input_current
+    ld a, c
+    push de
+    ld e, a
+    ld d, 0
+    add hl, de
+    pop de
+    ld (hl), e                 ; Store keyboard state
+    pop hl
 
 input_next_entity:
-    INC HL                     ; Next entity
-    INC C                      ; Next entity ID
-    DJNZ input_update_loop
+    inc hl                     ; Next entity
+    inc c                      ; Next entity ID
+    djnz input_update_loop
 
-    POP DE
-    POP BC
-    POP HL
-    RET
+    pop de
+    pop bc
+    pop hl
+    ret
 
 ; Leer estado del joystick
 ; Output: A = joystick state
-READ_JOYSTICK_STATE:
-    PUSH BC
-    PUSH DE
+read_joystick_state:
+    push bc
+    push de
 
     ; Read MSX joystick port 1
-    LD A, 0                    ; Port 1
-    CALL GTSTCK                ; BIOS call - returns direction in A
-    LD B, A                    ; Store stick direction
+    ld a, 0                    ; Port 1
+    call GTSTCK                ; BIOS call - returns direction in A
+    ld b, a                    ; Store stick direction
 
     ; Convert GTSTCK directions to our bit format
-    XOR A                      ; Clear result
-    LD C, A                    ; C will hold our input state
+    xor a                      ; Clear result
+    ld c, a                    ; C will hold our input state
 
     ; Check directions (GTSTCK returns 1-8 for directions, 0 for center)
-    LD A, B
-    CP 1                       ; UP
-    JR NZ, check_upright
-    LD A, C
-    SET INPUT_BIT_UP, A
-    LD C, A
-    JR read_triggers
+    ld a, b
+    cp 1                       ; UP
+    jr nz, check_upright
+    ld a, c
+    set INPUT_BIT_UP, a
+    ld c, a
+    jr read_triggers
 
 check_upright:
-    LD A, B
-    CP 2                       ; UP-RIGHT
-    JR NZ, check_right
-    LD A, C
-    SET INPUT_BIT_UP, A
-    SET INPUT_BIT_RIGHT, A
-    LD C, A
-    JR read_triggers
+    ld a, b
+    cp 2                       ; UP-RIGHT
+    jr nz, check_right
+    ld a, c
+    set INPUT_BIT_UP, a
+    set INPUT_BIT_RIGHT, a
+    ld c, a
+    jr read_triggers
 
 check_right:
-    LD A, B
-    CP 3                       ; RIGHT
-    JR NZ, check_downright
-    LD A, C
-    SET INPUT_BIT_RIGHT, A
-    LD C, A
-    JR read_triggers
+    ld a, b
+    cp 3                       ; RIGHT
+    jr nz, check_downright
+    ld a, c
+    set INPUT_BIT_RIGHT, a
+    ld c, a
+    jr read_triggers
 
 check_downright:
-    LD A, B
-    CP 4                       ; DOWN-RIGHT
-    JR NZ, check_down
-    LD A, C
-    SET INPUT_BIT_DOWN, A
-    SET INPUT_BIT_RIGHT, A
-    LD C, A
-    JR read_triggers
+    ld a, b
+    cp 4                       ; DOWN-RIGHT
+    jr nz, check_down
+    ld a, c
+    set INPUT_BIT_DOWN, a
+    set INPUT_BIT_RIGHT, a
+    ld c, a
+    jr read_triggers
 
 check_down:
-    LD A, B
-    CP 5                       ; DOWN
-    JR NZ, check_downleft
-    LD A, C
-    SET INPUT_BIT_DOWN, A
-    LD C, A
-    JR read_triggers
+    ld a, b
+    cp 5                       ; DOWN
+    jr nz, check_downleft
+    ld a, c
+    set INPUT_BIT_DOWN, a
+    ld c, a
+    jr read_triggers
 
 check_downleft:
-    LD A, B
-    CP 6                       ; DOWN-LEFT
-    JR NZ, check_left
-    LD A, C
-    SET INPUT_BIT_DOWN, A
-    SET INPUT_BIT_LEFT, A
-    LD C, A
-    JR read_triggers
+    ld a, b
+    cp 6                       ; DOWN-LEFT
+    jr nz, check_left
+    ld a, c
+    set INPUT_BIT_DOWN, a
+    set INPUT_BIT_LEFT, a
+    ld c, a
+    jr read_triggers
 
 check_left:
-    LD A, B
-    CP 7                       ; LEFT
-    JR NZ, check_upleft
-    LD A, C
-    SET INPUT_BIT_LEFT, A
-    LD C, A
-    JR read_triggers
+    ld a, b
+    cp 7                       ; LEFT
+    jr nz, check_upleft
+    ld a, c
+    set INPUT_BIT_LEFT, a
+    ld c, a
+    jr read_triggers
 
 check_upleft:
-    LD A, B
-    CP 8                       ; UP-LEFT
-    JR NZ, read_triggers
-    LD A, C
-    SET INPUT_BIT_UP, A
-    SET INPUT_BIT_LEFT, A
-    LD C, A
+    ld a, b
+    cp 8                       ; UP-LEFT
+    jr nz, read_triggers
+    ld a, c
+    set INPUT_BIT_UP, a
+    set INPUT_BIT_LEFT, a
+    ld c, a
 
 read_triggers:
     ; Read trigger buttons
-    LD A, 0                    ; Port 1
-    CALL GTTRIG                ; Get trigger state (returns #FF if pressed, 0 if not)
-    OR A
-    JR Z, no_trigger_a
-    LD A, C
-    SET INPUT_BIT_FIRE1, A     ; Set FIRE1 for trigger A
-    LD C, A
+    ld a, 0                    ; Port 1
+    call GTTRIG                ; Get trigger state (returns #FF if pressed, 0 if not)
+    or a
+    jr z, no_trigger_a
+    ld a, c
+    set INPUT_BIT_FIRE1, a     ; Set FIRE1 for trigger A
+    ld c, a
 
 no_trigger_a:
     ; For MSX2+, there might be a second trigger
     ; For now, we'll skip FIRE2 from joystick
 
-    LD A, C                    ; Return final input state
-    POP DE
-    POP BC
-    RET
+    ld a, c                    ; Return final input state
+    pop de
+    pop bc
+    ret
 
 ; Leer estado del teclado (cursores + espacio + control)
 ; Output: A = keyboard state
-READ_KEYBOARD_STATE:
-    PUSH BC
-    PUSH DE
-    PUSH HL
+read_keyboard_state:
+    push bc
+    push de
+    push hl
 
-    XOR A                      ; Clear result
-    LD C, A                    ; C will hold our input state
+    xor a                      ; Clear result
+    ld c, a                    ; C will hold our input state
 
     ; Read cursor keys - Row 8 of keyboard matrix
-    LD A, 8                    ; Keyboard row 8
-    CALL SNSMAT                ; BIOS call to read keyboard matrix
-    LD B, A                    ; Store row 8 state
+    ld a, 8                    ; Keyboard row 8
+    call SNSMAT                ; BIOS call to read keyboard matrix
+    ld b, a                    ; Store row 8 state
 
     ; Check cursor keys (row 8)
     ; Bit 4 = RIGHT cursor
-    BIT 4, B
-    JR NZ, check_left_cursor
-    LD A, C
-    SET INPUT_BIT_RIGHT, A
-    LD C, A
+    bit 4, b
+    jr nz, check_left_cursor
+    ld a, c
+    set INPUT_BIT_RIGHT, a
+    ld c, a
 
 check_left_cursor:
     ; Bit 5 = LEFT cursor
-    BIT 5, B
-    JR NZ, check_down_cursor
-    LD A, C
-    SET INPUT_BIT_LEFT, A
-    LD C, A
+    bit 5, b
+    jr nz, check_down_cursor
+    ld a, c
+    set INPUT_BIT_LEFT, a
+    ld c, a
 
 check_down_cursor:
     ; Bit 6 = DOWN cursor
-    BIT 6, B
-    JR NZ, check_up_cursor
-    LD A, C
-    SET INPUT_BIT_DOWN, A
-    LD C, A
+    bit 6, b
+    jr nz, check_up_cursor
+    ld a, c
+    set INPUT_BIT_DOWN, a
+    ld c, a
 
 check_up_cursor:
     ; Bit 7 = UP cursor
-    BIT 7, B
-    JR NZ, check_space
-    LD A, C
-    SET INPUT_BIT_UP, A
-    LD C, A
+    bit 7, b
+    jr nz, check_space
+    ld a, c
+    set INPUT_BIT_UP, a
+    ld c, a
 
 check_space:
     ; Read space key - Row 8, bit 0
-    BIT 0, B
-    JR NZ, check_control
-    LD A, C
-    SET INPUT_BIT_FIRE1, A     ; Space = FIRE1
-    LD C, A
+    bit 0, b
+    jr nz, check_control
+    ld a, c
+    set INPUT_BIT_FIRE1, a     ; Space = FIRE1
+    ld c, a
 
 check_control:
     ; Read CTRL key - Row 6, bit 2
-    LD A, 6                    ; Keyboard row 6
-    CALL SNSMAT                ; Read row 6
-    BIT 2, A                   ; CTRL key
-    JR NZ, keyboard_done
-    LD A, C
-    SET INPUT_BIT_FIRE2, A     ; CTRL = FIRE2
-    LD C, A
+    ld a, 6                    ; Keyboard row 6
+    call SNSMAT                ; Read row 6
+    bit 2, a                   ; CTRL key
+    jr nz, keyboard_done
+    ld a, c
+    set INPUT_BIT_FIRE2, a     ; CTRL = FIRE2
+    ld c, a
 
 keyboard_done:
-    LD A, C                    ; Return final input state
-    POP HL
-    POP DE
-    POP BC
-    RET
+    ld a, c                    ; Return final input state
+    pop hl
+    pop de
+    pop bc
+    ret
 
 ; Motor del componente COLLISION - Detecta colisiones
-UPDATE_COLLISION_COMPONENT:
-    PUSH HL
-    PUSH BC
-    PUSH DE
+update_collision_component:
+    push hl
+    push bc
+    push de
 
-    LD HL, entity_comp_masks
-    LD B, MAX_ENTITIES
-    LD C, 0                    ; Entity counter
+    ld hl, entity_comp_masks
+    ld b, MAX_ENTITIES
+    ld c, 0                    ; Entity counter
 
 collision_update_loop:
-    LD A, (HL)                 ; Get entity component mask
-    AND COMP_MASK_COLLISION    ; Check if has collision component
-    JR Z, collision_next_entity ; Skip if no collision component
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_COLLISION    ; Check if has collision component
+    jr z, collision_next_entity ; Skip if no collision component
 
     ; Check collision against all other entities
-    LD A, C                    ; Entity ID
-    CALL CHECK_ENTITY_COLLISIONS
+    ld a, c                    ; Entity ID
+    call check_entity_collisions
 
 collision_next_entity:
-    INC HL                     ; Next entity
-    INC C                      ; Next entity ID
-    DJNZ collision_update_loop
+    inc hl                     ; Next entity
+    inc c                      ; Next entity ID
+    djnz collision_update_loop
 
-    POP DE
-    POP BC
-    POP HL
-    RET
+    pop de
+    pop bc
+    pop hl
+    ret
 
 ; Verificar colisiones de entidad A con todas las demás
-CHECK_ENTITY_COLLISIONS:
-    PUSH HL
-    PUSH BC
-    PUSH DE
+check_entity_collisions:
+    push hl
+    push bc
+    push de
 
     ; TODO: Implement collision detection between entities
     ; This would check bounding boxes and collision layers/masks
 
-    POP DE
-    POP BC
-    POP HL
-    RET
+    pop de
+    pop bc
+    pop hl
+    ret
 
 ; Motor del componente BEHAVIOR - Ejecuta IA de entidades
-UPDATE_BEHAVIOR_COMPONENT:
-    PUSH HL
-    PUSH BC
-    PUSH DE
+update_behavior_component:
+    push hl
+    push bc
+    push de
 
-    LD HL, entity_comp_masks
-    LD B, MAX_ENTITIES
-    LD C, 0                    ; Entity counter
+    ld hl, entity_comp_masks
+    ld b, MAX_ENTITIES
+    ld c, 0                    ; Entity counter
 
 behavior_update_loop:
-    LD A, (HL)                 ; Get entity component mask
-    AND COMP_MASK_BEHAVIOR     ; Check if has behavior component
-    JR Z, behavior_next_entity ; Skip if no behavior component
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_BEHAVIOR     ; Check if has behavior component
+    jr z, behavior_next_entity ; Skip if no behavior component
 
     ; Execute behavior for this entity
-    LD A, C                    ; Entity ID
-    CALL EXECUTE_ENTITY_BEHAVIOR
+    ld a, c                    ; Entity ID
+    call execute_entity_behavior
 
 behavior_next_entity:
-    INC HL                     ; Next entity
-    INC C                      ; Next entity ID
-    DJNZ behavior_update_loop
+    inc hl                     ; Next entity
+    inc c                      ; Next entity ID
+    djnz behavior_update_loop
 
-    POP DE
-    POP BC
-    POP HL
-    RET
+    pop de
+    pop bc
+    pop hl
+    ret
 
 ; Ejecutar comportamiento de entidad A
-EXECUTE_ENTITY_BEHAVIOR:
-    PUSH HL
-    PUSH DE
+execute_entity_behavior:
+    push hl
+    push de
 
     ; Get behavior type
-    LD HL, behavior_type
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD E, (HL)                 ; E = behavior type
+    ld hl, behavior_type
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld e, (hl)                 ; E = behavior type
 
     ; Branch to appropriate behavior handler
-    LD A, E
-    CP BEHAVIOR_STATIC
-    JR Z, behavior_static
-    CP BEHAVIOR_PATROL
-    JR Z, behavior_patrol
+    ld a, e
+    cp BEHAVIOR_STATIC
+    jr z, behavior_static
+    cp BEHAVIOR_PATROL
+    jr z, behavior_patrol
     ; TODO: Add other behavior types
-    JR behavior_done
+    jr behavior_done
 
 behavior_static:
     ; Do nothing - entity doesn't move
-    JR behavior_done
+    jr behavior_done
 
 behavior_patrol:
     ; TODO: Implement patrol behavior
     ; Move left and right, change direction at boundaries
-    JR behavior_done
+    jr behavior_done
 
 behavior_done:
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; ==================================================================
 ; UTILIDADES DE INPUT - Funciones auxiliares para manejo de input
@@ -1055,121 +1055,121 @@ behavior_done:
 ; Verificar si input está recién presionado (edge detection)
 ; Input: A = entity ID, B = input bit
 ; Output: Zero flag set if button was just pressed this frame
-INPUT_JUST_PRESSED:
-    PUSH HL
-    PUSH DE
-    PUSH BC
+input_just_pressed:
+    push hl
+    push de
+    push bc
 
     ; Get current input state
-    LD HL, input_current
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD C, (HL)                 ; C = current state
+    ld hl, input_current
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld c, (hl)                 ; C = current state
 
     ; Get previous input state
-    LD HL, input_previous
-    ADD HL, DE
-    LD E, (HL)                 ; E = previous state
+    ld hl, input_previous
+    add hl, de
+    ld e, (hl)                 ; E = previous state
 
     ; Check if bit is set in current but not in previous
-    LD A, 1
-    LD D, B                    ; Bit position
+    ld a, 1
+    ld d, b                    ; Bit position
 check_bit_position:
-    LD A, D
-    OR A
-    JR Z, bit_ready
-    SLA A                      ; Shift left
-    DEC D
-    JR check_bit_position
+    ld a, d
+    or a
+    jr z, bit_ready
+    sla a                      ; Shift left
+    dec d
+    jr check_bit_position
 
 bit_ready:
-    LD D, A                    ; D = bit mask
+    ld d, a                    ; D = bit mask
 
     ; Check current state
-    LD A, C
-    AND D                      ; A = current & mask
-    JR Z, not_pressed_now      ; Not pressed now = not just pressed
+    ld a, c
+    and d                      ; A = current & mask
+    jr z, not_pressed_now      ; Not pressed now = not just pressed
 
     ; Check previous state
-    LD A, E
-    AND D                      ; A = previous & mask
-    JR NZ, was_pressed_before  ; Was pressed before = not just pressed
+    ld a, e
+    and d                      ; A = previous & mask
+    jr nz, was_pressed_before  ; Was pressed before = not just pressed
 
     ; Button was just pressed
-    XOR A                      ; Set zero flag
-    JR input_just_pressed_exit
+    xor a                      ; Set zero flag
+    jr input_just_pressed_exit
 
 not_pressed_now:
 was_pressed_before:
     ; Button was not just pressed
-    OR 1                       ; Clear zero flag
+    or 1                       ; Clear zero flag
 
 input_just_pressed_exit:
-    POP BC
-    POP DE
-    POP HL
-    RET
+    pop bc
+    pop de
+    pop hl
+    ret
 
 ; Verificar si input está siendo mantenido presionado
 ; Input: A = entity ID, B = input bit
 ; Output: Zero flag set if button is currently held
-INPUT_IS_HELD:
-    PUSH HL
-    PUSH DE
+input_is_held:
+    push hl
+    push de
 
     ; Get current input state
-    LD HL, input_current
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD E, (HL)                 ; E = current state
+    ld hl, input_current
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld e, (hl)                 ; E = current state
 
     ; Create bit mask
-    LD A, 1
-    LD D, B                    ; Bit position
+    ld a, 1
+    ld d, b                    ; Bit position
 create_mask:
-    LD A, D
-    OR A
-    JR Z, mask_ready
-    SLA A                      ; Shift left
-    DEC D
-    JR create_mask
+    ld a, d
+    or a
+    jr z, mask_ready
+    sla a                      ; Shift left
+    dec d
+    jr create_mask
 
 mask_ready:
-    LD D, A                    ; D = bit mask
+    ld d, a                    ; D = bit mask
 
     ; Check if bit is set
-    LD A, E
-    AND D
+    ld a, e
+    and d
     ; Zero flag will be clear if bit is set (held)
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Obtener estado completo de input de entidad
 ; Input: A = entity ID
 ; Output: B = current input, C = previous input
-GET_ENTITY_INPUT:
-    PUSH HL
-    PUSH DE
+get_entity_input:
+    push hl
+    push de
 
     ; Get current input
-    LD HL, input_current
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD B, (HL)                 ; B = current input
+    ld hl, input_current
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld b, (hl)                 ; B = current input
 
     ; Get previous input
-    LD HL, input_previous
-    ADD HL, DE
-    LD C, (HL)                 ; C = previous input
+    ld hl, input_previous
+    add hl, de
+    ld c, (hl)                 ; C = previous input
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; ==================================================================
 ; FUNCIONES DE UTILIDAD
@@ -1178,90 +1178,90 @@ GET_ENTITY_INPUT:
 ; Verificar si entidad A tiene componente B
 ; Input: A = entity ID, B = component mask
 ; Output: Zero flag set if entity has component
-ENTITY_HAS_COMPONENT:
-    CP MAX_ENTITIES
-    JR NC, entity_invalid      ; Invalid ID
+entity_has_component:
+    cp MAX_ENTITIES
+    jr nc, entity_invalid      ; Invalid ID
 
-    PUSH HL
-    PUSH DE
+    push hl
+    push de
 
-    LD HL, entity_comp_masks
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD A, (HL)                 ; Get entity mask
-    AND B                      ; Check if has component
+    ld hl, entity_comp_masks
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, (hl)                 ; Get entity mask
+    and b                      ; Check if has component
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 entity_invalid:
-    XOR A                      ; Clear zero flag
-    OR 1
-    RET
+    xor a                      ; Clear zero flag
+    or 1
+    ret
 
 ; Obtener posición de entidad A
 ; Input: A = entity ID
 ; Output: B = X position, C = Y position
-GET_ENTITY_POSITION:
-    PUSH HL
-    PUSH DE
+get_entity_position:
+    push hl
+    push de
 
     ; Get X position
-    LD HL, entity_x_pos
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD B, (HL)                 ; B = X position (8-bit)
+    ld hl, entity_x_pos
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld b, (hl)                 ; B = X position (8-bit)
 
     ; Get Y position
-    LD HL, entity_y_pos
-    ADD HL, DE
-    LD C, (HL)                 ; C = Y position (8-bit)
+    ld hl, entity_y_pos
+    add hl, de
+    ld c, (hl)                 ; C = Y position (8-bit)
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; Establecer posición de entidad A
 ; Input: A = entity ID, B = X position, C = Y position
-SET_ENTITY_POSITION:
-    PUSH HL
-    PUSH DE
+set_entity_position:
+    push hl
+    push de
 
     ; Set X position
-    LD HL, entity_x_pos
-    LD E, A
-    LD D, 0
-    ADD HL, DE
-    LD (HL), B                 ; Store X position (8-bit)
+    ld hl, entity_x_pos
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), b                 ; Store X position (8-bit)
 
     ; Set Y position
-    LD HL, entity_y_pos
-    ADD HL, DE
-    LD (HL), C                 ; Store Y position (8-bit)
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), c                 ; Store Y position (8-bit)
 
-    POP DE
-    POP HL
-    RET
+    pop de
+    pop hl
+    ret
 
 ; ==================================================================
 ; SISTEMA DE INICIALIZACIÓN COMPLETO
 ; ==================================================================
 
 ; Inicializar todo el sistema ECS
-INIT_COMPONENTS:
+init_components:
     ; Clear all entity component masks
-    LD HL, entity_comp_masks
-    LD DE, entity_comp_masks + 1
-    LD BC, MAX_ENTITIES - 1
-    LD (HL), 0
-    LDIR
+    ld hl, entity_comp_masks
+    ld de, entity_comp_masks + 1
+    ld bc, MAX_ENTITIES - 1
+    ld (hl), 0
+    ldir
 
     ; TODO: Initialize component pools if using pooled allocation
 
-    RET
+    ret
 
 ; ==================================================================
 ; END OF COMPONENTES.ASM
