@@ -1,4 +1,15 @@
-; ==================================================================
+/**
+ * @fileoverview BIOS Generator - MSX BIOS functions and addresses
+ * Generates bios.asm with standard MSX BIOS definitions
+ */
+
+/**
+ * Generate MSX BIOS functions and addresses file (bios.asm)
+ *
+ * @returns ASM code string with BIOS definitions and utility functions
+ */
+export function generateBIOSFile(): string {
+  return `; ==================================================================
 ; MSX BIOS FUNCTIONS AND ADDRESSES
 ; File: bios.asm
 ; Description: Standard MSX BIOS function definitions
@@ -119,3 +130,5 @@ print_string_screen2:
 ; ==================================================================
 ; END OF BIOS DEFINITIONS
 ; ==================================================================
+`;
+}

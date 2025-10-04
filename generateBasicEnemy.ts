@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateModularASM, MSXModularConfig } from './utils/msxModularGenerator.js';
+import { generateModularASM, MSXModularConfig } from './utils/msxGenerator/index.js';
 import { ProjectAsset } from './types/index.js';
 
 async function main() {

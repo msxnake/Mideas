@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
               'vendor-react': ['react', 'react-dom'],
               'vendor-ui': ['@xyflow/react'],
               // MSX utilities and generators
-              'msx-utils': ['./utils/msxModularGenerator.ts', './utils/summaryExtractor.ts'],
+              'msx-utils': ['./utils/msxGenerator/index.ts', './utils/summaryExtractor.ts'],
               // Editors chunk
               'editors': [
                 './components/editors/TileEditor.tsx',

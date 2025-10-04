@@ -50,101 +50,101 @@ SPRITE_0_PATTERN EQU BOT1_F0_LAYER3
 ; SPRITE INITIALIZATION FUNCTIONS
 ; ==================================================================
 
-INIT_SPRITES:
+init_sprites:
     ; Initialize sprite system
-    CALL CLEAR_ALL_SPRITES
+    call clear_all_sprites
 
     ; Load sprite patterns to VRAM
-    CALL LOAD_SPRITE_PATTERNS
+    call load_sprite_patterns
 
     ; Initialize sprite positions (all invisible by default)
-    XOR A
-    LD (active_sprite_count), A
+    xor a
+    ld (active_sprite_count), a
 
-    RET
+    ret
 
-LOAD_SPRITE_PATTERNS:
+load_sprite_patterns:
     ; Load all sprite patterns to VRAM sprite pattern table
 
     ; Load sprite 0: bot1 (BIOS LDIRVM handles timing)
-    LD HL, SPRITE_0_PATTERN
-    LD DE, SPRPAT + (0 * 32) ; Each 16x16 sprite = 32 bytes (4 patterns)
-    LD BC, 32                       ; 16x16 sprite size
-    CALL LDIRVM                     ; BIOS handles safe VRAM access
-    RET
+    ld hl, SPRITE_0_PATTERN
+    ld de, SPRPAT + (0 * 32) ; Each 16x16 sprite = 32 bytes (4 patterns)
+    ld bc, 32                       ; 16x16 sprite size
+    call LDIRVM                     ; BIOS handles safe VRAM access
+    ret
 
 ; ==================================================================
 ; SPRITE MANAGEMENT FUNCTIONS
 ; ==================================================================
 
 ; Show sprite (A = sprite number, B = X, C = Y, D = pattern, E = color)
-SHOW_SPRITE:
-    PUSH BC                       ; Preserve parameters
-    PUSH DE
+show_sprite:
+    push bc                       ; Preserve parameters
+    push de
 
     ; Calculate sprite offset (A = sprite number)
-    LD L, A                       ; L = sprite number
-    LD H, 0                       ; HL = sprite number
+    ld l, a                       ; L = sprite number
+    ld h, 0                       ; HL = sprite number
 
     ; Set X position
-    PUSH HL
-    LD DE, sprite_x_pos
-    ADD HL, DE                    ; HL points to sprite X position
-    LD (HL), B                    ; Set X position
-    POP HL
+    push hl
+    ld de, sprite_x_pos
+    add hl, de                    ; HL points to sprite X position
+    ld (hl), b                    ; Set X position
+    pop hl
 
     ; Set Y position
-    PUSH HL
-    LD DE, sprite_y_pos
-    ADD HL, DE                    ; HL points to sprite Y position
-    LD (HL), C                    ; Set Y position
-    POP HL
+    push hl
+    ld de, sprite_y_pos
+    add hl, de                    ; HL points to sprite Y position
+    ld (hl), c                    ; Set Y position
+    pop hl
 
     ; Set pattern
-    PUSH HL
-    LD DE, sprite_pattern
-    ADD HL, DE                    ; HL points to sprite pattern
-    POP DE                        ; Restore original HL to DE
-    PUSH DE                       ; Save it again
-    LD (HL), D                    ; Set pattern number
-    POP HL
+    push hl
+    ld de, sprite_pattern
+    add hl, de                    ; HL points to sprite pattern
+    pop de                        ; Restore original HL to DE
+    push de                       ; Save it again
+    ld (hl), d                    ; Set pattern number
+    pop hl
 
     ; Set color
-    LD DE, sprite_color
-    ADD HL, DE                    ; HL points to sprite color
-    POP DE                        ; Get original DE back
-    LD (HL), E                    ; Set color
+    ld de, sprite_color
+    add hl, de                    ; HL points to sprite color
+    pop de                        ; Get original DE back
+    ld (hl), e                    ; Set color
 
-    POP BC                        ; Restore original parameters
-    RET
+    pop bc                        ; Restore original parameters
+    ret
 
 ; Clear all sprites (make them invisible)
-CLEAR_ALL_SPRITES:
-    LD HL, sprite_y_pos
-    LD DE, sprite_y_pos+1
-    LD BC, 0                     ; 1 sprites - 1
-    LD (HL), SPRITE_INVISIBLE     ; Y=209 (invisible)
-    LDIR
-    RET
+clear_all_sprites:
+    ld hl, sprite_y_pos
+    ld de, sprite_y_pos+1
+    ld bc, 0                     ; 1 sprites - 1
+    ld (hl), SPRITE_INVISIBLE     ; Y=209 (invisible)
+    ldir
+    ret
 
 ; Hide specific sprite (A = sprite number)
-HIDE_SPRITE:
-    LD HL, sprite_y_pos
-    LD E, A
-    LD D, 0
-    ADD HL, DE                    ; HL points to sprite Y position
-    LD (HL), SPRITE_INVISIBLE     ; Make invisible
-    RET
+hide_sprite:
+    ld hl, sprite_y_pos
+    ld e, a
+    ld d, 0
+    add hl, de                    ; HL points to sprite Y position
+    ld (hl), SPRITE_INVISIBLE     ; Make invisible
+    ret
 
 ; Update sprite positions to VRAM
-UPDATE_SPRITES_TO_VRAM:
+update_sprites_to_vram:
     ; Copy sprite attributes from RAM to VRAM
     ; BIOS LDIRVM handles timing automatically
-    LD HL, sprite_y_pos
-    LD DE, SPRATR
-    LD BC, 4                    ; 1 sprites * 4 bytes each
-    CALL LDIRVM                   ; BIOS handles safe VRAM access
-    RET
+    ld hl, sprite_y_pos
+    ld de, SPRATR
+    ld bc, 4                    ; 1 sprites * 4 bytes each
+    call LDIRVM                   ; BIOS handles safe VRAM access
+    ret
 
 ; ==================================================================
 ; SPRITE CONSTANTS

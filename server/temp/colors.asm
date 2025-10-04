@@ -8,40 +8,40 @@
 ; ==================================================================
 ; TILE COLOR BANK 0 (Base colors)
 ; ==================================================================
-TILE_COLOR_BANK0:
+tile_color_bank0:
     ; Tile 0: brick1 colors (fg/bg pairs)
-    DB #61, #61, #61, #61, #61, #61, #61, #91, #61, #B1, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #B1, #B1, #61, #61, #61, #61
+    db #61, #61, #61, #61, #61, #61, #61, #91, #61, #B1, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #61, #B1, #B1, #61, #61, #61, #61
 
 
 ; ==================================================================
 ; COLOR LOADING FUNCTIONS
 ; ==================================================================
-LOAD_COLOR_BANK0:
+load_color_bank0:
     ; Load color bank 0 to VRAM (base colors)
     ; BIOS LDIRVM handles timing automatically
-    LD HL, TILE_COLOR_BANK0
-    LD DE, CLRTBL2                ; VRAM color table bank 0
-    LD BC, 32     ; Total color bytes for all tile characters
-    CALL LDIRVM                   ; BIOS handles safe VRAM access
-    RET
+    ld hl, tile_color_bank0
+    ld de, CLRTBL2                ; VRAM color table bank 0
+    ld bc, 32     ; Total color bytes for all tile characters
+    call LDIRVM                   ; BIOS handles safe VRAM access
+    ret
 
-LOAD_COLOR_BANK1:
+load_color_bank1:
     ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
     ; BIOS LDIRVM handles timing automatically
-    LD HL, TILE_COLOR_BANK0       ; Same source as Bank 0
-    LD DE, CLRTBL2 + #800         ; VRAM color table bank 1 (+#800 offset)
-    LD BC, 32     ; Total color bytes for all tile characters
-    CALL LDIRVM                   ; BIOS handles safe VRAM access
-    RET
+    ld hl, tile_color_bank0       ; Same source as Bank 0
+    ld de, CLRTBL2 + #800         ; VRAM color table bank 1 (+#800 offset)
+    ld bc, 32     ; Total color bytes for all tile characters
+    call LDIRVM                   ; BIOS handles safe VRAM access
+    ret
 
-LOAD_COLOR_BANK2:
+load_color_bank2:
     ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
     ; BIOS LDIRVM handles timing automatically
-    LD HL, TILE_COLOR_BANK0       ; Same source as Bank 0
-    LD DE, CLRTBL2 + #1000        ; VRAM color table bank 2 (+#1000 offset)
-    LD BC, 32     ; Total color bytes for all tile characters
-    CALL LDIRVM                   ; BIOS handles safe VRAM access
-    RET
+    ld hl, tile_color_bank0       ; Same source as Bank 0
+    ld de, CLRTBL2 + #1000        ; VRAM color table bank 2 (+#1000 offset)
+    ld bc, 32     ; Total color bytes for all tile characters
+    call LDIRVM                   ; BIOS handles safe VRAM access
+    ret
 
 ; ==================================================================
 ; END OF COLOR DATA

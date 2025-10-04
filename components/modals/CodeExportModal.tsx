@@ -263,7 +263,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           console.log('  assets length:', assets?.length);
           console.log('  options:', options);
 
-          const { generateModularASM } = await import('../../utils/msxModularGenerator');
+          const { generateModularASM } = await import('../../utils/msxGenerator');
           const modularFiles = generateModularASM(projectName, assets, {
             projectName,
             targetMSX: options.msxModel as any,
@@ -919,7 +919,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       console.log('  assets length:', assets?.length);
                       console.log('  options:', options);
 
-                      const { generateModularASM } = await import('../../utils/msxModularGenerator');
+                      const { generateModularASM } = await import('../../utils/msxGenerator');
 
                       const modularFiles = generateModularASM(projectName, assets, {
                         projectName,

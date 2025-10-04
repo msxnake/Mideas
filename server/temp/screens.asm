@@ -139,18 +139,18 @@ BEHAVIOR_PANTALLA1_0_DATA:
 ; SCREEN LOADING FUNCTIONS
 ; ==================================================================
 
-LOAD_SCREEN:
+load_screen:
     ; Load screen (A = screen ID)
     ; TODO: Implement screen loading logic
-    RET
+    ret
 
-LOAD_SCREEN_PANTALLA1:
+load_screen_pantalla1:
     ; Load pantalla1 screen (BIOS LDIRVM handles timing)
-    LD HL, SCREEN_PANTALLA1_0_LAYOUT
-    LD DE, NAMETBL
-    LD BC, SCREEN_PANTALLA1_0_SIZE
-    CALL LDIRVM                ; BIOS handles safe VRAM access
-    RET
+    ld hl, SCREEN_PANTALLA1_0_LAYOUT
+    ld de, NAMETBL
+    ld bc, SCREEN_PANTALLA1_0_SIZE
+    call LDIRVM                ; BIOS handles safe VRAM access
+    ret
 
 ; ==================================================================
 ; END OF SCREEN MAPS

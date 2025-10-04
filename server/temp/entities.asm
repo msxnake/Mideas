@@ -12,23 +12,33 @@
 ENTITY_PLAYER_ID EQU 0
 ENTITY_ENEMY_ID  EQU 1
 
-INIT_ENTITIES:
+init_entities:
     ; Initialize default entities
-    CALL INIT_PLAYER
-    RET
+    call init_player
+    ret
 
-UPDATE_ENTITIES:
+update_entities:
     ; Update all entities
-    CALL UPDATE_PLAYER
-    RET
+    call update_player
+    ret
 
-INIT_PLAYER:
+init_player:
     ; Initialize player entity
-    RET
 
-UPDATE_PLAYER:
+    ; TEST: Show first sprite in center of screen
+    ; Sprite 0, X=128, Y=96 (center), Pattern=0, Color=15 (white)
+    ld a, 0           ; Sprite number 0
+    ld b, 128         ; X position (center)
+    ld c, 96          ; Y position (center)
+    ld d, 0           ; Pattern 0 (first sprite)
+    ld e, 15          ; Color 15 (white)
+    call show_sprite
+
+    ret
+
+update_player:
     ; Update player logic
-    RET
+    ret
 
 ; ==================================================================
 ; END OF ENTITIES

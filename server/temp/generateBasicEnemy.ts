@@ -4,7 +4,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateModularASM, MSXModularConfig } from '../../utils/msxModularGenerator';
+import { generateModularASM, MSXModularConfig } from '../../utils/msxGenerator';
 import { ProjectAsset } from '../../types';
 
 // Configuration for the generation

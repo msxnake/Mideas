@@ -1,0 +1,288 @@
+/**
+ * @fileoverview Screens Generator - Screen layout and map data
+ * Generates screens.asm with screen maps and loading functions
+ */
+
+import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { generateScreenLayoutASMCode, generateBehaviorMapASMCode, generateScreenMapLayoutBytes } from '../../../components/utils/screenUtils';
+import { DEFAULT_TILE_BANK_DEFINITIONS } from '../../../constants';
+import { TileBank } from '../../../types';
+
+/**
+ * Generate screens file with screen layout and map data (screens.asm)
+ *
+ * Uses the EXACT same function as Screen Editor "Download ASM" button to ensure
+ * parity between Play mode and generated ROM.
+ *
+ * @param analysis - Project analysis with screen maps and tiles
+ * @returns ASM code string with screen layout data and loading functions
+ */
+export function generateScreensFile(analysis: ProjectAnalysis): string {
+  // Skip screen system if no screens in project
+  if (!analysis.screenMaps || analysis.screenMaps.length === 0) {
+    return `; ==================================================================
+; SCREEN MAPS (SKIPPED - NO SCREENS DETECTED)
+; File: screens.asm
+; ==================================================================
+
+; No screens detected in project - screen system not needed
+; This saves ~160 lines of unused screen data
+
+; Minimal stub functions for compatibility
+load_game_screen:
+    ret
+
+load_screen_default:
+    ret
+
+; ==================================================================
+; END OF SCREENS (MINIMAL VERSION)
+; ==================================================================
+`;
+  }
+
+  let code = `; ==================================================================
+; SCREEN MAPS
+; File: screens.asm
+; Description: Screen layout and map data
+; ==================================================================
+
+`;
+
+  if (analysis.screenMaps && analysis.screenMaps.length > 0) {
+    code += `; ==================================================================
+; SCREEN MAP CONSTANTS
+; ==================================================================
+
+`;
+
+    analysis.screenMaps.forEach((screen, index) => {
+      const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+      code += `SCREEN_${screenName}_${index}_ID EQU ${index}
+`;
+    });
+
+    code += `
+; ==================================================================
+; SCREEN MAP DATA
+; ==================================================================
+
+`;
+
+    analysis.screenMaps.forEach((screen) => {
+      if (screen.layers && screen.layers.background) {
+        // Create automatic tile banks with assigned tiles for character mapping
+        const uniqueTileIds = new Set(screen.layers.background.flat().map(tile => tile.tileId).filter(Boolean));
+        const tileBanks: TileBank[] = [];
+
+        console.log(`🔍 Screen ${screen.name}: Found ${uniqueTileIds.size} unique tiles`);
+        console.log('Unique tile IDs:', Array.from(uniqueTileIds));
+        console.log('Available tiles in analysis:', analysis.tiles?.map(t => `${t.name} (${t.id})`));
+
+        if (uniqueTileIds.size > 0) {
+          // Create a single tile bank with all tiles
+          const mainBank: TileBank = {
+            ...DEFAULT_TILE_BANK_DEFINITIONS[1], // Use main game bank as template
+            assignedTiles: {},
+            charsetRangeStart: 0,
+            charsetRangeEnd: 255  // Ensure wide range
+          };
+
+          // Assign tiles to characters starting from charCode 0
+          let nextCharCode = 0;
+          Array.from(uniqueTileIds).forEach((tileId) => {
+            if (tileId) {
+              const tileAsset = analysis.tiles?.find(t => t.id === tileId);
+              if (tileAsset) {
+                // Calculate how many characters this tile needs (width/8 * height/8)
+                const charsWide = Math.ceil(tileAsset.width / 8);
+                const charsHigh = Math.ceil(tileAsset.height / 8);
+
+                mainBank.assignedTiles[tileId] = {
+                  charCode: nextCharCode,
+                  assignedAt: Date.now()
+                };
+
+                console.log(`📌 Assigned tile ${tileAsset.name} (${tileId}) to charCode ${nextCharCode} (${charsWide}x${charsHigh} chars)`);
+                nextCharCode += charsWide * charsHigh;
+              } else {
+                console.log(`❌ Tile asset not found for ID: ${tileId}`);
+              }
+            }
+          });
+
+          tileBanks.push(mainBank);
+          console.log(`✅ Created tile bank with ${Object.keys(mainBank.assignedTiles).length} assigned tiles`);
+        }
+
+        // Use the EXACT same function as Screen Editor "Download ASM" button
+        const layoutBytes = generateScreenMapLayoutBytes(
+          screen,
+          analysis.tiles || [],
+          tileBanks.length > 0 ? tileBanks : undefined,
+          'SCREEN 2 (Graphics I)' // Now we can use SCREEN 2 with proper tile banks
+        );
+        const mapIndices = Array.from(layoutBytes);
+
+        // Debug the generated bytes
+        const nonFFCount = mapIndices.filter(b => b !== 255).length;
+        const uniqueBytes = new Set(mapIndices);
+        console.log(`📊 Generated ${mapIndices.length} bytes: ${nonFFCount} non-FF (${((nonFFCount/mapIndices.length)*100).toFixed(1)}%)`);
+        console.log(`🎯 Unique byte values: [${Array.from(uniqueBytes).sort((a,b) => a-b).join(', ')}]`);
+
+        if (nonFFCount === 0) {
+          console.log(`❌ All bytes are #FF - debugging tile bank assignment...`);
+          console.log('Tile bank enabled:', tileBanks[0]?.enabled);
+          console.log('Tile bank assigned tiles:', Object.keys(tileBanks[0]?.assignedTiles || {}));
+          console.log('Charset range:', tileBanks[0]?.charsetRangeStart, '-', tileBanks[0]?.charsetRangeEnd);
+        }
+
+        // Create a mapping from byte values to tile names for comments
+        const uniqueValues = new Set(mapIndices.filter(val => val !== 255 && val !== 0));
+        const uniqueTiles = new Set(screen.layers.background.flat().map(tile => tile.tileId).filter(Boolean));
+
+        // Generate reference comments based on actual byte values from Screen Editor logic
+        const referenceComments: string[] = [];
+        referenceComments.push(`; Generated using exact Screen Editor "Download ASM" logic`);
+        referenceComments.push(`; Byte values represent actual character codes in VRAM`);
+
+        // Create a mapping of tileIds to actual byte values used
+        const tileIdToByteValue = new Map<string, number>();
+        const backgroundLayer = screen.layers.background;
+
+        for (let r = 0; r < backgroundLayer.length; r++) {
+          for (let c = 0; c < backgroundLayer[r].length; c++) {
+            const tile = backgroundLayer[r][c];
+            if (tile?.tileId) {
+              const byteIndex = r * (screen.activeAreaWidth ?? screen.width) + c;
+              if (byteIndex < mapIndices.length) {
+                const byteValue = mapIndices[byteIndex];
+                if (byteValue !== 255 && byteValue !== 0) {
+                  tileIdToByteValue.set(tile.tileId, byteValue);
+                }
+              }
+            }
+          }
+        }
+
+        // No tile constants needed - we use the actual byte values from Screen Editor
+
+        // Use existing ASM generation logic with hex format like Screen Editor
+        const screenNameWithIndex = `${screen.name}_${analysis.screenMaps.indexOf(screen)}`;
+        const asmCode = generateScreenLayoutASMCode(
+          screenNameWithIndex,
+          screen.width,
+          screen.height,
+          mapIndices,
+          referenceComments,
+          'hex' // Use hex format #?? like Screen Editor "Download ASM"
+        );
+
+        // Add the screen layout data (no tile constants needed - using exact Screen Editor format)
+        code += asmCode;
+
+        // Also generate collision/behavior map if available
+        if (screen.layers.collision && analysis.tiles) {
+          const collisionLayer = screen.layers.collision;
+          const behaviorMapData: number[] = [];
+
+          collisionLayer.forEach(row => {
+            row.forEach(tile => {
+              if (tile.tileId) {
+                // Find the tile asset to get its logical properties
+                const tileAsset = analysis.tiles.find(t => t.id === tile.tileId);
+                const mapId = tileAsset?.logicalProperties?.mapId || 0;
+                behaviorMapData.push(mapId);
+              } else {
+                behaviorMapData.push(0);
+              }
+            });
+          });
+
+          // Generate behavior map ASM
+          const behaviorASM = generateBehaviorMapASMCode(
+            screenNameWithIndex,
+            screen.width,
+            screen.height,
+            behaviorMapData,
+            'hex'
+          );
+
+          code += `\n${behaviorASM}`;
+        }
+      } else {
+        // Generate placeholder screen data
+        const screenIndex = analysis.screenMaps.indexOf(screen);
+        const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        code += `SCREEN_${screenName}_${screenIndex}_LAYOUT:
+    ; Screen data for ${screen.name}
+    ; TODO: Add actual screen map data
+    DB 0, 0, 0, 0, 0, 0, 0, 0
+
+`;
+      }
+
+      code += `\n`;
+    });
+
+    code += `; ==================================================================
+; SCREEN LOADING FUNCTIONS
+; ==================================================================
+
+load_screen:
+    ; Load screen (A = screen ID)
+    ; TODO: Implement screen loading logic
+    ret
+
+`;
+
+    analysis.screenMaps.forEach((screen, index) => {
+      const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+      code += `load_screen_${screenName.toLowerCase()}:
+    ; Load ${screen.name} screen (BIOS LDIRVM handles timing)
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, NAMETBL
+    ld bc, SCREEN_${screenName}_${index}_SIZE
+    call LDIRVM                ; BIOS handles safe VRAM access
+    ret
+
+`;
+    });
+  } else {
+    code += `; ==================================================================
+; DEFAULT SCREEN SYSTEM
+; ==================================================================
+
+SCREEN_GAME_ID   EQU 0
+SCREEN_TITLE_ID  EQU 1
+
+SCREEN_GAME_DATA:
+    ; Default game screen pattern
+    DB 0, 1, 2, 3, 4, 5, 6, 7
+    DB 8, 9, 10, 11, 12, 13, 14, 15
+    ; TODO: Add more screen data
+
+load_screen:
+    ; Load screen (A = screen ID)
+    cp SCREEN_GAME_ID
+    jp z, load_screen_game
+    ret
+
+load_screen_game:
+    ; Load game screen (BIOS LDIRVM handles timing)
+    ld hl, SCREEN_GAME_DATA
+    ld de, NAMETBL
+    ld bc, 768
+    call LDIRVM                ; BIOS handles safe VRAM access
+    ret
+
+`;
+  }
+
+  code += `; ==================================================================
+; END OF SCREEN MAPS
+; ==================================================================
+`;
+
+  return code;
+}

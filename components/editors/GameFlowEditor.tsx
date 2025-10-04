@@ -5,11 +5,13 @@ import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, CodeIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
+import { GameFlowLogModal } from '../modals/GameFlowLogModalSimple';
 import { SubMenuAppearanceEditor } from './SubMenuAppearanceEditor';
 import { TextNodeEditor } from './TextNodeEditor';
 import { Modal } from '../modals/Modal';
 import { DEFAULT_MAIN_MENU_CONFIG } from '../../constants';
 import { MSXFont, MSXFontColorAttributes, EntityTemplate, ComponentDefinition } from '../../types';
+import { validateGameFlowBrowser } from '../../utils/gameFlowValidatorBrowser';
 
 const NODE_WIDTH = 150;
 const PORT_SIZE = 20;
@@ -374,6 +376,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [editingRestartNode, setEditingRestartNode] = useState<GameFlowRestartNode | null>(null);
   const [isTransitionNodeModalOpen, setIsTransitionNodeModalOpen] = useState(false);
   const [editingTransitionNode, setEditingTransitionNode] = useState<any>(null);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
 
   const { nodes, connections, gridSize, zoomLevel, panOffset } = { ...gameFlowGraph, gridSize: gameFlowGraph.gridSize || 40, zoomLevel: gameFlowGraph.zoomLevel || 1, panOffset: gameFlowGraph.panOffset || { x: 0, y: 0 } };
 
@@ -499,6 +502,71 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const handleTransitionNodeChange = (effect: string, duration: number) => {
     if (editingTransitionNode) {
       setEditingTransitionNode({ ...editingTransitionNode, effect, duration });
+    }
+  };
+
+  /**
+   * Handle Preview button click
+   * Validates GameFlow (browser version - no file saving)
+   */
+  const handlePreviewClick = () => {
+    try {
+      // Validate GameFlow in browser
+      const validation = validateGameFlowBrowser(
+        gameFlowGraph,
+        allAssets
+      );
+
+      // Show validation results if there are issues
+      if (validation.issues.length > 0) {
+        const issueMessages = validation.issues.map(i => `${i.type}: ${i.message}`).join('\n');
+        console.log('⚠️  GameFlow Validation Issues:\n', issueMessages);
+
+        if (validation.status === 'FAILED') {
+          alert(`GameFlow validation failed:\n\n${issueMessages}\n\nPlease fix errors before proceeding.`);
+          return;
+        } else if (validation.status === 'WARNING') {
+          const proceed = confirm(`GameFlow validation warnings:\n\n${issueMessages}\n\nDo you want to proceed with Preview anyway?`);
+          if (!proceed) return;
+        }
+      }
+
+      console.log('✅ GameFlow validation passed - opening Preview');
+
+      // Open Preview mode
+      setPreviewMode('preview');
+    } catch (error) {
+      console.error('❌ Error during GameFlow validation:', error);
+      alert(`Error validating GameFlow: ${error}\n\nCannot open Preview.`);
+    }
+  };
+
+  /**
+   * Handle Play button click
+   * Validates GameFlow before playing
+   */
+  const handlePlayClick = () => {
+    try {
+      // Validate GameFlow before Play
+      const validation = validateGameFlowBrowser(
+        gameFlowGraph,
+        allAssets
+      );
+
+      // Check validation status
+      if (validation.status === 'FAILED') {
+        const issueMessages = validation.issues.filter(i => i.type === 'ERROR').map(i => i.message).join('\n');
+        alert(`GameFlow has errors that must be fixed:\n\n${issueMessages}\n\nPlease fix errors before playing.`);
+        return;
+      }
+
+      console.log('✅ GameFlow validation passed - opening Play mode');
+
+      // Open Play mode
+      setPreviewMode('play');
+    } catch (error) {
+      console.error('❌ Error validating GameFlow:', error);
+      alert(`Error validating GameFlow: ${error}\n\nCannot open Play mode.`);
     }
   };
 
@@ -805,8 +873,9 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={handleAutoLayout} size="sm" variant="primary" icon={<ArrowsPointingOutIcon className="w-4 h-4"/>} title="Auto-arrange nodes in hierarchical layout">Auto Layout</Button>
         <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
         <div className="flex-grow" />
-        <Button size="sm" variant="primary" onClick={() => setPreviewMode('preview')}>Preview</Button>
-        <Button size="sm" variant="secondary" onClick={() => setPreviewMode('play')}>Play Game</Button>
+        <Button size="sm" variant="ghost" onClick={() => setIsLogModalOpen(true)} title="View GameFlow validation log">View Log 📄</Button>
+        <Button size="sm" variant="primary" onClick={handlePreviewClick}>Preview</Button>
+        <Button size="sm" variant="secondary" onClick={handlePlayClick}>Play Game</Button>
       </div>
       <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
         <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
@@ -928,6 +997,14 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           gameFlowAssetName={gameFlowAssetName}
         />
       )}
+
+      {/* GameFlow Log Modal */}
+      <GameFlowLogModal
+        isOpen={isLogModalOpen}
+        onClose={() => setIsLogModalOpen(false)}
+        gameFlowGraph={gameFlowGraph}
+        allAssets={allAssets}
+      />
     </Panel>
   );
 };

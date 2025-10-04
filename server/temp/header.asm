@@ -2,46 +2,47 @@
 ; MSX CARTRIDGE ROM HEADER
 ; File: header.asm
 ; Description: Standard MSX cartridge initialization
+; GameFlow Integration: Using "main" as initialization flow
+; Flow: Start → WorldLink (gfn_1757846312799)
 ; ==================================================================
 
-    ORG #4000           ; MSX cartridge start address
+    org #4000           ; MSX cartridge start address
 
 ; ==================================================================
 ; CARTRIDGE HEADER
 ; ==================================================================
-    DB "AB"             ; MSX cartridge signature
-    DW INIT_ROM         ; Initialization address
-    DW 0                ; Statement handler (not used)
-    DW 0                ; Device handler (not used)
-    DW 0                ; Text handler (not used)
-    DW 0                ; Reserved
-    DW 0                ; Reserved
-    DW 0                ; Reserved
+    db "AB"             ; MSX cartridge signature
+    dw init_rom         ; Initialization address
+    dw 0                ; Statement handler (not used)
+    dw 0                ; Device handler (not used)
+    dw 0                ; Text handler (not used)
+    dw 0                ; Reserved
+    dw 0                ; Reserved
+    dw 0                ; Reserved
 
 ; ==================================================================
 ; ROM INITIALIZATION ENTRY POINT
 ; ==================================================================
-INIT_ROM:
+init_rom:
     ; Initialize stack
-    LD SP, #F380
+    ld sp, #F380
 
-
-    DI                           ; Disable interrupts during init
+    di                           ; Disable interrupts during init
     ld a,#C9
     ld (HKEY),a
-    EI
+    ei
 
     ; Set up memory mapper (if any)
     ; This is a placeholder for future mapper initialization
-    ; call setupROMRAMslots
+    ; call setup_rom_ram_slots
 
-    xor a       
+    xor a
     ld (CLIKSW),a ; Click switch off
     ; Change background colors:
-    ld (BAKCLR),a 
+    ld (BAKCLR),a
     ld (BDRCLR),a
     call CHGCLR
-   
+
     ld a,2      ; Change screen mode
     call CHGMOD
 
@@ -50,17 +51,22 @@ INIT_ROM:
     call WRTVDP
 
     ; init fill screen
-    call FILLSCREEN
+    call fillscreen
 
-     call CheckIf60Hz
+     call check_if_60hz
     ld (isComputer50HzOr60Hz),a
 
     ;init random seed
-    call randomSeedUpdate
+    call random_seed_update
 
 
-    ; Jump to main program
-    JP MAIN_PROGRAM
+    ; GameFlow: Start → WorldLink (World)
+    ; Initialize game world directly from GameFlow
+    call init_sprites
+    call init_components
+    call init_entities
+    call load_world_worldmap_1757846280079
+    jp game_loop  ; Jump to main game loop
 
 ; ==================================================================
 ; END OF HEADER
