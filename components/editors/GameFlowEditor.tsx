@@ -377,8 +377,102 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [isTransitionNodeModalOpen, setIsTransitionNodeModalOpen] = useState(false);
   const [editingTransitionNode, setEditingTransitionNode] = useState<any>(null);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [hasInitializedView, setHasInitializedView] = useState(false);
 
-  const { nodes, connections, gridSize, zoomLevel, panOffset } = { ...gameFlowGraph, gridSize: gameFlowGraph.gridSize || 40, zoomLevel: gameFlowGraph.zoomLevel || 1, panOffset: gameFlowGraph.panOffset || { x: 0, y: 0 } };
+  // View state: Don't save to JSON, keep as local component state
+  const [localZoomLevel, setLocalZoomLevel] = useState(1);
+  const [localPanOffset, setLocalPanOffset] = useState<Point>({ x: 0, y: 0 });
+
+  const { nodes, connections, gridSize } = { ...gameFlowGraph, gridSize: gameFlowGraph.gridSize || 40 };
+
+  // Use local state for view, not JSON values
+  const zoomLevel = localZoomLevel;
+  const panOffset = localPanOffset;
+
+  const handleResetView = useCallback(() => {
+    if (nodes.length === 0) {
+      setLocalZoomLevel(1);
+      setLocalPanOffset({ x: 0, y: 0 });
+      return;
+    }
+
+    // Get SVG dimensions - validate they are reasonable
+    const svgWidth = svgRef.current?.clientWidth || 0;
+    const svgHeight = svgRef.current?.clientHeight || 0;
+
+    // Skip if SVG dimensions are invalid (likely still rendering)
+    if (svgWidth < 200 || svgHeight < 200) {
+      return;
+    }
+
+    // Calculate bounding box of all nodes
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    nodes.forEach(node => {
+      const nodeWidth = getNodeWidth(node);
+      const nodeHeight = getNodeHeight(node);
+
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + nodeWidth);
+      maxY = Math.max(maxY, node.position.y + nodeHeight);
+    });
+
+    // Add padding
+    const PADDING = 50;
+    minX -= PADDING;
+    minY -= PADDING;
+    maxX += PADDING;
+    maxY += PADDING;
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+
+    // Calculate zoom to fit all nodes
+    const zoomX = svgWidth / contentWidth;
+    const zoomY = svgHeight / contentHeight;
+    const newZoomLevel = Math.min(zoomX, zoomY, 1); // Don't zoom in more than 100%
+
+    // Center the content
+    const newPanOffset = {
+      x: minX,
+      y: minY
+    };
+
+    // Update local view state (don't save to JSON)
+    setLocalZoomLevel(newZoomLevel);
+    setLocalPanOffset(newPanOffset);
+  }, [nodes]);
+
+  // Auto-fit view when GameFlow asset changes (only on initial load)
+  useEffect(() => {
+    if (nodes.length > 0 && !hasInitializedView) {
+      // Delay to ensure SVG is rendered
+      setTimeout(() => {
+        handleResetView();
+        setHasInitializedView(true);
+      }, 200);
+    }
+  }, [gameFlowAssetName, hasInitializedView, handleResetView, nodes.length]);
+
+  // Reset initialization flag when changing GameFlow assets
+  useEffect(() => {
+    setHasInitializedView(false);
+  }, [gameFlowAssetName])
+
+  // Listen for window resize events (triggered after modal closes)
+  useEffect(() => {
+    const handleWindowResize = () => {
+      // Force view re-initialization after resize (e.g., when modal closes)
+      setHasInitializedView(false);
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+    return () => window.removeEventListener('resize', handleWindowResize);
+  }, []);
 
   const handleDeleteNode = (nodeId: string) => {
     const nodesToDelete = new Set<string>([nodeId]);
@@ -570,6 +664,15 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     }
   };
 
+  /**
+   * Handle closing Preview/Play modal
+   */
+  const handleClosePreview = () => {
+    setPreviewMode(null);
+    // Force view to re-initialize after modal closes
+    setHasInitializedView(false);
+  };
+
   const handlePortClick = (nodeId: string, portId: string) => {
       // Si es un puerto de entrada (in) y estamos en linking mode, completar la conexión
       if (linkingState && portId === 'in') {
@@ -681,14 +784,22 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     return CTM ? svgPoint.matrixTransform(CTM) : null;
   }
   useEffect(() => {
-    const vbWidth = (svgRef.current?.clientWidth || 1000) / zoomLevel;
-    const vbHeight = (svgRef.current?.clientHeight || 700) / zoomLevel;
+    const clientWidth = svgRef.current?.clientWidth || 0;
+    const clientHeight = svgRef.current?.clientHeight || 0;
+
+    // Skip update if SVG dimensions are invalid (0 or very small)
+    if (clientWidth < 100 || clientHeight < 100) {
+      return;
+    }
+
+    const vbWidth = clientWidth / zoomLevel;
+    const vbHeight = clientHeight / zoomLevel;
     setViewBox(`${panOffset.x} ${panOffset.y} ${vbWidth} ${vbHeight}`);
   }, [zoomLevel, panOffset, svgRef.current?.clientWidth, svgRef.current?.clientHeight]);
   const handleWheel = (e: React.WheelEvent<SVGSVGElement>) => {
     e.preventDefault();
     const newZoomLevel = Math.max(0.1, Math.min(5, zoomLevel - e.deltaY * 0.001 * zoomLevel));
-    onUpdate({ zoomLevel: newZoomLevel });
+    setLocalZoomLevel(newZoomLevel);
   };
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     if (nodeToPlace) {
@@ -732,7 +843,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     if (isPanning) {
       const dx = (e.clientX - panStart.x);
       const dy = (e.clientY - panStart.y);
-      onUpdate({ panOffset: { x: panOffset.x - dx / zoomLevel, y: panOffset.y - dy / zoomLevel }});
+      setLocalPanOffset({ x: panOffset.x - dx / zoomLevel, y: panOffset.y - dy / zoomLevel });
       setPanStart({ x: e.clientX, y: e.clientY });
     } else if (draggingState) {
         const newX = point.x + draggingState.offset.x;
@@ -860,8 +971,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   };
 
   return (
-    <Panel title="Game Flow Editor" className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
-      <div className="p-2 border-b border-msx-border flex space-x-2 items-center">
+    <Panel title="Game Flow Editor" className="flex-grow flex flex-col bg-msx-bgcolor select-none">
+      <div className="p-2 border-b border-msx-border flex space-x-2 items-center flex-shrink-0">
         <Button onClick={() => handleAddNode('SubMenu')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Submenu</Button>
         <Button onClick={() => handleAddNode('WorldLink')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add World Link</Button>
         <Button onClick={() => handleAddNode('Text')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Text</Button>
@@ -871,13 +982,13 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('Group')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Group</Button>
         <Button onClick={() => handleAddNode('Waypoint')} size="sm" variant="ghost" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add waypoint for visual organization">Waypoint</Button>
         <Button onClick={handleAutoLayout} size="sm" variant="primary" icon={<ArrowsPointingOutIcon className="w-4 h-4"/>} title="Auto-arrange nodes in hierarchical layout">Auto Layout</Button>
-        <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
+        <Button onClick={handleResetView} size="sm" variant="ghost" title="Fit all nodes in view">Reset View</Button>
         <div className="flex-grow" />
         <Button size="sm" variant="ghost" onClick={() => setIsLogModalOpen(true)} title="View GameFlow validation log">View Log 📄</Button>
         <Button size="sm" variant="primary" onClick={handlePreviewClick}>Preview</Button>
         <Button size="sm" variant="secondary" onClick={handlePlayClick}>Play Game</Button>
       </div>
-      <div className="flex-grow relative overflow-hidden" style={{ background: '#1A101A' }}>
+      <div className="flex-grow relative" style={{ background: '#1A101A', overflow: 'auto' }}>
         <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
           <defs>
             <pattern id="gridPattern" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse"><path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/></pattern>
@@ -985,7 +1096,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       {previewMode && (
         <GameFlowPreviewModal
           isOpen={!!previewMode}
-          onClose={() => setPreviewMode(null)}
+          onClose={handleClosePreview}
           initialIsDynamic={previewMode === 'play'}
           graphData={gameFlowGraph}
           allAssets={allAssets}

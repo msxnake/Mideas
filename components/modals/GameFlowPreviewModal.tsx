@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
     GameFlowGraph,
     ProjectAsset,
@@ -224,6 +225,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
     useEffect(() => {
         if (isOpen) {
+            // Prevent body scroll when modal is open
+            document.body.style.overflow = 'hidden';
             modalRef.current?.focus();
             const startNode = graphData.nodes.find(n => n.type === 'Start');
             if (startNode) setCurrentNodeId(startNode.id);
@@ -237,7 +240,29 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             heroRef.current = null;
             pressedKeys.current.clear();
         } else {
-             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+            // Restore body scroll and cleanup
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.width = '';
+            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+
+            // Force layout recalculation after modal closes
+            setTimeout(() => {
+                // Fix parent containers that might have broken layout
+                const mainContainer = document.querySelector('.flex-grow.flex.overflow-hidden');
+                if (mainContainer instanceof HTMLElement) {
+                    // Force re-render by toggling display
+                    mainContainer.style.display = 'none';
+                    mainContainer.offsetHeight; // Force reflow
+                    mainContainer.style.display = '';
+                }
+
+                // Dispatch resize event
+                window.dispatchEvent(new Event('resize'));
+
+                // Force immediate reflow
+                document.body.offsetHeight;
+            }, 100);
         }
     }, [isOpen, graphData, gameFlowAssetName]);
 
@@ -1132,7 +1157,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
     const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
 
-    return (
+    const modalContent = (
         <div
             ref={modalRef}
             className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4 outline-none"
@@ -1210,4 +1235,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             </div>
         </div>
     );
+
+    // Render modal in a portal to avoid layout issues
+    return createPortal(modalContent, document.body);
 };
