@@ -596,3 +596,12 @@ export const CompilerIcon: React.FC<IconProps> = ({ className }) => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M17.25 8.25L21 12l-3.75 3.75" />
     </svg>
 );
+
+/**
+ * Scissors icon.
+ */
+export const ScissorsIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-5 h-5 ${className}`}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7.848 8.25l1.536.887M7.848 8.25a3 3 0 11-5.196-3 3 3 0 015.196 3zm1.536.887a2.165 2.165 0 011.083 1.839c.005.351.054.695.14 1.024M9.384 9.137l2.077 1.199m-7.615 3.414a3 3 0 105.196 3 3 3 0 00-5.196-3zm4.13 1.476a2.165 2.165 0 011.083-1.838l2.077-1.2m-2.077 1.2l9.076-5.237a2.165 2.165 0 012.166 3.748L12.283 15.5M21 7.5l-9.076 5.237" />
+  </svg>
+);

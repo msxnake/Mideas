@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowRestartNode, GameFlowWaypointNode, ContextMenuItem } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, TrashIcon, CodeIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, TrashIcon, CodeIcon, ArrowsPointingOutIcon, ScissorsIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
 import { GameFlowLogModal } from '../modals/GameFlowLogModalSimple';
@@ -359,6 +359,7 @@ const GameFlowNodeComponent: React.FC<{
 export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, onUpdate, allAssets, selectedNodeId, setSelectedNodeId, onShowContextMenu, msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, componentDefinitions, gameFlowAssetName }) => {
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromPortId: string; } | null>(null);
   const [isLinkingMode, setIsLinkingMode] = useState(false);
+  const [isCutMode, setIsCutMode] = useState(false);
   const [assetPickerState, setAssetPickerState] = useState<{ isOpen: boolean; onSelect: ((assetId: string) => void) | null; }>({ isOpen: false, onSelect: null });
   const svgRef = useRef<SVGSVGElement>(null);
   const [viewBox, setViewBox] = useState(`0 0 1000 700`);
@@ -492,6 +493,11 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     const newNodes = nodes.filter(n => !nodesToDelete.has(n.id));
     const newConnections = connections.filter(c => !nodesToDelete.has(c.from.nodeId) && !nodesToDelete.has(c.to.nodeId));
     onUpdate({ nodes: newNodes, connections: newConnections });
+  };
+
+  const handleDeleteConnection = (connectionId: string) => {
+    const newConnections = connections.filter(c => c.id !== connectionId);
+    onUpdate({ connections: newConnections });
   };
 
   const handleContextMenu = (e: React.MouseEvent, nodeId: string) => {
@@ -981,6 +987,15 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('Transition')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Transition</Button>
         <Button onClick={() => handleAddNode('Group')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Group</Button>
         <Button onClick={() => handleAddNode('Waypoint')} size="sm" variant="ghost" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add waypoint for visual organization">Waypoint</Button>
+        <Button
+          onClick={() => setIsCutMode(!isCutMode)}
+          size="sm"
+          variant={isCutMode ? "primary" : "ghost"}
+          icon={<ScissorsIcon className="w-4 h-4"/>}
+          title="Cut connections mode - click on connections to delete them"
+        >
+          {isCutMode ? "Cut Mode ON" : "Cut Connections"}
+        </Button>
         <Button onClick={handleAutoLayout} size="sm" variant="primary" icon={<ArrowsPointingOutIcon className="w-4 h-4"/>} title="Auto-arrange nodes in hierarchical layout">Auto Layout</Button>
         <Button onClick={handleResetView} size="sm" variant="ghost" title="Fit all nodes in view">Reset View</Button>
         <div className="flex-grow" />
@@ -1001,7 +1016,41 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               if(!fromNode || !toNode) return null;
               const p1 = getPortPosition(fromNode, conn.from.sourceId || 'out');
               const p2 = getPortPosition(toNode, 'in');
-              return <path key={conn.id} data-testid={`connection-${conn.id}`} d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y}`} stroke="hsl(150, 50%, 60%)" strokeWidth={1.5} fill="none" markerEnd="url(#arrowhead)" />
+
+              // Calculate control points for cubic Bezier curve (spline)
+              const dx = p2.x - p1.x;
+              const controlPointOffset = Math.abs(dx) * 0.5; // 50% of horizontal distance
+              const cp1 = { x: p1.x + controlPointOffset, y: p1.y };
+              const cp2 = { x: p2.x - controlPointOffset, y: p2.y };
+
+              return (
+                <g key={conn.id}>
+                  {/* Visible connection line */}
+                  <path
+                    data-testid={`connection-${conn.id}`}
+                    d={`M ${p1.x} ${p1.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p2.x} ${p2.y}`}
+                    stroke={isCutMode ? "hsl(0, 80%, 60%)" : "hsl(150, 50%, 60%)"}
+                    strokeWidth={1.5}
+                    fill="none"
+                    markerEnd="url(#arrowhead)"
+                    style={{ pointerEvents: 'none' }}
+                  />
+                  {/* Invisible wider hitbox for clicking */}
+                  <path
+                    d={`M ${p1.x} ${p1.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p2.x} ${p2.y}`}
+                    stroke="transparent"
+                    strokeWidth={12}
+                    fill="none"
+                    style={{ cursor: isCutMode ? 'pointer' : 'default', pointerEvents: isCutMode ? 'stroke' : 'none' }}
+                    onClick={(e) => {
+                      if (isCutMode) {
+                        e.stopPropagation();
+                        handleDeleteConnection(conn.id);
+                      }
+                    }}
+                  />
+                </g>
+              );
           })}
           {nodes.map(node => (
             <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} onEditTextNode={handleOpenTextNodeModal} onEditRestartNode={handleOpenRestartNodeModal} onEditTransitionNode={handleOpenTransitionNodeModal} isLinkingMode={isLinkingMode} gameFlowAssetName={gameFlowAssetName} />
