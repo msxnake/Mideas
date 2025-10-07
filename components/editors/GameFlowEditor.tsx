@@ -27,6 +27,9 @@ const getNodeHeight = (node: GameFlowNode | NodeToPlace): number => {
     if (node.type === 'Transition') {
         return 80; // Compact transition node
     }
+    if (node.type === 'IfThenElse') {
+        return 90; // Height for if-then-else node with THEN and ELSE ports
+    }
     return 100;
 };
 
@@ -143,6 +146,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'Restart' ? 'hsl(280, 30%, 40%)'
     : node.type === 'Transition' ? 'hsl(40, 60%, 40%)'
     : node.type === 'Group' ? 'hsl(270, 50%, 45%)'
+    : node.type === 'IfThenElse' ? 'hsl(30, 70%, 45%)'
     : node.type === 'Waypoint' ? 'hsl(0, 0%, 30%)'
     : 'hsl(260, 30%, 40%)';
 
@@ -155,6 +159,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'Restart' ? 'hsl(280, 50%, 70%)'
     : node.type === 'Transition' ? 'hsl(40, 70%, 60%)'
     : node.type === 'Group' ? 'hsl(270, 60%, 65%)'
+    : node.type === 'IfThenElse' ? 'hsl(30, 80%, 65%)'
     : node.type === 'Waypoint' ? 'hsl(0, 0%, 50%)'
     : 'hsl(260, 50%, 70%)';
 
@@ -184,6 +189,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'Restart' ? 'Reiniciar'
     : node.type === 'Transition' ? getTransitionEffectLabel((node as any).effect)
     : node.type === 'Group' ? (node as any).name || 'Group'
+    : node.type === 'IfThenElse' ? `${(node as any).variableName || 'Goal'} ${(node as any).operator || '=='} ${(node as any).compareValue || 'Completed'}`
     : node.type === 'Waypoint' ? '•'
     : node.id;
   const hasInput = node.type !== 'Start';
@@ -293,7 +299,7 @@ const GameFlowNodeComponent: React.FC<{
         </g>
       )}
 
-      {hasOutput && node.type !== 'Waypoint' && (
+      {hasOutput && node.type !== 'Waypoint' && node.type !== 'IfThenElse' && (
         <rect x={nodeWidth - PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />
       )}
 
@@ -311,6 +317,21 @@ const GameFlowNodeComponent: React.FC<{
           <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
             <Button onClick={() => onEditAppearance(node as GameFlowSubMenuNode)} size="xs">Edit Appearance</Button>
           </foreignObject>
+        </>
+      )}
+
+      {node.type === 'IfThenElse' && (
+        <>
+          {/* THEN port (top right) */}
+          <g>
+            <text x={nodeWidth - 15} y={25} textAnchor="end" fill="hsl(120, 100%, 70%)" fontSize="9px" fontWeight="bold" className="pixel-font select-none pointer-events-none">THEN</text>
+            <rect x={nodeWidth - PORT_SIZE/2} y={20 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(120, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'then'); }}/>
+          </g>
+          {/* ELSE port (bottom right) */}
+          <g>
+            <text x={nodeWidth - 15} y={nodeHeight - 15} textAnchor="end" fill="hsl(0, 100%, 70%)" fontSize="9px" fontWeight="bold" className="pixel-font select-none pointer-events-none">ELSE</text>
+            <rect x={nodeWidth - PORT_SIZE/2} y={nodeHeight - 20 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(0, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'else'); }}/>
+          </g>
         </>
       )}
 
@@ -710,7 +731,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       }
   };
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
-  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint') => {
+  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint' | 'IfThenElse') => {
     let newNodeData: NodeToPlace;
     if (type === 'SubMenu') {
         newNodeData = {
@@ -772,6 +793,14 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
             type: 'Group',
             name: 'New Group',
             gameFlowAssetId: undefined
+        };
+        setNodeToPlace(newNodeData);
+    } else if (type === 'IfThenElse') {
+        newNodeData = {
+            type: 'IfThenElse',
+            variableName: 'Goal',
+            compareValue: 'Completed',
+            operator: '=='
         };
         setNodeToPlace(newNodeData);
     } else if (type === 'Waypoint') {
@@ -982,6 +1011,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('SubMenu')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Submenu</Button>
         <Button onClick={() => handleAddNode('WorldLink')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add World Link</Button>
         <Button onClick={() => handleAddNode('Text')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Text</Button>
+        <Button onClick={() => handleAddNode('IfThenElse')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add conditional node (if-then-else)">If/Then/Else</Button>
         <Button onClick={() => handleAddNode('End')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add End</Button>
         <Button onClick={() => handleAddNode('Restart')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Restart</Button>
         <Button onClick={() => handleAddNode('Transition')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Transition</Button>

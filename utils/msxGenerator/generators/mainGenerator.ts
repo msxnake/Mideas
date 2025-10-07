@@ -150,7 +150,7 @@ ${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ?
     call execute_gameflow_start` :
 `    ; No GameFlow detected - load first available screen
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load first screen: ${analysis.screenMaps[0]?.name || 'default'}
-    call ${toRoutineLabel('load_screen_' + (analysis.screenMaps[0]?.name?.replace(/[^A-Z0-9]/g, '_') || 'DEFAULT'))}` : `    ; No screens detected - load default pattern`}`}
+    call ${toRoutineLabel('load_screen_' + (analysis.screenMaps[0]?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'DEFAULT'))}` : `    ; No screens detected - load default pattern`}`}
     ret
 
 ; ==================================================================
@@ -200,13 +200,9 @@ execute_start_node:
     jp execute_gameflow_node
 
 execute_world_link_node:
-    ; World link node - load the referenced world map
-${analysis.gameFlow && analysis.gameFlow.nodes ? `
-${analysis.gameFlow.nodes.filter(node => node.type === 'WorldLink' || (node as any).data?.worldMapId).map(node => `
-    ; Node ${node.id}: Links to world ${(node as any).data?.worldMapId || 'unknown'}
-    ; Load world map and execute its start screen
-    call ${toRoutineLabel('load_world_' + ((node as any).data?.worldMapId || 'default').replace(/[^A-Z0-9]/g, '_'))}`).join('\n')}` : `
-    ; No world link nodes detected`}
+    ; World link node - execution handled by GameFlow state machine
+    ; Each WorldLink node has its own implementation in gameflow.asm
+    ; This stub should never be called directly
     ret
 
 execute_screen_node:
@@ -223,7 +219,7 @@ execute_menu_node:
 load_default_screen:
     ; Fallback: load first available screen
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `
-    call ${toRoutineLabel('load_screen_' + (analysis.screenMaps[0]?.name?.replace(/[^A-Z0-9]/g, '_') || 'DEFAULT'))}` : `
+    call ${toRoutineLabel('load_screen_' + (analysis.screenMaps[0]?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'DEFAULT'))}` : `
     ; No screens available - show placeholder
     call show_no_content_message`}
     ret
@@ -249,6 +245,11 @@ show_no_content_message:
     ; Show message when no content is available
     ret
 
+show_end_screen:
+    ; Show end screen (Game Over, Victory, etc)
+    ; Implementation needs end screen rendering
+    ret
+
 ; ==================================================================
 ; GAMEFLOW NODE DATA STRUCTURES (Generated State Machine)
 ; ==================================================================
@@ -256,16 +257,6 @@ show_no_content_message:
 ${analysis.gameFlow ? generateGameFlowStateMachine(analysis.gameFlow, analysis) : `
 ; No GameFlow detected - using default screen loading
 `}
-
-${analysis.gameFlow && analysis.gameFlow.nodes ?
-analysis.gameFlow.nodes.map(node => `
-; Node: ${node.id} (${node.type || 'unknown'})
-gameflow_node_${node.id.replace(/[^a-zA-Z0-9]/g, '_')}:
-    db NODE_TYPE_${(node.type || 'unknown').toUpperCase()}
-    dw ${(node as any).data?.worldMapId ? `world_${(node as any).data.worldMapId.replace(/[^a-zA-Z0-9]/g, '_')}` : '0'}
-    ; Additional node data would go here
-`).join('\n') : `
-; No GameFlow nodes detected`}
 
 ; ==================================================================
 ; END OF MAIN PROGRAM

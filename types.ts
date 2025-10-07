@@ -1,5 +1,5 @@
 
-
+import React from 'react';
 import { StateMachine } from './statemachine.types';
 
 /** A string representing a color in hex format (e.g., "#RRGGBB"). */
@@ -899,7 +899,7 @@ export interface MainMenuConfig {
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
-export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint';
+export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse';
 
 /** The base interface for a game flow node. */
 export interface GameFlowNode_Base {
@@ -1004,8 +1004,19 @@ export interface GameFlowGroupNode extends GameFlowNode_Base {
   name: string; // Display name for the group
 }
 
+/** Represents a conditional node (if-then-else) in GameFlow. */
+export interface GameFlowIfThenElseNode extends GameFlowNode_Base {
+  type: 'IfThenElse';
+  /** The global variable to compare (e.g., "Goal") */
+  variableName: string;
+  /** The value to compare against (e.g., "Completed", "Failure") */
+  compareValue: string;
+  /** Optional: comparison operator (default: equals) */
+  operator?: '==' | '!=' | '>' | '<' | '>=' | '<=';
+}
+
 /** A union type for all possible game flow node types. */
-export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowTransitionNode | GameFlowGroupNode;
+export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode;
 
 /** Represents a connection between two nodes in the game flow graph. */
 export interface GameFlowConnection {

@@ -22,6 +22,7 @@ import { generateComponentsFile } from './generators/componentsGenerator';
 import { generateEntitiesFile } from './generators/entitiesGenerator';
 import { generateScreensFile } from './generators/screensGenerator';
 import { generateFontFile } from './generators/fontGenerator';
+import { generateWorldsFile } from './generators/worldGenerator';
 import { generateMenusFile } from './generators/menusGenerator';
 
 /**
@@ -125,6 +126,7 @@ export function generateModularASM(
     'colors.asm': generateColorsFile(analysis),
     'components.asm': generateComponentsFile(analysis),
     'entities.asm': generateEntitiesFile(analysis),
+    'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),
     'sprites.asm': generateSpritesFile(analysis),
     'font.asm': generateFontFile(analysis),
@@ -182,8 +184,8 @@ export function generateModularASMFromSummary(
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
-    'components.asm': generateComponentsFile(analysis),
     'entities.asm': generateEntitiesFile(analysis),
+    'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),
     'sprites.asm': generateSpritesFile(analysis),
     'font.asm': generateFontFile(analysis),

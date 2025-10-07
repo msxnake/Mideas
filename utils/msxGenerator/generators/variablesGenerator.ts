@@ -39,7 +39,21 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `prev_flow_state     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous game flow state\n`;
   currentAddress++;
 
+  // Mideas Global Variables Dictionary (reserved words)
+  code += `
+; ==================================================================
+; MIDEAS GLOBAL VARIABLES DICTIONARY (RESERVED WORDS)
+; ==================================================================
+`;
+  code += `global_var_goal     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Goal status (0=Failure, 1=Completed)\n`;
+  currentAddress++;
+
   // Frame counter (always useful)
+  code += `
+; ==================================================================
+; FRAME COUNTER
+; ==================================================================
+`;
   code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
   currentAddress += 2;
 
@@ -65,6 +79,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
 
     code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (${spriteCount} bytes)\n`;
     currentAddress += spriteCount;
+
+    // Interleaved sprite attribute buffer (Y, X, Pattern, Color per sprite)
+    code += `sprite_attributes   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interleaved sprite attributes (${spriteCount * 4} bytes)\n`;
+    currentAddress += spriteCount * 4;
   }
 
   // Screen system variables (only if screens exist)

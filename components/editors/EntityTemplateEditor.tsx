@@ -59,7 +59,31 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
 
         const templateFromList = entityTemplates.find(t => t.id === selectedTemplateId);
         if (templateFromList) {
-            setEditingTemplate({ ...templateFromList, components: templateFromList.components.map(c => ({...c, defaultValues: {...c.defaultValues}})) });
+            // Limpiar defaultValues redundantes al cargar (para proyectos antiguos)
+            const cleanedComponents = templateFromList.components.map(c => {
+              const componentDef = componentDefinitions.find(cd => cd.id === c.definitionId);
+              if (!componentDef) return { ...c, defaultValues: { ...c.defaultValues } };
+
+              // Crear nuevos defaultValues solo con valores diferentes del default
+              const cleanedDefaultValues: Record<string, any> = {};
+              Object.entries(c.defaultValues).forEach(([key, value]) => {
+                const propertyDef = componentDef.properties.find(p => p.name === key);
+                const definitionDefault = propertyDef?.defaultValue;
+
+                // Normalizar para comparación (manejar diferencias de tipo string/number/boolean)
+                const normalizedValue = String(value);
+                const normalizedDefault = String(definitionDefault);
+
+                // Solo mantener si es diferente del default de la definición
+                if (normalizedValue !== normalizedDefault) {
+                  cleanedDefaultValues[key] = value;
+                }
+              });
+
+              return { ...c, defaultValues: cleanedDefaultValues };
+            });
+
+            setEditingTemplate({ ...templateFromList, components: cleanedComponents });
         } else {
              if (!(editingTemplate && editingTemplate.id === selectedTemplateId)) {
                 setEditingTemplate(null);
@@ -69,7 +93,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
         setEditingTemplate(null);
     }
      setExpandedComponents({});
-  }, [selectedTemplateId, entityTemplates]);
+  }, [selectedTemplateId, entityTemplates, componentDefinitions]);
 
 
   const handleSelectTemplate = (id: string) => {
@@ -100,7 +124,26 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     if (editingTemplate && editingTemplate.components) {
       const newComponents = editingTemplate.components.map(c => {
         if (c.definitionId === componentDefId) {
-          return { ...c, defaultValues: { ...c.defaultValues, [propertyName]: value } };
+          const componentDef = componentDefinitions.find(cd => cd.id === componentDefId);
+          const propertyDef = componentDef?.properties.find(p => p.name === propertyName);
+          const definitionDefault = propertyDef?.defaultValue;
+
+          // Solo guardar el valor si es diferente del default de la definición
+          const newDefaultValues = { ...c.defaultValues };
+
+          // Normalizar para comparación (manejar diferencias de tipo string/number/boolean)
+          const normalizedValue = String(value);
+          const normalizedDefault = String(definitionDefault);
+
+          if (normalizedValue === normalizedDefault || (value === '' && definitionDefault === undefined)) {
+            // Si el valor es igual al default, eliminarlo de defaultValues
+            delete newDefaultValues[propertyName];
+          } else {
+            // Si es diferente, guardarlo
+            newDefaultValues[propertyName] = value;
+          }
+
+          return { ...c, defaultValues: newDefaultValues };
         }
         return c;
       });
@@ -113,15 +156,12 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
       const componentDef = componentDefinitions.find(cd => cd.id === componentDefId);
       if (!componentDef) return;
 
+      // Solo guardar defaultValues vacío - los valores reales vienen de la definición del componente
+      // Solo se guardarán valores cuando el usuario los modifique explícitamente
       const newTemplateComponent: EntityTemplateComponent = {
         definitionId: componentDefId,
-        defaultValues: {}, 
+        defaultValues: {},
       };
-      componentDef.properties.forEach(prop => {
-        if (prop.defaultValue !== undefined) {
-            newTemplateComponent.defaultValues[prop.name] = prop.defaultValue;
-        }
-      });
 
       setEditingTemplate(prev => ({
         ...prev,

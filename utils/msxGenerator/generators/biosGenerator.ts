@@ -96,36 +96,6 @@ BAKCLR  EQU #F3E9        ; Background color
 BDRCLR  EQU #F3EA        ; Border color
 isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 
-; ==================================================================
-; UTILITY FUNCTIONS
-; ==================================================================
-
-fillscreen:
-    ; Fill screen with default pattern
-    call CLS
-    ret
-
-check_if_60hz:
-    ; Check if system is 60Hz or 50Hz
-    ; Return A=0 for 50Hz, A=1 for 60Hz
-    ld a, 1                 ; Default to 60Hz
-    ret
-
-random_seed_update:
-    ; Update random seed
-    ; Simple placeholder implementation
-    ret
-
-init_font_system:
-    ; Initialize custom font system
-    ; For BasicEnemy, use default MSX font
-    ret
-
-print_string_screen2:
-    ; Print string using custom font in Screen 2
-    ; HL = string, DE = VRAM position
-    ; Stub function - text rendering handled by font.asm if needed
-    ret
 
 ; ==================================================================
 ; END OF BIOS DEFINITIONS

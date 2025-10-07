@@ -88,7 +88,7 @@ NODE_TYPE_UNKNOWN      EQU 255  ; Unknown/unsupported node type
 ; ==================================================================
 MAX_SPRITES     EQU 32   ; Máximo sprites por pantalla
 SPRITE_SIZE     EQU 8    ; 8x8 o 16x16 (según modo)
-SPRITE_INVISIBLE EQU #D1 ; Y=209 (sprite fuera de pantalla)
+
 
 ; ==================================================================
 ; MSX COLORS
@@ -128,6 +128,14 @@ STICK_CENTER EQU 0
 ; Trigger Constants
 TRIG_A      EQU #10      ; Trigger A (Fire)
 TRIG_B      EQU #20      ; Trigger B (MSX2+)
+
+; ==================================================================
+; MIDEAS GLOBAL VARIABLES - RESERVED VALUES
+; ==================================================================
+
+; Goal Variable Values (reserved words)
+GOAL_FAILURE            EQU 0    ; Goal = "Failure"
+GOAL_COMPLETED          EQU 1    ; Goal = "Completed"
 
 ; ==================================================================
 ; GAME FLOW STATES (PROJECT-SPECIFIC)

@@ -1,138 +1,21 @@
 /**
  * @fileoverview Components Generator - ECS component systems
  * Generates components.asm with Position, Sprite, Movement, Collision, Input, and Behavior systems
+ * NOW WITH INTELLIGENT FILTERING - Only generates code for components actually used
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componentAnalyzer';
+
+// ============================================================================
+// HELPER FUNCTIONS - INDIVIDUAL COMPONENT SYSTEMS
+// ============================================================================
 
 /**
- * Generate ECS component systems file (components.asm)
- *
- * Implements a complete Entity-Component-System architecture based on Mideas React.js patterns.
- * Includes Position, Sprite, Movement, Collision, Input, and Behavior component systems.
- *
- * @param analysis - Project analysis with entities and tiles
- * @returns ASM code string with ECS component systems
+ * Generate Position Component System
  */
-export function generateComponentsFile(analysis: ProjectAnalysis): string {
-  // Skip ECS system if no entities in project
-  if (!analysis.entities || analysis.entities.length === 0) {
-    return `; ==================================================================
-; GAME COMPONENT SYSTEMS (SKIPPED - NO ENTITIES DETECTED)
-; File: components.asm
-; ==================================================================
-
-; No entities detected in project - ECS system not needed
-; This saves ~650 lines of unused component management code
-
-; Minimal stub functions for compatibility
-init_components:
-    ret
-
-update_input_component:
-    ret
-
-update_position_component:
-    ret
-
-update_movement_component:
-    ret
-
-update_collision_component:
-    ret
-
-update_sprite_component:
-    ret
-
-; ==================================================================
-; END OF COMPONENTS (MINIMAL VERSION)
-; ==================================================================
-`;
-  }
-
-  let code = `; ==================================================================
-; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
-; File: components.asm
-; Description: Component systems based on Mideas React.js architecture
-; Implements Position, Sprite, Movement, Collision, Input, and Behavior systems
-; ==================================================================
-
-; ==================================================================
-; COMPONENT TYPE CONSTANTS (Based on ComponentDefinition analysis)
-; ==================================================================
-
-; Core Components (always present)
-COMP_POSITION   EQU 0    ; Position component (x, y coordinates)
-COMP_SPRITE     EQU 1    ; Sprite rendering component
-COMP_MOVEMENT   EQU 2    ; Movement/velocity component
-COMP_COLLISION  EQU 3    ; Collision detection component
-COMP_INPUT      EQU 4    ; Input handling component
-COMP_BEHAVIOR   EQU 5    ; AI/Logic behavior component
-COMP_HEALTH     EQU 6    ; Health/damage component
-COMP_ANIMATION  EQU 7    ; Animation state component
-
-; Component flags for entity filtering
-COMP_MASK_POSITION   EQU #01  ; Binary: 00000001
-COMP_MASK_SPRITE     EQU #02  ; Binary: 00000010
-COMP_MASK_MOVEMENT   EQU #04  ; Binary: 00000100
-COMP_MASK_COLLISION  EQU #08  ; Binary: 00001000
-COMP_MASK_INPUT      EQU #10  ; Binary: 00010000
-COMP_MASK_BEHAVIOR   EQU #20  ; Binary: 00100000
-COMP_MASK_HEALTH     EQU #40  ; Binary: 01000000
-COMP_MASK_ANIMATION  EQU #80  ; Binary: 10000000
-
-; ==================================================================
-; COMPONENT DATA STRUCTURES (Entity-Component arrays)
-; ==================================================================
-
-; Position Component Data (32 entities max)
-entity_x_pos        EQU sprite_x_pos      ; Reuse sprite positions
-entity_y_pos        EQU sprite_y_pos      ; (32 bytes each)
-
-; Movement Component Data
-entity_vel_x        EQU temp_word_1       ; X velocity storage (signed 8-bit)
-entity_vel_y        EQU temp_word_2       ; Y velocity storage (signed 8-bit)
-
-; Component masks for each entity (which components are active)
-entity_comp_masks   EQU temp_byte_1       ; Component flags per entity (32 bytes)
-
-; Animation Component Data
-entity_anim_frame   EQU temp_byte_2       ; Current animation frame (32 bytes)
-
-; ==================================================================
-; CORE ECS SYSTEM FUNCTIONS
-; ==================================================================
-
-init_components:
-    ; Initialize all component systems (based on Mideas initialization)
-
-    ; Clear all component masks
-    ld hl, entity_comp_masks
-    ld de, entity_comp_masks+1
-    ld bc, 31
-    ld (hl), 0
-    ldir
-
-    ; Initialize position system
-    call init_position_system
-
-    ; Initialize sprite system
-    call init_sprite_system
-
-    ; Initialize movement system
-    call init_movement_system
-
-    ; Initialize collision system
-    call init_collision_system
-
-    ; Initialize input system
-    call init_input_system
-
-    ; Initialize behavior system
-    call init_behavior_system
-
-    ret
-
+function generatePositionSystem(): string {
+  return `
 ; ==================================================================
 ; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
 ; ==================================================================
@@ -176,7 +59,14 @@ position_next_entity:
     inc hl                     ; Next entity
     djnz position_update_loop
     ret
+`;
+}
 
+/**
+ * Generate Sprite Component System
+ */
+function generateSpriteSystem(analysis: ProjectAnalysis): string {
+  return `
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
 ; ==================================================================
@@ -230,7 +120,14 @@ sprite_next_entity:
     ; Update all sprites to VRAM
     call update_sprites_to_vram
     ret
+`;
+}
 
+/**
+ * Generate Movement Component System
+ */
+function generateMovementSystem(): string {
+  return `
 ; ==================================================================
 ; MOVEMENT COMPONENT SYSTEM (Based on movement physics)
 ; ==================================================================
@@ -260,7 +157,37 @@ movement_next_entity:
     inc hl                     ; Next entity
     djnz movement_update_loop
     ret
+`;
+}
 
+/**
+ * Generate Collision Component System
+ */
+function generateCollisionSystem(analysis: ProjectAnalysis): string {
+  // Detect tile size from analysis
+  const tileWidth = analysis.tiles && analysis.tiles.length > 0 ? analysis.tiles[0].width : 16;
+  const tileHeight = analysis.tiles && analysis.tiles.length > 0 ? analysis.tiles[0].height : 16;
+  const tilesPerRow = Math.floor(256 / tileWidth);
+  const tilesPerColumn = Math.floor(192 / tileHeight);
+
+  // Calculate shift amount for division (only if power of 2)
+  const xShiftAmount = Number.isInteger(Math.log2(tileWidth)) ? Math.log2(tileWidth) : 4;
+  const yShiftAmount = Number.isInteger(Math.log2(tileHeight)) ? Math.log2(tileHeight) : 4;
+
+  const xDivisionCode = Array.from({length: xShiftAmount},
+    (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i+1)}`).join('\n');
+
+  const yDivisionCode = Array.from({length: yShiftAmount},
+    (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i+1)}`).join('\n');
+
+  const tileInfo = analysis.tiles && analysis.tiles.length > 0
+    ? `; Project tile analysis: ${analysis.tiles.map(t => `${t.width}x${t.height}`).join(', ')}
+    ; Using first tile as reference: ${tileWidth}x${tileHeight}
+    ; Convert X to tile column (divide by ${tileWidth})`
+    : `; No tiles detected - using default 16x16
+    ; Convert X to tile column (divide by 16)`;
+
+  return `
 ; ==================================================================
 ; COLLISION COMPONENT SYSTEM (Based on ScreenEditor collision detection)
 ; ==================================================================
@@ -349,43 +276,22 @@ check_tile_collision:
     ; DYNAMIC TILE SIZE CONVERSION
     ; TODO: This should be calculated from actual screen map tile sizes
     ; For now, detect most common tile size in project
-${analysis.tiles && analysis.tiles.length > 0 ? `
-    ; Project tile analysis: ${analysis.tiles.map(t => `${t.width}x${t.height}`).join(', ')}
-    ; Using first tile as reference: ${analysis.tiles[0].width}x${analysis.tiles[0].height}
-    ; Convert X to tile column (divide by ${analysis.tiles[0].width})` : `
-    ; No tiles detected - using default 16x16
-    ; Convert X to tile column (divide by 16)`}
+${tileInfo}
 
-${analysis.tiles && analysis.tiles.length > 0 && analysis.tiles[0].width >= 8 && Number.isInteger(Math.log2(analysis.tiles[0].width)) ? `
-    ; Divide by ${analysis.tiles[0].width} (${Math.log2(analysis.tiles[0].width)} shifts)
-${Array.from({length: Math.log2(analysis.tiles[0].width)}, (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i+1)}`).join('\n')}
-` : `
-    ; Default 16px tiles (4 shifts)
-    srl a                      ; A = X / 2
-    srl a                      ; A = X / 4
-    srl a                      ; A = X / 8
-    srl a                      ; A = X / 16
-`}    ld c, a                    ; C = tile column
+${xDivisionCode}
+    ld c, a                    ; C = tile column
 
-${analysis.tiles && analysis.tiles.length > 0 && analysis.tiles[0].height >= 8 && Number.isInteger(Math.log2(analysis.tiles[0].height)) ? `
-    ; Convert Y to tile row (divide by ${analysis.tiles[0].height})
+    ; Convert Y to tile row (divide by ${tileHeight})
     ld a, b
-${Array.from({length: Math.log2(analysis.tiles[0].height)}, (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i+1)}`).join('\n')}
-` : `
-    ; Default 16px tiles (4 shifts)
-    ld a, b
-    srl a                      ; A = Y / 2
-    srl a                      ; A = Y / 4
-    srl a                      ; A = Y / 8
-    srl a                      ; A = Y / 16
-`}    ld b, a                    ; B = tile row
+${yDivisionCode}
+    ld b, a                    ; B = tile row
 
     ; Check if position is within valid tile map
     ld a, c
-    cp ${analysis.tiles && analysis.tiles.length > 0 ? Math.floor(256 / analysis.tiles[0].width) : 16}                      ; Screen width in tiles
+    cp ${tilesPerRow}                      ; Screen width in tiles
     jr nc, no_tile_collision
     ld a, b
-    cp ${analysis.tiles && analysis.tiles.length > 0 ? Math.floor(192 / analysis.tiles[0].height) : 12}                      ; Screen height in tiles
+    cp ${tilesPerColumn}                      ; Screen height in tiles
     jr nc, no_tile_collision
 
     ; Get tile at position (simplified - would read from behavior map)
@@ -505,7 +411,14 @@ get_behavior_tile:
     ; For now, return 0 (all passable)
     ld a, 0
     ret
+`;
+}
 
+/**
+ * Generate Input Component System
+ */
+function generateInputSystem(): string {
+  return `
 ; ==================================================================
 ; INPUT COMPONENT SYSTEM (Based on input handling)
 ; ==================================================================
@@ -619,7 +532,14 @@ input_next_entity:
     inc c                      ; Next entity index
     djnz input_update_loop
     ret
+`;
+}
 
+/**
+ * Generate Behavior Component System
+ */
+function generateBehaviorSystem(): string {
+  return `
 ; ==================================================================
 ; BEHAVIOR COMPONENT SYSTEM (Based on BehaviorEditor logic)
 ; ==================================================================
@@ -645,7 +565,112 @@ behavior_next_entity:
     inc hl                     ; Next entity
     djnz behavior_update_loop
     ret
+`;
+}
 
+/**
+ * Generate Health Component System
+ */
+function generateHealthSystem(): string {
+  return `
+; ==================================================================
+; HEALTH COMPONENT SYSTEM
+; ==================================================================
+
+init_health_system:
+    ; Initialize health system
+    ; Set default health values
+    ld hl, entity_health
+    ld de, entity_health+1
+    ld bc, 31
+    ld (hl), 100               ; Default health = 100
+    ldir
+    ret
+
+update_health_component:
+    ; Update health states (damage, healing, death)
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+    ld ix, entity_health       ; Health data
+
+health_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_HEALTH       ; Check if has health component
+    jr z, health_next_entity   ; Skip if no health component
+
+    ; Check if entity is dead
+    ld a, (ix+0)               ; Get health value
+    or a                       ; Check if 0
+    jr z, health_entity_dead   ; Handle death
+
+    ; Entity is alive - continue
+    jr health_next_entity
+
+health_entity_dead:
+    ; Handle entity death
+    ; TODO: Trigger death animation, remove entity, etc.
+
+health_next_entity:
+    inc hl                     ; Next entity
+    inc ix                     ; Next health value
+    djnz health_update_loop
+    ret
+`;
+}
+
+/**
+ * Generate Animation Component System
+ */
+function generateAnimationSystem(): string {
+  return `
+; ==================================================================
+; ANIMATION COMPONENT SYSTEM
+; ==================================================================
+
+init_animation_system:
+    ; Initialize animation system
+    ; Clear animation frames
+    ld hl, entity_anim_frame
+    ld de, entity_anim_frame+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ret
+
+update_animation_component:
+    ; Update sprite animations
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+    ld ix, entity_anim_frame   ; Animation frame data
+
+anim_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_ANIMATION    ; Check if has animation component
+    jr z, anim_next_entity     ; Skip if no animation component
+
+    ; Advance animation frame
+    ld a, (ix+0)               ; Get current frame
+    inc a                      ; Next frame
+    cp 4                       ; Check if >= max frames (TODO: make dynamic)
+    jr c, anim_store_frame     ; If < max, store it
+    xor a                      ; Reset to frame 0
+
+anim_store_frame:
+    ld (ix+0), a               ; Store new frame
+
+anim_next_entity:
+    inc hl                     ; Next entity
+    inc ix                     ; Next animation data
+    djnz anim_update_loop
+    ret
+`;
+}
+
+/**
+ * Generate entity management helper functions
+ */
+function generateEntityManagement(): string {
+  return `
 ; ==================================================================
 ; ENTITY MANAGEMENT FUNCTIONS (Based on EntityTemplate system)
 ; ==================================================================
@@ -696,7 +721,325 @@ init_entity_sprite:
     add hl, de
     ld (hl), 15                ; White color
     ret
+`;
+}
 
+/**
+ * Generate init_components function with conditional initialization
+ */
+function generateInitComponents(usage: ComponentUsageAnalysis): string {
+  const usedComponents = usage.usedComponents;
+
+  let code = `init_components:
+    ; Initialize component systems (OPTIMIZED - only used components)
+    ; Used: ${Array.from(usedComponents).join(', ')}
+
+    ; Clear all component masks
+    ld hl, entity_comp_masks
+    ld de, entity_comp_masks+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+`;
+
+  if (usedComponents.has('Position')) {
+    code += `    ; Initialize position system
+    call init_position_system
+`;
+  }
+
+  if (usedComponents.has('Sprite')) {
+    code += `    ; Initialize sprite system
+    call init_sprite_system
+`;
+  }
+
+  if (usedComponents.has('Movement')) {
+    code += `    ; Initialize movement system
+    call init_movement_system
+`;
+  }
+
+  if (usedComponents.has('Collision')) {
+    code += `    ; Initialize collision system
+    call init_collision_system
+`;
+  }
+
+  if (usedComponents.has('Input')) {
+    code += `    ; Initialize input system
+    call init_input_system
+`;
+  }
+
+  if (usedComponents.has('Behavior')) {
+    code += `    ; Initialize behavior system
+    call init_behavior_system
+`;
+  }
+
+  if (usedComponents.has('Health')) {
+    code += `    ; Initialize health system
+    call init_health_system
+`;
+  }
+
+  if (usedComponents.has('Animation')) {
+    code += `    ; Initialize animation system
+    call init_animation_system
+`;
+  }
+
+  code += `
+    ret
+`;
+
+  return code;
+}
+
+// ============================================================================
+// MAIN GENERATOR FUNCTION
+// ============================================================================
+
+/**
+ * Generate ECS component systems file (components.asm)
+ *
+ * Implements a complete Entity-Component-System architecture based on Mideas React.js patterns.
+ * NOW WITH INTELLIGENT FILTERING - Only generates code for components actually used.
+ *
+ * @param analysis - Project analysis with entities and tiles
+ * @returns ASM code string with ECS component systems
+ */
+export function generateComponentsFile(analysis: ProjectAnalysis): string {
+  // Skip ECS system if no entities in project
+  if (!analysis.entities || analysis.entities.length === 0) {
+    return `; ==================================================================
+; GAME COMPONENT SYSTEMS (SKIPPED - NO ENTITIES DETECTED)
+; File: components.asm
+; ==================================================================
+
+; No entities detected in project - ECS system not needed
+; This saves ~650 lines of unused component management code
+
+; Minimal stub functions for compatibility
+init_components:
+    ret
+
+update_input_component:
+    ret
+
+update_position_component:
+    ret
+
+update_movement_component:
+    ret
+
+update_collision_component:
+    ret
+
+update_sprite_component:
+    ret
+
+; ==================================================================
+; END OF COMPONENTS (MINIMAL VERSION)
+; ==================================================================
+`;
+  }
+
+  // INTELLIGENT FILTERING: Analyze which components are actually used
+  const componentUsage: ComponentUsageAnalysis = analyzeComponentUsage(analysis);
+  const usedComponents = componentUsage.usedComponents;
+
+  console.log('🎯 Generating optimized components.asm...');
+  console.log(`  - Active entities: ${componentUsage.activeEntities.length}`);
+  console.log(`  - Used components: ${Array.from(usedComponents).join(', ')}`);
+  console.log(`  - Filtered out: ${8 - usedComponents.size} unused components`);
+
+  // Build the complete ASM file
+  let code = `; ==================================================================
+; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
+; File: components.asm
+; Description: Component systems based on Mideas React.js architecture
+; Implements Position, Sprite, Movement, Collision, Input, and Behavior systems
+; ==================================================================
+;
+; INTELLIGENT FILTERING ACTIVE:
+;   Active entities: ${componentUsage.activeEntities.length}
+;   Used components: ${Array.from(usedComponents).join(', ')}
+;   Filtered out: ${8 - usedComponents.size} unused component systems
+;
+; ==================================================================
+
+; ==================================================================
+; COMPONENT TYPE CONSTANTS (Based on ComponentDefinition analysis)
+; ==================================================================
+
+; Core Components (always present)
+COMP_POSITION   EQU 0    ; Position component (x, y coordinates)
+COMP_SPRITE     EQU 1    ; Sprite rendering component
+COMP_MOVEMENT   EQU 2    ; Movement/velocity component
+COMP_COLLISION  EQU 3    ; Collision detection component
+COMP_INPUT      EQU 4    ; Input handling component
+COMP_BEHAVIOR   EQU 5    ; AI/Logic behavior component
+COMP_HEALTH     EQU 6    ; Health/damage component
+COMP_ANIMATION  EQU 7    ; Animation state component
+
+; Component flags for entity filtering
+COMP_MASK_POSITION   EQU #01  ; Binary: 00000001
+COMP_MASK_SPRITE     EQU #02  ; Binary: 00000010
+COMP_MASK_MOVEMENT   EQU #04  ; Binary: 00000100
+COMP_MASK_COLLISION  EQU #08  ; Binary: 00001000
+COMP_MASK_INPUT      EQU #10  ; Binary: 00010000
+COMP_MASK_BEHAVIOR   EQU #20  ; Binary: 00100000
+COMP_MASK_HEALTH     EQU #40  ; Binary: 01000000
+COMP_MASK_ANIMATION  EQU #80  ; Binary: 10000000
+
+; ==================================================================
+; COMPONENT DATA STRUCTURES (Entity-Component arrays)
+; ==================================================================
+
+; Position Component Data (32 entities max)
+entity_x_pos        EQU sprite_x_pos      ; Reuse sprite positions
+entity_y_pos        EQU sprite_y_pos      ; (32 bytes each)
+
+; Movement Component Data
+entity_vel_x        EQU temp_word_1       ; X velocity storage (signed 8-bit)
+entity_vel_y        EQU temp_word_2       ; Y velocity storage (signed 8-bit)
+
+; Component masks for each entity (which components are active)
+entity_comp_masks   EQU temp_byte_1       ; Component flags per entity (32 bytes)
+
+; Animation Component Data
+entity_anim_frame   EQU temp_byte_2       ; Current animation frame (32 bytes)
+
+; Health Component Data
+entity_health       EQU temp_byte_3       ; Health value per entity (32 bytes)
+
+; ==================================================================
+; CORE ECS SYSTEM FUNCTIONS
+; ==================================================================
+
+${generateInitComponents(componentUsage)}
+`;
+
+  // Generate Position System (if used)
+  if (usedComponents.has('Position')) {
+    code += generatePositionSystem();
+  } else {
+    code += `
+; Position system filtered out (not used)
+init_position_system:
+    ret
+
+update_position_component:
+    ret
+`;
+  }
+
+  // Generate Sprite System (if used)
+  if (usedComponents.has('Sprite')) {
+    code += generateSpriteSystem(analysis);
+  } else {
+    code += `
+; Sprite system filtered out (not used)
+init_sprite_system:
+    ret
+
+update_sprite_component:
+    ret
+`;
+  }
+
+  // Generate Movement System (if used)
+  if (usedComponents.has('Movement')) {
+    code += generateMovementSystem();
+  } else {
+    code += `
+; Movement system filtered out (not used)
+init_movement_system:
+    ret
+
+update_movement_component:
+    ret
+`;
+  }
+
+  // Generate Collision System (if used)
+  if (usedComponents.has('Collision')) {
+    code += generateCollisionSystem(analysis);
+  } else {
+    code += `
+; Collision system filtered out (not used)
+init_collision_system:
+    ret
+
+update_collision_component:
+    ret
+`;
+  }
+
+  // Generate Input System (if used)
+  if (usedComponents.has('Input')) {
+    code += generateInputSystem();
+  } else {
+    code += `
+; Input system filtered out (not used)
+init_input_system:
+    ret
+
+update_input_component:
+    ret
+`;
+  }
+
+  // Generate Behavior System (if used)
+  if (usedComponents.has('Behavior')) {
+    code += generateBehaviorSystem();
+  } else {
+    code += `
+; Behavior system filtered out (not used)
+init_behavior_system:
+    ret
+
+update_behavior_component:
+    ret
+`;
+  }
+
+  // Generate Health System (if used)
+  if (usedComponents.has('Health')) {
+    code += generateHealthSystem();
+  } else {
+    code += `
+; Health system filtered out (not used)
+init_health_system:
+    ret
+
+update_health_component:
+    ret
+`;
+  }
+
+  // Generate Animation System (if used)
+  if (usedComponents.has('Animation')) {
+    code += generateAnimationSystem();
+  } else {
+    code += `
+; Animation system filtered out (not used)
+init_animation_system:
+    ret
+
+update_animation_component:
+    ret
+`;
+  }
+
+  // Always include entity management helpers
+  code += generateEntityManagement();
+
+  // End of file
+  code += `
 ; ==================================================================
 ; END OF COMPONENT SYSTEMS
 ; ==================================================================

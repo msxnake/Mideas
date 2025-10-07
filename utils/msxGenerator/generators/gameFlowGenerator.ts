@@ -67,7 +67,12 @@ ${nodeLabel}:
     call init_components
     call init_entities
     call ${toRoutineLabel('load_world_' + (worldAssetId || 'default'))}
-    jp game_loop
+    ; CRITICAL: Set game flow state and update sprites to VRAM
+    ld a, FLOW_STATE_GAME
+    ld (current_flow_state), a
+    call update_sprites_to_vram   ; Copy sprite attributes to VRAM
+
+    jp main_loop
 `;
           break;
 
@@ -146,6 +151,100 @@ ${nodeLabel}:
     jp execute_gameflow_node
 `;
           }
+          break;
+
+        case 'IfThenElse':
+          // Find THEN and ELSE connections (using sourceId to differentiate)
+          const thenConnection = gameFlow.connections?.find(
+            (c: any) => (c.from?.nodeId === node.id || c.from === node.id) &&
+                       (c.from?.sourceId === 'then' || !c.from?.sourceId) // Default to THEN if no sourceId
+          );
+          const elseConnection = gameFlow.connections?.find(
+            (c: any) => (c.from?.nodeId === node.id || c.from === node.id) &&
+                       c.from?.sourceId === 'else'
+          );
+
+          const thenNodeId = thenConnection ? (thenConnection.to?.nodeId || thenConnection.to) : null;
+          const elseNodeId = elseConnection ? (elseConnection.to?.nodeId || elseConnection.to) : null;
+
+          const thenLabel = thenNodeId ? `gameflow_node_${thenNodeId.replace(/[^a-zA-Z0-9]/g, '_')}` : null;
+          const elseLabel = elseNodeId ? `gameflow_node_${elseNodeId.replace(/[^a-zA-Z0-9]/g, '_')}` : null;
+
+          // Generate variable name mapping (convert "Goal" to "global_var_goal")
+          const variableName = `global_var_${node.variableName?.toLowerCase() || 'goal'}`;
+
+          // Generate compare value mapping (convert "Completed" to "GOAL_COMPLETED")
+          let compareConstant = '';
+          const compareValueUpper = (node.compareValue || 'Completed').toUpperCase();
+          const varNameUpper = (node.variableName || 'Goal').toUpperCase();
+          compareConstant = `${varNameUpper}_${compareValueUpper}`;
+
+          // Generate comparison operator (default to ==)
+          const operator = node.operator || '==';
+
+          code += `
+${nodeLabel}:
+    ; IfThenElse Node - Compare ${node.variableName || 'Goal'} ${operator} ${node.compareValue || 'Completed'}
+    ld a, (${variableName})     ; Load global variable ${node.variableName || 'Goal'}
+    cp ${compareConstant}        ; Compare with ${node.compareValue || 'Completed'}
+`;
+
+          // Generate conditional jump based on operator
+          if (operator === '==') {
+            if (thenLabel) {
+              code += `    jp z, ${thenLabel}       ; If equal, jump to THEN branch\n`;
+            }
+            if (elseLabel) {
+              code += `    jp ${elseLabel}          ; Otherwise, jump to ELSE branch\n`;
+            } else {
+              code += `    ret                      ; No ELSE branch, return\n`;
+            }
+          } else if (operator === '!=') {
+            if (thenLabel) {
+              code += `    jp nz, ${thenLabel}      ; If not equal, jump to THEN branch\n`;
+            }
+            if (elseLabel) {
+              code += `    jp ${elseLabel}          ; Otherwise, jump to ELSE branch\n`;
+            } else {
+              code += `    ret                      ; No ELSE branch, return\n`;
+            }
+          } else if (operator === '>') {
+            // For >, use carry flag (CP sets carry if A < operand)
+            if (elseLabel) {
+              code += `    jp c, ${elseLabel}       ; If A < value (carry set), ELSE\n`;
+            }
+            if (thenLabel) {
+              code += `    jp z, ${elseLabel || 'if_then_else_skip'}       ; If A == value (zero set), ELSE\n`;
+              code += `    jp ${thenLabel}          ; Otherwise A > value, THEN\n`;
+            }
+          } else if (operator === '<') {
+            if (thenLabel) {
+              code += `    jp c, ${thenLabel}       ; If A < value (carry set), THEN\n`;
+            }
+            if (elseLabel) {
+              code += `    jp ${elseLabel}          ; Otherwise, ELSE\n`;
+            }
+          } else if (operator === '>=') {
+            if (elseLabel) {
+              code += `    jp c, ${elseLabel}       ; If A < value (carry set), ELSE\n`;
+            }
+            if (thenLabel) {
+              code += `    jp ${thenLabel}          ; Otherwise A >= value, THEN\n`;
+            }
+          } else if (operator === '<=') {
+            if (thenLabel) {
+              code += `    jp z, ${thenLabel}       ; If A == value, THEN\n`;
+              code += `    jp c, ${thenLabel}       ; If A < value, THEN\n`;
+            }
+            if (elseLabel) {
+              code += `    jp ${elseLabel}          ; Otherwise A > value, ELSE\n`;
+            }
+          }
+
+          if (!thenLabel && !elseLabel) {
+            code += `    ret                      ; No connections, return\n`;
+          }
+          code += `if_then_else_skip:\n    ret\n`;
           break;
 
         default:

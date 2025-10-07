@@ -200,13 +200,13 @@ exit_game:
 ; ==================================================================
 
 txt_title:
-    DB "GAME TITLE", 0
+    db "GAME TITLE", 0
 
 txt_start:
-    DB "START GAME", 0
+    db "START GAME", 0
 
 txt_exit:
-    DB "EXIT", 0
+    db "EXIT", 0
 
 ; ==================================================================
 ; TEXT PRINTING FUNCTION

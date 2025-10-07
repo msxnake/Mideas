@@ -217,7 +217,7 @@ load_screen_default:
         code += `SCREEN_${screenName}_${screenIndex}_LAYOUT:
     ; Screen data for ${screen.name}
     ; TODO: Add actual screen map data
-    DB 0, 0, 0, 0, 0, 0, 0, 0
+    db 0, 0, 0, 0, 0, 0, 0, 0
 
 `;
       }
@@ -248,6 +248,50 @@ load_screen:
 
 `;
     });
+
+    // Generate worldmap loading functions (for GameFlow WorldLink nodes)
+    const worldmaps = (analysis as any).worldmaps || [];
+    if (worldmaps.length > 0) {
+      code += `; ==================================================================
+; WORLDMAP LOADING FUNCTIONS (for GameFlow WorldLink nodes)
+; ==================================================================
+
+`;
+      worldmaps.forEach((worldmap: any) => {
+        const worldmapId = worldmap.id;
+        const startScreenNodeId = worldmap.startScreenNodeId;
+        const startNode = worldmap.nodes?.find((n: any) => n.id === startScreenNodeId);
+        const startScreenAssetId = startNode?.screenAssetId;
+
+        if (startScreenAssetId) {
+          const screenIndex = analysis.screenMaps.findIndex(s => s.id === startScreenAssetId);
+          const screen = analysis.screenMaps[screenIndex];
+
+          if (screen) {
+            const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            code += `load_world_${worldmapId.toLowerCase().replace(/[^a-z0-9]/g, '_')}:
+    ; Load worldmap: ${worldmap.name}
+    ; Starting screen: ${screen.name}
+    call load_screen_${screenName.toLowerCase()}
+    ret
+
+`;
+          } else {
+            code += `load_world_${worldmapId.toLowerCase().replace(/[^a-z0-9]/g, '_')}:
+    ; Worldmap: ${worldmap.name} (screen not found)
+    ret
+
+`;
+          }
+        } else {
+          code += `load_world_${worldmapId.toLowerCase().replace(/[^a-z0-9]/g, '_')}:
+    ; Worldmap: ${worldmap.name} (no start screen)
+    ret
+
+`;
+        }
+      });
+    }
   } else {
     code += `; ==================================================================
 ; DEFAULT SCREEN SYSTEM
@@ -258,8 +302,8 @@ SCREEN_TITLE_ID  EQU 1
 
 SCREEN_GAME_DATA:
     ; Default game screen pattern
-    DB 0, 1, 2, 3, 4, 5, 6, 7
-    DB 8, 9, 10, 11, 12, 13, 14, 15
+    db 0, 1, 2, 3, 4, 5, 6, 7
+    db 8, 9, 10, 11, 12, 13, 14, 15
     ; TODO: Add more screen data
 
 load_screen:

@@ -1,0 +1,640 @@
+; ==================================================================
+; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
+; File: components.asm
+; Description: Component systems based on Mideas React.js architecture
+; Implements Position, Sprite, Movement, Collision, Input, and Behavior systems
+; ==================================================================
+
+; ==================================================================
+; COMPONENT TYPE CONSTANTS (Based on ComponentDefinition analysis)
+; ==================================================================
+
+; Core Components (always present)
+COMP_POSITION   EQU 0    ; Position component (x, y coordinates)
+COMP_SPRITE     EQU 1    ; Sprite rendering component
+COMP_MOVEMENT   EQU 2    ; Movement/velocity component
+COMP_COLLISION  EQU 3    ; Collision detection component
+COMP_INPUT      EQU 4    ; Input handling component
+COMP_BEHAVIOR   EQU 5    ; AI/Logic behavior component
+COMP_HEALTH     EQU 6    ; Health/damage component
+COMP_ANIMATION  EQU 7    ; Animation state component
+
+; Component flags for entity filtering
+COMP_MASK_POSITION   EQU #01  ; Binary: 00000001
+COMP_MASK_SPRITE     EQU #02  ; Binary: 00000010
+COMP_MASK_MOVEMENT   EQU #04  ; Binary: 00000100
+COMP_MASK_COLLISION  EQU #08  ; Binary: 00001000
+COMP_MASK_INPUT      EQU #10  ; Binary: 00010000
+COMP_MASK_BEHAVIOR   EQU #20  ; Binary: 00100000
+COMP_MASK_HEALTH     EQU #40  ; Binary: 01000000
+COMP_MASK_ANIMATION  EQU #80  ; Binary: 10000000
+
+; ==================================================================
+; COMPONENT DATA STRUCTURES (Entity-Component arrays)
+; ==================================================================
+
+; Position Component Data (32 entities max)
+entity_x_pos        EQU sprite_x_pos      ; Reuse sprite positions
+entity_y_pos        EQU sprite_y_pos      ; (32 bytes each)
+
+; Movement Component Data
+entity_vel_x        EQU temp_word_1       ; X velocity storage (signed 8-bit)
+entity_vel_y        EQU temp_word_2       ; Y velocity storage (signed 8-bit)
+
+; Component masks for each entity (which components are active)
+entity_comp_masks   EQU temp_byte_1       ; Component flags per entity (32 bytes)
+
+; Animation Component Data
+entity_anim_frame   EQU temp_byte_2       ; Current animation frame (32 bytes)
+
+; ==================================================================
+; CORE ECS SYSTEM FUNCTIONS
+; ==================================================================
+
+init_components:
+    ; Initialize all component systems (based on Mideas initialization)
+
+    ; Clear all component masks
+    ld hl, entity_comp_masks
+    ld de, entity_comp_masks+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Initialize position system
+    call init_position_system
+
+    ; Initialize sprite system
+    call init_sprite_system
+
+    ; Initialize movement system
+    call init_movement_system
+
+    ; Initialize collision system
+    call init_collision_system
+
+    ; Initialize input system
+    call init_input_system
+
+    ; Initialize behavior system
+    call init_behavior_system
+
+    ret
+
+; ==================================================================
+; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
+; ==================================================================
+
+init_position_system:
+    ; Initialize position component system
+    ; Clear all entity positions
+    ld hl, entity_x_pos
+    ld de, entity_x_pos+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_y_pos
+    ld de, entity_y_pos+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ret
+
+update_position_component:
+    ; Update positions based on velocities (Movement → Position)
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+
+position_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_POSITION     ; Check if has position component
+    jr z, position_next_entity ; Skip if no position component
+
+    ; Apply velocity to position (if has movement component)
+    ld a, (hl)
+    and COMP_MASK_MOVEMENT
+    jr z, position_next_entity ; Skip velocity if no movement
+
+    ; TODO: Add velocity to position logic here
+    ; entity_x_pos[entity] += entity_vel_x[entity]
+    ; entity_y_pos[entity] += entity_vel_y[entity]
+
+position_next_entity:
+    inc hl                     ; Next entity
+    djnz position_update_loop
+    ret
+
+; ==================================================================
+; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
+; ==================================================================
+
+init_sprite_system:
+    ; Initialize sprite rendering system
+    ; Clear all sprite attributes
+    call clear_all_sprites
+    ret
+
+update_sprite_component:
+    ; Update sprite rendering based on entity positions
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+    ld c, 0                    ; Entity index counter
+
+sprite_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_SPRITE       ; Check if has sprite component
+    jr z, sprite_next_entity   ; Skip if no sprite component
+
+    ; Render sprite at entity position
+    push bc
+    push hl
+
+    ; Get entity position
+    ld hl, entity_x_pos
+    ld e, c                    ; Entity index
+    ld d, 0
+    add hl, de                 ; HL points to entity X
+    ld b, (hl)                 ; B = X position
+
+    ld hl, entity_y_pos
+    add hl, de                 ; HL points to entity Y
+    ld c, (hl)                 ; C = Y position
+
+    ; Show sprite (A=sprite#, B=X, C=Y, D=pattern, E=color)
+    ld a, e                    ; Sprite number = entity index
+    ld d, 0                    ; Pattern 0 (TODO: get from entity data)
+    ld e, 15                   ; Color white (TODO: get from entity data)
+    call show_sprite
+
+    pop hl
+    pop bc
+
+sprite_next_entity:
+    inc hl                     ; Next entity
+    inc c                      ; Next entity index
+    djnz sprite_update_loop
+
+    ; Update all sprites to VRAM
+    call update_sprites_to_vram
+    ret
+
+; ==================================================================
+; MOVEMENT COMPONENT SYSTEM (Based on movement physics)
+; ==================================================================
+
+init_movement_system:
+    ; Initialize movement/physics system
+    ; Clear velocities
+    ld a, 0
+    ld (entity_vel_x), a
+    ld (entity_vel_y), a
+    ret
+
+update_movement_component:
+    ; Update movement/physics for entities
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+
+movement_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_MOVEMENT     ; Check if has movement component
+    jr z, movement_next_entity ; Skip if no movement component
+
+    ; Apply physics/movement logic here
+    ; TODO: Apply gravity, friction, collision response, etc.
+
+movement_next_entity:
+    inc hl                     ; Next entity
+    djnz movement_update_loop
+    ret
+
+; ==================================================================
+; COLLISION COMPONENT SYSTEM (Based on ScreenEditor collision detection)
+; ==================================================================
+
+init_collision_system:
+    ; Initialize collision detection system
+    ret
+
+update_collision_component:
+    ; Check collisions between entities and environment
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+    ld c, 0                    ; Entity index
+
+collision_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_COLLISION    ; Check if has collision component
+    jr z, collision_next_entity ; Skip if no collision component
+
+    ; Perform collision detection for this entity
+    push bc
+    push hl
+
+    ; Get entity position
+    ld hl, entity_x_pos
+    ld e, c                    ; Entity index
+    ld d, 0
+    add hl, de                 ; HL points to entity X
+    ld a, (hl)                 ; A = X position
+
+    ld hl, entity_y_pos
+    add hl, de                 ; HL points to entity Y
+    ld b, (hl)                 ; B = Y position
+
+    ; Check screen boundaries (256x192 with 16x16 sprites)
+    ; Left boundary
+    cp 0
+    jr z, collision_boundary_hit
+
+    ; Right boundary (256 - 16 = 240)
+    cp 240
+    jr nc, collision_boundary_hit
+
+    ; Top boundary
+    ld a, b
+    cp 0
+    jr z, collision_boundary_hit
+
+    ; Bottom boundary (192 - 16 = 176)
+    cp 176
+    jr nc, collision_boundary_hit
+
+    ; Check tile collision (if screen maps exist)
+    call check_tile_collision
+
+    ; Check entity-to-entity collision
+    call check_entity_collision
+
+    jr collision_check_complete
+
+collision_boundary_hit:
+    ; Handle boundary collision
+    call handle_boundary_collision
+
+collision_check_complete:
+    pop hl
+    pop bc
+
+collision_next_entity:
+    inc hl                     ; Next entity
+    inc c                      ; Next entity index
+    djnz collision_update_loop
+    ret
+
+; ==================================================================
+; COLLISION HELPER FUNCTIONS (Critical for Gameplay Parity)
+; ==================================================================
+
+check_tile_collision:
+    ; Check collision with background tiles
+    ; A = X position, B = Y position
+    ; Convert pixel position to tile coordinates
+    push af
+    push bc
+
+    ; DYNAMIC TILE SIZE CONVERSION
+    ; TODO: This should be calculated from actual screen map tile sizes
+    ; For now, detect most common tile size in project
+
+    ; No tiles detected - using default 16x16
+    ; Convert X to tile column (divide by 16)
+
+
+    ; Default 16px tiles (4 shifts)
+    srl a                      ; A = X / 2
+    srl a                      ; A = X / 4
+    srl a                      ; A = X / 8
+    srl a                      ; A = X / 16
+    ld c, a                    ; C = tile column
+
+
+    ; Default 16px tiles (4 shifts)
+    ld a, b
+    srl a                      ; A = Y / 2
+    srl a                      ; A = Y / 4
+    srl a                      ; A = Y / 8
+    srl a                      ; A = Y / 16
+    ld b, a                    ; B = tile row
+
+    ; Check if position is within valid tile map
+    ld a, c
+    cp 16                      ; Screen width in tiles
+    jr nc, no_tile_collision
+    ld a, b
+    cp 12                      ; Screen height in tiles
+    jr nc, no_tile_collision
+
+    ; Get tile at position (simplified - would read from behavior map)
+    ; For now, assume all non-zero tiles are solid
+    ; This would read from the behavior map generated from screen data
+    call get_behavior_tile     ; Returns A = behavior value
+    or a
+    jr z, no_tile_collision    ; 0 = passable
+
+    ; Collision detected - handle it
+    call handle_tile_collision
+
+no_tile_collision:
+    pop bc
+    pop af
+    ret
+
+check_entity_collision:
+    ; Check collision with other entities
+    ; A = current entity X, B = current entity Y, C = current entity index
+    push bc
+    push af
+
+    ; Loop through all other entities
+    ld hl, entity_comp_masks
+    ld e, 0                    ; Other entity index
+
+entity_collision_loop:
+    ld a, e
+    cp c                       ; Skip self
+    jr z, next_entity_collision
+
+    ; Check if other entity has collision component
+    ld a, (hl)
+    and COMP_MASK_COLLISION
+    jr z, next_entity_collision
+
+    ; Get other entity position
+    push hl
+    push de
+
+    ld hl, entity_x_pos
+    ld d, 0
+    add hl, de                 ; HL points to other entity X
+    ld d, (hl)                 ; D = other X
+
+    ld hl, entity_y_pos
+    add hl, de                 ; HL points to other entity Y
+    ld e, (hl)                 ; E = other Y
+
+    ; Check if entities overlap (16x16 sprites)
+    ; Current entity: A = X, B = Y
+    ; Other entity: D = X, E = Y
+
+    ; X overlap check: |X1 - X2| < 16
+    ld h, a                    ; H = current X
+    ld a, d                    ; A = other X
+    sub h                      ; A = other X - current X
+    jr nc, x_diff_positive     ; Jump if positive
+    neg                        ; Make positive
+x_diff_positive:
+    cp 16                      ; Check if < 16
+    jr nc, no_entity_collision ; No X overlap
+
+    ; Y overlap check: |Y1 - Y2| < 16
+    ld a, e                    ; A = other Y
+    sub b                      ; A = other Y - current Y
+    jr nc, y_diff_positive     ; Jump if positive
+    neg                        ; Make positive
+y_diff_positive:
+    cp 16                      ; Check if < 16
+    jr nc, no_entity_collision ; No Y overlap
+
+    ; Collision detected!
+    call handle_entity_collision
+
+no_entity_collision:
+    pop de
+    pop hl
+
+next_entity_collision:
+    inc hl                     ; Next entity mask
+    inc e                      ; Next entity index
+    ld a, e
+    cp 32                      ; Check all 32 entities
+    jr nz, entity_collision_loop
+
+    pop af
+    pop bc
+    ret
+
+handle_boundary_collision:
+    ; Handle collision with screen boundaries
+    ; Stop movement in the collision direction
+    ld a, 0
+    ld (entity_vel_x), a       ; Stop X movement
+    ld (entity_vel_y), a       ; Stop Y movement
+    ret
+
+handle_tile_collision:
+    ; Handle collision with solid tiles
+    ; Prevent movement into the tile
+    ld a, 0
+    ld (entity_vel_x), a       ; Stop X movement
+    ld (entity_vel_y), a       ; Stop Y movement
+    ret
+
+handle_entity_collision:
+    ; Handle collision between entities
+    ; Implementation depends on game logic (damage, bouncing, etc.)
+    ret
+
+get_behavior_tile:
+    ; Get behavior value for tile at (B, C)
+    ; Returns A = behavior value (0=passable, 1=solid, etc.)
+    ; This would read from the behavior map data
+    ; For now, return 0 (all passable)
+    ld a, 0
+    ret
+
+; ==================================================================
+; INPUT COMPONENT SYSTEM (Based on input handling)
+; ==================================================================
+
+init_input_system:
+    ; Initialize input handling system
+    xor a
+    ld (input_state), a
+    ld (prev_input_state), a
+    ret
+
+update_input_component:
+    ; Update input handling for player entities
+    ; Store previous input state for edge detection
+    ld a, (input_state)
+    ld (prev_input_state), a
+
+    ; Read current joystick state
+    ld a, 0                    ; Joystick port 0
+    call GTSTCK                ; Get joystick status (BIOS call)
+    ld (input_state), a        ; Store current input state
+
+    ; Process input for entities with input component
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+    ld c, 0                    ; Entity index
+
+input_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_INPUT        ; Check if has input component
+    jr z, input_next_entity    ; Skip if no input component
+
+    ; Apply input to entity movement (real implementation)
+    push bc
+    push hl
+
+    ; Convert joystick input to velocity
+    ld a, (input_state)
+    ld b, 0                    ; Default X velocity
+    ld c, 0                    ; Default Y velocity
+
+    ; Check directional input
+    cp STICK_UP
+    jr z, input_move_up
+    cp STICK_DOWN
+    jr z, input_move_down
+    cp STICK_LEFT
+    jr z, input_move_left
+    cp STICK_RIGHT
+    jr z, input_move_right
+    cp STICK_UPRIGHT
+    jr z, input_move_upright
+    cp STICK_UPLEFT
+    jr z, input_move_upleft
+    cp STICK_DOWNRIGHT
+    jr z, input_move_downright
+    cp STICK_DOWNLEFT
+    jr z, input_move_downleft
+    jr input_apply_velocity
+
+input_move_up:
+    ld c, -2                   ; Negative Y velocity (up)
+    jr input_apply_velocity
+
+input_move_down:
+    ld c, 2                    ; Positive Y velocity (down)
+    jr input_apply_velocity
+
+input_move_left:
+    ld b, -2                   ; Negative X velocity (left)
+    jr input_apply_velocity
+
+input_move_right:
+    ld b, 2                    ; Positive X velocity (right)
+    jr input_apply_velocity
+
+input_move_upright:
+    ld b, 1                    ; Diagonal movement (slower)
+    ld c, -1
+    jr input_apply_velocity
+
+input_move_upleft:
+    ld b, -1
+    ld c, -1
+    jr input_apply_velocity
+
+input_move_downright:
+    ld b, 1
+    ld c, 1
+    jr input_apply_velocity
+
+input_move_downleft:
+    ld b, -1
+    ld c, 1
+
+input_apply_velocity:
+    ; Apply calculated velocity to entity
+    ; Store X velocity (entity_vel_x is temp storage for now)
+    ld a, b
+    ld (entity_vel_x), a       ; Store calculated X velocity
+
+    ; Store Y velocity
+    ld a, c
+    ld (entity_vel_y), a       ; Store calculated Y velocity
+
+    pop hl
+    pop bc
+
+input_next_entity:
+    inc hl                     ; Next entity
+    inc c                      ; Next entity index
+    djnz input_update_loop
+    ret
+
+; ==================================================================
+; BEHAVIOR COMPONENT SYSTEM (Based on BehaviorEditor logic)
+; ==================================================================
+
+init_behavior_system:
+    ; Initialize AI/behavior system
+    ret
+
+update_behavior_component:
+    ; Update AI/behavior logic for entities
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+
+behavior_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_BEHAVIOR     ; Check if has behavior component
+    jr z, behavior_next_entity ; Skip if no behavior component
+
+    ; Execute behavior scripts/AI logic
+    ; TODO: State machines, pathfinding, decision trees
+
+behavior_next_entity:
+    inc hl                     ; Next entity
+    djnz behavior_update_loop
+    ret
+
+; ==================================================================
+; ENTITY MANAGEMENT FUNCTIONS (Based on EntityTemplate system)
+; ==================================================================
+
+; Create entity with components (A = entity ID, B = component mask)
+create_entity:
+    ; Set component mask for entity
+    ld hl, entity_comp_masks
+    ld e, a                    ; Entity index
+    ld d, 0
+    add hl, de                 ; HL points to entity mask
+    ld (hl), b                 ; Set component mask
+
+    ; Initialize component data based on mask
+    bit 0, b                   ; Check COMP_MASK_POSITION
+    call nz, init_entity_position
+
+    bit 1, b                   ; Check COMP_MASK_SPRITE
+    call nz, init_entity_sprite
+
+    ; TODO: Initialize other components based on mask bits
+
+    ret
+
+; Initialize position component for entity (A = entity ID)
+init_entity_position:
+    ld hl, entity_x_pos
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 100               ; Default X position
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 100               ; Default Y position
+    ret
+
+; Initialize sprite component for entity (A = entity ID)
+init_entity_sprite:
+    ; Set sprite as visible with default pattern
+    ld hl, sprite_pattern
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld (hl), 0                 ; Pattern 0
+
+    ld hl, sprite_color
+    add hl, de
+    ld (hl), 15                ; White color
+    ret
+
+; ==================================================================
+; END OF COMPONENT SYSTEMS
+; ==================================================================

@@ -97,6 +97,7 @@ export interface GeneratedASMFiles {
   'patterns.asm': string;
   'colors.asm': string;
   'sprites.asm': string;
+  'worlds.asm': string;
   'screens.asm': string;
   'components.asm': string;
   'entities.asm': string;

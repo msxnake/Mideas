@@ -89,7 +89,7 @@ export function validateGameFlow(
   // Step 2: Check Start node has outgoing connections
   if (startNode) {
     const startConnections = gameFlow.connections.filter(
-      c => (c.from as any)?.nodeId === startNode.id || c.from === startNode.id
+      c => c.from?.nodeId === startNode.id
     );
 
     if (startConnections.length === 0) {
@@ -101,13 +101,52 @@ export function validateGameFlow(
     }
   }
 
-  // Step 3: Check for orphaned nodes
+  // Step 3: Check for invalid connections (pointing to non-existent nodes)
+  const nodeIds = new Set(gameFlow.nodes.map(n => n.id));
+
+  gameFlow.connections.forEach(conn => {
+    const fromId = conn.from?.nodeId;
+    const toId = conn.to?.nodeId;
+
+    if (fromId && !nodeIds.has(fromId)) {
+      issues.push({
+        type: 'ERROR',
+        message: `Connection references non-existent source node: ${fromId}`,
+        nodeId: fromId
+      });
+    }
+
+    if (toId && !nodeIds.has(toId)) {
+      issues.push({
+        type: 'ERROR',
+        message: `Connection references non-existent destination node: ${toId}`,
+        nodeId: toId
+      });
+    }
+
+    // Check for connections with missing to/from
+    if (!fromId) {
+      issues.push({
+        type: 'ERROR',
+        message: `Connection has no source node defined`
+      });
+    }
+
+    if (!toId) {
+      issues.push({
+        type: 'ERROR',
+        message: `Connection has no destination node defined (incomplete connection from ${fromId || 'unknown'})`
+      });
+    }
+  });
+
+  // Step 3b: Check for orphaned nodes (no incoming or outgoing connections)
   const connectedNodeIds = new Set<string>();
   gameFlow.connections.forEach(conn => {
-    const fromId = (conn.from as any)?.nodeId || conn.from;
-    const toId = (conn.to as any)?.nodeId || conn.to;
-    if (fromId) connectedNodeIds.add(fromId as string);
-    if (toId) connectedNodeIds.add(toId as string);
+    const fromId = conn.from?.nodeId;
+    const toId = conn.to?.nodeId;
+    if (fromId) connectedNodeIds.add(fromId);
+    if (toId) connectedNodeIds.add(toId);
   });
 
   const orphanedNodes = gameFlow.nodes.filter(
@@ -118,11 +157,78 @@ export function validateGameFlow(
     orphanedNodes.forEach(node => {
       issues.push({
         type: 'WARNING',
-        message: `Orphaned node: ${node.type}`,
+        message: `Orphaned node (no connections): ${node.type}`,
         nodeId: node.id
       });
     });
   }
+
+  // Step 3b: Check for nodes with unconnected outputs (excluding End/Restart nodes)
+  const terminalNodeTypes = ['End', 'Restart'];
+
+  gameFlow.nodes.forEach(node => {
+    // Skip terminal nodes - they shouldn't have outgoing connections
+    if (terminalNodeTypes.includes(node.type)) {
+      return;
+    }
+
+    // Check if node has outgoing connections
+    const hasOutgoingConnections = gameFlow.connections.some(
+      c => c.from?.nodeId === node.id
+    );
+
+    // For SubMenu nodes, check if all options have connections
+    if (node.type === 'SubMenu') {
+      const options = (node as any).options || [];
+
+      options.forEach((option: any) => {
+        const hasOptionConnection = gameFlow.connections.some(
+          c => c.from?.nodeId === node.id && c.from?.sourceId === option.id
+        );
+
+        if (!hasOptionConnection) {
+          issues.push({
+            type: 'WARNING',
+            message: `SubMenu option "${option.text}" has no outgoing connection`,
+            nodeId: node.id
+          });
+        }
+      });
+    } else if (node.type === 'IfThenElse') {
+      // For IfThenElse nodes, check for THEN and ELSE connections
+      const hasThenConnection = gameFlow.connections.some(
+        c => c.from?.nodeId === node.id && (c.from?.sourceId === 'then' || !c.from?.sourceId)
+      );
+      const hasElseConnection = gameFlow.connections.some(
+        c => c.from?.nodeId === node.id && c.from?.sourceId === 'else'
+      );
+
+      if (!hasThenConnection) {
+        issues.push({
+          type: 'WARNING',
+          message: 'IfThenElse node has no THEN connection',
+          nodeId: node.id
+        });
+      }
+
+      if (!hasElseConnection) {
+        issues.push({
+          type: 'WARNING',
+          message: 'IfThenElse node has no ELSE connection',
+          nodeId: node.id
+        });
+      }
+    } else {
+      // For other non-terminal nodes, check for at least one outgoing connection
+      if (!hasOutgoingConnections) {
+        issues.push({
+          type: 'WARNING',
+          message: `Node has no outgoing connection (should connect to End/Restart or another node): ${node.type}`,
+          nodeId: node.id
+        });
+      }
+    }
+  });
 
   // Step 4: Validate asset references
   gameFlow.nodes.forEach(node => {
@@ -174,7 +280,7 @@ export function validateGameFlow(
   const endNodes = gameFlow.nodes.filter(n => n.type === 'End' || n.type === 'Restart');
   endNodes.forEach(node => {
     const hasIncoming = gameFlow.connections.some(
-      c => (c.to as any)?.nodeId === node.id || c.to === node.id
+      c => c.to?.nodeId === node.id
     );
 
     if (!hasIncoming) {
@@ -237,8 +343,15 @@ Version: 1.0
   log += `  - Total Nodes: ${gameFlow.nodes.length}\n`;
   log += `  - Total Connections: ${gameFlow.connections.length}\n`;
 
-  const orphanedCount = validation.issues.filter(i => i.message.includes('Orphaned')).length;
-  log += `  - Orphaned Nodes: ${orphanedCount} ${orphanedCount > 0 ? '[WARNING]' : '[OK]'}\n\n`;
+  const orphanedCount = validation.issues.filter(i => i.message.includes('Orphaned node (no connections)')).length;
+  const unconnectedOutputCount = validation.issues.filter(i => i.message.includes('no outgoing connection')).length;
+  const invalidConnectionCount = validation.issues.filter(i =>
+    i.message.includes('non-existent') || i.message.includes('no destination node defined')
+  ).length;
+
+  log += `  - Orphaned Nodes: ${orphanedCount} ${orphanedCount > 0 ? '[WARNING]' : '[OK]'}\n`;
+  log += `  - Nodes with Unconnected Outputs: ${unconnectedOutputCount} ${unconnectedOutputCount > 0 ? '[WARNING]' : '[OK]'}\n`;
+  log += `  - Invalid/Incomplete Connections: ${invalidConnectionCount} ${invalidConnectionCount > 0 ? '[ERROR]' : '[OK]'}\n\n`;
 
   // Step 3: Analyze graph
   log += `Step 3: Analyzing GameFlow Graph\n`;
@@ -263,8 +376,8 @@ Version: 1.0
   // Step 4: Validate connections
   log += `Step 4: Validating Connections\n`;
   gameFlow.connections.forEach((conn, i) => {
-    const fromNodeId = (conn.from as any)?.nodeId || conn.from;
-    const toNodeId = (conn.to as any)?.nodeId || conn.to;
+    const fromNodeId = conn.from?.nodeId;
+    const toNodeId = conn.to?.nodeId;
 
     const fromNode = gameFlow.nodes.find(n => n.id === fromNodeId);
     const toNode = gameFlow.nodes.find(n => n.id === toNodeId);

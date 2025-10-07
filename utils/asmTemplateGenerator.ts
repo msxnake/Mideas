@@ -24,6 +24,7 @@ export interface ProjectAnalysis {
   sprites: Sprite[];
   tiles: Tile[];
   screenMaps: ScreenMap[];
+  worldmaps?: any[];  // Worldmap data for GameFlow WorldLink nodes
   entities?: EntityInstance[];
   gameFlow?: GameFlowGraph;
   hasECS: boolean;
@@ -53,13 +54,28 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const sprites = assets.filter(a => a.type === 'sprite').map(a => a.data as Sprite);
   const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
+  const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
+
+  // CRITICAL: Extract entities from screenmaps
+  const entities: any[] = [];
+  screenMaps.forEach(screenMap => {
+    // Check layers.entities (current format)
+    if ((screenMap as any).layers?.entities && Array.isArray((screenMap as any).layers.entities)) {
+      entities.push(...(screenMap as any).layers.entities);
+    }
+    // Check direct entities array (legacy format, if any)
+    if ((screenMap as any).entities && Array.isArray((screenMap as any).entities)) {
+      entities.push(...(screenMap as any).entities);
+    }
+  });
 
   // CRITICAL: Detect GameFlow for ASM generation control
   const gameFlowAsset = assets.find(a => a.type === 'gameflow');
   const gameFlow = gameFlowAsset?.data as GameFlowGraph | undefined;
 
   // Detect various features
-  const hasECS = components.length > 0;
+  const hasEntities = entities.length > 0;
+  const hasECS = components.length > 0 || hasEntities;
   const hasMultipleScreens = screenMaps.length > 1;
   const hasSprites = sprites.length > 0;
   const hasAnimations = sprites.some(s => s.frames.length > 1);
@@ -81,6 +97,8 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     sprites,
     tiles,
     screenMaps,
+    worldmaps,  // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
+    entities,  // CRITICAL: Include entities extracted from screenmaps
     gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
     hasECS,
     hasMultipleScreens,

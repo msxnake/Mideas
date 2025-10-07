@@ -1,39 +1,65 @@
 /**
  * @fileoverview Entities Generator - Game entity definitions and initialization
  * Generates entities.asm with entity data and management functions
+ * NOW WITH INTELLIGENT FILTERING - Only generates code for entities actually instantiated
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { analyzeComponentUsage, generateEntityComponentMask } from '../utils/componentAnalyzer';
 
 /**
  * Generate game entities file (entities.asm)
  *
  * Creates entity definitions with real positions from JSON data, component masks,
  * and initialization/update functions for each entity in the project.
+ * NOW WITH INTELLIGENT FILTERING - Only generates code for entities actually instantiated.
  *
  * @param analysis - Project analysis with entity instances
  * @returns ASM code string with entity definitions and functions
  */
 export function generateEntitiesFile(analysis: ProjectAnalysis): string {
+  // INTELLIGENT FILTERING: Analyze which entities are actually used
+  const componentUsage = analyzeComponentUsage(analysis);
+  const activeEntities = componentUsage.activeEntities;
+
+  console.log('🎯 Generating optimized entities.asm...');
+  console.log(`  - Total entity templates in JSON: ${analysis.templates?.length || 0}`);
+  console.log(`  - Actually instantiated entities: ${activeEntities.length}`);
+  console.log(`  - Filtered out: ${(analysis.templates?.length || 0) - activeEntities.length} unused templates`);
+
   let code = `; ==================================================================
 ; GAME ENTITIES
 ; File: entities.asm
 ; Description: Game entity definitions and behavior
 ; ==================================================================
+;
+; INTELLIGENT FILTERING ACTIVE:
+;   Entity templates in project: ${analysis.templates?.length || 0}
+;   Actually instantiated: ${activeEntities.length}
+;   Filtered out: ${(analysis.templates?.length || 0) - activeEntities.length} unused templates
+;
+; ==================================================================
 
 `;
 
-  if (analysis.entities && analysis.entities.length > 0) {
+  if (activeEntities.length > 0) {
     code += `; ==================================================================
 ; ENTITY DEFINITIONS
 ; ==================================================================
 
 `;
 
-    analysis.entities.forEach((entity, index) => {
+    // Generate definitions ONLY for active entities (not all templates)
+    activeEntities.forEach((entity, index) => {
       const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `; Entity: ${entity.name}
+
+      // Get template for component mask calculation
+      const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
+      const componentMask = generateEntityComponentMask(entity, template, analysis);
+
+      code += `; Entity: ${entity.name} (instance from template: ${entity.entityTemplateId})
 ENTITY_${entityName}_ID EQU ${index}
+ENTITY_${entityName}_COMP_MASK EQU #${componentMask.toString(16).toUpperCase().padStart(2, '0')}  ; Component mask: ${componentMask.toString(2).padStart(8, '0')}b
 `;
 
       if (entity.entityTemplateId) {
@@ -56,11 +82,11 @@ ENTITY_${entityName}_Y EQU ${entity.position.y}
 ; ==================================================================
 
 init_entities:
-    ; Initialize all game entities
+    ; Initialize all active game entities (${activeEntities.length} entities)
 `;
 
-    if (analysis.entities && analysis.entities.length > 0) {
-      analysis.entities.forEach((entity) => {
+    if (activeEntities.length > 0) {
+      activeEntities.forEach((entity) => {
         const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
         code += `    call init_${entityName.toLowerCase()}
 `;
@@ -73,11 +99,11 @@ init_entities:
     code += `    ret
 
 update_entities:
-    ; Update all entities
+    ; Update all active entities (${activeEntities.length} entities)
 `;
 
-    if (analysis.entities && analysis.entities.length > 0) {
-      analysis.entities.forEach((entity) => {
+    if (activeEntities.length > 0) {
+      activeEntities.forEach((entity) => {
         const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
         code += `    call update_${entityName.toLowerCase()}
 `;
@@ -91,9 +117,13 @@ update_entities:
 
 `;
 
-    // Generate individual entity functions with REAL POSITIONS from JSON
-    analysis.entities.forEach((entity, index) => {
+    // Generate individual entity functions ONLY for active entities with REAL POSITIONS
+    activeEntities.forEach((entity, index) => {
       const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+
+      // Get template for component mask calculation
+      const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
+      const componentMask = generateEntityComponentMask(entity, template, analysis);
 
       // Get real position from JSON entity data
       const realX = entity.position?.x || 100;
@@ -108,14 +138,27 @@ update_entities:
       const pixelX = realX * tileGridSizeX;
       const pixelY = realY * tileGridSizeY;
 
+      // Get component list for documentation
+      const usedComponentNames: string[] = [];
+      if (componentMask & 0x01) usedComponentNames.push('Position');
+      if (componentMask & 0x02) usedComponentNames.push('Sprite');
+      if (componentMask & 0x04) usedComponentNames.push('Movement');
+      if (componentMask & 0x08) usedComponentNames.push('Collision');
+      if (componentMask & 0x10) usedComponentNames.push('Input');
+      if (componentMask & 0x20) usedComponentNames.push('Behavior');
+      if (componentMask & 0x40) usedComponentNames.push('Health');
+      if (componentMask & 0x80) usedComponentNames.push('Animation');
+
       code += `init_${entityName.toLowerCase()}:
     ; Initialize ${entity.name} at real position from JSON
     ; JSON position: (${realX}, ${realY}) tiles = (${pixelX}, ${pixelY}) pixels
+    ; Template: ${entity.entityTemplateId}
+    ; Components: ${usedComponentNames.join(', ')}
 
-    ; Set entity ID and component mask
+    ; Set entity ID and component mask (DYNAMIC - based on template)
     ld a, ${index}             ; Entity ID
-    ld b, COMP_MASK_POSITION + COMP_MASK_SPRITE + COMP_MASK_MOVEMENT + COMP_MASK_COLLISION + COMP_MASK_INPUT
-    call create_entity         ; Create with all components
+    ld b, #${componentMask.toString(16).toUpperCase().padStart(2, '0')}              ; Component mask (${componentMask.toString(2).padStart(8, '0')}b)
+    call create_entity         ; Create with actual components from template
 
     ; Set real position from JSON data
     ld hl, entity_x_pos

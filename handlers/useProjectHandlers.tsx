@@ -3,6 +3,7 @@ import { ProjectAsset, EditorType, ScreenMap, TileBank, ComponentDefinition, Ent
 import { DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_MAIN_MENU_CONFIG } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
+import { cleanUnusedDefinitions } from '../utils/projectCleanup';
 
 interface ProjectHandlersProps {
   assets: ProjectAsset[];
@@ -166,6 +167,18 @@ export const useProjectHandlers = ({
       }
     }
 
+    // Clean unused componentDefinitions and entityTemplates before saving
+    const { componentDefinitions: cleanedComponents, entityTemplates: cleanedTemplates, stats } = cleanUnusedDefinitions({
+      assets,
+      componentDefinitions,
+      entityTemplates,
+    });
+
+    // Log cleanup stats
+    if (stats.componentsRemoved > 0 || stats.templatesRemoved > 0) {
+      console.log(`🧹 Cleanup: Removed ${stats.componentsRemoved} unused components, ${stats.templatesRemoved} unused templates`);
+    }
+
     const projectData = {
       assets,
       currentScreenMode,
@@ -178,8 +191,8 @@ export const useProjectHandlers = ({
       userSnippets,
       helpDocsData,
       currentProjectName,
-      componentDefinitions,
-      entityTemplates,
+      componentDefinitions: cleanedComponents,
+      entityTemplates: cleanedTemplates,
       mainMenuConfig,
       selectedEntityInstanceId: null,
       selectedEffectZoneId: null,
@@ -265,7 +278,39 @@ export const useProjectHandlers = ({
 
           // Load other configurations
           if (projectData.componentDefinitions) setComponentDefinitionsState(projectData.componentDefinitions);
-          if (projectData.entityTemplates) setEntityTemplatesState(projectData.entityTemplates);
+
+          // Load and clean entityTemplates (remove redundant defaultValues)
+          if (projectData.entityTemplates) {
+            const cleanedEntityTemplates = projectData.entityTemplates.map((template: EntityTemplate) => {
+              const cleanedComponents = template.components.map(comp => {
+                const componentDef = projectData.componentDefinitions?.find((cd: ComponentDefinition) => cd.id === comp.definitionId);
+                if (!componentDef) return comp; // Si no hay definición, mantener como está
+
+                // Crear nuevos defaultValues solo con valores diferentes del default
+                const cleanedDefaultValues: Record<string, any> = {};
+                Object.entries(comp.defaultValues || {}).forEach(([key, value]) => {
+                  const propertyDef = componentDef.properties.find(p => p.name === key);
+                  const definitionDefault = propertyDef?.defaultValue;
+
+                  // Normalizar para comparación (manejar diferencias de tipo string/number/boolean)
+                  const normalizedValue = String(value);
+                  const normalizedDefault = String(definitionDefault);
+
+                  // Solo mantener si es diferente del default de la definición
+                  if (normalizedValue !== normalizedDefault) {
+                    cleanedDefaultValues[key] = value;
+                  }
+                });
+
+                return { ...comp, defaultValues: cleanedDefaultValues };
+              });
+
+              return { ...template, components: cleanedComponents };
+            });
+
+            setEntityTemplatesState(cleanedEntityTemplates);
+          }
+
           if (projectData.mainMenuConfig) setMainMenuConfigState(projectData.mainMenuConfig);
 
           // Set project name from file name

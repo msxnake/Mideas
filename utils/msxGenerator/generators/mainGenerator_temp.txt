@@ -1,0 +1,21 @@
+execute_start_node:
+    ; Start node - typically just transitions to next node
+    ; Find next connected node and execute it
+    call find_next_gameflow_node
+    jp execute_gameflow_node
+
+execute_world_link_node:
+    ; World link node implementation is in GameFlow state machine
+    ; This function should never be called directly
+    ret
+
+execute_screen_node:
+    ; Screen node - load the specific screen
+    ; Extract screen reference from node data
+    call load_referenced_screen
+    ret
+
+execute_menu_node:
+    ; Menu node - show menu interface
+    call show_menu_interface
+    ret

@@ -41,7 +41,13 @@ export function generateInitCodeForNode(
     call init_components
     call init_entities
     call ${toRoutineLabel('load_world_' + worldAssetId)}
-    jp game_loop  ; Jump to main game loop`;
+
+    ; CRITICAL: Set game flow state and update sprites to VRAM
+    ld a, FLOW_STATE_GAME
+    ld (current_flow_state), a
+    call update_sprites_to_vram   ; Copy sprite attributes to VRAM
+
+    jp main_loop  ; Jump to main game loop`;
 
     case 'SubMenu':
       const menuNode = node;
@@ -164,6 +170,7 @@ init_rom:
     xor a
     ld (CLIKSW),a ; Click switch off
     ; Change background colors:
+    ld a,1
     ld (BAKCLR),a
     ld (BDRCLR),a
     call CHGCLR
@@ -175,14 +182,11 @@ init_rom:
     ld bc,#e201  ;; write #e2 in VDP register #01 (activate sprites, generate interrupts, 16x16 sprites with no magnification)
     call WRTVDP
 
-    ; init fill screen
-    call fillscreen
-
-     call check_if_60hz
-    ld (isComputer50HzOr60Hz),a
+    ;call check_if_60hz
+    ;ld (isComputer50HzOr60Hz),a
 
     ;init random seed
-    call random_seed_update
+    ;call random_seed_update
 
 ${initCode}
 
