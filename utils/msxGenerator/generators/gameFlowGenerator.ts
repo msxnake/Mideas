@@ -170,14 +170,29 @@ ${nodeLabel}:
           const thenLabel = thenNodeId ? `gameflow_node_${thenNodeId.replace(/[^a-zA-Z0-9]/g, '_')}` : null;
           const elseLabel = elseNodeId ? `gameflow_node_${elseNodeId.replace(/[^a-zA-Z0-9]/g, '_')}` : null;
 
-          // Generate variable name mapping (convert "Goal" to "global_var_goal")
-          const variableName = `global_var_${node.variableName?.toLowerCase() || 'goal'}`;
+          // Generate variable name using snake_case conversion
+          const variableName = `global_var_${(node.variableName || 'Goal').replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
 
-          // Generate compare value mapping (convert "Completed" to "GOAL_COMPLETED")
+          // Generate compare value - check if it's a number or a named constant
           let compareConstant = '';
-          const compareValueUpper = (node.compareValue || 'Completed').toUpperCase();
-          const varNameUpper = (node.variableName || 'Goal').toUpperCase();
-          compareConstant = `${varNameUpper}_${compareValueUpper}`;
+          const compareValue = node.compareValue || 'Completed';
+
+          // Check if compareValue is a number
+          if (!isNaN(Number(compareValue))) {
+            // It's a numeric value - use directly
+            compareConstant = compareValue;
+          } else {
+            // It's a named constant - generate constant name
+            const compareValueUpper = compareValue.toUpperCase().replace(/\s+/g, '_');
+            const varNameUpper = (node.variableName || 'Goal').toUpperCase().replace(/([A-Z])/g, '_$1').replace(/^_/, '');
+
+            // Handle boolean values
+            if (compareValue === 'True' || compareValue === 'False') {
+              compareConstant = `BOOL_${compareValueUpper}`;
+            } else {
+              compareConstant = `${varNameUpper}_${compareValueUpper}`;
+            }
+          }
 
           // Generate comparison operator (default to ==)
           const operator = node.operator || '==';

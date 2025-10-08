@@ -128,14 +128,14 @@ export function validateGameFlow(
     if (!fromId) {
       issues.push({
         type: 'ERROR',
-        message: `Connection has no source node defined`
+        message: `Open Connections! Connection has no source node defined`
       });
     }
 
     if (!toId) {
       issues.push({
         type: 'ERROR',
-        message: `Connection has no destination node defined (incomplete connection from ${fromId || 'unknown'})`
+        message: `Open Connections! Incomplete connection from node ${fromId || 'unknown'} - no destination defined`
       });
     }
   });
@@ -188,8 +188,8 @@ export function validateGameFlow(
 
         if (!hasOptionConnection) {
           issues.push({
-            type: 'WARNING',
-            message: `SubMenu option "${option.text}" has no outgoing connection`,
+            type: 'ERROR',
+            message: `Open Connections! SubMenu option "${option.text}" has no outgoing connection`,
             nodeId: node.id
           });
         }
@@ -205,16 +205,16 @@ export function validateGameFlow(
 
       if (!hasThenConnection) {
         issues.push({
-          type: 'WARNING',
-          message: 'IfThenElse node has no THEN connection',
+          type: 'ERROR',
+          message: 'Open Connections! IfThenElse node has no THEN connection',
           nodeId: node.id
         });
       }
 
       if (!hasElseConnection) {
         issues.push({
-          type: 'WARNING',
-          message: 'IfThenElse node has no ELSE connection',
+          type: 'ERROR',
+          message: 'Open Connections! IfThenElse node has no ELSE connection',
           nodeId: node.id
         });
       }
@@ -222,8 +222,8 @@ export function validateGameFlow(
       // For other non-terminal nodes, check for at least one outgoing connection
       if (!hasOutgoingConnections) {
         issues.push({
-          type: 'WARNING',
-          message: `Node has no outgoing connection (should connect to End/Restart or another node): ${node.type}`,
+          type: 'ERROR',
+          message: `Open Connections! ${node.type} node has no outgoing connection`,
           nodeId: node.id
         });
       }

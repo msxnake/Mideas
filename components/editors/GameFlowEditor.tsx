@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowRestartNode, GameFlowWaypointNode, ContextMenuItem } from '../../types';
+import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowRestartNode, GameFlowWaypointNode, GameFlowIfThenElseNode, ContextMenuItem } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, CodeIcon, ArrowsPointingOutIcon, ScissorsIcon } from '../icons/MsxIcons';
@@ -8,6 +8,7 @@ import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
 import { GameFlowLogModal } from '../modals/GameFlowLogModalSimple';
 import { SubMenuAppearanceEditor } from './SubMenuAppearanceEditor';
 import { TextNodeEditor } from './TextNodeEditor';
+import { IfThenElseNodeEditor } from './IfThenElseNodeEditor';
 import { Modal } from '../modals/Modal';
 import { DEFAULT_MAIN_MENU_CONFIG } from '../../constants';
 import { MSXFont, MSXFontColorAttributes, EntityTemplate, ComponentDefinition } from '../../types';
@@ -130,11 +131,13 @@ const GameFlowNodeComponent: React.FC<{
     onEditRestartNode: (node: GameFlowRestartNode) => void;
     /** Callback to open the editor for a transition node. */
     onEditTransitionNode: (node: any) => void;
+    /** Callback to open the editor for an if-then-else node. */
+    onEditIfThenElseNode: (node: GameFlowIfThenElseNode) => void;
     /** Whether we are currently in linking mode (creating a connection). */
     isLinkingMode: boolean;
     /** The name of the current GameFlow asset. */
     gameFlowAssetName?: string;
-}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance, onEditTextNode, onEditRestartNode, onEditTransitionNode, isLinkingMode, gameFlowAssetName }) => {
+}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance, onEditTextNode, onEditRestartNode, onEditTransitionNode, onEditIfThenElseNode, isLinkingMode, gameFlowAssetName }) => {
   const [isHovered, setIsHovered] = useState(false);
   const nodeHeight = getNodeHeight(node);
   const isMainGameFlow = gameFlowAssetName === 'Main';
@@ -332,6 +335,9 @@ const GameFlowNodeComponent: React.FC<{
             <text x={nodeWidth - 15} y={nodeHeight - 15} textAnchor="end" fill="hsl(0, 100%, 70%)" fontSize="9px" fontWeight="bold" className="pixel-font select-none pointer-events-none">ELSE</text>
             <rect x={nodeWidth - PORT_SIZE/2} y={nodeHeight - 20 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(0, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'else'); }}/>
           </g>
+          <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+            <Button onClick={() => onEditIfThenElseNode(node as GameFlowIfThenElseNode)} size="xs">Edit Condition</Button>
+          </foreignObject>
         </>
       )}
 
@@ -398,6 +404,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [editingRestartNode, setEditingRestartNode] = useState<GameFlowRestartNode | null>(null);
   const [isTransitionNodeModalOpen, setIsTransitionNodeModalOpen] = useState(false);
   const [editingTransitionNode, setEditingTransitionNode] = useState<any>(null);
+  const [isIfThenElseModalOpen, setIsIfThenElseModalOpen] = useState(false);
+  const [editingIfThenElseNode, setEditingIfThenElseNode] = useState<GameFlowIfThenElseNode | null>(null);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [hasInitializedView, setHasInitializedView] = useState(false);
 
@@ -624,6 +632,28 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     if (editingTransitionNode) {
       setEditingTransitionNode({ ...editingTransitionNode, effect, duration });
     }
+  };
+
+  const handleOpenIfThenElseModal = (node: GameFlowIfThenElseNode) => {
+    setEditingIfThenElseNode(node);
+    setIsIfThenElseModalOpen(true);
+  };
+
+  const handleCloseIfThenElseModal = () => {
+    setEditingIfThenElseNode(null);
+    setIsIfThenElseModalOpen(false);
+  };
+
+  const handleSaveIfThenElseNode = () => {
+    if (editingIfThenElseNode) {
+      const newNodes = nodes.map(n => n.id === editingIfThenElseNode.id ? editingIfThenElseNode : n);
+      onUpdate({ nodes: newNodes });
+    }
+    handleCloseIfThenElseModal();
+  };
+
+  const handleIfThenElseNodeChange = (newNode: GameFlowIfThenElseNode) => {
+    setEditingIfThenElseNode(newNode);
   };
 
   /**
@@ -1083,9 +1113,9 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               );
           })}
           {nodes.map(node => (
-            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} onEditTextNode={handleOpenTextNodeModal} onEditRestartNode={handleOpenRestartNodeModal} onEditTransitionNode={handleOpenTransitionNodeModal} isLinkingMode={isLinkingMode} gameFlowAssetName={gameFlowAssetName} />
+            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} onEditTextNode={handleOpenTextNodeModal} onEditRestartNode={handleOpenRestartNodeModal} onEditTransitionNode={handleOpenTransitionNodeModal} onEditIfThenElseNode={handleOpenIfThenElseModal} isLinkingMode={isLinkingMode} gameFlowAssetName={gameFlowAssetName} />
           ))}
-          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - getNodeWidth(nodeToPlace)/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} onEditTextNode={() => {}} onEditRestartNode={() => {}} onEditTransitionNode={() => {}} isLinkingMode={false} gameFlowAssetName={gameFlowAssetName} /></g>}
+          {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - getNodeWidth(nodeToPlace)/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} onEditTextNode={() => {}} onEditRestartNode={() => {}} onEditTransitionNode={() => {}} onEditIfThenElseNode={() => {}} isLinkingMode={false} gameFlowAssetName={gameFlowAssetName} /></g>}
           {linkingState && mousePosition && (() => {
               const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
               if (!fromNode) return null;
@@ -1169,6 +1199,17 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           </div>
           <div className="flex justify-end p-4">
             <Button onClick={handleSaveTransitionNode}>Save</Button>
+          </div>
+        </Modal>
+      )}
+      {isIfThenElseModalOpen && editingIfThenElseNode && (
+        <Modal isOpen={isIfThenElseModalOpen} onClose={handleCloseIfThenElseModal} title="Edit If-Then-Else Condition">
+          <IfThenElseNodeEditor
+            node={editingIfThenElseNode}
+            onNodeChange={handleIfThenElseNodeChange}
+          />
+          <div className="flex justify-end p-4">
+            <Button onClick={handleSaveIfThenElseNode}>Save</Button>
           </div>
         </Modal>
       )}

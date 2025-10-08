@@ -98,7 +98,47 @@ export function validateGameFlow(
     }
   }
 
-  // Step 3: Check for orphaned nodes
+  // Step 3: Check for invalid/incomplete connections
+  const nodeIds = new Set(gameFlow.nodes.map(n => n.id));
+
+  gameFlow.connections.forEach(conn => {
+    const fromId = (conn.from as any)?.nodeId || conn.from;
+    const toId = (conn.to as any)?.nodeId || conn.to;
+
+    // Check for connections with missing to/from
+    if (!fromId) {
+      issues.push({
+        type: 'ERROR',
+        message: `Open Connections! Connection has no source node defined`
+      });
+    }
+
+    if (!toId) {
+      issues.push({
+        type: 'ERROR',
+        message: `Open Connections! Incomplete connection from node ${fromId || 'unknown'} - no destination defined`
+      });
+    }
+
+    // Check for connections pointing to non-existent nodes
+    if (fromId && !nodeIds.has(fromId as string)) {
+      issues.push({
+        type: 'ERROR',
+        message: `Connection references non-existent source node: ${fromId}`,
+        nodeId: fromId as string
+      });
+    }
+
+    if (toId && !nodeIds.has(toId as string)) {
+      issues.push({
+        type: 'ERROR',
+        message: `Connection references non-existent destination node: ${toId}`,
+        nodeId: toId as string
+      });
+    }
+  });
+
+  // Step 3b: Check for orphaned nodes
   const connectedNodeIds = new Set<string>();
   gameFlow.connections.forEach(conn => {
     const fromId = (conn.from as any)?.nodeId || conn.from;
@@ -120,6 +160,76 @@ export function validateGameFlow(
       });
     });
   }
+
+  // Step 3c: Check for nodes with unconnected outputs
+  const terminalNodeTypes = ['End', 'Restart'];
+
+  gameFlow.nodes.forEach(node => {
+    // Skip terminal nodes
+    if (terminalNodeTypes.includes(node.type)) {
+      return;
+    }
+
+    // Check if node has outgoing connections
+    const hasOutgoingConnections = gameFlow.connections.some(
+      c => ((c.from as any)?.nodeId || c.from) === node.id
+    );
+
+    // For SubMenu nodes, check if all options have connections
+    if (node.type === 'SubMenu') {
+      const options = (node as any).options || [];
+
+      options.forEach((option: any) => {
+        const hasOptionConnection = gameFlow.connections.some(
+          c => ((c.from as any)?.nodeId || c.from) === node.id &&
+               (c.from as any)?.sourceId === option.id
+        );
+
+        if (!hasOptionConnection) {
+          issues.push({
+            type: 'ERROR',
+            message: `Open Connections! SubMenu option "${option.text}" has no outgoing connection`,
+            nodeId: node.id
+          });
+        }
+      });
+    } else if (node.type === 'IfThenElse') {
+      // For IfThenElse nodes, check for THEN and ELSE connections
+      const hasThenConnection = gameFlow.connections.some(
+        c => ((c.from as any)?.nodeId || c.from) === node.id &&
+             ((c.from as any)?.sourceId === 'then' || !(c.from as any)?.sourceId)
+      );
+      const hasElseConnection = gameFlow.connections.some(
+        c => ((c.from as any)?.nodeId || c.from) === node.id &&
+             (c.from as any)?.sourceId === 'else'
+      );
+
+      if (!hasThenConnection) {
+        issues.push({
+          type: 'ERROR',
+          message: 'Open Connections! IfThenElse node has no THEN connection',
+          nodeId: node.id
+        });
+      }
+
+      if (!hasElseConnection) {
+        issues.push({
+          type: 'ERROR',
+          message: 'Open Connections! IfThenElse node has no ELSE connection',
+          nodeId: node.id
+        });
+      }
+    } else if (node.type !== 'Waypoint') {
+      // For other non-terminal nodes, check for at least one outgoing connection
+      if (!hasOutgoingConnections) {
+        issues.push({
+          type: 'ERROR',
+          message: `Open Connections! ${node.type} node has no outgoing connection`,
+          nodeId: node.id
+        });
+      }
+    }
+  });
 
   // Step 4: Validate asset references
   gameFlow.nodes.forEach(node => {

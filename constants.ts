@@ -601,3 +601,410 @@ export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
 
 /** The maximum number of actions to store in the undo/redo history. */
 export const MAX_HISTORY_LENGTH = 50;
+
+// --- Mideas Global Variables Dictionary ---
+/**
+ * Global variables dictionary for Mideas language
+ * Used in GameFlow IfThenElse nodes for conditional logic
+ */
+export interface MideasGlobalVariable {
+  /** Variable name (e.g., "Goal", "Lives") */
+  name: string;
+  /** ASM variable name (e.g., "global_var_goal") */
+  asmName: string;
+  /** ASM constant prefix (e.g., "GOAL_") */
+  constantPrefix: string;
+  /** Data type: 8-bit (1 byte) or 16-bit (2 bytes) */
+  type: '8bit' | '16bit';
+  /** Description of what this variable represents */
+  description: string;
+  /** Possible values for this variable */
+  values: { label: string; value: number | string; asmConstant?: string }[];
+  /** Category for organization */
+  category: 'objective' | 'score' | 'player' | 'inventory' | 'progress' | 'time' | 'difficulty' | 'special';
+}
+
+export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
+  // === OBJECTIVE / PROGRESS ===
+  {
+    name: 'Goal',
+    asmName: 'global_var_goal',
+    constantPrefix: 'GOAL_',
+    type: '8bit',
+    description: 'Current objective status',
+    category: 'objective',
+    values: [
+      { label: 'Failure', value: 0, asmConstant: 'GOAL_FAILURE' },
+      { label: 'Completed', value: 1, asmConstant: 'GOAL_COMPLETED' },
+      { label: 'Partial', value: 2, asmConstant: 'GOAL_PARTIAL' },
+    ]
+  },
+  {
+    name: 'MissionStatus',
+    asmName: 'global_var_mission_status',
+    constantPrefix: 'MISSION_',
+    type: '8bit',
+    description: 'Current mission state',
+    category: 'objective',
+    values: [
+      { label: 'NotStarted', value: 0, asmConstant: 'MISSION_NOT_STARTED' },
+      { label: 'Active', value: 1, asmConstant: 'MISSION_ACTIVE' },
+      { label: 'Completed', value: 2, asmConstant: 'MISSION_COMPLETED' },
+      { label: 'Failed', value: 3, asmConstant: 'MISSION_FAILED' },
+    ]
+  },
+  {
+    name: 'LevelCompleted',
+    asmName: 'global_var_level_completed',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Level completion flag',
+    category: 'objective',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+  {
+    name: 'BossDefeated',
+    asmName: 'global_var_boss_defeated',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Boss defeated flag',
+    category: 'objective',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+  {
+    name: 'AllItemsCollected',
+    asmName: 'global_var_all_items_collected',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'All items collected flag',
+    category: 'objective',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+
+  // === SCORE / POINTS ===
+  {
+    name: 'Score',
+    asmName: 'global_var_score',
+    constantPrefix: 'SCORE_',
+    type: '16bit',
+    description: 'Current player score (0-65535)',
+    category: 'score',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'HiScore',
+    asmName: 'global_var_hi_score',
+    constantPrefix: 'HISCORE_',
+    type: '16bit',
+    description: 'High score record (0-65535)',
+    category: 'score',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'ComboMultiplier',
+    asmName: 'global_var_combo_multiplier',
+    constantPrefix: 'COMBO_',
+    type: '8bit',
+    description: 'Combo multiplier (1x, 2x, 3x...)',
+    category: 'score',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'Coins',
+    asmName: 'global_var_coins',
+    constantPrefix: 'COINS_',
+    type: '8bit',
+    description: 'Coins collected (0-255)',
+    category: 'score',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'Gems',
+    asmName: 'global_var_gems',
+    constantPrefix: 'GEMS_',
+    type: '8bit',
+    description: 'Gems collected (0-255)',
+    category: 'score',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+
+  // === PLAYER STATE ===
+  {
+    name: 'Lives',
+    asmName: 'global_var_lives',
+    constantPrefix: 'LIVES_',
+    type: '8bit',
+    description: 'Remaining lives (0-255)',
+    category: 'player',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'Health',
+    asmName: 'global_var_health',
+    constantPrefix: 'HEALTH_',
+    type: '8bit',
+    description: 'Current health (0-255)',
+    category: 'player',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'Energy',
+    asmName: 'global_var_energy',
+    constantPrefix: 'ENERGY_',
+    type: '8bit',
+    description: 'Current energy/mana (0-255)',
+    category: 'player',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'Shield',
+    asmName: 'global_var_shield',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Shield active flag',
+    category: 'player',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+
+  // === INVENTORY / ITEMS ===
+  {
+    name: 'HasKey',
+    asmName: 'global_var_has_key',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Has key item',
+    category: 'inventory',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+  {
+    name: 'HasSword',
+    asmName: 'global_var_has_sword',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Has sword item',
+    category: 'inventory',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+  {
+    name: 'HasMap',
+    asmName: 'global_var_has_map',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Has map item',
+    category: 'inventory',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+  {
+    name: 'ItemCount',
+    asmName: 'global_var_item_count',
+    constantPrefix: 'ITEMS_',
+    type: '8bit',
+    description: 'Special items collected (0-255)',
+    category: 'inventory',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'PowerUpActive',
+    asmName: 'global_var_powerup_active',
+    constantPrefix: 'POWERUP_',
+    type: '8bit',
+    description: 'Active power-up type',
+    category: 'inventory',
+    values: [
+      { label: 'None', value: 0, asmConstant: 'POWERUP_NONE' },
+      { label: 'Speed', value: 1, asmConstant: 'POWERUP_SPEED' },
+      { label: 'Jump', value: 2, asmConstant: 'POWERUP_JUMP' },
+      { label: 'Invincible', value: 3, asmConstant: 'POWERUP_INVINCIBLE' },
+    ]
+  },
+
+  // === PROGRESS / WORLD ===
+  {
+    name: 'CurrentWorld',
+    asmName: 'global_var_current_world',
+    constantPrefix: 'WORLD_',
+    type: '8bit',
+    description: 'Current world number (1-8)',
+    category: 'progress',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'CurrentLevel',
+    asmName: 'global_var_current_level',
+    constantPrefix: 'LEVEL_',
+    type: '8bit',
+    description: 'Current level number (0-255)',
+    category: 'progress',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'CheckpointReached',
+    asmName: 'global_var_checkpoint',
+    constantPrefix: 'CHECKPOINT_',
+    type: '8bit',
+    description: 'Checkpoint reached (0-255)',
+    category: 'progress',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'SecretFound',
+    asmName: 'global_var_secret_found',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Secret area found flag',
+    category: 'progress',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+  {
+    name: 'DoorsUnlocked',
+    asmName: 'global_var_doors_unlocked',
+    constantPrefix: 'DOORS_',
+    type: '8bit',
+    description: 'Doors unlocked bitmask (0-255)',
+    category: 'progress',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+
+  // === TIME ===
+  {
+    name: 'TimeRemaining',
+    asmName: 'global_var_time_remaining',
+    constantPrefix: 'TIME_',
+    type: '16bit',
+    description: 'Time remaining in seconds (0-65535)',
+    category: 'time',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'TimeLimitActive',
+    asmName: 'global_var_time_limit_active',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Time limit active flag',
+    category: 'time',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+  {
+    name: 'DayNightCycle',
+    asmName: 'global_var_day_night_cycle',
+    constantPrefix: 'TIME_',
+    type: '8bit',
+    description: 'Day/night cycle state (0-23)',
+    category: 'time',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+
+  // === DIFFICULTY ===
+  {
+    name: 'DifficultyLevel',
+    asmName: 'global_var_difficulty',
+    constantPrefix: 'DIFFICULTY_',
+    type: '8bit',
+    description: 'Game difficulty level',
+    category: 'difficulty',
+    values: [
+      { label: 'Easy', value: 0, asmConstant: 'DIFFICULTY_EASY' },
+      { label: 'Normal', value: 1, asmConstant: 'DIFFICULTY_NORMAL' },
+      { label: 'Hard', value: 2, asmConstant: 'DIFFICULTY_HARD' },
+      { label: 'Expert', value: 3, asmConstant: 'DIFFICULTY_EXPERT' },
+    ]
+  },
+
+  // === SPECIAL CONDITIONS ===
+  {
+    name: 'EnemiesDefeated',
+    asmName: 'global_var_enemies_defeated',
+    constantPrefix: 'ENEMIES_',
+    type: '16bit',
+    description: 'Enemies defeated count (0-65535)',
+    category: 'special',
+    values: [
+      { label: 'Custom Value', value: 'number' },
+    ]
+  },
+  {
+    name: 'PerfectRun',
+    asmName: 'global_var_perfect_run',
+    constantPrefix: 'BOOL_',
+    type: '8bit',
+    description: 'Perfect run (no damage) flag',
+    category: 'special',
+    values: [
+      { label: 'False', value: 0, asmConstant: 'BOOL_FALSE' },
+      { label: 'True', value: 1, asmConstant: 'BOOL_TRUE' },
+    ]
+  },
+];
+
+/**
+ * Get available values/constants for a given global variable
+ */
+export function getMideasVariableValues(variableName: string): { label: string; value: number | string; asmConstant?: string }[] {
+  const variable = MIDEAS_GLOBAL_VARIABLES.find(v => v.name === variableName);
+  return variable?.values || [];
+}
+
+/**
+ * Get variable by name
+ */
+export function getMideasVariable(variableName: string): MideasGlobalVariable | undefined {
+  return MIDEAS_GLOBAL_VARIABLES.find(v => v.name === variableName);
+}
+// --- End Mideas Global Variables Dictionary ---
