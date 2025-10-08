@@ -772,6 +772,39 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             </div>
         );
     }
+    if (gameFlowNode.type === 'IfThenElse') {
+        const node = gameFlowNode as any; // GameFlowIfThenElseNode
+        return (
+            <div className="space-y-2">
+                <div className="p-2 bg-msx-bgcolor-darker rounded">
+                    <div className="text-xs font-bold text-msx-primary mb-2">Condition</div>
+                    <div className="space-y-1">
+                        <div>
+                            <span className="text-xs text-msx-textsecondary">Variable:</span>
+                            <div className="text-sm font-mono text-white">{node.variableName || 'Goal'}</div>
+                        </div>
+                        <div>
+                            <span className="text-xs text-msx-textsecondary">Operator:</span>
+                            <div className="text-sm font-mono text-white">{node.operator || '=='}</div>
+                        </div>
+                        <div>
+                            <span className="text-xs text-msx-textsecondary">Compare Value:</span>
+                            <div className="text-sm font-mono text-white">{node.compareValue || 'Completed'}</div>
+                        </div>
+                    </div>
+                </div>
+                <div className="p-2 bg-msx-bgcolor-darker rounded border-l-2 border-msx-primary">
+                    <div className="text-xs font-bold mb-1">Expression:</div>
+                    <div className="text-sm font-mono text-msx-primary">
+                        IF {node.variableName || 'Goal'} {node.operator || '=='} {node.compareValue || 'Completed'}
+                    </div>
+                </div>
+                <div className="text-xs text-msx-textsecondary italic">
+                    💡 Use "Edit Condition" button on node to modify
+                </div>
+            </div>
+        );
+    }
     return <p className="text-msx-textsecondary">Selected node type: {gameFlowNode.type}</p>;
   };
 
