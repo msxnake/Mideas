@@ -9,7 +9,7 @@ import { TransitionGuardEditor } from '../TransitionGuardEditor';
 
 interface TransitionsEditorProps {
   stateMachine: StateMachine;
-  onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[]) => void;
+  onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[], guard?: any) => void;
   onDeleteTransition: (id: string) => void;
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void;
 }
@@ -26,6 +26,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
   const [toState, setToState] = useState<string>(states[0]?.id || '');
   const [condition, setCondition] = useState<Condition | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
+  const [guard, setGuard] = useState<any>(undefined);
   const [editingTransitionId, setEditingTransitionId] = useState<string | null>(null);
 
   const stateMap = new Map(states.map(s => [s.id, s.name]));
@@ -41,9 +42,10 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
 
   const handleAddClick = () => {
     if (fromState && toState && condition) {
-      onAddTransition(fromState, toState, condition, actions);
+      onAddTransition(fromState, toState, condition, actions, guard);
       setCondition(null);
       setActions([]);
+      setGuard(undefined);
     } else {
       alert("Please select from/to states and define a condition.");
     }
@@ -149,6 +151,13 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
         </div>
         {condition && (
           <>
+            <div>
+              <h5 className="text-xs font-bold mb-2">Guard (Optional)</h5>
+              <TransitionGuardEditor
+                guard={guard}
+                onGuardChange={setGuard}
+              />
+            </div>
             <div>
               <h5 className="text-xs font-bold mb-1">Actions</h5>
               <ActionSequenceEditor actions={actions} onUpdateActions={setActions} />

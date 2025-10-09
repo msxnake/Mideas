@@ -29,7 +29,7 @@ const StateDetailView = ({
   onUpdateActions: (actionList: 'onEnter' | 'onExit', newActions: Action[]) => void,
   onUpdateProperties: (properties: { [key: string]: any }) => void,
   stateMachine: StateMachine,
-  onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[]) => void,
+  onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[], guard?: any) => void,
   onDeleteTransition: (id: string) => void,
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void
 }) => {
@@ -162,13 +162,14 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
     onUpdateAsset({ states: updatedStates });
   };
 
-  const handleAddTransition = (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[]) => {
+  const handleAddTransition = (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[], guard?: any) => {
     const newTransition: StateMachineTransition = {
       id: `transition_${Date.now()}`,
       fromStateId,
       toStateId,
       conditions,
       actions,
+      guard,
     };
     onUpdateAsset({ transitions: [...stateMachine.transitions, newTransition] });
   };
