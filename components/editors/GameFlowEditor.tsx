@@ -1207,6 +1207,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           <IfThenElseNodeEditor
             node={editingIfThenElseNode}
             onNodeChange={handleIfThenElseNodeChange}
+            allAssets={allAssets}
           />
           <div className="flex justify-end p-4">
             <Button onClick={handleSaveIfThenElseNode}>Save</Button>

@@ -1,20 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { GameFlowIfThenElseNode } from '../../types';
-import { MIDEAS_GLOBAL_VARIABLES, getMideasVariable } from '../../constants';
+import React, { useState, useEffect, useMemo } from 'react';
+import { GameFlowIfThenElseNode, ProjectAsset } from '../../types';
+import { getAllGlobalVariables } from '../../utils/globalVariablesUtils';
 import { Button } from '../common/Button';
 
 interface IfThenElseNodeEditorProps {
   node: GameFlowIfThenElseNode;
   onNodeChange: (updatedNode: GameFlowIfThenElseNode) => void;
+  allAssets: ProjectAsset[];
 }
 
-export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node, onNodeChange }) => {
+export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node, onNodeChange, allAssets }) => {
   const [variableName, setVariableName] = useState(node.variableName || 'Goal');
   const [operator, setOperator] = useState(node.operator || '==');
   const [compareValue, setCompareValue] = useState(node.compareValue || 'Completed');
   const [customValue, setCustomValue] = useState('');
 
-  const selectedVariable = getMideasVariable(variableName);
+  // Get all variables (default + custom)
+  const allVariables = useMemo(() => getAllGlobalVariables(allAssets), [allAssets]);
+
+  const selectedVariable = allVariables.find(v => v.name === variableName);
   const availableValues = selectedVariable?.values || [];
   const isCustomValue = availableValues.length > 0 && availableValues[0].value === 'number';
 
@@ -30,7 +34,7 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
     setVariableName(newVariable);
 
     // Reset compare value to first available option
-    const variable = getMideasVariable(newVariable);
+    const variable = allVariables.find(v => v.name === newVariable);
     if (variable && variable.values.length > 0) {
       if (variable.values[0].value === 'number') {
         setCompareValue('0');
@@ -72,13 +76,13 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
   };
 
   // Group variables by category
-  const variablesByCategory = MIDEAS_GLOBAL_VARIABLES.reduce((acc, variable) => {
+  const variablesByCategory = allVariables.reduce((acc, variable) => {
     if (!acc[variable.category]) {
       acc[variable.category] = [];
     }
     acc[variable.category].push(variable);
     return acc;
-  }, {} as Record<string, typeof MIDEAS_GLOBAL_VARIABLES>);
+  }, {} as Record<string, typeof allVariables>);
 
   const categoryLabels: Record<string, string> = {
     objective: '🎯 Objectives',

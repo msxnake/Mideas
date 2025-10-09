@@ -1,19 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { TransitionGuard } from '../../statemachine.types';
-import { MIDEAS_GLOBAL_VARIABLES, getMideasVariable } from '../../constants';
+import { MIDEAS_GLOBAL_VARIABLES } from '../../constants';
+import { ProjectAsset } from '../../types';
+import { getAllGlobalVariables } from '../../utils/globalVariablesUtils';
 
 interface TransitionGuardEditorProps {
   guard?: TransitionGuard;
   onGuardChange: (guard: TransitionGuard | undefined) => void;
+  allAssets?: ProjectAsset[];
 }
 
-export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ guard, onGuardChange }) => {
+export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ guard, onGuardChange, allAssets = [] }) => {
   const [enabled, setEnabled] = useState(!!guard);
   const [variableName, setVariableName] = useState(guard?.variableName || 'Goal');
   const [operator, setOperator] = useState(guard?.operator || '==');
   const [compareValue, setCompareValue] = useState(guard?.compareValue?.toString() || 'Completed');
 
-  const selectedVariable = getMideasVariable(variableName);
+  // Get all variables (default + custom)
+  const allVariables = useMemo(() => getAllGlobalVariables(allAssets), [allAssets]);
+
+  const selectedVariable = allVariables.find(v => v.name === variableName);
   const availableValues = selectedVariable?.values || [];
   const isCustomValue = availableValues.length > 0 && availableValues[0].value === 'number';
 
@@ -34,7 +40,7 @@ export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ gu
     setVariableName(newVariable);
 
     // Reset compare value to first available option
-    const variable = getMideasVariable(newVariable);
+    const variable = allVariables.find(v => v.name === newVariable);
     const newCompareValue = variable?.values[0]?.value === 'number' ? '0' : (variable?.values[0]?.label || 'Completed');
     setCompareValue(newCompareValue);
 
@@ -70,13 +76,13 @@ export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ gu
   };
 
   // Group variables by category
-  const variablesByCategory = MIDEAS_GLOBAL_VARIABLES.reduce((acc, variable) => {
+  const variablesByCategory = allVariables.reduce((acc, variable) => {
     if (!acc[variable.category]) {
       acc[variable.category] = [];
     }
     acc[variable.category].push(variable);
     return acc;
-  }, {} as Record<string, typeof MIDEAS_GLOBAL_VARIABLES>);
+  }, {} as Record<string, typeof allVariables>);
 
   const categoryLabels: Record<string, string> = {
     objective: '🎯 Objectives',

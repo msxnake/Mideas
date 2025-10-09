@@ -57,6 +57,7 @@ export var EditorType;
     EditorType["GameFlow"] = "GameFlow";
     EditorType["MainMenu"] = "MainMenu";
     EditorType["StateMachine"] = "StateMachine";
+    EditorType["GlobalVariables"] = "GlobalVariables";
 })(EditorType || (EditorType = {}));
 export const DITHER_BRUSH_DIAMETERS = [1, 3, 5, 7];
 export const SOLIDITY_TYPES = [

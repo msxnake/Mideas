@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { StateMachine } from './statemachine.types';
+import { MideasGlobalVariable } from './constants';
 
 /** A string representing a color in hex format (e.g., "#RRGGBB"). */
 export type MSXColorValue = string;
@@ -1054,6 +1055,7 @@ export enum EditorType {
   GameFlow = "GameFlow",
   MainMenu = "MainMenu",
   StateMachine = "StateMachine",
+  GlobalVariables = "GlobalVariables",
 }
 
 /**
@@ -1065,9 +1067,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine' | 'font' | 'tilebank';
+  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine | MSXFontAsset | TileBank;
+  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset;
 }
 
 export interface Point { x: number; y: number; }
@@ -1085,6 +1087,14 @@ export interface MSXFontAsset {
   fontData: MSXFont;
   /** The color attributes for SCREEN 2 mode. */
   fontColorAttributes: MSXFontColorAttributes;
+}
+
+/**
+ * Represents a global variables asset containing custom project-specific variables.
+ */
+export interface GlobalVariablesAsset {
+  /** List of custom global variables for this project */
+  customVariables: MideasGlobalVariable[];
 }
 
 export type DataFormat = 'hex' | 'decimal';

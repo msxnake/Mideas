@@ -1,15 +1,18 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Action, ActionTypes } from '../../../statemachine.types';
+import { ProjectAsset } from '../../../types';
+import { getAllGlobalVariables } from '../../../utils/globalVariablesUtils';
 
 interface ActionParamsEditorProps {
   action: Action;
   onUpdateParams: (params: { [key: string]: any }) => void;
+  allAssets?: ProjectAsset[];
 }
 
 const ParamInput = ({ label, value, onChange, type = "text" }) => (
   <div className="flex items-center space-x-2">
     <label className="text-xs text-gray-400 w-16">{label}</label>
-    <input 
+    <input
       type={type}
       value={value ?? ''}
       onChange={onChange}
@@ -19,7 +22,9 @@ const ParamInput = ({ label, value, onChange, type = "text" }) => (
   </div>
 );
 
-export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, onUpdateParams }) => {
+export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, onUpdateParams, allAssets = [] }) => {
+  // Get all variables (default + custom)
+  const allVariables = useMemo(() => getAllGlobalVariables(allAssets), [allAssets]);
 
   const handleParamChange = (paramName: string, value: any) => {
     onUpdateParams({ ...action.params, [paramName]: value });
@@ -84,30 +89,60 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         );
 
       case ActionTypes.SET_VARIABLE:
+        const selectedVar = allVariables.find(v => v.name === action.params.variable);
         return (
           <div className="space-y-2">
-            <ParamInput 
-              label="Variable Name"
-              value={action.params.variable}
-              onChange={(e) => handleParamChange('variable', e.target.value)}
-            />
-            <ParamInput 
-              label="Value"
-              value={action.params.value}
-              onChange={(e) => handleParamChange('value', e.target.value)}
-            />
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-16">Variable</label>
+              <select
+                value={action.params.variable || 'Goal'}
+                onChange={(e) => handleParamChange('variable', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                {allVariables.map((variable) => (
+                  <option key={variable.name} value={variable.name}>
+                    {variable.category} → {variable.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-16">Value</label>
+              <select
+                value={action.params.value || ''}
+                onChange={(e) => handleParamChange('value', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="">-- Select Value --</option>
+                {selectedVar?.values.map((val) => (
+                  <option key={val.value} value={val.label}>
+                    {val.label} ({val.value})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         );
 
       case ActionTypes.INCREMENT_VARIABLE:
+      case ActionTypes.DECREMENT_VARIABLE:
         return (
           <div className="space-y-2">
-            <ParamInput 
-              label="Variable Name"
-              value={action.params.variable}
-              onChange={(e) => handleParamChange('variable', e.target.value)}
-            />
-            <ParamInput 
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-16">Variable</label>
+              <select
+                value={action.params.variable || 'Score'}
+                onChange={(e) => handleParamChange('variable', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                {allVariables.map((variable) => (
+                  <option key={variable.name} value={variable.name}>
+                    {variable.category} → {variable.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <ParamInput
               label="Amount"
               type="number"
               value={action.params.amount}
