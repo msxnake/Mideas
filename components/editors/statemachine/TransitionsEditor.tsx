@@ -5,6 +5,7 @@ import { StateMachine, Condition, StateMachineTransition, Action } from '../../.
 import { TrashIcon } from '../../icons/MsxIcons';
 import { ConditionBuilder } from './ConditionBuilder';
 import { ActionSequenceEditor } from './ActionSequenceEditor';
+import { TransitionGuardEditor } from '../TransitionGuardEditor';
 
 interface TransitionsEditorProps {
   stateMachine: StateMachine;
@@ -67,6 +68,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
             <th className="py-2 px-4">From</th>
             <th className="py-2 px-4">To</th>
             <th className="py-2 px-4">Condition</th>
+            <th className="py-2 px-4">Guard</th>
             <th className="py-2 px-4"></th>
           </tr>
         </thead>
@@ -77,6 +79,15 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
                 <td className="py-2 px-4">{stateMap.get(transition.fromStateId) || 'Unknown'}</td>
                 <td className="py-2 px-4">{stateMap.get(transition.toStateId) || 'Unknown'}</td>
                 <td className="py-2 px-4 text-xs">{renderCondition(transition.conditions)}</td>
+                <td className="py-2 px-4 text-xs">
+                  {transition.guard ? (
+                    <span className="text-msx-primary font-mono">
+                      IF {transition.guard.variableName} {transition.guard.operator} {transition.guard.compareValue}
+                    </span>
+                  ) : (
+                    <span className="text-msx-textsecondary italic">none</span>
+                  )}
+                </td>
                 <td className="py-2 px-4">
                   <button
                     onClick={(e) => { e.stopPropagation(); onDeleteTransition(transition.id); }}
@@ -89,12 +100,21 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
               </tr>
               {editingTransitionId === transition.id && (
                 <tr className="border-b border-msx-border">
-                  <td colSpan={4} className="p-2 bg-msx-bgcolor-dark">
-                    <h5 className="text-xs font-bold mb-1">Actions</h5>
-                    <ActionSequenceEditor 
-                      actions={transition.actions || []} 
-                      onUpdateActions={(newActions) => onUpdateTransition(transition.id, { actions: newActions })} 
-                    />
+                  <td colSpan={5} className="p-2 bg-msx-bgcolor-dark space-y-3">
+                    <div>
+                      <h5 className="text-xs font-bold mb-2">Guard (Condition)</h5>
+                      <TransitionGuardEditor
+                        guard={transition.guard}
+                        onGuardChange={(guard) => onUpdateTransition(transition.id, { guard })}
+                      />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold mb-1">Actions</h5>
+                      <ActionSequenceEditor
+                        actions={transition.actions || []}
+                        onUpdateActions={(newActions) => onUpdateTransition(transition.id, { actions: newActions })}
+                      />
+                    </div>
                   </td>
                 </tr>
               )}

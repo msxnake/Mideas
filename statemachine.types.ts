@@ -71,11 +71,18 @@ export interface StateMachineEvent {
   type: StateMachineInputType;
 }
 
+export interface TransitionGuard {
+  variableName: string;
+  operator: '==' | '!=' | '>' | '<' | '>=' | '<=';
+  compareValue: string | number;
+}
+
 export interface StateMachineTransition {
   id:string;
   fromStateId: string;
   toStateId: string;
   eventId: string;
+  guard?: TransitionGuard;
 }
 
 export interface StateMachine {
