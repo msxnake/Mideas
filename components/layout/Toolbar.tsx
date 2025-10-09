@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
 import { ProjectAsset, DataFormat, EditorType } from '../../types'; 
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon } from '../icons/MsxIcons';
+import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
 
 /**
@@ -63,6 +63,8 @@ interface ToolbarProps {
   onOpenComponentDefEditor: () => void;
   /** Callback to open the entity template editor. */
   onOpenEntityTemplateEditor: () => void;
+  /** Callback to open the global variables editor. */
+  onOpenGlobalVariablesEditor: () => void;
   /** Callback to open the world view editor. */
   onOpenWorldView: () => void;
   /** Callback to open the data compression modal. */
@@ -186,7 +188,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
-  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenWorldView, onCompressAllDataFiles,
+  onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenGlobalVariablesEditor, onOpenWorldView, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled
 }) => {
@@ -250,6 +252,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon/>} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white">Tile Banks</DropdownItem>
         <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon/>} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
         <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon/>} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
+        <DropdownItem onClick={onOpenGlobalVariablesEditor} icon={<SparklesIcon/>} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Global Variables</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white">Data Struct (Code)</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon/>} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Sound FX</DropdownItem>

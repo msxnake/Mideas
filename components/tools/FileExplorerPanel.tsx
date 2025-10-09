@@ -55,6 +55,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'behavior': return <PuzzlePieceIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'componentdefinition': return <PuzzlePieceIcon className={`${iconClass} text-purple-400 group-hover:text-msx-accent`} />;
     case 'entitytemplate': return <SpriteIcon className={`${iconClass} text-teal-400 group-hover:text-msx-accent`} />;
+    case 'globalvariables': return <SparklesIcon className={`${iconClass} text-yellow-400 group-hover:text-msx-accent`} />;
     case 'tilebanks': return <ListBulletIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'fonteditor': return <PencilIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'helpdocs': return <QuestionMarkCircleIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -83,6 +84,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   behavior: "Behavior Scripts",
   componentdefinition: "Component Definitions (Data)",
   entitytemplate: "Entity Templates (Data)",
+  globalvariables: "Global Variables",
   code: "Code Files",
 };
 
@@ -102,6 +104,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   behavior: EditorType.BehaviorEditor,
   componentdefinition: EditorType.ComponentDefinitionEditor,
   entitytemplate: EditorType.EntityTemplateEditor,
+  globalvariables: EditorType.GlobalVariables,
   code: EditorType.Code,
 };
 
@@ -119,6 +122,8 @@ export const ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID = "ENTITY_TEMPLATE_EDITOR_SY
 export const WORLD_VIEW_SYSTEM_ASSET_ID = "WORLD_VIEW_SYSTEM_ASSET";
 /** System asset ID for the Game Flow editor. @constant */
 export const GAME_FLOW_SYSTEM_ASSET_ID = "GAME_FLOW_SYSTEM_ASSET_ID";
+/** System asset ID for the Global Variables editor. @constant */
+export const GLOBAL_VARIABLES_SYSTEM_ASSET_ID = "GLOBAL_VARIABLES_SYSTEM_ASSET_ID";
 
 
 /**
