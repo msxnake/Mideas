@@ -469,7 +469,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
            {currentEditor === EditorType.GlobalVariables && activeAsset && activeAsset.type === 'globalvariables' && (
              <GlobalVariablesEditor
                currentAsset={activeAsset as any}
-               onUpdateAsset={(updatedData) => handleAssetUpdate(activeAsset.id, updatedData)}
+               onUpdateAsset={(updatedData) => handleUpdateAsset(activeAsset.id, updatedData)}
              />
            )}
            {currentEditor === EditorType.MainMenu && (
