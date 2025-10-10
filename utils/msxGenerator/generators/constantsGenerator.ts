@@ -6,6 +6,49 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 
 /**
+ * Generate constants for GlobalVariables values
+ *
+ * @param analysis - Project analysis with globalVariables
+ * @returns ASM code string with variable value constants
+ */
+function generateGlobalVariablesConstants(analysis: ProjectAnalysis): string {
+  let code = '';
+
+  if (!analysis.globalVariables || analysis.globalVariables.length === 0) {
+    // Fallback: Generate default Goal constants
+    code += `; Goal Variable Values (default)\n`;
+    code += `GOAL_FAILURE            EQU 0    ; Goal = "Failure"\n`;
+    code += `GOAL_COMPLETED          EQU 1    ; Goal = "Completed"\n`;
+    return code;
+  }
+
+  // Track defined constants to avoid duplicates
+  const definedConstants = new Set<string>();
+
+  // Generate constants for each GlobalVariable
+  analysis.globalVariables.forEach(variable => {
+    if (variable.values && variable.values.length > 0) {
+      code += `\n; ${variable.name} - ${variable.description || 'Variable values'}\n`;
+
+      variable.values.forEach(valueEntry => {
+        const constantName = (valueEntry.asmConstant || 'UNKNOWN').trim();
+        const valueHex = typeof valueEntry.value === 'number'
+          ? valueEntry.value
+          : 0;
+
+        // Only add if not already defined (avoid duplicates like BOOL_FALSE, BOOL_TRUE)
+        if (!definedConstants.has(constantName)) {
+          code += `${constantName.padEnd(24)}EQU ${valueHex}    ; ${variable.name} = "${valueEntry.label}"\n`;
+          definedConstants.add(constantName);
+        }
+      });
+    }
+  });
+
+  return code;
+}
+
+/**
  * Generate MSX constants file (constants.asm)
  *
  * @param analysis - Project analysis with assets and configuration
@@ -130,12 +173,10 @@ TRIG_A      EQU #10      ; Trigger A (Fire)
 TRIG_B      EQU #20      ; Trigger B (MSX2+)
 
 ; ==================================================================
-; MIDEAS GLOBAL VARIABLES - RESERVED VALUES
+; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
 ; ==================================================================
 
-; Goal Variable Values (reserved words)
-GOAL_FAILURE            EQU 0    ; Goal = "Failure"
-GOAL_COMPLETED          EQU 1    ; Goal = "Completed"
+${generateGlobalVariablesConstants(analysis)}
 
 ; ==================================================================
 ; GAME FLOW STATES (PROJECT-SPECIFIC)

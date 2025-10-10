@@ -3,6 +3,7 @@
  */
 
 import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph } from '../../../types';
+import { MideasGlobalVariable } from '../../../constants';
 
 /**
  * Project Summary interfaces (extracted from summary system)
@@ -127,4 +128,6 @@ export interface ProjectAnalysis {
   screens: ScreenMap[];
   gameFlow?: GameFlowGraph;
   projectName: string;
+  globalVariables: MideasGlobalVariable[];  // Global variables (defaults + custom)
+  screenMaps?: ScreenMap[];  // Alias for screens (compatibility)
 }

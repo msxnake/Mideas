@@ -101,22 +101,24 @@ export const ConditionTypes = {
   XOR: 'XOR',
   NOT: 'NOT',
 
-  // Input conditions
+  // Input conditions (events)
   KEY_PRESSED: 'KEY_PRESSED',
   KEY_RELEASED: 'KEY_RELEASED',
 
-  // Game state conditions
-  VARIABLE_EQUALS: 'VARIABLE_EQUALS',
-  VARIABLE_GREATER: 'VARIABLE_GREATER',
-  
-  // Movement/Collision conditions
+  // Time conditions (events)
+  TIME_OUT: 'TIME_OUT',
+
+  // Movement/Collision conditions (events)
   CAN_MOVE_DIRECTION: 'CAN_MOVE_DIRECTION',
   HAS_COLLISION: 'HAS_COLLISION',
   PATH_CLEAR: 'PATH_CLEAR',
-  
+
   // Composite conditions
   KEY_AND_MOVEMENT: 'KEY_AND_MOVEMENT'
 } as const;
+
+// Note: VARIABLE_EQUALS and VARIABLE_GREATER have been removed
+// Use TransitionGuard for variable comparisons instead of Condition
 
 export type ConditionType = typeof ConditionTypes[keyof typeof ConditionTypes];
 

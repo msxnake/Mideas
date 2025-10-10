@@ -55,7 +55,8 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     tiles: summary.assets.tiles as any[],
     screens: summary.assets.screens as any[],
     gameFlow: summary.execution.mainGameFlow as any,
-    projectName: summary.projectInfo.name
+    projectName: summary.projectInfo.name,
+    globalVariables: []  // Empty for summary conversion (will be populated from actual assets elsewhere)
   };
 
   return analysis;
@@ -111,7 +112,8 @@ export function generateModularASM(
       sprites: [],
       tiles: [],
       screens: [],
-      projectName: projectName
+      projectName: projectName,
+      globalVariables: []  // Empty globalVariables for fallback
     };
     console.log('🔄 Using fallback empty analysis');
   }

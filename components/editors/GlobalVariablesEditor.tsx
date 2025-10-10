@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GlobalVariablesAsset } from '../../types';
-import { MideasGlobalVariable } from '../../constants';
+import { MideasGlobalVariable, MIDEAS_GLOBAL_VARIABLES } from '../../constants';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveIcon } from '../icons/MsxIcons';
@@ -36,6 +36,7 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
   const [editingVariable, setEditingVariable] = useState<Partial<MideasGlobalVariable> | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   const [variableToDelete, setVariableToDelete] = useState<MideasGlobalVariable | null>(null);
+  const [isDefaultsModalOpen, setIsDefaultsModalOpen] = useState(false);
 
   useEffect(() => {
     if (selectedVariableId) {
@@ -70,6 +71,30 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
     };
     setEditingVariable(newVar);
     setSelectedVariableId('NewVariable');
+  };
+
+  const handleAddFromDefaults = (defaultVar: MideasGlobalVariable) => {
+    // Check if variable with same name already exists
+    const exists = globalVarsAsset.customVariables.some(v => v.name === defaultVar.name);
+    if (exists) {
+      alert(`Variable "${defaultVar.name}" already exists in custom variables.`);
+      return;
+    }
+
+    // Deep copy the default variable
+    const newVar: MideasGlobalVariable = {
+      ...defaultVar,
+      values: defaultVar.values.map(v => ({ ...v }))
+    };
+
+    // Add to custom variables
+    const updatedVariables = [...globalVarsAsset.customVariables, newVar];
+    onUpdateAsset({ customVariables: updatedVariables });
+
+    // Select the newly added variable
+    setSelectedVariableId(newVar.name);
+    setEditingVariable({ ...newVar, values: newVar.values.map(v => ({...v})) });
+    setIsDefaultsModalOpen(false);
   };
 
   const handleVariableChange = (field: keyof MideasGlobalVariable, value: string) => {
@@ -194,7 +219,11 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
       <div className="flex flex-grow h-full overflow-hidden">
         {/* Left Panel: Variables List */}
         <div className="w-1/3 border-r border-msx-border p-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-          <div className="mb-4">
+          <div className="mb-4 space-y-2">
+            <Button onClick={() => setIsDefaultsModalOpen(true)} variant="secondary" size="sm" className="w-full">
+              <PlusCircleIcon className="w-4 h-4 mr-2" />
+              Add Var From Defaults
+            </Button>
             <Button onClick={handleAddNewVariable} variant="primary" size="sm" className="w-full">
               <PlusCircleIcon className="w-4 h-4 mr-2" />
               Add New Variable
@@ -390,6 +419,73 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
           setVariableToDelete(null);
         }}
       />
+
+      {/* Defaults Selection Modal */}
+      {isDefaultsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-msx-bgcolor-darker border-2 border-msx-border rounded-lg shadow-lg max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-msx-border bg-msx-bgcolor-dark">
+              <h2 className="text-xl font-bold text-msx-textcolor">Select Default Variable</h2>
+              <p className="text-sm text-msx-textsecondary mt-1">
+                Choose a variable from MIDEAS defaults to add to your custom variables
+              </p>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4" style={{ scrollbarWidth: 'thin' }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MIDEAS_GLOBAL_VARIABLES.map((defaultVar) => {
+                  const alreadyExists = globalVarsAsset.customVariables.some(v => v.name === defaultVar.name);
+
+                  return (
+                    <div
+                      key={defaultVar.name}
+                      className={`p-3 border rounded ${
+                        alreadyExists
+                          ? 'border-gray-600 bg-gray-800 opacity-50 cursor-not-allowed'
+                          : 'border-msx-border bg-msx-bgcolor hover:bg-msx-bgcolor-dark cursor-pointer hover:border-msx-accent'
+                      }`}
+                      onClick={() => !alreadyExists && handleAddFromDefaults(defaultVar)}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-sm text-msx-textcolor">{defaultVar.name}</h3>
+                          <span className="text-xs text-msx-textsecondary">
+                            {defaultVar.category} | {TYPE_LABELS[defaultVar.type] || defaultVar.type}
+                          </span>
+                        </div>
+                        {alreadyExists && (
+                          <span className="text-xs px-2 py-1 bg-gray-700 text-gray-400 rounded">
+                            Already Added
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-msx-textsecondary mb-2">{defaultVar.description}</p>
+
+                      {defaultVar.values.length > 0 && (
+                        <div className="text-xs text-msx-textsecondary">
+                          <span className="font-semibold">Values:</span>{' '}
+                          {defaultVar.values.slice(0, 3).map(v => v.label).join(', ')}
+                          {defaultVar.values.length > 3 && ` (+${defaultVar.values.length - 3} more)`}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-msx-border bg-msx-bgcolor-dark flex justify-end">
+              <Button onClick={() => setIsDefaultsModalOpen(false)} variant="secondary" size="sm">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Panel>
   );
 };

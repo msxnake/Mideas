@@ -4,6 +4,7 @@
  */
 
 import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph } from '../types';
+import { getAllGlobalVariables } from './globalVariablesUtils';
 
 /**
  * Hot spot marker interface
@@ -34,6 +35,7 @@ export interface ProjectAnalysis {
   hasCollisions: boolean;
   hasMenuSystem: boolean;
   customStates: string[];
+  globalVariables: any[];  // Global variables (defaults + custom from getAllGlobalVariables)
 }
 
 /**
@@ -90,6 +92,9 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     }
   });
 
+  // CRITICAL: Extract GlobalVariables (defaults + custom)
+  const globalVariables = getAllGlobalVariables(assets);
+
   return {
     projectName,
     components,
@@ -106,7 +111,8 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     hasAnimations,
     hasCollisions,
     hasMenuSystem,
-    customStates
+    customStates,
+    globalVariables  // CRITICAL: Include GlobalVariables for ASM generation
   };
 }
 

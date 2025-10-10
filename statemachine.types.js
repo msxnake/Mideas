@@ -4,13 +4,12 @@ export const ConditionTypes = {
     OR: 'OR',
     XOR: 'XOR',
     NOT: 'NOT',
-    // Input conditions
+    // Input conditions (events)
     KEY_PRESSED: 'KEY_PRESSED',
     KEY_RELEASED: 'KEY_RELEASED',
-    // Game state conditions
-    VARIABLE_EQUALS: 'VARIABLE_EQUALS',
-    VARIABLE_GREATER: 'VARIABLE_GREATER',
-    // Movement/Collision conditions
+    // Time conditions (events)
+    TIME_OUT: 'TIME_OUT',
+    // Movement/Collision conditions (events)
     CAN_MOVE_DIRECTION: 'CAN_MOVE_DIRECTION',
     HAS_COLLISION: 'HAS_COLLISION',
     PATH_CLEAR: 'PATH_CLEAR',

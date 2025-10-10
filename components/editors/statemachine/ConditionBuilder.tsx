@@ -60,27 +60,42 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
           />
         );
-      case ConditionTypes.VARIABLE_EQUALS:
-      case ConditionTypes.VARIABLE_GREATER:
+      case ConditionTypes.TIME_OUT:
         return (
-          <div className="flex space-x-1">
-            <input
-              type="text"
-              placeholder="Variable Name"
-              value={condition.params?.variable || ''}
-              onChange={(e) => handleParamChange('variable', e.target.value)}
-              className="w-1/2 p-1 bg-msx-bgcolor border-msx-border rounded"
-            />
-            <input
-              type="text"
-              placeholder="Value"
-              value={condition.params?.value || ''}
-              onChange={(e) => handleParamChange('value', e.target.value)}
-              className="w-1/2 p-1 bg-msx-bgcolor border-msx-border rounded"
-            />
+          <div className="space-y-2">
+            <div className="text-xs text-msx-textsecondary">
+              Triggers when game time reaches 0 (GameTime {'<'} 1)
+            </div>
+            <div className="text-xs text-yellow-400 italic">
+              ℹ️ Requires GameTime variable to be tracked in your game logic
+            </div>
           </div>
         );
-      // TODO: Add editors for other condition types
+      case ConditionTypes.CAN_MOVE_DIRECTION:
+        return (
+          <select
+            value={condition.params?.direction || 'up'}
+            onChange={(e) => handleParamChange('direction', e.target.value)}
+            className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+          >
+            <option value="up">Up</option>
+            <option value="down">Down</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        );
+      case ConditionTypes.HAS_COLLISION:
+      case ConditionTypes.PATH_CLEAR:
+        return (
+          <input
+            type="text"
+            placeholder="Collision layer or type (optional)"
+            value={condition.params?.layer || ''}
+            onChange={(e) => handleParamChange('layer', e.target.value)}
+            className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+          />
+        );
+      // Note: Variable comparisons now use TransitionGuard instead
       default:
         return null;
     }

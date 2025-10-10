@@ -39,14 +39,28 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `prev_flow_state     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous game flow state\n`;
   currentAddress++;
 
-  // Mideas Global Variables Dictionary (reserved words)
+  // Mideas Global Variables Dictionary (from project + defaults)
   code += `
 ; ==================================================================
-; MIDEAS GLOBAL VARIABLES DICTIONARY (RESERVED WORDS)
+; MIDEAS GLOBAL VARIABLES (DEFAULTS + CUSTOM)
 ; ==================================================================
 `;
-  code += `global_var_goal     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Goal status (0=Failure, 1=Completed)\n`;
-  currentAddress++;
+
+  if (analysis.globalVariables && analysis.globalVariables.length > 0) {
+    // Generate variables from globalVariables array
+    analysis.globalVariables.forEach(variable => {
+      const size = variable.type === '16bit' ? 2 : 1;
+      const sizeComment = variable.type === '16bit' ? ' (16-bit)' : ' (8-bit)';
+      const description = variable.description || variable.name;
+
+      code += `${variable.asmName.padEnd(20)} EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${description}${sizeComment}\n`;
+      currentAddress += size;
+    });
+  } else {
+    // Fallback: Generate only the default "goal" variable
+    code += `global_var_goal     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Goal status (0=Failure, 1=Completed)\n`;
+    currentAddress++;
+  }
 
   // Frame counter (always useful)
   code += `

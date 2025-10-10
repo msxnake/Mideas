@@ -70,7 +70,8 @@
       "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" -carta \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\ejemplo1_output\\ejemplo1.rom\" -script \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\automation\\openmsx\\test_ejemplo1_simple.tcl\")",
       "Bash(del test_optimized_generator.ts)",
       "Bash(del nul)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(del test_globalvars_asm.ts)"
     ],
     "deny": [],
     "ask": []
