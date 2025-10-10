@@ -26,6 +26,12 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
   onUpdateAsset,
 }) => {
   const globalVarsAsset = currentAsset.data as GlobalVariablesAsset;
+
+  // Ensure customVariables is always an array
+  if (!globalVarsAsset.customVariables) {
+    globalVarsAsset.customVariables = [];
+  }
+
   const [selectedVariableId, setSelectedVariableId] = useState<string | null>(null);
   const [editingVariable, setEditingVariable] = useState<Partial<MideasGlobalVariable> | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
@@ -129,16 +135,36 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
       return;
     }
 
-    const variableToSave = editingVariable as MideasGlobalVariable;
+    // Ensure all required fields are present
+    const variableToSave: MideasGlobalVariable = {
+      name: editingVariable.name,
+      asmName: editingVariable.asmName || `global_var_${editingVariable.name.toLowerCase()}`,
+      constantPrefix: editingVariable.constantPrefix || `${editingVariable.name.toUpperCase()}_`,
+      type: editingVariable.type || 'byte',
+      description: editingVariable.description || '',
+      values: editingVariable.values || [],
+      category: editingVariable.category || 'special'
+    };
+
+    console.log('[GlobalVariablesEditor] Saving variable:', variableToSave);
+    console.log('[GlobalVariablesEditor] Current customVariables:', globalVarsAsset.customVariables);
+
     const existingIndex = globalVarsAsset.customVariables.findIndex(v => v.name === selectedVariableId);
 
     let updatedVariables;
     if (existingIndex >= 0) {
+      // Update existing variable
+      console.log('[GlobalVariablesEditor] Updating existing variable at index:', existingIndex);
       updatedVariables = [...globalVarsAsset.customVariables];
       updatedVariables[existingIndex] = variableToSave;
     } else {
+      // Add new variable
+      console.log('[GlobalVariablesEditor] Adding new variable');
       updatedVariables = [...globalVarsAsset.customVariables, variableToSave];
     }
+
+    console.log('[GlobalVariablesEditor] Updated variables list:', updatedVariables);
+    console.log('[GlobalVariablesEditor] Calling onUpdateAsset with:', { customVariables: updatedVariables });
 
     onUpdateAsset({ customVariables: updatedVariables });
     setSelectedVariableId(variableToSave.name);
