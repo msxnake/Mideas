@@ -250,6 +250,12 @@ export const useAssetHandlers = ({
         };
         newEditorType = EditorType.StateMachine;
         break;
+      case 'globalvariables':
+        newAssetData = {
+          customVariables: []
+        };
+        newEditorType = EditorType.GlobalVariables;
+        break;
       case 'font':
         // Create default color attributes for each character in the font
         const defaultColorAttributes: any = {};
