@@ -330,16 +330,21 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
    * Renders the properties for the currently selected asset.
    * @returns A React node with the asset's properties.
    */
-  const renderAssetProperties = (): React.ReactNode => { 
+  const renderAssetProperties = (): React.ReactNode => {
+    console.log('[PropertiesPanel] renderAssetProperties called, asset:', asset);
     if (!asset) return <p className="text-msx-textsecondary">No asset selected.</p>;
+    console.log('[PropertiesPanel] asset.type:', asset.type);
     switch (asset.type) {
       case 'tile': const tile = asset.data as Tile; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {tile.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {tile.width}x{tile.height} px</div> <div><strong className="text-msx-highlight">MapID:</strong> {tile.logicalProperties.mapId} (Family: {tile.logicalProperties.familyId}, Inst: {tile.logicalProperties.instanceId})</div> {tile.lineAttributes && currentScreenMode === "SCREEN 2 (Graphics I)" && <LineAttributesPreview lineAttributes={tile.lineAttributes} tileWidth={tile.width} tileHeight={tile.height} />} <PixelGridPreview data={tile.data} className="mt-1" /> </div> );
       case 'sprite': const sprite = asset.data as Sprite; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {sprite.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {sprite.size.width}x{sprite.size.height} px</div> <div><strong className="text-msx-highlight">Frames:</strong> {sprite.frames.length}</div> {sprite.frames[currentFrame] && <PixelGridPreview data={sprite.frames[currentFrame].data} className="mt-1"/>} <label className="text-xs">Anim Speed (ms): <input type="number" value={isNaN(animationSpeedMs) ? '' : animationSpeedMs} onChange={e => setAnimationSpeedMs(parseInt(e.target.value))} min="50" max="2000" step="50" className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded"/></label> </div> );
       case 'screenmap': const map = asset.data as ScreenMap; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {map.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {map.width}x{map.height} cells</div> <div><strong className="text-msx-highlight">Entities:</strong> {map.layers.entities.length}</div> <div><strong className="text-msx-highlight">Effect Zones:</strong> {map.effectZones?.length || 0}</div> </div> );
       case 'code': case 'behavior': const codeData = typeof asset.data === 'string' ? asset.data : (asset.data as BehaviorScript)?.code; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div> <div className="text-xs text-msx-textsecondary truncate" title={codeData}>Content: {codeData?.substring(0, 50)}...</div> </div> );
       case 'globalvariables':
+        console.log('[PropertiesPanel] GlobalVariables asset:', asset);
         const globalVarsData = asset.data as any;
+        console.log('[PropertiesPanel] globalVarsData:', globalVarsData);
         const customVars = globalVarsData?.customVariables || [];
+        console.log('[PropertiesPanel] customVars:', customVars);
         return (
           <div className="space-y-2">
             <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div>
