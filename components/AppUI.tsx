@@ -490,7 +490,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         <div className="w-64 flex-shrink-0 flex flex-col">
          {renderRightPanelContent()}
           <PropertiesPanel 
-            asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor || currentEditor === EditorType.GlobalVariables ? undefined : activeAsset}
+            asset={currentEditor === EditorType.Font || currentEditor === EditorType.HelpDocs || currentEditor === EditorType.BehaviorEditor || currentEditor === EditorType.ComponentDefinitionEditor || currentEditor === EditorType.EntityTemplateEditor ? undefined : activeAsset}
             entityInstance={selectedEntityInstance}
             effectZone={selectedEffectZone}
             gameFlowNode={selectedGameFlowNode}

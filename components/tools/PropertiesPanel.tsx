@@ -337,6 +337,43 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       case 'sprite': const sprite = asset.data as Sprite; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {sprite.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {sprite.size.width}x{sprite.size.height} px</div> <div><strong className="text-msx-highlight">Frames:</strong> {sprite.frames.length}</div> {sprite.frames[currentFrame] && <PixelGridPreview data={sprite.frames[currentFrame].data} className="mt-1"/>} <label className="text-xs">Anim Speed (ms): <input type="number" value={isNaN(animationSpeedMs) ? '' : animationSpeedMs} onChange={e => setAnimationSpeedMs(parseInt(e.target.value))} min="50" max="2000" step="50" className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded"/></label> </div> );
       case 'screenmap': const map = asset.data as ScreenMap; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {map.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {map.width}x{map.height} cells</div> <div><strong className="text-msx-highlight">Entities:</strong> {map.layers.entities.length}</div> <div><strong className="text-msx-highlight">Effect Zones:</strong> {map.effectZones?.length || 0}</div> </div> );
       case 'code': case 'behavior': const codeData = typeof asset.data === 'string' ? asset.data : (asset.data as BehaviorScript)?.code; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div> <div className="text-xs text-msx-textsecondary truncate" title={codeData}>Content: {codeData?.substring(0, 50)}...</div> </div> );
+      case 'globalvariables':
+        const globalVarsData = asset.data as any;
+        const customVars = globalVarsData?.customVariables || [];
+        return (
+          <div className="space-y-2">
+            <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div>
+            <div><strong className="text-msx-highlight">Custom Variables:</strong> {customVars.length}</div>
+            {customVars.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs font-bold text-msx-highlight mb-1">Variables List:</div>
+                <div className="space-y-1 max-h-64 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                  {customVars.map((variable: any, idx: number) => (
+                    <div key={idx} className="p-2 bg-msx-bgcolor-dark rounded text-xs">
+                      <div className="font-bold text-msx-textprimary">{variable.name}</div>
+                      <div className="text-msx-textsecondary">
+                        Type: {variable.type} | Category: {variable.category}
+                      </div>
+                      {variable.description && (
+                        <div className="text-msx-textsecondary italic text-xs mt-1">
+                          {variable.description}
+                        </div>
+                      )}
+                      {variable.values && variable.values.length > 0 && (
+                        <div className="text-msx-textsecondary text-xs mt-1">
+                          Values: {variable.values.map((v: any) => v.label).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {customVars.length === 0 && (
+              <div className="text-xs text-msx-textsecondary italic">No custom variables defined yet.</div>
+            )}
+          </div>
+        );
       default: return <p className="text-msx-textsecondary">Properties for {asset.type} not yet implemented.</p>;
     }
   };
