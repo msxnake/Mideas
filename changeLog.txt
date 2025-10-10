@@ -1,125 +1,137 @@
-Versión 0.254 - 4/10/2025
-- fix: Corregir desplazamiento del menú en World Map Editor al hacer zoom
-- feat: Menú superior siempre visible con z-index y shrink-0
+VersiÃ³n 0.256 - 10/10/2025
+- feat: Sistema completo de GlobalVariables para gestiÃ³n de variables de juego custom
+- feat: Editor de GlobalVariables con soporte para tipos boolean, byte, word, string
+- feat: Selector de asset de GlobalVariables en Guards (soporta mÃºltiples assets)
+- feat: Guards ahora usan solo variables custom del asset seleccionado
+- feat: IntegraciÃ³n de GlobalVariables en PropertiesPanel con lista de variables
+- feat: GlobalVariables visible en FileExplorerPanel (Project Assets)
+- fix: CorrecciÃ³n de funciÃ³n handleUpdateAsset en GlobalVariablesEditor
+- fix: InicializaciÃ³n correcta de array customVariables
+- chore: Ocultar assets internos del panel (Behavior Scripts, Component Definitions, Entity Templates)
+- chore: Limpieza de console.logs de debug
 
-Versión 0.253 - 4/10/2025
+Versiï¿½n 0.254 - 4/10/2025
+- fix: Corregir desplazamiento del menï¿½ en World Map Editor al hacer zoom
+- feat: Menï¿½ superior siempre visible con z-index y shrink-0
+
+Versiï¿½n 0.253 - 4/10/2025
 - refactor: modularizar msxModularGenerator en arquitectura escalable
 - asm a minusculas
 
-Versión 0.253 - 3/10/2025
+Versiï¿½n 0.253 - 3/10/2025
 - feat: Implementar sistema de GameFlows anidados con nodo "Group"
-- feat: Añadir nodo "End" para terminar flujos y regresar al padre
-- feat: Stack de GameFlows para soportar múltiples niveles de anidación
-- feat: Salto automático de waypoints al regresar de GameFlow anidado
-- feat: Diferenciación visual del nodo "Start" en GameFlow "Main" (rojo, texto negro, negrita)
+- feat: Aï¿½adir nodo "End" para terminar flujos y regresar al padre
+- feat: Stack de GameFlows para soportar mï¿½ltiples niveles de anidaciï¿½n
+- feat: Salto automï¿½tico de waypoints al regresar de GameFlow anidado
+- feat: Diferenciaciï¿½n visual del nodo "Start" en GameFlow "Main" (rojo, texto negro, negrita)
 - feat: Texto "Build with Mideas" solo en nodo Start de GameFlow "Main"
-- feat: Selección de fuente personalizada en nodos Text y SubMenu
+- feat: Selecciï¿½n de fuente personalizada en nodos Text y SubMenu
 - feat: Renderizado de fuentes personalizadas en Game Flow Preview
-- feat: Opción "Add Controls" en SubMenu con checkboxes para CURSORS/JOYSTICK/KEYS
-- feat: Almacenamiento de selección de controles en variables globales
-- feat: Naming automático de GameFlows - primero "Main", siguientes "New Gameflow N"
+- feat: Opciï¿½n "Add Controls" en SubMenu con checkboxes para CURSORS/JOYSTICK/KEYS
+- feat: Almacenamiento de selecciï¿½n de controles en variables globales
+- feat: Naming automï¿½tico de GameFlows - primero "Main", siguientes "New Gameflow N"
 - fix: Corregir retorno de GameFlows anidados - restaurar contexto padre correctamente
 - fix: Corregir renderizado de colores en fuentes personalizadas (usar fontColorAttributes)
-- fix: Añadir dependencia currentGraphData al useEffect de renderizado
+- fix: Aï¿½adir dependencia currentGraphData al useEffect de renderizado
 
-Versión 0.252 - 2/10/2025
-- feat: Añadir sistema de transiciones visuales en Game Flow Editor
-- feat: Implementar 7 efectos de transición (CLS, Disolver Píxeles, Disolver Chars, Líneas Verticales, Líneas Horizontales, Espiral, Cuadrados Blancos)
-- feat: Añadir nodo "Transition" con editor modal para configurar efecto y duración
-- feat: Auto-avance automático después de completar transición
+Versiï¿½n 0.252 - 2/10/2025
+- feat: Aï¿½adir sistema de transiciones visuales en Game Flow Editor
+- feat: Implementar 7 efectos de transiciï¿½n (CLS, Disolver Pï¿½xeles, Disolver Chars, Lï¿½neas Verticales, Lï¿½neas Horizontales, Espiral, Cuadrados Blancos)
+- feat: Aï¿½adir nodo "Transition" con editor modal para configurar efecto y duraciï¿½n
+- feat: Auto-avance automï¿½tico despuï¿½s de completar transiciï¿½n
 - fix: Corregir renderizado de transiciones - no limpiar pantalla antes de ejecutar efecto
-- feat: Transiciones compatibles con waypoints (los salta automáticamente)
+- feat: Transiciones compatibles con waypoints (los salta automï¿½ticamente)
 
-Versión 0.251 - 1/10/2025
-- feat: Simplificar opciones de exportación - solo ROM Konami disponible
-- fix: Hacer condicional INIT_GAME_ENTITIES según existencia de entidades/sprites
-- fix: Hacer condicional UPDATE_GAME_STATE según existencia de entidades
-- fix: Eliminar llamada PRINT_STRING en BIOS stub - función no existe
+Versiï¿½n 0.251 - 1/10/2025
+- feat: Simplificar opciones de exportaciï¿½n - solo ROM Konami disponible
+- fix: Hacer condicional INIT_GAME_ENTITIES segï¿½n existencia de entidades/sprites
+- fix: Hacer condicional UPDATE_GAME_STATE segï¿½n existencia de entidades
+- fix: Eliminar llamada PRINT_STRING en BIOS stub - funciï¿½n no existe
 
-Versión 0.250 - 1/10/2025
-- fix: Corregir botón de zoom en Screen Editor - agregar estados useState para zoom
-- fix: Corregir switch de autosave en menú Configure - agregar setters de IDE config
-- feat: Añadir generador "Frame" en Tile Editor para marcos de HUD/SCORE
+Versiï¿½n 0.250 - 1/10/2025
+- fix: Corregir botï¿½n de zoom en Screen Editor - agregar estados useState para zoom
+- fix: Corregir switch de autosave en menï¿½ Configure - agregar setters de IDE config
+- feat: Aï¿½adir generador "Frame" en Tile Editor para marcos de HUD/SCORE
 - feat: Implementar 3 estilos de marco (simple, double, decorative)
 - feat: Agregar 3 estilos de esquinas (square, rounded, fancy)
-- feat: Grosor configurable de marco (1-4 píxeles)
+- feat: Grosor configurable de marco (1-4 pï¿½xeles)
 
-Versión 0.249 - 30/9/2025
-- feat: Añadir efecto "Warp" en Sprite Editor - desintegración en espiral
-- feat: Crear WarpGeneratorModal con parámetros (numFrames, spiralTightness, rotationSpeed)
-- feat: Implementar algoritmo de espiral que rota píxeles hacia el centro
-- ui: Mover sección "Define Sprite Colors" del panel izquierdo al panel derecho
+Versiï¿½n 0.249 - 30/9/2025
+- feat: Aï¿½adir efecto "Warp" en Sprite Editor - desintegraciï¿½n en espiral
+- feat: Crear WarpGeneratorModal con parï¿½metros (numFrames, spiralTightness, rotationSpeed)
+- feat: Implementar algoritmo de espiral que rota pï¿½xeles hacia el centro
+- ui: Mover secciï¿½n "Define Sprite Colors" del panel izquierdo al panel derecho
 - ui: Crear cuarta columna en Sprite Editor para "Animation Tools"
 - ui: Reorganizar paneles - "Frame Control" ahora bajo "Animation Tools"
 
-Versión 0.248 - 30/9/2025
-- fix: Corregir selección y conexión de nodos en GameFlow Editor
-- fix: Implementar menú contextual (click derecho) en nodos de GameFlow
+Versiï¿½n 0.248 - 30/9/2025
+- fix: Corregir selecciï¿½n y conexiï¿½n de nodos en GameFlow Editor
+- fix: Implementar menï¿½ contextual (click derecho) en nodos de GameFlow
 - feat: Mejorar modo linking - puerto amarillo (salida) a puerto azul (entrada)
-- feat: Todo el cuerpo del nodo es clickeable cuando está en linking mode
+- feat: Todo el cuerpo del nodo es clickeable cuando estï¿½ en linking mode
 - fix: Diferenciar correctamente eventos de click izquierdo y derecho
 - fix: Agregar estado contextMenu y handlers en App.tsx
 
-Versión 0.247 - 30/9/2025
-- feat: Añadir generador de fragmentación en Sprite Editor (Gen Fragment)
-- feat: Divide sprite en 4 cuadrantes con separación línea por línea
-- fix: Corregir botón "Sheet" en Sprite Editor - añadir estado isSpriteSheetModalOpen
+Versiï¿½n 0.247 - 30/9/2025
+- feat: Aï¿½adir generador de fragmentaciï¿½n en Sprite Editor (Gen Fragment)
+- feat: Divide sprite en 4 cuadrantes con separaciï¿½n lï¿½nea por lï¿½nea
+- fix: Corregir botï¿½n "Sheet" en Sprite Editor - aï¿½adir estado isSpriteSheetModalOpen
 
-Versión 0.246 - 30/9/2025
-- feat: Añadir presets de zoom (100%, 200%, 400%, 800%) en Sprite Editor
+Versiï¿½n 0.246 - 30/9/2025
+- feat: Aï¿½adir presets de zoom (100%, 200%, 400%, 800%) en Sprite Editor
 
-Versión 0.245 - 29/9/2025
+Versiï¿½n 0.245 - 29/9/2025
 - feat: Project optimizations - cleanup and code splitting
 
-Versión 0.244 - 28/9/2025
+Versiï¿½n 0.244 - 28/9/2025
 - feat: Move system tools to top menu bar - World View, Component Definitions, Entity Templates
 
-Versión 0.243 - 24/9/2025
+Versiï¿½n 0.243 - 24/9/2025
 - fix: bugs Preview, Play in Screen Editor
 - feat: gameFlowNode fix
 
-Versión 0.242 - 16/9/2025
-- fix: Corregir error de redefinición de símbolos - SCREEN_*_ID ahora incluye índice único
-- fix: Resolver símbolos de sprite no encontrados - SPRITE_*_PATTERN ahora apunta a capas correctas
-- fix: Corregir símbolo NAMTBL no encontrado - usar NAMETBL según definición en constantes
-- fix: Resolver referencias de layout de pantalla - usar nombres con índice para evitar conflictos
+Versiï¿½n 0.242 - 16/9/2025
+- fix: Corregir error de redefiniciï¿½n de sï¿½mbolos - SCREEN_*_ID ahora incluye ï¿½ndice ï¿½nico
+- fix: Resolver sï¿½mbolos de sprite no encontrados - SPRITE_*_PATTERN ahora apunta a capas correctas
+- fix: Corregir sï¿½mbolo NAMTBL no encontrado - usar NAMETBL segï¿½n definiciï¿½n en constantes
+- fix: Resolver referencias de layout de pantalla - usar nombres con ï¿½ndice para evitar conflictos
 - fix: Resolver estados de flujo de juego no definidos - FLOW_STATE_* ahora siempre disponibles
 - fix: Corregir orden de archivos en unitedFiles.asm - header.asm ahora es el primer archivo
-- feat: Mejorar generación de ASM con detección dinámica de capas de sprite
-- feat: Añadir aliases unificados para patrones de sprite para facilitar carga
-- feat: Implementar nomenclatura indexada para evitar conflictos de símbolos
+- feat: Mejorar generaciï¿½n de ASM con detecciï¿½n dinï¿½mica de capas de sprite
+- feat: Aï¿½adir aliases unificados para patrones de sprite para facilitar carga
+- feat: Implementar nomenclatura indexada para evitar conflictos de sï¿½mbolos
 
-Versión 0.241 - 14/9/2025
-- docs: Actualizar guía MSX_ASM_GUIDE.md
-- fix: Eliminar referencias "Konami" de documentación ASM
-- fix: Corregir posición ORG #4000 al inicio del archivo ASM
-- feat: Integrar funciones existentes del proyecto en guía ASM
-- feat: Agregar ejemplos prácticos basados en código real
-- feat: Documentar estructura Game Flow y sistema de menú principal
-- feat: Agregar sistema de renderizado Screen1 ’ Screen2
-- test: Crear test de verificación para guía MSX_ASM_GUIDE.md
-- docs: Sincronizar guía con código de producción de Mideas
+Versiï¿½n 0.241 - 14/9/2025
+- docs: Actualizar guï¿½a MSX_ASM_GUIDE.md
+- fix: Eliminar referencias "Konami" de documentaciï¿½n ASM
+- fix: Corregir posiciï¿½n ORG #4000 al inicio del archivo ASM
+- feat: Integrar funciones existentes del proyecto en guï¿½a ASM
+- feat: Agregar ejemplos prï¿½cticos basados en cï¿½digo real
+- feat: Documentar estructura Game Flow y sistema de menï¿½ principal
+- feat: Agregar sistema de renderizado Screen1 ï¿½ Screen2
+- test: Crear test de verificaciï¿½n para guï¿½a MSX_ASM_GUIDE.md
+- docs: Sincronizar guï¿½a con cï¿½digo de producciï¿½n de Mideas
 
-Versión 0.238 - 14/9/2025
+Versiï¿½n 0.238 - 14/9/2025
 - clean up archives
 - minor improvements
 - sorting structure
 
-Versión 0.21 - 7/9/2025
-NUEVA FUNCIONALIDAD: Sistema de Motores Dinámicos y Spawner Engine
--  Botón Play añadido al Screen Editor para ejecutar juegos directamente
--  Sistema de motores dinámicos que activa solo los engines necesarios según componentes de entidades
--  Spawner Engine: Sistema de spawn automático de entidades con configuración de zona, tiempo y límites
+Versiï¿½n 0.21 - 7/9/2025
+NUEVA FUNCIONALIDAD: Sistema de Motores Dinï¿½micos y Spawner Engine
+-  Botï¿½n Play aï¿½adido al Screen Editor para ejecutar juegos directamente
+-  Sistema de motores dinï¿½micos que activa solo los engines necesarios segï¿½n componentes de entidades
+-  Spawner Engine: Sistema de spawn automï¿½tico de entidades con configuraciï¿½n de zona, tiempo y lï¿½mites
 -  Nuevo componente comp_spawner con propiedades completas (spawnRate, maxEntities, spawnZone, etc.)
 -  Template tpl_enemy_spawner predefinido para facilitar uso
 -  Sistema de fallback inteligente para sprites faltantes
--  Animación automática para entidades spawneadas (frames artificiales si es necesario)
+-  Animaciï¿½n automï¿½tica para entidades spawneadas (frames artificiales si es necesario)
 -  UI reactiva con contador de entidades en tiempo real
 -  Engines disponibles: Gravity, Physics, Animation, Patrol, Spawner
 -  Performance optimizado: solo ejecuta motores cuando hay entidades que los necesitan
 -  Logs detallados de debug para desarrollo y troubleshooting
 
-Versión 0.19 - 31/8/2025
+Versiï¿½n 0.19 - 31/8/2025
 - fix: Implement multi-language presets for State Machine editor
 - feat: Expand preset states list in State Machine editor
 - fix: Adjust default state machine and improve editor
@@ -129,7 +141,7 @@ Versión 0.19 - 31/8/2025
 - feat: Add State Machine asset type
 - feat: Implemented tile selection and context menu
 
-Versión 0.18 - 31/8/2025
+Versiï¿½n 0.18 - 31/8/2025
 - feat: Implemented tile selection and context menu
 - feat: Add app version to main menu toolbar
 - feat: Add sorting and filtering to tile assets panel
