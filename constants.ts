@@ -614,8 +614,8 @@ export interface MideasGlobalVariable {
   asmName: string;
   /** ASM constant prefix (e.g., "GOAL_") */
   constantPrefix: string;
-  /** Data type: 8-bit (1 byte) or 16-bit (2 bytes) */
-  type: '8bit' | '16bit';
+  /** Data type: boolean, byte (8-bit), word (16-bit), or string */
+  type: 'boolean' | 'byte' | 'word' | 'string' | '8bit' | '16bit';
   /** Description of what this variable represents */
   description: string;
   /** Possible values for this variable */
@@ -630,7 +630,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'Goal',
     asmName: 'global_var_goal',
     constantPrefix: 'GOAL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Current objective status',
     category: 'objective',
     values: [
@@ -643,7 +643,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'MissionStatus',
     asmName: 'global_var_mission_status',
     constantPrefix: 'MISSION_',
-    type: '8bit',
+    type: 'byte',
     description: 'Current mission state',
     category: 'objective',
     values: [
@@ -657,7 +657,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'LevelCompleted',
     asmName: 'global_var_level_completed',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Level completion flag',
     category: 'objective',
     values: [
@@ -669,7 +669,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'BossDefeated',
     asmName: 'global_var_boss_defeated',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Boss defeated flag',
     category: 'objective',
     values: [
@@ -681,7 +681,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'AllItemsCollected',
     asmName: 'global_var_all_items_collected',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'All items collected flag',
     category: 'objective',
     values: [
@@ -695,7 +695,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'Score',
     asmName: 'global_var_score',
     constantPrefix: 'SCORE_',
-    type: '16bit',
+    type: 'word',
     description: 'Current player score (0-65535)',
     category: 'score',
     values: [
@@ -706,7 +706,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'HiScore',
     asmName: 'global_var_hi_score',
     constantPrefix: 'HISCORE_',
-    type: '16bit',
+    type: 'word',
     description: 'High score record (0-65535)',
     category: 'score',
     values: [
@@ -717,7 +717,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'ComboMultiplier',
     asmName: 'global_var_combo_multiplier',
     constantPrefix: 'COMBO_',
-    type: '8bit',
+    type: 'byte',
     description: 'Combo multiplier (1x, 2x, 3x...)',
     category: 'score',
     values: [
@@ -728,7 +728,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'Coins',
     asmName: 'global_var_coins',
     constantPrefix: 'COINS_',
-    type: '8bit',
+    type: 'byte',
     description: 'Coins collected (0-255)',
     category: 'score',
     values: [
@@ -739,7 +739,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'Gems',
     asmName: 'global_var_gems',
     constantPrefix: 'GEMS_',
-    type: '8bit',
+    type: 'byte',
     description: 'Gems collected (0-255)',
     category: 'score',
     values: [
@@ -752,7 +752,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'Lives',
     asmName: 'global_var_lives',
     constantPrefix: 'LIVES_',
-    type: '8bit',
+    type: 'byte',
     description: 'Remaining lives (0-255)',
     category: 'player',
     values: [
@@ -763,7 +763,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'Health',
     asmName: 'global_var_health',
     constantPrefix: 'HEALTH_',
-    type: '8bit',
+    type: 'byte',
     description: 'Current health (0-255)',
     category: 'player',
     values: [
@@ -774,7 +774,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'Energy',
     asmName: 'global_var_energy',
     constantPrefix: 'ENERGY_',
-    type: '8bit',
+    type: 'byte',
     description: 'Current energy/mana (0-255)',
     category: 'player',
     values: [
@@ -785,7 +785,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'Shield',
     asmName: 'global_var_shield',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Shield active flag',
     category: 'player',
     values: [
@@ -799,7 +799,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'HasKey',
     asmName: 'global_var_has_key',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Has key item',
     category: 'inventory',
     values: [
@@ -811,7 +811,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'HasSword',
     asmName: 'global_var_has_sword',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Has sword item',
     category: 'inventory',
     values: [
@@ -823,7 +823,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'HasMap',
     asmName: 'global_var_has_map',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Has map item',
     category: 'inventory',
     values: [
@@ -835,7 +835,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'ItemCount',
     asmName: 'global_var_item_count',
     constantPrefix: 'ITEMS_',
-    type: '8bit',
+    type: 'byte',
     description: 'Special items collected (0-255)',
     category: 'inventory',
     values: [
@@ -846,7 +846,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'PowerUpActive',
     asmName: 'global_var_powerup_active',
     constantPrefix: 'POWERUP_',
-    type: '8bit',
+    type: 'byte',
     description: 'Active power-up type',
     category: 'inventory',
     values: [
@@ -862,7 +862,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'CurrentWorld',
     asmName: 'global_var_current_world',
     constantPrefix: 'WORLD_',
-    type: '8bit',
+    type: 'byte',
     description: 'Current world number (1-8)',
     category: 'progress',
     values: [
@@ -873,7 +873,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'CurrentLevel',
     asmName: 'global_var_current_level',
     constantPrefix: 'LEVEL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Current level number (0-255)',
     category: 'progress',
     values: [
@@ -884,7 +884,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'CheckpointReached',
     asmName: 'global_var_checkpoint',
     constantPrefix: 'CHECKPOINT_',
-    type: '8bit',
+    type: 'byte',
     description: 'Checkpoint reached (0-255)',
     category: 'progress',
     values: [
@@ -895,7 +895,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'SecretFound',
     asmName: 'global_var_secret_found',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Secret area found flag',
     category: 'progress',
     values: [
@@ -907,7 +907,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'DoorsUnlocked',
     asmName: 'global_var_doors_unlocked',
     constantPrefix: 'DOORS_',
-    type: '8bit',
+    type: 'byte',
     description: 'Doors unlocked bitmask (0-255)',
     category: 'progress',
     values: [
@@ -920,7 +920,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'TimeRemaining',
     asmName: 'global_var_time_remaining',
     constantPrefix: 'TIME_',
-    type: '16bit',
+    type: 'word',
     description: 'Time remaining in seconds (0-65535)',
     category: 'time',
     values: [
@@ -931,7 +931,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'TimeLimitActive',
     asmName: 'global_var_time_limit_active',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Time limit active flag',
     category: 'time',
     values: [
@@ -943,7 +943,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'DayNightCycle',
     asmName: 'global_var_day_night_cycle',
     constantPrefix: 'TIME_',
-    type: '8bit',
+    type: 'byte',
     description: 'Day/night cycle state (0-23)',
     category: 'time',
     values: [
@@ -956,7 +956,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'DifficultyLevel',
     asmName: 'global_var_difficulty',
     constantPrefix: 'DIFFICULTY_',
-    type: '8bit',
+    type: 'byte',
     description: 'Game difficulty level',
     category: 'difficulty',
     values: [
@@ -972,7 +972,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'EnemiesDefeated',
     asmName: 'global_var_enemies_defeated',
     constantPrefix: 'ENEMIES_',
-    type: '16bit',
+    type: 'word',
     description: 'Enemies defeated count (0-65535)',
     category: 'special',
     values: [
@@ -983,7 +983,7 @@ export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [
     name: 'PerfectRun',
     asmName: 'global_var_perfect_run',
     constantPrefix: 'BOOL_',
-    type: '8bit',
+    type: 'byte',
     description: 'Perfect run (no damage) flag',
     category: 'special',
     values: [

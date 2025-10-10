@@ -12,7 +12,14 @@ interface GlobalVariablesEditorProps {
 }
 
 const VARIABLE_CATEGORIES = ['objective', 'score', 'player', 'inventory', 'progress', 'time', 'difficulty', 'special'] as const;
-const VARIABLE_TYPES = ['8bit', '16bit'] as const;
+const VARIABLE_TYPES = ['boolean', 'byte', 'word', 'string'] as const;
+
+const TYPE_LABELS: Record<string, string> = {
+  'boolean': 'Boolean (1 bit)',
+  'byte': 'Byte (8 bits, 0-255)',
+  'word': 'Word (16 bits, 0-65535)',
+  'string': 'String (text)'
+};
 
 export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
   currentAsset,
@@ -50,7 +57,7 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
       name: 'NewVariable',
       asmName: 'global_var_new_variable',
       constantPrefix: 'NEW_VAR_',
-      type: '8bit',
+      type: 'byte',
       description: '',
       category: 'special',
       values: [],
@@ -180,7 +187,7 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
               >
                 <div className="flex-1">
                   <div className="font-bold text-sm">{variable.name}</div>
-                  <div className="text-xs opacity-75">{variable.category} | {variable.type}</div>
+                  <div className="text-xs opacity-75">{variable.category} | {TYPE_LABELS[variable.type] || variable.type}</div>
                 </div>
                 <button
                   onClick={(e) => {
@@ -264,12 +271,12 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
                   <div className="flex-1">
                     <label className="block text-xs text-gray-400 mb-1">Type</label>
                     <select
-                      value={editingVariable.type || '8bit'}
+                      value={editingVariable.type || 'byte'}
                       onChange={(e) => handleVariableChange('type', e.target.value)}
                       className="w-full p-2 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
                     >
                       {VARIABLE_TYPES.map(type => (
-                        <option key={type} value={type}>{type}</option>
+                        <option key={type} value={type}>{TYPE_LABELS[type] || type}</option>
                       ))}
                     </select>
                   </div>
