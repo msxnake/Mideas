@@ -14,22 +14,25 @@ import { InitStatePanel } from './statemachine/InitStatePanel';
 interface StateMachineEditorProps {
   currentAsset: ProjectAsset;
   onUpdateAsset: (updatedData: Partial<StateMachine>) => void;
+  allAssets: ProjectAsset[];
 }
 
-const StateDetailView = ({ 
-  state, 
+const StateDetailView = ({
+  state,
   onUpdateActions,
   onUpdateProperties,
   stateMachine,
   onAddTransition,
   onDeleteTransition,
-  onUpdateTransition
-}: { 
-  state: StateMachineState | undefined, 
+  onUpdateTransition,
+  allAssets
+}: {
+  state: StateMachineState | undefined,
   onUpdateActions: (actionList: 'onEnter' | 'onExit', newActions: Action[]) => void,
   onUpdateProperties: (properties: { [key: string]: any }) => void,
   stateMachine: StateMachine,
   onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[], guard?: any) => void,
+  allAssets: ProjectAsset[],
   onDeleteTransition: (id: string) => void,
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void
 }) => {
@@ -46,6 +49,7 @@ const StateDetailView = ({
               onAddTransition={onAddTransition}
               onDeleteTransition={onDeleteTransition}
               onUpdateTransition={onUpdateTransition}
+              allAssets={allAssets}
             />
           </div>
         </Panel>
@@ -87,6 +91,7 @@ const StateDetailView = ({
             onAddTransition={onAddTransition}
             onDeleteTransition={onDeleteTransition}
             onUpdateTransition={onUpdateTransition}
+            allAssets={allAssets}
           />
         </div>
       </Panel>
@@ -97,6 +102,7 @@ const StateDetailView = ({
 export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
   currentAsset,
   onUpdateAsset,
+  allAssets,
 }) => {
   const [language, setLanguage] = useState<'en' | 'es'>('en');
   const [view, setView] = useState<'list' | 'visual'>('list');
@@ -253,14 +259,15 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
               />
             </div>
             <div className="w-2/3">
-              <StateDetailView 
-                state={selectedState} 
+              <StateDetailView
+                state={selectedState}
                 onUpdateActions={handleUpdateStateActions}
                 onUpdateProperties={handleUpdateStateProperties}
                 stateMachine={stateMachine}
                 onAddTransition={handleAddTransition}
                 onDeleteTransition={handleDeleteTransition}
                 onUpdateTransition={handleUpdateTransition}
+                allAssets={allAssets}
               />
             </div>
           </div>

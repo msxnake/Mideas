@@ -484,7 +484,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
                 setScreenToEdit={(screen) => onSelectAsset(screen.id, EditorType.Screen)}
              />
            )}
-          {currentEditor === EditorType.StateMachine && activeAsset?.type === 'statemachine' && ( <StateMachineEditor currentAsset={activeAsset} onUpdateAsset={(data) => handleUpdateAsset(activeAsset.id, data)} /> )}
+          {currentEditor === EditorType.StateMachine && activeAsset?.type === 'statemachine' && ( <StateMachineEditor currentAsset={activeAsset} onUpdateAsset={(data) => handleUpdateAsset(activeAsset.id, data)} allAssets={assets} /> )}
         </div>
 
         <div className="w-64 flex-shrink-0 flex flex-col">

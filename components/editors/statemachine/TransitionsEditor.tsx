@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
 import { StateMachine, Condition, StateMachineTransition, Action } from '../../../statemachine.types';
+import { ProjectAsset } from '../../../types';
 import { TrashIcon } from '../../icons/MsxIcons';
 import { ConditionBuilder } from './ConditionBuilder';
 import { ActionSequenceEditor } from './ActionSequenceEditor';
@@ -12,13 +13,15 @@ interface TransitionsEditorProps {
   onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[], guard?: any) => void;
   onDeleteTransition: (id: string) => void;
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void;
+  allAssets: ProjectAsset[];
 }
 
-export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({ 
-  stateMachine, 
-  onAddTransition, 
-  onDeleteTransition, 
-  onUpdateTransition 
+export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
+  stateMachine,
+  onAddTransition,
+  onDeleteTransition,
+  onUpdateTransition,
+  allAssets
 }) => {
   const { states, transitions } = stateMachine;
 
@@ -108,6 +111,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
                       <TransitionGuardEditor
                         guard={transition.guard}
                         onGuardChange={(guard) => onUpdateTransition(transition.id, { guard })}
+                        allAssets={allAssets}
                       />
                     </div>
                     <div>
@@ -156,6 +160,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
               <TransitionGuardEditor
                 guard={guard}
                 onGuardChange={setGuard}
+                allAssets={allAssets}
               />
             </div>
             <div>
