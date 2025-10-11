@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { HUDConfiguration, HUDElement, HUDElementType, HUDElementProperties_Base, MSXColorValue, MSX1ColorValue, MSXFont, MSXFontColorAttributes, TileBank, Tile, ProjectAsset } from '../../types';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants';
-import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
+import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { createTileDataURL } from '../utils/screenUtils';
 import { InlineColorPicker } from '../common/InlineColorPicker'; 
 
@@ -65,7 +64,7 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
     { type: HUDElementType.Score, name: "Score", defaultText: "SCORE: 000000", defaultDetails: { digits: 6, textBackgroundColor: 'transparent' } },
     { type: HUDElementType.HighScore, name: "High Score", defaultText: "HI-SCORE: 000000", defaultDetails: { digits: 6, textBackgroundColor: 'transparent' } },
     { type: HUDElementType.Lives, name: "Lives", defaultText: "LIVES:", defaultDetails: { icon: 'ship', max: 3, iconTileId: null, textBackgroundColor: 'transparent' } },
-    { 
+    {
       type: HUDElementType.EnergyBar, 
       name: "Energy Bar", 
       defaultText: "",
@@ -84,7 +83,7 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
     },
   ],
   "Game Elements": [
-    { 
+    {
       type: HUDElementType.ItemDisplay, 
       name: "Item Display", 
       defaultText: "",
@@ -106,7 +105,7 @@ const hudElementTemplates: Record<HudTab, { type: HUDElementType; name: string; 
     { type: HUDElementType.CoinCounter, name: "Coin Counter", defaultText: "$00", defaultDetails: { symbol: '$', format: 'X00', textBackgroundColor: 'transparent' } },
   ],
   "Boss Battle": [
-    { 
+    {
       type: HUDElementType.BossEnergyBar, 
       name: "Boss Energy", 
       defaultText: "",
@@ -165,6 +164,13 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
   const [activeTab, setActiveTab] = useState<HudTab>("Basic Stats");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [localHudConfig, setLocalHudConfig] = useState<HUDConfiguration>(hudConfiguration);
+
+  const tileBankDefinitions = useMemo(() => {
+    if (currentScreenMode !== "SCREEN 2 (Graphics I)" || !tileBanks) {
+      return undefined;
+    }
+    return tileBanks.flatMap(tb => tb.banks || []);
+  }, [tileBanks, currentScreenMode]);
 
   useEffect(() => {
     setLocalHudConfig(hudConfiguration);
@@ -461,7 +467,16 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         </div>
       );
     } else if (typeof value === 'number' || 
-               ( (key.endsWith('Value') || key.endsWith('Width') || key.endsWith('Height') || key.endsWith('Thickness') || key.endsWith('Spacing') || key.endsWith('Digits') || key === 'itemIconSize' || key === 'criticalThresholdPercent') && pathPrefix === 'details')) {
+               ( (key.endsWith('Value') && propertyPath.startsWith('details.')) ||
+                    (key.endsWith('Width') && propertyPath.startsWith('details.')) ||
+                    (key.endsWith('Height') && propertyPath.startsWith('details.')) ||
+                    (key.endsWith('Thickness') && propertyPath.startsWith('details.')) ||
+                    (key.endsWith('Spacing') && propertyPath.startsWith('details.')) ||
+                    (key.endsWith('Digits') && propertyPath.startsWith('details.')) ||
+                     key === 'itemIconSize' ||
+                     key === 'spacing' ||
+                     key === 'criticalThresholdPercent'
+                   )) {
       const isPositionCoordinate = (pathPrefix === "position" && (key === "x" || key === "y"));
       return (
         <div key={fullPath}>
@@ -667,7 +682,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             <div key={fullPath}>
                 <label htmlFor={inputId} className="block text-xs text-msx-textsecondary mb-0.5">{label}:</label>
                 <textarea id={inputId} value={String(value)} onChange={(e) => handlePropertyChange(element.id, fullPath, e.target.value)}
-                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent min-h-[40px]"
+                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent min-h-[40px]" 
                     rows={2} />
             </div>
         );
@@ -796,8 +811,8 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
           fontColorAttributesToUse,
           1,
           charSpacing,
-          hudTextColor,
-          hudBackgroundColor
+          undefined, // customTextColor - colors are extracted from TileBank/fontColorAttributes
+          undefined  // customBackgroundColor - colors are extracted from TileBank/fontColorAttributes
         );
             const dimensions = getTextDimensionsMSX1(textToRender, charSpacing);
             
@@ -953,7 +968,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
     });
     return (
         <div className="relative bg-msx-darkblue/20 border border-dashed border-msx-lightyellow/50 mt-2 overflow-hidden"
-            style={{ 
+            style={{
                 width: screenMapWidth * scaledTileW, 
                 height: screenMapHeight * scaledTileH, 
                 maxWidth: PREVIEW_WIDTH_PX, 

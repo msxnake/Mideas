@@ -135,6 +135,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   
   const [currentScreenTool, setCurrentScreenTool] = useState<ScreenEditorTool>('draw');
   const [selectionRect, setSelectionRect] = useState<ScreenSelectionRect | null>(null);
+  const [currentSector, setCurrentSector] = useState<0 | 1 | 2>(0); // Track current MSX Screen 2 sector
 
   const setActiveLayer = (newLayer: ScreenEditorLayerName) => {
     setActiveLayerInternal(newLayer);
@@ -194,8 +195,45 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
 
+  // Helper function to get MSX Screen 2 sector from Y coordinate
+  const getSectorFromY = (y: number): 0 | 1 | 2 => {
+    if (y < 8) return 0;      // Sector 0: Lines 0-7
+    if (y < 16) return 1;     // Sector 1: Lines 8-15
+    return 2;                 // Sector 2: Lines 16-23
+  };
+
   const handleTilePlace = useCallback((point: Point) => {
     setLastClickedCell(point);
+
+    // Update current sector based on Y position (for SCREEN 2)
+    if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+      const sector = getSectorFromY(point.y);
+      setCurrentSector(sector);
+
+      // BLOCK tile placement if no TileBank is selected
+      if (!screenMap.tileBankAssetId) {
+        setStatusBarMessage(`⚠ Cannot place tiles! Please select a TileBank from the toolbar first.`);
+        return;
+      }
+
+      setStatusBarMessage(`Sector ${sector} (Lines ${sector * 8}-${sector * 8 + 7}) | Tile position: (${point.x}, ${point.y})`);
+
+      // Validate tile belongs to this sector (if drawing)
+      if (selectedTileId && currentScreenTool === 'draw') {
+        const tileBankAsset = allProjectAssets.find(asset => asset.id === screenMap.tileBankAssetId && asset.type === 'tilebank');
+        if (tileBankAsset) {
+          const tileBankData = tileBankAsset.data as TileBank;
+          const sectorBank = tileBankData.banks[sector];
+
+          if (sectorBank && !sectorBank.assignedTiles[selectedTileId]) {
+            setStatusBarMessage(`⚠ Cannot place tile here! This tile is not assigned to Sector ${sector}. Deselecting tile.`);
+            setSelectedTileId(null); // Clear invalid tile selection
+            return; // Block placement
+          }
+        }
+      }
+    }
+
     if (activeLayer === 'entities' || activeLayer === 'effects' || currentScreenTool === 'select') return; 
 
     const newLayers = { ...screenMap.layers };
@@ -260,7 +298,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       newLayers[layerToUpdateKey] = currentLayerData;
       onUpdate({ layers: newLayers });
     }
-  }, [screenMap.layers, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool]);
+  }, [screenMap.layers, screenMap.tileBankAssetId, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool, currentScreenMode, allProjectAssets, setSelectedTileId, setStatusBarMessage, getSectorFromY, setCurrentSector]);
 
   const handleClearSelection = () => {
     if (!selectionRect || activeLayer === 'entities' || activeLayer === 'effects') return;
@@ -825,20 +863,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     });
   };
 
-  // Function to handle MSX Screen 2 sector changes
-  const handleSectorChange = (sectorIndex: 0 | 1 | 2, value: string) => {
-    const sectorKey = `sector${sectorIndex}` as keyof NonNullable<ScreenMap['screenSectors']>;
-
-    const updatedScreenSectors = {
-      ...screenMap.screenSectors,
-      [sectorKey]: {
-        tileBankAssetId: value || undefined
-      }
-    };
-
-    onUpdate({
-      screenSectors: updatedScreenSectors
-    });
+  const handleTileBankChange = (tileBankId: string) => {
+    onUpdate({ tileBankAssetId: tileBankId });
+    setStatusBarMessage(`TileBank changed to: ${allProjectAssets.find(a => a.id === tileBankId)?.name || 'Unknown'}`);
   };
 
   return (
@@ -872,6 +899,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         isPasteLayerDisabled={!copiedLayerBuffer || activeLayer === 'entities' || activeLayer === 'effects'}
         onAddNewEffectZone={handleAddNewEffectZone}
         onShowMapFile={onShowMapFile}
+        currentScreenMode={currentScreenMode}
+        selectedTileBankId={screenMap.tileBankAssetId}
+        onTileBankChange={handleTileBankChange}
+        allProjectAssets={allProjectAssets}
       />
 
       <div className="flex flex-grow overflow-hidden">
@@ -887,51 +918,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           effectZones={screenMap.effectZones || []}
           selectedEffectZoneId={selectedEffectZoneId}
           onSelectEffectZone={onSelectEffectZone}
+          currentSector={currentSector}
+          selectedTileBankId={screenMap.tileBankAssetId}
+          allProjectAssets={allProjectAssets}
         />
-
-        {/* MSX Screen 2 Sector Configuration Panel */}
-        {currentScreenMode === "SCREEN 2 (Graphics I)" && (
-          <div className="w-64 border-r-2 border-msx-lightyellow bg-msx-panelbg flex flex-col">
-            <div className="p-2 border-b-2 border-msx-lightyellow/50">
-              <h3 className="text-sm text-msx-highlight mb-2 pixel-font">MSX Screen 2 Sectors</h3>
-              <div className="text-xs text-msx-textsecondary mb-2 italic">
-                Fonts are automatically extracted from TileBank character definitions (A-Z, 0-9)
-              </div>
-              {[0, 1, 2].map((sectorIndex) => {
-                const sectorKey = `sector${sectorIndex}` as const;
-                const sectorConfig = screenMap.screenSectors?.[sectorKey];
-                const tileBankAssets = allProjectAssets?.filter(asset => asset.type === 'tilebank') || [];
-
-                return (
-                  <div key={sectorIndex} className="mb-2 p-2 border border-msx-border/30 rounded text-xs">
-                    <div className="text-msx-cyan font-semibold mb-1 pixel-font">
-                      Bank {sectorIndex} (Lines {sectorIndex * 8}-{sectorIndex * 8 + 7})
-                    </div>
-                    <div className="text-msx-textsecondary mb-1 text-xs">
-                      Y: {sectorIndex * 64}-{sectorIndex * 64 + 63} pixels
-                    </div>
-
-                    <div>
-                      <label className="block text-msx-textsecondary mb-1 text-xs">TileBank Asset (includes tiles + font):</label>
-                      <select
-                        value={sectorConfig?.tileBankAssetId || ''}
-                        onChange={(e) => handleSectorChange(sectorIndex as 0 | 1 | 2, e.target.value)}
-                        className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-                      >
-                        <option value="">Default MSX Font</option>
-                        {tileBankAssets.map(asset => (
-                          <option key={asset.id} value={asset.id}>
-                            {asset.name || 'Unnamed TileBank'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         <div className="flex-grow p-2 overflow-auto flex items-start justify-start relative">
           {waypointPickerState.isPicking && (

@@ -521,9 +521,85 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
         }}
         aria-hidden="true"
       />
+      {/* MSX Screen 2 Sector Dividers (Horizontal Lines) */}
+      {currentScreenMode === "SCREEN 2 (Graphics I)" && (
+        <>
+          {/* Sector 0/1 divider at line 8 (Y = 8 tiles) */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: 0,
+              top: 8 * gridPixelSize,
+              width: screenWidth * gridPixelSize,
+              height: '2px',
+              backgroundColor: 'rgba(255, 200, 0, 0.7)',
+              boxShadow: '0 0 4px rgba(255, 200, 0, 0.8)',
+              zIndex: 10
+            }}
+            title="MSX Screen 2 - Sector 0/1 boundary (Line 8)"
+            aria-hidden="true"
+          />
+          {/* Sector 1/2 divider at line 16 (Y = 16 tiles) */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: 0,
+              top: 16 * gridPixelSize,
+              width: screenWidth * gridPixelSize,
+              height: '2px',
+              backgroundColor: 'rgba(255, 200, 0, 0.7)',
+              boxShadow: '0 0 4px rgba(255, 200, 0, 0.8)',
+              zIndex: 10
+            }}
+            title="MSX Screen 2 - Sector 1/2 boundary (Line 16)"
+            aria-hidden="true"
+          />
+          {/* Sector Labels */}
+          <div
+            className="absolute pointer-events-none text-xs font-bold opacity-60"
+            style={{
+              left: 4,
+              top: 2 * gridPixelSize,
+              color: '#FFC800',
+              textShadow: '0 0 2px black',
+              zIndex: 11
+            }}
+            aria-hidden="true"
+          >
+            SECTOR 0 (Lines 0-7)
+          </div>
+          <div
+            className="absolute pointer-events-none text-xs font-bold opacity-60"
+            style={{
+              left: 4,
+              top: 10 * gridPixelSize,
+              color: '#FFC800',
+              textShadow: '0 0 2px black',
+              zIndex: 11
+            }}
+            aria-hidden="true"
+          >
+            SECTOR 1 (Lines 8-15)
+          </div>
+          <div
+            className="absolute pointer-events-none text-xs font-bold opacity-60"
+            style={{
+              left: 4,
+              top: 18 * gridPixelSize,
+              color: '#FFC800',
+              textShadow: '0 0 2px black',
+              zIndex: 11
+            }}
+            aria-hidden="true"
+          >
+            SECTOR 2 (Lines 16-23)
+          </div>
+        </>
+      )}
+
       {currentScreenMode === "SCREEN 2 (Graphics I)" && tileBankDefinitions && tileBankDefinitions.map((bank, index) => {
         const isBankEffectivelyEnabled = bank.enabled ?? true;
-        if (!isBankEffectivelyEnabled) return null; 
+        if (!isBankEffectivelyEnabled) return null;
 
         const zoneX = bank.screenZone.x * gridPixelSize;
         const zoneY = bank.screenZone.y * gridPixelSize;
@@ -538,7 +614,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
               left: zoneX, top: zoneY, width: zoneW, height: zoneH,
               borderColor: zoneColor,
               boxSizing: 'border-box',
-              zIndex: 5 
+              zIndex: 5
             }}
             title={`Tile Bank Zone: ${bank.name}`}
             aria-hidden="true"

@@ -384,6 +384,8 @@ export interface ScreenMap {
     sector1?: HUDScreenSector;
     sector2?: HUDScreenSector;
   };
+  /** The TileBank asset ID used by this screen (SCREEN 2 mode only). Contains all 3 banks internally. */
+  tileBankAssetId?: string;
 }
 
 /** A type representing the possible layer names in the screen editor. */

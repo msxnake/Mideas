@@ -7,7 +7,7 @@
 import React from 'react';
 import { Button } from '../common/Button';
 import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, MapIcon, PlayIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
-import { ScreenMap } from '../../types';
+import { ScreenMap, ProjectAsset } from '../../types';
 
 /**
  * Represents the name of a layer in the screen editor.
@@ -78,6 +78,15 @@ interface ScreenEditorToolbarProps {
   onAddNewEffectZone: () => void;
   /** Callback function to show the main map ASM file. */
   onShowMapFile: () => void;
+
+  /** The current screen mode. */
+  currentScreenMode: string;
+  /** The selected TileBank asset ID. */
+  selectedTileBankId?: string;
+  /** Callback function when TileBank selection changes. */
+  onTileBankChange: (tileBankId: string) => void;
+  /** All project assets for TileBank filtering. */
+  allProjectAssets: ProjectAsset[];
 }
 
 /**
@@ -95,8 +104,13 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   onExportLayout, onExportBehavior, onPreview, onPlay,
   onExportScreenMapJSON, onImportScreenMapJSON,
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
-  onAddNewEffectZone, onShowMapFile
+  onAddNewEffectZone, onShowMapFile,
+  currentScreenMode, selectedTileBankId, onTileBankChange, allProjectAssets
 }) => {
+
+  const tileBankAssets = allProjectAssets?.filter(asset => asset.type === 'tilebank') || [];
+  const isMSXScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
+  const hasNoTileBanks = isMSXScreen2 && tileBankAssets.length === 0;
   
   return (
     <div className="p-2 border-b border-msx-border flex flex-wrap gap-x-2 gap-y-1 items-center text-xs">
@@ -112,6 +126,34 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
           </button>
         ))}
       </div>
+
+      {/* TileBank Selector (SCREEN 2 only) */}
+      {isMSXScreen2 && (
+        <div className="flex items-center space-x-1 border-l border-msx-border/50 pl-2">
+          <label htmlFor="tileBankSelector" className="pixel-font text-msx-textsecondary">TileBank:</label>
+          {hasNoTileBanks ? (
+            <div className="flex items-center space-x-1">
+              <span className="text-red-500 pixel-font text-xs">⚠ No TileBanks</span>
+              <span className="text-msx-textsecondary text-xs italic">Please create a TileBank asset first</span>
+            </div>
+          ) : (
+            <select
+              id="tileBankSelector"
+              value={selectedTileBankId || ''}
+              onChange={(e) => onTileBankChange(e.target.value)}
+              className="p-1 bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+            >
+              <option value="">-- Select TileBank --</option>
+              {tileBankAssets.map(asset => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.name || 'Unnamed TileBank'}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center">
         <label htmlFor="screenZoom" className="pixel-font text-msx-textsecondary mr-1">Zoom:</label>
         <input
