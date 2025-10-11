@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, EffectZoneFlagKey, ComponentDefinition } from '../../types';
 import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, EFFECT_ZONE_FLAGS } from '../../constants';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
@@ -98,6 +98,13 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
 
   const { layers, width: screenWidth, height: screenHeight, activeAreaX = 0, activeAreaY = 0, activeAreaWidth = screenWidth, activeAreaHeight = screenHeight } = mapData;
   const mapEntityTemplates = entityTemplates; 
+
+  const tileBankDefinitions = useMemo(() => {
+    if (currentScreenMode !== "SCREEN 2 (Graphics I)" || !tileBanks) {
+      return undefined;
+    }
+    return tileBanks.flatMap(tb => tb.banks || []);
+  }, [tileBanks, currentScreenMode]);
 
 
   const getGridCoordinatesFromMouseEvent = (event: React.MouseEvent): Point | null => {
@@ -271,7 +278,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
 
         const textImageSrc = renderUnifiedTextToDataURL(
           textToRender,
-          tileBanks,
+          tileBankDefinitions,
           allAssets,
           fontToUse,
           fontColorAttrs,
@@ -514,7 +521,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
         }}
         aria-hidden="true"
       />
-      {currentScreenMode === "SCREEN 2 (Graphics I)" && tileBanks && tileBanks.map((bank, index) => {
+      {currentScreenMode === "SCREEN 2 (Graphics I)" && tileBankDefinitions && tileBankDefinitions.map((bank, index) => {
         const isBankEffectivelyEnabled = bank.enabled ?? true;
         if (!isBankEffectivelyEnabled) return null; 
 

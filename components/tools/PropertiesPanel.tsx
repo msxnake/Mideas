@@ -305,7 +305,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     const selectedTileAsset = tilesetForScreenEditor.find(t => t.id === screenEditorSelectedTileId);
     if (selectedTileAsset) {
         if (currentScreenMode === "SCREEN 2 (Graphics I)" && tileBanksForScreenEditor) {
-            const bank = tileBanksForScreenEditor.find(b => (b.enabled ?? true) && b.assignedTiles[selectedTileAsset.id]);
+            const allBankDefinitions = tileBanksForScreenEditor.flatMap(tb => tb.banks || []);
+            const bank = allBankDefinitions.find(b => (b.enabled ?? true) && b.assignedTiles[selectedTileAsset.id]);
             if (bank) {
                 const baseCharCode = bank.assignedTiles[selectedTileAsset.id].charCode;
                 const numCharsX = Math.ceil(selectedTileAsset.width / EDITOR_BASE_TILE_DIM_S2);

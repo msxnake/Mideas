@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { HUDConfiguration, HUDElement, HUDElementType, HUDElementProperties_Base, MSXColorValue, MSX1ColorValue, MSXFont, MSXFontColorAttributes, TileBank, Tile, ProjectAsset } from '../../types';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
@@ -788,7 +788,17 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                 fontSample: fontToUse && fontToUse[65] ? fontToUse[65] : 'no A'
             });
 
-            const textImageSrc = renderMSX1TextToDataURL(textToRender, fontToUse, fontColorAttributesToUse, 1, charSpacing);
+            const textImageSrc = renderUnifiedTextToDataURL(
+          textToRender,
+          tileBankDefinitions,
+          allAssets,
+          fontToUse,
+          fontColorAttributesToUse,
+          1,
+          charSpacing,
+          hudTextColor,
+          hudBackgroundColor
+        );
             const dimensions = getTextDimensionsMSX1(textToRender, charSpacing);
             
             let bgColorForPreview = 'transparent';
