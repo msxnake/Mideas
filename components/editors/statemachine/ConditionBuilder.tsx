@@ -95,6 +95,25 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
           />
         );
+      case ConditionTypes.ON_WALL_COLLISION:
+        return (
+          <div className="space-y-2">
+            <select
+              value={condition.params?.direction || 'any'}
+              onChange={(e) => handleParamChange('direction', e.target.value)}
+              className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="any">Any direction</option>
+              <option value="up">Up</option>
+              <option value="down">Down</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+            <div className="text-xs text-msx-textsecondary">
+              Triggers when entity collides with a wall
+            </div>
+          </div>
+        );
       // Note: Variable comparisons now use TransitionGuard instead
       default:
         return null;

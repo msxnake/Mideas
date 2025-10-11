@@ -78,6 +78,9 @@ function getUsedEntityTemplateIds(
 /**
  * Remove unused componentDefinitions and entityTemplates from project data
  * Returns cleaned copies (does not mutate original)
+ *
+ * IMPORTANT: EntityTemplates are NEVER removed, even if unused
+ * This preserves custom entities created by the user
  */
 export function cleanUnusedDefinitions(projectData: ProjectData): {
   componentDefinitions: ComponentDefinition[];
@@ -89,15 +92,12 @@ export function cleanUnusedDefinitions(projectData: ProjectData): {
 } {
   const { assets, componentDefinitions, entityTemplates } = projectData;
 
-  // Step 1: Find used entity templates
-  const usedTemplateIds = getUsedEntityTemplateIds(assets, entityTemplates);
+  // CRITICAL FIX: Do NOT clean entityTemplates
+  // Keep ALL entity templates, even if unused
+  // This prevents losing custom entities that haven't been placed yet
+  const cleanedEntityTemplates = entityTemplates;
 
-  // Filter entity templates to keep only used ones
-  const cleanedEntityTemplates = entityTemplates.filter(template =>
-    usedTemplateIds.has(template.id)
-  );
-
-  // Step 2: Find used component definitions (from the cleaned entity templates)
+  // Step 2: Find used component definitions (from ALL entity templates)
   const usedComponentIds = getUsedComponentIds(cleanedEntityTemplates);
 
   // Filter component definitions to keep only used ones
@@ -107,7 +107,7 @@ export function cleanUnusedDefinitions(projectData: ProjectData): {
 
   const stats = {
     componentsRemoved: componentDefinitions.length - cleanedComponentDefinitions.length,
-    templatesRemoved: entityTemplates.length - cleanedEntityTemplates.length,
+    templatesRemoved: 0,  // Always 0 now - we keep all templates
   };
 
   return {

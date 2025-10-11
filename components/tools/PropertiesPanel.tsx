@@ -385,7 +385,28 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const renderEntityInstanceProperties = (): React.ReactNode => {
     if (!entityInstance || !onUpdateEntityInstance) return null;
     const template = entityTemplates.find(t => t.id === entityInstance.entityTemplateId);
-    if (!template) return <p className="text-red-500">Error: Entity template not found!</p>;
+
+    // Handle orphaned entities (template not found)
+    if (!template) {
+      return (
+        <div className="space-y-3">
+          <p className="text-red-500 font-semibold">⚠️ Error: Entity template not found!</p>
+          <p className="text-xs text-msx-textsecondary">
+            This entity references a template that no longer exists.<br/>
+            Template ID: <code className="text-xs">{entityInstance.entityTemplateId}</code>
+          </p>
+          <Button
+            onClick={handleDeleteEntityClick}
+            variant="danger"
+            size="sm"
+            icon={<TrashIcon />}
+            className="w-full mt-2"
+          >
+            Delete Orphaned Entity
+          </Button>
+        </div>
+      );
+    }
   
     const handlePickWaypoint = (prefix: 'waypoint1' | 'waypoint2') => {
       if (entityInstance) {

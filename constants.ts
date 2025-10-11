@@ -1,4 +1,4 @@
-import { MSXColor, MSX1Color, MSX1ColorValue, TileBank, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_FLAGS as EFFECT_ZONE_FLAGS_TYPE, MainMenuConfig } from './types';
+import { MSXColor, MSX1Color, MSX1ColorValue, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_FLAGS as EFFECT_ZONE_FLAGS_TYPE, MainMenuConfig } from './types';
 
 /** The current version of the application. */
 export const APP_VERSION = "0.256";
@@ -113,7 +113,6 @@ export const Z80_SNIPPETS: Snippet[] = [
   {
     id: "pac_man_collection",
     name: "Pac-Man Tile Collection",
-    description: "Efficient tile-based collection system for MSX (like Pac-Man dots)",
     code: `; Pac-Man Style Tile Collection System for MSX
 ; Optimized for MSX hardware limitations
 ; Uses: DE = Player position, HL = Screen map address

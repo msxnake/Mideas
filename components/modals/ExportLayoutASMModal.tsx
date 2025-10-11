@@ -49,12 +49,19 @@ export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
   dataFormat, 
 }) => {
   const [asmCode, setAsmCode] = useState('');
+  const [hasUnassignedTiles, setHasUnassignedTiles] = useState(false);
+  const [unassignedCount, setUnassignedCount] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
+      // Check for unassigned tiles (value 255 = 0xFF = EMPTY_CELL_CHAR_CODE)
+      const unassigned = mapIndices.filter(idx => idx === 255);
+      setHasUnassignedTiles(unassigned.length > 0);
+      setUnassignedCount(unassigned.length);
+
       setAsmCode(generateScreenLayoutASMCode(mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat));
     }
-  }, [isOpen, mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat]); 
+  }, [isOpen, mapName, mapWidth, mapHeight, mapIndices, referenceComments, dataFormat]);
 
   if (!isOpen) {
     return null;
@@ -110,7 +117,31 @@ export const ExportLayoutASMModal: React.FC<ExportLayoutASMModalProps> = ({
         onClick={e => e.stopPropagation()}
       >
         <h2 id="exportLayoutAsmModalTitle" className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4">Export Map Layout: {mapName}</h2>
-        
+
+        {hasUnassignedTiles && (
+          <div className="bg-yellow-900 border-l-4 border-yellow-500 p-3 mb-4 rounded">
+            <div className="flex items-start">
+              <span className="text-yellow-500 text-xl mr-2">⚠️</span>
+              <div className="flex-1">
+                <p className="text-yellow-200 font-semibold text-sm">Unassigned Tiles Detected</p>
+                <p className="text-yellow-100 text-xs mt-1">
+                  <strong>{unassignedCount}</strong> tile{unassignedCount !== 1 ? 's' : ''} in this map {unassignedCount !== 1 ? 'are' : 'is'} using value <code className="bg-yellow-950 px-1 rounded">255 (0xFF)</code>.
+                </p>
+                <p className="text-yellow-100 text-xs mt-2">
+                  <strong>This usually means:</strong>
+                </p>
+                <ul className="text-yellow-100 text-xs mt-1 ml-4 list-disc space-y-1">
+                  <li>Tiles are not assigned to any <strong>TileBank</strong> (in SCREEN 2 mode)</li>
+                  <li>The tiles were deleted but are still referenced in the map</li>
+                </ul>
+                <p className="text-yellow-100 text-xs mt-2">
+                  <strong>To fix:</strong> Open <strong>TileBank Editor</strong> and assign all tiles to a bank, or use a different Screen Mode.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex-grow overflow-hidden mb-3 sm:mb-4">
             <Z80SyntaxHighlighter 
                 code={asmCode} 

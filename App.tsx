@@ -403,6 +403,34 @@ const App: React.FC = () => {
     }
   };
 
+  // Handle entity instance deletion
+  const handleDeleteEntityInstance = (entityIdToDelete: string) => {
+    if (!selectedAssetId) return;
+
+    setAssetsWithHistory(prevAssets => prevAssets.map(asset => {
+      if (asset.id === selectedAssetId && asset.type === 'screenmap' && asset.data) {
+        const screenMap = asset.data as ScreenMap;
+        const updatedEntities = screenMap.layers.entities.filter(e => e.id !== entityIdToDelete);
+
+        return {
+          ...asset,
+          data: {
+            ...screenMap,
+            layers: {
+              ...screenMap.layers,
+              entities: updatedEntities
+            }
+          }
+        };
+      }
+      return asset;
+    }));
+
+    // Deselect the entity instance
+    setSelectedEntityInstanceId(null);
+    setStatusBarMessage('Entity instance deleted.');
+  };
+
   // IDE Configuration handlers
   const saveIdeConfig = () => {
     const configToSave = { dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, worldViewGridVisible };
@@ -571,7 +599,7 @@ const App: React.FC = () => {
     showContextMenu,
     closeContextMenu,
     contextMenu,
-    handleDeleteEntityInstance: () => {},
+    handleDeleteEntityInstance,
     handleRequestSaveTile: () => {},
     onRequestSaveTile: () => {},
     handleRequestLoadTile: () => {},

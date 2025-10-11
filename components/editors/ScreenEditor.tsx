@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem } from '../../types';
+import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
 import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
@@ -390,7 +390,44 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   const prepareAndOpenLayoutExportModal = () => {
-    const layoutBytes = generateScreenMapLayoutBytes(screenMap, tileset, tileBanks, currentScreenMode);
+    // Extract TileBankDefinition[] from TileBank[] wrapper
+    // tileBanks prop is TileBank[] where each TileBank has banks: TileBankDefinition[]
+    // We need to flatten all banks from all TileBank assets into a single array
+    const tileBankDefinitions = tileBanks && tileBanks.length > 0
+      ? tileBanks.flatMap(tb => tb.banks || [])
+      : undefined;
+
+    // DEBUG: Log TileBank info
+    console.log('🔍 Layout Export Debug:');
+    console.log('  - Number of TileBank assets:', tileBanks?.length || 0);
+    console.log('  - TileBank assets RAW:', tileBanks);
+    if (tileBanks && tileBanks.length > 0) {
+      tileBanks.forEach((tb, i) => {
+        console.log(`  - TileBank ${i}:`, {
+          id: tb.id,
+          name: tb.name,
+          hasBanksProperty: 'banks' in tb,
+          banksValue: tb.banks,
+          banksType: typeof tb.banks,
+          banksIsArray: Array.isArray(tb.banks),
+          allKeys: Object.keys(tb)
+        });
+      });
+    }
+    console.log('  - Total banks combined:', tileBankDefinitions?.length || 0);
+    console.log('  - currentScreenMode:', currentScreenMode);
+    if (tileBankDefinitions) {
+      tileBankDefinitions.forEach((bank, i) => {
+        console.log(`  - Bank ${i} (${bank.name}):`, {
+          enabled: bank.enabled,
+          assignedTilesCount: Object.keys(bank.assignedTiles).length,
+          assignedTileIds: Object.keys(bank.assignedTiles),
+          charsetRange: `${bank.charsetRangeStart}-${bank.charsetRangeEnd}`
+        });
+      });
+    }
+
+    const layoutBytes = generateScreenMapLayoutBytes(screenMap, tileset, tileBankDefinitions, currentScreenMode);
     const comments: string[] = [];
     if (currentScreenMode !== "SCREEN 2 (Graphics I)") {
         const tempMap = new Map<number, {name: string, tileId: string, subX: number, subY: number}>();

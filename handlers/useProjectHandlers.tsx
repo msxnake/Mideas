@@ -255,25 +255,30 @@ export const useProjectHandlers = ({
           if (projectData.currentEditor) setCurrentEditor(projectData.currentEditor);
 
           // Load TileBanks from project
-          let loadedBanks = null;
-          if (projectData.tileBanks) {
-            loadedBanks = projectData.tileBanks;
-          } else if (projectData.assets) {
-            // Check for TileBank assets in legacy format
-            const tileBankAssets = projectData.assets.filter((asset: ProjectAsset) => asset.type === 'tileBanks');
-            if (tileBankAssets.length > 0 && tileBankAssets[0].data) {
-              loadedBanks = tileBankAssets[0].data;
+          // The state expects TileBank[] (array of TileBank assets)
+          // Each TileBank asset contains banks: TileBankDefinition[]
+          if (projectData.assets) {
+            const tileBankAssets = projectData.assets.filter((asset: ProjectAsset) => asset.type === 'tilebank');
+            if (tileBankAssets.length > 0) {
+              // Map TileBank assets to ensure proper structure
+              const ensuredTileBanks = tileBankAssets.map(asset => {
+                const tileBankData = asset.data as TileBank;
+                return {
+                  ...tileBankData,
+                  banks: tileBankData.banks.map((bank: TileBankDefinition) => ({
+                    ...bank,
+                    logicalTilesEnabled: bank.logicalTilesEnabled ?? false,
+                    logicalTileTypes: bank.logicalTileTypes ?? []
+                  }))
+                };
+              });
+              setTileBanksState(ensuredTileBanks);
+              localStorage.setItem('tileBanksConfig', JSON.stringify(ensuredTileBanks));
             }
-          }
-
-          if (loadedBanks) {
-            const ensuredBanks = loadedBanks.map((bank: TileBank) => ({
-              ...bank,
-              logicalTilesEnabled: bank.logicalTilesEnabled ?? false,
-              logicalTileTypes: bank.logicalTileTypes ?? []
-            }));
-            setTileBanksState(ensuredBanks);
-            localStorage.setItem('tileBanksConfig', JSON.stringify(ensuredBanks));
+          } else if (projectData.tileBanks) {
+            // Legacy format: tileBanks at root level
+            setTileBanksState(projectData.tileBanks);
+            localStorage.setItem('tileBanksConfig', JSON.stringify(projectData.tileBanks));
           }
 
           // Load other configurations

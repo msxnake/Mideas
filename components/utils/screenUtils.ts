@@ -1,4 +1,4 @@
-import { ScreenMap, Tile, TileBank, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame } from '../../types';
+import { ScreenMap, Tile, TileBank, TileBankDefinition, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame } from '../../types';
 import { EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../../constants'; 
 
 const RLE_MARKER_PLETTER = 0xC9;
@@ -153,7 +153,7 @@ const calculateLiteralRunLength = (
 export const generateScreenMapLayoutBytes = (
   screenMap: ScreenMap,
   tileset: Tile[],
-  tileBanks: TileBank[] | undefined,
+  tileBanks: TileBankDefinition[] | undefined,
   currentScreenMode: string
 ): Uint8Array => {
   const backgroundLayer = screenMap.layers.background;
@@ -184,22 +184,77 @@ export const generateScreenMapLayoutBytes = (
 
         if (currentScreenMode === "SCREEN 2 (Graphics I)" && tileBanks && tileAsset) {
           let foundInBank = false;
+          let debugInfo = { tileId: screenTile.tileId, position: { x: mapX, y: mapY }, attempts: [] as any[], banksReceived: tileBanks.length };
+
+          // DEBUG: Log first tile to understand assignedTiles structure (only once per generation)
+          if (typeof (globalThis as any).screenUtils_firstTileLogged === 'undefined') {
+            console.log('🔍 First tile structure check:', {
+              tileId: screenTile.tileId,
+              position: { x: mapX, y: mapY },
+              banksCount: tileBanks.length,
+              banks: tileBanks.map(b => ({
+                name: b.name,
+                assignedTileIds: Object.keys(b.assignedTiles || {}),
+                hasThisTile: !!(b.assignedTiles && b.assignedTiles[screenTile.tileId]),
+                assignedTilesType: typeof b.assignedTiles,
+                assignedTilesSample: b.assignedTiles ? Object.entries(b.assignedTiles).slice(0, 2) : []
+              }))
+            });
+            (globalThis as any).screenUtils_firstTileLogged = true;
+          }
+
           for (const bank of tileBanks) {
-            if ((bank.enabled ?? true) && bank.assignedTiles[screenTile.tileId]) {
+            // Check if this tile position is within this bank's screenZone
+            const zone = bank.screenZone;
+            const inZone = zone &&
+              mapX >= zone.x && mapX < (zone.x + zone.width) &&
+              mapY >= zone.y && mapY < (zone.y + zone.height);
+
+            // Only process if bank is enabled, tile is assigned, AND position is in zone
+            if ((bank.enabled ?? true) && bank.assignedTiles[screenTile.tileId] && inZone) {
               const baseCharCode = bank.assignedTiles[screenTile.tileId].charCode;
               const widthInChars = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
               const subX = screenTile.subTileX || 0;
               const subY = screenTile.subTileY || 0;
               actualCharCodeForCell = baseCharCode + (subY * widthInChars) + subX;
-              if (actualCharCodeForCell >= bank.charsetRangeStart && actualCharCodeForCell <= bank.charsetRangeEnd) {
+
+              const inRange = actualCharCodeForCell >= bank.charsetRangeStart && actualCharCodeForCell <= bank.charsetRangeEnd;
+              debugInfo.attempts.push({
+                bankName: bank.name,
+                zone: zone,
+                inZone: inZone,
+                baseCharCode,
+                calculated: actualCharCodeForCell,
+                range: `${bank.charsetRangeStart}-${bank.charsetRangeEnd}`,
+                inRange
+              });
+
+              if (inRange) {
                  foundInBank = true;
                  break;
               } else {
                 actualCharCodeForCell = CONST_EMPTY_CELL_CHAR_CODE; // Code out of bank range, treat as unassigned
               }
+            } else if (bank.assignedTiles[screenTile.tileId]) {
+              // Tile is assigned but position is NOT in zone - log for debugging
+              debugInfo.attempts.push({
+                bankName: bank.name,
+                zone: zone,
+                inZone: false,
+                reason: 'Position outside screenZone'
+              });
+            } else {
+              // Tile is NOT assigned to this bank at all
+              debugInfo.attempts.push({
+                bankName: bank.name,
+                zone: zone,
+                inZone: inZone,
+                reason: 'Tile not assigned to this bank'
+              });
             }
           }
           if (!foundInBank) {
+            console.warn('⚠️ Tile not found in valid range:', debugInfo);
             actualCharCodeForCell = CONST_EMPTY_CELL_CHAR_CODE;
           }
         } else if (currentScreenMode !== "SCREEN 2 (Graphics I)") {
@@ -418,7 +473,7 @@ export const generateSuperRLEData = (
   backgroundLayer: ScreenLayerData,
   tileset: Tile[],
   baseTileDim: number,
-  tileBanks: TileBank[] | undefined,
+  tileBanks: TileBankDefinition[] | undefined,
   compressionType: 'pletter' | 'superRLE' = 'superRLE'
 ): Omit<SuperRLEExportData, 'mapName' | 'compressionMethodName'> | { error: string } => {
     

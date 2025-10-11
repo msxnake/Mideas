@@ -71,7 +71,11 @@
       "Bash(del test_optimized_generator.ts)",
       "Bash(del nul)",
       "Bash(git log:*)",
-      "Bash(del test_globalvars_asm.ts)"
+      "Bash(del test_globalvars_asm.ts)",
+      "Bash(jq:*)",
+      "Bash(del constants.js constants.d.ts)",
+      "Bash(if exist constants.js del constants.js)",
+      "Bash(if exist constants.d.ts del constants.d.ts)"
     ],
     "deny": [],
     "ask": []
