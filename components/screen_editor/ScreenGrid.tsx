@@ -278,7 +278,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
 
         const textImageSrc = renderUnifiedTextToDataURL(
           textToRender,
-          tileBankDefinitions,
+          tileBanks,
           allAssets,
           fontToUse,
           fontColorAttrs,

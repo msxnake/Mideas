@@ -172,26 +172,20 @@ export function createTileBasedFont(
   customTextColor?: string,
   customBackgroundColor?: string
 ): { [ascii: string]: HTMLImageElement } | null {
-  console.log('🔍 createTileBasedFont called:', { tileBanks, allAssetsCount: allAssets?.length });
+  console.log('🔍 createTileBasedFont called:', { tileBanksCount: tileBanks?.length, allAssetsCount: allAssets?.length });
 
   if (!tileBanks || !allAssets) {
     console.log('❌ createTileBasedFont: Missing tileBanks or allAssets');
     return null;
   }
 
-  console.log('🔍 Looking for bank_0 in tileBanks:', tileBanks.map(b => b.id));
-  const bank0 = tileBanks.find(bank => bank.id === 'bank_0');
-  if (!bank0) {
-    console.log('❌ createTileBasedFont: bank_0 not found');
-    return null;
-  }
+  // Extract all TileBankDefinition[] from TileBank[]
+  // TileBank has structure: { id, name, banks: TileBankDefinition[] }
+  // TileBankDefinition has: { id: "bank_0", assignedTiles: {...} }
+  const allBankDefinitions = tileBanks.flatMap(tb => tb.banks || []);
+  console.log('🔍 All bank definitions:', allBankDefinitions.map(b => b.id));
 
-  console.log('🔍 bank_0 found:', { id: bank0.id, assignedTiles: bank0.assignedTiles });
-  if (!bank0.assignedTiles || Object.keys(bank0.assignedTiles).length === 0) {
-    console.log('❌ createTileBasedFont: bank_0 has no assigned tiles');
-    return null;
-  }
-
+  // Search for fonts in ALL banks (bank_0, bank_1, bank_2)
   const tileBasedFont: { [ascii: string]: HTMLImageElement } = {};
   const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const fontAssets = allAssets.filter(a => a.type === 'font');
@@ -202,31 +196,37 @@ export function createTileBasedFont(
     fontIds: fontAssets.map(f => f.id)
   });
 
-  const bank0TileIds = Object.keys(bank0.assignedTiles);
-  console.log('🔍 bank0TileIds:', bank0TileIds);
+  // Search for fonts in all banks
+  let fontsFound = false;
+  for (const bankDef of allBankDefinitions) {
+    if (!bankDef.assignedTiles || Object.keys(bankDef.assignedTiles).length === 0) {
+      console.log(`⏭️ Bank ${bankDef.id} has no assigned tiles, skipping`);
+      continue;
+    }
 
-  let bank0Fonts = fontAssets.filter(font => bank0TileIds.includes(font.id));
-  console.log('🔍 Exact match bank0Fonts:', bank0Fonts.map(f => f.id));
+    const bankTileIds = Object.keys(bankDef.assignedTiles);
+    console.log(`🔍 Bank ${bankDef.id} tile IDs:`, bankTileIds);
 
-  // If no exact match, try partial matching for font IDs
-  // Special logic for TileBank font assignments like "font_font_123_ABC_456"
-  if (bank0Fonts.length === 0) {
-    bank0Fonts = fontAssets.filter(font => {
-      return bank0TileIds.some(bankId => {
-        // Check if bankId contains the font ID (for composite font names)
-        return bankId.includes(font.id) || font.id.includes(bankId);
+    // Look for font assignments (keys starting with "font_")
+    let bankFonts = fontAssets.filter(font => bankTileIds.includes(font.id));
+    console.log(`🔍 Exact match fonts in ${bankDef.id}:`, bankFonts.map(f => f.id));
+
+    // If no exact match, try partial matching for composite font names
+    if (bankFonts.length === 0) {
+      bankFonts = fontAssets.filter(font => {
+        return bankTileIds.some(bankId => {
+          return bankId.includes(font.id) || font.id.includes(bankId);
+        });
       });
-    });
-    console.log('🔍 Partial match bank0Fonts:', bank0Fonts.map(f => f.id));
-    console.log('🔍 Matching details:', bank0TileIds.map(bankId => ({
-      bankId,
-      matchedFonts: fontAssets.filter(font => bankId.includes(font.id)).map(f => f.id)
-    })));
-  }
+      console.log(`🔍 Partial match fonts in ${bankDef.id}:`, bankFonts.map(f => f.id));
+    }
 
-  // If we have fonts assigned to Bank 0, use them for character mapping
-  if (bank0Fonts.length > 0) {
-    bank0Fonts.forEach(fontAsset => {
+    // If we have fonts in this bank, extract characters
+    if (bankFonts.length > 0) {
+      console.log(`✅ Found ${bankFonts.length} fonts in ${bankDef.id}`);
+      fontsFound = true;
+
+      bankFonts.forEach(fontAsset => {
       const fontData = fontAsset.data;
 
       // For each character needed, create a direct mapping
@@ -292,9 +292,11 @@ export function createTileBasedFont(
           tileBasedFont[char] = img;
         }
       });
-    });
+      });
+    }
   }
 
+  console.log(`📊 Total characters in tile-based font: ${Object.keys(tileBasedFont).length}`);
   return Object.keys(tileBasedFont).length > 0 ? tileBasedFont : null;
 }
 

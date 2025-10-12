@@ -3,7 +3,7 @@ import { ProjectAsset, ScreenMap, Tile, Sprite, EntityInstance, EntityTemplate, 
 import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
-import { createTileBasedFont, renderMSX1TextToDataURL, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
+import { renderUnifiedTextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
 import { MSX1_PALETTE, MSX1_DEFAULT_COLOR } from '../../constants';
 
 /** The width of the preview canvas in pixels. @constant */
@@ -69,148 +69,6 @@ interface AnimatedEntity {
 /** The speed of the animation in milliseconds per frame. @constant */
 const ANIMATION_SPEED_MS = 200;
 
-// Function to calculate MSX Screen 2 sector based on Y coordinate
-const getScreenSectorFromY = (y: number): 0 | 1 | 2 => {
-  // MSX Screen 2: 192 pixels / 24 lines = 8 pixels per line
-  // Sector 0: Lines 0-7   (Y: 0-63)
-  // Sector 1: Lines 8-15  (Y: 64-127)
-  // Sector 2: Lines 16-23 (Y: 128-191)
-  if (y < 64) return 0;
-  if (y < 128) return 1;
-  return 2;
-};
-
-// Function to get TileBank from the corresponding sector
-const getSectorAssets = (y: number, screenMap: ScreenMap) => {
-  const sector = getScreenSectorFromY(y);
-  const sectorKey = `sector${sector}` as keyof NonNullable<ScreenMap['screenSectors']>;
-  const sectorConfig = screenMap.screenSectors?.[sectorKey];
-  return {
-    sector,
-    tileBankAssetId: sectorConfig?.tileBankAssetId || ''
-  };
-};
-
-// Function to automatically extract fonts from TileBank
-const extractFontFromTileBank = (tileBankAsset: ProjectAsset, sectorIndex: number, allAssets: ProjectAsset[]) => {
-  try {
-    const tileBankData = tileBankAsset.data as TileBank;
-    const sectorBank = tileBankData.banks[sectorIndex]; // Access the specific sector bank
-    console.log(`🔧 extractFontFromTileBank - Bank ${sectorIndex}:`, sectorBank);
-
-    if (!sectorBank?.assignedTiles) {
-      console.log(`❌ No assignedTiles in Bank ${sectorIndex}`);
-      return null;
-    }
-
-    // Look for assignments that contain fontCharacters, specifically A-Z characters
-    const fontAssignments = Object.entries(sectorBank.assignedTiles).filter(([tileId, assignment]) => {
-      return tileId.startsWith('font_') && Array.isArray((assignment as any).fontCharacters);
-    });
-    console.log(`🔍 Font assignments found in Bank ${sectorIndex}:`, fontAssignments.length);
-
-    if (fontAssignments.length === 0) {
-      console.log(`❌ No font assignments found in Bank ${sectorIndex}`);
-      return null;
-    }
-
-    // Build fontData and fontColorAttributes from assigned tiles in this specific bank
-    const extractedFontData: { [charCode: number]: number[] } = {};
-    const extractedFontColorAttributes: { [charCode: number]: Array<{fg: string, bg: string}> } = {};
-
-    // Look for original font assets and extract only A-Z characters (65-90)
-    for (const [fontTileId, assignment] of fontAssignments) {
-      const fontCharacters = (assignment as any).fontCharacters;
-
-      if (allAssets && Array.isArray(fontCharacters)) {
-        // Extract the base font ID from the complex fontTileId
-        // Format: font_font_1758743064660_YABCDEFG..._1758802782573
-        const fontIdMatch = fontTileId.match(/^font_(font_\d+)_/);
-        const baseFontId = fontIdMatch ? fontIdMatch[1] : null;
-
-        console.log(`🔍 Searching for font asset - fontTileId: ${fontTileId}, baseFontId: ${baseFontId}`);
-
-        const fontAsset = allAssets.find(asset => {
-          const isMatch = baseFontId && asset.id === baseFontId && asset.type === 'font';
-          if (isMatch) {
-            console.log(`✅ Found matching font asset: ${asset.id}`);
-          }
-          return isMatch;
-        });
-
-        if (!fontAsset) {
-          console.log(`❌ Font asset not found for baseFontId: ${baseFontId}`);
-        }
-
-        if (fontAsset?.data) {
-          const fontAssetData = fontAsset.data as any;
-
-          // Extract characters from the fontCharacters array
-          for (const fontChar of fontCharacters) {
-            const charCode = fontChar.charCode;
-
-            // Only process A-Z (65-90) and 0-9 (48-57)
-            if ((charCode >= 48 && charCode <= 57) || (charCode >= 65 && charCode <= 90)) {
-              if (fontAssetData.fontData?.[charCode]) {
-                extractedFontData[charCode] = fontAssetData.fontData[charCode];
-                console.log(`✅ Extracted character ${String.fromCharCode(charCode)} (${charCode}):`, fontAssetData.fontData[charCode]);
-
-                // Use specific Font Asset colors (traspasados al TileBank)
-                extractedFontColorAttributes[charCode] = [];
-
-                if (fontAssetData.fontColorAttributes?.[charCode]) {
-                  // Use specific colors per row from Font Asset original
-                  extractedFontColorAttributes[charCode] = fontAssetData.fontColorAttributes[charCode];
-                  console.log(`✅ Using Font Asset colors for ${String.fromCharCode(charCode)}:`, fontAssetData.fontColorAttributes[charCode]);
-                } else {
-                  // Fallback: use default TileBank colors if no specifics
-                  const fgColorHex = MSX1_PALETTE[sectorBank.defaultFgColorIndex]?.hex || MSX1_DEFAULT_COLOR;
-                  const bgColorHex = MSX1_PALETTE[sectorBank.defaultBgColorIndex]?.hex || MSX1_DEFAULT_COLOR;
-
-                  for (let row = 0; row < 8; row++) {
-                    extractedFontColorAttributes[charCode][row] = {
-                      fg: fgColorHex,
-                      bg: bgColorHex
-                    };
-                  }
-                  console.log(`⚠️ No specific Font Asset colors for ${String.fromCharCode(charCode)}, using TileBank defaults: fg=${fgColorHex}, bg=${bgColorHex}`);
-                }
-              } else {
-                console.log(`❌ Character ${String.fromCharCode(charCode)} (${charCode}) not found in fontData`);
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // Only return if we found at least some A-Z and 0-9 characters
-    if (Object.keys(extractedFontData).length > 0) {
-      const extractedChars = Object.keys(extractedFontData).map(code => String.fromCharCode(parseInt(code))).join('');
-      console.log(`✅ Font extracted for Bank ${sectorIndex}:`, {
-        charactersFound: extractedChars,
-        totalCharacters: Object.keys(extractedFontData).length,
-        sectorColors: { fg: sectorBank.defaultFgColorIndex, bg: sectorBank.defaultBgColorIndex },
-        sampleColorAttributes_A_row0: extractedFontColorAttributes[65] ? extractedFontColorAttributes[65][0] : 'none',
-        sampleColorAttributes_A_all8rows: extractedFontColorAttributes[65] || 'none',
-        totalColorAttributesExtracted: Object.keys(extractedFontColorAttributes).length
-      });
-
-      return {
-        fontData: extractedFontData,
-        fontColorAttributes: extractedFontColorAttributes,
-        fontCharacters: extractedChars,
-        sectorColors: { fg: sectorBank.defaultFgColorIndex, bg: sectorBank.defaultBgColorIndex }
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Error extracting font from TileBank:', error);
-    return null;
-  }
-};
-
 /**
  * A modal dialog for previewing a screen map with animated entities.
  *
@@ -250,7 +108,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
     });
   }, [tileBanks]);
 
-  // HUD rendering function (synced with ScreenPlayModal)
+  // HUD rendering function (synced with ScreenGrid - using renderUnifiedTextToDataURL)
   const renderHUDElements = (ctx: CanvasRenderingContext2D) => {
     const hudElements = screenMap.hudConfiguration?.elements;
     if (!hudElements || hudElements.length === 0) return;
@@ -272,113 +130,51 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
 
         console.log(`🖼️ Rendering HUD text: "${textToRender}" at (${hudEl.position.x}, ${hudEl.position.y})`);
 
-        // Use font selected or default
-        let fontToUse = msxFont || DEFAULT_MSX_FONT;
-        let fontColorAttributesToUse = msxFontColorAttributes || {};
+        // Extract custom colors from HUD element details
+        const hudTextColor = hudEl.details?.textColor || undefined;
+        const hudBackgroundColor = hudEl.details?.textBackgroundColor || undefined;
 
-        // Extract font automatically from TileBank of the sector (same logic as HUD Editor)
-        try {
-          const sectorInfo = getSectorAssets(hudEl.position.y, screenMap);
-          console.log(`🔍 Screen Preview - Element "${hudEl.name}" at Y=${hudEl.position.y} → Sector ${sectorInfo.sector}, TileBank: ${sectorInfo.tileBankAssetId || 'none'}`);
+        // Use renderUnifiedTextToDataURL (same as ScreenGrid)
+        const textImageDataURL = renderUnifiedTextToDataURL(
+          textToRender,
+          tileBanks,
+          allAssets,
+          msxFont || DEFAULT_MSX_FONT,
+          msxFontColorAttributes,
+          1, // scale
+          charSpacing,
+          hudTextColor,
+          hudBackgroundColor
+        );
 
-          // Extract font from TileBank of the sector if exists
-          if (sectorInfo.tileBankAssetId && allAssets) {
-            const selectedTileBankAsset = allAssets.find(asset => asset.id === sectorInfo.tileBankAssetId && asset.type === 'tilebank');
-            if (selectedTileBankAsset) {
-              console.log(`📦 Found TileBank asset: ${selectedTileBankAsset.name}`);
-              const extractedFont = extractFontFromTileBank(selectedTileBankAsset, sectorInfo.sector, allAssets);
-              if (extractedFont) {
-                console.log(`✅ Extracted font from Bank ${sectorInfo.sector}, characters: ${extractedFont.fontCharacters}`);
-                fontToUse = extractedFont.fontData;
-                fontColorAttributesToUse = extractedFont.fontColorAttributes;
-              } else {
-                console.log(`❌ No font extracted from Bank ${sectorInfo.sector}`);
-              }
-            } else {
-              console.log(`❌ TileBank asset not found: ${sectorInfo.tileBankAssetId}`);
-            }
+        console.log(`🔍 Text image data URL generated:`, textImageDataURL ? 'Yes' : 'No');
+
+        // Create a temporary canvas from the data URL and draw it synchronously
+        if (textImageDataURL) {
+          const tempCanvas = document.createElement('canvas');
+          const tempCtx = tempCanvas.getContext('2d');
+          const img = new Image();
+
+          // Create image synchronously
+          img.src = textImageDataURL;
+
+          // Wait for image to load before drawing (this is necessary for proper rendering)
+          if (img.complete) {
+            // Image already loaded (cached)
+            ctx.drawImage(img, hudEl.position.x, hudEl.position.y);
+            console.log(`✅ Drew text "${textToRender}" at (${hudEl.position.x}, ${hudEl.position.y})`);
           } else {
-            console.log(`ℹ️ No TileBank assigned to sector ${sectorInfo.sector}, using default font`);
+            // Image needs to load asynchronously
+            img.onload = () => {
+              // Note: This will render on the next frame if not already loaded
+              ctx.drawImage(img, hudEl.position.x, hudEl.position.y);
+              console.log(`✅ Drew text "${textToRender}" (async) at (${hudEl.position.x}, ${hudEl.position.y})`);
+            };
+            img.onerror = () => {
+              console.error(`❌ Failed to load image for text "${textToRender}"`);
+            };
           }
-        } catch (error) {
-          console.error('Error using TileBank font:', error);
-          // Continue with default font
         }
-
-        // Clear the area where we're going to draw this HUD element
-        const textWidth = textToRender.length * (8 + charSpacing);
-        const textHeight = 8;
-        ctx.clearRect(hudEl.position.x, hudEl.position.y, textWidth, textHeight);
-
-        // Debug logging
-        console.log(`🔍 Rendering text "${textToRender}"`);
-        console.log(`🔍 Font to use keys:`, Object.keys(fontToUse).slice(0, 10));
-        console.log(`🔍 Font color attributes keys:`, Object.keys(fontColorAttributesToUse).slice(0, 10));
-
-        // Render text directly to canvas (synchronous rendering)
-        try {
-          let xOffset = hudEl.position.x;
-
-          for (const char of textToRender) {
-            const charCode = char.charCodeAt(0);
-            const pattern = fontToUse[charCode];
-
-            console.log(`🔍 Character '${char}' (${charCode}):`, {
-              hasPattern: !!pattern,
-              patternSample: pattern ? pattern.slice(0, 2) : 'none',
-              hasColors: !!fontColorAttributesToUse[charCode]
-            });
-
-            if (pattern && Array.isArray(pattern) && pattern.length === 8) {
-              // Get colors for this character
-              const charColors = fontColorAttributesToUse?.[charCode];
-              const defaultFgColor = '#FFFFFF';
-              const defaultBgColor = 'transparent';
-
-              // Draw character pixel by pixel
-              for (let y = 0; y < 8; y++) {
-                const rowByte = pattern[y];
-                const rowColors = charColors?.[y];
-                const fgColor = rowColors?.fg || defaultFgColor;
-                const bgColor = rowColors?.bg || defaultBgColor;
-
-                if (typeof rowByte === 'number' && rowByte >= 0 && rowByte <= 255) {
-                  for (let x = 0; x < 8; x++) {
-                    const isPixelSet = (rowByte >> (7 - x)) & 1;
-
-                    if (isPixelSet) {
-                      ctx.fillStyle = fgColor;
-                      ctx.fillRect(xOffset + x, hudEl.position.y + y, 1, 1);
-                    } else if (bgColor !== 'transparent') {
-                      ctx.fillStyle = bgColor;
-                      ctx.fillRect(xOffset + x, hudEl.position.y + y, 1, 1);
-                    }
-                  }
-                }
-              }
-
-              console.log(`✅ Drew MSX character '${char}' (${charCode}) at (${xOffset}, ${hudEl.position.y})`);
-            } else {
-              // Fallback for missing characters
-              ctx.fillStyle = '#FFFF00'; // Yellow for debugging
-              ctx.font = '6px monospace';
-              ctx.fillText(char, xOffset + 1, hudEl.position.y + 6);
-              console.log(`⚠️ Used fallback for missing/invalid character '${char}' (${charCode}) at (${xOffset}, ${hudEl.position.y})`);
-            }
-
-            xOffset += 8 + charSpacing;
-          }
-
-          console.log(`✅ Successfully rendered HUD text "${textToRender}" at (${hudEl.position.x}, ${hudEl.position.y})`);
-        } catch (error) {
-          console.error('Error rendering MSX font text:', error);
-          // Final fallback: simple canvas text
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = '8px monospace';
-          ctx.fillText(textToRender, hudEl.position.x, hudEl.position.y + 8);
-          console.log(`⚠️ Used final fallback text "${textToRender}" at (${hudEl.position.x}, ${hudEl.position.y})`);
-        }
-
       }
     });
   };
@@ -602,7 +398,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
 
         // 1. Clear and Draw Background
         ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-        renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
+        renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE, tileBanks, allAssets);
 
         // 2. Render HUD elements
         renderHUDElements(ctx);

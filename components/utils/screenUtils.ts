@@ -1,4 +1,4 @@
-import { ScreenMap, Tile, TileBank, TileBankDefinition, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame } from '../../types';
+import { ScreenMap, Tile, TileBank, TileBankDefinition, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame, ProjectAsset } from '../../types';
 import { EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../../constants'; 
 
 const RLE_MARKER_PLETTER = 0xC9;
@@ -821,13 +821,17 @@ export function createSpriteDataURL(
  * @param tileset An array of all available tile assets.
  * @param currentScreenMode The current MSX screen mode.
  * @param baseSliceDim The base dimension of a tile slice.
+ * @param tileBanks Optional array of tile banks for SCREEN 2 mode.
+ * @param allAssets Optional array of all project assets (needed to resolve font assets).
  */
 export const renderScreenToCanvas = (
   canvas: HTMLCanvasElement,
   screenMap: ScreenMap,
   tileset: Tile[],
   currentScreenMode: string,
-  baseSliceDim: number
+  baseSliceDim: number,
+  tileBanks?: TileBank[],
+  allAssets?: ProjectAsset[]
 ) => {
   const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
 

@@ -947,7 +947,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             currentScreenMode={currentScreenMode}
             hudElements={screenMap.hudConfiguration?.elements}
             editorBaseTileDim={EDITOR_BASE_TILE_DIM}
-            tileBanks={currentScreenMode === "SCREEN 2 (Graphics I)" ? tileBanks : undefined}
+            tileBanks={currentScreenMode === "SCREEN 2 (Graphics I)" && screenMap.tileBankAssetId ?
+              [allProjectAssets.find(asset => asset.id === screenMap.tileBankAssetId && asset.type === 'tilebank')?.data as TileBank].filter(Boolean) :
+              undefined}
             msxFont={msx1FontData}
             msxFontColorAttributes={msxFontColorAttributes}
             selectedEntityInstanceId={selectedEntityInstanceId}
