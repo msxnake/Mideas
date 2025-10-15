@@ -99,10 +99,7 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
         </div>
       </Panel>
       <Panel title="Colors">
-        <InlineColorPicker label="Text" color={appearance.colors.text} onChange={color => handleColorChange('text', color)} />
         <InlineColorPicker label="Background" color={appearance.colors.background} onChange={color => handleColorChange('background', color)} />
-        <InlineColorPicker label="Highlight Text" color={appearance.colors.highlightText} onChange={color => handleColorChange('highlightText', color)} />
-        <InlineColorPicker label="Highlight BG" color={appearance.colors.highlightBackground} onChange={color => handleColorChange('highlightBackground', color)} />
         <InlineColorPicker label="Border" color={appearance.colors.border || 'transparent'} onChange={color => handleColorChange('border', color)} />
       </Panel>
 

@@ -695,7 +695,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const renderTextNodes = async () => {
              // Don't clear screen for Transition nodes - they work on existing content
              if (currentNode.type !== 'Transition') {
-                 ctx.fillStyle = '#000000';
+                 // Use node-specific background color if available, otherwise black
+                 let bgColor = '#000000';
+                 if (currentNode.type === 'SubMenu') {
+                     bgColor = (currentNode as GameFlowSubMenuNode).appearance?.colors?.background || '#000000';
+                 } else if (currentNode.type === 'Text') {
+                     bgColor = (currentNode as GameFlowTextNode).appearance?.colors?.background || '#000000';
+                 }
+                 ctx.fillStyle = bgColor;
                  ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                  if (screenMapToRender) renderScreenToCanvas(canvas, screenMapToRender, tileset, currentScreenMode, TILE_SIZE);
              }
@@ -1156,6 +1163,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
     const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
     const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
+    const canvasBackgroundColor = subMenuNode?.appearance?.colors?.background || '#000000';
 
     const modalContent = (
         <div
@@ -1182,7 +1190,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             width: PREVIEW_WIDTH * 2,
                             height: PREVIEW_HEIGHT * 2,
                             imageRendering: 'pixelated',
-                            backgroundColor: 'black'
+                            backgroundColor: canvasBackgroundColor
                         }}
                     />
                     {cursorAsset && subMenuNode && (() => {
@@ -1230,6 +1238,33 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 </div>
                 <div className="flex items-center mt-4">
                     <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
+                    {currentNode?.type === 'WorldLink' && (() => {
+                        const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                        return conn ? (
+                            <Button onClick={() => {
+                                // Skip through waypoints automatically
+                                let targetNodeId = conn.to.nodeId;
+                                let targetNode = nodes.find(n => n.id === targetNodeId);
+
+                                // Keep following waypoints until we reach a non-waypoint node
+                                while (targetNode && targetNode.type === 'Waypoint') {
+                                    const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                                    if (nextConn) {
+                                        targetNodeId = nextConn.to.nodeId;
+                                        targetNode = nodes.find(n => n.id === targetNodeId);
+                                    } else {
+                                        break;
+                                    }
+                                }
+
+                                setNavigationStack(prev => [...prev, currentNode.id]);
+                                setCurrentNodeId(targetNodeId);
+                                setSelectedOptionIndex(0);
+                                setCurrentScreenMap(null);
+                                setCurrentWorldMapGraph(null);
+                            }} variant="secondary" size="md" className="mr-4">Exit World</Button>
+                        ) : null;
+                    })()}
                     <Button onClick={onClose} variant="primary" size="md">Close</Button>
                 </div>
             </div>

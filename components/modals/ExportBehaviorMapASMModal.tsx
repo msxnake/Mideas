@@ -107,9 +107,9 @@ export const ExportBehaviorMapASMModal: React.FC<ExportBehaviorMapASMModalProps>
       >
         <h2 id="exportBehaviorMapAsmModalTitle" className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4">Export Behavior Map ASM: {mapName}</h2>
         
-        <div className="flex-grow overflow-hidden mb-3 sm:mb-4">
-            <Z80SyntaxHighlighter 
-                code={asmCode} 
+        <div className="flex-grow overflow-auto mb-3 sm:mb-4">
+            <Z80SyntaxHighlighter
+                code={asmCode}
                 editorFontSize={MODAL_DEFAULT_FONT_SIZE}
                 editorLineHeight={editorLineHeight}
             />

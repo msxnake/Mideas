@@ -26,16 +26,15 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
     onNodeChange({ ...node, [field]: value });
   };
 
-  const handleColorChange = (field: 'text' | 'background' | 'promptText', value: string) => {
+  const handleColorChange = (field: 'background' | 'border', value: string) => {
     onNodeChange({
       ...node,
       appearance: {
         ...node.appearance,
         colors: {
           ...node.appearance?.colors,
-          text: node.appearance?.colors?.text || '#F3F3F3',
           background: node.appearance?.colors?.background || '#000000',
-          promptText: node.appearance?.colors?.promptText || '#F3F3F3',
+          border: node.appearance?.colors?.border || '#FFFFFF',
           [field]: value,
         },
       },
@@ -48,9 +47,8 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
       appearance: {
         ...node.appearance,
         colors: node.appearance?.colors || {
-          text: '#F3F3F3',
           background: '#000000',
-          promptText: '#F3F3F3',
+          border: '#FFFFFF',
         },
         backgroundScreenAssetId: assetId || undefined,
       },
@@ -63,9 +61,8 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
       appearance: {
         ...node.appearance,
         colors: node.appearance?.colors || {
-          text: '#F3F3F3',
           background: '#000000',
-          promptText: '#F3F3F3',
+          border: '#FFFFFF',
         },
         fontAssetId: assetId || undefined,
       },
@@ -156,19 +153,14 @@ export const TextNodeEditor: React.FC<TextNodeEditorProps> = ({
 
       <Panel title="Colors">
         <InlineColorPicker
-          label="Text"
-          color={node.appearance?.colors?.text || '#F3F3F3'}
-          onChange={color => handleColorChange('text', color)}
-        />
-        <InlineColorPicker
           label="Background"
           color={node.appearance?.colors?.background || '#000000'}
           onChange={color => handleColorChange('background', color)}
         />
         <InlineColorPicker
-          label="Prompt Text"
-          color={node.appearance?.colors?.promptText || '#F3F3F3'}
-          onChange={color => handleColorChange('promptText', color)}
+          label="Border"
+          color={node.appearance?.colors?.border || '#FFFFFF'}
+          onChange={color => handleColorChange('border', color)}
         />
       </Panel>
 
