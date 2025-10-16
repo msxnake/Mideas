@@ -6,8 +6,9 @@
 
 import React from 'react';
 import { Button } from '../common/Button';
-import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, MapIcon, PlayIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
+import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, PlayIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
 import { ScreenMap, ProjectAsset } from '../../types';
+import { MSX1_PALETTE } from '../../constants';
 
 /**
  * Represents the name of a layer in the screen editor.
@@ -76,8 +77,6 @@ interface ScreenEditorToolbarProps {
   isPasteLayerDisabled?: boolean; 
   /** Callback function to add a new effect zone. */
   onAddNewEffectZone: () => void;
-  /** Callback function to show the main map ASM file. */
-  onShowMapFile: () => void;
 
   /** The current screen mode. */
   currentScreenMode: string;
@@ -87,6 +86,14 @@ interface ScreenEditorToolbarProps {
   onTileBankChange: (tileBankId: string) => void;
   /** All project assets for TileBank filtering. */
   allProjectAssets: ProjectAsset[];
+  /** Background color index (0-15) for VDP. */
+  backgroundColor?: number;
+  /** Border color index (0-15) for VDP. */
+  borderColor?: number;
+  /** Callback when background color changes. */
+  onBackgroundColorChange: (colorIndex: number) => void;
+  /** Callback when border color changes. */
+  onBorderColorChange: (colorIndex: number) => void;
 }
 
 /**
@@ -104,8 +111,9 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   onExportLayout, onExportBehavior, onPreview, onPlay,
   onExportScreenMapJSON, onImportScreenMapJSON,
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
-  onAddNewEffectZone, onShowMapFile,
-  currentScreenMode, selectedTileBankId, onTileBankChange, allProjectAssets
+  onAddNewEffectZone,
+  currentScreenMode, selectedTileBankId, onTileBankChange, allProjectAssets,
+  backgroundColor = 1, borderColor = 1, onBackgroundColorChange, onBorderColorChange
 }) => {
 
   const tileBankAssets = allProjectAssets?.filter(asset => asset.type === 'tilebank') || [];
@@ -154,6 +162,53 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
         </div>
       )}
 
+      {/* MSX Background and Border Color Selectors */}
+      <div className="flex items-center space-x-2 border-l border-msx-border/50 pl-2">
+        <div className="flex items-center space-x-1">
+          <label htmlFor="bgColorSelector" className="pixel-font text-msx-textsecondary text-xs">BG:</label>
+          <select
+            id="bgColorSelector"
+            value={backgroundColor}
+            onChange={(e) => onBackgroundColorChange(parseInt(e.target.value))}
+            className="p-1 bg-msx-bgcolor border-msx-border rounded text-msx-textprimary text-xs focus:ring-msx-accent focus:border-msx-accent"
+            title="Background Color (VDP backdrop)"
+          >
+            {MSX1_PALETTE.map(color => (
+              <option key={color.index} value={color.index}>
+                {color.name}
+              </option>
+            ))}
+          </select>
+          <div
+            className="w-5 h-5 border border-msx-border rounded"
+            style={{ backgroundColor: MSX1_PALETTE[backgroundColor]?.hex || MSX1_PALETTE[1].hex }}
+            title={MSX1_PALETTE[backgroundColor]?.name || 'Black'}
+          />
+        </div>
+
+        <div className="flex items-center space-x-1">
+          <label htmlFor="borderColorSelector" className="pixel-font text-msx-textsecondary text-xs">Border:</label>
+          <select
+            id="borderColorSelector"
+            value={borderColor}
+            onChange={(e) => onBorderColorChange(parseInt(e.target.value))}
+            className="p-1 bg-msx-bgcolor border-msx-border rounded text-msx-textprimary text-xs focus:ring-msx-accent focus:border-msx-accent"
+            title="Border Color (VDP border area)"
+          >
+            {MSX1_PALETTE.map(color => (
+              <option key={color.index} value={color.index}>
+                {color.name}
+              </option>
+            ))}
+          </select>
+          <div
+            className="w-5 h-5 border border-msx-border rounded"
+            style={{ backgroundColor: MSX1_PALETTE[borderColor]?.hex || MSX1_PALETTE[1].hex }}
+            title={MSX1_PALETTE[borderColor]?.name || 'Black'}
+          />
+        </div>
+      </div>
+
       <div className="flex items-center">
         <label htmlFor="screenZoom" className="pixel-font text-msx-textsecondary mr-1">Zoom:</label>
         <input
@@ -190,7 +245,6 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
         <Button onClick={onPasteLayer} size="sm" variant="ghost" title="Paste copied layer data into active area of current layer" icon={<PasteIcon className="w-3.5 h-3.5"/>} disabled={isPasteLayerDisabled}>Paste Layer</Button>
         <Button onClick={onExportScreenMapJSON} size="sm" variant="ghost" title="Export entire screen map as JSON" icon={<SaveIcon className="w-3.5 h-3.5"/>}>Export JSON</Button>
         <Button onClick={onImportScreenMapJSON} size="sm" variant="ghost" title="Import screen map from JSON file" icon={<LoadIcon className="w-3.5 h-3.5"/>}>Import JSON</Button>
-        <Button onClick={onShowMapFile} size="sm" variant="secondary" title="Show/Generate main map ASM file" icon={<MapIcon className="w-4 h-4"/>}> Map ASM </Button>
         <Button onClick={onExportLayout} size="sm" variant="secondary" title="Export active area layout as ASM data" icon={<ASMIcon className="w-4 h-4"/>}> Layout ASM </Button>
         <Button onClick={onExportBehavior} size="sm" variant="secondary" title="Export active area behavior map as ASM data" icon={<ASMIcon className="w-4 h-4"/>}> Behavior ASM </Button>
       </div>
