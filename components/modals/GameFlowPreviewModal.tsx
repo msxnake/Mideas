@@ -172,13 +172,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const allowDown = cursorsProps.allowDown !== false;
             const allowLeft = cursorsProps.allowLeft !== false;
             const allowRight = cursorsProps.allowRight !== false;
+            const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
 
             switch (pressedKey) {
                 case 'ArrowUp':
-                    if (allowUp) entity.vy = isKeyDown ? -speed : 0;
+                    if (allowUp && !hasGravity) entity.vy = isKeyDown ? -speed : 0;
                     break;
                 case 'ArrowDown':
-                    if (allowDown) entity.vy = isKeyDown ? speed : 0;
+                    if (allowDown && !hasGravity) entity.vy = isKeyDown ? speed : 0;
                     break;
                 case 'ArrowLeft':
                     if (allowLeft) entity.vx = isKeyDown ? -speed : 0;
@@ -424,6 +425,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         } else if (currentNode.type === 'WorldLink') {
             if (heroRef.current) {
+                if (e.code === 'Space') {
+                    const hero = heroRef.current;
+                    const jumpComp = hero.template.components.find(c => c.definitionId === 'comp_jump');
+                    if (jumpComp) {
+                        const jumpProps = { ...jumpComp.defaultValues, ...(hero.instance.componentOverrides?.['comp_jump'] || {}) };
+                        const jumpPower = Number(jumpProps.jumpPower || 256);
+                        // Simple grounded check, allows jumping if not moving vertically
+                        if (hero.vy === 0) {
+                            hero.vy = -jumpPower / 40; // Adjusted for better jump height
+                        }
+                    }
+                }
                 if (!pressedKeys.current.has(e.key)) {
                     pressedKeys.current.add(e.key);
                     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
@@ -449,7 +462,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 case 'Escape': handleGoBack(); break;
             }
         }
-    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions]);
+    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions, nodes, connections]);
 
     useEffect(() => {
         if (!isOpen || currentNode?.type !== 'WorldLink' || currentScreenMap) return;
@@ -1056,13 +1069,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     console.log(`[Animate Start] Hero: ${entityA.instance.name}, Pos: (${entityA.x.toFixed(2)}, ${entityA.y.toFixed(2)}), Vel: (${entityA.vx}, ${entityA.vy})`);
                 }
 
-                if (entityA === heroRef.current && !entityA.stateMachine) { 
-                    // For hero without state machine, only reset velocity if no movement keys are pressed
-                    const isMoving = pressedKeys.current.has('ArrowUp') || pressedKeys.current.has('ArrowDown') || 
-                                   pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('ArrowRight');
-                    if (!isMoving) {
-                        entityA.vx = 0; 
-                        entityA.vy = 0; 
+                if (entityA === heroRef.current && !entityA.stateMachine) {
+                    const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity');
+                    const isMovingHorizontally = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('ArrowRight');
+                    if (!isMovingHorizontally) {
+                        entityA.vx = 0;
+                    }
+                
+                    if (!hasGravity) {
+                        const isMovingVertically = pressedKeys.current.has('ArrowUp') || pressedKeys.current.has('ArrowDown');
+                        if (!isMovingVertically) {
+                            entityA.vy = 0;
+                        }
                     }
                 }
                 if (entityA.stateMachine && entityA.currentState) {
