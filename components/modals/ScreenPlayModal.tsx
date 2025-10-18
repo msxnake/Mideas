@@ -1225,10 +1225,15 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const [physicsEnabled, setPhysicsEnabled] = useState(true);
     const [animationEnabled, setAnimationEnabled] = useState(true);
     const fullScreenTimerRef = useRef<NodeJS.Timeout>();
+    const [currentScreen, setCurrentScreen] = useState<ScreenMap>(screenMap);
 
     // Pac-Man style movement tracking
     const desiredDirection = useRef<string | null>(null);
     const currentDirection = useRef<string | null>(null);
+
+    useEffect(() => {
+        setCurrentScreen(screenMap);
+    }, [screenMap]);
 
     // Full Screen functionality
     const handleFullScreen = async () => {
@@ -2228,12 +2233,14 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     const bottomTile = Math.floor((entityBottom - 1) / 16);
                     
                     let hasCollision = false;
+                    let collisionType: 'tile' | 'boundary' | null = null;
                     
                     // Check all tiles the entity would occupy
                     for (let tileY = topTile; tileY <= bottomTile && !hasCollision; tileY++) {
                         for (let tileX = leftTile; tileX <= rightTile && !hasCollision; tileX++) {
                             if (tileX < 0 || tileY < 0 || tileX >= screenMap.width || tileY >= screenMap.height) {
                                 hasCollision = true;
+                                collisionType = 'boundary';
                                 break;
                             }
 
@@ -2246,6 +2253,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             // Check if tile has a collision (tileId is not null and not empty)
                             if (tile && tile.tileId && tile.tileId !== 'empty' && tile.tileId !== '') {
                                 hasCollision = true;
+                                collisionType = 'tile';
                                 break;
                             }
                         }
@@ -2258,7 +2266,11 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     } else {
                         // Stop velocity on collision (only log if entity was actually moving)
                         if (entity.vx !== 0 || entity.vy !== 0) {
-                            console.log(`🚧 Collision detected! Stopping velocity (${entity.vx}, ${entity.vy}) → (0, 0) at position (${entity.x}, ${entity.y})`);
+                            if (collisionType === 'boundary') {
+                                console.log(`🚧 Detección de salida de pantalla! Stopping velocity (${entity.vx}, ${entity.vy}) → (0, 0) at position (${entity.x}, ${entity.y})`);
+                            } else {
+                                console.log(`🚧 Collision detected! Stopping velocity (${entity.vx}, ${entity.vy}) → (0, 0) at position (${entity.x}, ${entity.y})`);
+                            }
                         }
                         entity.vx = 0;
                         entity.vy = 0;

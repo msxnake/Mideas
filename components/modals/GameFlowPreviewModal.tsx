@@ -145,6 +145,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [gameFlowStack, setGameFlowStack] = useState<Array<{parentGraphData: GameFlowGraph, returnNodeId: string, parentGameFlowName: string}>>([]);
     const [currentNestedGraphData, setCurrentNestedGraphData] = useState<GameFlowGraph | null>(null);
     const [currentExecutingGameFlowName, setCurrentExecutingGameFlowName] = useState<string>(gameFlowAssetName);
+    const [playerEntryPoint, setPlayerEntryPoint] = useState<{x: number, y: number} | null>(null);
 
     // Use nested graph if available, otherwise use the main graphData
     const currentGraphData = currentNestedGraphData || graphData;
@@ -465,19 +466,27 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     }, [isOpen, currentNode, allAssets, currentScreenMap]);
 
     useEffect(() => {
-        if (!isOpen || !currentScreenMap) {
+        if (!isOpen) {
+            heroRef.current = null; // Clear hero only when modal closes
+            return;
+        }
+        if (!currentScreenMap) {
             entitiesRef.current = [];
-            heroRef.current = null;
             return;
         };
+
+        console.log(`[Effect] Loading screen: ${currentScreenMap.name}`);
+        console.log('[Effect] Entry point on load:', playerEntryPoint);
+
         const getAsset = <T extends AssetType>(assetId: string | null | undefined, assetType: T): ProjectAsset | undefined => {
             if (!assetId) return undefined;
             return allAssets.find(a => a.id === assetId && a.type === assetType);
         };
-        const entitiesToAnimate: AnimatedEntity[] = [];
-        currentScreenMap.layers.entities.forEach(instance => {
+
+        const nativeEntities = currentScreenMap.layers.entities.map(instance => {
             const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
-            if (!template) return;
+            if (!template) return null;
+
             let spriteAssetId: string | undefined;
             if (instance.componentOverrides) {
                 for (const compId in instance.componentOverrides) {
@@ -499,14 +508,17 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                 }
             }
+
             const spriteAsset = getAsset(spriteAssetId, 'sprite');
             const sprite = spriteAsset?.data as Sprite;
-            if (!sprite?.frames?.length) return;
+            if (!sprite?.frames?.length) return null;
+
             const frameImages = sprite.frames.map(frame => {
                 const img = new Image();
                 img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
                 return img;
             });
+
             let mirroredFrameImages: HTMLImageElement[] | undefined;
             if (['right', 'left'].includes(sprite.facingDirection)) {
                 mirroredFrameImages = sprite.frames.map(frame => {
@@ -516,38 +528,30 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     return img;
                 });
             }
+
             let stateMachine: StateMachine | undefined;
             let currentState: string | undefined;
-            
             const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
             const smcOverride = instance.componentOverrides?.['comp_statemachine'];
             const stateMachineAssetId = smcOverride?.stateMachineAssetId || smc?.defaultValues?.stateMachineAssetId;
-
             if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
                 const stateMachineAsset = getAsset(stateMachineAssetId, 'statemachine');
                 stateMachine = stateMachineAsset?.data as StateMachine | undefined;
                 if (stateMachine) {
                     const startStateId = smcOverride?.currentStateId || smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
                     let initialState = stateMachine.states.find(s => s.id === startStateId);
-
-                    if (!initialState && startStateId) {
-                        initialState = stateMachine.states.find(s => s.name === startStateId);
-                    }
-                    
-                    if (!initialState) {
-                        initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
-                    }
+                    if (!initialState && startStateId) initialState = stateMachine.states.find(s => s.name === startStateId);
+                    if (!initialState) initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
                     currentState = initialState?.name;
                 }
             }
 
             const patrolComp = instance.componentOverrides?.comp_patrol;
-            let vx = 0, vy = 0;
             let startX = instance.position.x * TILE_SIZE;
             let startY = instance.position.y * TILE_SIZE;
+            let vx = 0, vy = 0;
+
             if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
-                startX = patrolComp.waypoint1_x;
-                startY = patrolComp.waypoint1_y;
                 const endX = patrolComp.waypoint2_x ?? startX;
                 const endY = patrolComp.waypoint2_y ?? startY;
                 const dx = endX - startX;
@@ -555,22 +559,48 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > 0) { vx = (dx / dist); vy = (dy / dist); }
             }
-            const newAnimatedEntity: AnimatedEntity = {
+
+            return {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
                 stateMachine, currentState
             };
-            entitiesToAnimate.push(newAnimatedEntity);
-            
-            // Detect hero entity using multiple methods
-            if (template.components.some(c => c.definitionId === 'comp_cursors') ||
-                template.components.some(c => c.definitionId === 'comp_player_input') ||
-                template.name === 'Player') {
-                heroRef.current = newAnimatedEntity;
-            }
-        });
+        }).filter(Boolean) as AnimatedEntity[];
+
+        let entitiesToAnimate = nativeEntities;
+        let heroForThisScreen = entitiesToAnimate.find(e => e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') || e.template.name === 'Player');
+        console.log('[Effect] Native hero found:', heroForThisScreen?.instance.name);
+
+        if (heroRef.current && !heroForThisScreen) {
+            console.log('[Effect] No native hero. Carrying over:', heroRef.current.instance.name);
+            entitiesToAnimate.push(heroRef.current);
+            heroForThisScreen = heroRef.current;
+        }
+
+        if (heroForThisScreen && playerEntryPoint) {
+            console.log(`[Effect] Applying entry point to hero: ${heroForThisScreen.instance.name}. Position:`, playerEntryPoint);
+            heroForThisScreen.x = playerEntryPoint.x;
+            heroForThisScreen.y = playerEntryPoint.y;
+            heroForThisScreen.vx = 0;
+            heroForThisScreen.vy = 0;
+        }
+
         entitiesRef.current = entitiesToAnimate;
-    }, [isOpen, currentScreenMap, allAssets, entityTemplates, componentDefinitions]);
+        heroRef.current = heroForThisScreen || null;
+        console.log('[Effect] Final hero ref:', heroRef.current?.instance.name);
+
+        if (heroForThisScreen && playerEntryPoint) {
+            console.log('[Effect] Re-applying velocity after transition.');
+            pressedKeys.current.forEach(key => {
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+                    console.log(`[Effect] Re-applying key: ${key} to hero ${heroForThisScreen!.instance.id}`);
+                    checkKeyTransitions(heroForThisScreen!.instance.id, key, true);
+                }
+            });
+            setPlayerEntryPoint(null);
+        }
+
+    }, [isOpen, currentScreenMap, allAssets, entityTemplates, componentDefinitions, checkKeyTransitions]);
 
     useEffect(() => {
         if (!isOpen || !currentNode) return;
@@ -968,7 +998,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             });
             const checkCollisionAt = (x: number, y: number) => {
                 const tileX = Math.floor(x / TILE_SIZE); const tileY = Math.floor(y / TILE_SIZE);
-                if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return true;
+                if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false; // Allow exiting screen
                 const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
                 if (!tileOnLayer || !tileOnLayer.tileId) return false;
                 const tile = tileset.find(t => t.id === tileOnLayer.tileId);
@@ -1022,6 +1052,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (screenMapToRender) renderScreenToCanvas(canvas, screenMapToRender, tileset, currentScreenMode, TILE_SIZE);
             const now = performance.now();
             entitiesRef.current.forEach((entityA, indexA) => {
+                if (entityA === heroRef.current) {
+                    console.log(`[Animate Start] Hero: ${entityA.instance.name}, Pos: (${entityA.x.toFixed(2)}, ${entityA.y.toFixed(2)}), Vel: (${entityA.vx}, ${entityA.vy})`);
+                }
+
                 if (entityA === heroRef.current && !entityA.stateMachine) { 
                     // For hero without state machine, only reset velocity if no movement keys are pressed
                     const isMoving = pressedKeys.current.has('ArrowUp') || pressedKeys.current.has('ArrowDown') || 
@@ -1050,31 +1084,87 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
                 const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
+                
                 if (hasCollisionComp && collisionCompDef && screenMapToRender) {
                     handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
                 } else {
-                    // Update position
+                    // Update position for entities without collision component
                     entityA.x += entityA.vx;
                     entityA.y += entityA.vy;
-                    
-                    // Apply screen boundary constraints to prevent entities from disappearing
-                    const spriteWidth = entityA.sprite.size.width;
-                    const spriteHeight = entityA.sprite.size.height;
-                    
+                }
+
+                if (entityA === heroRef.current) {
+                    console.log(`[After Collision] Hero Pos: (${entityA.x.toFixed(2)}, ${entityA.y.toFixed(2)})`);
+                }
+
+                // --- Screen Boundary and Transition Logic (runs for all entities) ---
+                const spriteWidth = entityA.sprite.size.width;
+                const spriteHeight = entityA.sprite.size.height;
+
+                // Screen transition logic for the hero entity
+                if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap) {
+                    console.log('[Transition Check]', {
+                        isHero: entityA === heroRef.current,
+                        x: entityA.x,
+                        y: entityA.y,
+                        vx: entityA.vx,
+                        vy: entityA.vy,
+                        hasWorldMap: !!currentWorldMapGraph,
+                        hasScreenMap: !!currentScreenMap
+                    });
+
+                    let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
+                    if (entityA.x < 0 && entityA.vx < 0) exitDirection = 'west';
+                    else if (entityA.x + spriteWidth > PREVIEW_WIDTH && entityA.vx > 0) exitDirection = 'east';
+                    else if (entityA.y < 0 && entityA.vy < 0) exitDirection = 'north';
+                    else if (entityA.y + spriteHeight > PREVIEW_HEIGHT && entityA.vy > 0) exitDirection = 'south';
+
+                    if (exitDirection) {
+                        console.log(`[Exit Detected] Direction: ${exitDirection}`);
+                        const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
+                        if (currentScreenNode) {
+                            // Check for outgoing connection
+                            let connection = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === exitDirection);
+                            let targetNodeId = connection?.toNodeId;
+
+                            // If no outgoing, check for incoming connection
+                            if (!connection) {
+                                connection = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === exitDirection);
+                                targetNodeId = connection?.fromNodeId;
+                            }
+
+                            if (targetNodeId) {
+                                let newPlayerPos = { x: entityA.x, y: entityA.y };
+                                switch (exitDirection) {
+                                    case 'east': newPlayerPos.x = 0; break;
+                                    case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth; break;
+                                    case 'south': newPlayerPos.y = 0; break;
+                                    case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight; break;
+                                }
+                                setPlayerEntryPoint(newPlayerPos);
+                                handleScreenTransition(targetNodeId);
+                                return; // Stop processing this entity for this frame to allow transition
+                            }
+                        }
+                    }
+                }
+
+                // Default boundary constraints for non-hero entities or if no transition occurs
+                if (entityA !== heroRef.current) {
                     if (entityA.x < 0) {
                         entityA.x = 0;
-                        entityA.vx = 0;
+                        if (entityA.vx < 0) entityA.vx = 0;
                     } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
                         entityA.x = PREVIEW_WIDTH - spriteWidth;
-                        entityA.vx = 0;
+                        if (entityA.vx > 0) entityA.vx = 0;
                     }
-                    
+
                     if (entityA.y < 0) {
                         entityA.y = 0;
-                        entityA.vy = 0;
+                        if (entityA.vy < 0) entityA.vy = 0;
                     } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
                         entityA.y = PREVIEW_HEIGHT - spriteHeight;
-                        entityA.vy = 0;
+                        if (entityA.vy > 0) entityA.vy = 0;
                     }
                 }
 
