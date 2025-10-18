@@ -159,13 +159,32 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         }
         
         if (!entity.stateMachine) {
-            // Fallback: directly set velocity for movement
-            const speed = 2;
+            // Fallback: directly set velocity for movement with direction restrictions
+            const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
+            const cursorsProps = cursorsComp ? {
+                ...cursorsComp.defaultValues,
+                ...(entity.instance.componentOverrides?.['comp_cursors'] || {})
+            } : {};
+
+            const speed = Number(cursorsProps.speed) || 2;
+            const allowUp = cursorsProps.allowUp !== false;
+            const allowDown = cursorsProps.allowDown !== false;
+            const allowLeft = cursorsProps.allowLeft !== false;
+            const allowRight = cursorsProps.allowRight !== false;
+
             switch (pressedKey) {
-                case 'ArrowUp': entity.vy = isKeyDown ? -speed : 0; break;
-                case 'ArrowDown': entity.vy = isKeyDown ? speed : 0; break;
-                case 'ArrowLeft': entity.vx = isKeyDown ? -speed : 0; break;
-                case 'ArrowRight': entity.vx = isKeyDown ? speed : 0; break;
+                case 'ArrowUp':
+                    if (allowUp) entity.vy = isKeyDown ? -speed : 0;
+                    break;
+                case 'ArrowDown':
+                    if (allowDown) entity.vy = isKeyDown ? speed : 0;
+                    break;
+                case 'ArrowLeft':
+                    if (allowLeft) entity.vx = isKeyDown ? -speed : 0;
+                    break;
+                case 'ArrowRight':
+                    if (allowRight) entity.vx = isKeyDown ? speed : 0;
+                    break;
             }
             return;
         }

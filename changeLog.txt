@@ -1,3 +1,16 @@
+Versión 0.257 - 15/10/2025
+- feat: Screen Editor - Selectores de color background/border con paleta MSX1 (VDP Register 7)
+- feat: Screen Editor toolbar - Dropdowns visuales con preview de color seleccionado
+- feat: ScreenMap data model - Propiedades backgroundColor y borderColor (índices 0-15)
+- feat: ASM generation - Función set_screen_colors que escribe en VDP Register 7
+- feat: ASM generation - load_screen_X ahora establece colores personalizados por pantalla
+- feat: Screen Grid - Aplica backgroundColor del ScreenMap como estilo inline
+- feat: Preview/Play modals - Renderizado con backgroundColor correcto en canvas
+- feat: screenUtils.renderScreenToCanvas - Usa backgroundColor de ScreenMap en lugar de hardcoded
+- fix: headerGenerator - Eliminado establecimiento hardcoded de colores (ld a,1 / BAKCLR/BDRCLR)
+- fix: headerGenerator - Colores ahora se establecen por cada load_screen_X según GameFlow
+- docs: Paridad completa MSX - Colores de pantalla entre Play mode y ROM generado
+
 Versión 0.256 - 10/10/2025
 - feat: Sistema completo de GlobalVariables para gestión de variables de juego custom
 - feat: Editor de GlobalVariables con soporte para tipos boolean, byte, word, string

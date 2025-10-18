@@ -187,10 +187,14 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   },
   {
     id: "comp_cursors", name: "Cursors",
-    description: "Marks an entity as player-controllable with cursor/arrow keys.",
+    description: "Marks an entity as player-controllable with cursor/arrow keys with configurable allowed directions.",
     properties: [
       { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether cursor control is active." },
-      { name: "speed", type: 'byte', defaultValue: '2', description: "Movement speed in pixels per frame." }
+      { name: "speed", type: 'byte', defaultValue: '2', description: "Movement speed in pixels per frame." },
+      { name: "allowUp", type: 'boolean', defaultValue: 'true', description: "Allow movement in UP direction." },
+      { name: "allowDown", type: 'boolean', defaultValue: 'true', description: "Allow movement in DOWN direction." },
+      { name: "allowLeft", type: 'boolean', defaultValue: 'true', description: "Allow movement in LEFT direction." },
+      { name: "allowRight", type: 'boolean', defaultValue: 'true', description: "Allow movement in RIGHT direction." }
     ],
   },
   {

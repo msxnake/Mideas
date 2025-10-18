@@ -149,11 +149,46 @@ update_entities:
       if (componentMask & 0x40) usedComponentNames.push('Health');
       if (componentMask & 0x80) usedComponentNames.push('Animation');
 
+      // Check if entity has Input/Cursors component and extract direction restrictions
+      let directionMask = 0x0F; // Default: all directions enabled (binary 00001111)
+      if (componentMask & 0x10) { // Has Input component
+        // Find Cursors component in template
+        const cursorsComp = template?.components.find((c: any) =>
+          c.definitionId === 'comp_cursors' || c.definitionId === 'comp_input' || c.definitionId === 'comp_player_input'
+        );
+
+        if (cursorsComp) {
+          // Get default values from template
+          const defaultValues = cursorsComp.defaultValues || {};
+
+          // Merge with entity-specific overrides if they exist
+          const overrides = entity.componentOverrides?.['comp_cursors'] || {};
+          const finalValues = { ...defaultValues, ...overrides };
+
+          // Build direction mask based on allow* properties
+          // Bit 0 = UP, Bit 1 = DOWN, Bit 2 = LEFT, Bit 3 = RIGHT
+          directionMask = 0;
+          if (finalValues.allowUp !== false) directionMask |= 0x01; // Bit 0
+          if (finalValues.allowDown !== false) directionMask |= 0x02; // Bit 1
+          if (finalValues.allowLeft !== false) directionMask |= 0x04; // Bit 2
+          if (finalValues.allowRight !== false) directionMask |= 0x08; // Bit 3
+        }
+      }
+
+      // Generate direction info for documentation
+      const directionInfo = [];
+      if (directionMask & 0x01) directionInfo.push('UP');
+      if (directionMask & 0x02) directionInfo.push('DOWN');
+      if (directionMask & 0x04) directionInfo.push('LEFT');
+      if (directionMask & 0x08) directionInfo.push('RIGHT');
+      const directionDesc = directionInfo.length === 4 ? 'All directions' : directionInfo.join('+');
+
       code += `init_${entityName.toLowerCase()}:
     ; Initialize ${entity.name} at real position from JSON
     ; JSON position: (${realX}, ${realY}) tiles = (${pixelX}, ${pixelY}) pixels
     ; Template: ${entity.entityTemplateId}
     ; Components: ${usedComponentNames.join(', ')}
+    ; Direction mask: #${directionMask.toString(16).toUpperCase().padStart(2, '0')} (${directionMask.toString(2).padStart(4, '0')}b) = ${directionDesc}
 
     ; Set entity ID and component mask (DYNAMIC - based on template)
     ld a, ${index}             ; Entity ID
@@ -179,6 +214,11 @@ update_entities:
     ld hl, sprite_color
     add hl, de
     ld (hl), 15                ; White color
+
+    ; Set direction mask for Cursors component (if entity has Input component)
+    ld hl, entity_dir_mask
+    add hl, de
+    ld (hl), #${directionMask.toString(16).toUpperCase().padStart(2, '0')}            ; Direction restrictions: ${directionDesc}
 
     ; Make sprite visible immediately
     ld a, ${index}             ; Sprite number

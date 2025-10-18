@@ -1,0 +1,9 @@
+GameFlowPreviewModal:
+- Usa checkKeyTransitions directamente
+- Para entidades SIN state machine, establece velocidad según teclas
+- En loop de animación, solo resetea velocidad si NO hay teclas presionadas
+
+ScreenPlayModal:
+- Usa engine de cursors
+- Engine resetea velocidad a 0 SIEMPRE
+- Luego establece velocidad según teclas en (window as any).currentPressedKeys

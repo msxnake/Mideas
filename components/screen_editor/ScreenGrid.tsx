@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, EffectZoneFlagKey, ComponentDefinition } from '../../types';
-import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, EFFECT_ZONE_FLAGS } from '../../constants';
+import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, EFFECT_ZONE_FLAGS, MSX1_PALETTE } from '../../constants';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
 
@@ -343,10 +343,14 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
     cursorStyle = 'cell';
   }
 
+  // Get background color from screenMap or default to black
+  const bgColorIndex = mapData.backgroundColor !== undefined ? mapData.backgroundColor : 1;
+  const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
+
   return (
     <div
       ref={gridRef}
-      className="grid bg-msx-black border border-msx-border shadow-inner relative"
+      className="grid border border-msx-border shadow-inner relative"
       style={{
         gridTemplateColumns: `repeat(${screenWidth}, ${gridPixelSize}px)`,
         gridTemplateRows: `repeat(${screenHeight}, ${gridPixelSize}px)`,
@@ -354,11 +358,12 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
         height: screenHeight * gridPixelSize,
         imageRendering: 'pixelated',
         cursor: cursorStyle,
+        backgroundColor: bgColor, // Apply MSX background color
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp} 
+      onMouseLeave={handleMouseUp}
       onContextMenu={(e) => {
         const point = getGridCoordinatesFromMouseEvent(e);
         if (point) {
@@ -386,7 +391,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
               style={{
                 width: `${gridPixelSize}px`,
                 height: `${gridPixelSize}px`,
-                backgroundColor: (!fullTileAsset && activeLayer !== 'entities' && currentScreenTool !== 'select') ? emptyTileBgColor : undefined,
+                // Background color is inherited from parent grid div
               }}
               title={fullTileAsset ? `Tile: ${fullTileAsset.name} (Part ${screenTile.subTileX ?? 0},${screenTile.subTileY ?? 0}) @ (${x},${y})` : `Empty @ (${x},${y})`}
             >

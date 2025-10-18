@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { GameFlowIfThenElseNode, ProjectAsset } from '../../types';
-import { getAllGlobalVariables } from '../../utils/globalVariablesUtils';
+import { getCustomGlobalVariables } from '../../utils/globalVariablesUtils';
 import { Button } from '../common/Button';
 
 interface IfThenElseNodeEditorProps {
@@ -10,13 +10,19 @@ interface IfThenElseNodeEditorProps {
 }
 
 export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node, onNodeChange, allAssets }) => {
-  const [variableName, setVariableName] = useState(node.variableName || 'Goal');
+  // Get only custom variables (NOT defaults)
+  const customVariables = useMemo(() => getCustomGlobalVariables(allAssets), [allAssets]);
+
+  // Set default to first custom variable if available, otherwise empty
+  const defaultVariableName = customVariables.length > 0 ? customVariables[0].name : '';
+
+  const [variableName, setVariableName] = useState(node.variableName || defaultVariableName);
   const [operator, setOperator] = useState(node.operator || '==');
-  const [compareValue, setCompareValue] = useState(node.compareValue || 'Completed');
+  const [compareValue, setCompareValue] = useState(node.compareValue || '0');
   const [customValue, setCustomValue] = useState('');
 
-  // Get all variables (default + custom)
-  const allVariables = useMemo(() => getAllGlobalVariables(allAssets), [allAssets]);
+  // Use custom variables instead of all variables
+  const allVariables = customVariables;
 
   const selectedVariable = allVariables.find(v => v.name === variableName);
   const availableValues = selectedVariable?.values || [];
@@ -95,6 +101,25 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
     special: '⭐ Special'
   };
 
+  // Check if there are no custom variables
+  if (customVariables.length === 0) {
+    return (
+      <div className="space-y-4 p-4">
+        <h3 className="text-lg font-bold text-msx-textcolor">Configure If-Then-Else Condition</h3>
+
+        <div className="p-4 bg-yellow-900/30 border border-yellow-600 rounded">
+          <p className="text-sm text-yellow-300 mb-2">⚠️ No custom variables found</p>
+          <p className="text-xs text-msx-textcolor opacity-70">
+            To use IfThenElse conditions, you need to create custom variables in the GlobalVariables asset first.
+          </p>
+          <p className="text-xs text-msx-textcolor opacity-70 mt-2">
+            Go to: Assets → GlobalVariables → Add custom variable
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 p-4">
       <h3 className="text-lg font-bold text-msx-textcolor">Configure If-Then-Else Condition</h3>
@@ -102,7 +127,7 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
       {/* Variable Selection */}
       <div>
         <label className="block text-sm font-medium text-msx-textcolor mb-1">
-          Variable:
+          Variable (Custom only):
         </label>
         <select
           value={variableName}

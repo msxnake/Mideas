@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { EditorType, ProjectAsset, ContextMenuItem } from './types';
+import { EditorType, ProjectAsset, ContextMenuItem, Tile, ScreenMap } from './types';
 import { AppUI } from './components/AppUI';
 import { ThemeProvider } from './contexts/ThemeContext';
 
@@ -431,6 +431,17 @@ const App: React.FC = () => {
     setStatusBarMessage('Entity instance deleted.');
   };
 
+  // Handle tile copy functionality
+  const handleCopyTileData = (tileToCopy: Tile) => {
+    setCopiedTileData({
+      data: tileToCopy.data.map(row => [...row]),
+      lineAttributes: tileToCopy.lineAttributes ? JSON.parse(JSON.stringify(tileToCopy.lineAttributes)) : undefined,
+      width: tileToCopy.width,
+      height: tileToCopy.height,
+    });
+    setStatusBarMessage(`Tile "${tileToCopy.name}" copied to buffer.`);
+  };
+
   // IDE Configuration handlers
   const saveIdeConfig = () => {
     const configToSave = { dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, worldViewGridVisible };
@@ -606,7 +617,7 @@ const App: React.FC = () => {
     onRequestLoadTile: () => {},
     handleRequestSaveSelectedTiles: () => {},
     onRequestSaveSelectedTiles: () => {},
-    handleCopyTileData: () => {},
+    handleCopyTileData,
     setCurrentLoadedFontName: () => {},
     currentLoadedFontName: '',
     helpDocsData: [],

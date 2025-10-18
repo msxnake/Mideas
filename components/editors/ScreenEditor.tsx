@@ -868,6 +868,16 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setStatusBarMessage(`TileBank changed to: ${allProjectAssets.find(a => a.id === tileBankId)?.name || 'Unknown'}`);
   };
 
+  const handleBackgroundColorChange = (colorIndex: number) => {
+    onUpdate({ backgroundColor: colorIndex });
+    setStatusBarMessage(`Background color changed to: ${colorIndex}`);
+  };
+
+  const handleBorderColorChange = (colorIndex: number) => {
+    onUpdate({ borderColor: colorIndex });
+    setStatusBarMessage(`Border color changed to: ${colorIndex}`);
+  };
+
   return (
     <Panel title={`Screen Editor: ${screenMap.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})` : `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
       <ScreenEditorToolbar
@@ -903,6 +913,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         selectedTileBankId={screenMap.tileBankAssetId}
         onTileBankChange={handleTileBankChange}
         allProjectAssets={allProjectAssets}
+        backgroundColor={screenMap.backgroundColor}
+        borderColor={screenMap.borderColor}
+        onBackgroundColorChange={handleBackgroundColorChange}
+        onBorderColorChange={handleBorderColorChange}
       />
 
       <div className="flex flex-grow overflow-hidden">

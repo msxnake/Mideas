@@ -281,14 +281,44 @@ export const useProjectHandlers = ({
             localStorage.setItem('tileBanksConfig', JSON.stringify(projectData.tileBanks));
           }
 
-          // Load other configurations
-          if (projectData.componentDefinitions) setComponentDefinitionsState(projectData.componentDefinitions);
+          // Load other configurations with smart merge
+          // Merge project componentDefinitions with defaults to ensure new defaults are available
+          if (projectData.componentDefinitions) {
+            // Create a map of project components by ID
+            const projectComponentsMap = new Map(
+              projectData.componentDefinitions.map((comp: ComponentDefinition) => [comp.id, comp])
+            );
+
+            // Merge: Use project components when available, add missing defaults
+            const mergedComponents = DEFAULT_COMPONENT_DEFINITIONS.map(defaultComp =>
+              projectComponentsMap.get(defaultComp.id) || defaultComp
+            );
+
+            // Add any custom components from project that aren't in defaults
+            projectData.componentDefinitions.forEach((comp: ComponentDefinition) => {
+              if (!DEFAULT_COMPONENT_DEFINITIONS.find(dc => dc.id === comp.id)) {
+                mergedComponents.push(comp);
+              }
+            });
+
+            setComponentDefinitionsState(mergedComponents);
+          } else {
+            // No components in project, use defaults
+            setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
+          }
 
           // Load and clean entityTemplates (remove redundant defaultValues)
           if (projectData.entityTemplates) {
             const cleanedEntityTemplates = projectData.entityTemplates.map((template: EntityTemplate) => {
               const cleanedComponents = template.components.map(comp => {
-                const componentDef = projectData.componentDefinitions?.find((cd: ComponentDefinition) => cd.id === comp.definitionId);
+                // Use mergedComponents (includes defaults) instead of project componentDefinitions
+                const allComponents = projectData.componentDefinitions
+                  ? [...projectData.componentDefinitions, ...DEFAULT_COMPONENT_DEFINITIONS.filter(dc =>
+                      !projectData.componentDefinitions.find((pc: ComponentDefinition) => pc.id === dc.id)
+                    )]
+                  : DEFAULT_COMPONENT_DEFINITIONS;
+
+                const componentDef = allComponents.find((cd: ComponentDefinition) => cd.id === comp.definitionId);
                 if (!componentDef) return comp; // Si no hay definición, mantener como está
 
                 // Crear nuevos defaultValues solo con valores diferentes del default

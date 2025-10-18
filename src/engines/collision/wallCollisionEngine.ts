@@ -18,22 +18,7 @@ export const wallCollisionEngine: GameEngine = {
     id: 'wallCollision',
     name: 'Wall Collision Engine',
     execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap, entityTemplates?: EntityTemplate[], allAssets?: ProjectAsset[]) => {
-        // ALWAYS log when engine is called (to verify it's running)
-        if (!wallCollisionEngine._executionLogged) {
-            console.log('🚧 wallCollisionEngine.execute() called!');
-            console.log('  - entities:', entities.length);
-            console.log('  - screenMap:', !!screenMap);
-            console.log('  - collision layer:', !!screenMap?.layers?.collision);
-            console.log('  - allAssets:', !!allAssets, allAssets?.length);
-            wallCollisionEngine._executionLogged = true;
-        }
-
         if (!screenMap || !screenMap.layers?.collision || !allAssets) {
-            console.warn('⚠️ wallCollisionEngine: Missing required data', {
-                hasScreenMap: !!screenMap,
-                hasCollisionLayer: !!screenMap?.layers?.collision,
-                hasAllAssets: !!allAssets
-            });
             return;
         }
 
@@ -45,7 +30,6 @@ export const wallCollisionEngine: GameEngine = {
             }
         });
         if (tileset.length === 0) {
-            console.warn('⚠️ wallCollisionEngine: No tiles found in allAssets');
             return;
         }
 
@@ -56,23 +40,12 @@ export const wallCollisionEngine: GameEngine = {
         const mapH = screenMap.activeAreaHeight ?? screenMap.height;
         const EPS = 1e-6;
 
-        // Debug: Log behavior map info (only once)
-        if (!wallCollisionEngine._debugLogged) {
-            console.log('🔍 Wall Collision Engine Debug:');
-            console.log('  - Map size:', mapW, 'x', mapH);
-            console.log('  - Behavior map length:', behaviorMapData.length);
-            console.log('  - Tileset size:', tileset.length);
-            console.log('  - Sample behavior values:', behaviorMapData.slice(0, 20));
-            const solidCount = behaviorMapData.filter(v => {
-                const familyId = (v >> 4) & 0x0F;
-                return familyId >= 1;
-            }).length;
-            console.log('  - Solid tiles count:', solidCount);
-            wallCollisionEngine._debugLogged = true;
-        }
-
         // Helper function to get tile value from behavior map
-        const getTileValue = (tx: number, ty: number): number => {
+        const getTileValue = (tx: number, ty: number, allowEdgeExit: boolean = false): number => {
+            // Allow entities to exit through screen edges
+            if (allowEdgeExit && (tx < 0 || tx >= mapW)) {
+                return 0; // No collision at horizontal screen edges
+            }
             if (tx < 0 || ty < 0 || tx >= mapW || ty >= mapH) return 0;
             return behaviorMapData[ty * mapW + tx] || 0;
         };
@@ -88,6 +61,12 @@ export const wallCollisionEngine: GameEngine = {
             const offsetY = Number(props.offsetY) || 0;
             const tileSize = Number(props.tileSize) || 8;
             const stopOnCollision = props.stopOnCollision !== 'false' && props.stopOnCollision !== false;
+
+            // Initialize collision flags if they don't exist (first frame)
+            if (entity.isGrounded === undefined) entity.isGrounded = false;
+            if (entity.isTouchingCeiling === undefined) entity.isTouchingCeiling = false;
+            if (entity.isTouchingWallLeft === undefined) entity.isTouchingWallLeft = false;
+            if (entity.isTouchingWallRight === undefined) entity.isTouchingWallRight = false;
 
             // unify velocity properties (prefer vx/vy, fallback a velocityX/velocityY)
             let vx = typeof entity.vx === 'number' ? entity.vx : (typeof entity.velocityX === 'number' ? entity.velocityX : 0);
@@ -111,61 +90,68 @@ export const wallCollisionEngine: GameEngine = {
                 const dirX = vx > 0 ? 1 : -1;
                 const startTileY = Math.floor(top / tileSize);
                 const endTileY = Math.floor((bottom - EPS) / tileSize);
-                const startTileX = Math.floor(left / tileSize);
-                const endTileX = Math.floor((right - EPS) / tileSize);
 
-                let stopHorizontal = false;
-                for (let ty = startTileY; ty <= endTileY && !stopHorizontal; ty++) {
-                    for (let tx = startTileX; tx <= endTileX && !stopHorizontal; tx++) {
-                        // Get tile mapId (byte with properties)
+                // Only check the leading edge tile based on movement direction
+                const checkTileX = dirX > 0
+                    ? Math.floor((right - EPS) / tileSize)  // Moving right: check right edge
+                    : Math.floor(left / tileSize);           // Moving left: check left edge
+
+                // ALLOW EDGE EXIT: Skip entire horizontal collision check if near screen edge
+                const SCREEN_WIDTH_PX = mapW * tileSize;
+                const EDGE_THRESHOLD = hitboxWidth;
+                const isNearLeftEdge = left < EDGE_THRESHOLD;
+                const isNearRightEdge = right > SCREEN_WIDTH_PX - EDGE_THRESHOLD;
+                const allowEdgeExit = (dirX < 0 && isNearLeftEdge) || (dirX > 0 && isNearRightEdge);
+
+                if (!allowEdgeExit) {
+                    // Only do collision check if NOT allowing edge exit
+                    let stopHorizontal = false;
+                    for (let ty = startTileY; ty <= endTileY && !stopHorizontal; ty++) {
+                        const tx = checkTileX;
                         const tileValue = getTileValue(tx, ty);
-
-                        // Debug: log first few tile checks
-                        if (!entity._tileCheckLogged && (tx === 1 || tx === 2) && ty <= 2) {
-                            console.log(`  Checking tile (${tx},${ty}): value=${tileValue}, familyId=${(tileValue >> 4) & 0x0F}`);
-                            if (tx === 2 && ty === 2) entity._tileCheckLogged = true;
-                        }
 
                         if (tileValue === 0) continue;
 
-                        // Check solid bit using mask 0x10 (binary: 00010000)
-                        // familyId = (mapId >> 4) & 0x0F; if familyId >= 1, it's solid
-                        const familyId = (tileValue >> 4) & 0x0F;
-                        const isSolid = familyId >= 1;
-                        if (!isSolid) continue;
+                    // Check solid bit using mask 0x10 (binary: 00010000)
+                    // familyId = (mapId >> 4) & 0x0F; if familyId >= 1, it's solid
+                    const familyId = (tileValue >> 4) & 0x0F;
+                    const isSolid = familyId >= 1;
+                    if (!isSolid) continue;
 
                         const tileLeft = tx * tileSize;
                         const tileRight = tileLeft + tileSize;
 
-                        if (dirX > 0) {
-                            const overlap = right - tileLeft;
-                            if (overlap > EPS) {
-                                // push entity left by overlap
-                                entity.x -= overlap;
-                                // update bounds after push
-                                left = entity.x + offsetX;
-                                right = left + hitboxWidth;
-                                collidedThisFrame = true;
-                                collisionTilePos = { tx, ty };
-                                if (stopOnCollision) zeroVelX();
-                                stopHorizontal = true;
-                                break;
-                            }
-                        } else {
-                            const overlap = tileRight - left;
-                            if (overlap > EPS) {
-                                // push entity right by overlap
-                                entity.x += overlap;
-                                left = entity.x + offsetX;
-                                right = left + hitboxWidth;
-                                collidedThisFrame = true;
-                                collisionTilePos = { tx, ty };
-                                if (stopOnCollision) zeroVelX();
-                                stopHorizontal = true;
-                                break;
-                            }
+                    if (dirX > 0) {
+                        const overlap = right - tileLeft;
+                        if (overlap > EPS) {
+                            // push entity left by overlap
+                            entity.x -= overlap;
+                            // update bounds after push
+                            left = entity.x + offsetX;
+                            right = left + hitboxWidth;
+                            collidedThisFrame = true;
+                            collisionTilePos = { tx, ty };
+                            entity.isTouchingWallRight = true; // Touching wall on the right
+                            if (stopOnCollision) zeroVelX();
+                            stopHorizontal = true;
+                            break;
+                        }
+                    } else {
+                        const overlap = tileRight - left;
+                        if (overlap > EPS) {
+                            // push entity right by overlap
+                            entity.x += overlap;
+                            left = entity.x + offsetX;
+                            right = left + hitboxWidth;
+                            collidedThisFrame = true;
+                            collisionTilePos = { tx, ty };
+                            entity.isTouchingWallLeft = true; // Touching wall on the left
+                            if (stopOnCollision) zeroVelX();
+                            stopHorizontal = true;
+                            break;
                         }
                     }
+                }
                 }
             }
 
@@ -202,12 +188,13 @@ export const wallCollisionEngine: GameEngine = {
                         if (dirY > 0) {
                             const overlap = bottom - tileTop;
                             if (overlap > EPS) {
-                                // push entity up
+                                // push entity up (touching ground)
                                 entity.y -= overlap;
                                 top = entity.y + offsetY;
                                 bottom = top + hitboxHeight;
                                 collidedThisFrame = true;
                                 collisionTilePos = collisionTilePos || { tx, ty };
+                                entity.isGrounded = true; // Entity is on the ground
                                 if (stopOnCollision) zeroVelY();
                                 stopVertical = true;
                                 break;
@@ -215,12 +202,13 @@ export const wallCollisionEngine: GameEngine = {
                         } else {
                             const overlap = tileBottom - top;
                             if (overlap > EPS) {
-                                // push entity down
+                                // push entity down (touching ceiling)
                                 entity.y += overlap;
                                 top = entity.y + offsetY;
                                 bottom = top + hitboxHeight;
                                 collidedThisFrame = true;
                                 collisionTilePos = collisionTilePos || { tx, ty };
+                                entity.isTouchingCeiling = true; // Entity hit ceiling
                                 if (stopOnCollision) zeroVelY();
                                 stopVertical = true;
                                 break;
@@ -230,12 +218,40 @@ export const wallCollisionEngine: GameEngine = {
                 }
             }
 
-            // log once per frame (existing mechanism)
-            if (collidedThisFrame && !entity.wallCollisionLogged) {
-                const pos = collisionTilePos ? ` at tile (${collisionTilePos.tx}, ${collisionTilePos.ty})` : '';
-                console.log(`🚧 ${entity.template.name} collided with wall${pos}`);
-                entity.wallCollisionLogged = true;
-                setTimeout(() => { if (entity) entity.wallCollisionLogged = false; }, 100);
+            // After collision resolution, check if entity is STILL touching ground (even if stationary)
+            // This prevents gravity from being applied on next frame if entity is resting on ground
+            left = entity.x + offsetX;
+            top = entity.y + offsetY;
+            right = left + hitboxWidth;
+            bottom = top + hitboxHeight;
+
+            // Check tiles directly below entity
+            const tileYBelow = Math.floor(bottom / tileSize);
+            const startTileXBelow = Math.floor(left / tileSize);
+            const endTileXBelow = Math.floor((right - EPS) / tileSize);
+
+            let touchingGroundNow = false;
+            for (let tx = startTileXBelow; tx <= endTileXBelow; tx++) {
+                const tileValue = getTileValue(tx, tileYBelow);
+                if (tileValue !== 0) {
+                    const familyId = (tileValue >> 4) & 0x0F;
+                    if (familyId >= 1) { // solid tile
+                        const tileTop = tileYBelow * tileSize;
+                        // Check if entity bottom is very close to tile top (within 1 pixel tolerance)
+                        if (Math.abs(bottom - tileTop) <= 1) {
+                            touchingGroundNow = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Update isGrounded flag based on current state
+            if (touchingGroundNow) {
+                entity.isGrounded = true;
+            } else if (!touchingGroundNow && vy >= 0) {
+                // Only clear grounded flag if entity is falling or stationary AND not touching ground
+                entity.isGrounded = false;
             }
         });
     }

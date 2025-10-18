@@ -14,6 +14,7 @@ import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils'
 import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, createTileBasedFont } from '../utils/msxFontRenderer';
 import { wallCollisionEngine, entityCollisionEngine, pacMovementEngine, pacmanMovementV2Engine } from '../../src/engines';
+import { MSX1_PALETTE } from '../../constants';
 
 // Sprite rotation utilities for auto-generated directional sprites
 const rotatePixelData90CW = (pixelData: any[][]): any[][] => {
@@ -141,14 +142,18 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             entities.forEach(entity => {
                 const gravityComp = entity.template.components.find(c => c.definitionId === 'comp_gravity');
                 if (gravityComp) {
-                    const gravityProps = { 
-                        ...gravityComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_gravity'] || {}) 
+                    const gravityProps = {
+                        ...gravityComp.defaultValues,
+                        ...(entity.instance.componentOverrides?.['comp_gravity'] || {})
                     };
                     const strength = Number(gravityProps.strength || 64) / 60;
                     const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
-                    entity.vy += strength;
-                    if (entity.vy > terminalVelocity) entity.vy = terminalVelocity;
+
+                    // Only apply gravity if entity is NOT grounded (not touching the ground)
+                    if (!entity.isGrounded) {
+                        entity.vy += strength;
+                        if (entity.vy > terminalVelocity) entity.vy = terminalVelocity;
+                    }
                 }
             });
         }
@@ -215,14 +220,25 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     const startPixelY = patrolComp.waypoint1_y;
                     const endPixelX = patrolComp.waypoint2_x ?? startPixelX;
                     const endPixelY = patrolComp.waypoint2_y ?? startPixelY;
-                    
-                    if ((entity.vx > 0 && entity.x >= Math.max(startPixelX, endPixelX)) || 
-                        (entity.vx < 0 && entity.x <= Math.min(startPixelX, endPixelX))) {
+
+                    // Horizontal patrol bounce with position correction
+                    if (entity.vx > 0 && entity.x >= Math.max(startPixelX, endPixelX)) {
                         entity.vx = -entity.vx;
+                        entity.x = Math.max(startPixelX, endPixelX);
                     }
-                    if ((entity.vy > 0 && entity.y >= Math.max(startPixelY, endPixelY)) || 
-                        (entity.vy < 0 && entity.y <= Math.min(startPixelY, endPixelY))) {
+                    if (entity.vx < 0 && entity.x <= Math.min(startPixelX, endPixelX)) {
+                        entity.vx = -entity.vx;
+                        entity.x = Math.min(startPixelX, endPixelX);
+                    }
+
+                    // Vertical patrol bounce with position correction
+                    if (entity.vy > 0 && entity.y >= Math.max(startPixelY, endPixelY)) {
                         entity.vy = -entity.vy;
+                        entity.y = Math.max(startPixelY, endPixelY);
+                    }
+                    if (entity.vy < 0 && entity.y <= Math.min(startPixelY, endPixelY)) {
+                        entity.vy = -entity.vy;
+                        entity.y = Math.min(startPixelY, endPixelY);
                     }
                 }
             });
@@ -457,14 +473,55 @@ const AVAILABLE_ENGINES: EngineRegistry = {
         id: 'cursors',
         name: 'Cursor Control Engine',
         execute: (entities: AnimatedEntity[], componentDefinitions: ComponentDefinition[], screenMap?: ScreenMap, entityTemplates?: EntityTemplate[], allAssets?: ProjectAsset[], pendingSpawns?: React.MutableRefObject<EntityInstance[]>) => {
+            // Helper function to detect if entity is exiting the screen
+            const detectScreenExit = (entity: AnimatedEntity, newX: number, newY: number): string | null => {
+                if (!screenMap) return null;
+
+                const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
+                if (!wallCollisionComp) return null;
+
+                const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) };
+                const hitboxWidth = Number(props.hitboxWidth) || 16;
+                const hitboxHeight = Number(props.hitboxHeight) || 16;
+                const offsetX = Number(props.offsetX) || 0;
+                const offsetY = Number(props.offsetY) || 0;
+                const tileSize = Number(props.tileSize) || 8;
+
+                const entityLeft = newX + offsetX;
+                const entityTop = newY + offsetY;
+                const entityRight = entityLeft + hitboxWidth;
+                const entityBottom = entityTop + hitboxHeight;
+
+                const leftTile = Math.floor(entityLeft / tileSize);
+                const topTile = Math.floor(entityTop / tileSize);
+                const rightTile = Math.floor((entityRight - 1) / tileSize);
+                const bottomTile = Math.floor((entityBottom - 1) / tileSize);
+
+                const mapWidth = screenMap.width || 0;
+                const mapHeight = screenMap.height || 0;
+
+                // Detectar si está saliendo completamente del mapa
+                if (rightTile < 0) {
+                    return 'left';
+                } else if (leftTile >= mapWidth) {
+                    return 'right';
+                } else if (bottomTile < 0) {
+                    return 'top';
+                } else if (topTile >= mapHeight) {
+                    return 'bottom';
+                }
+
+                return null;
+            };
+
             // Helper function to check if a position would cause wall collision
             const wouldCollideWithWall = (entity: AnimatedEntity, newX: number, newY: number): boolean => {
                 if (!screenMap?.layers?.collision) {
                     return false;
                 }
-                
+
                 let wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
-                
+
                 // If entity has cursors but no wall collision, create default wall collision
                 if (!wallCollisionComp) {
                     const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
@@ -492,6 +549,14 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 const offsetY = Number(props.offsetY) || 0;
                 const tileSize = Number(props.tileSize) || 8;
 
+                // Determine movement direction
+                const movingHorizontally = newX !== entity.x;
+                const movingVertically = newY !== entity.y;
+                const movingRight = newX > entity.x;
+                const movingLeft = newX < entity.x;
+                const movingDown = newY > entity.y;
+                const movingUp = newY < entity.y;
+
                 // Calculate entity bounds at new position
                 const entityLeft = newX + offsetX;
                 const entityTop = newY + offsetY;
@@ -504,24 +569,60 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 const rightTile = Math.floor(entityRight / tileSize);
                 const bottomTile = Math.floor(entityBottom / tileSize);
 
+                // Only check tiles that are relevant to the movement direction
+                if (movingHorizontally && !movingVertically) {
+                    // ALLOW EDGE EXIT: Let entities move off screen at horizontal edges
+                    const SCREEN_WIDTH_PX = (screenMap.width || 0) * tileSize;
+                    const EDGE_THRESHOLD = hitboxWidth;
+                    const isNearLeftEdge = entityLeft < EDGE_THRESHOLD;
+                    const isNearRightEdge = entityRight > SCREEN_WIDTH_PX - EDGE_THRESHOLD;
+                    const allowEdgeExit = (movingLeft && isNearLeftEdge) || (movingRight && isNearRightEdge);
 
-                // Check collision tiles in the entity's new area
-                for (let tileY = topTile; tileY <= bottomTile; tileY++) {
-                    for (let tileX = leftTile; tileX <= rightTile; tileX++) {
-                        // Bounds check
-                        if (tileX < 0 || tileY < 0 || 
-                            tileX >= (screenMap.width || 0) || 
+                    if (allowEdgeExit) {
+                        return false; // Allow movement off screen
+                    }
+
+                    // Horizontal movement: only check the leading edge
+                    // IMPORTANT: Don't check bottomTile - that's the ground we're standing on
+                    const checkTileX = movingRight ? rightTile : leftTile;
+                    for (let tileY = topTile; tileY < bottomTile; tileY++) {
+                        if (checkTileX < 0 || tileY < 0 ||
+                            checkTileX >= (screenMap.width || 0) ||
                             tileY >= (screenMap.height || 0)) {
                             continue;
                         }
-
-                        // Check if there's a solid tile at this position
-                        const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
-                        
+                        const tileOnLayer = screenMap.layers.collision[tileY]?.[checkTileX];
                         if (tileOnLayer && tileOnLayer.tileId) {
-                            // Need to check if this tile is actually solid by looking at its logical properties
-                            // For now, assume any tile with an ID is solid (we can improve this later)
-                            return true; // Would collide
+                            return true;
+                        }
+                    }
+                } else if (movingVertically && !movingHorizontally) {
+                    // Vertical movement: only check the leading edge
+                    const checkTileY = movingDown ? bottomTile : topTile;
+                    for (let tileX = leftTile; tileX <= rightTile; tileX++) {
+                        if (tileX < 0 || checkTileY < 0 ||
+                            tileX >= (screenMap.width || 0) ||
+                            checkTileY >= (screenMap.height || 0)) {
+                            continue;
+                        }
+                        const tileOnLayer = screenMap.layers.collision[checkTileY]?.[tileX];
+                        if (tileOnLayer && tileOnLayer.tileId) {
+                            return true;
+                        }
+                    }
+                } else {
+                    // Diagonal or no movement: check entire area
+                    for (let tileY = topTile; tileY <= bottomTile; tileY++) {
+                        for (let tileX = leftTile; tileX <= rightTile; tileX++) {
+                            if (tileX < 0 || tileY < 0 ||
+                                tileX >= (screenMap.width || 0) ||
+                                tileY >= (screenMap.height || 0)) {
+                                continue;
+                            }
+                            const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+                            if (tileOnLayer && tileOnLayer.tileId) {
+                                return true;
+                            }
                         }
                     }
                 }
@@ -534,41 +635,87 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             entities.forEach(entity => {
                 const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
                 if (cursorsComp) {
-                    const cursorsProps = { 
-                        ...cursorsComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_cursors'] || {}) 
+                    const cursorsProps = {
+                        ...cursorsComp.defaultValues,
+                        ...(entity.instance.componentOverrides?.['comp_cursors'] || {})
                     };
 
-                    if (!cursorsProps.isEnabled) return;
+                    // Only skip if explicitly disabled (not if undefined)
+                    if (cursorsProps.isEnabled === false) {
+                        return;
+                    }
 
                     const speed = Number(cursorsProps.speed) || 2;
-                    
-                    // Reset velocity
+
+                    // Get allowed directions (default to true if not specified)
+                    const allowUp = cursorsProps.allowUp !== false;
+                    const allowDown = cursorsProps.allowDown !== false;
+                    const allowLeft = cursorsProps.allowLeft !== false;
+                    const allowRight = cursorsProps.allowRight !== false;
+
+                    // Check if entity has gravity component
+                    const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
+
+                    // Reset horizontal velocity
                     entity.vx = 0;
-                    entity.vy = 0;
-                    
-                    // Apply movement based on pressed keys with wall collision prevention
-                    if (currentPressedKeys.has('ArrowUp') || currentPressedKeys.has('KeyW')) {
-                        const newY = entity.y - speed;
-                        if (!wouldCollideWithWall(entity, entity.x, newY)) {
-                            entity.vy = -speed;
+
+                    // Only reset vertical velocity if entity doesn't have gravity
+                    if (!hasGravity) {
+                        entity.vy = 0;
+                    }
+
+                    // Apply movement based on pressed keys with wall collision prevention and allowed directions
+                    // If entity has gravity, only allow horizontal movement (vertical is controlled by gravity)
+                    if (!hasGravity) {
+                        if (allowUp && (currentPressedKeys.has('ArrowUp') || currentPressedKeys.has('KeyW'))) {
+                            const newY = entity.y - speed;
+                            const exitDirection = detectScreenExit(entity, entity.x, newY);
+
+                            if (exitDirection) {
+                                // Permitir movimiento y marcar cambio de pantalla
+                                entity.vy = -speed;
+                                screenExitDetectedRef.current = exitDirection;
+                            } else if (!wouldCollideWithWall(entity, entity.x, newY)) {
+                                entity.vy = -speed;
+                            }
+                        }
+                        if (allowDown && (currentPressedKeys.has('ArrowDown') || currentPressedKeys.has('KeyS'))) {
+                            const newY = entity.y + speed;
+                            const exitDirection = detectScreenExit(entity, entity.x, newY);
+
+                            if (exitDirection) {
+                                // Permitir movimiento y marcar cambio de pantalla
+                                entity.vy = speed;
+                                screenExitDetectedRef.current = exitDirection;
+                            } else if (!wouldCollideWithWall(entity, entity.x, newY)) {
+                                entity.vy = speed;
+                            }
                         }
                     }
-                    if (currentPressedKeys.has('ArrowDown') || currentPressedKeys.has('KeyS')) {
-                        const newY = entity.y + speed;
-                        if (!wouldCollideWithWall(entity, entity.x, newY)) {
-                            entity.vy = speed;
-                        }
-                    }
-                    if (currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA')) {
+
+                    // Horizontal movement (always allowed)
+                    if (allowLeft && (currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA'))) {
                         const newX = entity.x - speed;
-                        if (!wouldCollideWithWall(entity, newX, entity.y)) {
+                        const exitDirection = detectScreenExit(entity, newX, entity.y);
+
+                        if (exitDirection) {
+                            // Permitir movimiento y marcar cambio de pantalla
+                            entity.vx = -speed;
+                            screenExitDetectedRef.current = exitDirection;
+                        } else if (!wouldCollideWithWall(entity, newX, entity.y)) {
                             entity.vx = -speed;
                         }
                     }
-                    if (currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD')) {
+
+                    if (allowRight && (currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD'))) {
                         const newX = entity.x + speed;
-                        if (!wouldCollideWithWall(entity, newX, entity.y)) {
+                        const exitDirection = detectScreenExit(entity, newX, entity.y);
+
+                        if (exitDirection) {
+                            // Permitir movimiento y marcar cambio de pantalla
+                            entity.vx = speed;
+                            screenExitDetectedRef.current = exitDirection;
+                        } else if (!wouldCollideWithWall(entity, newX, entity.y)) {
                             entity.vx = speed;
                         }
                     }
@@ -1070,8 +1217,13 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const activeEnginesRef = useRef<GameEngine[]>([]);
     const pendingSpawnsRef = useRef<EntityInstance[]>([]);
     const [entityCount, setEntityCount] = useState(0);
+    const screenExitDetectedRef = useRef<string | null>(null); // 'left', 'right', 'top', 'bottom'
     const [debugMode, setDebugMode] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [entitiesEnabled, setEntitiesEnabled] = useState(true);
+    const [hudEnabled, setHudEnabled] = useState(true);
+    const [physicsEnabled, setPhysicsEnabled] = useState(true);
+    const [animationEnabled, setAnimationEnabled] = useState(true);
     const fullScreenTimerRef = useRef<NodeJS.Timeout>();
 
     // Pac-Man style movement tracking
@@ -1367,7 +1519,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     }, [evaluateCondition]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        e.preventDefault();
+        // Don't prevent default for arrow keys - let them propagate to window event listeners
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault();
+        }
         if (playerRef.current && !pressedKeys.current.has(e.key)) {
             pressedKeys.current.add(e.key);
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
@@ -1375,6 +1530,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             }
         }
         if (e.key === 'Escape') {
+            e.preventDefault();
             onClose();
         }
     }, [checkKeyTransitions, onClose]);
@@ -1692,10 +1848,30 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 currentState
             };
 
+            // Initialize patrol velocity if entity has patrol component
+            const patrolComp = instance.componentOverrides?.comp_patrol;
+            if (patrolComp && patrolComp.waypoint1_x !== undefined && patrolComp.waypoint1_y !== undefined) {
+                const patrolStartX = patrolComp.waypoint1_x;
+                const patrolStartY = patrolComp.waypoint1_y;
+                const patrolEndX = patrolComp.waypoint2_x ?? patrolStartX;
+                const patrolEndY = patrolComp.waypoint2_y ?? patrolStartY;
+
+                const dx = patrolEndX - patrolStartX;
+                const dy = patrolEndY - patrolStartY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > 0) {
+                    const speed = Number(patrolComp.speed) || 1;
+                    newAnimatedEntity.vx = (dx / dist) * speed;
+                    newAnimatedEntity.vy = (dy / dist) * speed;
+                }
+            }
+
             entitiesToAnimate.push(newAnimatedEntity);
 
             // Detect player entity
-            if (template.components.some(c => c.definitionId === 'comp_player_input') ||
+            if (template.components.some(c => c.definitionId === 'comp_cursors') ||
+                template.components.some(c => c.definitionId === 'comp_player_input') ||
                 template.name === 'Player') {
                 playerRef.current = newAnimatedEntity;
             }
@@ -1910,13 +2086,13 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             }
         };
 
-        // Add event listeners
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
+        // Add event listeners with capture phase to execute BEFORE React handlers
+        window.addEventListener('keydown', handleKeyDown, true);
+        window.addEventListener('keyup', handleKeyUp, true);
 
         return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('keydown', handleKeyDown, true);
+            window.removeEventListener('keyup', handleKeyUp, true);
             pressedKeys.current.clear();
             if ((window as any).currentPressedKeys) {
                 (window as any).currentPressedKeys.clear();
@@ -1936,29 +2112,54 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
 
         const animate = () => {
+            // 1. Draw Background Color (MSX VDP backdrop)
             ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            const bgColorIndex = screenMap.backgroundColor !== undefined ? screenMap.backgroundColor : 1;
+            const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+
+            // 2. Draw Screen Content
             renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
 
-            // Render HUD elements
-            renderHUDElements(ctx);
+            // 3. Render HUD elements (only if hudEnabled is true)
+            if (hudEnabled) {
+                renderHUDElements(ctx);
+            }
 
-            // Execute Active Game Engines Dynamically
-            activeEnginesRef.current.forEach(engine => {
-                engine.execute(entitiesRef.current, componentDefinitions, screenMap, entityTemplates, allAssets, pendingSpawnsRef);
-            });
+            // Execute Animation Engine independently (controlled by animationEnabled)
+            if (animationEnabled) {
+                const animationEngine = activeEnginesRef.current.find(e => e.id === 'animation');
+                if (animationEngine) {
+                    animationEngine.execute(entitiesRef.current, componentDefinitions, screenMap, entityTemplates, allAssets, pendingSpawnsRef);
+                }
+            }
+
+            // Execute Other Game Engines (only if physicsEnabled is true)
+            if (physicsEnabled) {
+                activeEnginesRef.current.forEach(engine => {
+                    // Skip animation engine (already executed above)
+                    if (engine.id === 'animation') {
+                        return;
+                    }
+                    engine.execute(entitiesRef.current, componentDefinitions, screenMap, entityTemplates, allAssets, pendingSpawnsRef);
+                });
+            }
 
             // Process any pending spawned entities
             processSpawnedEntities();
             
             // Update entities position and rendering
             entitiesRef.current.forEach(entity => {
-                // Check if movement would cause collision before applying it
-                let newX = entity.x + entity.vx;
-                let newY = entity.y + entity.vy;
-                
-                // Check collision for the new position - TEMPORARILY DISABLED FOR TESTING
-                // DISABLED: const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision' || c.definitionId === 'comp_collision');
-                if (false && wallCollisionComp && screenMap?.layers?.collision?.tiles) {
+                // Only apply movement and physics if physicsEnabled is true
+                if (physicsEnabled) {
+                    // Check if movement would cause collision before applying it
+                    let newX = entity.x + entity.vx;
+                    let newY = entity.y + entity.vy;
+
+                    // Check collision for the new position
+                    const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision' || c.definitionId === 'comp_collision');
+                if (wallCollisionComp && screenMap?.layers?.collision) {
                     const componentId = wallCollisionComp.definitionId;
                     const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
                     
@@ -2035,11 +2236,15 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                                 hasCollision = true;
                                 break;
                             }
-                            
-                            const tileIndex = tileY * screenMap.width + tileX;
-                            const tile = screenMap.layers.collision.tiles[tileIndex];
-                            
-                            if (tile && tile.id !== 'empty' && tile.id !== '') {
+
+                            // Access collision layer as 2D array: collision[row][column]
+                            const collisionRow = screenMap.layers.collision[tileY];
+                            if (!collisionRow) continue;
+
+                            const tile = collisionRow[tileX];
+
+                            // Check if tile has a collision (tileId is not null and not empty)
+                            if (tile && tile.tileId && tile.tileId !== 'empty' && tile.tileId !== '') {
                                 hasCollision = true;
                                 break;
                             }
@@ -2064,31 +2269,15 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     entity.y = newY;
                 }
 
-                // Apply screen boundary constraints
-                const spriteWidth = entity.sprite.size.width;
-                const spriteHeight = entity.sprite.size.height;
-
-                if (entity.x < 0) {
-                    entity.x = 0;
-                    entity.vx = 0;
-                } else if (entity.x + spriteWidth > PREVIEW_WIDTH) {
-                    entity.x = PREVIEW_WIDTH - spriteWidth;
-                    entity.vx = 0;
-                }
-
-                if (entity.y < 0) {
-                    entity.y = 0;
-                    entity.vy = 0;
-                } else if (entity.y + spriteHeight > PREVIEW_HEIGHT) {
-                    entity.y = PREVIEW_HEIGHT - spriteHeight;
-                    entity.vy = 0;
-                }
+                // Screen boundary constraints removed to allow entities to move off-screen
+                // (useful for side-scrolling games, screen transitions, etc.)
+                } // End of physicsEnabled block
 
                 // Choose correct sprite image (animation is now handled by animation engine)
                 // Ensure currentFrame is within bounds
                 const safeFrameIndex = Math.min(entity.currentFrame, entity.frameImages.length - 1);
                 let imageToDraw = entity.frameImages[safeFrameIndex];
-                
+
                 if (entity.mirroredFrameImages && safeFrameIndex < entity.mirroredFrameImages.length) {
                     if (entity.sprite.facingDirection === 'right' && entity.vx < 0) {
                         imageToDraw = entity.mirroredFrameImages[safeFrameIndex];
@@ -2097,10 +2286,11 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     }
                 }
 
-                if (imageToDraw) {
+                // Only render entities if entitiesEnabled is true
+                if (entitiesEnabled && imageToDraw) {
                     ctx.drawImage(imageToDraw, entity.x, entity.y);
                 }
-                
+
                 // Debug: Draw hitboxes when debug mode is enabled
                 if (debugMode) {
                     // Get hitbox values from sprite first, then fallback to collision component
@@ -2108,10 +2298,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     let hitboxHeight = 16;
                     let offsetX = 0;
                     let offsetY = 0;
-                    
+
                     // Try to get sprite hitbox values
                     let spriteAssetId: string | undefined;
-                    
+
                     // Search in component overrides
                     if (entity.instance?.componentOverrides) {
                         for (const compId in entity.instance.componentOverrides) {
@@ -2123,7 +2313,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             }
                         }
                     }
-                    
+
                     // If not found in overrides, search in template defaults
                     if (!spriteAssetId) {
                         for (const comp of entity.template.components) {
@@ -2135,7 +2325,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             }
                         }
                     }
-                    
+
                     // Get sprite asset and use its hitbox values (solo si allAssets está disponible)
                     if (spriteAssetId && allAssets && allAssets.length > 0) {
                         const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
@@ -2147,7 +2337,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             offsetY = sprite.hitbox.offsetY;
                         }
                     }
-                    
+
                     // Fallback: get from collision components
                     if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
                         const collisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision' || c.definitionId === 'comp_wall_collision');
@@ -2159,16 +2349,16 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             offsetY = Number(props.offsetY) || 0;
                         }
                     }
-                    
+
                     // Draw hitbox as semi-transparent gray rectangle
                     ctx.save();
                     ctx.fillStyle = 'rgba(128, 128, 128, 0.3)'; // Semi-transparent gray
                     ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'; // White border
                     ctx.lineWidth = 1;
-                    
+
                     const hitboxX = entity.x + offsetX;
                     const hitboxY = entity.y + offsetY;
-                    
+
                     ctx.fillRect(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
                     ctx.strokeRect(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
                     ctx.restore();
@@ -2186,6 +2376,23 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             // Remove entities marked for destruction
             entitiesRef.current = entitiesRef.current.filter(entity => !entity.markedForDestruction);
 
+            // Check if screen exit was detected
+            if (screenExitDetectedRef.current) {
+                const exitDirection = screenExitDetectedRef.current;
+                console.log(`🚪 Screen exit detected! Direction: ${exitDirection}`);
+                console.log(`   Player would transition to next screen via ${exitDirection} edge`);
+
+                // TODO: Implementar cambio de pantalla aquí
+                // Por ahora solo mostramos un mensaje en consola
+                // En el futuro, esto debería:
+                // 1. Cargar la pantalla conectada en esa dirección (screenMap.connections[exitDirection])
+                // 2. Posicionar al jugador en el borde opuesto de la nueva pantalla
+                // 3. Reinicializar las entidades de la nueva pantalla
+
+                // Reset detection flag
+                screenExitDetectedRef.current = null;
+            }
+
             animationFrameId.current = requestAnimationFrame(animate);
         };
 
@@ -2194,7 +2401,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         };
-    }, [isOpen, screenMap, allAssets, currentScreenMode, debugMode, isFullScreen, renderHUDElements]);
+    }, [isOpen, screenMap, allAssets, currentScreenMode, debugMode, isFullScreen, renderHUDElements, entitiesEnabled, hudEnabled, animationEnabled, physicsEnabled]);
 
     if (!isOpen) return null;
 
@@ -2250,9 +2457,53 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                setEntitiesEnabled(!entitiesEnabled);
+                            }}
+                            variant={entitiesEnabled ? "primary" : "danger"}
+                            size="md"
+                        >
+                            Entities
+                        </Button>
+                        <Button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setHudEnabled(!hudEnabled);
+                            }}
+                            variant={hudEnabled ? "primary" : "danger"}
+                            size="md"
+                        >
+                            HUD
+                        </Button>
+                        <Button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setAnimationEnabled(!animationEnabled);
+                            }}
+                            variant={animationEnabled ? "primary" : "danger"}
+                            size="md"
+                        >
+                            Animation
+                        </Button>
+                        <Button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setPhysicsEnabled(!physicsEnabled);
+                            }}
+                            variant={physicsEnabled ? "primary" : "danger"}
+                            size="md"
+                        >
+                            Physics
+                        </Button>
+                        <Button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
                                 setDebugMode(!debugMode);
                             }}
-                            variant={debugMode ? "primary" : "secondary"}
+                            variant={debugMode ? "primary" : "danger"}
                             size="md"
                         >
                             {debugMode ? "Debug ON" : "Debug OFF"}

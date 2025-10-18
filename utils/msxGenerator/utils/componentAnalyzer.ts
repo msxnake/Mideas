@@ -151,20 +151,23 @@ export function getEntitiesWithComponent(componentName: string, analysis: Compon
 
 /**
  * Generate component mask for a specific entity based on its actual components
+ * Returns 16-bit mask to support 10+ components (Jump, Gravity, etc.)
  */
 export function generateEntityComponentMask(entity: any, template: any, analysis: ProjectAnalysis): number {
   let mask = 0;
 
-  // Map component names to bit positions
+  // Map component names to bit positions (16-bit mask for 10+ components)
   const COMP_BIT_POSITION: Record<string, number> = {
-    'Position': 0,  // Bit 0
-    'Sprite': 1,    // Bit 1
-    'Movement': 2,  // Bit 2
-    'Collision': 3, // Bit 3
-    'Input': 4,     // Bit 4
-    'Behavior': 5,  // Bit 5
-    'Health': 6,    // Bit 6
-    'Animation': 7  // Bit 7
+    'Position': 0,   // Bit 0  - #0001
+    'Sprite': 1,     // Bit 1  - #0002
+    'Movement': 2,   // Bit 2  - #0004
+    'Collision': 3,  // Bit 3  - #0008
+    'Input': 4,      // Bit 4  - #0010
+    'Behavior': 5,   // Bit 5  - #0020
+    'Health': 6,     // Bit 6  - #0040
+    'Animation': 7,  // Bit 7  - #0080
+    'Jump': 8,       // Bit 8  - #0100 (NEW)
+    'Gravity': 9     // Bit 9  - #0200 (NEW)
   };
 
   if (template && template.components) {

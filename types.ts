@@ -386,6 +386,10 @@ export interface ScreenMap {
   };
   /** The TileBank asset ID used by this screen (SCREEN 2 mode only). Contains all 3 banks internally. */
   tileBankAssetId?: string;
+  /** Background color for MSX VDP (index 0-15). */
+  backgroundColor?: number;
+  /** Border color for MSX VDP (index 0-15). */
+  borderColor?: number;
 }
 
 /** A type representing the possible layer names in the screen editor. */

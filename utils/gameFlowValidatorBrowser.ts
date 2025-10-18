@@ -266,8 +266,9 @@ export function validateGameFlow(
     }
 
     if (node.type === 'Text') {
-      const text = (node as any).text;
-      if (!text || text.trim() === '') {
+      const title = (node as any).title;
+      const message = (node as any).message;
+      if ((!title || title.trim() === '') && (!message || message.trim() === '')) {
         issues.push({
           type: 'WARNING',
           message: 'Text node has no content',

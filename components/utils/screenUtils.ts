@@ -204,14 +204,8 @@ export const generateScreenMapLayoutBytes = (
           }
 
           for (const bank of tileBanks) {
-            // Check if this tile position is within this bank's screenZone
-            const zone = bank.screenZone;
-            const inZone = zone &&
-              mapX >= zone.x && mapX < (zone.x + zone.width) &&
-              mapY >= zone.y && mapY < (zone.y + zone.height);
-
-            // Only process if bank is enabled, tile is assigned, AND position is in zone
-            if ((bank.enabled ?? true) && bank.assignedTiles[screenTile.tileId] && inZone) {
+            // Only process if bank is enabled and tile is assigned
+            if ((bank.enabled ?? true) && bank.assignedTiles[screenTile.tileId]) {
               const baseCharCode = bank.assignedTiles[screenTile.tileId].charCode;
               const widthInChars = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
               const subX = screenTile.subTileX || 0;
@@ -221,8 +215,6 @@ export const generateScreenMapLayoutBytes = (
               const inRange = actualCharCodeForCell >= bank.charsetRangeStart && actualCharCodeForCell <= bank.charsetRangeEnd;
               debugInfo.attempts.push({
                 bankName: bank.name,
-                zone: zone,
-                inZone: inZone,
                 baseCharCode,
                 calculated: actualCharCodeForCell,
                 range: `${bank.charsetRangeStart}-${bank.charsetRangeEnd}`,
@@ -235,20 +227,10 @@ export const generateScreenMapLayoutBytes = (
               } else {
                 actualCharCodeForCell = CONST_EMPTY_CELL_CHAR_CODE; // Code out of bank range, treat as unassigned
               }
-            } else if (bank.assignedTiles[screenTile.tileId]) {
-              // Tile is assigned but position is NOT in zone - log for debugging
-              debugInfo.attempts.push({
-                bankName: bank.name,
-                zone: zone,
-                inZone: false,
-                reason: 'Position outside screenZone'
-              });
             } else {
               // Tile is NOT assigned to this bank at all
               debugInfo.attempts.push({
                 bankName: bank.name,
-                zone: zone,
-                inZone: inZone,
                 reason: 'Tile not assigned to this bank'
               });
             }
@@ -841,7 +823,10 @@ export const renderScreenToCanvas = (
   if (!ctx) return;
   ctx.imageSmoothingEnabled = false;
 
-  const defaultBg = isScreen2 ? MSX1_PALETTE[1].hex : MSX_SCREEN5_PALETTE[4].hex;
+  // Use backgroundColor from screenMap if available, otherwise use default
+  const bgColorIndex = screenMap.backgroundColor !== undefined ? screenMap.backgroundColor : 1;
+  const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
+  const defaultBg = isScreen2 ? bgColor : MSX_SCREEN5_PALETTE[4].hex;
   ctx.fillStyle = defaultBg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 

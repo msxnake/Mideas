@@ -4,7 +4,7 @@
  */
 
 import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph } from '../types';
-import { getAllGlobalVariables } from './globalVariablesUtils';
+import { getUsedGlobalVariables } from './globalVariablesUtils';
 
 /**
  * Hot spot marker interface
@@ -92,8 +92,8 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     }
   });
 
-  // CRITICAL: Extract GlobalVariables (defaults + custom)
-  const globalVariables = getAllGlobalVariables(assets);
+  // CRITICAL: Extract only USED GlobalVariables (filter unused ones)
+  const globalVariables = getUsedGlobalVariables(assets);
 
   return {
     projectName,

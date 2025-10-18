@@ -169,11 +169,9 @@ init_rom:
 
     xor a
     ld (CLIKSW),a ; Click switch off
-    ; Change background colors:
-    ld a,1
-    ld (BAKCLR),a
-    ld (BDRCLR),a
-    call CHGCLR
+
+    ; NOTE: Background/border colors are now set by each load_screen_X function
+    ; This allows each screen to have its own colors via ScreenMap.backgroundColor/borderColor
 
     ld a,2      ; Change screen mode
     call CHGMOD

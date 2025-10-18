@@ -396,14 +396,20 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
         const deltaTime = timestamp - lastTimestamp;
         lastTimestamp = timestamp;
 
-        // 1. Clear and Draw Background
+        // 1. Draw Background Color (MSX VDP backdrop)
         ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+        const bgColorIndex = screenMap.backgroundColor !== undefined ? screenMap.backgroundColor : 1;
+        const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+
+        // 2. Draw Screen Content
         renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE, tileBanks, allAssets);
 
-        // 2. Render HUD elements
+        // 3. Render HUD elements
         renderHUDElements(ctx);
 
-        // 3. Draw Entities to main canvas
+        // 4. Draw Entities to main canvas
         entitiesRef.current.forEach(entity => {
             const { x, y, currentFrame } = entity;
             let imageToDraw = entity.frameImages[currentFrame];

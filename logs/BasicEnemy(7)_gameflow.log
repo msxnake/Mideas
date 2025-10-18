@@ -1,0 +1,35 @@
+GameFlow Validation Log
+Project: BasicEnemy(7)
+Generated: 4/10/2025, 9:45:14
+Version: 1.0
+================================================================================
+
+Step 1: Checking for Main GameFlow
+Found "Main"
+
+Step 2: Validating Main GameFlow Structure
+  - Start Node: gf_start_1757846301679 [OK]
+  - Total Nodes: 2
+  - Total Connections: 1
+  - Orphaned Nodes: 1 [WARNING]
+
+Step 3: Analyzing GameFlow Graph
+  - Node 1: Start (gf_start_1757846301679)
+  - Node 2: WorldLink (gfn_1757846312799) -> World: worldmap_1757846280079
+
+Step 4: Validating Connections
+  - Connection 1: UNKNOWN → UNKNOWN [OK]
+
+Step 5: Checking Referenced Assets
+  - WorldMap worldmap_1757846280079 (New Worldmap): [FOUND]
+
+Step 6: Detecting Issues
+  [WARNING] Found 1 warning(s):
+    - Orphaned node: WorldLink (gfn_1757846312799)
+  [ERROR] Found 1 error(s):
+    - Start node has no outgoing connections
+
+================================================================================
+Validation Result: [FAILED]
+Hash: cf2f0d17239b5f1e71336bdb6c634f92
+================================================================================

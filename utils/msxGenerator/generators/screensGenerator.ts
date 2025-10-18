@@ -229,6 +229,28 @@ load_screen_default:
 ; SCREEN LOADING FUNCTIONS
 ; ==================================================================
 
+; Helper function to set VDP background and border colors
+; Input: A = background color (0-15), B = border color (0-15)
+set_screen_colors:
+    push af
+    push bc
+    ; Set background color (VDP Register 7, bits 0-3)
+    ld a, b                    ; Border color in B
+    and #0F                    ; Ensure 0-15 range
+    rlca                       ; Shift to bits 4-7
+    rlca
+    rlca
+    rlca
+    ld b, a                    ; Save shifted border in B
+    pop af                     ; Get background color
+    and #0F                    ; Ensure 0-15 range
+    or b                       ; Combine: border << 4 | background
+    ld b, a                    ; Value for VDP R#7
+    ld c, 7                    ; VDP Register 7
+    call WRTVDP                ; BIOS call to write VDP register
+    pop af
+    ret
+
 load_screen:
     ; Load screen (A = screen ID)
     ; TODO: Implement screen loading logic
@@ -238,8 +260,16 @@ load_screen:
 
     analysis.screenMaps.forEach((screen, index) => {
       const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+      const bgColor = screen.backgroundColor !== undefined ? screen.backgroundColor : 1; // Default to black
+      const borderColor = screen.borderColor !== undefined ? screen.borderColor : 1; // Default to black
+
       code += `load_screen_${screenName.toLowerCase()}:
     ; Load ${screen.name} screen (BIOS LDIRVM handles timing)
+    ; Set VDP colors for this screen
+    ld a, ${bgColor}           ; Background color
+    ld b, ${borderColor}       ; Border color
+    call set_screen_colors
+    ; Load screen layout
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld de, NAMETBL
     ld bc, SCREEN_${screenName}_${index}_SIZE
