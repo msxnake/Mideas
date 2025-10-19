@@ -28,6 +28,7 @@ import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons/MsxIcons';
 import { StateMachine } from '../../statemachine.types';
 
+
 const TILE_SIZE = 8;
 const PREVIEW_WIDTH = 256;
 const PREVIEW_HEIGHT = 192;
@@ -47,6 +48,7 @@ interface AnimatedEntity {
     lastFrameUpdateTime: number;
     stateMachine?: StateMachine;
     currentState?: string;
+    isOnGround: boolean;
 }
 
 interface GameFlowPreviewModalProps {
@@ -440,7 +442,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
-                stateMachine, currentState
+                stateMachine, currentState, isOnGround: false
             };
         }).filter(Boolean) as AnimatedEntity[];
 
@@ -490,6 +492,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const bgAsset = subMenuNode?.appearance?.backgroundScreenAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.backgroundScreenAssetId) : null;
         const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
         const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+
+        const checkCollisionAt = (x: number, y: number, screenMap: ScreenMap) => {
+            const tileX = Math.floor(x / TILE_SIZE);
+            const tileY = Math.floor(y / TILE_SIZE);
+            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
+            const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+            if (!tileOnLayer || !tileOnLayer.tileId) return false;
+            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+            return tile?.logicalProperties?.isSolid ?? false;
+        };
 
         const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string) => {
             if (!map) return null; // No hay mapa para renderizar
@@ -825,95 +837,90 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         };
 
-        // --- Nueva Función de Colisión CORREGIDA ---
+       
+
         const handleTilemapCollision = (entity: AnimatedEntity, screenMap: ScreenMap, tileset: Tile[], collisionCompDef: ComponentDefinition) => {
-          if (!screenMap || !tileset || !collisionCompDef) return;
-          const entityCollisionProps = {
+        if (!screenMap || !tileset || !collisionCompDef) return;
+        const entityCollisionProps = {
             ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
             ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
             ...(entity.instance.componentOverrides?.['comp_collision'] || {})
-          };
-          const getHitboxFor = (x: number, y: number) => ({
+        };
+        const getHitboxFor = (x: number, y: number) => ({
             x: x + (entityCollisionProps.offsetX || 0),
             y: y + (entityCollisionProps.offsetY || 0),
             width: entityCollisionProps.hitboxWidth || entity.sprite.size.width,
             height: entityCollisionProps.hitboxHeight || entity.sprite.size.height,
-          });
-          const checkCollisionAt = (x: number, y: number) => {
-            const tileX = Math.floor(x / TILE_SIZE);
-            const tileY = Math.floor(y / TILE_SIZE);
-            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
-            const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
-            if (!tileOnLayer || !tileOnLayer.tileId) return false;
-            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-            return tile?.logicalProperties?.isSolid ?? false;
-          };
-        
-          let tentativeX = entity.x + entity.vx;
-          let tentativeY = entity.y + entity.vy;
-          let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
-        
-          // --- Resolver Colisión en X (usando puntos centrales, NO esquinas) ---
-          if (entity.vx !== 0) {
+        });
+        let tentativeX = entity.x + entity.vx;
+        let tentativeY = entity.y + entity.vy;
+        let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+
+        // --- Colisión en X: usar puntos verticales centrados (evita esquinas inferiores/superiores) ---
+        if (entity.vx !== 0) {
             let collisionX = false;
             const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
             const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
-        
+
             if (entity.vx > 0) { // Derecha
-              if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1) ||
-                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2)) {
+            if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1, screenMap) ||
+                checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2, screenMap)) {
                 collisionX = true;
                 const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
                 tentativeX = tileLeftEdge - (entityCollisionProps.offsetX || 0) - tentativeHitbox.width;
                 entity.vx = 0;
-              }
+            }
             } else if (entity.vx < 0) { // Izquierda
-              if (checkCollisionAt(tentativeHitbox.x, centerY1) ||
-                  checkCollisionAt(tentativeHitbox.x, centerY2)) {
+            if (checkCollisionAt(tentativeHitbox.x, centerY1, screenMap) ||
+                checkCollisionAt(tentativeHitbox.x, centerY2, screenMap)) {
                 collisionX = true;
                 const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
                 tentativeX = tileRightEdge - (entityCollisionProps.offsetX || 0);
                 entity.vx = 0;
-              }
+            }
             }
             if (collisionX) {
-              tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+            tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
             }
-          }
-        
-          // --- Resolver Colisión en Y ---
-          if (entity.vy !== 0) {
+        }
+
+        // --- Colisión en Y: usar puntos horizontales centrados ---
+        if (entity.vy !== 0) {
             let collisionY = false;
             const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
             const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
-        
+
             if (entity.vy > 0) { // Cayendo
-              if (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height) ||
-                  checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height)) {
+            if (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap) ||
+                checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap)) {
                 collisionY = true;
                 const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
                 tentativeY = tileTopEdge - (entityCollisionProps.offsetY || 0) - tentativeHitbox.height;
                 entity.vy = 0;
-              }
-            } else if (entity.vy < 0) { // Saltando
-              if (checkCollisionAt(centerX1, tentativeHitbox.y) ||
-                  checkCollisionAt(centerX2, tentativeHitbox.y)) {
+            }
+            } else if (entity.vy < 0) { // Saltando (hacia arriba)
+            if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap) ||
+                checkCollisionAt(centerX2, tentativeHitbox.y, screenMap)) {
                 collisionY = true;
-                const tileBottomEdge = Math.ceil(tentativeHitbox.y / TILE_SIZE) * TILE_SIZE;
+                console.log('Collision Y detected (upwards)');
+                const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
+                const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
                 tentativeY = tileBottomEdge - (entityCollisionProps.offsetY || 0);
-                entity.vy = 0;
-              }
+                entity.vy = 0; // Detener velocidad Y (golpeÃ³ techo)
+
+          
+            }
             }
             if (collisionY) {
-              // No es estrictamente necesario actualizar hitbox aquí para X, pero sí para consistencia
+            // No es estrictamente necesario, pero mantiene consistencia
+            // tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
             }
-          }
-        
-          // Aplicar posición final
-          entity.x = tentativeX;
-          entity.y = tentativeY;
+        }
+
+        // Aplicar posición final
+        entity.x = tentativeX;
+        entity.y = tentativeY;
         };
-        // --- Fin Nueva Función ---
 
         const entityCollisionProps = (entity: AnimatedEntity) => {
              const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
@@ -927,6 +934,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
         const getHitboxFor = (entity: AnimatedEntity, props: any) => ({
             x: entity.x + (props.offsetX || 0), y: entity.y + (props.offsetY || 0),
+            width: props.hitboxWidth || entity.sprite.size.width, height: props.hitboxHeight || entity.sprite.size.height,
+        });
+
+        const getHitboxForPosition = (entity: AnimatedEntity, x: number, y: number, props: any) => ({
+            x: x + (props.offsetX || 0), y: y + (props.offsetY || 0),
             width: props.hitboxWidth || entity.sprite.size.width, height: props.hitboxHeight || entity.sprite.size.height,
         });
 
@@ -958,6 +970,25 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             const now = performance.now();
             entitiesRef.current.forEach((entityA, indexA) => {
+                // --- 0. Compute isOnGround based on current position ---
+                const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
+                const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
+                if (hasCollisionComp && collisionCompDef && screenMapToRender) {
+                    const props = entityCollisionProps(entityA);
+                    if (props) {
+                        const hitbox = getHitboxForPosition(entityA, entityA.x, entityA.y + 1, props); // Check 1px below
+                        const centerX1 = hitbox.x + Math.floor(hitbox.width / 3);
+                        const centerX2 = hitbox.x + Math.floor((2 * hitbox.width) / 3);
+                        const bottomY = hitbox.y + hitbox.height;
+                        entityA.isOnGround = checkCollisionAt(centerX1, bottomY, screenMapToRender) ||
+                                             checkCollisionAt(centerX2, bottomY, screenMapToRender);
+                    } else {
+                        entityA.isOnGround = false;
+                    }
+                } else {
+                    entityA.isOnGround = false;
+                }
+
                 // --- 1. Actualizar Velocidad ---
                 if (entityA === heroRef.current) {
                     if (entityA.stateMachine && entityA.currentState) {
@@ -1015,7 +1046,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         // Jump (only for gravity entities)
                         const jumpComp = entityA.template.components.find(c => c.definitionId === 'comp_jump');
                         if (jumpComp && pressedKeys.current.has(' ')) {
-                            if (hasGravity && entityA.vy === 0) { // Only jump if on the ground
+                            if (hasGravity && entityA.isOnGround) { // Only jump if on the ground
                                 const jumpProps = { ...jumpComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_jump'] || {}) };
                                 const jumpPower = Number(jumpProps.jumpPower || 256);
                                 entityA.vy = -jumpPower / 40;
@@ -1034,9 +1065,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
 
                 // --- 2. Resolver Colisión y Aplicar Nueva Posición ---
-                const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-                const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
-
                 if (hasCollisionComp && collisionCompDef && screenMapToRender) {
                   handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
                 } else {
