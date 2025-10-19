@@ -109,31 +109,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return;
         }
         if (!entity.stateMachine) {
-            const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
-            const cursorsProps = cursorsComp ? {
-                ...cursorsComp.defaultValues,
-                ...(entity.instance.componentOverrides?.['comp_cursors'] || {})
-            } : {};
-            const speed = Number(cursorsProps.speed) || 2;
-            const allowUp = cursorsProps.allowUp !== false;
-            const allowDown = cursorsProps.allowDown !== false;
-            const allowLeft = cursorsProps.allowLeft !== false;
-            const allowRight = cursorsProps.allowRight !== false;
-            const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
-            switch (pressedKey) {
-                case 'ArrowUp':
-                    if (allowUp && !hasGravity) entity.vy = isKeyDown ? -speed : 0;
-                    break;
-                case 'ArrowDown':
-                    if (allowDown && !hasGravity) entity.vy = isKeyDown ? speed : 0;
-                    break;
-                case 'ArrowLeft':
-                    if (allowLeft) entity.vx = isKeyDown ? -speed : 0;
-                    break;
-                case 'ArrowRight':
-                    if (allowRight) entity.vx = isKeyDown ? speed : 0;
-                    break;
-            }
+            // Input for non-statemachine entities is now handled in the animate loop.
             return;
         }
         if (!entity.currentState) {
@@ -331,15 +307,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         } else if (currentNode.type === 'WorldLink') {
             if (heroRef.current) {
                 if (e.code === 'Space') {
-                    const hero = heroRef.current;
-                    const jumpComp = hero.template.components.find(c => c.definitionId === 'comp_jump');
-                    if (jumpComp) {
-                        const jumpProps = { ...jumpComp.defaultValues, ...(hero.instance.componentOverrides?.['comp_jump'] || {}) };
-                        const jumpPower = Number(jumpProps.jumpPower || 256);
-                        if (hero.vy === 0) {
-                            hero.vy = -jumpPower / 40;
-                        }
-                    }
+                    // Jump logic is now handled in the animate loop
                 }
                 if (!pressedKeys.current.has(e.key)) {
                     pressedKeys.current.add(e.key);
@@ -860,94 +828,88 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // --- Nueva Función de Colisión CORREGIDA ---
         const handleTilemapCollision = (entity: AnimatedEntity, screenMap: ScreenMap, tileset: Tile[], collisionCompDef: ComponentDefinition) => {
           if (!screenMap || !tileset || !collisionCompDef) return;
-
           const entityCollisionProps = {
             ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
             ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
             ...(entity.instance.componentOverrides?.['comp_collision'] || {})
           };
-
           const getHitboxFor = (x: number, y: number) => ({
             x: x + (entityCollisionProps.offsetX || 0),
             y: y + (entityCollisionProps.offsetY || 0),
             width: entityCollisionProps.hitboxWidth || entity.sprite.size.width,
             height: entityCollisionProps.hitboxHeight || entity.sprite.size.height,
           });
-
           const checkCollisionAt = (x: number, y: number) => {
             const tileX = Math.floor(x / TILE_SIZE);
             const tileY = Math.floor(y / TILE_SIZE);
-            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false; // Permitir salir del mapa
+            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
             const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
             if (!tileOnLayer || !tileOnLayer.tileId) return false;
             const tile = tileset.find(t => t.id === tileOnLayer.tileId);
             return tile?.logicalProperties?.isSolid ?? false;
           };
-
-          // Calcular nueva posición tentativa
+        
           let tentativeX = entity.x + entity.vx;
           let tentativeY = entity.y + entity.vy;
-
-          // Calcular hitbox en la nueva posición tentativa
           let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
-
-          // --- Resolver Colisión en X ---
+        
+          // --- Resolver Colisión en X (usando puntos centrales, NO esquinas) ---
           if (entity.vx !== 0) {
             let collisionX = false;
-            if (entity.vx > 0) { // Moviendo a la derecha
-              if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, tentativeHitbox.y) ||
-                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, tentativeHitbox.y + tentativeHitbox.height - 1)) {
+            const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
+            const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
+        
+            if (entity.vx > 0) { // Derecha
+              if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1) ||
+                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2)) {
                 collisionX = true;
-                // Ajustar posición X para que toque el borde izquierdo del tile colisionado
                 const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
                 tentativeX = tileLeftEdge - (entityCollisionProps.offsetX || 0) - tentativeHitbox.width;
-                entity.vx = 0; // Detener velocidad X
+                entity.vx = 0;
               }
-            } else if (entity.vx < 0) { // Moviendo a la izquierda
-              if (checkCollisionAt(tentativeHitbox.x, tentativeHitbox.y) ||
-                  checkCollisionAt(tentativeHitbox.x, tentativeHitbox.y + tentativeHitbox.height - 1)) {
+            } else if (entity.vx < 0) { // Izquierda
+              if (checkCollisionAt(tentativeHitbox.x, centerY1) ||
+                  checkCollisionAt(tentativeHitbox.x, centerY2)) {
                 collisionX = true;
-                // Ajustar posición X para que toque el borde derecho del tile colisionado
                 const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
                 tentativeX = tileRightEdge - (entityCollisionProps.offsetX || 0);
-                entity.vx = 0; // Detener velocidad X
+                entity.vx = 0;
               }
             }
-            // Actualizar hitbox si X cambió
             if (collisionX) {
               tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
             }
           }
-
+        
           // --- Resolver Colisión en Y ---
           if (entity.vy !== 0) {
             let collisionY = false;
+            const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
+            const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
+        
             if (entity.vy > 0) { // Cayendo
-              if (checkCollisionAt(tentativeHitbox.x, tentativeHitbox.y + tentativeHitbox.height) ||
-                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width - 1, tentativeHitbox.y + tentativeHitbox.height)) {
+              if (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height) ||
+                  checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height)) {
                 collisionY = true;
-                // Ajustar posición Y para que toque el borde superior del tile colisionado (suelo)
                 const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
                 tentativeY = tileTopEdge - (entityCollisionProps.offsetY || 0) - tentativeHitbox.height;
-                entity.vy = 0; // Detener velocidad Y (aterrizó)
+                entity.vy = 0;
               }
             } else if (entity.vy < 0) { // Saltando
-              if (checkCollisionAt(tentativeHitbox.x, tentativeHitbox.y) ||
-                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width - 1, tentativeHitbox.y)) {
+              if (checkCollisionAt(centerX1, tentativeHitbox.y) ||
+                  checkCollisionAt(centerX2, tentativeHitbox.y)) {
                 collisionY = true;
-                // Ajustar posición Y para que toque el borde inferior del tile colisionado (techo)
                 const tileBottomEdge = Math.ceil(tentativeHitbox.y / TILE_SIZE) * TILE_SIZE;
                 tentativeY = tileBottomEdge - (entityCollisionProps.offsetY || 0);
-                entity.vy = 0; // Detener velocidad Y (golpeó techo)
+                entity.vy = 0;
               }
             }
-            // Actualizar hitbox si Y cambió
             if (collisionY) {
-              tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+              // No es estrictamente necesario actualizar hitbox aquí para X, pero sí para consistencia
             }
           }
-
-          // Aplicar la posición final resuelta
+        
+          // Aplicar posición final
           entity.x = tentativeX;
           entity.y = tentativeY;
         };
@@ -1006,38 +968,57 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     } else {
                         const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity');
-                        const isMovingHorizontally = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('ArrowRight');
-                        if (!isMovingHorizontally) {
-                          if (!hasGravity) {
-                             entityA.vx = 0;
-                          }
-                        } else {
-                          const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
-                          const cursorsProps = cursorsComp ? {
-                              ...cursorsComp.defaultValues,
-                              ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
-                          } : {};
-                          const speed = Number(cursorsProps.speed) || 2;
-                          const allowUp = cursorsProps.allowUp !== false;
-                          const allowDown = cursorsProps.allowDown !== false;
-                          const allowLeft = cursorsProps.allowLeft !== false;
-                          const allowRight = cursorsProps.allowRight !== false;
+                        const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
+                        
+                        // Horizontal Movement
+                        if (cursorsComp) {
+                            const cursorsProps = {
+                                ...cursorsComp.defaultValues,
+                                ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
+                            };
+                            const speed = Number(cursorsProps.speed) || 2;
+                            const allowLeft = cursorsProps.allowLeft !== false;
+                            const allowRight = cursorsProps.allowRight !== false;
+                            const leftPressed = pressedKeys.current.has('ArrowLeft');
+                            const rightPressed = pressedKeys.current.has('ArrowRight');
 
-                          if (pressedKeys.current.has('ArrowLeft') && allowLeft) entityA.vx = -speed;
-                          if (pressedKeys.current.has('ArrowRight') && allowRight) entityA.vx = speed;
-                          if (!hasGravity) {
-                              if (pressedKeys.current.has('ArrowUp') && allowUp) entityA.vy = -speed;
-                              if (pressedKeys.current.has('ArrowDown') && allowDown) entityA.vy = speed;
-                          }
+                            if (leftPressed && allowLeft) {
+                                entityA.vx = -speed;
+                            } else if (rightPressed && allowRight) {
+                                entityA.vx = speed;
+                            } else {
+                                entityA.vx = 0;
+                            }
                         }
-                        if (pressedKeys.current.has(' ') && !hasGravity) {
-                            const jumpComp = entityA.template.components.find(c => c.definitionId === 'comp_jump');
-                            if (jumpComp) {
+
+                        // Vertical Movement (only for non-gravity entities)
+                        if (!hasGravity && cursorsComp) {
+                            const cursorsProps = {
+                                ...cursorsComp.defaultValues,
+                                ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
+                            };
+                            const speed = Number(cursorsProps.speed) || 2;
+                            const allowUp = cursorsProps.allowUp !== false;
+                            const allowDown = cursorsProps.allowDown !== false;
+                            const upPressed = pressedKeys.current.has('ArrowUp');
+                            const downPressed = pressedKeys.current.has('ArrowDown');
+
+                            if (upPressed && allowUp) {
+                                entityA.vy = -speed;
+                            } else if (downPressed && allowDown) {
+                                entityA.vy = speed;
+                            } else {
+                                entityA.vy = 0;
+                            }
+                        }
+
+                        // Jump (only for gravity entities)
+                        const jumpComp = entityA.template.components.find(c => c.definitionId === 'comp_jump');
+                        if (jumpComp && pressedKeys.current.has(' ')) {
+                            if (hasGravity && entityA.vy === 0) { // Only jump if on the ground
                                 const jumpProps = { ...jumpComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_jump'] || {}) };
                                 const jumpPower = Number(jumpProps.jumpPower || 256);
-                                if (entityA.vy === 0) {
-                                    entityA.vy = -jumpPower / 40;
-                                }
+                                entityA.vy = -jumpPower / 40;
                             }
                         }
                     }
@@ -1116,7 +1097,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     if (entityA.vy < 0) entityA.vy = 0;
                   } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
                     entityA.y = PREVIEW_HEIGHT - spriteHeight;
-                    if (entityA.vy > 0) entityA.vx = 0;
+                    if (entityA.vy > 0) entityA.vy = 0;
                   }
                 }
 
