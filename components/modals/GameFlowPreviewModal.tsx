@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -27,94 +28,45 @@ import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons/MsxIcons';
 import { StateMachine } from '../../statemachine.types';
 
-/** The size of a tile in pixels. @constant */
 const TILE_SIZE = 8;
-/** The width of the preview canvas in pixels. @constant */
 const PREVIEW_WIDTH = 256;
-/** The height of the preview canvas in pixels. @constant */
 const PREVIEW_HEIGHT = 192;
-/** The speed of the animation in milliseconds per frame. @constant */
 const ANIMATION_SPEED_MS = 200;
 
-/**
- * Represents an entity being animated in the preview.
- * @internal
- */
 interface AnimatedEntity {
-    /** The entity instance from the screen map. */
     instance: EntityInstance;
-    /** The entity template. */
     template: EntityTemplate;
-    /** The sprite associated with the entity. */
     sprite: Sprite;
-    /** The current x position in pixels. */
     x: number;
-    /** The current y position in pixels. */
     y: number;
-    /** The current velocity on the x-axis. */
     vx: number;
-    /** The current velocity on the y-axis. */
     vy: number;
-    /** The pre-rendered frame images for the animation. */
     frameImages: HTMLImageElement[];
-    /** The pre-rendered mirrored frame images for the animation. */
     mirroredFrameImages?: HTMLImageElement[];
-    /** The index of the current animation frame. */
     currentFrame: number;
-    /** The timestamp of the last frame update. */
     lastFrameUpdateTime: number;
-    /** The state machine associated with the entity, if any. */
     stateMachine?: StateMachine;
-    /** The name of the current state in the state machine. */
     currentState?: string;
 }
 
-/**
- * Props for the {@link GameFlowPreviewModal} component.
- * @category Modal
- */
 interface GameFlowPreviewModalProps {
-    /** Whether the modal is currently open. */
     isOpen: boolean;
-    /** Callback function to close the modal. */
     onClose: () => void;
-    /** The game flow graph data to preview. */
     graphData: GameFlowGraph;
-    /** A list of all project assets. */
     allAssets: ProjectAsset[];
-    /** The MSX font data. */
     msxFont: MSXFont;
-    /** The color attributes for the MSX font. */
     msxFontColorAttributes: MSXFontColorAttributes;
-    /** A list of all entity templates in the project. */
     entityTemplates: EntityTemplate[];
-    /** The current screen mode (e.g., 'screen2'). */
     currentScreenMode: string;
-    /** A list of all component definitions in the project. */
     componentDefinitions: ComponentDefinition[];
-    /** The initial state of the 'dynamic' toggle. */
     initialIsDynamic?: boolean;
-    /** The name of the current GameFlow asset. */
     gameFlowAssetName: string;
 }
 
-/**
- * Extends a world map connection with the target node ID for easier access.
- * @internal
- */
 interface EnrichedConnection extends WorldMapConnection {
     targetNodeId: string;
 }
 
-/**
- * A modal dialog for previewing the game flow.
- * This component provides an interactive simulation of the game's flow,
- * allowing the user to navigate through menus and world maps.
- *
- * @param props The component props.
- * @returns A React component.
- * @category Modal
- */
 export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     isOpen,
     onClose,
@@ -134,7 +86,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const entitiesRef = useRef<AnimatedEntity[]>([]);
     const heroRef = useRef<AnimatedEntity | null>(null);
     const pressedKeys = useRef<Set<string>>(new Set());
-
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
@@ -147,7 +98,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [currentExecutingGameFlowName, setCurrentExecutingGameFlowName] = useState<string>(gameFlowAssetName);
     const [playerEntryPoint, setPlayerEntryPoint] = useState<{x: number, y: number} | null>(null);
 
-    // Use nested graph if available, otherwise use the main graphData
     const currentGraphData = currentNestedGraphData || graphData;
     const { nodes, connections } = currentGraphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
@@ -158,22 +108,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             console.log(`Entity ${entityId} not found`);
             return;
         }
-        
         if (!entity.stateMachine) {
-            // Fallback: directly set velocity for movement with direction restrictions
             const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
             const cursorsProps = cursorsComp ? {
                 ...cursorsComp.defaultValues,
                 ...(entity.instance.componentOverrides?.['comp_cursors'] || {})
             } : {};
-
             const speed = Number(cursorsProps.speed) || 2;
             const allowUp = cursorsProps.allowUp !== false;
             const allowDown = cursorsProps.allowDown !== false;
             const allowLeft = cursorsProps.allowLeft !== false;
             const allowRight = cursorsProps.allowRight !== false;
             const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
-
             switch (pressedKey) {
                 case 'ArrowUp':
                     if (allowUp && !hasGravity) entity.vy = isKeyDown ? -speed : 0;
@@ -190,45 +136,31 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
             return;
         }
-        
         if (!entity.currentState) {
             console.log(`Entity ${entityId} has no current state`);
             return;
         }
-        
-        // Find current state
         const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
         if (!currentStateDef) {
             console.log(`Current state ${entity.currentState} not found in state machine`);
             return;
         }
-        
         console.log(`Entity ${entityId}: Current state = ${entity.currentState}, Key = ${pressedKey}, KeyDown = ${isKeyDown}`);
-        
-        // Look for matching transitions from current state
         for (const transition of entity.stateMachine.transitions) {
             if (transition.fromStateId !== currentStateDef.id) continue;
-            
             const condition = transition.conditions;
             if (!condition) continue;
-            
             let conditionMet = false;
-            
-            // Check if condition matches the key event
             if (isKeyDown && condition.type === 'KEY_PRESSED' && condition.params?.key === pressedKey) {
                 conditionMet = true;
             } else if (!isKeyDown && condition.type === 'KEY_RELEASED' && condition.params?.key === pressedKey) {
                 conditionMet = true;
             }
-            
             if (conditionMet) {
-                // Execute transition
                 const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
                 if (nextState) {
                     console.log(`Transitioning from ${entity.currentState} to ${nextState.name}`);
                     entity.currentState = nextState.name;
-                    
-                    // Execute actions
                     if (transition.actions) {
                         for (const action of transition.actions) {
                             if (action.type === 'SET_VELOCITY') {
@@ -238,7 +170,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             }
                         }
                     }
-                    return; // Exit after first matching transition
+                    return;
                 }
             }
         }
@@ -246,7 +178,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
     useEffect(() => {
         if (isOpen) {
-            // Prevent body scroll when modal is open
             document.body.style.overflow = 'hidden';
             modalRef.current?.focus();
             const startNode = graphData.nodes.find(n => n.type === 'Start');
@@ -261,33 +192,23 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             heroRef.current = null;
             pressedKeys.current.clear();
         } else {
-            // Restore body scroll and cleanup
             document.body.style.overflow = '';
             document.body.style.position = '';
             document.body.style.width = '';
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-
-            // Force layout recalculation after modal closes
             setTimeout(() => {
-                // Fix parent containers that might have broken layout
                 const mainContainer = document.querySelector('.flex-grow.flex.overflow-hidden');
                 if (mainContainer instanceof HTMLElement) {
-                    // Force re-render by toggling display
                     mainContainer.style.display = 'none';
-                    mainContainer.offsetHeight; // Force reflow
+                    mainContainer.offsetHeight;
                     mainContainer.style.display = '';
                 }
-
-                // Dispatch resize event
                 window.dispatchEvent(new Event('resize'));
-
-                // Force immediate reflow
                 document.body.offsetHeight;
             }, 100);
         }
     }, [isOpen, graphData, gameFlowAssetName]);
 
-    // Helper function to expand control options
     const expandMenuOptions = useCallback((subMenuNode: GameFlowSubMenuNode) => {
         const expandedOptions: Array<{text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string}> = [];
         subMenuNode.options.forEach((option, idx) => {
@@ -305,16 +226,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const handleAction = useCallback(() => {
         if (!currentNode || currentNode.type !== 'SubMenu') return;
         const subMenuNode = currentNode as GameFlowSubMenuNode;
-
-        // Expand options to handle control selections
         const expandedOptions = expandMenuOptions(subMenuNode);
         const selectedExpanded = expandedOptions[selectedOptionIndex];
         if (!selectedExpanded) return;
-
         const selectedOption = subMenuNode.options[selectedExpanded.originalIndex];
         if (!selectedOption) return;
-
-        // If it's a control option, save the selected control value to global variable
         if (selectedExpanded.isControlOption && selectedExpanded.controlValue && selectedOption.globalVariableName) {
             setGameGlobalVariables(prev => ({
                 ...prev,
@@ -322,14 +238,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }));
             console.log(`Global variable ${selectedOption.globalVariableName} set to: ${selectedExpanded.controlValue}`);
         }
-
         const connection = connections.find(c => c.from.nodeId === currentNode.id && c.from.sourceId === selectedOption.id);
         if (connection) {
-            // Skip through waypoints automatically
             let targetNodeId = connection.to.nodeId;
             let targetNode = nodes.find(n => n.id === targetNodeId);
-
-            // Keep following waypoints until we reach a non-waypoint node
             while (targetNode && targetNode.type === 'Waypoint') {
                 const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
                 if (nextConn) {
@@ -339,7 +251,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     break;
                 }
             }
-
             setNavigationStack(prev => [...prev, currentNode.id]);
             setCurrentNodeId(targetNodeId);
             setSelectedOptionIndex(0);
@@ -391,7 +302,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         } else if (currentNode.type === 'Text' || currentNode.type === 'Restart') {
             switch (e.key) {
                 case ' ': case 'Enter':
-                    // Restart node automatically goes to Start
                     if (currentNode.type === 'Restart') {
                         const startNode = nodes.find(n => n.type === 'Start');
                         if (startNode) {
@@ -400,14 +310,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                         break;
                     }
-
                     const conn = connections.find(c => c.from.nodeId === currentNode.id);
                     if (conn) {
-                        // Skip through waypoints automatically
                         let targetNodeId = conn.to.nodeId;
                         let targetNode = nodes.find(n => n.id === targetNodeId);
-
-                        // Keep following waypoints until we reach a non-waypoint node
                         while (targetNode && targetNode.type === 'Waypoint') {
                             const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
                             if (nextConn) {
@@ -417,7 +323,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 break;
                             }
                         }
-
                         setCurrentNodeId(targetNodeId);
                     }
                     break;
@@ -431,9 +336,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     if (jumpComp) {
                         const jumpProps = { ...jumpComp.defaultValues, ...(hero.instance.componentOverrides?.['comp_jump'] || {}) };
                         const jumpPower = Number(jumpProps.jumpPower || 256);
-                        // Simple grounded check, allows jumping if not moving vertically
                         if (hero.vy === 0) {
-                            hero.vy = -jumpPower / 40; // Adjusted for better jump height
+                            hero.vy = -jumpPower / 40;
                         }
                     }
                 }
@@ -480,7 +384,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
     useEffect(() => {
         if (!isOpen) {
-            heroRef.current = null; // Clear hero only when modal closes
+            heroRef.current = null;
             return;
         }
         if (!currentScreenMap) {
@@ -499,7 +403,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const nativeEntities = currentScreenMap.layers.entities.map(instance => {
             const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
             if (!template) return null;
-
             let spriteAssetId: string | undefined;
             if (instance.componentOverrides) {
                 for (const compId in instance.componentOverrides) {
@@ -521,17 +424,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                 }
             }
-
             const spriteAsset = getAsset(spriteAssetId, 'sprite');
             const sprite = spriteAsset?.data as Sprite;
             if (!sprite?.frames?.length) return null;
-
             const frameImages = sprite.frames.map(frame => {
                 const img = new Image();
                 img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
                 return img;
             });
-
             let mirroredFrameImages: HTMLImageElement[] | undefined;
             if (['right', 'left'].includes(sprite.facingDirection)) {
                 mirroredFrameImages = sprite.frames.map(frame => {
@@ -541,7 +441,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     return img;
                 });
             }
-
             let stateMachine: StateMachine | undefined;
             let currentState: string | undefined;
             const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
@@ -558,12 +457,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     currentState = initialState?.name;
                 }
             }
-
             const patrolComp = instance.componentOverrides?.comp_patrol;
             let startX = instance.position.x * TILE_SIZE;
             let startY = instance.position.y * TILE_SIZE;
             let vx = 0, vy = 0;
-
             if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
                 const endX = patrolComp.waypoint2_x ?? startX;
                 const endY = patrolComp.waypoint2_y ?? startY;
@@ -572,7 +469,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > 0) { vx = (dx / dist); vy = (dy / dist); }
             }
-
             return {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
@@ -583,13 +479,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         let entitiesToAnimate = nativeEntities;
         let heroForThisScreen = entitiesToAnimate.find(e => e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') || e.template.name === 'Player');
         console.log('[Effect] Native hero found:', heroForThisScreen?.instance.name);
-
         if (heroRef.current && !heroForThisScreen) {
             console.log('[Effect] No native hero. Carrying over:', heroRef.current.instance.name);
             entitiesToAnimate.push(heroRef.current);
             heroForThisScreen = heroRef.current;
         }
-
         if (heroForThisScreen && playerEntryPoint) {
             console.log(`[Effect] Applying entry point to hero: ${heroForThisScreen.instance.name}. Position:`, playerEntryPoint);
             heroForThisScreen.x = playerEntryPoint.x;
@@ -597,7 +491,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             heroForThisScreen.vx = 0;
             heroForThisScreen.vy = 0;
         }
-
         entitiesRef.current = entitiesToAnimate;
         heroRef.current = heroForThisScreen || null;
         console.log('[Effect] Final hero ref:', heroRef.current?.instance.name);
@@ -612,7 +505,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             });
             setPlayerEntryPoint(null);
         }
-
     }, [isOpen, currentScreenMap, allAssets, entityTemplates, componentDefinitions, checkKeyTransitions]);
 
     useEffect(() => {
@@ -621,11 +513,35 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const ctx = canvas?.getContext('2d');
         if (!canvas || !ctx) return;
         ctx.imageSmoothingEnabled = false;
+
+        // --- Nuevo: Pre-renderizado de Tiles ---
+        let tileCanvas: HTMLCanvasElement | null = null;
+        let tileCtx: CanvasRenderingContext2D | null = null;
+
         const subMenuNode = currentNode.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
         const bgAsset = subMenuNode?.appearance?.backgroundScreenAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.backgroundScreenAssetId) : null;
         const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
         const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
-        
+
+        const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string) => {
+            if (!map) return null; // No hay mapa para renderizar
+            tileCanvas = document.createElement('canvas');
+            tileCanvas.width = PREVIEW_WIDTH;
+            tileCanvas.height = PREVIEW_HEIGHT;
+            tileCtx = tileCanvas.getContext('2d');
+            if (!tileCtx) return null;
+            tileCtx.imageSmoothingEnabled = false;
+            renderScreenToCanvas(tileCanvas, map, tset, mode, TILE_SIZE); // Llama a tu función existente
+            return tileCanvas;
+        };
+
+        // Pre-renderizar el mapa actual si existe
+        let currentTileBuffer: HTMLCanvasElement | null = null;
+        if (screenMapToRender) {
+            currentTileBuffer = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode);
+        }
+        // --- Fin Nuevo ---
+
         const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes, customFont?: MSXFont, customColorAttrs?: MSXFontColorAttributes) => {
             return new Promise<void>((resolve) => {
                 const textImg = new Image();
@@ -637,15 +553,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         };
 
         const applyTransitionEffect = async (effect: string, duration: number) => {
-            const steps = Math.max(10, Math.floor(duration / 50)); // At least 10 steps, 50ms per step
-
+            const steps = Math.max(10, Math.floor(duration / 50));
             switch (effect) {
                 case 'cls':
                     ctx.fillStyle = '#000000';
                     ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                     await new Promise(resolve => setTimeout(resolve, 100));
                     break;
-
                 case 'dissolve_pixels':
                     for (let i = 0; i < steps; i++) {
                         const pixelsPerStep = Math.floor((PREVIEW_WIDTH * PREVIEW_HEIGHT) / steps);
@@ -658,7 +572,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         await new Promise(resolve => setTimeout(resolve, duration / steps));
                     }
                     break;
-
                 case 'dissolve_chars':
                     const charWidth = 8;
                     const charHeight = 8;
@@ -682,7 +595,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         await new Promise(resolve => setTimeout(resolve, duration / steps));
                     }
                     break;
-
                 case 'vertical_lines':
                     for (let x = 0; x < PREVIEW_WIDTH; x += Math.max(1, Math.floor(PREVIEW_WIDTH / steps))) {
                         ctx.fillStyle = '#000000';
@@ -690,7 +602,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         await new Promise(resolve => setTimeout(resolve, duration / steps));
                     }
                     break;
-
                 case 'horizontal_lines':
                     for (let y = 0; y < PREVIEW_HEIGHT; y += Math.max(1, Math.floor(PREVIEW_HEIGHT / steps))) {
                         ctx.fillStyle = '#000000';
@@ -698,26 +609,21 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         await new Promise(resolve => setTimeout(resolve, duration / steps));
                     }
                     break;
-
                 case 'spiral':
                     let left = 0, right = PREVIEW_WIDTH - 1, top = 0, bottom = PREVIEW_HEIGHT - 1;
                     const spiralStep = Math.max(1, Math.floor(Math.min(PREVIEW_WIDTH, PREVIEW_HEIGHT) / (steps * 2)));
                     while (left <= right && top <= bottom) {
-                        // Top
                         ctx.fillStyle = '#000000';
                         ctx.fillRect(left, top, right - left + 1, spiralStep);
                         top += spiralStep;
-                        // Right
                         if (left <= right && top <= bottom) {
                             ctx.fillRect(right - spiralStep + 1, top, spiralStep, bottom - top + 1);
                             right -= spiralStep;
                         }
-                        // Bottom
                         if (left <= right && top <= bottom) {
                             ctx.fillRect(left, bottom - spiralStep + 1, right - left + 1, spiralStep);
                             bottom -= spiralStep;
                         }
-                        // Left
                         if (left <= right && top <= bottom) {
                             ctx.fillRect(left, top, spiralStep, bottom - top + 1);
                             left += spiralStep;
@@ -725,7 +631,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         await new Promise(resolve => setTimeout(resolve, duration / Math.ceil(steps / 4)));
                     }
                     break;
-
                 case 'fill_white_squares':
                     const squareSize = 16;
                     const squaresX = Math.ceil(PREVIEW_WIDTH / squareSize);
@@ -755,9 +660,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         };
 
         const renderTextNodes = async () => {
-             // Don't clear screen for Transition nodes - they work on existing content
              if (currentNode.type !== 'Transition') {
-                 // Use node-specific background color if available, otherwise black
                  let bgColor = '#000000';
                  if (currentNode.type === 'SubMenu') {
                      bgColor = (currentNode as GameFlowSubMenuNode).appearance?.colors?.background || '#000000';
@@ -766,11 +669,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                  }
                  ctx.fillStyle = bgColor;
                  ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                 if (screenMapToRender) renderScreenToCanvas(canvas, screenMapToRender, tileset, currentScreenMode, TILE_SIZE);
+                 if (currentTileBuffer) {
+                     ctx.drawImage(currentTileBuffer, 0, 0); // Dibujar buffer pre-renderizado
+                 }
              }
             switch (currentNode.type) {
                 case 'Start':
-                    // Only show text if this is the Main GameFlow
                     if (currentExecutingGameFlowName === 'Main') {
                         const startText = 'Build with Mideas';
                         const startDims = getTextDimensionsMSX1(startText, 1);
@@ -788,11 +692,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         : null;
                     const subMenuFont = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
                     const subMenuFontColorAttrs = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
-
                     const titleDims = getTextDimensionsMSX1(subMenu.title, 1);
                     await drawTextAsync(subMenu.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes, subMenuFont, subMenuFontColorAttrs);
-
-                    // Expand control options into separate menu items
                     const expandedOptions: Array<{text: string, originalIndex: number, isControlOption?: boolean}> = [];
                     subMenu.options.forEach((option, idx) => {
                         if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
@@ -803,7 +704,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             expandedOptions.push({text: option.text, originalIndex: idx});
                         }
                     });
-
                     for (const [displayIndex, expandedOption] of expandedOptions.entries()) {
                          const optionText = expandedOption.text;
                          const optionDims = getTextDimensionsMSX1(optionText, 1);
@@ -826,20 +726,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         : null;
                     const textNodeFont = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
                     const textNodeFontColorAttrs = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
-
                     const textNodeTitle = textNode.title;
                     const textNodeMessage = textNode.message;
                     const textNodeTitleDims = getTextDimensionsMSX1(textNodeTitle, 1);
-
-                    // Render title
                     await drawTextAsync(textNodeTitle, (PREVIEW_WIDTH - textNodeTitleDims.width) / 2, 30, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
-
-                    // Render message (split into lines if needed)
                     const words = textNodeMessage.split(' ');
                     let lines: string[] = [];
                     let currentLine = '';
-                    const maxLineWidth = PREVIEW_WIDTH - 20; // 10px padding on each side
-
+                    const maxLineWidth = PREVIEW_WIDTH - 20;
                     for (const word of words) {
                         const testLine = currentLine ? currentLine + ' ' + word : word;
                         const testDims = getTextDimensionsMSX1(testLine, 1);
@@ -851,15 +745,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     }
                     if (currentLine) lines.push(currentLine);
-
                     const lineHeight = 10;
                     const startY = 60;
                     for (let i = 0; i < lines.length; i++) {
                         const lineDims = getTextDimensionsMSX1(lines[i], 1);
-                        await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
+                        await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes, textNodeFont, textNodeFontColorAttributes);
                     }
-
-                    // Render "Press Fire to continue" prompt
                     const promptText = 'Press Fire to continue';
                     const promptDims = getTextDimensionsMSX1(promptText, 1);
                     const baseColorAttrs = textNodeFontColorAttrs || msxFontColorAttributes;
@@ -873,30 +764,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, promptColorAttrs, textNodeFont, promptColorAttrs);
                     break;
                 case 'End':
-                    // End node simply returns control to parent if exists, otherwise terminates
                     if (gameFlowStack.length > 0) {
-                        // Pop back to parent GameFlow
                         const { parentGraphData, returnNodeId, parentGameFlowName } = gameFlowStack[gameFlowStack.length - 1];
                         setGameFlowStack(prev => prev.slice(0, -1));
-
-                        // Restore parent graph or null if returning to main
                         const restoredGraphData = gameFlowStack.length > 1
                             ? gameFlowStack[gameFlowStack.length - 2].parentGraphData
                             : graphData;
-
                         if (gameFlowStack.length > 1) {
                             setCurrentNestedGraphData(gameFlowStack[gameFlowStack.length - 2].parentGraphData);
                         } else {
                             setCurrentNestedGraphData(null);
                         }
-
-                        // Restore parent GameFlow name
                         setCurrentExecutingGameFlowName(parentGameFlowName);
-
-                        // Skip through waypoints to find the actual destination node
                         let finalNodeId = returnNodeId;
                         let finalNode = restoredGraphData.nodes.find(n => n.id === finalNodeId);
-
                         while (finalNode && finalNode.type === 'Waypoint') {
                             const nextConn = restoredGraphData.connections.find(c => c.from.nodeId === finalNodeId);
                             if (nextConn) {
@@ -906,24 +787,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 break;
                             }
                         }
-
                         setCurrentNodeId(finalNodeId);
                         setNavigationStack([]);
                         setSelectedOptionIndex(0);
                     }
-                    // If no parent, execution just stops here (no visual output)
                     break;
                 case 'Restart':
-                    const restartNode = currentNode as any; // GameFlowRestartNode
+                    const restartNode = currentNode as any;
                     const restartTitle = restartNode.title || 'Restart';
                     const restartMessage = restartNode.message || 'Press Fire to restart';
                     const restartTitleDims = getTextDimensionsMSX1(restartTitle, 1);
-                    // Render title
                     await drawTextAsync(restartTitle, (PREVIEW_WIDTH - restartTitleDims.width) / 2, 60, msxFontColorAttributes);
-                    // Render message
                     const restartMsgDims = getTextDimensionsMSX1(restartMessage, 1);
                     await drawTextAsync(restartMessage, (PREVIEW_WIDTH - restartMsgDims.width) / 2, 90, msxFontColorAttributes);
-                    // Render prompt
                     const restartPrompt = 'Press Fire to restart';
                     const restartPromptDims = getTextDimensionsMSX1(restartPrompt, 1);
                     await drawTextAsync(restartPrompt, (PREVIEW_WIDTH - restartPromptDims.width) / 2, PREVIEW_HEIGHT - 30, msxFontColorAttributes);
@@ -933,14 +809,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const effect = transitionNode.effect || 'cls';
                     const duration = transitionNode.duration || 1000;
                     await applyTransitionEffect(effect, duration);
-
-                    // Auto-advance to next node after transition
                     const transitionConn = connections.find(c => c.from.nodeId === currentNode.id);
                     if (transitionConn) {
                         let targetNodeId = transitionConn.to.nodeId;
                         let targetNode = nodes.find(n => n.id === targetNodeId);
-
-                        // Skip through waypoints
                         while (targetNode && targetNode.type === 'Waypoint') {
                             const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
                             if (nextConn) {
@@ -954,40 +826,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                     break;
                 case 'Group':
-                    const groupNode = currentNode as any; // GameFlowGroupNode
+                    const groupNode = currentNode as any;
                     const groupGameFlowAsset = allAssets.find(a => a.id === groupNode.gameFlowAssetId && a.type === 'gameflow');
-
                     if (!groupNode.gameFlowAssetId || !groupGameFlowAsset) {
-                        // Display error message
                         const groupTitle = groupNode.name || 'Group';
                         const groupTitleDims = getTextDimensionsMSX1(groupTitle, 1);
                         await drawTextAsync(groupTitle, (PREVIEW_WIDTH - groupTitleDims.width) / 2, 60, msxFontColorAttributes);
-
                         const noFlowText = groupNode.gameFlowAssetId ? 'GameFlow not found' : 'No GameFlow assigned';
                         const noFlowDims = getTextDimensionsMSX1(noFlowText, 1);
                         await drawTextAsync(noFlowText, (PREVIEW_WIDTH - noFlowDims.width) / 2, 90, msxFontColorAttributes);
                     } else {
-                        // Execute nested GameFlow
                         const nestedGraphData = groupGameFlowAsset.data as GameFlowGraph;
-
-                        // Find the connection from this Group node to determine return point
                         const exitConnection = connections.find(c => c.from.nodeId === currentNode.id);
                         const returnNodeId = exitConnection ? exitConnection.to.nodeId : currentNode.id;
-
-                        // Push current parent context onto stack
                         setGameFlowStack(prev => [...prev, {
                             parentGraphData: currentGraphData,
                             returnNodeId,
                             parentGameFlowName: currentExecutingGameFlowName
                         }]);
-
-                        // Set the nested graph as current
                         setCurrentNestedGraphData(nestedGraphData);
-
-                        // Update the executing GameFlow name
                         setCurrentExecutingGameFlowName(groupGameFlowAsset.name);
-
-                        // Find and navigate to the Start node of the nested GameFlow
                         const nestedStartNode = nestedGraphData.nodes.find(n => n.type === 'Start');
                         if (nestedStartNode) {
                             setCurrentNodeId(nestedStartNode.id);
@@ -999,51 +857,101 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         };
 
+        // --- Nueva Función de Colisión CORREGIDA ---
         const handleTilemapCollision = (entity: AnimatedEntity, screenMap: ScreenMap, tileset: Tile[], collisionCompDef: ComponentDefinition) => {
-            const entityCollisionProps = {
-                ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
-                ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
-                ...(entity.instance.componentOverrides?.['comp_collision'] || {})
-            };
-            const getHitboxFor = (x: number, y: number) => ({
-                x: x + (entityCollisionProps.offsetX || 0), y: y + (entityCollisionProps.offsetY || 0),
-                width: entityCollisionProps.hitboxWidth || entity.sprite.size.width, height: entityCollisionProps.hitboxHeight || entity.sprite.size.height,
-            });
-            const checkCollisionAt = (x: number, y: number) => {
-                const tileX = Math.floor(x / TILE_SIZE); const tileY = Math.floor(y / TILE_SIZE);
-                if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false; // Allow exiting screen
-                const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
-                if (!tileOnLayer || !tileOnLayer.tileId) return false;
-                const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-                return tile?.logicalProperties?.isSolid ?? false;
-            };
-            entity.x += entity.vx;
-            let hitbox = getHitboxFor(entity.x, entity.y);
-            if (entity.vx > 0) {
-                if (checkCollisionAt(hitbox.x + hitbox.width, hitbox.y) || checkCollisionAt(hitbox.x + hitbox.width, hitbox.y + hitbox.height - 1)) {
-                    entity.x = Math.floor((hitbox.x + hitbox.width) / TILE_SIZE) * TILE_SIZE - hitbox.width - (entityCollisionProps.offsetX || 0);
-                    entity.vx = 0; // triggerEvent(entity.instance.id, 'collision_wall');
-                }
-            } else if (entity.vx < 0) {
-                if (checkCollisionAt(hitbox.x, hitbox.y) || checkCollisionAt(hitbox.x, hitbox.y + hitbox.height - 1)) {
-                    entity.x = Math.ceil(hitbox.x / TILE_SIZE) * TILE_SIZE - (entityCollisionProps.offsetX || 0);
-                    entity.vx = 0; // triggerEvent(entity.instance.id, 'collision_wall');
-                }
+          if (!screenMap || !tileset || !collisionCompDef) return;
+
+          const entityCollisionProps = {
+            ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
+            ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
+            ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+          };
+
+          const getHitboxFor = (x: number, y: number) => ({
+            x: x + (entityCollisionProps.offsetX || 0),
+            y: y + (entityCollisionProps.offsetY || 0),
+            width: entityCollisionProps.hitboxWidth || entity.sprite.size.width,
+            height: entityCollisionProps.hitboxHeight || entity.sprite.size.height,
+          });
+
+          const checkCollisionAt = (x: number, y: number) => {
+            const tileX = Math.floor(x / TILE_SIZE);
+            const tileY = Math.floor(y / TILE_SIZE);
+            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false; // Permitir salir del mapa
+            const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+            if (!tileOnLayer || !tileOnLayer.tileId) return false;
+            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+            return tile?.logicalProperties?.isSolid ?? false;
+          };
+
+          // Calcular nueva posición tentativa
+          let tentativeX = entity.x + entity.vx;
+          let tentativeY = entity.y + entity.vy;
+
+          // Calcular hitbox en la nueva posición tentativa
+          let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+
+          // --- Resolver Colisión en X ---
+          if (entity.vx !== 0) {
+            let collisionX = false;
+            if (entity.vx > 0) { // Moviendo a la derecha
+              if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, tentativeHitbox.y) ||
+                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, tentativeHitbox.y + tentativeHitbox.height - 1)) {
+                collisionX = true;
+                // Ajustar posición X para que toque el borde izquierdo del tile colisionado
+                const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
+                tentativeX = tileLeftEdge - (entityCollisionProps.offsetX || 0) - tentativeHitbox.width;
+                entity.vx = 0; // Detener velocidad X
+              }
+            } else if (entity.vx < 0) { // Moviendo a la izquierda
+              if (checkCollisionAt(tentativeHitbox.x, tentativeHitbox.y) ||
+                  checkCollisionAt(tentativeHitbox.x, tentativeHitbox.y + tentativeHitbox.height - 1)) {
+                collisionX = true;
+                // Ajustar posición X para que toque el borde derecho del tile colisionado
+                const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
+                tentativeX = tileRightEdge - (entityCollisionProps.offsetX || 0);
+                entity.vx = 0; // Detener velocidad X
+              }
             }
-            entity.y += entity.vy;
-            hitbox = getHitboxFor(entity.x, entity.y);
-            if (entity.vy > 0) {
-                 if (checkCollisionAt(hitbox.x, hitbox.y + hitbox.height) || checkCollisionAt(hitbox.x + hitbox.width - 1, hitbox.y + hitbox.height)) {
-                    entity.y = Math.floor((hitbox.y + hitbox.height) / TILE_SIZE) * TILE_SIZE - hitbox.height - (entityCollisionProps.offsetY || 0);
-                    entity.vy = 0; // triggerEvent(entity.instance.id, 'collision_wall');
-                }
-            } else if (entity.vy < 0) {
-                if (checkCollisionAt(hitbox.x, hitbox.y) || checkCollisionAt(hitbox.x + hitbox.width - 1, hitbox.y)) {
-                    entity.y = Math.ceil(hitbox.y / TILE_SIZE) * TILE_SIZE - (entityCollisionProps.offsetY || 0);
-                    entity.vy = 0; // triggerEvent(entity.instance.id, 'collision_wall');
-                }
+            // Actualizar hitbox si X cambió
+            if (collisionX) {
+              tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
             }
+          }
+
+          // --- Resolver Colisión en Y ---
+          if (entity.vy !== 0) {
+            let collisionY = false;
+            if (entity.vy > 0) { // Cayendo
+              if (checkCollisionAt(tentativeHitbox.x, tentativeHitbox.y + tentativeHitbox.height) ||
+                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width - 1, tentativeHitbox.y + tentativeHitbox.height)) {
+                collisionY = true;
+                // Ajustar posición Y para que toque el borde superior del tile colisionado (suelo)
+                const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
+                tentativeY = tileTopEdge - (entityCollisionProps.offsetY || 0) - tentativeHitbox.height;
+                entity.vy = 0; // Detener velocidad Y (aterrizó)
+              }
+            } else if (entity.vy < 0) { // Saltando
+              if (checkCollisionAt(tentativeHitbox.x, tentativeHitbox.y) ||
+                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width - 1, tentativeHitbox.y)) {
+                collisionY = true;
+                // Ajustar posición Y para que toque el borde inferior del tile colisionado (techo)
+                const tileBottomEdge = Math.ceil(tentativeHitbox.y / TILE_SIZE) * TILE_SIZE;
+                tentativeY = tileBottomEdge - (entityCollisionProps.offsetY || 0);
+                entity.vy = 0; // Detener velocidad Y (golpeó techo)
+              }
+            }
+            // Actualizar hitbox si Y cambió
+            if (collisionY) {
+              tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+            }
+          }
+
+          // Aplicar la posición final resuelta
+          entity.x = tentativeX;
+          entity.y = tentativeY;
         };
+        // --- Fin Nueva Función ---
 
         const entityCollisionProps = (entity: AnimatedEntity) => {
              const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
@@ -1060,132 +968,159 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             width: props.hitboxWidth || entity.sprite.size.width, height: props.hitboxHeight || entity.sprite.size.height,
         });
 
-        const animate = () => {
+        // --- Nueva Función de Animación ---
+        let lastTime = 0;
+        const animate = (currentTime: number) => {
+            // --- Calcular deltaTime (opcional) ---
+            // const deltaTime = currentTime - lastTime;
+            // lastTime = currentTime;
+            // --- Fin deltaTime ---
+
+            // Limpiar solo el área principal
             ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-            if (screenMapToRender) renderScreenToCanvas(canvas, screenMapToRender, tileset, currentScreenMode, TILE_SIZE);
+
+            // Dibujar el fondo pre-renderizado (tiles)
+            if (currentTileBuffer) {
+                ctx.drawImage(currentTileBuffer, 0, 0);
+            } else {
+                // Si no hay buffer (por ejemplo, en nodos de texto), limpiar y dibujar fondo
+                ctx.fillStyle = '#000000'; // Color por defecto
+                if (subMenuNode?.appearance?.colors?.background) {
+                     ctx.fillStyle = subMenuNode.appearance.colors.background;
+                } else if (currentNode.type === 'Text') {
+                     const textNode = currentNode as GameFlowTextNode;
+                     ctx.fillStyle = textNode.appearance?.colors?.background || '#000000';
+                }
+                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            }
+
             const now = performance.now();
             entitiesRef.current.forEach((entityA, indexA) => {
+                // --- 1. Actualizar Velocidad ---
                 if (entityA === heroRef.current) {
-                    console.log(`[Animate Start] Hero: ${entityA.instance.name}, Pos: (${entityA.x.toFixed(2)}, ${entityA.y.toFixed(2)}), Vel: (${entityA.vx}, ${entityA.vy})`);
-                }
-
-                if (entityA === heroRef.current && !entityA.stateMachine) {
-                    const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity');
-                    const isMovingHorizontally = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('ArrowRight');
-                    if (!isMovingHorizontally) {
-                        entityA.vx = 0;
-                    }
-                
-                    if (!hasGravity) {
-                        const isMovingVertically = pressedKeys.current.has('ArrowUp') || pressedKeys.current.has('ArrowDown');
-                        if (!isMovingVertically) {
-                            entityA.vy = 0;
+                    if (entityA.stateMachine && entityA.currentState) {
+                        const stateDef = entityA.stateMachine.states.find(s => s.name === entityA.currentState);
+                        if (stateDef?.properties) {
+                            if (stateDef.properties.velocityX !== undefined) entityA.vx = stateDef.properties.velocityX;
+                            if (stateDef.properties.velocityY !== undefined) entityA.vy = stateDef.properties.velocityY;
                         }
-                    }
-                }
-                if (entityA.stateMachine && entityA.currentState) {
-                    const stateDef = entityA.stateMachine.states.find(s => s.name === entityA.currentState);
-                    if (stateDef?.properties) {
-                        if (stateDef.properties.velocityX !== undefined) entityA.vx = stateDef.properties.velocityX;
-                        if (stateDef.properties.velocityY !== undefined) entityA.vy = stateDef.properties.velocityY;
+                    } else {
+                        const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity');
+                        const isMovingHorizontally = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('ArrowRight');
+                        if (!isMovingHorizontally) {
+                          if (!hasGravity) {
+                             entityA.vx = 0;
+                          }
+                        } else {
+                          const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
+                          const cursorsProps = cursorsComp ? {
+                              ...cursorsComp.defaultValues,
+                              ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
+                          } : {};
+                          const speed = Number(cursorsProps.speed) || 2;
+                          const allowUp = cursorsProps.allowUp !== false;
+                          const allowDown = cursorsProps.allowDown !== false;
+                          const allowLeft = cursorsProps.allowLeft !== false;
+                          const allowRight = cursorsProps.allowRight !== false;
+
+                          if (pressedKeys.current.has('ArrowLeft') && allowLeft) entityA.vx = -speed;
+                          if (pressedKeys.current.has('ArrowRight') && allowRight) entityA.vx = speed;
+                          if (!hasGravity) {
+                              if (pressedKeys.current.has('ArrowUp') && allowUp) entityA.vy = -speed;
+                              if (pressedKeys.current.has('ArrowDown') && allowDown) entityA.vy = speed;
+                          }
+                        }
+                        if (pressedKeys.current.has(' ') && !hasGravity) {
+                            const jumpComp = entityA.template.components.find(c => c.definitionId === 'comp_jump');
+                            if (jumpComp) {
+                                const jumpProps = { ...jumpComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_jump'] || {}) };
+                                const jumpPower = Number(jumpProps.jumpPower || 256);
+                                if (entityA.vy === 0) {
+                                    entityA.vy = -jumpPower / 40;
+                                }
+                            }
+                        }
                     }
                 }
 
                 const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
                 if (gravityComp) {
-                    const gravityProps = { ...gravityComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_gravity'] || {}) };
-                    const strength = Number(gravityProps.strength || 0) / 60;
-                    const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
-                    entityA.vy += strength;
-                    if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
+                  const gravityProps = { ...gravityComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_gravity'] || {}) };
+                  const strength = Number(gravityProps.strength || 0) / 60;
+                  const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
+                  entityA.vy += strength;
+                  if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
                 }
 
+                // --- 2. Resolver Colisión y Aplicar Nueva Posición ---
                 const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
                 const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
-                
+
                 if (hasCollisionComp && collisionCompDef && screenMapToRender) {
-                    handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
+                  handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
                 } else {
-                    // Update position for entities without collision component
-                    entityA.x += entityA.vx;
-                    entityA.y += entityA.vy;
+                  entityA.x += entityA.vx;
+                  entityA.y += entityA.vy;
                 }
 
-                if (entityA === heroRef.current) {
-                    console.log(`[After Collision] Hero Pos: (${entityA.x.toFixed(2)}, ${entityA.y.toFixed(2)})`);
-                }
-
-                // --- Screen Boundary and Transition Logic (runs for all entities) ---
-                const spriteWidth = entityA.sprite.size.width;
-                const spriteHeight = entityA.sprite.size.height;
-
-                // Screen transition logic for the hero entity
+                // --- 3. Lógica de Transición de Pantalla (Solo para el Héroe) ---
                 if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap) {
-                    console.log('[Transition Check]', {
-                        isHero: entityA === heroRef.current,
-                        x: entityA.x,
-                        y: entityA.y,
-                        vx: entityA.vx,
-                        vy: entityA.vy,
-                        hasWorldMap: !!currentWorldMapGraph,
-                        hasScreenMap: !!currentScreenMap
-                    });
+                  const spriteWidth = entityA.sprite.size.width;
+                  const spriteHeight = entityA.sprite.size.height;
 
-                    let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
-                    if (entityA.x < 0 && entityA.vx < 0) exitDirection = 'west';
-                    else if (entityA.x + spriteWidth > PREVIEW_WIDTH && entityA.vx > 0) exitDirection = 'east';
-                    else if (entityA.y < 0 && entityA.vy < 0) exitDirection = 'north';
-                    else if (entityA.y + spriteHeight > PREVIEW_HEIGHT && entityA.vy > 0) exitDirection = 'south';
+                  let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
+                  if (entityA.x + spriteWidth / 2 < 0 && entityA.vx < 0) exitDirection = 'west';
+                  else if (entityA.x + spriteWidth / 2 > PREVIEW_WIDTH && entityA.vx > 0) exitDirection = 'east';
+                  else if (entityA.y + spriteHeight / 2 < 0 && entityA.vy < 0) exitDirection = 'north';
+                  else if (entityA.y + spriteHeight / 2 > PREVIEW_HEIGHT && entityA.vy > 0) exitDirection = 'south';
 
-                    if (exitDirection) {
-                        console.log(`[Exit Detected] Direction: ${exitDirection}`);
-                        const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
-                        if (currentScreenNode) {
-                            // Check for outgoing connection
-                            let connection = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === exitDirection);
-                            let targetNodeId = connection?.toNodeId;
-
-                            // If no outgoing, check for incoming connection
-                            if (!connection) {
-                                connection = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === exitDirection);
-                                targetNodeId = connection?.fromNodeId;
-                            }
-
-                            if (targetNodeId) {
-                                let newPlayerPos = { x: entityA.x, y: entityA.y };
-                                switch (exitDirection) {
-                                    case 'east': newPlayerPos.x = 0; break;
-                                    case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth; break;
-                                    case 'south': newPlayerPos.y = 0; break;
-                                    case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight; break;
-                                }
-                                setPlayerEntryPoint(newPlayerPos);
-                                handleScreenTransition(targetNodeId);
-                                return; // Stop processing this entity for this frame to allow transition
-                            }
+                  if (exitDirection) {
+                    console.log(`[Exit Detected] Direction: ${exitDirection}`);
+                    const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
+                    if (currentScreenNode) {
+                      let connection = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === exitDirection);
+                      let targetNodeId = connection?.toNodeId;
+                      if (!connection) {
+                        connection = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === exitDirection);
+                        targetNodeId = connection?.fromNodeId;
+                      }
+                      if (targetNodeId) {
+                        let newPlayerPos = { x: entityA.x, y: entityA.y };
+                        switch (exitDirection) {
+                          case 'east': newPlayerPos.x = 0; break;
+                          case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth; break;
+                          case 'south': newPlayerPos.y = 0; break;
+                          case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight; break;
                         }
+                        setPlayerEntryPoint(newPlayerPos);
+                        handleScreenTransition(targetNodeId);
+                        return; // Detener el procesamiento de este frame para permitir la transición
+                      }
                     }
+                  }
                 }
 
-                // Default boundary constraints for non-hero entities or if no transition occurs
+                // --- 4. Límites para Entidades No Héroe ---
                 if (entityA !== heroRef.current) {
-                    if (entityA.x < 0) {
-                        entityA.x = 0;
-                        if (entityA.vx < 0) entityA.vx = 0;
-                    } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
-                        entityA.x = PREVIEW_WIDTH - spriteWidth;
-                        if (entityA.vx > 0) entityA.vx = 0;
-                    }
-
-                    if (entityA.y < 0) {
-                        entityA.y = 0;
-                        if (entityA.vy < 0) entityA.vy = 0;
-                    } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
-                        entityA.y = PREVIEW_HEIGHT - spriteHeight;
-                        if (entityA.vy > 0) entityA.vy = 0;
-                    }
+                  const spriteWidth = entityA.sprite.size.width;
+                  const spriteHeight = entityA.sprite.size.height;
+                  if (entityA.x < 0) {
+                    entityA.x = 0;
+                    if (entityA.vx < 0) entityA.vx = 0;
+                  } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
+                    entityA.x = PREVIEW_WIDTH - spriteWidth;
+                    if (entityA.vx > 0) entityA.vx = 0;
+                  }
+                  if (entityA.y < 0) {
+                    entityA.y = 0;
+                    if (entityA.vy < 0) entityA.vy = 0;
+                  } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
+                    entityA.y = PREVIEW_HEIGHT - spriteHeight;
+                    if (entityA.vy > 0) entityA.vx = 0;
+                  }
                 }
 
+                // --- 5. Lógica de Colisión entre Entidades ---
                 if (hasCollisionComp) {
                     for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
                         const entityB = entitiesRef.current[indexB];
@@ -1207,6 +1142,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     }
                 }
+
+                // --- 6. Lógica de Patrulla ---
                 const patrolComp = entityA.instance.componentOverrides?.comp_patrol;
                 if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
                     const startPixelX = patrolComp.waypoint1_x; const startPixelY = patrolComp.waypoint1_y;
@@ -1218,46 +1155,67 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         entityA.vy = -entityA.vy;
                     }
                 }
-                // Only animate entities that have animation component
+
+                // --- 7. Animación de Sprites ---
                 const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
                 if (animComp && entityA.frameImages.length > 1 && now - entityA.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
                     entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
                     entityA.lastFrameUpdateTime = now;
                 }
+
+                // --- 8. Dibujar Entidad ---
                 let imageToDraw = entityA.frameImages[entityA.currentFrame];
-                 if (entityA.mirroredFrameImages) {
+                if (entityA.mirroredFrameImages) {
                     if (entityA.sprite.facingDirection === 'right' && entityA.vx < 0) imageToDraw = entityA.mirroredFrameImages[entityA.currentFrame];
                     else if (entityA.sprite.facingDirection === 'left' && entityA.vx > 0) imageToDraw = entityA.mirroredFrameImages[entityA.currentFrame];
                 }
-                if (imageToDraw) ctx.drawImage(imageToDraw, entityA.x, entityA.y);
+                // Asegurarse de que la imagen esté cargada antes de dibujar es crucial para el rendimiento
+                if (imageToDraw && imageToDraw.complete) {
+                     ctx.drawImage(imageToDraw, entityA.x, entityA.y);
+                } else if (imageToDraw) {
+                     // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
+                     // console.warn("Imagen no cargada aún:", entityA.instance.name);
+                }
             });
+
             animationFrameId.current = requestAnimationFrame(animate);
         };
-        
+        // --- Fin Nueva Función ---
+
         if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         if (currentNode.type === 'WorldLink') {
             if (isDynamic) {
+                lastTime = 0; // Reiniciar deltaTime
                 animationFrameId.current = requestAnimationFrame(animate);
             } else {
                 ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                if (screenMapToRender) {
-                    renderScreenToCanvas(canvas, screenMapToRender, tileset, currentScreenMode, TILE_SIZE);
-                    entitiesRef.current.forEach(entity => {
-                        if (entity.frameImages.length > 0) ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
-                    });
+                if (currentTileBuffer) { // Dibujar buffer estático
+                    ctx.drawImage(currentTileBuffer, 0, 0);
+                } else {
+                    // Si no hay buffer, dibujar fondo por defecto
+                     ctx.fillStyle = '#000000';
+                     ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                 }
+                entitiesRef.current.forEach(entity => {
+                    if (entity.frameImages.length > 0 && entity.frameImages[0].complete) {
+                        ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
+                    }
+                });
             }
         } else {
             renderTextNodes();
         }
+
         return () => {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+            // tileCanvas = null; tileCtx = null; // Opcional: limpiar referencias
         };
     }, [
         isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
-        msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions
+        msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
+        // Asegurarse de que dependencias de las funciones internas estén aquí si cambian
+        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT
     ]);
-
 
     if (!isOpen) return null;
 
@@ -1369,11 +1327,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const conn = connections.find(c => c.from.nodeId === currentNode.id);
                         return conn ? (
                             <Button onClick={() => {
-                                // Skip through waypoints automatically
                                 let targetNodeId = conn.to.nodeId;
                                 let targetNode = nodes.find(n => n.id === targetNodeId);
-
-                                // Keep following waypoints until we reach a non-waypoint node
                                 while (targetNode && targetNode.type === 'Waypoint') {
                                     const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
                                     if (nextConn) {
@@ -1383,7 +1338,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         break;
                                     }
                                 }
-
                                 setNavigationStack(prev => [...prev, currentNode.id]);
                                 setCurrentNodeId(targetNodeId);
                                 setSelectedOptionIndex(0);
@@ -1398,6 +1352,5 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         </div>
     );
 
-    // Render modal in a portal to avoid layout issues
     return createPortal(modalContent, document.body);
 };
