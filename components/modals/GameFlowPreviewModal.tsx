@@ -88,6 +88,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const entitiesRef = useRef<AnimatedEntity[]>([]);
     const heroRef = useRef<AnimatedEntity | null>(null);
     const pressedKeys = useRef<Set<string>>(new Set());
+    const jumpKeyProcessed = useRef<boolean>(false);
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
@@ -169,6 +170,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             setCurrentExecutingGameFlowName(gameFlowAssetName);
             heroRef.current = null;
             pressedKeys.current.clear();
+            jumpKeyProcessed.current = false;
         } else {
             document.body.style.overflow = '';
             document.body.style.position = '';
@@ -261,6 +263,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 checkKeyTransitions(heroRef.current.instance.id, e.key, false);
             }
+        }
+        // Reset jump key processed flag when space is released
+        if (e.key === ' ') {
+            jumpKeyProcessed.current = false;
         }
     }, [checkKeyTransitions]);
 
@@ -1045,11 +1051,25 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                         // Jump (only for gravity entities)
                         const jumpComp = entityA.template.components.find(c => c.definitionId === 'comp_jump');
-                        if (jumpComp && pressedKeys.current.has(' ')) {
-                            if (hasGravity && entityA.isOnGround) { // Only jump if on the ground
-                                const jumpProps = { ...jumpComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_jump'] || {}) };
-                                const jumpPower = Number(jumpProps.jumpPower || 256);
-                                entityA.vy = -jumpPower / 40;
+                        if (jumpComp) {
+                            const jumpProps = { ...jumpComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_jump'] || {}) };
+                            const requireKeyRelease = jumpProps.requireKeyRelease !== 'false' && jumpProps.requireKeyRelease !== false;
+                            const spacePressed = pressedKeys.current.has(' ');
+
+                            if (hasGravity && entityA.isOnGround && spacePressed) {
+                                // Check if we can jump based on requireKeyRelease setting
+                                const canJump = !requireKeyRelease || !jumpKeyProcessed.current;
+
+                                if (canJump) {
+                                    const jumpPower = Number(jumpProps.jumpPower || 256);
+                                    entityA.vy = -jumpPower / 40;
+                                    jumpKeyProcessed.current = true;
+                                }
+                            }
+
+                            // Reset jump key processed when not pressing space and on ground
+                            if (!spacePressed && entityA.isOnGround) {
+                                jumpKeyProcessed.current = false;
                             }
                         }
                     }

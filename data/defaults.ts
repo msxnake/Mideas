@@ -47,6 +47,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "maxJumps", type: "byte", defaultValue: "1", description: "Number of jumps allowed before landing." },
       { name: "currentJumpCount", type: "byte", defaultValue: "0", description: "Current jump count." },
       { name: "isJumping", type: "boolean", defaultValue: "false", description: "Is the entity currently jumping?" },
+      { name: "requireKeyRelease", type: "boolean", defaultValue: "true", description: "If true, jump key must be released before jumping again." },
     ],
   },
   {
