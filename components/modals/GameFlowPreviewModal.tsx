@@ -52,6 +52,7 @@ interface AnimatedEntity {
     spawnTime: number; // Timestamp when entity was created
     animationHasCompleted?: boolean; // True when a non-looping animation reaches its last frame
     lastAnimationState?: string; // Track which state's animation was playing
+    isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
 }
 
 interface GameFlowPreviewModalProps {
@@ -1771,11 +1772,29 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         entityA.currentFrame = 0;
                     }
 
-                    let imageToDraw = entityA.frameImages[entityA.currentFrame];
+                    // Determine which image to draw based on movement direction
+                    let shouldUseMirrored = false;
+
                     if (entityA.mirroredFrameImages && entityA.mirroredFrameImages.length > entityA.currentFrame) {
-                        if (entityA.sprite.facingDirection === 'right' && entityA.vx < 0) imageToDraw = entityA.mirroredFrameImages[entityA.currentFrame];
-                        else if (entityA.sprite.facingDirection === 'left' && entityA.vx > 0) imageToDraw = entityA.mirroredFrameImages[entityA.currentFrame];
+                        // Check if currently moving
+                        if (entityA.vx !== 0) {
+                            // Moving: determine direction and update facing state
+                            if (entityA.sprite.facingDirection === 'right' && entityA.vx < 0) {
+                                shouldUseMirrored = true;
+                                entityA.isFacingMirrored = true; // Remember: facing left
+                            } else if (entityA.sprite.facingDirection === 'left' && entityA.vx > 0) {
+                                shouldUseMirrored = true;
+                                entityA.isFacingMirrored = true; // Remember: facing right
+                            } else {
+                                entityA.isFacingMirrored = false; // Remember: facing default direction
+                            }
+                        } else {
+                            // Not moving: use last known direction
+                            shouldUseMirrored = entityA.isFacingMirrored === true;
+                        }
                     }
+
+                    let imageToDraw = shouldUseMirrored ? entityA.mirroredFrameImages![entityA.currentFrame] : entityA.frameImages[entityA.currentFrame];
                     // Asegurarse de que la imagen esté cargada antes de dibujar es crucial para el rendimiento
                     if (imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
                          ctx.drawImage(imageToDraw, entityA.x, entityA.y);

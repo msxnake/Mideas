@@ -1197,6 +1197,7 @@ interface AnimatedEntity {
         hasExecutedOnEnter: boolean;
     };
     wallCollisionLogged?: boolean;
+    isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
 }
 
 interface ScreenPlayModalProps {
@@ -2304,15 +2305,30 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 // Choose correct sprite image (animation is now handled by animation engine)
                 // Ensure currentFrame is within bounds
                 const safeFrameIndex = Math.min(entity.currentFrame, entity.frameImages.length - 1);
-                let imageToDraw = entity.frameImages[safeFrameIndex];
+
+                // Determine which image to draw based on movement direction
+                let shouldUseMirrored = false;
 
                 if (entity.mirroredFrameImages && safeFrameIndex < entity.mirroredFrameImages.length) {
-                    if (entity.sprite.facingDirection === 'right' && entity.vx < 0) {
-                        imageToDraw = entity.mirroredFrameImages[safeFrameIndex];
-                    } else if (entity.sprite.facingDirection === 'left' && entity.vx > 0) {
-                        imageToDraw = entity.mirroredFrameImages[safeFrameIndex];
+                    // Check if currently moving
+                    if (entity.vx !== 0) {
+                        // Moving: determine direction and update facing state
+                        if (entity.sprite.facingDirection === 'right' && entity.vx < 0) {
+                            shouldUseMirrored = true;
+                            entity.isFacingMirrored = true; // Remember: facing left
+                        } else if (entity.sprite.facingDirection === 'left' && entity.vx > 0) {
+                            shouldUseMirrored = true;
+                            entity.isFacingMirrored = true; // Remember: facing right
+                        } else {
+                            entity.isFacingMirrored = false; // Remember: facing default direction
+                        }
+                    } else {
+                        // Not moving: use last known direction
+                        shouldUseMirrored = entity.isFacingMirrored === true;
                     }
                 }
+
+                let imageToDraw = shouldUseMirrored ? entity.mirroredFrameImages![safeFrameIndex] : entity.frameImages[safeFrameIndex];
 
                 // Only render entities if entitiesEnabled is true
                 if (entitiesEnabled && imageToDraw) {
