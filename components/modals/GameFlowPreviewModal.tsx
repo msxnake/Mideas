@@ -1221,12 +1221,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 ...(entity.instance.componentOverrides?.['comp_collision'] || {})
             };
 
+            // Prioridad de hitbox: comp_collision > sprite.hitbox > sprite.size
+            const spriteHitbox = entity.sprite.hitbox;
+            const fallbackWidth = spriteHitbox?.width ?? entity.sprite.size.width;
+            const fallbackHeight = spriteHitbox?.height ?? entity.sprite.size.height;
+            const fallbackOffsetX = spriteHitbox?.offsetX ?? 0;
+            const fallbackOffsetY = spriteHitbox?.offsetY ?? 0;
+
             // Convertir strings a números para propiedades numéricas
             return {
-                hitboxWidth: Number(props.hitboxWidth) || 16,
-                hitboxHeight: Number(props.hitboxHeight) || 16,
-                offsetX: Number(props.offsetX) || 0,
-                offsetY: Number(props.offsetY) || 0,
+                hitboxWidth: Number(props.hitboxWidth) || fallbackWidth,
+                hitboxHeight: Number(props.hitboxHeight) || fallbackHeight,
+                offsetX: (props.offsetX !== undefined && props.offsetX !== '' && Number(props.offsetX) !== 0) ? Number(props.offsetX) : fallbackOffsetX,
+                offsetY: (props.offsetY !== undefined && props.offsetY !== '' && Number(props.offsetY) !== 0) ? Number(props.offsetY) : fallbackOffsetY,
                 collisionLayer: Number(props.collisionLayer) || 1,
                 collidesWith: Number(props.collidesWith) || 255,
                 isStatic: props.isStatic === true || props.isStatic === 'true',

@@ -497,10 +497,13 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 if (!wallCollisionComp) return null;
 
                 const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) };
-                const hitboxWidth = Number(props.hitboxWidth) || 16;
-                const hitboxHeight = Number(props.hitboxHeight) || 16;
-                const offsetX = Number(props.offsetX) || 0;
-                const offsetY = Number(props.offsetY) || 0;
+
+                // Prioridad: comp_wall_collision > sprite.hitbox > sprite.size
+                const spriteHitbox = entity.sprite.hitbox;
+                const hitboxWidth = Number(props.hitboxWidth) || spriteHitbox?.width || entity.sprite.size.width;
+                const hitboxHeight = Number(props.hitboxHeight) || spriteHitbox?.height || entity.sprite.size.height;
+                const offsetX = (props.offsetX !== undefined && Number(props.offsetX) !== 0) ? Number(props.offsetX) : (spriteHitbox?.offsetX ?? 0);
+                const offsetY = (props.offsetY !== undefined && Number(props.offsetY) !== 0) ? Number(props.offsetY) : (spriteHitbox?.offsetY ?? 0);
                 const tileSize = Number(props.tileSize) || 8;
 
                 const entityLeft = newX + offsetX;
@@ -559,10 +562,13 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 }
 
                 const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_wall_collision'] || {}) };
-                const hitboxWidth = Number(props.hitboxWidth) || 16;
-                const hitboxHeight = Number(props.hitboxHeight) || 16;
-                const offsetX = Number(props.offsetX) || 0;
-                const offsetY = Number(props.offsetY) || 0;
+
+                // Prioridad: comp_wall_collision > sprite.hitbox > sprite.size
+                const spriteHitbox = entity.sprite.hitbox;
+                const hitboxWidth = Number(props.hitboxWidth) || spriteHitbox?.width || entity.sprite.size.width;
+                const hitboxHeight = Number(props.hitboxHeight) || spriteHitbox?.height || entity.sprite.size.height;
+                const offsetX = (props.offsetX !== undefined && Number(props.offsetX) !== 0) ? Number(props.offsetX) : (spriteHitbox?.offsetX ?? 0);
+                const offsetY = (props.offsetY !== undefined && Number(props.offsetY) !== 0) ? Number(props.offsetY) : (spriteHitbox?.offsetY ?? 0);
                 const tileSize = Number(props.tileSize) || 8;
 
                 // Determine movement direction
@@ -2337,9 +2343,9 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
                 // Debug: Draw hitboxes when debug mode is enabled
                 if (debugMode) {
-                    // Get hitbox values from sprite first, then fallback to collision component
-                    let hitboxWidth = 16;
-                    let hitboxHeight = 16;
+                    // Get hitbox values from sprite first, then fallback to collision component, then sprite size
+                    let hitboxWidth = entity.sprite.size.width;
+                    let hitboxHeight = entity.sprite.size.height;
                     let offsetX = 0;
                     let offsetY = 0;
 
@@ -2387,8 +2393,8 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         const collisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision' || c.definitionId === 'comp_wall_collision');
                         if (collisionComp) {
                             const props = { ...collisionComp.defaultValues, ...(entity.instance?.componentOverrides?.[collisionComp.definitionId] || {}) };
-                            hitboxWidth = Number(props.hitboxWidth) || 16;
-                            hitboxHeight = Number(props.hitboxHeight) || 16;
+                            hitboxWidth = Number(props.hitboxWidth) || entity.sprite.size.width;
+                            hitboxHeight = Number(props.hitboxHeight) || entity.sprite.size.height;
                             offsetX = Number(props.offsetX) || 0;
                             offsetY = Number(props.offsetY) || 0;
                         }
