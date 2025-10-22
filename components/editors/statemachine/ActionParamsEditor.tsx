@@ -62,12 +62,23 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         );
 
       case ActionTypes.CHANGE_SPRITE:
+        const availableSprites = allAssets.filter(a => a.type === 'sprite');
         return (
-          <ParamInput 
-            label="Sprite Name"
-            value={action.params.sprite}
-            onChange={(e) => handleParamChange('sprite', e.target.value)}
-          />
+          <div className="flex items-center space-x-2">
+            <label className="text-xs text-gray-400 w-16">Sprite</label>
+            <select
+              value={action.params.sprite || ''}
+              onChange={(e) => handleParamChange('sprite', e.target.value)}
+              className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+            >
+              <option value="">-- Select Sprite --</option>
+              {availableSprites.map((spriteAsset) => (
+                <option key={spriteAsset.id} value={spriteAsset.data.name}>
+                  {spriteAsset.data.name}
+                </option>
+              ))}
+            </select>
+          </div>
         );
 
       case ActionTypes.PLAY_ANIMATION:
@@ -152,6 +163,78 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 handleParamChange('amount', isNaN(parsedVal) ? 0 : parsedVal);
               }}
             />
+          </div>
+        );
+
+      case ActionTypes.CHANGE_GAME_FLOW_NODE:
+        const availableNodes = allAssets.filter(a => a.type === 'gameflow');
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-24">Target Node</label>
+              <input
+                type="text"
+                placeholder="Node ID (e.g., 'node_123')"
+                value={action.params.nodeId || action.params.targetNodeId || ''}
+                onChange={(e) => handleParamChange('nodeId', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              />
+            </div>
+            <div className="text-xs text-yellow-400 italic">
+              🎮 Navigates to the specified game flow node or world map screen
+            </div>
+          </div>
+        );
+
+      case ActionTypes.DECREASE_LIVES:
+      case ActionTypes.INCREASE_LIVES:
+        return (
+          <div className="space-y-2">
+            <ParamInput
+              label="Amount"
+              type="number"
+              value={action.params.amount !== undefined ? action.params.amount : 1}
+              onChange={(e) => {
+                const val = e.target.value;
+                const parsedVal = val === '' ? 1 : parseInt(val, 10);
+                handleParamChange('amount', isNaN(parsedVal) ? 1 : parsedVal);
+              }}
+            />
+            <div className="text-xs text-yellow-400 italic">
+              ❤️ Modifies the entity's comp_health.current value
+            </div>
+          </div>
+        );
+
+      case ActionTypes.RESPAWN_PLAYER:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-msx-textsecondary mb-2">
+              Leave X and Y empty to use entity's initial spawn position
+            </div>
+            <ParamInput
+              label="X Position"
+              type="number"
+              value={action.params.x ?? ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                const parsedVal = val === '' ? undefined : parseFloat(val);
+                handleParamChange('x', parsedVal);
+              }}
+            />
+            <ParamInput
+              label="Y Position"
+              type="number"
+              value={action.params.y ?? ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                const parsedVal = val === '' ? undefined : parseFloat(val);
+                handleParamChange('y', parsedVal);
+              }}
+            />
+            <div className="text-xs text-yellow-400 italic">
+              🔄 Resets entity position and velocity
+            </div>
           </div>
         );
 

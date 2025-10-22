@@ -49,6 +49,9 @@ interface AnimatedEntity {
     stateMachine?: StateMachine;
     currentState?: string;
     isOnGround: boolean;
+    spawnTime: number; // Timestamp when entity was created
+    animationHasCompleted?: boolean; // True when a non-looping animation reaches its last frame
+    lastAnimationState?: string; // Track which state's animation was playing
 }
 
 interface GameFlowPreviewModalProps {
@@ -89,6 +92,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const heroRef = useRef<AnimatedEntity | null>(null);
     const pressedKeys = useRef<Set<string>>(new Set());
     const jumpKeyProcessed = useRef<boolean>(false);
+    const pendingEvents = useRef<Map<string, Set<string>>>(new Map()); // entityId -> Set of event names
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
@@ -104,6 +108,262 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const currentGraphData = currentNestedGraphData || graphData;
     const { nodes, connections } = currentGraphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
+
+    // Disparar un evento para una entidad
+    const triggerEvent = useCallback((entityId: string, eventName: string) => {
+        if (!pendingEvents.current.has(entityId)) {
+            pendingEvents.current.set(entityId, new Set());
+        }
+        pendingEvents.current.get(entityId)!.add(eventName);
+        console.log(`[EVENT] Triggered "${eventName}" for entity ${entityId}`);
+    }, []);
+
+    // Evaluar si una condición se cumple basada en eventos pendientes
+    const evaluateCondition = useCallback((condition: any, entityEvents: Set<string>): boolean => {
+        if (!condition) return false;
+
+        switch (condition.type) {
+            case 'HAS_COLLISION':
+                // Verificar tipo específico de colisión (enemy, item, wall, any)
+                const collisionType = condition.params?.collisionType || 'any';
+
+                switch (collisionType) {
+                    case 'enemy':
+                        return entityEvents.has('collision_enemy');
+                    case 'item':
+                        return entityEvents.has('collision_item');
+                    case 'wall':
+                        return entityEvents.has('collision_wall');
+                    case 'any':
+                    default:
+                        // Cualquier tipo de colisión
+                        return entityEvents.has('collision_enemy') ||
+                               entityEvents.has('collision_item') ||
+                               entityEvents.has('collision_wall');
+                }
+
+            case 'ANIMATION_COMPLETE':
+                // Check if animation_finished event exists
+                return entityEvents.has('animation_finished');
+
+            case 'AND':
+                return condition.conditions?.every((c: any) => evaluateCondition(c, entityEvents)) ?? false;
+
+            case 'OR':
+                return condition.conditions?.some((c: any) => evaluateCondition(c, entityEvents)) ?? false;
+
+            case 'NOT':
+                return !condition.conditions?.every((c: any) => evaluateCondition(c, entityEvents)) ?? true;
+
+            default:
+                return false;
+        }
+    }, []);
+
+    // Procesar eventos pendientes y verificar transiciones
+    const processEventTransitions = useCallback((entity: AnimatedEntity) => {
+        if (!entity.stateMachine || !entity.currentState) return;
+
+        const entityEvents = pendingEvents.current.get(entity.instance.id);
+        if (!entityEvents || entityEvents.size === 0) return;
+
+        const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
+        if (!currentStateDef) return;
+
+        // Buscar transiciones que respondan a estos eventos
+        for (const transition of entity.stateMachine.transitions) {
+            if (transition.fromStateId !== currentStateDef.id) continue;
+
+            // Evaluar la condición de la transición
+            if (transition.conditions && evaluateCondition(transition.conditions, entityEvents)) {
+                const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
+                if (nextState) {
+                    console.log(`[STATE MACHINE] ${entity.instance.name}: Condition met, transitioning from ${entity.currentState} to ${nextState.name}`);
+                    entity.currentState = nextState.name;
+
+                    // Aplicar propiedades del nuevo estado
+                    if (nextState.properties) {
+                        if (nextState.properties.velocityX !== undefined) entity.vx = nextState.properties.velocityX;
+                        if (nextState.properties.velocityY !== undefined) entity.vy = nextState.properties.velocityY;
+                    }
+
+                    // Ejecutar acciones de la transición
+                    if (transition.actions) {
+                        for (const action of transition.actions) {
+                            switch (action.type) {
+                                case 'SET_VELOCITY':
+                                    entity.vx = action.params.x || 0;
+                                    entity.vy = action.params.y || 0;
+                                    console.log(`[ACTION] SET_VELOCITY: vx=${entity.vx}, vy=${entity.vy}`);
+                                    break;
+
+                                case 'CHANGE_SPRITE':
+                                    const spriteName = action.params.sprite || action.params.spriteName || action.params.sprite_name;
+                                    if (spriteName) {
+                                        // Find sprite in allAssets
+                                        const spriteAssetData = allAssets.find(a =>
+                                            a.type === 'sprite' &&
+                                            (a.data.name === spriteName || a.data.id === spriteName || a.name === spriteName)
+                                        );
+
+                                        if (spriteAssetData) {
+                                            const spriteData = spriteAssetData.data as Sprite;
+                                            entity.sprite = spriteData;
+                                            entity.currentFrame = 0; // Reset to first frame
+
+                                            // Regenerate frame images for the new sprite
+                                            // Use Promise.all to wait for all images to load
+                                            const imageLoadPromises = spriteData.frames.map((frame, idx) => {
+                                                return new Promise<HTMLImageElement>((resolve, reject) => {
+                                                    const img = new Image();
+                                                    img.onload = () => resolve(img);
+                                                    img.onerror = (error) => {
+                                                        console.error(`[ACTION] CHANGE_SPRITE: Failed to load frame ${idx} for "${spriteName}"`, error);
+                                                        reject(error);
+                                                    };
+                                                    try {
+                                                        img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                                    } catch (err) {
+                                                        console.error(`[ACTION] CHANGE_SPRITE: Error creating data URL for frame ${idx}:`, err);
+                                                        reject(err);
+                                                    }
+                                                });
+                                            });
+
+                                            // Load images asynchronously
+                                            Promise.all(imageLoadPromises).then((loadedImages) => {
+                                                entity.frameImages = loadedImages;
+                                                console.log(`[ACTION] CHANGE_SPRITE: Successfully loaded sprite "${spriteName}" with ${loadedImages.length} frames`);
+                                            }).catch(() => {
+                                                console.error(`[ACTION] CHANGE_SPRITE: Failed to load some frames for "${spriteName}"`);
+                                            });
+
+                                            console.log(`[ACTION] CHANGE_SPRITE: Changing to sprite "${spriteName}"...`);
+                                        } else {
+                                            const availableSprites = allAssets.filter(a => a.type === 'sprite').map(a => a.data.name);
+                                            console.warn(`[ACTION] CHANGE_SPRITE: Sprite "${spriteName}" not found. Available sprites:`, availableSprites);
+                                        }
+                                    } else {
+                                        console.warn(`[ACTION] CHANGE_SPRITE: No sprite name provided. Params:`, action.params);
+                                    }
+                                    break;
+
+                                case 'PLAY_ANIMATION':
+                                    const animName = action.params.animationName;
+                                    console.log(`[ACTION] PLAY_ANIMATION: ${animName} (not fully implemented)`);
+                                    // TODO: Implement animation system if needed
+                                    break;
+
+                                case 'DESTROY_ENTITY':
+                                    entity.markedForDestruction = true;
+                                    console.log(`[ACTION] DESTROY_ENTITY: Marked ${entity.instance.name} for destruction`);
+                                    break;
+
+                                case 'SET_POSITION':
+                                    if (action.params.x !== undefined) entity.x = Number(action.params.x);
+                                    if (action.params.y !== undefined) entity.y = Number(action.params.y);
+                                    console.log(`[ACTION] SET_POSITION: x=${entity.x}, y=${entity.y}`);
+                                    break;
+
+                                case 'MOVE_BY':
+                                    entity.x += Number(action.params.x || 0);
+                                    entity.y += Number(action.params.y || 0);
+                                    console.log(`[ACTION] MOVE_BY: dx=${action.params.x}, dy=${action.params.y}`);
+                                    break;
+
+                                case 'SET_VARIABLE':
+                                    // TODO: Implement global variables system
+                                    console.log(`[ACTION] SET_VARIABLE: ${action.params.variableName} = ${action.params.value}`);
+                                    break;
+
+                                case 'INCREMENT_VARIABLE':
+                                    // TODO: Implement global variables system
+                                    console.log(`[ACTION] INCREMENT_VARIABLE: ${action.params.variableName} += ${action.params.amount}`);
+                                    break;
+
+                                case 'DECREMENT_VARIABLE':
+                                    // TODO: Implement global variables system
+                                    console.log(`[ACTION] DECREMENT_VARIABLE: ${action.params.variableName} -= ${action.params.amount}`);
+                                    break;
+
+                                case 'CHANGE_GAME_FLOW_NODE':
+                                    const targetNodeId = action.params.nodeId || action.params.targetNodeId;
+                                    if (targetNodeId) {
+                                        console.log(`[ACTION] CHANGE_GAME_FLOW_NODE: Navigating to node "${targetNodeId}"`);
+                                        // Store the target node for deferred navigation (after frame completes)
+                                        (entity as any).pendingNodeTransition = targetNodeId;
+                                    } else {
+                                        console.warn(`[ACTION] CHANGE_GAME_FLOW_NODE: No target node specified`);
+                                    }
+                                    break;
+
+                                case 'DECREASE_LIVES':
+                                    const decreaseAmount = Number(action.params.amount || 1);
+                                    // Find comp_health
+                                    const healthCompForDecrease = entity.template.components.find(c => c.definitionId === 'comp_health');
+                                    if (healthCompForDecrease) {
+                                        const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
+                                        const currentLives = Number(healthOverride.current || healthCompForDecrease.defaultValues?.current || 3);
+                                        const newLives = Math.max(0, currentLives - decreaseAmount);
+
+                                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
+                                        if (!entity.instance.componentOverrides['comp_health']) {
+                                            entity.instance.componentOverrides['comp_health'] = {};
+                                        }
+                                        entity.instance.componentOverrides['comp_health'].current = newLives;
+
+                                        console.log(`[ACTION] DECREASE_LIVES: ${currentLives} → ${newLives} (decreased by ${decreaseAmount})`);
+                                    } else {
+                                        console.warn(`[ACTION] DECREASE_LIVES: Entity has no comp_health component`);
+                                    }
+                                    break;
+
+                                case 'INCREASE_LIVES':
+                                    const increaseAmount = Number(action.params.amount || 1);
+                                    const healthCompForIncrease = entity.template.components.find(c => c.definitionId === 'comp_health');
+                                    if (healthCompForIncrease) {
+                                        const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
+                                        const currentLives = Number(healthOverride.current || healthCompForIncrease.defaultValues?.current || 3);
+                                        const maxLives = Number(healthOverride.max || healthCompForIncrease.defaultValues?.max || 3);
+                                        const newLives = Math.min(maxLives, currentLives + increaseAmount);
+
+                                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
+                                        if (!entity.instance.componentOverrides['comp_health']) {
+                                            entity.instance.componentOverrides['comp_health'] = {};
+                                        }
+                                        entity.instance.componentOverrides['comp_health'].current = newLives;
+
+                                        console.log(`[ACTION] INCREASE_LIVES: ${currentLives} → ${newLives} (increased by ${increaseAmount})`);
+                                    } else {
+                                        console.warn(`[ACTION] INCREASE_LIVES: Entity has no comp_health component`);
+                                    }
+                                    break;
+
+                                case 'RESPAWN_PLAYER':
+                                    // Reset player to spawn position
+                                    const spawnX = Number(action.params.x !== undefined ? action.params.x : entity.instance.position.x * 8);
+                                    const spawnY = Number(action.params.y !== undefined ? action.params.y : entity.instance.position.y * 8);
+                                    entity.x = spawnX;
+                                    entity.y = spawnY;
+                                    entity.vx = 0;
+                                    entity.vy = 0;
+                                    console.log(`[ACTION] RESPAWN_PLAYER: Respawned at (${spawnX}, ${spawnY})`);
+                                    break;
+
+                                default:
+                                    console.warn(`[ACTION] Unknown action type: ${action.type}`);
+                                    break;
+                            }
+                        }
+                    }
+
+                    // Limpiar TODOS los eventos después de procesar
+                    entityEvents.clear();
+                    break; // Solo una transición por frame
+                }
+            }
+        }
+    }, [evaluateCondition]);
 
     const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
         const entity = entitiesRef.current.find(e => e.instance.id === entityId);
@@ -431,24 +691,34 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     if (!initialState && startStateId) initialState = stateMachine.states.find(s => s.name === startStateId);
                     if (!initialState) initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
                     currentState = initialState?.name;
+                    console.log(`[ENTITY INIT] ${instance.name}: State Machine initialized to "${currentState}" (stateId: ${initialState?.id})`);
                 }
             }
             const patrolComp = instance.componentOverrides?.comp_patrol;
             let startX = instance.position.x * TILE_SIZE;
             let startY = instance.position.y * TILE_SIZE;
+
+            console.log(`[ENTITY INIT] ${instance.name}: instance.position=(${instance.position.x}, ${instance.position.y}), pixels=(${startX}, ${startY})`);
+
             let vx = 0, vy = 0;
             if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
                 const endX = patrolComp.waypoint2_x ?? startX;
                 const endY = patrolComp.waypoint2_y ?? startY;
+                console.log(`[ENTITY INIT] ${instance.name} has patrol: waypoint1=(${patrolComp.waypoint1_x}, ${patrolComp.waypoint1_y}), waypoint2=(${endX}, ${endY})`);
                 const dx = endX - startX;
                 const dy = endY - startY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 if (dist > 0) { vx = (dx / dist); vy = (dy / dist); }
+
+                // IMPORTANTE: Si waypoint1 está definido, usar esas coordenadas como inicio
+                if (patrolComp.waypoint1_x !== undefined) startX = Number(patrolComp.waypoint1_x);
+                if (patrolComp.waypoint1_y !== undefined) startY = Number(patrolComp.waypoint1_y);
+                console.log(`[ENTITY INIT] ${instance.name} usando waypoint1 como posición inicial: (${startX}, ${startY})`);
             }
             return {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
-                stateMachine, currentState, isOnGround: false
+                stateMachine, currentState, isOnGround: false, spawnTime: performance.now()
             };
         }).filter(Boolean) as AnimatedEntity[];
 
@@ -931,10 +1201,22 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const entityCollisionProps = (entity: AnimatedEntity) => {
              const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
              if (!collisionCompDef) return null;
-             return {
-                ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
+             const props = {
+                ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>),
                 ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
                 ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+            };
+
+            // Convertir strings a números para propiedades numéricas
+            return {
+                hitboxWidth: Number(props.hitboxWidth) || 16,
+                hitboxHeight: Number(props.hitboxHeight) || 16,
+                offsetX: Number(props.offsetX) || 0,
+                offsetY: Number(props.offsetY) || 0,
+                collisionLayer: Number(props.collisionLayer) || 1,
+                collidesWith: Number(props.collidesWith) || 255,
+                isStatic: props.isStatic === true || props.isStatic === 'true',
+                isTrigger: props.isTrigger === true || props.isTrigger === 'true'
             };
         };
 
@@ -947,6 +1229,80 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             x: x + (props.offsetX || 0), y: y + (props.offsetY || 0),
             width: props.hitboxWidth || entity.sprite.size.width, height: props.hitboxHeight || entity.sprite.size.height,
         });
+
+        // --- Entity Collision Resolution (Physical Response) ---
+        const resolveEntityCollision = (entityA: AnimatedEntity, entityB: AnimatedEntity, propsA: any, propsB: any) => {
+            const hitboxA = getHitboxFor(entityA, propsA);
+            const hitboxB = getHitboxFor(entityB, propsB);
+
+            // Calculate overlap in both axes
+            const overlapX = Math.min(
+                hitboxA.x + hitboxA.width - hitboxB.x,
+                hitboxB.x + hitboxB.width - hitboxA.x
+            );
+            const overlapY = Math.min(
+                hitboxA.y + hitboxA.height - hitboxB.y,
+                hitboxB.y + hitboxB.height - hitboxA.y
+            );
+
+            // Determine if entities are static (immovable) or dynamic
+            const isAStatic = propsA.isStatic === true || propsA.isStatic === 'true';
+            const isBStatic = propsB.isStatic === true || propsB.isStatic === 'true';
+
+            // If both are static, no resolution needed
+            if (isAStatic && isBStatic) return;
+
+            // Find minimum translation vector (MTV) - separate on axis with less overlap
+            if (overlapX < overlapY) {
+                // Separate on X axis
+                const direction = (hitboxA.x + hitboxA.width / 2) < (hitboxB.x + hitboxB.width / 2) ? -1 : 1;
+                const separation = overlapX * direction;
+
+                if (isAStatic) {
+                    // Only B moves
+                    entityB.x -= separation;
+                    entityB.vx = 0;
+                } else if (isBStatic) {
+                    // Only A moves
+                    entityA.x += separation;
+                    entityA.vx = 0;
+                } else {
+                    // Both move (split separation)
+                    const halfSep = separation / 2;
+                    entityA.x += halfSep;
+                    entityB.x -= halfSep;
+
+                    // Exchange velocities (simple elastic collision)
+                    const tempVx = entityA.vx;
+                    entityA.vx = entityB.vx;
+                    entityB.vx = tempVx;
+                }
+            } else {
+                // Separate on Y axis
+                const direction = (hitboxA.y + hitboxA.height / 2) < (hitboxB.y + hitboxB.height / 2) ? -1 : 1;
+                const separation = overlapY * direction;
+
+                if (isAStatic) {
+                    // Only B moves
+                    entityB.y -= separation;
+                    entityB.vy = 0;
+                } else if (isBStatic) {
+                    // Only A moves
+                    entityA.y += separation;
+                    entityA.vy = 0;
+                } else {
+                    // Both move (split separation)
+                    const halfSep = separation / 2;
+                    entityA.y += halfSep;
+                    entityB.y -= halfSep;
+
+                    // Exchange velocities (simple elastic collision)
+                    const tempVy = entityA.vy;
+                    entityA.vy = entityB.vy;
+                    entityB.vy = tempVy;
+                }
+            }
+        };
 
         // --- Nueva Función de Animación ---
         let lastTime = 0;
@@ -975,6 +1331,25 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
 
             const now = performance.now();
+
+            // Debug: Log entities with collision component (only once per second to avoid spam)
+            if (now % 1000 < 16) { // Aproximadamente cada segundo
+                console.log(`[COLLISION DEBUG] Total entities in scene: ${entitiesRef.current.length}`);
+                entitiesRef.current.forEach((e, idx) => {
+                    const hasComp = e.template.components.some(c => c.definitionId === 'comp_collision');
+                    const props = entityCollisionProps(e);
+                    console.log(`  [${idx}] ${e.instance.name}:`);
+                    console.log(`      Template: ${e.template.name} (id: ${e.template.id})`);
+                    console.log(`      Has comp_collision: ${hasComp}`);
+                    console.log(`      Components: ${e.template.components.map(c => c.definitionId).join(', ')}`);
+                    if (hasComp && props) {
+                        console.log(`      Props: layer=${props.collisionLayer}, collidesWith=${props.collidesWith}, hitbox=${props.hitboxWidth}x${props.hitboxHeight}`);
+                    } else if (hasComp && !props) {
+                        console.log(`      ⚠️ WARNING: Has component but props are NULL!`);
+                    }
+                });
+            }
+
             entitiesRef.current.forEach((entityA, indexA) => {
                 // --- 0. Compute isOnGround based on current position ---
                 const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
@@ -995,15 +1370,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     entityA.isOnGround = false;
                 }
 
+                // --- 0.5. Procesar eventos de colisión (State Machine transitions) ---
+                processEventTransitions(entityA);
+
                 // --- 1. Actualizar Velocidad ---
                 if (entityA === heroRef.current) {
+                    // Apply state machine velocity properties if present
                     if (entityA.stateMachine && entityA.currentState) {
                         const stateDef = entityA.stateMachine.states.find(s => s.name === entityA.currentState);
                         if (stateDef?.properties) {
                             if (stateDef.properties.velocityX !== undefined) entityA.vx = stateDef.properties.velocityX;
                             if (stateDef.properties.velocityY !== undefined) entityA.vy = stateDef.properties.velocityY;
                         }
-                    } else {
+                    }
+
+                    // Check if current state allows input
+                    const statesWithoutInput = ['Dead', 'GameOver', 'Stunned', 'Frozen']; // States that disable controls
+                    const canProcessInput = !entityA.currentState || !statesWithoutInput.includes(entityA.currentState);
+
+                    // Process input (cursors and jump) - Only if state allows it
+                    if (canProcessInput) {
                         const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity');
                         const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
                         
@@ -1072,28 +1458,39 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 jumpKeyProcessed.current = false;
                             }
                         }
+                    } // End of canProcessInput check
+                }
+
+                // Check if physics should be disabled (same states as input)
+                const statesWithoutPhysics = ['Dead', 'GameOver', 'Stunned', 'Frozen'];
+                const canProcessPhysics = !entityA.currentState || !statesWithoutPhysics.includes(entityA.currentState);
+
+                if (canProcessPhysics) {
+                    // --- Gravity ---
+                    const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
+                    if (gravityComp) {
+                      const gravityProps = { ...gravityComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_gravity'] || {}) };
+                      const strength = Number(gravityProps.strength || 0) / 60;
+                      const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
+                      entityA.vy += strength;
+                      if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
                     }
-                }
 
-                const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
-                if (gravityComp) {
-                  const gravityProps = { ...gravityComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_gravity'] || {}) };
-                  const strength = Number(gravityProps.strength || 0) / 60;
-                  const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
-                  entityA.vy += strength;
-                  if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
-                }
-
-                // --- 2. Resolver Colisión y Aplicar Nueva Posición ---
-                if (hasCollisionComp && collisionCompDef && screenMapToRender) {
-                  handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
+                    // --- 2. Resolver Colisión y Aplicar Nueva Posición ---
+                    if (hasCollisionComp && collisionCompDef && screenMapToRender) {
+                      handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
+                    } else {
+                      entityA.x += entityA.vx;
+                      entityA.y += entityA.vy;
+                    }
                 } else {
-                  entityA.x += entityA.vx;
-                  entityA.y += entityA.vy;
+                    // Physics disabled - freeze entity in place
+                    entityA.vx = 0;
+                    entityA.vy = 0;
                 }
 
                 // --- 3. Lógica de Transición de Pantalla (Solo para el Héroe) ---
-                if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap) {
+                if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap && canProcessPhysics) {
                   const spriteWidth = entityA.sprite.size.width;
                   const spriteHeight = entityA.sprite.size.height;
 
@@ -1151,61 +1548,297 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 // --- 5. Lógica de Colisión entre Entidades ---
                 if (hasCollisionComp) {
+                    // Debug log para ver si entra al loop
+                    if (indexA === 0 && now % 1000 < 16) {
+                        console.log(`[COLLISION DEBUG] Checking collisions for ${entityA.instance.name}, total entities: ${entitiesRef.current.length}`);
+                    }
+
                     for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
                         const entityB = entitiesRef.current[indexB];
-                        if (!entityB.template.components.some(c => c.definitionId === 'comp_collision')) continue;
+                        const entityBHasCollision = entityB.template.components.some(c => c.definitionId === 'comp_collision');
+
+                        if (indexA === 0 && now % 1000 < 16) {
+                            console.log(`  Checking entity B: ${entityB.instance.name}, hasCollision: ${entityBHasCollision}`);
+                        }
+
+                        if (!entityBHasCollision) continue;
                         const propsA = entityCollisionProps(entityA);
                         const propsB = entityCollisionProps(entityB);
                         if (!propsA || !propsB) continue;
                         const hitboxA = getHitboxFor(entityA, propsA);
                         const hitboxB = getHitboxFor(entityB, propsB);
-                        if (hitboxA.x < hitboxB.x + hitboxB.width && hitboxA.x + hitboxA.width > hitboxB.x && hitboxA.y < hitboxB.y + hitboxB.height && hitboxA.y + hitboxA.height > hitboxB.y) {
-                            const layerA = propsA.collisionLayer || 0; const collidesWithA = propsA.collidesWith || 0;
-                            const layerB = propsB.collisionLayer || 0; const collidesWithB = propsB.collidesWith || 0;
-                            if ((collidesWithA & layerB) && (collidesWithB & layerA)) {
-                                const eventForA = `collision_with_${entityB.template.name.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-                                const eventForB = `collision_with_${entityA.template.name.replace(/[^a-zA-Z0-9_]/g, '_')}`;
-                                // triggerEvent(entityA.instance.id, eventForA);
-                                // triggerEvent(entityB.instance.id, eventForB);
+
+                        // Check AABB collision
+                        if (hitboxA.x < hitboxB.x + hitboxB.width &&
+                            hitboxA.x + hitboxA.width > hitboxB.x &&
+                            hitboxA.y < hitboxB.y + hitboxB.height &&
+                            hitboxA.y + hitboxA.height > hitboxB.y) {
+
+                            const layerA = Number(propsA.collisionLayer) || 0;
+                            const collidesWithA = Number(propsA.collidesWith) || 0;
+                            const layerB = Number(propsB.collisionLayer) || 0;
+                            const collidesWithB = Number(propsB.collidesWith) || 0;
+
+                            // PROTECTION: Ignore collisions in the first 200ms after spawn
+                            const SPAWN_GRACE_PERIOD_MS = 200;
+                            const entityAAge = now - entityA.spawnTime;
+                            const entityBAge = now - entityB.spawnTime;
+
+                            if (entityAAge < SPAWN_GRACE_PERIOD_MS || entityBAge < SPAWN_GRACE_PERIOD_MS) {
+                                console.log(`[COLLISION] Ignoring spawn collision between ${entityA.instance.name} (age: ${entityAAge}ms) and ${entityB.instance.name} (age: ${entityBAge}ms)`);
+                                continue; // Skip this collision pair
+                            }
+
+                            console.log('[COLLISION DEBUG] AABB overlap detected!');
+                            console.log(`  Entity A: ${entityA.instance.name} (layer=${layerA}, collidesWith=${collidesWithA})`);
+                            console.log(`  Entity B: ${entityB.instance.name} (layer=${layerB}, collidesWith=${collidesWithB})`);
+                            console.log(`  HitboxA:`, hitboxA);
+                            console.log(`  HitboxB:`, hitboxB);
+
+                            // Check if layers allow collision
+                            const aCanCollideWithB = (collidesWithA & layerB) !== 0;
+                            const bCanCollideWithA = (collidesWithB & layerA) !== 0;
+
+                            console.log(`  Layer check: A can hit B = ${aCanCollideWithB}, B can hit A = ${bCanCollideWithA}`);
+
+                            if (aCanCollideWithB && bCanCollideWithA) {
+                                // Check if either entity is a trigger
+                                const isATrigger = propsA.isTrigger;
+                                const isBTrigger = propsB.isTrigger;
+
+                                if (isATrigger || isBTrigger) {
+                                    // TRIGGER COLLISION: No physical separation, only event detection
+                                    console.log(`  🎯 TRIGGER COLLISION: ${isATrigger ? entityA.instance.name : ''}${isATrigger && isBTrigger ? ' & ' : ''}${isBTrigger ? entityB.instance.name : ''} (no pushback)`);
+
+                                    // Helper function: Determine collision event type based on entity components
+                                    const getCollisionEventType = (entity: typeof entityA | typeof entityB): string => {
+                                        // Check if entity has comp_collectible
+                                        const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
+                                        if (hasCollectible) return 'collision_item';
+
+                                        // Check if entity has comp_damage or comp_ai_behavior (enemy)
+                                        const hasAI = entity.template.components.some(c => c.definitionId === 'comp_ai_behavior');
+                                        const hasDamage = entity.template.components.some(c => c.definitionId === 'comp_damage');
+                                        if (hasAI || hasDamage) return 'collision_enemy';
+
+                                        // Fallback to template name detection for wall/obstacle
+                                        const templateName = entity.template.name.toLowerCase();
+                                        if (templateName.includes('wall') || templateName.includes('obstacle')) {
+                                            return 'collision_wall';
+                                        }
+
+                                        return 'collision_enemy'; // Default
+                                    };
+
+                                    // Determine collision events based on entity components
+                                    const eventNameA = getCollisionEventType(entityB); // What A collided with
+                                    const eventNameB = getCollisionEventType(entityA); // What B collided with
+
+                                    triggerEvent(entityA.instance.id, eventNameA);
+                                    triggerEvent(entityB.instance.id, eventNameB);
+                                } else {
+                                    // SOLID COLLISION: Apply physical separation
+                                    console.log(`  💥 SOLID COLLISION: Applying physical pushback...`);
+                                    resolveEntityCollision(entityA, entityB, propsA, propsB);
+
+                                    // Helper function: Determine collision event type based on entity components
+                                    const getCollisionEventType = (entity: typeof entityA | typeof entityB): string => {
+                                        // Check if entity has comp_collectible
+                                        const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
+                                        if (hasCollectible) return 'collision_item';
+
+                                        // Check if entity has comp_damage or comp_ai_behavior (enemy)
+                                        const hasAI = entity.template.components.some(c => c.definitionId === 'comp_ai_behavior');
+                                        const hasDamage = entity.template.components.some(c => c.definitionId === 'comp_damage');
+                                        if (hasAI || hasDamage) return 'collision_enemy';
+
+                                        // Fallback to template name detection for wall/obstacle
+                                        const templateName = entity.template.name.toLowerCase();
+                                        if (templateName.includes('wall') || templateName.includes('obstacle')) {
+                                            return 'collision_wall';
+                                        }
+
+                                        return 'collision_enemy'; // Default
+                                    };
+
+                                    // Determine collision events based on entity components
+                                    const eventNameA = getCollisionEventType(entityB); // What A collided with
+                                    const eventNameB = getCollisionEventType(entityA); // What B collided with
+
+                                    triggerEvent(entityA.instance.id, eventNameA);
+                                    triggerEvent(entityB.instance.id, eventNameB);
+                                }
+                            } else {
+                                console.log(`  ❌ Layer check failed - no collision response`);
                             }
                         }
                     }
                 }
 
                 // --- 6. Lógica de Patrulla ---
-                const patrolComp = entityA.instance.componentOverrides?.comp_patrol;
-                if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
-                    const startPixelX = patrolComp.waypoint1_x; const startPixelY = patrolComp.waypoint1_y;
-                    const endPixelX = patrolComp.waypoint2_x ?? startPixelX; const endPixelY = patrolComp.waypoint2_y ?? startPixelY;
-                    if ((entityA.vx > 0 && entityA.x >= Math.max(startPixelX, endPixelX)) || (entityA.vx < 0 && entityA.x <= Math.min(startPixelX, endPixelX))) {
-                         entityA.vx = -entityA.vx;
-                    }
-                    if ((entityA.vy > 0 && entityA.y >= Math.max(startPixelY, endPixelY)) || (entityA.vy < 0 && entityA.y <= Math.min(startPixelY, endPixelY))) {
-                        entityA.vy = -entityA.vy;
+                // Only process patrol AI if physics is enabled
+                if (canProcessPhysics) {
+                    const patrolComp = entityA.instance.componentOverrides?.comp_patrol;
+                    if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
+                        const startPixelX = patrolComp.waypoint1_x; const startPixelY = patrolComp.waypoint1_y;
+                        const endPixelX = patrolComp.waypoint2_x ?? startPixelX; const endPixelY = patrolComp.waypoint2_y ?? startPixelY;
+                        if ((entityA.vx > 0 && entityA.x >= Math.max(startPixelX, endPixelX)) || (entityA.vx < 0 && entityA.x <= Math.min(startPixelX, endPixelX))) {
+                             entityA.vx = -entityA.vx;
+                        }
+                        if ((entityA.vy > 0 && entityA.y >= Math.max(startPixelY, endPixelY)) || (entityA.vy < 0 && entityA.y <= Math.min(startPixelY, endPixelY))) {
+                            entityA.vy = -entityA.vy;
+                        }
                     }
                 }
 
                 // --- 7. Animación de Sprites ---
                 const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
                 if (animComp && entityA.frameImages.length > 1 && now - entityA.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
-                    entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
-                    entityA.lastFrameUpdateTime = now;
+                    // Check if animation should only play when moving
+                    const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
+                    const isMoving = entityA.vx !== 0 || entityA.vy !== 0;
+
+                    // Priority states that should always animate (death, hurt, attack, etc.)
+                    const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable'];
+                    const isInPriorityState = entityA.currentState && priorityStates.some(state =>
+                        entityA.currentState?.toLowerCase().includes(state.toLowerCase())
+                    );
+
+                    // Check if animation loops
+                    const loops = animComp.defaultValues?.loops !== false; // Default true
+
+                    // Reset completion flag if state changed
+                    if (entityA.lastAnimationState !== entityA.currentState) {
+                        entityA.animationHasCompleted = false;
+                        entityA.lastAnimationState = entityA.currentState;
+                    }
+
+                    // Animate if: not restricted to movement, OR is moving, OR in priority state
+                    // AND (animation hasn't completed OR animation loops)
+                    if ((!animateOnlyWhenMoving || isMoving || isInPriorityState) && (!entityA.animationHasCompleted || loops)) {
+                        const previousFrame = entityA.currentFrame;
+
+                        if (loops) {
+                            // Looping animation: cycle through frames
+                            entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
+                        } else {
+                            // Non-looping animation: stop at last frame
+                            if (entityA.currentFrame < entityA.frameImages.length - 1) {
+                                entityA.currentFrame++;
+                            } else {
+                                // Animation completed!
+                                if (!entityA.animationHasCompleted) {
+                                    entityA.animationHasCompleted = true;
+
+                                    // Trigger animation_finished event
+                                    const entityEvents = pendingEvents.current.get(entityA.instance.id);
+                                    if (entityEvents) {
+                                        entityEvents.add('animation_finished');
+                                    } else {
+                                        pendingEvents.current.set(entityA.instance.id, new Set(['animation_finished']));
+                                    }
+
+                                    console.log(`[ANIMATION] Animation completed for ${entityA.instance.name}, triggering animation_finished event`);
+                                }
+                            }
+                        }
+
+                        entityA.lastFrameUpdateTime = now;
+                    } else if (!isInPriorityState) {
+                        // Reset to first frame when stopped (and not in priority state)
+                        entityA.currentFrame = 0;
+                    }
                 }
 
                 // --- 8. Dibujar Entidad ---
-                let imageToDraw = entityA.frameImages[entityA.currentFrame];
-                if (entityA.mirroredFrameImages) {
-                    if (entityA.sprite.facingDirection === 'right' && entityA.vx < 0) imageToDraw = entityA.mirroredFrameImages[entityA.currentFrame];
-                    else if (entityA.sprite.facingDirection === 'left' && entityA.vx > 0) imageToDraw = entityA.mirroredFrameImages[entityA.currentFrame];
+                // Safety check: ensure frameImages array has elements and currentFrame is valid
+                if (entityA.frameImages.length > 0) {
+                    // Ensure currentFrame is within bounds
+                    if (entityA.currentFrame >= entityA.frameImages.length) {
+                        entityA.currentFrame = 0;
+                    }
+
+                    let imageToDraw = entityA.frameImages[entityA.currentFrame];
+                    if (entityA.mirroredFrameImages && entityA.mirroredFrameImages.length > entityA.currentFrame) {
+                        if (entityA.sprite.facingDirection === 'right' && entityA.vx < 0) imageToDraw = entityA.mirroredFrameImages[entityA.currentFrame];
+                        else if (entityA.sprite.facingDirection === 'left' && entityA.vx > 0) imageToDraw = entityA.mirroredFrameImages[entityA.currentFrame];
+                    }
+                    // Asegurarse de que la imagen esté cargada antes de dibujar es crucial para el rendimiento
+                    if (imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
+                         ctx.drawImage(imageToDraw, entityA.x, entityA.y);
+                    } else if (imageToDraw) {
+                         // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
+                         // console.warn("Imagen no cargada aún:", entityA.instance.name);
+                    }
                 }
-                // Asegurarse de que la imagen esté cargada antes de dibujar es crucial para el rendimiento
-                if (imageToDraw && imageToDraw.complete) {
-                     ctx.drawImage(imageToDraw, entityA.x, entityA.y);
-                } else if (imageToDraw) {
-                     // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
-                     // console.warn("Imagen no cargada aún:", entityA.instance.name);
+                // If frameImages is empty, simply skip drawing but continue processing
+
+                // --- 9. DEBUG: Dibujar Hitboxes (si tiene comp_collision) ---
+                if (hasCollisionComp) {
+                    const props = entityCollisionProps(entityA);
+                    if (props) {
+                        const hitbox = getHitboxFor(entityA, props);
+
+                        // Log detallado para debug
+                        if (now % 1000 < 16) {
+                            console.log(`[HITBOX DRAW] ${entityA.instance.name}: hasComp=${hasCollisionComp}, props=${!!props}, isTrigger=${props.isTrigger}, hitbox=`, hitbox);
+                        }
+
+                        // Color según tipo de colisión
+                        if (props.isTrigger) {
+                            ctx.strokeStyle = '#FFAA00'; // Naranja para triggers (sin empuje)
+                            ctx.setLineDash([4, 2]); // Línea punteada para triggers
+                        } else {
+                            ctx.strokeStyle = '#00FF00'; // Verde para solid (con empuje)
+                            ctx.setLineDash([]); // Línea sólida
+                        }
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(hitbox.x, hitbox.y, hitbox.width, hitbox.height);
+                        ctx.setLineDash([]); // Reset dash
+
+                        // Dibujar punto central
+                        ctx.fillStyle = props.isTrigger ? '#FFAA00' : '#00FF00';
+                        ctx.fillRect(hitbox.x + hitbox.width/2 - 2, hitbox.y + hitbox.height/2 - 2, 4, 4);
+
+                        // Dibujar nombre de la entidad
+                        ctx.fillStyle = '#FFFF00';
+                        ctx.font = '8px monospace';
+                        const label = `${entityA.instance.name} L${props.collisionLayer}${props.isTrigger ? ' [T]' : ''}`;
+                        ctx.fillText(label, hitbox.x, hitbox.y - 2);
+                    } else {
+                        if (now % 1000 < 16) {
+                            console.log(`[HITBOX DRAW] ${entityA.instance.name}: hasComp=${hasCollisionComp}, but props is NULL!`);
+                        }
+                    }
+                } else {
+                    if (now % 1000 < 16) {
+                        console.log(`[HITBOX DRAW] ${entityA.instance.name}: hasComp=${hasCollisionComp} (no hitbox to draw)`);
+                    }
                 }
             });
+
+            // --- Check for pending node transitions (from CHANGE_GAME_FLOW_NODE action) ---
+            const entityWithPendingTransition = entitiesRef.current.find(e => (e as any).pendingNodeTransition);
+            if (entityWithPendingTransition) {
+                const targetNodeId = (entityWithPendingTransition as any).pendingNodeTransition;
+                delete (entityWithPendingTransition as any).pendingNodeTransition;
+
+                console.log(`[GAME FLOW] Executing pending node transition to "${targetNodeId}"`);
+
+                // Handle different transition types
+                if (currentNode.type === 'WorldLink') {
+                    // World map transition
+                    handleScreenTransition(targetNodeId);
+                } else {
+                    // Game flow transition
+                    setNavigationStack(prev => [...prev, currentNode.id]);
+                    setCurrentNodeId(targetNodeId);
+                    setSelectedOptionIndex(0);
+                    setCurrentScreenMap(null);
+                    setCurrentWorldMapGraph(null);
+                }
+                return; // Stop animation frame to allow transition
+            }
 
             animationFrameId.current = requestAnimationFrame(animate);
         };

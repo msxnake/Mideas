@@ -114,6 +114,9 @@ export const ConditionTypes = {
   PATH_CLEAR: 'PATH_CLEAR',
   ON_WALL_COLLISION: 'ON_WALL_COLLISION',
 
+  // Animation conditions (events)
+  ANIMATION_COMPLETE: 'ANIMATION_COMPLETE',
+
   // Composite conditions
   KEY_AND_MOVEMENT: 'KEY_AND_MOVEMENT'
 } as const;
@@ -151,6 +154,12 @@ export const ActionTypes = {
   GOTO_STATE: 'GOTO_STATE',
   DESTROY_ENTITY: 'DESTROY_ENTITY',
   SPAWN_ENTITY: 'SPAWN_ENTITY',
+
+  // Game Flow
+  CHANGE_GAME_FLOW_NODE: 'CHANGE_GAME_FLOW_NODE',
+  DECREASE_LIVES: 'DECREASE_LIVES',
+  INCREASE_LIVES: 'INCREASE_LIVES',
+  RESPAWN_PLAYER: 'RESPAWN_PLAYER',
 
 } as const;
 

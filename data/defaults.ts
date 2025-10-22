@@ -67,19 +67,22 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "animationSpeed", type: "byte", defaultValue: "6", description: "Ticks/frames per animation update." },
       { name: "loops", type: "boolean", defaultValue: "true", description: "Does the animation loop?" },
       { name: "isPlaying", type: "boolean", defaultValue: "true", description: "Is the animation currently playing?" },
+      { name: "animateOnlyWhenMoving", type: "boolean", defaultValue: "false", description: "Only animate when entity has non-zero velocity (vx or vy)." },
     ],
   },
-  { 
-    id: "comp_collision", name: "Collision", 
+  {
+    id: "comp_collision", name: "Collision",
     properties: [
       { name: "hitboxWidth", type: "byte", defaultValue: "16", description: "Width of the collision bounding box." },
       { name: "hitboxHeight", type: "byte", defaultValue: "16", description: "Height of the collision bounding box." },
       { name: "offsetX", type: "byte", defaultValue: "0", description: "Horizontal offset of the hitbox from the entity's origin." },
       { name: "offsetY", type: "byte", defaultValue: "0", description: "Vertical offset of the hitbox from the entity's origin." },
       { name: "collisionLayer", type: "byte", defaultValue: "1", description: "Bitmask defining the entity's collision group (e.g., 1=player, 2=enemy)." },
-      { name: "collidesWith", type: "byte", defaultValue: "255", description: "Bitmask defining which layers this entity can collide with." }
+      { name: "collidesWith", type: "byte", defaultValue: "255", description: "Bitmask defining which layers this entity can collide with." },
+      { name: "isStatic", type: "boolean", defaultValue: "false", description: "If true, this entity is immovable and won't be pushed by collisions. Other entities will be pushed away when colliding with static entities." },
+      { name: "isTrigger", type: "boolean", defaultValue: "false", description: "If true, collision is detected for events but entities pass through each other (no physical pushback). Use for collectibles, checkpoints, damage zones. If false, entities push/separate on collision (solid collision)." }
     ],
-    description: "Defines the physical shape and interaction rules for entity-to-entity collisions."
+    description: "Defines the physical shape and interaction rules for entity-to-entity collisions. Supports both solid (pushback) and trigger (overlap-only) collision modes."
   },
   { 
     id: "comp_wall_collision", name: "Wall Collision", 
@@ -300,7 +303,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
       { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "2" } }, 
       { definitionId: "comp_gravity", defaultValues: { strength: "80" } },
-      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8" } },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
       { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 2 }}, // Example player collision
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
       { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", isEnabled: true }},

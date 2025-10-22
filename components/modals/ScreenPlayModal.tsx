@@ -167,42 +167,58 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             entities.forEach(entity => {
                 const animComp = entity.template.components.find(c => c.definitionId === 'comp_animation');
                 if (animComp && entity.frameImages.length > 1 && now - entity.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
-                    const oldFrame = entity.currentFrame;
-                    
-                    // Check if entity has directional rotation system
-                    if (entity.rotationData && entity.baseFrameForDirection !== undefined) {
-                        if (entity.framesPerDirection && entity.framesPerDirection > 1) {
-                            // Auto-generated system: cycle through frames in current direction
-                            const baseFrame = entity.baseFrameForDirection;
-                            const maxFrameInDirection = baseFrame + entity.framesPerDirection - 1;
-                            
-                            if (entity.currentFrame >= maxFrameInDirection) {
-                                entity.currentFrame = baseFrame; // Back to first frame of direction
+                    // Check if animation should only play when moving
+                    const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
+                    const isMoving = entity.vx !== 0 || entity.vy !== 0;
+
+                    // Priority states that should always animate (death, hurt, attack, etc.)
+                    const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable'];
+                    const isInPriorityState = entity.currentState && priorityStates.some(state =>
+                        entity.currentState?.toLowerCase().includes(state.toLowerCase())
+                    );
+
+                    // Only animate if: not restricted to movement, OR is moving, OR in priority state
+                    if (!animateOnlyWhenMoving || isMoving || isInPriorityState) {
+                        const oldFrame = entity.currentFrame;
+
+                        // Check if entity has directional rotation system
+                        if (entity.rotationData && entity.baseFrameForDirection !== undefined) {
+                            if (entity.framesPerDirection && entity.framesPerDirection > 1) {
+                                // Auto-generated system: cycle through frames in current direction
+                                const baseFrame = entity.baseFrameForDirection;
+                                const maxFrameInDirection = baseFrame + entity.framesPerDirection - 1;
+
+                                if (entity.currentFrame >= maxFrameInDirection) {
+                                    entity.currentFrame = baseFrame; // Back to first frame of direction
+                                } else {
+                                    entity.currentFrame++; // Next frame in same direction
+                                }
                             } else {
-                                entity.currentFrame++; // Next frame in same direction
+                                // 8-frame manual system: alternate between open/closed mouth
+                                const baseFrame = entity.baseFrameForDirection;
+                                if (entity.currentFrame === baseFrame) {
+                                    entity.currentFrame = baseFrame + 1; // Switch to closed mouth
+                                } else {
+                                    entity.currentFrame = baseFrame; // Switch to open mouth
+                                }
                             }
                         } else {
-                            // 8-frame manual system: alternate between open/closed mouth
-                            const baseFrame = entity.baseFrameForDirection;
-                            if (entity.currentFrame === baseFrame) {
-                                entity.currentFrame = baseFrame + 1; // Switch to closed mouth
-                            } else {
-                                entity.currentFrame = baseFrame; // Switch to open mouth
-                            }
+                            // Standard animation: cycle through all frames
+                            entity.currentFrame = (entity.currentFrame + 1) % entity.frameImages.length;
                         }
-                    } else {
-                        // Standard animation: cycle through all frames
-                        entity.currentFrame = (entity.currentFrame + 1) % entity.frameImages.length;
-                    }
-                    
-                    entity.lastFrameUpdateTime = now;
-                    
-                    if (entity.instance.id.startsWith('spawned_') && oldFrame !== entity.currentFrame) {
-                        console.log('🎬 Animating spawned entity:', {
-                            id: entity.instance.id,
-                            frame: `${oldFrame} → ${entity.currentFrame}`,
-                            totalFrames: entity.frameImages.length
-                        });
+
+                        entity.lastFrameUpdateTime = now;
+
+                        if (entity.instance.id.startsWith('spawned_') && oldFrame !== entity.currentFrame) {
+                            console.log('🎬 Animating spawned entity:', {
+                                id: entity.instance.id,
+                                frame: `${oldFrame} → ${entity.currentFrame}`,
+                                totalFrames: entity.frameImages.length
+                            });
+                        }
+                    } else if (animateOnlyWhenMoving && !isMoving && !isInPriorityState) {
+                        // Reset to first frame when stopped (and not in priority state)
+                        entity.currentFrame = 0;
                     }
                 }
             });

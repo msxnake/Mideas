@@ -85,6 +85,26 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
           </select>
         );
       case ConditionTypes.HAS_COLLISION:
+        return (
+          <div className="space-y-2">
+            <select
+              value={condition.params?.collisionType || 'any'}
+              onChange={(e) => handleParamChange('collisionType', e.target.value)}
+              className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="any">Any collision</option>
+              <option value="enemy">Enemy collision</option>
+              <option value="item">Item collision</option>
+              <option value="wall">Wall collision</option>
+            </select>
+            <div className="text-xs text-msx-textsecondary">
+              {condition.params?.collisionType === 'enemy' && '💥 Triggers when colliding with enemies (entities with comp_damage or comp_ai_behavior)'}
+              {condition.params?.collisionType === 'item' && '✨ Triggers when colliding with collectibles (entities with comp_collectible)'}
+              {condition.params?.collisionType === 'wall' && '🧱 Triggers when colliding with solid walls'}
+              {(!condition.params?.collisionType || condition.params?.collisionType === 'any') && 'Triggers on any type of collision'}
+            </div>
+          </div>
+        );
       case ConditionTypes.PATH_CLEAR:
         return (
           <input
@@ -111,6 +131,17 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             </select>
             <div className="text-xs text-msx-textsecondary">
               Triggers when entity collides with a wall
+            </div>
+          </div>
+        );
+      case ConditionTypes.ANIMATION_COMPLETE:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-msx-textsecondary">
+              🎬 Triggers when a non-looping animation finishes playing all frames
+            </div>
+            <div className="text-xs text-yellow-400 italic">
+              ℹ️ Make sure the animation component has "loops" set to false in the state that plays the animation
             </div>
           </div>
         );
