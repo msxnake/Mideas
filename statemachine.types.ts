@@ -78,18 +78,19 @@ export interface TransitionGuard {
 }
 
 export interface StateMachineTransition {
-  id:string;
+  id: string;
   fromStateId: string;
   toStateId: string;
-  eventId: string;
-  guard?: TransitionGuard;
+  conditions?: Condition;     // Condition to evaluate for this transition
+  actions?: Action[];         // Actions to execute when transitioning
+  guard?: TransitionGuard;    // Additional guard for variable comparisons
 }
 
 export interface StateMachine {
   id: string;
   name: string;
   states: StateMachineState[];
-  events: StateMachineEvent[];
+  events: StateMachineEvent[];           // DEPRECATED: Not currently used, transitions use Conditions instead
   transitions: StateMachineTransition[];
   initialStateId: string | null;
 }
