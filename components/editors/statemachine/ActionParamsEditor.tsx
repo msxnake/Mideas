@@ -174,14 +174,14 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               <label className="text-xs text-gray-400 w-24">Target Node</label>
               <input
                 type="text"
-                placeholder="Node ID (e.g., 'node_123')"
+                placeholder='Type "START" or node ID'
                 value={action.params.nodeId || action.params.targetNodeId || ''}
                 onChange={(e) => handleParamChange('nodeId', e.target.value)}
                 className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
               />
             </div>
             <div className="text-xs text-yellow-400 italic">
-              🎮 Navigates to the specified game flow node or world map screen
+              🎮 Use "START" to go to the Start node, or enter a specific node ID
             </div>
           </div>
         );

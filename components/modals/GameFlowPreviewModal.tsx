@@ -287,7 +287,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     break;
 
                                 case 'CHANGE_GAME_FLOW_NODE':
-                                    const targetNodeId = action.params.nodeId || action.params.targetNodeId;
+                                    let targetNodeId = action.params.nodeId || action.params.targetNodeId;
+
+                                    // Special case: "START" navigates to the Start node
+                                    if (targetNodeId === 'START') {
+                                        const startNode = nodes.find(n => n.type === 'Start');
+                                        if (startNode) {
+                                            targetNodeId = startNode.id;
+                                            console.log(`[ACTION] CHANGE_GAME_FLOW_NODE: "START" resolved to node "${targetNodeId}"`);
+                                        } else {
+                                            console.warn(`[ACTION] CHANGE_GAME_FLOW_NODE: No Start node found in graph`);
+                                            break;
+                                        }
+                                    }
+
                                     if (targetNodeId) {
                                         console.log(`[ACTION] CHANGE_GAME_FLOW_NODE: Navigating to node "${targetNodeId}"`);
                                         // Store the target node for deferred navigation (after frame completes)
