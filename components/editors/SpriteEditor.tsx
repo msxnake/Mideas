@@ -5,7 +5,7 @@ import { Sprite, MSXColorValue, PixelData, Point, SpriteFrame, DataFormat, Explo
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon } from '../icons/MsxIcons';
+import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon, CopyIcon, PasteIcon } from '../icons/MsxIcons';
 import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
 import { ExplosionGeneratorModal } from '../modals/ExplosionGeneratorModal';
 import { DisintegrationGeneratorModal, DisintegrationParams } from '../modals/DisintegrationGeneratorModal';
@@ -264,6 +264,9 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const [onionSkinEnabled, setOnionSkinEnabled] = useState(true);
   const [onionSkinOpacity, setOnionSkinOpacity] = useState(0.3);
 
+  // State for layer copy/paste
+  const [copiedFrameData, setCopiedFrameData] = useState<PixelData | null>(null);
+
 
   useEffect(() => {
     setLocalSpriteName(sprite.name);
@@ -497,6 +500,24 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
       const clearedData = createEmptySpriteFrameData(sprite.size.width, sprite.size.height, sprite.backgroundColor);
       const updatedFrames = sprite.frames.map((frame, index) =>
         index === sprite.currentFrameIndex ? { ...frame, data: clearedData } : frame
+      );
+      onUpdate({ frames: updatedFrames });
+    }
+  };
+
+  const handleCopyLayer = () => {
+    if (currentFrameData) {
+      // Deep copy of the current frame data
+      const copiedData = currentFrameData.map(row => [...row]);
+      setCopiedFrameData(copiedData);
+    }
+  };
+
+  const handlePasteLayer = () => {
+    if (copiedFrameData && currentFrameData) {
+      // Paste the copied frame data into the current frame
+      const updatedFrames = sprite.frames.map((frame, index) =>
+        index === sprite.currentFrameIndex ? { ...frame, data: copiedFrameData.map(row => [...row]) } : frame
       );
       onUpdate({ frames: updatedFrames });
     }
@@ -1176,6 +1197,8 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                     <Button onClick={() => setToolMode('draw')} variant={toolMode === 'draw' ? 'primary' : 'ghost'} size="sm" icon={<PencilIcon />} className="w-full" justify="start">Draw</Button>
                     <Button onClick={() => setToolMode('sphere')} variant={toolMode === 'sphere' ? 'primary' : 'ghost'} size="sm" icon={<SphereIcon />} className="w-full" justify="start">Sphere</Button>
                     <Button onClick={() => setToolMode('erase')} variant={toolMode === 'erase' ? 'primary' : 'ghost'} size="sm" icon={<EraserIcon />} className="w-full" justify="start">Erase (BG)</Button>
+                    <Button onClick={handleCopyLayer} variant="ghost" size="sm" icon={<CopyIcon />} className="w-full" justify="start">Copy Layer</Button>
+                    <Button onClick={handlePasteLayer} variant="ghost" size="sm" icon={<PasteIcon />} className="w-full" justify="start" disabled={!copiedFrameData}>Paste Layer</Button>
                 </div>
                 {toolMode === 'sphere' && (
                   <div className="mt-2 space-y-1 text-xs pt-2 border-t border-msx-border/50">

@@ -1,6 +1,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { CRTShaderOverlay } from '../../src/components/CRTShaderOverlay';
 import {
     GameFlowGraph,
     ProjectAsset,
@@ -25,7 +26,7 @@ import { Button } from '../common/Button';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFontRenderer';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
-import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '../icons/MsxIcons';
+import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
 import { StateMachine } from '../../statemachine.types';
 
 
@@ -66,6 +67,7 @@ interface GameFlowPreviewModalProps {
     currentScreenMode: string;
     componentDefinitions: ComponentDefinition[];
     initialIsDynamic?: boolean;
+    isPlayMode?: boolean;
     gameFlowAssetName: string;
 }
 
@@ -84,6 +86,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     currentScreenMode,
     componentDefinitions,
     initialIsDynamic = false,
+    isPlayMode = false,
     gameFlowAssetName,
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -100,6 +103,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [currentScreenMap, setCurrentScreenMap] = useState<ScreenMap | null>(null);
     const [currentWorldMapGraph, setCurrentWorldMapGraph] = useState<WorldMapGraph | null>(null);
     const [isDynamic, setIsDynamic] = useState(initialIsDynamic);
+    const [showHitboxDebug, setShowHitboxDebug] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const [gameGlobalVariables, setGameGlobalVariables] = useState<Record<string, any>>({});
     const [gameFlowStack, setGameFlowStack] = useState<Array<{parentGraphData: GameFlowGraph, returnNodeId: string, parentGameFlowName: string}>>([]);
     const [currentNestedGraphData, setCurrentNestedGraphData] = useState<GameFlowGraph | null>(null);
@@ -238,6 +243,38 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             }).catch(() => {
                                                 console.error(`[ACTION] CHANGE_SPRITE: Failed to load some frames for "${spriteName}"`);
                                             });
+
+                                            // Regenerate mirrored frame images if sprite has facing direction
+                                            if (['right', 'left'].includes(spriteData.facingDirection)) {
+                                                const mirroredImageLoadPromises = spriteData.frames.map((frame, idx) => {
+                                                    return new Promise<HTMLImageElement>((resolve, reject) => {
+                                                        const img = new Image();
+                                                        img.onload = () => resolve(img);
+                                                        img.onerror = (error) => {
+                                                            console.error(`[ACTION] CHANGE_SPRITE: Failed to load mirrored frame ${idx} for "${spriteName}"`, error);
+                                                            reject(error);
+                                                        };
+                                                        try {
+                                                            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                                                            img.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
+                                                        } catch (err) {
+                                                            console.error(`[ACTION] CHANGE_SPRITE: Error creating mirrored data URL for frame ${idx}:`, err);
+                                                            reject(err);
+                                                        }
+                                                    });
+                                                });
+
+                                                // Load mirrored images asynchronously
+                                                Promise.all(mirroredImageLoadPromises).then((loadedMirroredImages) => {
+                                                    entity.mirroredFrameImages = loadedMirroredImages;
+                                                    console.log(`[ACTION] CHANGE_SPRITE: Successfully loaded mirrored frames for sprite "${spriteName}"`);
+                                                }).catch(() => {
+                                                    console.error(`[ACTION] CHANGE_SPRITE: Failed to load some mirrored frames for "${spriteName}"`);
+                                                });
+                                            } else {
+                                                // Clear mirrored frames if new sprite doesn't support mirroring
+                                                entity.mirroredFrameImages = undefined;
+                                            }
 
                                             console.log(`[ACTION] CHANGE_SPRITE: Changing to sprite "${spriteName}"...`);
                                         } else {
@@ -631,6 +668,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         if (!screenMapAsset) return;
         setCurrentScreenMap(screenMapAsset.data as ScreenMap);
     }, [isOpen, currentNode, allAssets, currentScreenMap]);
+
+    // Update currentScreenMap when the underlying asset changes in allAssets
+    useEffect(() => {
+        if (!isOpen || !currentScreenMap) return;
+        const updatedScreenMapAsset = allAssets.find(a => a.id === currentScreenMap.id && a.type === 'screenmap');
+        if (!updatedScreenMapAsset) return;
+        const updatedScreenMap = updatedScreenMapAsset.data as ScreenMap;
+        // Only update if the reference has actually changed (indicating an update occurred)
+        if (updatedScreenMap !== currentScreenMap) {
+            setCurrentScreenMap(updatedScreenMap);
+        }
+    }, [isOpen, allAssets, currentScreenMap]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -1813,7 +1862,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // If frameImages is empty, simply skip drawing but continue processing
 
                 // --- 9. DEBUG: Dibujar Hitboxes (si tiene comp_collision) ---
-                if (hasCollisionComp) {
+                if (showHitboxDebug && hasCollisionComp) {
                     const props = entityCollisionProps(entityA);
                     if (props) {
                         const hitbox = getHitboxFor(entityA, props);
@@ -1849,7 +1898,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             console.log(`[HITBOX DRAW] ${entityA.instance.name}: hasComp=${hasCollisionComp}, but props is NULL!`);
                         }
                     }
-                } else {
+                } else if (showHitboxDebug) {
                     if (now % 1000 < 16) {
                         console.log(`[HITBOX DRAW] ${entityA.instance.name}: hasComp=${hasCollisionComp} (no hitbox to draw)`);
                     }
@@ -1915,7 +1964,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
         msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
         // Asegurarse de que dependencias de las funciones internas estén aquí si cambian
-        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT
+        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug
     ]);
 
     if (!isOpen) return null;
@@ -1938,7 +1987,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const westExits = getExitsForDirection('west');
 
     const getButtonStyle = (direction: 'north' | 'south' | 'east' | 'west', index: number, total: number): React.CSSProperties => {
-        const offset = (index - (total - 1) / 2) * 32;
+        const offset = (index - (total - 1) / 2) * (isFullscreen ? 64 : 32);
         switch (direction) {
             case 'north': return { top: 0, left: `calc(50% + ${offset}px)`, transform: 'translateX(-50%)' };
             case 'south': return { bottom: 0, left: `calc(50% + ${offset}px)`, transform: 'translateX(-50%)' };
@@ -1966,87 +2015,110 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             >
                 <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Game Flow Preview</h2>
                 <p className="text-xs text-msx-textsecondary mb-2">Use Arrows, Enter/Space, and Escape to navigate.</p>
-                <div className="relative" style={{ width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}>
+                <div className="relative" style={{ width: PREVIEW_WIDTH * (isFullscreen ? 4 : 2), height: PREVIEW_HEIGHT * (isFullscreen ? 4 : 2) }}>
+                    <CRTShaderOverlay enabled={isFullscreen}>
                     <canvas
                         ref={canvasRef}
                         width={PREVIEW_WIDTH}
                         height={PREVIEW_HEIGHT}
                         className={`border-2 border-msx-border`}
                         style={{
-                            width: PREVIEW_WIDTH * 2,
-                            height: PREVIEW_HEIGHT * 2,
+                            width: PREVIEW_WIDTH * (isFullscreen ? 4 : 2),
+                            height: PREVIEW_HEIGHT * (isFullscreen ? 4 : 2),
                             imageRendering: 'pixelated',
                             backgroundColor: canvasBackgroundColor
                         }}
                     />
+                    </CRTShaderOverlay>
                     {cursorAsset && subMenuNode && (() => {
                         const expandedOpts = expandMenuOptions(subMenuNode);
                         const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
+                        const scale = isFullscreen ? 4 : 2;
                         return (
                             <img
                                 src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
                                 alt="cursor"
                                 className="absolute pointer-events-none"
                                 style={{
-                                    left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(selectedText, 1).width) / 2 - 16) * 2,
-                                    top: ((80 + selectedOptionIndex * 12) - 4) * 2,
+                                    left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(selectedText, 1).width) / 2 - 16) * scale,
+                                    top: ((80 + selectedOptionIndex * 12) - 4) * scale,
                                     imageRendering: 'pixelated',
-                                    width: (cursorAsset.data as Sprite).size.width * 2,
-                                    height: (cursorAsset.data as Sprite).size.height * 2,
+                                    width: (cursorAsset.data as Sprite).size.width * scale,
+                                    height: (cursorAsset.data as Sprite).size.height * scale,
                                 }}
                             />
                         );
                     })()}
-                    {currentScreenMap && (
+                    {currentScreenMap && !isPlayMode && (
                         <>
                             {northExits.map((conn, index) => (
-                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('north', index, northExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
-                                    <ArrowUpIcon className="w-6 h-6" />
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('north', index, northExits.length)} className={`absolute bg-black bg-opacity-50 text-white p-1 rounded-full ${isFullscreen ? 'p-2' : ''}`}>
+                                    <ArrowUpIcon className={isFullscreen ? 'w-12 h-12' : 'w-6 h-6'} />
                                 </button>
                             ))}
                             {southExits.map((conn, index) => (
-                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('south', index, southExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
-                                    <ArrowDownIcon className="w-6 h-6" />
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('south', index, southExits.length)} className={`absolute bg-black bg-opacity-50 text-white p-1 rounded-full ${isFullscreen ? 'p-2' : ''}`}>
+                                    <ArrowDownIcon className={isFullscreen ? 'w-12 h-12' : 'w-6 h-6'} />
                                 </button>
                             ))}
                             {westExits.map((conn, index) => (
-                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('west', index, westExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
-                                    <ArrowLeftIcon className="w-6 h-6" />
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('west', index, westExits.length)} className={`absolute bg-black bg-opacity-50 text-white p-1 rounded-full ${isFullscreen ? 'p-2' : ''}`}>
+                                    <ArrowLeftIcon className={isFullscreen ? 'w-12 h-12' : 'w-6 h-6'} />
                                 </button>
                             ))}
                             {eastExits.map((conn, index) => (
-                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('east', index, eastExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
-                                    <ArrowRightIcon className="w-6 h-6" />
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('east', index, eastExits.length)} className={`absolute bg-black bg-opacity-50 text-white p-1 rounded-full ${isFullscreen ? 'p-2' : ''}`}>
+                                    <ArrowRightIcon className={isFullscreen ? 'w-12 h-12' : 'w-6 h-6'} />
                                 </button>
                             ))}
                         </>
                     )}
                 </div>
                 <div className="flex items-center mt-4">
-                    <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
-                    {currentNode?.type === 'WorldLink' && (() => {
-                        const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                        return conn ? (
-                            <Button onClick={() => {
-                                let targetNodeId = conn.to.nodeId;
-                                let targetNode = nodes.find(n => n.id === targetNodeId);
-                                while (targetNode && targetNode.type === 'Waypoint') {
-                                    const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
-                                    if (nextConn) {
-                                        targetNodeId = nextConn.to.nodeId;
-                                        targetNode = nodes.find(n => n.id === targetNodeId);
-                                    } else {
-                                        break;
-                                    }
-                                }
-                                setNavigationStack(prev => [...prev, currentNode.id]);
-                                setCurrentNodeId(targetNodeId);
-                                setSelectedOptionIndex(0);
-                                setCurrentScreenMap(null);
-                                setCurrentWorldMapGraph(null);
-                            }} variant="secondary" size="md" className="mr-4">Exit World</Button>
-                        ) : null;
-                    })()}
+                    {!isPlayMode && (
+                        <>
+                            <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
+                            {isDynamic && currentNode?.type === 'WorldLink' && (
+                                <Button onClick={() => setShowHitboxDebug(!showHitboxDebug)} variant={showHitboxDebug ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                    Hitbox Debug: {showHitboxDebug ? 'On' : 'Off'}
+                                </Button>
+                            )}
+                            {currentNode?.type === 'WorldLink' && (() => {
+                                const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                                return conn ? (
+                                    <Button onClick={() => {
+                                        let targetNodeId = conn.to.nodeId;
+                                        let targetNode = nodes.find(n => n.id === targetNodeId);
+                                        while (targetNode && targetNode.type === 'Waypoint') {
+                                            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                                            if (nextConn) {
+                                                targetNodeId = nextConn.to.nodeId;
+                                                targetNode = nodes.find(n => n.id === targetNodeId);
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                        setNavigationStack(prev => [...prev, currentNode.id]);
+                                        setCurrentNodeId(targetNodeId);
+                                        setSelectedOptionIndex(0);
+                                        setCurrentScreenMap(null);
+                                        setCurrentWorldMapGraph(null);
+                                    }} variant="secondary" size="md" className="mr-4">Exit World</Button>
+                                ) : null;
+                            })()}
+                        </>
+                    )}
+                    {isPlayMode && (
+                        <Button
+                            onClick={() => setIsFullscreen(!isFullscreen)}
+                            variant="secondary"
+                            size="md"
+                            icon={<ArrowsPointingOutIcon />}
+                            className="mr-4"
+                        >
+                            {isFullscreen ? 'Normal Size' : 'Full Size'}
+                        </Button>
+                    )}
                     <Button onClick={onClose} variant="primary" size="md">Close</Button>
                 </div>
             </div>

@@ -1219,6 +1219,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           isOpen={!!previewMode}
           onClose={handleClosePreview}
           initialIsDynamic={previewMode === 'play'}
+          isPlayMode={previewMode === 'play'}
           graphData={gameFlowGraph}
           allAssets={allAssets}
           msxFont={msxFont}

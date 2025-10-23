@@ -1,0 +1,89 @@
+ // --- Nueva Función de Colisión CORREGIDA ---
+        const handleTilemapCollision = (entity: AnimatedEntity, screenMap: ScreenMap, tileset: Tile[], collisionCompDef: ComponentDefinition) => {
+          if (!screenMap || !tileset || !collisionCompDef) return;
+          const entityCollisionProps = {
+            ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
+            ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
+            ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+          };
+          const getHitboxFor = (x: number, y: number) => ({
+            x: x + (entityCollisionProps.offsetX || 0),
+            y: y + (entityCollisionProps.offsetY || 0),
+            width: entityCollisionProps.hitboxWidth || entity.sprite.size.width,
+            height: entityCollisionProps.hitboxHeight || entity.sprite.size.height,
+          });
+          const checkCollisionAt = (x: number, y: number) => {
+            const tileX = Math.floor(x / TILE_SIZE);
+            const tileY = Math.floor(y / TILE_SIZE);
+            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
+            const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+            if (!tileOnLayer || !tileOnLayer.tileId) return false;
+            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+            return tile?.logicalProperties?.isSolid ?? false;
+          };
+        
+          let tentativeX = entity.x + entity.vx;
+          let tentativeY = entity.y + entity.vy;
+          let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+        
+          // --- Resolver Colisión en X (usando puntos centrales, NO esquinas) ---
+          if (entity.vx !== 0) {
+            let collisionX = false;
+            const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
+            const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
+        
+            if (entity.vx > 0) { // Derecha
+              if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1) ||
+                  checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2)) {
+                collisionX = true;
+                const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
+                tentativeX = tileLeftEdge - (entityCollisionProps.offsetX || 0) - tentativeHitbox.width;
+                entity.vx = 0;
+              }
+            } else if (entity.vx < 0) { // Izquierda
+              if (checkCollisionAt(tentativeHitbox.x, centerY1) ||
+                  checkCollisionAt(tentativeHitbox.x, centerY2)) {
+                collisionX = true;
+                const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
+                tentativeX = tileRightEdge - (entityCollisionProps.offsetX || 0);
+                entity.vx = 0;
+              }
+            }
+            if (collisionX) {
+              tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+            }
+          }
+        
+          // --- Resolver Colisión en Y ---
+          if (entity.vy !== 0) {
+            let collisionY = false;
+            const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
+            const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
+        
+            if (entity.vy > 0) { // Cayendo
+              if (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height) ||
+                  checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height)) {
+                collisionY = true;
+                const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
+                tentativeY = tileTopEdge - (entityCollisionProps.offsetY || 0) - tentativeHitbox.height;
+                entity.vy = 0;
+              }
+            } else if (entity.vy < 0) { // Saltando
+              if (checkCollisionAt(centerX1, tentativeHitbox.y) ||
+                  checkCollisionAt(centerX2, tentativeHitbox.y)) {
+                collisionY = true;
+                const tileBottomEdge = Math.ceil(tentativeHitbox.y / TILE_SIZE) * TILE_SIZE;
+                tentativeY = tileBottomEdge - (entityCollisionProps.offsetY || 0);
+                entity.vy = 0;
+              }
+            }
+            if (collisionY) {
+              // No es estrictamente necesario actualizar hitbox aquí para X, pero sí para consistencia
+            }
+          }
+        
+          // Aplicar posición final
+          entity.x = tentativeX;
+          entity.y = tentativeY;
+        };
+        // --- Fin Nueva Función ---

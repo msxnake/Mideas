@@ -1,5 +1,6 @@
 import React from 'react';
 import { Action, ActionTypes, ActionType } from '../../../statemachine.types';
+import { ProjectAsset } from '../../../types';
 import { Button } from '../../common/Button';
 import { TrashIcon } from '../../icons/MsxIcons';
 import { ActionParamsEditor } from './ActionParamsEditor';
@@ -7,9 +8,10 @@ import { ActionParamsEditor } from './ActionParamsEditor';
 interface ActionSequenceEditorProps {
   actions: Action[];
   onUpdateActions: (actions: Action[]) => void;
+  allAssets?: ProjectAsset[];
 }
 
-export const ActionSequenceEditor: React.FC<ActionSequenceEditorProps> = ({ actions, onUpdateActions }) => {
+export const ActionSequenceEditor: React.FC<ActionSequenceEditorProps> = ({ actions, onUpdateActions, allAssets = [] }) => {
   const [selectedActionType, setSelectedActionType] = React.useState<ActionType>(ActionTypes.SET_POSITION);
 
   const handleAddAction = () => {
@@ -41,9 +43,10 @@ export const ActionSequenceEditor: React.FC<ActionSequenceEditorProps> = ({ acti
                 <TrashIcon className="w-4 h-4" />
               </Button>
             </div>
-            <ActionParamsEditor 
-              action={action} 
-              onUpdateParams={(params) => handleUpdateActionParams(index, params)} 
+            <ActionParamsEditor
+              action={action}
+              onUpdateParams={(params) => handleUpdateActionParams(index, params)}
+              allAssets={allAssets}
             />
           </li>
         ))}

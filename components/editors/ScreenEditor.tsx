@@ -1046,6 +1046,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         />
       )}
       <ScreenPreviewModal
+        key={`preview-${screenMap.id}-${screenMap.layers.entities.length}-${JSON.stringify(screenMap.layers.entities.map(e => ({id: e.id, x: e.position.x, y: e.position.y})))}`}
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
         screenMap={screenMap}
@@ -1057,6 +1058,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         msxFontColorAttributes={msxFontColorAttributes}
       />
       <ScreenPlayModal
+        key={`play-${screenMap.id}-${screenMap.layers.entities.length}-${JSON.stringify(screenMap.layers.entities.map(e => ({id: e.id, x: e.position.x, y: e.position.y})))}`}
         isOpen={isPlayModalOpen}
         onClose={() => setIsPlayModalOpen(false)}
         screenMap={screenMap}
