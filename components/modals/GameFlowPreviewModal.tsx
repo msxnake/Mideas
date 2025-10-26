@@ -930,13 +930,27 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
 
     // ✅ SIEMPRE guardar, incluso si ya había checkpoint en esta pantalla
-    setGameGlobalVariables(prev => ({
+        // ✅ Punto de entrada: solo para colocar al player
+        if (playerEntryPoint) {
+        heroForThisScreen.x = playerEntryPoint.x
+        heroForThisScreen.y = playerEntryPoint.y
+        heroForThisScreen.vx = 0
+        heroForThisScreen.vy = 0
+        setPlayerEntryPoint(null)   // ← ya se usó
+        }
+
+        // ✅ Checkpoint: zona SEGURA dentro de la pantalla
+        const safeX = Math.max(8, Math.min(PREVIEW_WIDTH  - heroForThisScreen.sprite.size.width  - 8, Math.round(heroForThisScreen.x)))
+        const safeY = Math.max(8, Math.min(PREVIEW_HEIGHT - heroForThisScreen.sprite.size.height - 8, Math.round(heroForThisScreen.y)))
+
+        setGameGlobalVariables(prev => ({
         ...prev,
-        playerCheckpointX: checkpointX,
-        playerCheckpointY: checkpointY,
+        playerCheckpointX: safeX,
+        playerCheckpointY: safeY,
         playerCheckpointScreen: currentScreenMap.id
-    }));
-}
+        }))
+        }   
+        setPlayerEntryPoint(null);
         entitiesRef.current = entitiesToAnimate;
         heroRef.current = heroForThisScreen || null;
         console.log('[Effect] Final hero ref:', heroRef.current?.instance.name);
