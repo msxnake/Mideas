@@ -14,6 +14,7 @@ import {
     MSXFontColorAttributes,
     EntityTemplate,
     ScreenMap,
+    ScreenTile,
     Tile,
     WorldMapGraph,
     EntityInstance,
@@ -117,6 +118,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [currentExecutingGameFlowName, setCurrentExecutingGameFlowName] = useState<string>(gameFlowAssetName);
     const [playerEntryPoint, setPlayerEntryPoint] = useState<{x: number, y: number} | null>(null);
     const [isPositioningMode, setIsPositioningMode] = useState(false);
+    const [runtimeCollisionLayer, setRuntimeCollisionLayer] = useState<ScreenTile[][]>([]);
 
     const currentGraphData = currentNestedGraphData || graphData;
     const { nodes, connections } = currentGraphData;
@@ -157,6 +159,36 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             playerEntity.y = y - playerEntity.sprite.size.height / 2;
         }
     }, [isPositioningMode, isDynamic, currentNode, isFullscreen]);
+
+    // Modificar un tile en la capa de colisión runtime
+    const modifyTileInLayer = useCallback((tileX: number, tileY: number, newTileId: string | null) => {
+        // Validar coordenadas
+        if (tileY < 0 || tileY >= 24 || tileX < 0 || tileX >= 32) {
+            console.warn(`[TILE MOD] Invalid coordinates: (${tileX}, ${tileY})`);
+            return;
+        }
+
+        // Modificar collision layer
+        setRuntimeCollisionLayer(prev => {
+            const newLayer = JSON.parse(JSON.stringify(prev));
+            if (!newLayer[tileY]) newLayer[tileY] = [];
+            newLayer[tileY][tileX] = { tileId: newTileId };
+            return newLayer;
+        });
+
+        // Modificar también background layer para reflejo visual
+        setCurrentScreenMap(prev => {
+            if (!prev) return prev;
+            const updated = { ...prev };
+            if (!updated.layers.background[tileY]) {
+                updated.layers.background[tileY] = [];
+            }
+            updated.layers.background[tileY][tileX] = { tileId: newTileId };
+            return updated;
+        });
+
+        console.log(`[TILE MOD] Modified tile at (${tileX}, ${tileY}) → ${newTileId || 'empty'}`);
+    }, []);
 
     // Disparar un evento para una entidad
     const triggerEvent = useCallback((entityId: string, eventName: string) => {
@@ -484,6 +516,61 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 break;
                             }
 
+                                case 'BREAK_TILE':
+                                case 'REPLACE_TILE': {
+                                    const params = action.params;
+                                    const dir = params.direction || 'up';
+
+                                    // Calcular posición del tile según dirección relativa al player
+                                    const offsets = {
+                                        up: { x: 0, y: -1 },
+                                        down: { x: 0, y: 1 },
+                                        left: { x: -1, y: 0 },
+                                        right: { x: 1, y: 0 }
+                                    };
+
+                                    // Posición del player en tiles (8x8)
+                                    const playerTileX = Math.floor((entity.x + entity.sprite.size.width / 2) / 8);
+                                    const playerTileY = Math.floor((entity.y + entity.sprite.size.height / 2) / 8);
+
+                                    // Posición del tile target
+                                    const targetTileX = playerTileX + offsets[dir].x;
+                                    const targetTileY = playerTileY + offsets[dir].y;
+
+                                    // Verificar que el tile target existe
+                                    const targetTile = runtimeCollisionLayer[targetTileY]?.[targetTileX];
+
+                                    if (targetTile?.tileId) {
+                                        const tileAsset = allAssets.find(a => a.id === targetTile.tileId && a.type === 'tile');
+                                        const tileData = tileAsset?.data as Tile | undefined;
+
+                                        if (action.type === 'BREAK_TILE') {
+                                            // Solo romper si el tile es breakable
+                                            if (tileData?.logicalProperties?.isBreakable) {
+                                                modifyTileInLayer(targetTileX, targetTileY, null);
+                                                console.log(`[ACTION] BREAK_TILE: Broke tile at (${targetTileX}, ${targetTileY})`);
+                                            } else {
+                                                console.log(`[ACTION] BREAK_TILE: Tile not breakable at (${targetTileX}, ${targetTileY})`);
+                                            }
+                                        } else if (action.type === 'REPLACE_TILE') {
+                                            // Reemplazar con nuevo tile
+                                            const newTileId = params.replacementTileId || null;
+                                            modifyTileInLayer(targetTileX, targetTileY, newTileId);
+                                            console.log(`[ACTION] REPLACE_TILE: Replaced tile at (${targetTileX}, ${targetTileY}) with ${newTileId || 'empty'}`);
+                                        }
+                                    } else if (!targetTile?.tileId && action.type === 'REPLACE_TILE') {
+                                        // Permitir colocar tile en espacio vacío
+                                        const newTileId = params.replacementTileId || null;
+                                        if (newTileId) {
+                                            modifyTileInLayer(targetTileX, targetTileY, newTileId);
+                                            console.log(`[ACTION] REPLACE_TILE: Placed tile at empty position (${targetTileX}, ${targetTileY})`);
+                                        }
+                                    } else {
+                                        console.log(`[ACTION] ${action.type}: No tile at target position (${targetTileX}, ${targetTileY})`);
+                                    }
+                                    break;
+                                }
+
                                 default:
                                     console.warn(`[ACTION] Unknown action type: ${action.type}`);
                                     break;
@@ -790,6 +877,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         console.log(`[Effect] Loading screen: ${currentScreenMap.name}`);
         console.log('[Effect] Entry point on load:', playerEntryPoint);
 
+        // Initialize runtime collision layer (cloned from screenMap for in-game modifications)
+        if (currentScreenMap.layers?.collision) {
+            setRuntimeCollisionLayer(JSON.parse(JSON.stringify(currentScreenMap.layers.collision)));
+            console.log('[TILE SYSTEM] Collision layer initialized for runtime modifications');
+        } else {
+            // Create empty collision layer if not exists
+            const emptyLayer: ScreenTile[][] = Array(24).fill(null).map(() =>
+                Array(32).fill(null).map(() => ({ tileId: null }))
+            );
+            setRuntimeCollisionLayer(emptyLayer);
+            console.log('[TILE SYSTEM] Created empty collision layer');
+        }
+
         const getAsset = <T extends AssetType>(assetId: string | null | undefined, assetType: T): ProjectAsset | undefined => {
             if (!assetId) return undefined;
             return allAssets.find(a => a.id === assetId && a.type === assetType);
@@ -987,7 +1087,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const tileX = Math.floor(x / TILE_SIZE);
             const tileY = Math.floor(y / TILE_SIZE);
             if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
-            const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+
+            // Usar runtimeCollisionLayer si estamos en currentScreenMap (permite modificación de tiles)
+            const collisionLayer = screenMap === currentScreenMap ? runtimeCollisionLayer : screenMap.layers.collision;
+            const tileOnLayer = collisionLayer[tileY]?.[tileX];
+
             if (!tileOnLayer || !tileOnLayer.tileId) return false;
             const tile = tileset.find(t => t.id === tileOnLayer.tileId);
             return tile?.logicalProperties?.isSolid ?? false;

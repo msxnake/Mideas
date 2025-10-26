@@ -162,6 +162,10 @@ export const ActionTypes = {
   INCREASE_LIVES: 'INCREASE_LIVES',
   RESPAWN_PLAYER: 'RESPAWN_PLAYER',
 
+  // Tile Manipulation
+  BREAK_TILE: 'BREAK_TILE',
+  REPLACE_TILE: 'REPLACE_TILE',
+
 } as const;
 
 export type ActionType = typeof ActionTypes[keyof typeof ActionTypes];
@@ -169,4 +173,14 @@ export type ActionType = typeof ActionTypes[keyof typeof ActionTypes];
 export interface Action {
   type: ActionType;
   params: { [key: string]: any };
+}
+
+/**
+ * Parameters for BREAK_TILE and REPLACE_TILE actions
+ */
+export interface TileActionParams {
+  /** Direction relative to the player where the tile is located */
+  direction: 'up' | 'down' | 'left' | 'right';
+  /** ID of the replacement tile (only for REPLACE_TILE action) */
+  replacementTileId?: string;
 }

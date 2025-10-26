@@ -238,6 +238,51 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
           </div>
         );
 
+      case ActionTypes.BREAK_TILE:
+      case ActionTypes.REPLACE_TILE:
+        const availableTiles = allAssets.filter(a => a.type === 'tile');
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Direction</label>
+              <select
+                value={action.params.direction || 'up'}
+                onChange={(e) => handleParamChange('direction', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="up">⬆️ Up (Above player)</option>
+                <option value="down">⬇️ Down (Below player)</option>
+                <option value="left">⬅️ Left (Left of player)</option>
+                <option value="right">➡️ Right (Right of player)</option>
+              </select>
+            </div>
+
+            {action.type === ActionTypes.REPLACE_TILE && (
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-20">Replace with</label>
+                <select
+                  value={action.params.replacementTileId || ''}
+                  onChange={(e) => handleParamChange('replacementTileId', e.target.value)}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                >
+                  <option value="">-- Empty (remove tile) --</option>
+                  {availableTiles.map((tileAsset) => (
+                    <option key={tileAsset.id} value={tileAsset.id}>
+                      {tileAsset.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded">
+              {action.type === ActionTypes.BREAK_TILE
+                ? '🔨 Breaks tile only if it has "isBreakable" property enabled in Tile Editor'
+                : '🔄 Replaces tile with selected tile (or removes it if empty)'}
+            </div>
+          </div>
+        );
+
       default:
         return <div className="text-xs text-gray-500">No parameters for this action.</div>;
     }
