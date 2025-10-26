@@ -1,3 +1,47 @@
+Versión 0.258 - 26/10/2025
+- feat(animation): Add sprite-level loop control and refactor animation completion detection
+- Varis canvis, Full screen shader CRT i optimitzacions diverses
+- feat(collision): Use sprite-defined hitbox from Sprite Editor
+- feat(animation): Preserve sprite facing direction when idle
+- feat(statemachine): Add "START" keyword for CHANGE_GAME_FLOW_NODE action
+- refactor(statemachine): Remove unused eventId field from transitions
+- feat(animation): Add animation-triggered state machine system
+- starting collision logic
+- fix(gameflow): Improve jump and collision detection
+- fix(gameflow): Refactor input handling and improve collision
+- feat(gameflow): Improve preview physics and rendering
+- fix: Correct jump behavior in GameFlow preview
+- feat: Implement screen transitions in GameFlow preview
+- feat: Implement Platformer Physics and Advanced Components
+- Remove Map ASM button from Screen Editor
+- colors menus fix
+- fix font screen Editor
+- mejoras sector screen editor
+- fix tilebank part 1
+- Punto Zero
+- feat: GlobalVariables ASM integration and StateMachine improvements
+- chore: hide internal asset types from Project Assets panel
+- feat: refactor Guards to use custom GlobalVariables from selected asset
+- chore: remove debug console.logs from GlobalVariables PropertiesPanel
+- debug: add console logging to PropertiesPanel for GlobalVariables
+- feat: display GlobalVariables custom variables in PropertiesPanel
+- feat: add Global Variables folder to FileExplorerPanel asset list
+- fix: correct function name handleUpdateAsset in GlobalVariablesEditor
+- fix: ensure GlobalVariables customVariables array initialization and validation
+- fix: enable GlobalVariables asset creation and editing
+- feat: add proper type support to GlobalVariables editor
+- feat: integrate GlobalVariables editor into Mideas UI
+- feat: add GlobalVariables asset type with custom variable editor
+- feat: enable guard input in StateMachine new transition form
+- feat: add transition guards (conditions) to StateMachine Editor
+- feat: add IfThenElse node properties panel
+- feat: add comprehensive if-then-else configuration and open connections validation
+- add node if-then-else
+- bug fix gameflow pan
+- refactor: modularizar msxModularGenerator en arquitectura escalable
+- asm a minusculas
+- fix: Make INIT_GAME_ENTITIES conditional on entities/sprites
+
 Versión 0.257 - 15/10/2025
 - feat: Screen Editor - Selectores de color background/border con paleta MSX1 (VDP Register 7)
 - feat: Screen Editor toolbar - Dropdowns visuales con preview de color seleccionado
@@ -201,3 +245,49 @@ Versión 0.254 - 6/10/2025
 - bug trash resolved
 - bank font -1-
 - last_end_rom.asm
+
+Versión 0.256 - 26/10/2025
+- feat(animation): Add sprite-level loop control and refactor animation completion detection
+- Varis canvis, Full screen shader CRT i optimitzacions diverses
+- feat(collision): Use sprite-defined hitbox from Sprite Editor
+- feat(animation): Preserve sprite facing direction when idle
+- feat(statemachine): Add "START" keyword for CHANGE_GAME_FLOW_NODE action
+- refactor(statemachine): Remove unused eventId field from transitions
+- feat(animation): Add animation-triggered state machine system
+- starting collision logic
+- fix(gameflow): Improve jump and collision detection
+- fix(gameflow): Refactor input handling and improve collision
+- feat(gameflow): Improve preview physics and rendering
+- fix: Correct jump behavior in GameFlow preview
+- feat: Implement screen transitions in GameFlow preview
+- feat: Implement Platformer Physics and Advanced Components
+- Remove Map ASM button from Screen Editor
+- colors menus fix
+- fix font screen Editor
+- mejoras sector screen editor
+- fix tilebank part 1
+- Punto Zero
+- feat: GlobalVariables ASM integration and StateMachine improvements
+- chore: hide internal asset types from Project Assets panel
+- feat: refactor Guards to use custom GlobalVariables from selected asset
+- chore: remove debug console.logs from GlobalVariables PropertiesPanel
+- debug: add console logging to PropertiesPanel for GlobalVariables
+- feat: display GlobalVariables custom variables in PropertiesPanel
+- feat: add Global Variables folder to FileExplorerPanel asset list
+- fix: correct function name handleUpdateAsset in GlobalVariablesEditor
+- fix: ensure GlobalVariables customVariables array initialization and validation
+- fix: enable GlobalVariables asset creation and editing
+- feat: add proper type support to GlobalVariables editor
+- feat: integrate GlobalVariables editor into Mideas UI
+- feat: add GlobalVariables asset type with custom variable editor
+- feat: enable guard input in StateMachine new transition form
+- feat: add transition guards (conditions) to StateMachine Editor
+- feat: add IfThenElse node properties panel
+- feat: add comprehensive if-then-else configuration and open connections validation
+- add node if-then-else
+- bug fix gameflow pan
+- refactor: modularizar msxModularGenerator en arquitectura escalable
+- asm a minusculas
+- fix: Make INIT_GAME_ENTITIES conditional on entities/sprites
+- fix: Make UPDATE_GAME_STATE conditional on entities
+
