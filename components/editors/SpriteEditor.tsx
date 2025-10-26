@@ -1404,6 +1404,15 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                   <option value="down">Down</option>
                 </select>
               </label>
+              <label className="flex items-center justify-between">
+                <span>Loop Animation</span>
+                <input
+                  type="checkbox"
+                  checked={sprite.loops !== false}
+                  onChange={e => onUpdate({ loops: e.target.checked })}
+                  className="w-4 h-4 bg-msx-bgcolor border border-msx-border rounded"
+                />
+              </label>
             </div>
           </Panel>
           <Panel title="Hitbox Settings">

@@ -57,9 +57,7 @@ interface ScreenEditorToolbarProps {
   /** Callback function to export the layout data. */
   onExportLayout: () => void; 
   /** Callback function to export the behavior map. */
-  onExportBehavior: () => void; 
-  /** Callback function to open the screen preview. */
-  onPreview: () => void;
+  onExportBehavior: () => void;
   /** Callback function to open the screen play mode. */
   onPlay: () => void;
   /** Callback function to export screen map as JSON. */
@@ -108,7 +106,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   activeAreaX, activeAreaY, activeAreaWidth, activeAreaHeight, onActiveAreaChange,
   maxActiveAreaX, maxActiveAreaY, maxActiveAreaWidth, maxActiveAreaHeight,
   onOpenHudEditor, isHudAreaDefined,
-  onExportLayout, onExportBehavior, onPreview, onPlay,
+  onExportLayout, onExportBehavior, onPlay,
   onExportScreenMapJSON, onImportScreenMapJSON,
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
   onAddNewEffectZone,
@@ -235,7 +233,6 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
       </div>
 
       <div className="flex items-center space-x-1 ml-auto">
-        <Button onClick={onPreview} size="sm" variant="secondary" icon={<PlayIcon className="w-4 h-4" />} title="Preview Screen"> Preview </Button>
         <Button onClick={onPlay} size="sm" variant="primary" icon={<PlayIcon className="w-4 h-4" />} title="Play Screen with Controls"> Play </Button>
         <Button onClick={onOpenHudEditor} size="sm" variant="secondary" icon={<HudIcon className="w-4 h-4" />} title={!isHudAreaDefined ? "No HUD area defined (Active Area covers full screen)" : "Manage HUD elements for this screen"} disabled={!isHudAreaDefined}> HUD </Button>
         {activeLayer === 'effects' && (

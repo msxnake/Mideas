@@ -18,7 +18,6 @@ import { ScreenTilesetPanel } from '../screen_editor/ScreenTilesetPanel';
 import { ScreenEditorStatusBar } from '../screen_editor/ScreenEditorStatusBar';
 import { ScreenSelectionToolsPanel } from '../screen_editor/ScreenSelectionToolsPanel';
 import { PatrolPathLayer } from '../screen_editor/PatrolPathLayer';
-import { ScreenPreviewModal } from '../modals/ScreenPreviewModal';
 import { ScreenPlayModal } from '../modals/ScreenPlayModal';
 
 
@@ -123,7 +122,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
 
   const [isHudEditorModalOpen, setIsHudEditorModalOpen] = useState(false);
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isPlayModalOpen, setIsPlayModalOpen] = useState(false);
 
   const [localActiveX, setLocalActiveX] = useState<string>(String(screenMap.activeAreaX ?? 0));
@@ -899,7 +897,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         isHudAreaDefined={isHudAreaDefined}
         onExportLayout={prepareAndOpenLayoutExportModal}
         onExportBehavior={handleExportBehaviorMapASM}
-        onPreview={() => setIsPreviewModalOpen(true)}
         onPlay={() => setIsPlayModalOpen(true)}
         onExportScreenMapJSON={handleExportScreenMapJSON}
         onImportScreenMapJSON={handleImportScreenMapJSON}
@@ -1045,18 +1042,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           confirmButtonVariant="danger"
         />
       )}
-      <ScreenPreviewModal
-        key={`preview-${screenMap.id}-${screenMap.layers.entities.length}-${JSON.stringify(screenMap.layers.entities.map(e => ({id: e.id, x: e.position.x, y: e.position.y})))}`}
-        isOpen={isPreviewModalOpen}
-        onClose={() => setIsPreviewModalOpen(false)}
-        screenMap={screenMap}
-        allAssets={allProjectAssets}
-        currentScreenMode={currentScreenMode}
-        entityTemplates={entityTemplates}
-        tileBanks={tileBanks}
-        msxFont={msx1FontData}
-        msxFontColorAttributes={msxFontColorAttributes}
-      />
       <ScreenPlayModal
         key={`play-${screenMap.id}-${screenMap.layers.entities.length}-${JSON.stringify(screenMap.layers.entities.map(e => ({id: e.id, x: e.position.x, y: e.position.y})))}`}
         isOpen={isPlayModalOpen}

@@ -161,6 +161,8 @@ export interface Sprite {
   mirroredHorizontally?: boolean;
   /** Whether the sprite is mirrored vertically by default. */
   mirroredVertically?: boolean;
+  /** Whether the sprite animation loops (default: true). */
+  loops?: boolean;
 }
 
 /**

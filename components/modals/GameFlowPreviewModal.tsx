@@ -1,7 +1,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CRTShaderOverlay } from '../../src/components/CRTShaderOverlay';
+import { CRTShaderOverlay, CRTShaderConfig, defaultCRTConfig } from '../../src/components/CRTShaderOverlay';
+import { CRTConfigModal } from '../../src/components/CRTConfigModal';
 import {
     GameFlowGraph,
     ProjectAsset,
@@ -105,15 +106,57 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [isDynamic, setIsDynamic] = useState(initialIsDynamic);
     const [showHitboxDebug, setShowHitboxDebug] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [crtConfig, setCrtConfig] = useState<CRTShaderConfig>(() => {
+        const saved = localStorage.getItem('crtShaderConfig');
+        return saved ? JSON.parse(saved) : defaultCRTConfig;
+    });
+    const [isCrtConfigOpen, setIsCrtConfigOpen] = useState(false);
     const [gameGlobalVariables, setGameGlobalVariables] = useState<Record<string, any>>({});
     const [gameFlowStack, setGameFlowStack] = useState<Array<{parentGraphData: GameFlowGraph, returnNodeId: string, parentGameFlowName: string}>>([]);
     const [currentNestedGraphData, setCurrentNestedGraphData] = useState<GameFlowGraph | null>(null);
     const [currentExecutingGameFlowName, setCurrentExecutingGameFlowName] = useState<string>(gameFlowAssetName);
     const [playerEntryPoint, setPlayerEntryPoint] = useState<{x: number, y: number} | null>(null);
+    const [isPositioningMode, setIsPositioningMode] = useState(false);
 
     const currentGraphData = currentNestedGraphData || graphData;
     const { nodes, connections } = currentGraphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
+
+        
+    // Refs to share state between callbacks and effects     
+    const currentScreenMapRef = useRef<ScreenMap | null>(null);
+    const currentWorldMapGraphRef = useRef<WorldMapGraph | null>(null);
+    const setPlayerEntryPointRef = useRef<(entry: { x: number; y: number } | null) => void>(() => {});
+    const handleScreenTransitionRef = useRef<(toNodeId: string) => void>(() => {});
+
+    // Handler para posicionar al player con click
+    const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!isPositioningMode || !isDynamic || currentNode?.type !== 'WorldLink') return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        // Calcular coordenadas relativas al canvas (considerando el scale)
+        const rect = canvas.getBoundingClientRect();
+        const scale = isFullscreen ? 4 : 2;
+        const x = (e.clientX - rect.left) / scale;
+        const y = (e.clientY - rect.top) / scale;
+
+        // Encontrar la entidad player (la que tiene comp_player_input o comp_cursors)
+        const playerEntity = entitiesRef.current.find(entity =>
+            entity.template.components.some(c =>
+                c.definitionId === 'comp_player_input' ||
+                c.definitionId === 'comp_cursors' ||
+                c.definitionId === 'comp_input'
+            )
+        );
+
+        if (playerEntity) {
+            // Mover player a la posición del click (centrado en el sprite)
+            playerEntity.x = x - playerEntity.sprite.size.width / 2;
+            playerEntity.y = y - playerEntity.sprite.size.height / 2;
+        }
+    }, [isPositioningMode, isDynamic, currentNode, isFullscreen]);
 
     // Disparar un evento para una entidad
     const triggerEvent = useCallback((entityId: string, eventName: string) => {
@@ -124,9 +167,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         console.log(`[EVENT] Triggered "${eventName}" for entity ${entityId}`);
     }, []);
 
-    // Evaluar si una condición se cumple basada en eventos pendientes
-    const evaluateCondition = useCallback((condition: any, entityEvents: Set<string>): boolean => {
+    // Evaluar si una condición se cumple basada en el estado de la entidad
+    const evaluateCondition = useCallback((condition: any, entity: AnimatedEntity): boolean => {
         if (!condition) return false;
+
+        const entityEvents = pendingEvents.current.get(entity.instance.id) || new Set<string>();
 
         switch (condition.type) {
             case 'HAS_COLLISION':
@@ -149,39 +194,36 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
 
             case 'ANIMATION_COMPLETE':
-                // Check if animation_finished event exists
-                return entityEvents.has('animation_finished');
+                // Check directly on entity property (not events)
+                return entity.animationHasCompleted === true;
 
             case 'AND':
-                return condition.conditions?.every((c: any) => evaluateCondition(c, entityEvents)) ?? false;
+                return condition.conditions?.every((c: any) => evaluateCondition(c, entity)) ?? false;
 
             case 'OR':
-                return condition.conditions?.some((c: any) => evaluateCondition(c, entityEvents)) ?? false;
+                return condition.conditions?.some((c: any) => evaluateCondition(c, entity)) ?? false;
 
             case 'NOT':
-                return !condition.conditions?.every((c: any) => evaluateCondition(c, entityEvents)) ?? true;
+                return !condition.conditions?.every((c: any) => evaluateCondition(c, entity)) ?? true;
 
             default:
                 return false;
         }
     }, []);
 
-    // Procesar eventos pendientes y verificar transiciones
+    // Procesar condiciones y verificar transiciones
     const processEventTransitions = useCallback((entity: AnimatedEntity) => {
         if (!entity.stateMachine || !entity.currentState) return;
-
-        const entityEvents = pendingEvents.current.get(entity.instance.id);
-        if (!entityEvents || entityEvents.size === 0) return;
 
         const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
         if (!currentStateDef) return;
 
-        // Buscar transiciones que respondan a estos eventos
+        // Buscar transiciones cuyas condiciones se cumplan
         for (const transition of entity.stateMachine.transitions) {
             if (transition.fromStateId !== currentStateDef.id) continue;
 
-            // Evaluar la condición de la transición
-            if (transition.conditions && evaluateCondition(transition.conditions, entityEvents)) {
+            // Evaluar la condición de la transición (pasa la entidad completa)
+            if (transition.conditions && evaluateCondition(transition.conditions, entity)) {
                 const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
                 if (nextState) {
                     console.log(`[STATE MACHINE] ${entity.instance.name}: Condition met, transitioning from ${entity.currentState} to ${nextState.name}`);
@@ -390,16 +432,57 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     }
                                     break;
 
-                                case 'RESPAWN_PLAYER':
-                                    // Reset player to spawn position
-                                    const spawnX = Number(action.params.x !== undefined ? action.params.x : entity.instance.position.x * 8);
-                                    const spawnY = Number(action.params.y !== undefined ? action.params.y : entity.instance.position.y * 8);
-                                    entity.x = spawnX;
-                                    entity.y = spawnY;
-                                    entity.vx = 0;
-                                    entity.vy = 0;
-                                    console.log(`[ACTION] RESPAWN_PLAYER: Respawned at (${spawnX}, ${spawnY})`);
-                                    break;
+                                case 'RESPAWN_PLAYER': {
+                                let spawnX: number;
+                                let spawnY: number;
+                                let targetScreenId: string | undefined;
+
+                                if (gameGlobalVariables.playerCheckpointX !== undefined && gameGlobalVariables.playerCheckpointY !== undefined && gameGlobalVariables.playerCheckpointScreen) {
+                                    spawnX = Number(gameGlobalVariables.playerCheckpointX);
+                                    spawnY = Number(gameGlobalVariables.playerCheckpointY);
+                                    targetScreenId = gameGlobalVariables.playerCheckpointScreen;
+                                    console.log(`[ACTION] RESPAWN_PLAYER: Using checkpoint at (${spawnX}, ${spawnY}) on screen ${targetScreenId}`);
+                                } else if (action.params.x !== undefined || action.params.y !== undefined) {
+                                    spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
+                                    spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
+                                    console.log(`[ACTION] RESPAWN_PLAYER: Using action params at (${spawnX}, ${spawnY})`);
+                                } else {
+                                    spawnX = entity.instance.position.x * 8;
+                                    spawnY = entity.instance.position.y * 8;
+                                    console.log(`[ACTION] RESPAWN_PLAYER: Using initial position at (${spawnX}, ${spawnY})`);
+                                }
+
+                                const currentScreenMap = currentScreenMapRef.current;
+                                const currentWorldMapGraph = currentWorldMapGraphRef.current;
+
+                                // ✅ Si el checkpoint pertenece a otra pantalla, cambiar a ella
+                                if (targetScreenId && currentScreenMap?.id !== targetScreenId) {
+                                    console.log(`[ACTION] RESPAWN_PLAYER: Switching to screen ${targetScreenId} before respawning`);
+                                    const setPlayerEntryPoint = setPlayerEntryPointRef.current;
+                                    const handleScreenTransition = handleScreenTransitionRef.current;
+
+                                    setPlayerEntryPoint({ x: spawnX, y: spawnY });
+
+                                    if (currentWorldMapGraph) {
+                                        const targetScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === targetScreenId);
+                                        if (targetScreenNode) {
+                                            handleScreenTransition(targetScreenNode.id);
+                                            // No modificar entity.x/y aquí: se hará en el useEffect tras la transición
+                                            return;
+                                        } else {
+                                            console.warn(`[ACTION] RESPAWN_PLAYER: Target screen node not found for ID ${targetScreenId}`);
+                                        }
+                                    }
+                                }
+
+                                // ✅ Si ya estamos en la pantalla correcta, respawnear localmente
+                                entity.x = spawnX;
+                                entity.y = spawnY;
+                                entity.vx = 0;
+                                entity.vy = 0;
+                                console.log(`[ACTION] RESPAWN_PLAYER: Player respawned at (${spawnX}, ${spawnY})`);
+                                break;
+                            }
 
                                 default:
                                     console.warn(`[ACTION] Unknown action type: ${action.type}`);
@@ -408,13 +491,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     }
 
-                    // Limpiar TODOS los eventos después de procesar
-                    entityEvents.clear();
+                    // Limpiar TODOS los eventos después de procesar la transición
+                    const entityEvents = pendingEvents.current.get(entity.instance.id);
+                    if (entityEvents) {
+                        entityEvents.clear();
+                    }
                     break; // Solo una transición por frame
                 }
             }
         }
-    }, [evaluateCondition]);
+    }, [evaluateCondition, gameGlobalVariables, allAssets, createSpriteDataURL, mirrorPixelDataHorizontally]);
 
     const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
         const entity = entitiesRef.current.find(e => e.instance.id === entityId);
@@ -565,6 +651,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         if (!nextScreenNode) return;
         const nextScreenAsset = allAssets.find(a => a.id === nextScreenNode.screenAssetId && a.type === 'screenmap');
         if (!nextScreenAsset) return;
+
+        // NO guardamos checkpoint aquí porque:
+        // - Si viene del cruce de bordes, playerEntryPoint ya está set y se guardará en el effect con la posición correcta
+        // - Si viene de botón manual, también se guardará en el effect con la posición inicial
+
         setCurrentScreenMap(nextScreenAsset.data as ScreenMap);
     }, [currentWorldMapGraph, allAssets]);
 
@@ -690,6 +781,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             entitiesRef.current = [];
             return;
         };
+        // Guardar refs para uso en acciones asincrónicas
+        currentScreenMapRef.current = currentScreenMap;
+        currentWorldMapGraphRef.current = currentWorldMapGraph;
+        setPlayerEntryPointRef.current = setPlayerEntryPoint;
+        handleScreenTransitionRef.current = handleScreenTransition;
 
         console.log(`[Effect] Loading screen: ${currentScreenMap.name}`);
         console.log('[Effect] Entry point on load:', playerEntryPoint);
@@ -786,20 +882,61 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         }).filter(Boolean) as AnimatedEntity[];
 
         let entitiesToAnimate = nativeEntities;
-        let heroForThisScreen = entitiesToAnimate.find(e => e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') || e.template.name === 'Player');
-        console.log('[Effect] Native hero found:', heroForThisScreen?.instance.name);
-        if (heroRef.current && !heroForThisScreen) {
-            console.log('[Effect] No native hero. Carrying over:', heroRef.current.instance.name);
+        let heroForThisScreen: AnimatedEntity | undefined;
+
+        // Si hay playerEntryPoint (cruce de borde), SIEMPRE usar el hero actual (carry over)
+        if (playerEntryPoint && heroRef.current) {
+            console.log('[Effect] Border crossing detected. Carrying over hero:', heroRef.current.instance.name);
+
+            // IMPORTANTE: Remover el player nativo si existe, para evitar duplicados
+            entitiesToAnimate = entitiesToAnimate.filter(e =>
+                !e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') &&
+                e.template.name !== 'Player'
+            );
+            console.log('[Effect] Native hero removed from array to avoid duplicates');
+
             entitiesToAnimate.push(heroRef.current);
             heroForThisScreen = heroRef.current;
+        } else {
+            // Si NO hay playerEntryPoint, buscar hero nativo o usar carry over
+            heroForThisScreen = entitiesToAnimate.find(e => e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') || e.template.name === 'Player');
+            console.log('[Effect] Native hero found:', heroForThisScreen?.instance.name);
+            if (heroRef.current && !heroForThisScreen) {
+                console.log('[Effect] No native hero. Carrying over:', heroRef.current.instance.name);
+                entitiesToAnimate.push(heroRef.current);
+                heroForThisScreen = heroRef.current;
+            }
         }
-        if (heroForThisScreen && playerEntryPoint) {
-            console.log(`[Effect] Applying entry point to hero: ${heroForThisScreen.instance.name}. Position:`, playerEntryPoint);
-            heroForThisScreen.x = playerEntryPoint.x;
-            heroForThisScreen.y = playerEntryPoint.y;
-            heroForThisScreen.vx = 0;
-            heroForThisScreen.vy = 0;
-        }
+
+        // Guardar checkpoint del héroe
+        if (heroForThisScreen) {
+            let checkpointX: number;
+            let checkpointY: number;
+
+            if (playerEntryPoint) {
+                // Entrada por borde → usar playerEntryPoint
+                heroForThisScreen.x = playerEntryPoint.x;
+                heroForThisScreen.y = playerEntryPoint.y;
+                heroForThisScreen.vx = 0;
+                heroForThisScreen.vy = 0;
+                checkpointX = Math.round(playerEntryPoint.x);
+                checkpointY = Math.round(playerEntryPoint.y);
+                console.log(`[CHECKPOINT] Saved border entry: (${checkpointX}, ${checkpointY})`);
+            } else {
+                // Carga inicial → usar posición del héroe
+                checkpointX = Math.round(heroForThisScreen.x);
+                checkpointY = Math.round(heroForThisScreen.y);
+                console.log(`[CHECKPOINT] Saved initial position: (${checkpointX}, ${checkpointY})`);
+            }
+
+    // ✅ SIEMPRE guardar, incluso si ya había checkpoint en esta pantalla
+    setGameGlobalVariables(prev => ({
+        ...prev,
+        playerCheckpointX: checkpointX,
+        playerCheckpointY: checkpointY,
+        playerCheckpointScreen: currentScreenMap.id
+    }));
+}
         entitiesRef.current = entitiesToAnimate;
         heroRef.current = heroForThisScreen || null;
         console.log('[Effect] Final hero ref:', heroRef.current?.instance.name);
@@ -1046,7 +1183,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const textNodeFont = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
                     const textNodeFontColorAttrs = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
                     const textNodeTitle = textNode.title;
-                    const textNodeMessage = textNode.message;
+                    const textNodeMessage = textNode.message || '';
                     const textNodeTitleDims = getTextDimensionsMSX1(textNodeTitle, 1);
                     await drawTextAsync(textNodeTitle, (PREVIEW_WIDTH - textNodeTitleDims.width) / 2, 30, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
                     const words = textNodeMessage.split(' ');
@@ -1068,9 +1205,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const startY = 60;
                     for (let i = 0; i < lines.length; i++) {
                         const lineDims = getTextDimensionsMSX1(lines[i], 1);
-                        await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes, textNodeFont, textNodeFontColorAttributes);
+                        await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
                     }
-                    const promptText = 'Press Fire to continue';
+                    const promptText = 'PRESS FIRE TO CONTINUE';
                     const promptDims = getTextDimensionsMSX1(promptText, 1);
                     const baseColorAttrs = textNodeFontColorAttrs || msxFontColorAttributes;
                     const promptColorAttrs = JSON.parse(JSON.stringify(baseColorAttrs));
@@ -1561,39 +1698,49 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 // --- 3. Lógica de Transición de Pantalla (Solo para el Héroe) ---
                 if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap && canProcessPhysics) {
-                  const spriteWidth = entityA.sprite.size.width;
-                  const spriteHeight = entityA.sprite.size.height;
+                    // Estados que desactivan la detección de salida por bordes (evitan transiciones no deseadas tras respawn/muerte)
+                    const statesThatDisableScreenExit = ['Dead', 'Death', 'Respawn', 'Spawning', 'Hurt', 'Hit', 'GameOver', 'Invulnerable'];
+                    const isExitingDisabled = entityA.currentState && statesThatDisableScreenExit.some(state =>
+                        entityA.currentState?.toLowerCase().includes(state.toLowerCase())
+                    );
 
-                  let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
-                  if (entityA.x + spriteWidth / 2 < 0 && entityA.vx < 0) exitDirection = 'west';
-                  else if (entityA.x + spriteWidth / 2 > PREVIEW_WIDTH && entityA.vx > 0) exitDirection = 'east';
-                  else if (entityA.y + spriteHeight / 2 < 0 && entityA.vy < 0) exitDirection = 'north';
-                  else if (entityA.y + spriteHeight / 2 > PREVIEW_HEIGHT && entityA.vy > 0) exitDirection = 'south';
+                    if (!isExitingDisabled) {
+                        const spriteWidth = entityA.sprite.size.width;
+                        const spriteHeight = entityA.sprite.size.height;
+                        let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
 
-                  if (exitDirection) {
-                    console.log(`[Exit Detected] Direction: ${exitDirection}`);
-                    const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
-                    if (currentScreenNode) {
-                      let connection = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === exitDirection);
-                      let targetNodeId = connection?.toNodeId;
-                      if (!connection) {
-                        connection = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === exitDirection);
-                        targetNodeId = connection?.fromNodeId;
-                      }
-                      if (targetNodeId) {
-                        let newPlayerPos = { x: entityA.x, y: entityA.y };
-                        switch (exitDirection) {
-                          case 'east': newPlayerPos.x = 0; break;
-                          case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth; break;
-                          case 'south': newPlayerPos.y = 0; break;
-                          case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight; break;
+                        if (entityA.x + spriteWidth / 2 < 0 && entityA.vx < 0) exitDirection = 'west';
+                        else if (entityA.x + spriteWidth / 2 > PREVIEW_WIDTH && entityA.vx > 0) exitDirection = 'east';
+                        else if (entityA.y + spriteHeight / 2 < 0 && entityA.vy < 0) exitDirection = 'north';
+                        else if (entityA.y + spriteHeight / 2 > PREVIEW_HEIGHT && entityA.vy > 0) exitDirection = 'south';
+
+                        if (exitDirection) {
+                            console.log(`[Exit Detected] Direction: ${exitDirection}`);
+                            const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
+                            if (currentScreenNode) {
+                                let connection = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === exitDirection);
+                                let targetNodeId = connection?.toNodeId;
+                                if (!connection) {
+                                    connection = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === exitDirection);
+                                    targetNodeId = connection?.fromNodeId;
+                                }
+                                if (targetNodeId) {
+                                    let newPlayerPos = { x: entityA.x, y: entityA.y };
+                                    console.log(`[Border Crossing] Current player position: (${entityA.x}, ${entityA.y}), exit direction: ${exitDirection}`);
+                                    switch (exitDirection) {
+                                        case 'east': newPlayerPos.x = 0; break;
+                                        case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth; break;
+                                        case 'south': newPlayerPos.y = 0; break;
+                                        case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight; break;
+                                    }
+                                    console.log(`[Border Crossing] New entry point calculated: (${newPlayerPos.x}, ${newPlayerPos.y})`);
+                                    setPlayerEntryPoint(newPlayerPos);
+                                    handleScreenTransition(targetNodeId);
+                                    return; // Detener el procesamiento de este frame para permitir la transición
+                                }
+                            }
                         }
-                        setPlayerEntryPoint(newPlayerPos);
-                        handleScreenTransition(targetNodeId);
-                        return; // Detener el procesamiento de este frame para permitir la transición
-                      }
                     }
-                  }
                 }
 
                 // --- 4. Límites para Entidades No Héroe ---
@@ -1700,12 +1847,24 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         return 'collision_enemy'; // Default
                                     };
 
-                                    // Determine collision events based on entity components
-                                    const eventNameA = getCollisionEventType(entityB); // What A collided with
-                                    const eventNameB = getCollisionEventType(entityA); // What B collided with
+                                    // Check if entities are in invulnerable states (Dead, Hurt, etc.)
+                                    const invulnerableStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Respawn', 'Spawning', 'Invulnerable'];
+                                    const isAInvulnerable = entityA.currentState && invulnerableStates.some(state =>
+                                        entityA.currentState?.toLowerCase().includes(state.toLowerCase())
+                                    );
+                                    const isBInvulnerable = entityB.currentState && invulnerableStates.some(state =>
+                                        entityB.currentState?.toLowerCase().includes(state.toLowerCase())
+                                    );
 
-                                    triggerEvent(entityA.instance.id, eventNameA);
-                                    triggerEvent(entityB.instance.id, eventNameB);
+                                    // Only trigger collision events if not invulnerable
+                                    if (!isAInvulnerable) {
+                                        const eventNameA = getCollisionEventType(entityB); // What A collided with
+                                        triggerEvent(entityA.instance.id, eventNameA);
+                                    }
+                                    if (!isBInvulnerable) {
+                                        const eventNameB = getCollisionEventType(entityA); // What B collided with
+                                        triggerEvent(entityB.instance.id, eventNameB);
+                                    }
                                 } else {
                                     // SOLID COLLISION: Apply physical separation
                                     console.log(`  💥 SOLID COLLISION: Applying physical pushback...`);
@@ -1731,12 +1890,24 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         return 'collision_enemy'; // Default
                                     };
 
-                                    // Determine collision events based on entity components
-                                    const eventNameA = getCollisionEventType(entityB); // What A collided with
-                                    const eventNameB = getCollisionEventType(entityA); // What B collided with
+                                    // Check if entities are in invulnerable states (Dead, Hurt, etc.)
+                                    const invulnerableStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Respawn', 'Spawning', 'Invulnerable'];
+                                    const isAInvulnerable = entityA.currentState && invulnerableStates.some(state =>
+                                        entityA.currentState?.toLowerCase().includes(state.toLowerCase())
+                                    );
+                                    const isBInvulnerable = entityB.currentState && invulnerableStates.some(state =>
+                                        entityB.currentState?.toLowerCase().includes(state.toLowerCase())
+                                    );
 
-                                    triggerEvent(entityA.instance.id, eventNameA);
-                                    triggerEvent(entityB.instance.id, eventNameB);
+                                    // Only trigger collision events if not invulnerable
+                                    if (!isAInvulnerable) {
+                                        const eventNameA = getCollisionEventType(entityB); // What A collided with
+                                        triggerEvent(entityA.instance.id, eventNameA);
+                                    }
+                                    if (!isBInvulnerable) {
+                                        const eventNameB = getCollisionEventType(entityA); // What B collided with
+                                        triggerEvent(entityB.instance.id, eventNameB);
+                                    }
                                 }
                             } else {
                                 console.log(`  ❌ Layer check failed - no collision response`);
@@ -1770,12 +1941,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     // Priority states that should always animate (death, hurt, attack, etc.)
                     const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable'];
-                    const isInPriorityState = entityA.currentState && priorityStates.some(state =>
-                        entityA.currentState?.toLowerCase().includes(state.toLowerCase())
-                    );
+                    const isInPriorityState = entityA.currentState ? priorityStates.some(state =>
+                        entityA.currentState.toLowerCase().includes(state.toLowerCase())
+                    ) : false;
 
-                    // Check if animation loops
-                    const loops = animComp.defaultValues?.loops !== false; // Default true
+                    // Check if animation loops (from sprite metadata, fallback to component)
+                    const loops = entityA.sprite.loops !== undefined
+                        ? entityA.sprite.loops
+                        : (animComp.defaultValues?.loops !== false); // Default true
 
                     // Reset completion flag if state changed
                     if (entityA.lastAnimationState !== entityA.currentState) {
@@ -1799,16 +1972,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 // Animation completed!
                                 if (!entityA.animationHasCompleted) {
                                     entityA.animationHasCompleted = true;
-
-                                    // Trigger animation_finished event
-                                    const entityEvents = pendingEvents.current.get(entityA.instance.id);
-                                    if (entityEvents) {
-                                        entityEvents.add('animation_finished');
-                                    } else {
-                                        pendingEvents.current.set(entityA.instance.id, new Set(['animation_finished']));
-                                    }
-
-                                    console.log(`[ANIMATION] Animation completed for ${entityA.instance.name}, triggering animation_finished event`);
                                 }
                             }
                         }
@@ -1996,6 +2159,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         }
     };
 
+    const handleSaveCrtConfig = (config: CRTShaderConfig) => {
+        setCrtConfig(config);
+        localStorage.setItem('crtShaderConfig', JSON.stringify(config));
+    };
+
     const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
     const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
     const canvasBackgroundColor = subMenuNode?.appearance?.colors?.background || '#000000';
@@ -2016,18 +2184,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Game Flow Preview</h2>
                 <p className="text-xs text-msx-textsecondary mb-2">Use Arrows, Enter/Space, and Escape to navigate.</p>
                 <div className="relative" style={{ width: PREVIEW_WIDTH * (isFullscreen ? 4 : 2), height: PREVIEW_HEIGHT * (isFullscreen ? 4 : 2) }}>
-                    <CRTShaderOverlay enabled={isFullscreen}>
+                    <CRTShaderOverlay enabled={isFullscreen} config={crtConfig}>
                     <canvas
                         ref={canvasRef}
                         width={PREVIEW_WIDTH}
                         height={PREVIEW_HEIGHT}
-                        className={`border-2 border-msx-border`}
+                        className={`border-2 border-msx-border ${isPositioningMode ? 'cursor-crosshair' : ''}`}
                         style={{
                             width: PREVIEW_WIDTH * (isFullscreen ? 4 : 2),
                             height: PREVIEW_HEIGHT * (isFullscreen ? 4 : 2),
                             imageRendering: 'pixelated',
                             backgroundColor: canvasBackgroundColor
                         }}
+                        onClick={handleCanvasClick}
                     />
                     </CRTShaderOverlay>
                     {cursorAsset && subMenuNode && (() => {
@@ -2079,9 +2248,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         <>
                             <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
                             {isDynamic && currentNode?.type === 'WorldLink' && (
-                                <Button onClick={() => setShowHitboxDebug(!showHitboxDebug)} variant={showHitboxDebug ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                    Hitbox Debug: {showHitboxDebug ? 'On' : 'Off'}
-                                </Button>
+                                <>
+                                    <Button onClick={() => setShowHitboxDebug(!showHitboxDebug)} variant={showHitboxDebug ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        Hitbox Debug: {showHitboxDebug ? 'On' : 'Off'}
+                                    </Button>
+                                    <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        Position Player: {isPositioningMode ? 'On' : 'Off'}
+                                    </Button>
+                                </>
                             )}
                             {currentNode?.type === 'WorldLink' && (() => {
                                 const conn = connections.find(c => c.from.nodeId === currentNode.id);
@@ -2109,15 +2283,25 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         </>
                     )}
                     {isPlayMode && (
-                        <Button
-                            onClick={() => setIsFullscreen(!isFullscreen)}
-                            variant="secondary"
-                            size="md"
-                            icon={<ArrowsPointingOutIcon />}
-                            className="mr-4"
-                        >
-                            {isFullscreen ? 'Normal Size' : 'Full Size'}
-                        </Button>
+                        <>
+                            <Button
+                                onClick={() => setIsFullscreen(!isFullscreen)}
+                                variant="secondary"
+                                size="md"
+                                icon={<ArrowsPointingOutIcon />}
+                                className="mr-4"
+                            >
+                                {isFullscreen ? 'Normal Size' : 'Full Size'}
+                            </Button>
+                            <Button
+                                onClick={() => setIsCrtConfigOpen(true)}
+                                variant="ghost"
+                                size="md"
+                                className="mr-4"
+                            >
+                                CRT Config
+                            </Button>
+                        </>
                     )}
                     <Button onClick={onClose} variant="primary" size="md">Close</Button>
                 </div>
@@ -2125,5 +2309,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         </div>
     );
 
-    return createPortal(modalContent, document.body);
+    return (
+        <>
+            {createPortal(modalContent, document.body)}
+            <CRTConfigModal
+                isOpen={isCrtConfigOpen}
+                onClose={() => setIsCrtConfigOpen(false)}
+                currentConfig={crtConfig}
+                onSave={handleSaveCrtConfig}
+            />
+        </>
+    );
 };

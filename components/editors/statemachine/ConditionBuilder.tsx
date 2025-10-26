@@ -141,7 +141,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
               🎬 Triggers when a non-looping animation finishes playing all frames
             </div>
             <div className="text-xs text-yellow-400 italic">
-              ℹ️ Make sure the animation component has "loops" set to false in the state that plays the animation
+              ℹ️ Make sure the sprite has "Loop Animation" disabled in the Sprite Editor
             </div>
           </div>
         );

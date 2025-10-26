@@ -146,11 +146,11 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         ...gravityComp.defaultValues,
                         ...(entity.instance.componentOverrides?.['comp_gravity'] || {})
                     };
-                    const strength = Number(gravityProps.strength || 64) / 60;
+                    const strength = Number(gravityProps.strength || 0) / 60;
                     const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
 
-                    // Only apply gravity if entity is NOT grounded (not touching the ground)
-                    if (!entity.isGrounded) {
+                    // Only apply gravity if entity is NOT on ground (not touching the ground)
+                    if (!entity.isOnGround) {
                         entity.vy += strength;
                         if (entity.vy > terminalVelocity) entity.vy = terminalVelocity;
                     }
@@ -1163,6 +1163,7 @@ interface AnimatedEntity {
     mirroredFrameImages?: HTMLImageElement[];
     currentFrame: number;
     lastFrameUpdateTime: number;
+    spawnTime: number; // Timestamp when entity was created (for spawn grace period)
     stateMachine?: StateMachine;
     currentState?: string;
     spawnerData?: {
@@ -1204,6 +1205,7 @@ interface AnimatedEntity {
     };
     wallCollisionLogged?: boolean;
     isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
+    isOnGround: boolean; // Track if entity is touching the ground (for jump and gravity)
 }
 
 interface ScreenPlayModalProps {
@@ -1237,6 +1239,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const entitiesRef = useRef<AnimatedEntity[]>([]);
     const playerRef = useRef<AnimatedEntity | null>(null);
     const pressedKeys = useRef<Set<string>>(new Set());
+    const jumpKeyProcessed = useRef<boolean>(false);
     const activeEnginesRef = useRef<GameEngine[]>([]);
     const pendingSpawnsRef = useRef<EntityInstance[]>([]);
     const [entityCount, setEntityCount] = useState(0);
@@ -1572,6 +1575,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 checkKeyTransitions(playerRef.current.instance.id, e.key, false);
             }
         }
+        // Reset jump key processed flag when space is released
+        if (e.key === ' ') {
+            jumpKeyProcessed.current = false;
+        }
     }, [checkKeyTransitions]);
 
     const processSpawnedEntities = useCallback(() => {
@@ -1698,7 +1705,9 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 frameImages,
                 mirroredFrameImages,
                 currentFrame: 0,
-                lastFrameUpdateTime: 0
+                lastFrameUpdateTime: 0,
+                spawnTime: performance.now(),
+                isOnGround: false
             };
 
             console.log('✅ Created animated entity:', {
@@ -1730,6 +1739,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         if (isOpen) {
             modalRef.current?.focus();
             pressedKeys.current.clear();
+            jumpKeyProcessed.current = false;
         } else {
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         }
@@ -1853,7 +1863,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 // Create temporary entity for sprite generation
                 const tempEntity: AnimatedEntity = {
                     instance, template, sprite, x: startX, y: startY, vx: 0, vy: 0,
-                    frameImages, currentFrame: 0, lastFrameUpdateTime: 0
+                    frameImages, currentFrame: 0, lastFrameUpdateTime: 0, spawnTime: performance.now(), isOnGround: false
                 };
                 
                 finalFrameImages = generateRotatedSprites(tempEntity);
@@ -1872,8 +1882,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 mirroredFrameImages,
                 currentFrame: 0,
                 lastFrameUpdateTime: 0,
+                spawnTime: performance.now(),
                 stateMachine,
-                currentState
+                currentState,
+                isOnGround: false
             };
 
             // Initialize patrol velocity if entity has patrol component
@@ -2130,25 +2142,143 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
     useEffect(() => {
         if (!isOpen) return;
-        
+
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
         if (!canvas || !ctx) return;
 
         ctx.imageSmoothingEnabled = false;
-        
+
         const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
 
-        const animate = () => {
-            // 1. Draw Background Color (MSX VDP backdrop)
-            ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+        // --- Entity Collision Helper Functions (same as GameFlowPreviewModal) ---
+        const entityCollisionProps = (entity: AnimatedEntity) => {
+            const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
+            if (!collisionCompDef) return null;
+            const props = {
+                ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>),
+                ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
+                ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+            };
+
+            // Prioridad de hitbox: comp_collision > sprite.hitbox > sprite.size
+            const spriteHitbox = entity.sprite.hitbox;
+            const fallbackWidth = spriteHitbox?.width ?? entity.sprite.size.width;
+            const fallbackHeight = spriteHitbox?.height ?? entity.sprite.size.height;
+            const fallbackOffsetX = spriteHitbox?.offsetX ?? 0;
+            const fallbackOffsetY = spriteHitbox?.offsetY ?? 0;
+
+            const result = {
+                hitboxWidth: Number(props.hitboxWidth) || fallbackWidth,
+                hitboxHeight: Number(props.hitboxHeight) || fallbackHeight,
+                offsetX: (props.offsetX !== undefined && props.offsetX !== '' && Number(props.offsetX) !== 0) ? Number(props.offsetX) : fallbackOffsetX,
+                offsetY: (props.offsetY !== undefined && props.offsetY !== '' && Number(props.offsetY) !== 0) ? Number(props.offsetY) : fallbackOffsetY,
+                collisionLayer: Number(props.collisionLayer) || 1,
+                collidesWith: Number(props.collidesWith) || 255,
+                isStatic: props.isStatic === true || props.isStatic === 'true',
+                isTrigger: props.isTrigger === true || props.isTrigger === 'true' || (typeof props.isTrigger === 'string' && props.isTrigger.toLowerCase() === 'true')
+            };
+
+            return result;
+        };
+
+        const getHitboxFor = (entity: AnimatedEntity, props: any) => ({
+            x: entity.x + (props.offsetX || 0),
+            y: entity.y + (props.offsetY || 0),
+            width: props.hitboxWidth || entity.sprite.size.width,
+            height: props.hitboxHeight || entity.sprite.size.height,
+        });
+
+        const resolveEntityCollision = (entityA: AnimatedEntity, entityB: AnimatedEntity, propsA: any, propsB: any) => {
+            const hitboxA = getHitboxFor(entityA, propsA);
+            const hitboxB = getHitboxFor(entityB, propsB);
+
+            // Calculate overlap in both axes
+            const overlapX = Math.min(
+                hitboxA.x + hitboxA.width - hitboxB.x,
+                hitboxB.x + hitboxB.width - hitboxA.x
+            );
+            const overlapY = Math.min(
+                hitboxA.y + hitboxA.height - hitboxB.y,
+                hitboxB.y + hitboxB.height - hitboxA.y
+            );
+
+            // Determine if entities are static (immovable) or dynamic
+            const isAStatic = propsA.isStatic === true || propsA.isStatic === 'true';
+            const isBStatic = propsB.isStatic === true || propsB.isStatic === 'true';
+
+            // If both are static, no resolution needed
+            if (isAStatic && isBStatic) return;
+
+            // Find minimum translation vector (MTV) - separate on axis with less overlap
+            if (overlapX < overlapY) {
+                // Separate on X axis
+                const direction = (hitboxA.x + hitboxA.width / 2) < (hitboxB.x + hitboxB.width / 2) ? -1 : 1;
+                const separation = overlapX * direction;
+
+                if (isAStatic) {
+                    entityB.x -= separation;
+                    entityB.vx = 0;
+                } else if (isBStatic) {
+                    entityA.x += separation;
+                    entityA.vx = 0;
+                } else {
+                    const halfSep = separation / 2;
+                    entityA.x += halfSep;
+                    entityB.x -= halfSep;
+                    const tempVx = entityA.vx;
+                    entityA.vx = entityB.vx;
+                    entityB.vx = tempVx;
+                }
+            } else {
+                // Separate on Y axis
+                const direction = (hitboxA.y + hitboxA.height / 2) < (hitboxB.y + hitboxB.height / 2) ? -1 : 1;
+                const separation = overlapY * direction;
+
+                if (isAStatic) {
+                    entityB.y -= separation;
+                    entityB.vy = 0;
+                } else if (isBStatic) {
+                    entityA.y += separation;
+                    entityA.vy = 0;
+                } else {
+                    const halfSep = separation / 2;
+                    entityA.y += halfSep;
+                    entityB.y -= halfSep;
+                    const tempVy = entityA.vy;
+                    entityA.vy = entityB.vy;
+                    entityB.vy = tempVy;
+                }
+            }
+        };
+
+        // Pre-render tiles to offscreen buffer (optimization)
+        const tileBuffer = document.createElement('canvas');
+        tileBuffer.width = PREVIEW_WIDTH;
+        tileBuffer.height = PREVIEW_HEIGHT;
+        const tileCtx = tileBuffer.getContext('2d');
+
+        if (tileCtx) {
+            tileCtx.imageSmoothingEnabled = false;
+
+            // Draw background color
             const bgColorIndex = screenMap.backgroundColor !== undefined ? screenMap.backgroundColor : 1;
             const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
-            ctx.fillStyle = bgColor;
-            ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            tileCtx.fillStyle = bgColor;
+            tileCtx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 
-            // 2. Draw Screen Content
-            renderScreenToCanvas(canvas, screenMap, tileset, currentScreenMode, TILE_SIZE);
+            // Render all tiles to buffer once
+            renderScreenToCanvas(tileBuffer, screenMap, tileset, currentScreenMode, TILE_SIZE);
+        }
+
+        const animate = () => {
+            // 1. Clear canvas
+            ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+
+            // 2. Draw pre-rendered tile buffer (much faster than redrawing tiles)
+            if (tileBuffer) {
+                ctx.drawImage(tileBuffer, 0, 0);
+            }
 
             // 3. Render HUD elements (only if hudEnabled is true)
             if (hudEnabled) {
@@ -2163,6 +2293,66 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 }
             }
 
+            // Compute isOnGround for all entities before executing engines
+            if (physicsEnabled) {
+                entitiesRef.current.forEach(entity => {
+                    const hasCollisionComp = entity.template.components.some(c => c.definitionId === 'comp_collision');
+
+
+                    if (hasCollisionComp && screenMap?.layers?.collision) {
+                        // Get hitbox properties (same logic as GameFlowPreviewModal entityCollisionProps)
+                        const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
+                        if (!collisionCompDef) {
+                            entity.isOnGround = false;
+                            return;
+                        }
+
+                        const props = {
+                            ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>),
+                            ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
+                            ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+                        };
+
+                        // Prioridad de hitbox: comp_collision > sprite.hitbox > sprite.size
+                        const spriteHitbox = entity.sprite?.hitbox;
+                        const fallbackWidth = spriteHitbox?.width ?? entity.sprite.size.width;
+                        const fallbackHeight = spriteHitbox?.height ?? entity.sprite.size.height;
+                        const fallbackOffsetX = spriteHitbox?.offsetX ?? 0;
+                        const fallbackOffsetY = spriteHitbox?.offsetY ?? 0;
+
+                        const hitboxWidth = Number(props.hitboxWidth) || fallbackWidth;
+                        const hitboxHeight = Number(props.hitboxHeight) || fallbackHeight;
+                        const offsetX = (props.offsetX !== undefined && props.offsetX !== '' && Number(props.offsetX) !== 0) ? Number(props.offsetX) : fallbackOffsetX;
+                        const offsetY = (props.offsetY !== undefined && props.offsetY !== '' && Number(props.offsetY) !== 0) ? Number(props.offsetY) : fallbackOffsetY;
+
+                        // Calculate hitbox for current position
+                        const hitboxX = entity.x + offsetX;
+                        const hitboxY = entity.y + offsetY;
+                        const centerX1 = hitboxX + Math.floor(hitboxWidth / 3);
+                        const centerX2 = hitboxX + Math.floor((2 * hitboxWidth) / 3);
+                        const bottomY = hitboxY + hitboxHeight;
+
+                        // Check collision at two points on bottom edge, 1px below (same logic as GameFlowPreviewModal)
+                        const checkCollisionAt = (x: number, y: number): boolean => {
+                            const tileX = Math.floor(x / TILE_SIZE);
+                            const tileY = Math.floor(y / TILE_SIZE);
+                            if (tileX < 0 || tileY < 0 || tileX >= 32 || tileY >= 24) return false;
+
+                            const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
+                            if (!tileOnLayer || !tileOnLayer.tileId) return false;
+
+                            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+                            const isSolid = tile?.logicalProperties?.isSolid ?? false;
+                            return isSolid;
+                        };
+
+                        entity.isOnGround = checkCollisionAt(centerX1, bottomY + 1) || checkCollisionAt(centerX2, bottomY + 1);
+                    } else {
+                        entity.isOnGround = false;
+                    }
+                });
+            }
+
             // Execute Other Game Engines (only if physicsEnabled is true)
             if (physicsEnabled) {
                 activeEnginesRef.current.forEach(engine => {
@@ -2171,6 +2361,90 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         return;
                     }
                     engine.execute(entitiesRef.current, componentDefinitions, screenMap, entityTemplates, allAssets, pendingSpawnsRef);
+                });
+
+                // Jump logic (must be here to access jumpKeyProcessed ref)
+                const currentPressedKeys = (window as any).currentPressedKeys || new Set();
+                entitiesRef.current.forEach(entity => {
+                    const jumpComp = entity.template.components.find(c => c.definitionId === 'comp_jump');
+                    if (jumpComp) {
+                        const jumpProps = { ...jumpComp.defaultValues, ...(entity.instance.componentOverrides?.['comp_jump'] || {}) };
+                        const requireKeyRelease = jumpProps.requireKeyRelease !== 'false' && jumpProps.requireKeyRelease !== false;
+                        const spacePressed = currentPressedKeys.has('Space');
+                        const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
+
+                        if (hasGravity && entity.isOnGround && spacePressed) {
+                            // Check if we can jump based on requireKeyRelease setting
+                            const canJump = !requireKeyRelease || !jumpKeyProcessed.current;
+
+                            if (canJump) {
+                                const jumpPower = Number(jumpProps.jumpPower || 256);
+                                entity.vy = -jumpPower / 40;
+                                jumpKeyProcessed.current = true;
+                            }
+                        }
+
+                        // Reset jump key processed when not pressing space and on ground
+                        if (!spacePressed && entity.isOnGround) {
+                            jumpKeyProcessed.current = false;
+                        }
+                    }
+                });
+
+                // --- Entity vs Entity Collision Detection ---
+                const now = performance.now();
+                entitiesRef.current.forEach((entityA, indexA) => {
+                    const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
+                    if (!hasCollisionComp) return;
+
+                    for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
+                        const entityB = entitiesRef.current[indexB];
+                        const entityBHasCollision = entityB.template.components.some(c => c.definitionId === 'comp_collision');
+                        if (!entityBHasCollision) continue;
+
+                        const propsA = entityCollisionProps(entityA);
+                        const propsB = entityCollisionProps(entityB);
+                        if (!propsA || !propsB) continue;
+
+                        const hitboxA = getHitboxFor(entityA, propsA);
+                        const hitboxB = getHitboxFor(entityB, propsB);
+
+                        // Check AABB collision
+                        const isColliding = hitboxA.x < hitboxB.x + hitboxB.width &&
+                            hitboxA.x + hitboxA.width > hitboxB.x &&
+                            hitboxA.y < hitboxB.y + hitboxB.height &&
+                            hitboxA.y + hitboxA.height > hitboxB.y;
+
+                        if (isColliding) {
+                            const layerA = Number(propsA.collisionLayer) || 0;
+                            const collidesWithA = Number(propsA.collidesWith) || 0;
+                            const layerB = Number(propsB.collisionLayer) || 0;
+                            const collidesWithB = Number(propsB.collidesWith) || 0;
+
+                            // PROTECTION: Ignore collisions in the first 200ms after spawn
+                            const SPAWN_GRACE_PERIOD_MS = 200;
+                            const entityAAge = now - (entityA.spawnTime || 0);
+                            const entityBAge = now - (entityB.spawnTime || 0);
+
+                            if (entityAAge < SPAWN_GRACE_PERIOD_MS || entityBAge < SPAWN_GRACE_PERIOD_MS) {
+                                continue;
+                            }
+
+                            // Check if layers allow collision (bit mask check)
+                            const aCanCollideWithB = (collidesWithA & layerB) !== 0;
+                            const bCanCollideWithA = (collidesWithB & layerA) !== 0;
+
+                            if (aCanCollideWithB && bCanCollideWithA) {
+                                const isATrigger = propsA.isTrigger;
+                                const isBTrigger = propsB.isTrigger;
+
+                                // Only apply physical separation if neither is a trigger
+                                if (!isATrigger && !isBTrigger) {
+                                    resolveEntityCollision(entityA, entityB, propsA, propsB);
+                                }
+                            }
+                        }
+                    }
                 });
             }
 
