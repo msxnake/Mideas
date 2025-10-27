@@ -119,6 +119,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [playerEntryPoint, setPlayerEntryPoint] = useState<{x: number, y: number} | null>(null);
     const [isPositioningMode, setIsPositioningMode] = useState(false);
     const [runtimeCollisionLayer, setRuntimeCollisionLayer] = useState<ScreenTile[][]>([]);
+    const tileBufferNeedsUpdate = useRef<boolean>(false);
+    const tileBufferRef = useRef<HTMLCanvasElement | null>(null);
 
     const currentGraphData = currentNestedGraphData || graphData;
     const { nodes, connections } = currentGraphData;
@@ -169,7 +171,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return;
         }
 
-        // Modificar collision layer
+        // Modificar collision layer (para lógica de colisión y render visual)
         setRuntimeCollisionLayer(prev => {
             const newLayer = JSON.parse(JSON.stringify(prev));
             if (!newLayer[tileY]) newLayer[tileY] = [];
@@ -179,16 +181,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return newLayer;
         });
 
-        // Modificar también background layer para reflejo visual
-        setCurrentScreenMap(prev => {
-            if (!prev) return prev;
-            const updated = { ...prev };
-            if (!updated.layers.background[tileY]) {
-                updated.layers.background[tileY] = [];
-            }
-            updated.layers.background[tileY][tileX] = { tileId: newTileId };
-            return updated;
-        });
+        // ✅ Marcar que el buffer necesita actualización en el próximo frame
+        tileBufferNeedsUpdate.current = true;
 
         console.log(`[TILE MOD] Modified tile at (${tileX}, ${tileY}) → ${newTileId || 'empty'}`);
     }, []);
@@ -209,6 +203,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const entityEvents = pendingEvents.current.get(entity.instance.id) || new Set<string>();
 
         switch (condition.type) {
+            case 'KEY_PRESSED':
+                // Verificar si la tecla especificada está presionada
+                const key = condition.params?.key;
+                if (!key) return false;
+                const isPressed = pressedKeys.current.has(key);
+                console.log(`[KEY_PRESSED] Checking key "${key}": ${isPressed ? '✓ PRESSED' : '✗ not pressed'} (current keys: ${Array.from(pressedKeys.current).join(', ')})`);
+                return isPressed;
+
             case 'HAS_COLLISION':
                 // Verificar tipo específico de colisión (enemy, item, wall, any)
                 const collisionType = condition.params?.collisionType || 'any';
@@ -525,11 +527,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     const dir = params.direction || 'up';
 
                                     // Calcular posición del tile según dirección relativa al player
-                                    const offsets = {
+                                    const offsets: Record<string, { x: number; y: number }> = {
                                         up: { x: 0, y: -1 },
                                         down: { x: 0, y: 1 },
                                         left: { x: -1, y: 0 },
-                                        right: { x: 1, y: 0 }
+                                        right: { x: 1, y: 0 },
+                                        // Diagonales
+                                        'up-right': { x: 1, y: -1 },
+                                        'up-left': { x: -1, y: -1 },
+                                        'down-right': { x: 1, y: 1 },
+                                        'down-left': { x: -1, y: 1 }
                                     };
 
                                     // Posición del player en tiles (8x8)
@@ -750,8 +757,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     }, [currentWorldMapGraph, allAssets]);
 
     const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
-        if (heroRef.current && pressedKeys.current.has(e.key)) {
-            pressedKeys.current.delete(e.key);
+        // Remove both e.key and e.code for compatibility
+        if (heroRef.current) {
+            if (pressedKeys.current.has(e.key)) {
+                pressedKeys.current.delete(e.key);
+            }
+            if (e.code && pressedKeys.current.has(e.code)) {
+                pressedKeys.current.delete(e.code);
+            }
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 checkKeyTransitions(heroRef.current.instance.id, e.key, false);
             }
@@ -809,11 +822,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (e.code === 'Space') {
                     // Jump logic is now handled in the animate loop
                 }
+                // Add both e.key and e.code for compatibility (e.g., "n" and "KeyN")
+                // e.key for legacy comp_cursors/comp_jump, e.code for State Machine conditions
                 if (!pressedKeys.current.has(e.key)) {
                     pressedKeys.current.add(e.key);
-                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                        checkKeyTransitions(heroRef.current.instance.id, e.key, true);
-                    }
+                }
+                if (e.code && !pressedKeys.current.has(e.code)) {
+                    pressedKeys.current.add(e.code);
+                }
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                    checkKeyTransitions(heroRef.current.instance.id, e.key, true);
                 }
                 if (e.key === 'Escape') handleGoBack();
                 return;
@@ -1107,7 +1125,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return tile?.logicalProperties?.isSolid ?? false;
         };
 
-        const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string) => {
+        const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string, runtimeLayer?: ScreenTile[][]) => {
             if (!map) return null; // No hay mapa para renderizar
             tileCanvas = document.createElement('canvas');
             tileCanvas.width = PREVIEW_WIDTH;
@@ -1115,14 +1133,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             tileCtx = tileCanvas.getContext('2d');
             if (!tileCtx) return null;
             tileCtx.imageSmoothingEnabled = false;
-            renderScreenToCanvas(tileCanvas, map, tset, mode, TILE_SIZE); // Llama a tu función existente
+
+            // Si hay runtime layer, crear copia temporal del screenMap con ese layer
+            const mapToRender = runtimeLayer ? {
+                ...map,
+                layers: {
+                    ...map.layers,
+                    background: runtimeLayer,
+                    collision: runtimeLayer
+                }
+            } : map;
+
+            renderScreenToCanvas(tileCanvas, mapToRender, tset, mode, TILE_SIZE);
             return tileCanvas;
         };
 
-        // Pre-renderizar el mapa actual si existe
-        let currentTileBuffer: HTMLCanvasElement | null = null;
+        // Pre-renderizar el mapa actual si existe, usando runtimeCollisionLayer si está disponible
         if (screenMapToRender) {
-            currentTileBuffer = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode);
+            const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
+            tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode, layerToUse);
+            tileBufferNeedsUpdate.current = false; // Reset flag
         }
         // --- Fin Nuevo ---
 
@@ -1253,8 +1283,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                  }
                  ctx.fillStyle = bgColor;
                  ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                 if (currentTileBuffer) {
-                     ctx.drawImage(currentTileBuffer, 0, 0); // Dibujar buffer pre-renderizado
+                 if (tileBufferRef.current) {
+                     ctx.drawImage(tileBufferRef.current, 0, 0); // Dibujar buffer pre-renderizado
                  }
              }
             switch (currentNode.type) {
@@ -1647,12 +1677,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // lastTime = currentTime;
             // --- Fin deltaTime ---
 
+            // Regenerar buffer si es necesario (tiles modificados por BREAK_TILE/REPLACE_TILE)
+            if (tileBufferNeedsUpdate.current && screenMapToRender) {
+                const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
+                tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode, layerToUse);
+                tileBufferNeedsUpdate.current = false;
+                console.log('[TILE BUFFER] Regenerated due to tile modification');
+            }
+
             // Limpiar solo el área principal
             ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 
             // Dibujar el fondo pre-renderizado (tiles)
-            if (currentTileBuffer) {
-                ctx.drawImage(currentTileBuffer, 0, 0);
+            if (tileBufferRef.current) {
+                ctx.drawImage(tileBufferRef.current, 0, 0);
             } else {
                 // Si no hay buffer (por ejemplo, en nodos de texto), limpiar y dibujar fondo
                 ctx.fillStyle = '#000000'; // Color por defecto
@@ -2230,8 +2268,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 animationFrameId.current = requestAnimationFrame(animate);
             } else {
                 ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                if (currentTileBuffer) { // Dibujar buffer estático
-                    ctx.drawImage(currentTileBuffer, 0, 0);
+                if (tileBufferRef.current) { // Dibujar buffer estático
+                    ctx.drawImage(tileBufferRef.current, 0, 0);
                 } else {
                     // Si no hay buffer, dibujar fondo por defecto
                      ctx.fillStyle = '#000000';

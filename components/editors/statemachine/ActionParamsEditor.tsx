@@ -254,6 +254,10 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 <option value="down">⬇️ Down (Below player)</option>
                 <option value="left">⬅️ Left (Left of player)</option>
                 <option value="right">➡️ Right (Right of player)</option>
+                <option value="up-right">↗️ Up-Right (Diagonal)</option>
+                <option value="up-left">↖️ Up-Left (Diagonal)</option>
+                <option value="down-right">↘️ Down-Right (Diagonal)</option>
+                <option value="down-left">↙️ Down-Left (Diagonal)</option>
               </select>
             </div>
 

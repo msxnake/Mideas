@@ -160,3 +160,4 @@ Cuando un usuario exporta un proyecto Mideas a MSX:
 - en Downloads\a1.json hay un proyecto Mideas con ejemplo HUD, Tiles, Screen asset
 - Hay una seccion de Mideas que es HUD Configuration Editor
 - recuerda que TileBanks[][] es una matriz
+- No hay eventos, todo son condiciones
