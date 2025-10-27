@@ -1115,6 +1115,8 @@ const detectRequiredEngines = (entities: AnimatedEntity[]): string[] => {
                     break;
                 case 'comp_collision':
                     requiredEngines.add('collision');
+                    // Also activate wallCollision engine for tile-based collision detection
+                    requiredEngines.add('wallCollision');
                     break;
                 case 'comp_wall_collision':
                     requiredEngines.add('wallCollision');
@@ -1453,12 +1455,12 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     // Get tileset from allAssets (same as Game Flow Preview)
                     const tileset = allAssets ? allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile) : [];
                     const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-                    
+
                     // Use the same logic as Game Flow Preview: check logicalProperties.isSolid
                     const isSolid = tile?.logicalProperties?.isSolid ?? false;
-                    
+
                     console.log(`🧱 Pac-Man Movement - Tile ${tileOnLayer.tileId} en (${tileX},${tileY}): isSolid=${isSolid}`);
-                    
+
                     if (isSolid) {
                         console.log(`🚧 Tile sólido encontrado en (${tileX},${tileY}), tileId: ${tileOnLayer.tileId}`);
                         return false;

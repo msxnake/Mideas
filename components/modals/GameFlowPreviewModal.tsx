@@ -124,12 +124,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const { nodes, connections } = currentGraphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
 
-        
-    // Refs to share state between callbacks and effects     
+
+    // Refs to share state between callbacks and effects
     const currentScreenMapRef = useRef<ScreenMap | null>(null);
     const currentWorldMapGraphRef = useRef<WorldMapGraph | null>(null);
     const setPlayerEntryPointRef = useRef<(entry: { x: number; y: number } | null) => void>(() => {});
     const handleScreenTransitionRef = useRef<(toNodeId: string) => void>(() => {});
+    const runtimeCollisionLayerRef = useRef<ScreenTile[][]>([]);
 
     // Handler para posicionar al player con click
     const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -173,6 +174,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const newLayer = JSON.parse(JSON.stringify(prev));
             if (!newLayer[tileY]) newLayer[tileY] = [];
             newLayer[tileY][tileX] = { tileId: newTileId };
+            // Update ref immediately for synchronous access in checkCollisionAt
+            runtimeCollisionLayerRef.current = newLayer;
             return newLayer;
         });
 
@@ -537,8 +540,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     const targetTileX = playerTileX + offsets[dir].x;
                                     const targetTileY = playerTileY + offsets[dir].y;
 
-                                    // Verificar que el tile target existe
-                                    const targetTile = runtimeCollisionLayer[targetTileY]?.[targetTileX];
+                                    // Verificar que el tile target existe (usar ref para acceso síncrono)
+                                    const targetTile = runtimeCollisionLayerRef.current[targetTileY]?.[targetTileX];
 
                                     if (targetTile?.tileId) {
                                         const tileAsset = allAssets.find(a => a.id === targetTile.tileId && a.type === 'tile');
@@ -879,13 +882,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
         // Initialize runtime collision layer (cloned from screenMap for in-game modifications)
         if (currentScreenMap.layers?.collision) {
-            setRuntimeCollisionLayer(JSON.parse(JSON.stringify(currentScreenMap.layers.collision)));
+            const clonedLayer = JSON.parse(JSON.stringify(currentScreenMap.layers.collision));
             console.log('[TILE SYSTEM] Collision layer initialized for runtime modifications');
+            console.log('[TILE SYSTEM] Original collision layer sample [16][17]:', currentScreenMap.layers.collision[16]?.[17]);
+            console.log('[TILE SYSTEM] Cloned collision layer sample [16][17]:', clonedLayer[16]?.[17]);
+            console.log('[TILE SYSTEM] Collision layer dimensions:', currentScreenMap.layers.collision.length, 'x', currentScreenMap.layers.collision[0]?.length);
+            runtimeCollisionLayerRef.current = clonedLayer; // Update ref immediately for synchronous access
+            setRuntimeCollisionLayer(clonedLayer);
         } else {
             // Create empty collision layer if not exists
             const emptyLayer: ScreenTile[][] = Array(24).fill(null).map(() =>
                 Array(32).fill(null).map(() => ({ tileId: null }))
             );
+            runtimeCollisionLayerRef.current = emptyLayer; // Update ref immediately for synchronous access
             setRuntimeCollisionLayer(emptyLayer);
             console.log('[TILE SYSTEM] Created empty collision layer');
         }
@@ -1088,8 +1097,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const tileY = Math.floor(y / TILE_SIZE);
             if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
 
-            // Usar runtimeCollisionLayer si estamos en currentScreenMap (permite modificación de tiles)
-            const collisionLayer = screenMap === currentScreenMap ? runtimeCollisionLayer : screenMap.layers.collision;
+            // Usar runtimeCollisionLayerRef si estamos en currentScreenMap Y el layer está inicializado (permite modificación de tiles)
+            const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
+            const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
             const tileOnLayer = collisionLayer[tileY]?.[tileX];
 
             if (!tileOnLayer || !tileOnLayer.tileId) return false;

@@ -51,10 +51,15 @@ export const wallCollisionEngine: GameEngine = {
         };
 
         entities.forEach(entity => {
+            // Check for either comp_wall_collision or comp_collision
             const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision');
-            if (!wallCollisionComp) return;
+            const collisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision');
+            const comp = wallCollisionComp || collisionComp;
 
-            const props = { ...wallCollisionComp.defaultValues, ...(entity.instance?.componentOverrides?.['comp_wall_collision'] || {}) };
+            if (!comp) return;
+
+            const compId = comp.definitionId;
+            const props = { ...comp.defaultValues, ...(entity.instance?.componentOverrides?.[compId] || {}) };
             const hitboxWidth = Number(props.hitboxWidth) || 16;
             const hitboxHeight = Number(props.hitboxHeight) || 16;
             const offsetX = Number(props.offsetX) || 0;
