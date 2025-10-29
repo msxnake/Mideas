@@ -56,6 +56,8 @@ interface AnimatedEntity {
     animationHasCompleted?: boolean; // True when a non-looping animation reaches its last frame
     lastAnimationState?: string; // Track which state's animation was playing
     isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
+    lastDamageTime?: number; // Timestamp of last damage taken (for invincibility frames)
+    hasDangerousTileCollision?: boolean; // True when touching a deadly tile
 }
 
 interface GameFlowPreviewModalProps {
@@ -229,6 +231,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                entityEvents.has('collision_item') ||
                                entityEvents.has('collision_wall');
                 }
+
+            case 'HAS_DEADLY_TILE_COLLISION':
+                // Verificar si la entidad está tocando un tile mortal
+                return entity.hasDangerousTileCollision === true;
 
             case 'ANIMATION_COMPLETE':
                 // Check directly on entity property (not events)
@@ -1125,6 +1131,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return tile?.logicalProperties?.isSolid ?? false;
         };
 
+        const checkDangerousTileAt = (x: number, y: number, screenMap: ScreenMap) => {
+            const tileX = Math.floor(x / TILE_SIZE);
+            const tileY = Math.floor(y / TILE_SIZE);
+            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
+
+            const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
+            const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
+            const tileOnLayer = collisionLayer[tileY]?.[tileX];
+
+            if (!tileOnLayer || !tileOnLayer.tileId) return false;
+            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+            return tile?.logicalProperties?.causesDamage ?? false;
+        };
+
         const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string, runtimeLayer?: ScreenTile[][]) => {
             if (!map) return null; // No hay mapa para renderizar
             tileCanvas = document.createElement('canvas');
@@ -1134,13 +1154,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (!tileCtx) return null;
             tileCtx.imageSmoothingEnabled = false;
 
-            // Si hay runtime layer, crear copia temporal del screenMap con ese layer
+            // Si hay runtime layer, crear copia temporal del screenMap con ese layer solo para collision
+            // El background se mantiene original para el renderizado visual
             const mapToRender = runtimeLayer ? {
                 ...map,
                 layers: {
                     ...map.layers,
-                    background: runtimeLayer,
-                    collision: runtimeLayer
+                    background: map.layers.background,  // Mantener background original para renderizado
+                    collision: runtimeLayer              // Solo usar runtime para detección de colisiones
                 }
             } : map;
 
@@ -1554,6 +1575,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // Aplicar posición final
         entity.x = tentativeX;
         entity.y = tentativeY;
+
+        // Verificar si el player está tocando un tile peligroso (causesDamage)
+        const finalHitbox = getHitboxFor(entity.x, entity.y);
+        const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
+        const centerY = finalHitbox.y + Math.floor(finalHitbox.height / 2);
+        const bottomY = finalHitbox.y + finalHitbox.height;
+
+        // Verificar varios puntos del hitbox para mejor detección
+        const isDangerous =
+            checkDangerousTileAt(centerX, centerY, screenMap) ||  // Centro
+            checkDangerousTileAt(finalHitbox.x, centerY, screenMap) ||  // Izquierda
+            checkDangerousTileAt(finalHitbox.x + finalHitbox.width, centerY, screenMap) ||  // Derecha
+            checkDangerousTileAt(centerX, bottomY, screenMap);  // Abajo (pies)
+
+        // Actualizar flag para state machine
+        entity.hasDangerousTileCollision = isDangerous;
+
+        // NOTA: El daño/muerte no se aplica automáticamente aquí
+        // El state machine puede detectar HAS_DEADLY_TILE_COLLISION y decidir qué hacer
+        // (Ej: transición a estado "Taking Damage" o "Dead" con animación)
         };
 
         const entityCollisionProps = (entity: AnimatedEntity) => {

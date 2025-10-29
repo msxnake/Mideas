@@ -75,7 +75,8 @@
       "Bash(jq:*)",
       "Bash(del constants.js constants.d.ts)",
       "Bash(if exist constants.js del constants.js)",
-      "Bash(if exist constants.d.ts del constants.d.ts)"
+      "Bash(if exist constants.d.ts del constants.d.ts)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []
