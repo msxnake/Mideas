@@ -53,7 +53,7 @@ const createEmptySpriteFrameData = (width: number, height: number, fillColor: MS
  */
 interface SpritePixelGridProps {
   pixelData: PixelData;
-  onPixelClick?: (point: Point, isRightClick: boolean) => void; 
+  onPixelClick?: (point: Point, isRightClick: boolean) => void;
   pixelSize?: number;
   spriteWidth: number;
   spriteHeight: number;
@@ -64,6 +64,11 @@ interface SpritePixelGridProps {
   nextFrameData?: PixelData | null;
   backgroundColor: MSXColorValue;
   toolMode?: SpriteToolMode;
+  showHitbox?: boolean;
+  hitboxWidth?: number;
+  hitboxHeight?: number;
+  hitboxOffsetX?: number;
+  hitboxOffsetY?: number;
 }
 
 /**
@@ -107,10 +112,10 @@ const OnionSkinLayer: React.FC<{ pixelData: PixelData; pixelSize: number; sprite
  * An interactive pixel grid component for drawing sprites.
  * @internal
  */
-const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({ 
+const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
     pixelData, onPixelClick, pixelSize = 10, spriteWidth, spriteHeight, className = "",
     onionSkinEnabled, onionSkinOpacity = 0.3, prevFrameData, nextFrameData, backgroundColor,
-    toolMode
+    toolMode, showHitbox, hitboxWidth, hitboxHeight, hitboxOffsetX = 0, hitboxOffsetY = 0
 }) => {
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [isRightMBDown, setIsRightMBDown] = useState(false);
@@ -193,9 +198,9 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
           <div
             key={`${x}-${y}`}
             className={onPixelClick ? "hover:outline hover:outline-1 hover:outline-msx-highlight z-10" : "z-10"}
-            style={{ 
-                backgroundColor: color, 
-                width: `${pixelSize}px`, 
+            style={{
+                backgroundColor: color,
+                width: `${pixelSize}px`,
                 height: `${pixelSize}px`,
                 gridColumn: x + 1,
                 gridRow: y + 1,
@@ -205,6 +210,22 @@ const SpritePixelGrid: React.FC<SpritePixelGridProps> = ({
             onDragStart={(e) => e.preventDefault()}
           />
         ))
+      )}
+
+      {/* Hitbox Overlay */}
+      {showHitbox && hitboxWidth !== undefined && hitboxHeight !== undefined && (
+        <div
+          className="absolute pointer-events-none z-20"
+          style={{
+            left: `${hitboxOffsetX * pixelSize}px`,
+            top: `${hitboxOffsetY * pixelSize}px`,
+            width: `${hitboxWidth * pixelSize}px`,
+            height: `${hitboxHeight * pixelSize}px`,
+            border: '2px solid #00ff00',
+            boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(0, 0, 0, 0.5)',
+            backgroundColor: 'rgba(0, 255, 0, 0.1)',
+          }}
+        />
       )}
     </div>
   );
@@ -233,13 +254,14 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const [localSpriteName, setLocalSpriteName] = useState(sprite.name);
   const [pixelSize, setPixelSize] = useState(sprite.size.width > 16 ? 10 : 16);
   const [showAttributesEditor, setShowAttributesEditor] = useState(false);
+  const [showHitbox, setShowHitbox] = useState(false);
 
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState<boolean>(false);
   const [asmExportConfig, setAsmExportConfig] = useState<{ spriteToExport: Sprite; dataOutputFormat: DataFormat; } | null>(null);
 
   const [toolMode, setToolMode] = useState<SpriteToolMode>('draw');
   const [sphereRadius, setSphereRadius] = useState<number>(5);
-  const [activeBrushColorIndex, setActiveBrushColorIndex] = useState<number>(0); 
+  const [activeBrushColorIndex, setActiveBrushColorIndex] = useState<number>(0);
   const [activePaletteSetupSlotIndex, setActivePaletteSetupSlotIndex] = useState<number | 'bg' | null>(null);
 
   const [isExplosionModalOpen, setIsExplosionModalOpen] = useState<boolean>(false);
@@ -1336,6 +1358,11 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
               nextFrameData={nextFrameData}
               backgroundColor={sprite.backgroundColor}
               toolMode={toolMode}
+              showHitbox={showHitbox}
+              hitboxWidth={sprite.hitbox?.width ?? sprite.size.width}
+              hitboxHeight={sprite.hitbox?.height ?? sprite.size.height}
+              hitboxOffsetX={sprite.hitbox?.offsetX ?? 0}
+              hitboxOffsetY={sprite.hitbox?.offsetY ?? 0}
             />
           ) : (
             <div className="text-msx-textsecondary pixel-font">
@@ -1481,18 +1508,29 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                   min={-(sprite.size?.height ?? 16)}
                   max={sprite.size?.height ?? 16}
                   value={sprite.hitbox?.offsetY ?? 0}
-                  onChange={e => onUpdate({ 
-                    hitbox: { 
-                      ...sprite.hitbox, 
+                  onChange={e => onUpdate({
+                    hitbox: {
+                      ...sprite.hitbox,
                       width: sprite.hitbox?.width ?? sprite.size.width,
                       height: sprite.hitbox?.height ?? sprite.size.height,
                       offsetX: sprite.hitbox?.offsetX ?? 0,
                       offsetY: parseInt(e.target.value) || 0
-                    } 
+                    }
                   })}
                   className="w-16 p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
                 />
               </label>
+              <div className="pt-2 border-t border-msx-border">
+                <label className="flex items-center justify-between">
+                  <span>Show Hitbox</span>
+                  <input
+                    type="checkbox"
+                    checked={showHitbox}
+                    onChange={e => setShowHitbox(e.target.checked)}
+                    className="w-4 h-4 bg-msx-bgcolor border border-msx-border rounded accent-msx-accent cursor-pointer"
+                  />
+                </label>
+              </div>
             </div>
           </Panel>
         </div>

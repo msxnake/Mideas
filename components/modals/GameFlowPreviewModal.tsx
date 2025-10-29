@@ -1609,31 +1609,72 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
         const entityCollisionProps = (entity: AnimatedEntity) => {
              const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-             if (!collisionCompDef) return null;
-             const props = {
-                ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>),
-                ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
-                ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+             if (!collisionCompDef) {
+                 console.error('[COLLISION PROPS ERROR] comp_collision definition not found');
+                 return null;
+             }
+
+             const templateCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision');
+             const templateValues = templateCollisionComp?.defaultValues || {};
+             const instanceValues = entity.instance.componentOverrides?.['comp_collision'] || {};
+
+             // Prioridad: instanceValues > templateValues > sprite.hitbox > defaults > sprite.size
+             const spriteHitbox = entity.sprite.hitbox;
+             const defaults = collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>);
+
+             // Función helper para obtener valor con prioridad correcta
+             const getPriorityValue = (propName: string, spriteFallback?: number) => {
+                 // 1. Instance override (más alta prioridad)
+                 if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') {
+                     return Number(instanceValues[propName]);
+                 }
+                 // 2. Template value
+                 if (templateValues[propName] !== undefined && templateValues[propName] !== '') {
+                     return Number(templateValues[propName]);
+                 }
+                 // 3. Sprite hitbox (si está disponible)
+                 if (spriteFallback !== undefined) {
+                     return spriteFallback;
+                 }
+                 // 4. Component default
+                 if (defaults[propName] !== undefined && defaults[propName] !== '') {
+                     return Number(defaults[propName]);
+                 }
+                 // 5. Fallback final
+                 return 0;
+             };
+
+             const hitboxWidth = getPriorityValue('hitboxWidth', spriteHitbox?.width ?? entity.sprite.size.width);
+             const hitboxHeight = getPriorityValue('hitboxHeight', spriteHitbox?.height ?? entity.sprite.size.height);
+             const offsetX = getPriorityValue('offsetX', spriteHitbox?.offsetX ?? 0);
+             const offsetY = getPriorityValue('offsetY', spriteHitbox?.offsetY ?? 0);
+
+             // Para otras propiedades sin sprite fallback: instance > template > defaults
+             const getValueNoSpriteFallback = (propName: string, defaultFallback: any) => {
+                 if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') return instanceValues[propName];
+                 if (templateValues[propName] !== undefined && templateValues[propName] !== '') return templateValues[propName];
+                 if (defaults[propName] !== undefined && defaults[propName] !== '') return defaults[propName];
+                 return defaultFallback;
+             };
+
+             const collisionLayer = Number(getValueNoSpriteFallback('collisionLayer', 1)) || 1;
+             const collidesWith = Number(getValueNoSpriteFallback('collidesWith', 255)) || 255;
+             const isStatic = getValueNoSpriteFallback('isStatic', false) === true || getValueNoSpriteFallback('isStatic', false) === 'true';
+             const isTrigger = getValueNoSpriteFallback('isTrigger', false) === true || getValueNoSpriteFallback('isTrigger', false) === 'true';
+
+            const result = {
+                hitboxWidth,
+                hitboxHeight,
+                offsetX,
+                offsetY,
+                collisionLayer,
+                collidesWith,
+                isStatic,
+                isTrigger
             };
 
-            // Prioridad de hitbox: comp_collision > sprite.hitbox > sprite.size
-            const spriteHitbox = entity.sprite.hitbox;
-            const fallbackWidth = spriteHitbox?.width ?? entity.sprite.size.width;
-            const fallbackHeight = spriteHitbox?.height ?? entity.sprite.size.height;
-            const fallbackOffsetX = spriteHitbox?.offsetX ?? 0;
-            const fallbackOffsetY = spriteHitbox?.offsetY ?? 0;
-
-            // Convertir strings a números para propiedades numéricas
-            return {
-                hitboxWidth: Number(props.hitboxWidth) || fallbackWidth,
-                hitboxHeight: Number(props.hitboxHeight) || fallbackHeight,
-                offsetX: (props.offsetX !== undefined && props.offsetX !== '' && Number(props.offsetX) !== 0) ? Number(props.offsetX) : fallbackOffsetX,
-                offsetY: (props.offsetY !== undefined && props.offsetY !== '' && Number(props.offsetY) !== 0) ? Number(props.offsetY) : fallbackOffsetY,
-                collisionLayer: Number(props.collisionLayer) || 1,
-                collidesWith: Number(props.collidesWith) || 255,
-                isStatic: props.isStatic === true || props.isStatic === 'true',
-                isTrigger: props.isTrigger === true || props.isTrigger === 'true'
-            };
+            console.log(`[FINAL HITBOX] ${entity.instance.name}:`, result);
+            return result;
         };
 
         const getHitboxFor = (entity: AnimatedEntity, props: any) => ({
@@ -1828,12 +1869,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const centerX2 = hitbox.x + Math.floor((2 * hitbox.width) / 3);
                         const bottomY = hitbox.y + hitbox.height;
 
-                        // Check collision with tiles OR with platform entity
+                        // Check tiles OR platform from PREVIOUS frame (before it gets cleared)
                         const onTiles = checkCollisionAt(centerX1, bottomY, screenMapToRender) ||
                                        checkCollisionAt(centerX2, bottomY, screenMapToRender);
-                        const onPlatform = entityA.platformUnderneath !== null && entityA.platformUnderneath !== undefined;
+                        const onPlatformPreviousFrame = entityA.platformUnderneath !== null &&
+                                                       entityA.platformUnderneath !== undefined &&
+                                                       entitiesRef.current.includes(entityA.platformUnderneath);
 
-                        entityA.isOnGround = onTiles || onPlatform;
+                        entityA.isOnGround = onTiles || onPlatformPreviousFrame;
                     } else {
                         entityA.isOnGround = false;
                     }
@@ -1853,18 +1896,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             if (stateDef.properties.velocityX !== undefined) entityA.vx = stateDef.properties.velocityX;
                             if (stateDef.properties.velocityY !== undefined) entityA.vy = stateDef.properties.velocityY;
                         }
-                    }
-
-                    // --- Transfer platform velocity if standing on a moving platform ---
-                    if (entityA.platformUnderneath && entityA.isOnGround) {
-                        // Add platform's horizontal velocity to entity's position
-                        // This makes the entity "stick" to the platform as it moves
-                        entityA.x += entityA.platformUnderneath.vx;
-                        // Also transfer vertical velocity if platform is moving vertically
-                        if (entityA.platformUnderneath.vy !== 0) {
-                            entityA.y += entityA.platformUnderneath.vy;
-                        }
-                        console.log(`[PLATFORM] Transferring velocity from ${entityA.platformUnderneath.instance.name}: vx=${entityA.platformUnderneath.vx}, vy=${entityA.platformUnderneath.vy}`);
                     }
 
                     // Check if current state allows input
@@ -2040,14 +2071,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
 
                 // --- 5. Lógica de Colisión entre Entidades ---
+                // Store previous platform to detect when we fall off (declare outside if block)
+                let previousPlatform: AnimatedEntity | null = null;
+
                 if (hasCollisionComp) {
-                    // Clear platform reference if entity is no longer grounded or platform doesn't exist
-                    if (entityA.platformUnderneath) {
-                        if (!entityA.isOnGround || !entitiesRef.current.includes(entityA.platformUnderneath)) {
-                            console.log(`[PLATFORM] Clearing platform reference for ${entityA.instance.name} (onGround: ${entityA.isOnGround})`);
-                            entityA.platformUnderneath = null;
-                        }
+                    // Clear platform reference at start of frame - will be re-established if still colliding
+                    if (entityA.platformUnderneath && !entitiesRef.current.includes(entityA.platformUnderneath)) {
+                        console.log(`[PLATFORM] Platform no longer exists for ${entityA.instance.name}`);
+                        entityA.platformUnderneath = null;
                     }
+                    // Store previous platform to detect when we fall off
+                    previousPlatform = entityA.platformUnderneath;
+                    entityA.platformUnderneath = null; // Clear and will be reset during collision if still on platform
 
                     // Debug log para ver si entra al loop
                     if (indexA === 0 && now % 1000 < 16) {
@@ -2219,6 +2254,31 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         if ((entityA.vy > 0 && entityA.y >= Math.max(startPixelY, endPixelY)) || (entityA.vy < 0 && entityA.y <= Math.min(startPixelY, endPixelY))) {
                             entityA.vy = -entityA.vy;
                         }
+                    }
+                }
+
+                // --- 6.5. Update isOnGround after entity collisions to include platform riding ---
+                if (hasCollisionComp) {
+                    // If we're on a platform (platformUnderneath was set during collisions), we're on ground
+                    if (entityA.platformUnderneath) {
+                        entityA.isOnGround = true;
+                        console.log(`[PLATFORM] ${entityA.instance.name} is on ground via platform ${entityA.platformUnderneath.instance.name}`);
+
+                        // Transfer platform velocity if standing on a moving platform
+                        if (entityA === heroRef.current) {
+                            // Add platform's horizontal velocity to entity's position
+                            // This makes the entity "stick" to the platform as it moves
+                            entityA.x += entityA.platformUnderneath.vx;
+                            // Also transfer vertical velocity if platform is moving vertically
+                            if (entityA.platformUnderneath.vy !== 0) {
+                                entityA.y += entityA.platformUnderneath.vy;
+                            }
+                            console.log(`[PLATFORM] Transferring velocity from ${entityA.platformUnderneath.instance.name}: vx=${entityA.platformUnderneath.vx}, vy=${entityA.platformUnderneath.vy}`);
+                        }
+                    }
+                    // Detect falling off platform
+                    if (previousPlatform && !entityA.platformUnderneath) {
+                        console.log(`[PLATFORM] ${entityA.instance.name} fell off platform ${previousPlatform.instance.name}`);
                     }
                 }
 
