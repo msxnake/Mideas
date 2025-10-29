@@ -101,6 +101,30 @@ COMP_MASK_INPUT      EQU #10  ; 00010000
 COMP_MASK_BEHAVIOR   EQU #20  ; 00100000
 ```
 
+### Collision Layers (Bitmask System)
+Sistema de capas de colisión usando máscaras de bits:
+
+| Bit | Valor Decimal | Uso Típico | Ejemplo Template |
+|-----|---------------|------------|------------------|
+| 0   | 1 (0000 0001) | Player | tpl_player |
+| 1   | 2 (0000 0010) | Enemies | tpl_enemy_basic |
+| 2   | 4 (0000 0100) | Player Bullets | tpl_player_bullet |
+| 3   | 8 (0000 1000) | Platforms/Walls | entity_platform |
+| 4   | 16 (0001 0000) | Enemy Bullets | - |
+| 5   | 32 (0010 0000) | Collectibles/Items | - |
+| 6   | 64 (0100 0000) | Triggers/Zones | - |
+| 7   | 128 (1000 0000) | Custom/Special | - |
+
+**Configuración típica:**
+- `collisionLayer`: Define en qué layer está la entidad (valor único)
+- `collidesWith`: Bitmask de layers con las que puede colisionar (suma de valores)
+
+**Ejemplos:**
+- Player: `collisionLayer: 1, collidesWith: 2` (colisiona con enemies)
+- Enemy: `collisionLayer: 2, collidesWith: 1` (colisiona con player)
+- Platform: `collisionLayer: 8, collidesWith: 255` (colisiona con todos)
+- Player Bullet: `collisionLayer: 4, collidesWith: 2` (solo colisiona con enemies)
+
 ### Game Flow States
 ```asm
 FLOW_STATE_MAIN_MENU    EQU 0

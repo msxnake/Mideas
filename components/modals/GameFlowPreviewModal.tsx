@@ -58,6 +58,7 @@ interface AnimatedEntity {
     isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
     lastDamageTime?: number; // Timestamp of last damage taken (for invincibility frames)
     hasDangerousTileCollision?: boolean; // True when touching a deadly tile
+    platformUnderneath?: AnimatedEntity | null; // Reference to platform entity this entity is standing on
 }
 
 interface GameFlowPreviewModalProps {
@@ -994,18 +995,27 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             let vx = 0, vy = 0;
             if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
-                const endX = patrolComp.waypoint2_x ?? startX;
-                const endY = patrolComp.waypoint2_y ?? startY;
-                console.log(`[ENTITY INIT] ${instance.name} has patrol: waypoint1=(${patrolComp.waypoint1_x}, ${patrolComp.waypoint1_y}), waypoint2=(${endX}, ${endY})`);
+                // IMPORTANTE: Si waypoint1 está definido, usar esas coordenadas como inicio PRIMERO
+                startX = Number(patrolComp.waypoint1_x);
+                startY = Number(patrolComp.waypoint1_y);
+
+                // Calcular dirección hacia waypoint2
+                const endX = Number(patrolComp.waypoint2_x ?? startX);
+                const endY = Number(patrolComp.waypoint2_y ?? startY);
+                console.log(`[ENTITY INIT] ${instance.name} has patrol: waypoint1=(${startX}, ${startY}), waypoint2=(${endX}, ${endY})`);
+
                 const dx = endX - startX;
                 const dy = endY - startY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 0) { vx = (dx / dist); vy = (dy / dist); }
 
-                // IMPORTANTE: Si waypoint1 está definido, usar esas coordenadas como inicio
-                if (patrolComp.waypoint1_x !== undefined) startX = Number(patrolComp.waypoint1_x);
-                if (patrolComp.waypoint1_y !== undefined) startY = Number(patrolComp.waypoint1_y);
-                console.log(`[ENTITY INIT] ${instance.name} usando waypoint1 como posición inicial: (${startX}, ${startY})`);
+                // Aplicar velocidad usando la propiedad speed
+                const speed = Number(patrolComp.speed) || 1;
+                if (dist > 0) {
+                    vx = (dx / dist) * speed;
+                    vy = (dy / dist) * speed;
+                }
+
+                console.log(`[ENTITY INIT] ${instance.name} patrol velocity: vx=${vx}, vy=${vy} (speed=${speed}, distance=${dist.toFixed(2)})`);
             }
             return {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
@@ -1658,6 +1668,48 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // If both are static, no resolution needed
             if (isAStatic && isBStatic) return;
 
+            // DEBUG: Log collision details for platform detection
+            const isPlatformInvolved = (propsA.collisionLayer & 8) !== 0 || (propsB.collisionLayer & 8) !== 0;
+            if (isPlatformInvolved) {
+                console.log(`[COLLISION RESOLVE] ${entityA.instance.name} vs ${entityB.instance.name}: overlapX=${overlapX.toFixed(2)}, overlapY=${overlapY.toFixed(2)}, axis=${overlapX < overlapY ? 'X' : 'Y'}`);
+            }
+
+            // Detect platform riding BEFORE axis separation (works regardless of separation axis)
+            // Check if A is standing on top of B (platform detection based on relative positions)
+            const isAAboveB = (hitboxA.y + hitboxA.height / 2) < (hitboxB.y + hitboxB.height / 2);
+            const isBAboveA = (hitboxB.y + hitboxB.height / 2) < (hitboxA.y + hitboxA.height / 2);
+
+            // DEBUG: Log platform detection conditions
+            if (isPlatformInvolved) {
+                console.log(`[PLATFORM CHECK] isAAboveB=${isAAboveB}, isBAboveA=${isBAboveA}, A.vy=${entityA.vy}, B.vy=${entityB.vy}`);
+                console.log(`[PLATFORM CHECK] A.layer=${propsA.collisionLayer}, B.layer=${propsB.collisionLayer}, B.isLayer8=${(propsB.collisionLayer & 8) !== 0}`);
+                console.log(`[PLATFORM CHECK] About to check if condition: isAAboveB(${isAAboveB}) && A.vy(${entityA.vy}) >= 0 = ${isAAboveB && entityA.vy >= 0}`);
+            }
+
+            if (isAAboveB && entityA.vy >= 0) {
+                console.log(`[PLATFORM CHECK] INSIDE IF: Checking isPlatformLayer...`);
+
+                // A is above B and falling/stationary - check if B is a platform
+                const isPlatformLayer = (propsB.collisionLayer & 8) !== 0;
+                if (isPlatformLayer) {
+                    entityA.platformUnderneath = entityB;
+                    console.log(`[PLATFORM] ${entityA.instance.name} is on platform ${entityB.instance.name} (layer8: true, vx: ${entityB.vx}, vy: ${entityB.vy})`);
+                } else {
+                    console.log(`[PLATFORM] A is above B but B is not layer 8 (layer=${propsB.collisionLayer})`);
+                }
+            } else if (isAAboveB) {
+                console.log(`[PLATFORM] A is above B but A.vy < 0 (A.vy=${entityA.vy})`);
+            }
+
+            if (isBAboveA && entityB.vy >= 0) {
+                // B is above A and falling/stationary - check if A is a platform
+                const isPlatformLayer = (propsA.collisionLayer & 8) !== 0;
+                if (isPlatformLayer) {
+                    entityB.platformUnderneath = entityA;
+                    console.log(`[PLATFORM] ${entityB.instance.name} is on platform ${entityA.instance.name} (layer8: true, vx: ${entityA.vx}, vy: ${entityA.vy})`);
+                }
+            }
+
             // Find minimum translation vector (MTV) - separate on axis with less overlap
             if (overlapX < overlapY) {
                 // Separate on X axis
@@ -1775,8 +1827,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const centerX1 = hitbox.x + Math.floor(hitbox.width / 3);
                         const centerX2 = hitbox.x + Math.floor((2 * hitbox.width) / 3);
                         const bottomY = hitbox.y + hitbox.height;
-                        entityA.isOnGround = checkCollisionAt(centerX1, bottomY, screenMapToRender) ||
-                                             checkCollisionAt(centerX2, bottomY, screenMapToRender);
+
+                        // Check collision with tiles OR with platform entity
+                        const onTiles = checkCollisionAt(centerX1, bottomY, screenMapToRender) ||
+                                       checkCollisionAt(centerX2, bottomY, screenMapToRender);
+                        const onPlatform = entityA.platformUnderneath !== null && entityA.platformUnderneath !== undefined;
+
+                        entityA.isOnGround = onTiles || onPlatform;
                     } else {
                         entityA.isOnGround = false;
                     }
@@ -1796,6 +1853,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             if (stateDef.properties.velocityX !== undefined) entityA.vx = stateDef.properties.velocityX;
                             if (stateDef.properties.velocityY !== undefined) entityA.vy = stateDef.properties.velocityY;
                         }
+                    }
+
+                    // --- Transfer platform velocity if standing on a moving platform ---
+                    if (entityA.platformUnderneath && entityA.isOnGround) {
+                        // Add platform's horizontal velocity to entity's position
+                        // This makes the entity "stick" to the platform as it moves
+                        entityA.x += entityA.platformUnderneath.vx;
+                        // Also transfer vertical velocity if platform is moving vertically
+                        if (entityA.platformUnderneath.vy !== 0) {
+                            entityA.y += entityA.platformUnderneath.vy;
+                        }
+                        console.log(`[PLATFORM] Transferring velocity from ${entityA.platformUnderneath.instance.name}: vx=${entityA.platformUnderneath.vx}, vy=${entityA.platformUnderneath.vy}`);
                     }
 
                     // Check if current state allows input
@@ -1972,6 +2041,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 // --- 5. Lógica de Colisión entre Entidades ---
                 if (hasCollisionComp) {
+                    // Clear platform reference if entity is no longer grounded or platform doesn't exist
+                    if (entityA.platformUnderneath) {
+                        if (!entityA.isOnGround || !entitiesRef.current.includes(entityA.platformUnderneath)) {
+                            console.log(`[PLATFORM] Clearing platform reference for ${entityA.instance.name} (onGround: ${entityA.isOnGround})`);
+                            entityA.platformUnderneath = null;
+                        }
+                    }
+
                     // Debug log para ver si entra al loop
                     if (indexA === 0 && now % 1000 < 16) {
                         console.log(`[COLLISION DEBUG] Checking collisions for ${entityA.instance.name}, total entities: ${entitiesRef.current.length}`);
@@ -2034,24 +2111,27 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     // TRIGGER COLLISION: No physical separation, only event detection
                                     console.log(`  🎯 TRIGGER COLLISION: ${isATrigger ? entityA.instance.name : ''}${isATrigger && isBTrigger ? ' & ' : ''}${isBTrigger ? entityB.instance.name : ''} (no pushback)`);
 
-                                    // Helper function: Determine collision event type based on entity components
-                                    const getCollisionEventType = (entity: typeof entityA | typeof entityB): string => {
+                                    // Helper function: Determine collision event type based on entity layer and components
+                                    const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
                                         // Check if entity has comp_collectible
                                         const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
                                         if (hasCollectible) return 'collision_item';
+
+                                        // Check layer 8 (bit 3) for platforms/walls - MUST check before enemy detection
+                                        if ((entityLayer & 8) !== 0) return 'collision_wall';
 
                                         // Check if entity has comp_damage or comp_ai_behavior (enemy)
                                         const hasAI = entity.template.components.some(c => c.definitionId === 'comp_ai_behavior');
                                         const hasDamage = entity.template.components.some(c => c.definitionId === 'comp_damage');
                                         if (hasAI || hasDamage) return 'collision_enemy';
 
-                                        // Fallback to template name detection for wall/obstacle
+                                        // Fallback to template name detection for wall/obstacle/platform
                                         const templateName = entity.template.name.toLowerCase();
-                                        if (templateName.includes('wall') || templateName.includes('obstacle')) {
+                                        if (templateName.includes('wall') || templateName.includes('obstacle') || templateName.includes('platform')) {
                                             return 'collision_wall';
                                         }
 
-                                        return 'collision_enemy'; // Default
+                                        return 'collision_wall'; // Default changed from 'collision_enemy' to 'collision_wall' (safer)
                                     };
 
                                     // Check if entities are in invulnerable states (Dead, Hurt, etc.)
@@ -2065,11 +2145,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                     // Only trigger collision events if not invulnerable
                                     if (!isAInvulnerable) {
-                                        const eventNameA = getCollisionEventType(entityB); // What A collided with
+                                        const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
                                         triggerEvent(entityA.instance.id, eventNameA);
                                     }
                                     if (!isBInvulnerable) {
-                                        const eventNameB = getCollisionEventType(entityA); // What B collided with
+                                        const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
                                         triggerEvent(entityB.instance.id, eventNameB);
                                     }
                                 } else {
@@ -2077,24 +2157,27 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     console.log(`  💥 SOLID COLLISION: Applying physical pushback...`);
                                     resolveEntityCollision(entityA, entityB, propsA, propsB);
 
-                                    // Helper function: Determine collision event type based on entity components
-                                    const getCollisionEventType = (entity: typeof entityA | typeof entityB): string => {
+                                    // Helper function: Determine collision event type based on entity layer and components
+                                    const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
                                         // Check if entity has comp_collectible
                                         const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
                                         if (hasCollectible) return 'collision_item';
+
+                                        // Check layer 8 (bit 3) for platforms/walls - MUST check before enemy detection
+                                        if ((entityLayer & 8) !== 0) return 'collision_wall';
 
                                         // Check if entity has comp_damage or comp_ai_behavior (enemy)
                                         const hasAI = entity.template.components.some(c => c.definitionId === 'comp_ai_behavior');
                                         const hasDamage = entity.template.components.some(c => c.definitionId === 'comp_damage');
                                         if (hasAI || hasDamage) return 'collision_enemy';
 
-                                        // Fallback to template name detection for wall/obstacle
+                                        // Fallback to template name detection for wall/obstacle/platform
                                         const templateName = entity.template.name.toLowerCase();
-                                        if (templateName.includes('wall') || templateName.includes('obstacle')) {
+                                        if (templateName.includes('wall') || templateName.includes('obstacle') || templateName.includes('platform')) {
                                             return 'collision_wall';
                                         }
 
-                                        return 'collision_enemy'; // Default
+                                        return 'collision_wall'; // Default changed from 'collision_enemy' to 'collision_wall' (safer)
                                     };
 
                                     // Check if entities are in invulnerable states (Dead, Hurt, etc.)
@@ -2108,11 +2191,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                     // Only trigger collision events if not invulnerable
                                     if (!isAInvulnerable) {
-                                        const eventNameA = getCollisionEventType(entityB); // What A collided with
+                                        const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
                                         triggerEvent(entityA.instance.id, eventNameA);
                                     }
                                     if (!isBInvulnerable) {
-                                        const eventNameB = getCollisionEventType(entityA); // What B collided with
+                                        const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
                                         triggerEvent(entityB.instance.id, eventNameB);
                                     }
                                 }
