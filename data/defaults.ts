@@ -154,7 +154,9 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "waypoint2_x", type: 'word', defaultValue: '64', description: "End X coordinate or max corner of box." },
       { name: "waypoint2_y", type: 'word', defaultValue: '0', description: "End Y coordinate or max corner of box." },
       { name: "patrolSpeed", type: 'word', defaultValue: '50', description: "Movement speed during patrol." },
-      { name: "waypointPause", type: 'word', defaultValue: '0', description: "Pause duration in ticks at each waypoint." }
+      { name: "waypointPause", type: 'word', defaultValue: '0', description: "Pause duration in ticks at each waypoint." },
+      { name: "multiScreen", type: 'boolean', defaultValue: 'false', description: "Enable multi-screen patrol (entity moves across multiple screens)." },
+      { name: "originScreenId", type: 'string', defaultValue: '', description: "Screen ID where the entity was created (auto-assigned, used for global coordinates)." }
     ],
   },
   {

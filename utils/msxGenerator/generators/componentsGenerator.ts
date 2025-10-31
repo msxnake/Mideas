@@ -88,10 +88,23 @@ sprite_update_loop:
     and COMP_MASK_SPRITE       ; Check if has sprite component
     jr z, sprite_next_entity   ; Skip if no sprite component
 
-    ; Render sprite at entity position
+    ; Check if entity is in current screen (multi-screen support)
     push bc
     push hl
 
+    ; Check entity screen ID
+    ld hl, entity_screen_id
+    ld e, c                    ; Entity index
+    ld d, 0
+    add hl, de                 ; HL points to entity screen ID
+    ld a, (hl)                 ; A = entity screen ID
+
+    ; Compare with current screen ID
+    ld hl, current_screen_id
+    cp (hl)                    ; Compare entity screen with current screen
+    jr nz, sprite_hide         ; If different screen, hide sprite
+
+    ; Entity is in current screen - render normally
     ; Get entity position
     ld hl, entity_x_pos
     ld e, c                    ; Entity index
@@ -108,7 +121,18 @@ sprite_update_loop:
     ld d, 0                    ; Pattern 0 (TODO: get from entity data)
     ld e, 15                   ; Color white (TODO: get from entity data)
     call show_sprite
+    jr sprite_continue
 
+sprite_hide:
+    ; Entity is in different screen - hide sprite (Y = 208+)
+    ld a, c                    ; Sprite number = entity index
+    ld b, 0                    ; X = 0 (doesn't matter when hidden)
+    ld c, 208                  ; Y = 208 (off-screen, hides sprite)
+    ld d, 0                    ; Pattern 0
+    ld e, 0                    ; Color 0
+    call show_sprite
+
+sprite_continue:
     pop hl
     pop bc
 
@@ -1097,6 +1121,10 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     ; Initialize component systems (OPTIMIZED - only used components)
     ; Used: ${Array.from(usedComponents).join(', ')}
 
+    ; Initialize current screen ID (multi-screen support)
+    ld a, 0                    ; Start at screen 0
+    ld (current_screen_id), a
+
     ; Clear all component masks
     ld hl, entity_comp_masks
     ld de, entity_comp_masks+1
@@ -1306,6 +1334,9 @@ entity_gravity_vel  EQU temp_word_4       ; Accumulated gravity velocity (signed
 ; Input/Cursors Component Data (Direction restrictions)
 entity_dir_mask     EQU temp_byte_6       ; Direction allowed mask per entity (32 bytes)
                                           ; Bit 0=UP, Bit 1=DOWN, Bit 2=LEFT, Bit 3=RIGHT
+
+; Multi-Screen Component Data (Screen tracking for entities)
+entity_screen_id    EQU temp_byte_7       ; Screen ID where entity is located (32 bytes)
 
 ; ==================================================================
 ; CORE ECS SYSTEM FUNCTIONS

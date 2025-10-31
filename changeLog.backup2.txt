@@ -1,0 +1,292 @@
+Versión 0.257 - 15/10/2025
+- feat: Screen Editor - Selectores de color background/border con paleta MSX1 (VDP Register 7)
+- feat: Screen Editor toolbar - Dropdowns visuales con preview de color seleccionado
+- feat: ScreenMap data model - Propiedades backgroundColor y borderColor (índices 0-15)
+- feat: ASM generation - Función set_screen_colors que escribe en VDP Register 7
+- feat: ASM generation - load_screen_X ahora establece colores personalizados por pantalla
+- feat: Screen Grid - Aplica backgroundColor del ScreenMap como estilo inline
+- feat: Preview/Play modals - Renderizado con backgroundColor correcto en canvas
+- feat: screenUtils.renderScreenToCanvas - Usa backgroundColor de ScreenMap en lugar de hardcoded
+- fix: headerGenerator - Eliminado establecimiento hardcoded de colores (ld a,1 / BAKCLR/BDRCLR)
+- fix: headerGenerator - Colores ahora se establecen por cada load_screen_X según GameFlow
+- docs: Paridad completa MSX - Colores de pantalla entre Play mode y ROM generado
+
+Versión 0.256 - 10/10/2025
+- feat: Sistema completo de GlobalVariables para gestión de variables de juego custom
+- feat: Editor de GlobalVariables con soporte para tipos boolean, byte, word, string
+- feat: Selector de asset de GlobalVariables en Guards (soporta múltiples assets)
+- feat: Guards ahora usan solo variables custom del asset seleccionado
+- feat: Integración de GlobalVariables en PropertiesPanel con lista de variables
+- feat: GlobalVariables visible en FileExplorerPanel (Project Assets)
+- fix: Corrección de función handleUpdateAsset en GlobalVariablesEditor
+- fix: Inicialización correcta de array customVariables
+- chore: Ocultar assets internos del panel (Behavior Scripts, Component Definitions, Entity Templates)
+- chore: Limpieza de console.logs de debug
+
+Versi�n 0.254 - 4/10/2025
+- fix: Corregir desplazamiento del men� en World Map Editor al hacer zoom
+- feat: Men� superior siempre visible con z-index y shrink-0
+
+Versi�n 0.253 - 4/10/2025
+- refactor: modularizar msxModularGenerator en arquitectura escalable
+- asm a minusculas
+
+Versi�n 0.253 - 3/10/2025
+- feat: Implementar sistema de GameFlows anidados con nodo "Group"
+- feat: A�adir nodo "End" para terminar flujos y regresar al padre
+- feat: Stack de GameFlows para soportar m�ltiples niveles de anidaci�n
+- feat: Salto autom�tico de waypoints al regresar de GameFlow anidado
+- feat: Diferenciaci�n visual del nodo "Start" en GameFlow "Main" (rojo, texto negro, negrita)
+- feat: Texto "Build with Mideas" solo en nodo Start de GameFlow "Main"
+- feat: Selecci�n de fuente personalizada en nodos Text y SubMenu
+- feat: Renderizado de fuentes personalizadas en Game Flow Preview
+- feat: Opci�n "Add Controls" en SubMenu con checkboxes para CURSORS/JOYSTICK/KEYS
+- feat: Almacenamiento de selecci�n de controles en variables globales
+- feat: Naming autom�tico de GameFlows - primero "Main", siguientes "New Gameflow N"
+- fix: Corregir retorno de GameFlows anidados - restaurar contexto padre correctamente
+- fix: Corregir renderizado de colores en fuentes personalizadas (usar fontColorAttributes)
+- fix: A�adir dependencia currentGraphData al useEffect de renderizado
+
+Versi�n 0.252 - 2/10/2025
+- feat: A�adir sistema de transiciones visuales en Game Flow Editor
+- feat: Implementar 7 efectos de transici�n (CLS, Disolver P�xeles, Disolver Chars, L�neas Verticales, L�neas Horizontales, Espiral, Cuadrados Blancos)
+- feat: A�adir nodo "Transition" con editor modal para configurar efecto y duraci�n
+- feat: Auto-avance autom�tico despu�s de completar transici�n
+- fix: Corregir renderizado de transiciones - no limpiar pantalla antes de ejecutar efecto
+- feat: Transiciones compatibles con waypoints (los salta autom�ticamente)
+
+Versi�n 0.251 - 1/10/2025
+- feat: Simplificar opciones de exportaci�n - solo ROM Konami disponible
+- fix: Hacer condicional INIT_GAME_ENTITIES seg�n existencia de entidades/sprites
+- fix: Hacer condicional UPDATE_GAME_STATE seg�n existencia de entidades
+- fix: Eliminar llamada PRINT_STRING en BIOS stub - funci�n no existe
+
+Versi�n 0.250 - 1/10/2025
+- fix: Corregir bot�n de zoom en Screen Editor - agregar estados useState para zoom
+- fix: Corregir switch de autosave en men� Configure - agregar setters de IDE config
+- feat: A�adir generador "Frame" en Tile Editor para marcos de HUD/SCORE
+- feat: Implementar 3 estilos de marco (simple, double, decorative)
+- feat: Agregar 3 estilos de esquinas (square, rounded, fancy)
+- feat: Grosor configurable de marco (1-4 p�xeles)
+
+Versi�n 0.249 - 30/9/2025
+- feat: A�adir efecto "Warp" en Sprite Editor - desintegraci�n en espiral
+- feat: Crear WarpGeneratorModal con par�metros (numFrames, spiralTightness, rotationSpeed)
+- feat: Implementar algoritmo de espiral que rota p�xeles hacia el centro
+- ui: Mover secci�n "Define Sprite Colors" del panel izquierdo al panel derecho
+- ui: Crear cuarta columna en Sprite Editor para "Animation Tools"
+- ui: Reorganizar paneles - "Frame Control" ahora bajo "Animation Tools"
+
+Versi�n 0.248 - 30/9/2025
+- fix: Corregir selecci�n y conexi�n de nodos en GameFlow Editor
+- fix: Implementar men� contextual (click derecho) en nodos de GameFlow
+- feat: Mejorar modo linking - puerto amarillo (salida) a puerto azul (entrada)
+- feat: Todo el cuerpo del nodo es clickeable cuando est� en linking mode
+- fix: Diferenciar correctamente eventos de click izquierdo y derecho
+- fix: Agregar estado contextMenu y handlers en App.tsx
+
+Versi�n 0.247 - 30/9/2025
+- feat: A�adir generador de fragmentaci�n en Sprite Editor (Gen Fragment)
+- feat: Divide sprite en 4 cuadrantes con separaci�n l�nea por l�nea
+- fix: Corregir bot�n "Sheet" en Sprite Editor - a�adir estado isSpriteSheetModalOpen
+
+Versi�n 0.246 - 30/9/2025
+- feat: A�adir presets de zoom (100%, 200%, 400%, 800%) en Sprite Editor
+
+Versi�n 0.245 - 29/9/2025
+- feat: Project optimizations - cleanup and code splitting
+
+Versi�n 0.244 - 28/9/2025
+- feat: Move system tools to top menu bar - World View, Component Definitions, Entity Templates
+
+Versi�n 0.243 - 24/9/2025
+- fix: bugs Preview, Play in Screen Editor
+- feat: gameFlowNode fix
+
+Versi�n 0.242 - 16/9/2025
+- fix: Corregir error de redefinici�n de s�mbolos - SCREEN_*_ID ahora incluye �ndice �nico
+- fix: Resolver s�mbolos de sprite no encontrados - SPRITE_*_PATTERN ahora apunta a capas correctas
+- fix: Corregir s�mbolo NAMTBL no encontrado - usar NAMETBL seg�n definici�n en constantes
+- fix: Resolver referencias de layout de pantalla - usar nombres con �ndice para evitar conflictos
+- fix: Resolver estados de flujo de juego no definidos - FLOW_STATE_* ahora siempre disponibles
+- fix: Corregir orden de archivos en unitedFiles.asm - header.asm ahora es el primer archivo
+- feat: Mejorar generaci�n de ASM con detecci�n din�mica de capas de sprite
+- feat: A�adir aliases unificados para patrones de sprite para facilitar carga
+- feat: Implementar nomenclatura indexada para evitar conflictos de s�mbolos
+
+Versi�n 0.241 - 14/9/2025
+- docs: Actualizar gu�a MSX_ASM_GUIDE.md
+- fix: Eliminar referencias "Konami" de documentaci�n ASM
+- fix: Corregir posici�n ORG #4000 al inicio del archivo ASM
+- feat: Integrar funciones existentes del proyecto en gu�a ASM
+- feat: Agregar ejemplos pr�cticos basados en c�digo real
+- feat: Documentar estructura Game Flow y sistema de men� principal
+- feat: Agregar sistema de renderizado Screen1 � Screen2
+- test: Crear test de verificaci�n para gu�a MSX_ASM_GUIDE.md
+- docs: Sincronizar gu�a con c�digo de producci�n de Mideas
+
+Versi�n 0.238 - 14/9/2025
+- clean up archives
+- minor improvements
+- sorting structure
+
+Versi�n 0.21 - 7/9/2025
+NUEVA FUNCIONALIDAD: Sistema de Motores Din�micos y Spawner Engine
+-  Bot�n Play a�adido al Screen Editor para ejecutar juegos directamente
+-  Sistema de motores din�micos que activa solo los engines necesarios seg�n componentes de entidades
+-  Spawner Engine: Sistema de spawn autom�tico de entidades con configuraci�n de zona, tiempo y l�mites
+-  Nuevo componente comp_spawner con propiedades completas (spawnRate, maxEntities, spawnZone, etc.)
+-  Template tpl_enemy_spawner predefinido para facilitar uso
+-  Sistema de fallback inteligente para sprites faltantes
+-  Animaci�n autom�tica para entidades spawneadas (frames artificiales si es necesario)
+-  UI reactiva con contador de entidades en tiempo real
+-  Engines disponibles: Gravity, Physics, Animation, Patrol, Spawner
+-  Performance optimizado: solo ejecuta motores cuando hay entidades que los necesitan
+-  Logs detallados de debug para desarrollo y troubleshooting
+
+Versi�n 0.19 - 31/8/2025
+- fix: Implement multi-language presets for State Machine editor
+- feat: Expand preset states list in State Machine editor
+- fix: Adjust default state machine and improve editor
+- feat: Add input type to State Machine events
+- feat: Implement State Machine editor functionality
+- feat: Add State Machine editor UI
+- feat: Add State Machine asset type
+- feat: Implemented tile selection and context menu
+
+Versi�n 0.18 - 31/8/2025
+- feat: Implemented tile selection and context menu
+- feat: Add app version to main menu toolbar
+- feat: Add sorting and filtering to tile assets panel
+- feat: Add Copy/Paste functionality for Boss Editor phases
+- feat: Implement Boss Editor animation preview and persistent zoom
+- feat: Add zoom memory persistence
+
+Versión 0.254 - 6/10/2025
+- bug fix gameflow pan
+- refactor: modularizar msxModularGenerator en arquitectura escalable
+- asm a minusculas
+- fix: Make INIT_GAME_ENTITIES conditional on entities/sprites
+- fix: Make UPDATE_GAME_STATE conditional on entities
+- fix: Remove PRINT_STRING call in BIOS stub - function doesn't exist
+- feat: Optimize ASM generator - only generate necessary code
+- fix: Skip LOAD_PATTERN/COLOR calls when no tiles exist in project
+- Fix GameFlow node selection and context menu
+- Project optimizations: cleanup and code splitting
+- Move system tools to top menu bar: World View, Component Definitions, Entity Templates moved from sidebar to toolbar
+- Screen Editor: MSX Screen 2 sector fonts same logic as HUD Editor
+- colores Hud editor OK
+- HUD Editor: Automatic font extraction from TileBank + UI fixes
+- HUD Editor: MSX Screen 2 sector-based TileBank/Font assignment
+- color HUD background
+- menu hud mejorado con asignacion de fuentes
+- funciona con la opcion font, pero no carga tilebank
+- mixed tilebanks in hud
+- Replace HUD Text Color with TileBank Asset selector
+- bastante bien asignar bancos
+- Fix TileBank tile and font assignment issues
+- Fix TileBank asset individual data persistence and loading
+- Add Tile Banks as new asset type
+- fix bugs Preview, Play in Screen Editor
+- gameFlowNode fix
+- casi full screen
+- screen editor-scanlines
+- add buttons select a-z ,num
+- resuelto parcialmente
+- bugs Font Editor Bank Editor
+- continuacion tile bank mod.
+- insertar triple bank
+- Fix font assignment to Tile Banks and React setState issues
+- Font colors per-row support in Tile Banks
+- bug trash resolved
+- bank font -1-
+- last_end_rom.asm
+
+Versión 0.256 - 26/10/2025
+- feat(animation): Add sprite-level loop control and refactor animation completion detection
+- Varis canvis, Full screen shader CRT i optimitzacions diverses
+- feat(collision): Use sprite-defined hitbox from Sprite Editor
+- feat(animation): Preserve sprite facing direction when idle
+- feat(statemachine): Add "START" keyword for CHANGE_GAME_FLOW_NODE action
+- refactor(statemachine): Remove unused eventId field from transitions
+- feat(animation): Add animation-triggered state machine system
+- starting collision logic
+- fix(gameflow): Improve jump and collision detection
+- fix(gameflow): Refactor input handling and improve collision
+- feat(gameflow): Improve preview physics and rendering
+- fix: Correct jump behavior in GameFlow preview
+- feat: Implement screen transitions in GameFlow preview
+- feat: Implement Platformer Physics and Advanced Components
+- Remove Map ASM button from Screen Editor
+- colors menus fix
+- fix font screen Editor
+- mejoras sector screen editor
+- fix tilebank part 1
+- Punto Zero
+- feat: GlobalVariables ASM integration and StateMachine improvements
+- chore: hide internal asset types from Project Assets panel
+- feat: refactor Guards to use custom GlobalVariables from selected asset
+- chore: remove debug console.logs from GlobalVariables PropertiesPanel
+- debug: add console logging to PropertiesPanel for GlobalVariables
+- feat: display GlobalVariables custom variables in PropertiesPanel
+- feat: add Global Variables folder to FileExplorerPanel asset list
+- fix: correct function name handleUpdateAsset in GlobalVariablesEditor
+- fix: ensure GlobalVariables customVariables array initialization and validation
+- fix: enable GlobalVariables asset creation and editing
+- feat: add proper type support to GlobalVariables editor
+- feat: integrate GlobalVariables editor into Mideas UI
+- feat: add GlobalVariables asset type with custom variable editor
+- feat: enable guard input in StateMachine new transition form
+- feat: add transition guards (conditions) to StateMachine Editor
+- feat: add IfThenElse node properties panel
+- feat: add comprehensive if-then-else configuration and open connections validation
+- add node if-then-else
+- bug fix gameflow pan
+- refactor: modularizar msxModularGenerator en arquitectura escalable
+- asm a minusculas
+- fix: Make INIT_GAME_ENTITIES conditional on entities/sprites
+- fix: Make UPDATE_GAME_STATE conditional on entities
+
+Versión 0.258 - 26/10/2025
+- feat(animation): Add sprite-level loop control and refactor animation completion detection
+- Varis canvis, Full screen shader CRT i optimitzacions diverses
+- feat(collision): Use sprite-defined hitbox from Sprite Editor
+- feat(animation): Preserve sprite facing direction when idle
+- feat(statemachine): Add "START" keyword for CHANGE_GAME_FLOW_NODE action
+- refactor(statemachine): Remove unused eventId field from transitions
+- feat(animation): Add animation-triggered state machine system
+- starting collision logic
+- fix(gameflow): Improve jump and collision detection
+- fix(gameflow): Refactor input handling and improve collision
+- feat(gameflow): Improve preview physics and rendering
+- fix: Correct jump behavior in GameFlow preview
+- feat: Implement screen transitions in GameFlow preview
+- feat: Implement Platformer Physics and Advanced Components
+- Remove Map ASM button from Screen Editor
+- colors menus fix
+- fix font screen Editor
+- mejoras sector screen editor
+- fix tilebank part 1
+- Punto Zero
+- feat: GlobalVariables ASM integration and StateMachine improvements
+- chore: hide internal asset types from Project Assets panel
+- feat: refactor Guards to use custom GlobalVariables from selected asset
+- chore: remove debug console.logs from GlobalVariables PropertiesPanel
+- debug: add console logging to PropertiesPanel for GlobalVariables
+- feat: display GlobalVariables custom variables in PropertiesPanel
+- feat: add Global Variables folder to FileExplorerPanel asset list
+- fix: correct function name handleUpdateAsset in GlobalVariablesEditor
+- fix: ensure GlobalVariables customVariables array initialization and validation
+- fix: enable GlobalVariables asset creation and editing
+- feat: add proper type support to GlobalVariables editor
+- feat: integrate GlobalVariables editor into Mideas UI
+- feat: add GlobalVariables asset type with custom variable editor
+- feat: enable guard input in StateMachine new transition form
+- feat: add transition guards (conditions) to StateMachine Editor
+- feat: add IfThenElse node properties panel
+- feat: add comprehensive if-then-else configuration and open connections validation
+- add node if-then-else
+- bug fix gameflow pan
+- refactor: modularizar msxModularGenerator en arquitectura escalable
+- asm a minusculas
+- fix: Make INIT_GAME_ENTITIES conditional on entities/sprites

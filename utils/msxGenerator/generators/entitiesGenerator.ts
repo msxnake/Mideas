@@ -206,6 +206,11 @@ update_entities:
     add hl, de
     ld (hl), ${pixelY}         ; Set real Y position from JSON
 
+    ; Set entity screen ID (for multi-screen support)
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), 0                 ; Screen ID 0 (default to first screen)
+
     ; Set sprite pattern and color
     ld hl, sprite_pattern
     add hl, de

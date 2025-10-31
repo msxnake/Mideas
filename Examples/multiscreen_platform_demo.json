@@ -1,0 +1,447 @@
+{
+  "projectName": "Multi-Screen Platform Demo",
+  "projectVersion": "1.0.0",
+  "projectDescription": "Demo project showcasing multi-screen patrol system with moving platforms",
+  "assets": [
+    {
+      "id": "tile_solid",
+      "name": "Solid Block",
+      "type": "tile",
+      "data": {
+        "pattern": [
+          170, 85, 170, 85, 170, 85, 170, 85
+        ],
+        "fg": 15,
+        "bg": 1,
+        "attributes": {
+          "isSolid": true
+        }
+      }
+    },
+    {
+      "id": "sprite_platform",
+      "name": "Platform",
+      "type": "sprite",
+      "data": {
+        "size": {
+          "width": 32,
+          "height": 8
+        },
+        "frames": [
+          {
+            "data": [
+              [6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6],
+              [6,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,6],
+              [6,14,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,14,6],
+              [6,14,6,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,6,14,6],
+              [6,14,6,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,6,14,6],
+              [6,14,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,14,6],
+              [6,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,6],
+              [6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "sprite_player",
+      "name": "Player",
+      "type": "sprite",
+      "data": {
+        "size": {
+          "width": 16,
+          "height": 16
+        },
+        "frames": [
+          {
+            "data": [
+              [0,0,0,0,0,0,15,15,15,15,0,0,0,0,0,0],
+              [0,0,0,0,0,15,15,15,15,15,15,0,0,0,0,0],
+              [0,0,0,0,15,15,15,15,15,15,15,15,0,0,0,0],
+              [0,0,0,0,15,0,0,15,15,0,0,15,0,0,0,0],
+              [0,0,0,0,15,0,0,15,15,0,0,15,0,0,0,0],
+              [0,0,0,0,15,15,15,15,15,15,15,15,0,0,0,0],
+              [0,0,0,0,0,15,15,15,15,15,15,0,0,0,0,0],
+              [0,0,0,0,0,15,15,15,15,15,15,0,0,0,0,0],
+              [0,0,0,0,15,15,15,15,15,15,15,15,0,0,0,0],
+              [0,0,0,15,15,15,15,15,15,15,15,15,15,0,0,0],
+              [0,0,15,15,15,15,15,15,15,15,15,15,15,15,0,0],
+              [0,0,15,15,15,0,0,0,0,0,0,15,15,15,0,0],
+              [0,0,15,15,0,0,0,0,0,0,0,0,15,15,0,0],
+              [0,0,15,15,0,0,0,0,0,0,0,0,15,15,0,0],
+              [0,0,15,15,0,0,0,0,0,0,0,0,15,15,0,0],
+              [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "screen1",
+      "name": "Screen 1 - Start",
+      "type": "screenmap",
+      "data": {
+        "id": "screen1",
+        "name": "Screen 1 - Start",
+        "width": 32,
+        "height": 24,
+        "layers": {
+          "background": {
+            "tiles": []
+          },
+          "collision": {
+            "tiles": [
+              {"x": 0, "y": 23, "tileId": "tile_solid"},
+              {"x": 1, "y": 23, "tileId": "tile_solid"},
+              {"x": 2, "y": 23, "tileId": "tile_solid"},
+              {"x": 3, "y": 23, "tileId": "tile_solid"},
+              {"x": 4, "y": 23, "tileId": "tile_solid"},
+              {"x": 5, "y": 23, "tileId": "tile_solid"},
+              {"x": 6, "y": 23, "tileId": "tile_solid"},
+              {"x": 7, "y": 23, "tileId": "tile_solid"},
+              {"x": 8, "y": 23, "tileId": "tile_solid"},
+              {"x": 9, "y": 23, "tileId": "tile_solid"},
+              {"x": 10, "y": 23, "tileId": "tile_solid"},
+              {"x": 11, "y": 23, "tileId": "tile_solid"},
+              {"x": 12, "y": 23, "tileId": "tile_solid"},
+              {"x": 13, "y": 23, "tileId": "tile_solid"},
+              {"x": 14, "y": 23, "tileId": "tile_solid"},
+              {"x": 15, "y": 23, "tileId": "tile_solid"},
+              {"x": 16, "y": 23, "tileId": "tile_solid"},
+              {"x": 17, "y": 23, "tileId": "tile_solid"},
+              {"x": 18, "y": 23, "tileId": "tile_solid"},
+              {"x": 19, "y": 23, "tileId": "tile_solid"},
+              {"x": 20, "y": 23, "tileId": "tile_solid"},
+              {"x": 21, "y": 23, "tileId": "tile_solid"},
+              {"x": 22, "y": 23, "tileId": "tile_solid"},
+              {"x": 23, "y": 23, "tileId": "tile_solid"},
+              {"x": 24, "y": 23, "tileId": "tile_solid"},
+              {"x": 25, "y": 23, "tileId": "tile_solid"},
+              {"x": 26, "y": 23, "tileId": "tile_solid"},
+              {"x": 27, "y": 23, "tileId": "tile_solid"},
+              {"x": 28, "y": 23, "tileId": "tile_solid"},
+              {"x": 29, "y": 23, "tileId": "tile_solid"},
+              {"x": 30, "y": 23, "tileId": "tile_solid"},
+              {"x": 31, "y": 23, "tileId": "tile_solid"}
+            ]
+          },
+          "effects": {
+            "tiles": []
+          },
+          "entities": [
+            {
+              "id": "entity_player",
+              "entityTemplateId": "tpl_player",
+              "name": "Player",
+              "position": {
+                "x": 2,
+                "y": 20
+              },
+              "componentOverrides": {}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "screen2",
+      "name": "Screen 2 - Middle",
+      "type": "screenmap",
+      "data": {
+        "id": "screen2",
+        "name": "Screen 2 - Middle",
+        "width": 32,
+        "height": 24,
+        "layers": {
+          "background": {
+            "tiles": []
+          },
+          "collision": {
+            "tiles": [
+              {"x": 0, "y": 23, "tileId": "tile_solid"},
+              {"x": 1, "y": 23, "tileId": "tile_solid"},
+              {"x": 2, "y": 23, "tileId": "tile_solid"},
+              {"x": 3, "y": 23, "tileId": "tile_solid"},
+              {"x": 4, "y": 23, "tileId": "tile_solid"},
+              {"x": 5, "y": 23, "tileId": "tile_solid"},
+              {"x": 6, "y": 23, "tileId": "tile_solid"},
+              {"x": 7, "y": 23, "tileId": "tile_solid"},
+              {"x": 8, "y": 23, "tileId": "tile_solid"},
+              {"x": 9, "y": 23, "tileId": "tile_solid"},
+              {"x": 10, "y": 23, "tileId": "tile_solid"},
+              {"x": 11, "y": 23, "tileId": "tile_solid"},
+              {"x": 12, "y": 23, "tileId": "tile_solid"},
+              {"x": 13, "y": 23, "tileId": "tile_solid"},
+              {"x": 14, "y": 23, "tileId": "tile_solid"},
+              {"x": 15, "y": 23, "tileId": "tile_solid"},
+              {"x": 16, "y": 23, "tileId": "tile_solid"},
+              {"x": 17, "y": 23, "tileId": "tile_solid"},
+              {"x": 18, "y": 23, "tileId": "tile_solid"},
+              {"x": 19, "y": 23, "tileId": "tile_solid"},
+              {"x": 20, "y": 23, "tileId": "tile_solid"},
+              {"x": 21, "y": 23, "tileId": "tile_solid"},
+              {"x": 22, "y": 23, "tileId": "tile_solid"},
+              {"x": 23, "y": 23, "tileId": "tile_solid"},
+              {"x": 24, "y": 23, "tileId": "tile_solid"},
+              {"x": 25, "y": 23, "tileId": "tile_solid"},
+              {"x": 26, "y": 23, "tileId": "tile_solid"},
+              {"x": 27, "y": 23, "tileId": "tile_solid"},
+              {"x": 28, "y": 23, "tileId": "tile_solid"},
+              {"x": 29, "y": 23, "tileId": "tile_solid"},
+              {"x": 30, "y": 23, "tileId": "tile_solid"},
+              {"x": 31, "y": 23, "tileId": "tile_solid"}
+            ]
+          },
+          "effects": {
+            "tiles": []
+          },
+          "entities": [
+            {
+              "id": "entity_platform_multiscreen",
+              "entityTemplateId": "tpl_moving_platform",
+              "name": "Multi-Screen Platform",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "componentOverrides": {
+                "comp_patrol": {
+                  "multiScreen": true,
+                  "waypoint1_x": 50,
+                  "waypoint1_y": 150,
+                  "waypoint2_x": 600,
+                  "waypoint2_y": 150,
+                  "patrolSpeed": 50,
+                  "speed": 0.8
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "screen3",
+      "name": "Screen 3 - End",
+      "type": "screenmap",
+      "data": {
+        "id": "screen3",
+        "name": "Screen 3 - End",
+        "width": 32,
+        "height": 24,
+        "layers": {
+          "background": {
+            "tiles": []
+          },
+          "collision": {
+            "tiles": [
+              {"x": 0, "y": 23, "tileId": "tile_solid"},
+              {"x": 1, "y": 23, "tileId": "tile_solid"},
+              {"x": 2, "y": 23, "tileId": "tile_solid"},
+              {"x": 3, "y": 23, "tileId": "tile_solid"},
+              {"x": 4, "y": 23, "tileId": "tile_solid"},
+              {"x": 5, "y": 23, "tileId": "tile_solid"},
+              {"x": 6, "y": 23, "tileId": "tile_solid"},
+              {"x": 7, "y": 23, "tileId": "tile_solid"},
+              {"x": 8, "y": 23, "tileId": "tile_solid"},
+              {"x": 9, "y": 23, "tileId": "tile_solid"},
+              {"x": 10, "y": 23, "tileId": "tile_solid"},
+              {"x": 11, "y": 23, "tileId": "tile_solid"},
+              {"x": 12, "y": 23, "tileId": "tile_solid"},
+              {"x": 13, "y": 23, "tileId": "tile_solid"},
+              {"x": 14, "y": 23, "tileId": "tile_solid"},
+              {"x": 15, "y": 23, "tileId": "tile_solid"},
+              {"x": 16, "y": 23, "tileId": "tile_solid"},
+              {"x": 17, "y": 23, "tileId": "tile_solid"},
+              {"x": 18, "y": 23, "tileId": "tile_solid"},
+              {"x": 19, "y": 23, "tileId": "tile_solid"},
+              {"x": 20, "y": 23, "tileId": "tile_solid"},
+              {"x": 21, "y": 23, "tileId": "tile_solid"},
+              {"x": 22, "y": 23, "tileId": "tile_solid"},
+              {"x": 23, "y": 23, "tileId": "tile_solid"},
+              {"x": 24, "y": 23, "tileId": "tile_solid"},
+              {"x": 25, "y": 23, "tileId": "tile_solid"},
+              {"x": 26, "y": 23, "tileId": "tile_solid"},
+              {"x": 27, "y": 23, "tileId": "tile_solid"},
+              {"x": 28, "y": 23, "tileId": "tile_solid"},
+              {"x": 29, "y": 23, "tileId": "tile_solid"},
+              {"x": 30, "y": 23, "tileId": "tile_solid"},
+              {"x": 31, "y": 23, "tileId": "tile_solid"}
+            ]
+          },
+          "effects": {
+            "tiles": []
+          },
+          "entities": []
+        }
+      }
+    },
+    {
+      "id": "worldmap_demo",
+      "name": "Demo World",
+      "type": "worldmap",
+      "data": {
+        "id": "worldmap_demo",
+        "name": "Demo World",
+        "nodes": [
+          {
+            "id": "node1",
+            "screenMapId": "screen1",
+            "screenAssetId": "screen1",
+            "position": {"x": 0, "y": 0}
+          },
+          {
+            "id": "node2",
+            "screenMapId": "screen2",
+            "screenAssetId": "screen2",
+            "position": {"x": 300, "y": 0}
+          },
+          {
+            "id": "node3",
+            "screenMapId": "screen3",
+            "screenAssetId": "screen3",
+            "position": {"x": 600, "y": 0}
+          }
+        ],
+        "connections": [
+          {
+            "id": "conn1",
+            "fromNodeId": "node1",
+            "toNodeId": "node2",
+            "fromDirection": "right",
+            "toDirection": "left"
+          },
+          {
+            "id": "conn2",
+            "fromNodeId": "node2",
+            "toNodeId": "node3",
+            "fromDirection": "right",
+            "toDirection": "left"
+          }
+        ],
+        "startScreenNodeId": "node1",
+        "gridSize": 50,
+        "zoomLevel": 1,
+        "panOffset": {"x": 0, "y": 0}
+      }
+    },
+    {
+      "id": "tpl_player",
+      "name": "Player",
+      "type": "entitytemplate",
+      "data": {
+        "id": "tpl_player",
+        "name": "Player",
+        "components": [
+          {
+            "definitionId": "comp_sprite",
+            "defaultValues": {
+              "spriteAssetId": "sprite_player"
+            }
+          },
+          {
+            "definitionId": "comp_position",
+            "defaultValues": {}
+          },
+          {
+            "definitionId": "comp_movement",
+            "defaultValues": {}
+          },
+          {
+            "definitionId": "comp_collision",
+            "defaultValues": {
+              "hitboxWidth": 14,
+              "hitboxHeight": 16,
+              "offsetX": 1,
+              "offsetY": 0
+            }
+          },
+          {
+            "definitionId": "comp_cursors",
+            "defaultValues": {}
+          },
+          {
+            "definitionId": "comp_gravity",
+            "defaultValues": {
+              "gravityStrength": 0.3,
+              "jumpStrength": 4.5,
+              "maxFallSpeed": 5
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tpl_moving_platform",
+      "name": "Moving Platform",
+      "type": "entitytemplate",
+      "data": {
+        "id": "tpl_moving_platform",
+        "name": "Moving Platform",
+        "components": [
+          {
+            "definitionId": "comp_sprite",
+            "defaultValues": {
+              "spriteAssetId": "sprite_platform"
+            }
+          },
+          {
+            "definitionId": "comp_position",
+            "defaultValues": {}
+          },
+          {
+            "definitionId": "comp_collision",
+            "defaultValues": {
+              "hitboxWidth": 32,
+              "hitboxHeight": 8,
+              "collisionLayer": 8,
+              "collidesWith": 255,
+              "isPlatform": true
+            }
+          },
+          {
+            "definitionId": "comp_patrol",
+            "defaultValues": {
+              "waypoint1_x": 50,
+              "waypoint1_y": 150,
+              "waypoint2_x": 600,
+              "waypoint2_y": 150,
+              "patrolSpeed": 50,
+              "multiScreen": false,
+              "speed": 0.8
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "gameflow_demo",
+      "name": "Demo Game Flow",
+      "type": "gameflow",
+      "data": {
+        "id": "gameflow_demo",
+        "name": "Demo Game Flow",
+        "nodes": [
+          {
+            "id": "start",
+            "type": "Start",
+            "position": {"x": 100, "y": 100}
+          },
+          {
+            "id": "world",
+            "type": "WorldLink",
+            "worldAssetId": "worldmap_demo",
+            "position": {"x": 300, "y": 100}
+          }
+        ],
+        "connections": [
+          {
+            "id": "start_to_world",
+            "from": {"nodeId": "start", "handle": "out"},
+            "to": {"nodeId": "world", "handle": "in"}
+          }
+        ]
+      }
+    }
+  ]
+}

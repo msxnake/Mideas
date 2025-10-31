@@ -30,6 +30,15 @@ import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils'
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
 import { StateMachine } from '../../statemachine.types';
+import {
+    buildScreenWorldMap,
+    localToGlobal,
+    globalToLocal,
+    getAdjacentScreens,
+    SCREEN_WIDTH_PX,
+    SCREEN_HEIGHT_PX,
+    type ScreenWorldPosition
+} from '../../utils/screenCoordinates';
 
 
 const TILE_SIZE = 8;
@@ -58,6 +67,11 @@ interface AnimatedEntity {
     isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
     lastDamageTime?: number; // Timestamp of last damage taken (for invincibility frames)
     hasDangerousTileCollision?: boolean; // True when touching a deadly tile
+    // Multi-screen properties
+    globalX?: number; // Global X coordinate in world space (for multi-screen entities)
+    globalY?: number; // Global Y coordinate in world space
+    originScreenId?: string; // Screen where entity was originally created
+    parentEntityId?: string | null; // ID of parent entity (for riding platforms)
     platformUnderneath?: AnimatedEntity | null; // Reference to platform entity this entity is standing on
 }
 
@@ -123,6 +137,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [isPositioningMode, setIsPositioningMode] = useState(false);
     const [runtimeCollisionLayer, setRuntimeCollisionLayer] = useState<ScreenTile[][]>([]);
     const tileBufferNeedsUpdate = useRef<boolean>(false);
+    const screenWorldMapRef = useRef<Map<string, ScreenWorldPosition>>(new Map()); // Multi-screen coordinate system
     const tileBufferRef = useRef<HTMLCanvasElement | null>(null);
 
     const currentGraphData = currentNestedGraphData || graphData;
@@ -211,7 +226,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const key = condition.params?.key;
                 if (!key) return false;
                 const isPressed = pressedKeys.current.has(key);
-                console.log(`[KEY_PRESSED] Checking key "${key}": ${isPressed ? '✓ PRESSED' : '✗ not pressed'} (current keys: ${Array.from(pressedKeys.current).join(', ')})`);
+                // console.log(`[KEY_PRESSED] Checking key "${key}": ${isPressed ? '✓ PRESSED' : '✗ not pressed'} (current keys: ${Array.from(pressedKeys.current).join(', ')})`);
                 return isPressed;
 
             case 'HAS_COLLISION':
@@ -875,6 +890,35 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         setCurrentScreenMap(screenMapAsset.data as ScreenMap);
     }, [isOpen, currentNode, allAssets, currentScreenMap]);
 
+    // Build screen world map when WorldMapGraph changes
+    useEffect(() => {
+        if (currentWorldMapGraph) {
+            console.log('[Multi-Screen] WorldMapGraph nodes:', currentWorldMapGraph.nodes.length);
+            console.log('[Multi-Screen] WorldMapGraph connections:', currentWorldMapGraph.connections.length);
+
+            // Log all nodes
+            currentWorldMapGraph.nodes.forEach(node => {
+                console.log(`[Multi-Screen] Node ${node.id}: screenAssetId=${node.screenAssetId}`);
+            });
+
+            // Log all connections
+            currentWorldMapGraph.connections.forEach(conn => {
+                console.log(`[Multi-Screen] Connection: ${conn.fromNodeId} (${conn.fromDirection}) -> ${conn.toNodeId} (${conn.toDirection})`);
+            });
+
+            const screenWorldMap = buildScreenWorldMap(currentWorldMapGraph);
+            screenWorldMapRef.current = screenWorldMap;
+            console.log('[Multi-Screen] Screen world map built:', screenWorldMap.size, 'screens');
+
+            // Log all screen positions
+            screenWorldMap.forEach((pos, screenId) => {
+                console.log(`[Multi-Screen] Screen ${screenId}: globalX=${pos.globalX}, globalY=${pos.globalY}`);
+            });
+        } else {
+            screenWorldMapRef.current = new Map();
+        }
+    }, [currentWorldMapGraph]);
+
     // Update currentScreenMap when the underlying asset changes in allAssets
     useEffect(() => {
         if (!isOpen || !currentScreenMap) return;
@@ -987,7 +1031,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     console.log(`[ENTITY INIT] ${instance.name}: State Machine initialized to "${currentState}" (stateId: ${initialState?.id})`);
                 }
             }
-            const patrolComp = instance.componentOverrides?.comp_patrol;
+            // Merge patrol component defaultValues with componentOverrides
+            const patrolTemplateComp = template.components.find(c => c.definitionId === 'comp_patrol');
+            const patrolComp = {
+                ...(patrolTemplateComp?.defaultValues || {}),
+                ...(instance.componentOverrides?.comp_patrol || {})
+            };
             let startX = instance.position.x * TILE_SIZE;
             let startY = instance.position.y * TILE_SIZE;
 
@@ -1002,7 +1051,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Calcular dirección hacia waypoint2
                 const endX = Number(patrolComp.waypoint2_x ?? startX);
                 const endY = Number(patrolComp.waypoint2_y ?? startY);
-                console.log(`[ENTITY INIT] ${instance.name} has patrol: waypoint1=(${startX}, ${startY}), waypoint2=(${endX}, ${endY})`);
+                console.log(`[ENTITY INIT] ${instance.name} has patrol: waypoint1=(${startX}, ${startY}), waypoint2=(${endX}, ${endY}), multiScreen=${patrolComp.multiScreen}`);
 
                 const dx = endX - startX;
                 const dy = endY - startY;
@@ -1017,11 +1066,39 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 console.log(`[ENTITY INIT] ${instance.name} patrol velocity: vx=${vx}, vy=${vy} (speed=${speed}, distance=${dist.toFixed(2)})`);
             }
-            return {
+
+            // Initialize multi-screen properties if enabled
+            let globalX: number | undefined;
+            let globalY: number | undefined;
+            let originScreenId: string | undefined;
+
+            if (patrolComp?.multiScreen === true || patrolComp?.multiScreen === 'true') {
+                originScreenId = currentScreenMap.id;
+                const screenPos = screenWorldMapRef.current.get(currentScreenMap.id);
+                console.log(`[Multi-Screen INIT] ${instance.name}: screenPos=`, screenPos, `startX=${startX}, startY=${startY}`);
+                if (screenPos) {
+                    globalX = screenPos.globalX + startX;
+                    globalY = screenPos.globalY + startY;
+                    console.log(`[Multi-Screen INIT] ${instance.name}: screenPos.globalX=${screenPos.globalX}, screenPos.globalY=${screenPos.globalY}`);
+                    console.log(`[Multi-Screen INIT] ${instance.name}: local=(${startX}, ${startY}), global=(${globalX}, ${globalY}), originScreen=${originScreenId}`);
+                } else {
+                    console.error(`[Multi-Screen INIT] ${instance.name}: screenPos is null/undefined for screen ${currentScreenMap.id}`);
+                }
+            }
+
+            const newEntity = {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
-                stateMachine, currentState, isOnGround: false, spawnTime: performance.now()
+                stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
+                globalX, globalY, originScreenId, parentEntityId: null
             };
+
+            // Debug log for multi-screen entities
+            if (globalX !== undefined || globalY !== undefined) {
+                console.log(`[ENTITY CREATED] ${instance.name}: x=${startX}, y=${startY}, globalX=${globalX}, globalY=${globalY}, originScreen=${originScreenId}`);
+            }
+
+            return newEntity;
         }).filter(Boolean) as AnimatedEntity[];
 
         let entitiesToAnimate = nativeEntities;
@@ -1048,6 +1125,69 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 console.log('[Effect] No native hero. Carrying over:', heroRef.current.instance.name);
                 entitiesToAnimate.push(heroRef.current);
                 heroForThisScreen = heroRef.current;
+            }
+        }
+
+        // === CARRY-OVER DE ENTIDADES MULTI-PANTALLA ===
+        // Mantener entidades multi-pantalla entre transiciones (como plataformas)
+        if (entitiesRef.current.length > 0) {
+            const previousMultiScreenEntities = entitiesRef.current.filter(e => {
+                if (e === heroRef.current) return false; // Hero ya se maneja por separado
+
+                // Check if entity has multi-screen patrol
+                const patrolTemplateComp = e.template.components.find(c => c.definitionId === 'comp_patrol');
+                const patrolComp = {
+                    ...(patrolTemplateComp?.defaultValues || {}),
+                    ...(e.instance.componentOverrides?.comp_patrol || {})
+                };
+
+                return patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
+            });
+
+            if (previousMultiScreenEntities.length > 0) {
+                console.log(`[Multi-Screen Carry-Over] Found ${previousMultiScreenEntities.length} multi-screen entities to carry over`);
+
+                // IMPORTANT: Remove native entities that have same instance.id as multi-screen entities
+                // to avoid duplicates when returning to a screen
+                const multiScreenInstanceIds = new Set(previousMultiScreenEntities.map(e => e.instance.id));
+                const originalCount = entitiesToAnimate.length;
+                entitiesToAnimate = entitiesToAnimate.filter(e => {
+                    const isDuplicate = multiScreenInstanceIds.has(e.instance.id);
+                    if (isDuplicate) {
+                        console.log(`[Multi-Screen Carry-Over] Removing duplicate native entity ${e.instance.name} (id: ${e.instance.id})`);
+                    }
+                    return !isDuplicate;
+                });
+                console.log(`[Multi-Screen Carry-Over] Removed ${originalCount - entitiesToAnimate.length} duplicate native entities`);
+
+                previousMultiScreenEntities.forEach(entity => {
+                    console.log(`[Multi-Screen Carry-Over] Processing ${entity.instance.name}: globalX=${entity.globalX}, globalY=${entity.globalY}`);
+
+                    // Update local coordinates from global coordinates for new screen
+                    if (entity.globalX !== undefined && entity.globalY !== undefined) {
+                        const localCoord = globalToLocal(
+                            { x: entity.globalX, y: entity.globalY },
+                            screenWorldMapRef.current
+                        );
+
+                        if (localCoord && localCoord.screenId === currentScreenMap.id) {
+                            // Entity is visible in current screen
+                            entity.x = localCoord.x;
+                            entity.y = localCoord.y;
+                            console.log(`[Multi-Screen Carry-Over] ${entity.instance.name} visible in screen ${currentScreenMap.id}: local=(${entity.x}, ${entity.y}), global=(${entity.globalX}, ${entity.globalY})`);
+                        } else {
+                            // Entity is in another screen - position off-screen but keep in memory
+                            entity.x = -1000;
+                            entity.y = -1000;
+                            console.log(`[Multi-Screen Carry-Over] ${entity.instance.name} in different screen ${localCoord?.screenId}, hiding off-screen`);
+                        }
+                    } else {
+                        console.error(`[Multi-Screen Carry-Over] PROBLEM: ${entity.instance.name} has undefined global coords! globalX=${entity.globalX}, globalY=${entity.globalY}`);
+                    }
+
+                    // Always add multi-screen entity (it's already filtered from duplicates)
+                    entitiesToAnimate.push(entity);
+                });
             }
         }
 
@@ -1673,7 +1813,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 isTrigger
             };
 
-            console.log(`[FINAL HITBOX] ${entity.instance.name}:`, result);
+            // console.log(`[FINAL HITBOX] ${entity.instance.name}:`, result);
             return result;
         };
 
@@ -1840,22 +1980,22 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const now = performance.now();
 
             // Debug: Log entities with collision component (only once per second to avoid spam)
-            if (now % 1000 < 16) { // Aproximadamente cada segundo
-                console.log(`[COLLISION DEBUG] Total entities in scene: ${entitiesRef.current.length}`);
-                entitiesRef.current.forEach((e, idx) => {
-                    const hasComp = e.template.components.some(c => c.definitionId === 'comp_collision');
-                    const props = entityCollisionProps(e);
-                    console.log(`  [${idx}] ${e.instance.name}:`);
-                    console.log(`      Template: ${e.template.name} (id: ${e.template.id})`);
-                    console.log(`      Has comp_collision: ${hasComp}`);
-                    console.log(`      Components: ${e.template.components.map(c => c.definitionId).join(', ')}`);
-                    if (hasComp && props) {
-                        console.log(`      Props: layer=${props.collisionLayer}, collidesWith=${props.collidesWith}, hitbox=${props.hitboxWidth}x${props.hitboxHeight}`);
-                    } else if (hasComp && !props) {
-                        console.log(`      ⚠️ WARNING: Has component but props are NULL!`);
-                    }
-                });
-            }
+            // if (now % 1000 < 16) { // Aproximadamente cada segundo
+            //     // console.log(`[COLLISION DEBUG] Total entities in scene: ${entitiesRef.current.length}`);
+            //     entitiesRef.current.forEach((e, idx) => {
+            //         const hasComp = e.template.components.some(c => c.definitionId === 'comp_collision');
+            //         const props = entityCollisionProps(e);
+            //         console.log(`  [${idx}] ${e.instance.name}:`);
+            //         console.log(`      Template: ${e.template.name} (id: ${e.template.id})`);
+            //         console.log(`      Has comp_collision: ${hasComp}`);
+            //         console.log(`      Components: ${e.template.components.map(c => c.definitionId).join(', ')}`);
+            //         if (hasComp && props) {
+            //             console.log(`      Props: layer=${props.collisionLayer}, collidesWith=${props.collidesWith}, hitbox=${props.hitboxWidth}x${props.hitboxHeight}`);
+            //         } else if (hasComp && !props) {
+            //             console.log(`      ⚠️ WARNING: Has component but props are NULL!`);
+            //         }
+            //     });
+            // }
 
             entitiesRef.current.forEach((entityA, indexA) => {
                 // --- 0. Compute isOnGround based on current position ---
@@ -1991,12 +2131,28 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
 
                     // --- 2. Resolver Colisión y Aplicar Nueva Posición ---
-                    if (hasCollisionComp && collisionCompDef && screenMapToRender) {
-                      handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
-                    } else {
-                      entityA.x += entityA.vx;
-                      entityA.y += entityA.vy;
+                    // Check if entity is multi-screen - if so, position is calculated from global coords in patrol logic
+                    // Merge defaultValues from template with componentOverrides
+                    const patrolTemplateComp2 = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
+                    const patrolCompProps2 = {
+                        ...(patrolTemplateComp2?.defaultValues || {}),
+                        ...(entityA.instance.componentOverrides?.comp_patrol || {})
+                    };
+                    const isMultiScreenEntity =
+                        (patrolCompProps2.multiScreen === true || patrolCompProps2.multiScreen === 'true') &&
+                        entityA.globalX !== undefined && entityA.globalY !== undefined;
+
+                    // Multi-screen entities don't use tilemap collision - their position is controlled by global coordinates
+                    if (!isMultiScreenEntity) {
+                      if (hasCollisionComp && collisionCompDef && screenMapToRender) {
+                        handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
+                      } else {
+                        // Standard position update for non-collision entities
+                        entityA.x += entityA.vx;
+                        entityA.y += entityA.vy;
+                      }
                     }
+                    // Multi-screen entities: position will be calculated from globalX/globalY in patrol logic below
                 } else {
                     // Physics disabled - freeze entity in place
                     entityA.vx = 0;
@@ -2052,21 +2208,35 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 // --- 4. Límites para Entidades No Héroe ---
                 if (entityA !== heroRef.current) {
-                  const spriteWidth = entityA.sprite.size.width;
-                  const spriteHeight = entityA.sprite.size.height;
-                  if (entityA.x < 0) {
-                    entityA.x = 0;
-                    if (entityA.vx < 0) entityA.vx = 0;
-                  } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
-                    entityA.x = PREVIEW_WIDTH - spriteWidth;
-                    if (entityA.vx > 0) entityA.vx = 0;
-                  }
-                  if (entityA.y < 0) {
-                    entityA.y = 0;
-                    if (entityA.vy < 0) entityA.vy = 0;
-                  } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
-                    entityA.y = PREVIEW_HEIGHT - spriteHeight;
-                    if (entityA.vy > 0) entityA.vy = 0;
+                  // Check if entity is multi-screen (should not be restricted to screen borders)
+                  // Merge defaultValues from template with componentOverrides
+                  const patrolTemplateComp = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
+                  const patrolCompProps = {
+                      ...(patrolTemplateComp?.defaultValues || {}),
+                      ...(entityA.instance.componentOverrides?.comp_patrol || {})
+                  };
+                  const isMultiScreenEntity =
+                      (patrolCompProps.multiScreen === true || patrolCompProps.multiScreen === 'true') &&
+                      entityA.globalX !== undefined && entityA.globalY !== undefined;
+
+                  // Only apply border restrictions to non-multiscreen entities
+                  if (!isMultiScreenEntity) {
+                    const spriteWidth = entityA.sprite.size.width;
+                    const spriteHeight = entityA.sprite.size.height;
+                    if (entityA.x < 0) {
+                      entityA.x = 0;
+                      if (entityA.vx < 0) entityA.vx = 0;
+                    } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
+                      entityA.x = PREVIEW_WIDTH - spriteWidth;
+                      if (entityA.vx > 0) entityA.vx = 0;
+                    }
+                    if (entityA.y < 0) {
+                      entityA.y = 0;
+                      if (entityA.vy < 0) entityA.vy = 0;
+                    } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
+                      entityA.y = PREVIEW_HEIGHT - spriteHeight;
+                      if (entityA.vy > 0) entityA.vy = 0;
+                    }
                   }
                 }
 
@@ -2082,11 +2252,67 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                     // Store previous platform to detect when we fall off
                     previousPlatform = entityA.platformUnderneath;
-                    entityA.platformUnderneath = null; // Clear and will be reset during collision if still on platform
+
+                    // SPECIAL CASE: For multi-screen platforms, verify if still on platform using global coords
+                    const isMultiScreenPlatform = entityA.platformUnderneath &&
+                                                  entityA.platformUnderneath.globalX !== undefined &&
+                                                  entityA.platformUnderneath.globalY !== undefined &&
+                                                  entityA.globalX !== undefined &&
+                                                  entityA.globalY !== undefined;
+
+                    if (isMultiScreenPlatform) {
+                        // Verify if player is still on platform using global coordinates
+                        const platform = entityA.platformUnderneath!;
+                        const propsA = entityCollisionProps(entityA);
+                        const propsB = entityCollisionProps(platform);
+
+                        if (propsA && propsB) {
+                            // Get hitboxes in global space
+                            const playerGlobalHitbox = {
+                                x: entityA.globalX! + (propsA.offsetX || 0),
+                                y: entityA.globalY! + (propsA.offsetY || 0),
+                                width: propsA.hitboxWidth || 16,
+                                height: propsA.hitboxHeight || 16
+                            };
+
+                            const platformGlobalHitbox = {
+                                x: platform.globalX! + (propsB.offsetX || 0),
+                                y: platform.globalY! + (propsB.offsetY || 0),
+                                width: propsB.hitboxWidth || 16,
+                                height: propsB.hitboxHeight || 16
+                            };
+
+                            // Check if player is above platform (with some tolerance)
+                            const isAbovePlatform = (playerGlobalHitbox.y + playerGlobalHitbox.height) <= (platformGlobalHitbox.y + 4);
+
+                            // Check horizontal overlap
+                            const horizontalOverlap =
+                                playerGlobalHitbox.x < (platformGlobalHitbox.x + platformGlobalHitbox.width) &&
+                                (playerGlobalHitbox.x + playerGlobalHitbox.width) > platformGlobalHitbox.x;
+
+                            // Check if player is falling or stationary (not jumping)
+                            const notJumping = entityA.vy >= -2; // Allow small upward velocity
+
+                            const stillOnPlatform = isAbovePlatform && horizontalOverlap && notJumping;
+
+                            if (stillOnPlatform) {
+                                console.log(`[PLATFORM] Preserving multi-screen platform link for ${entityA.instance.name}`);
+                            } else {
+                                console.log(`[PLATFORM] Player left multi-screen platform: above=${isAbovePlatform}, overlap=${horizontalOverlap}, notJumping=${notJumping}`);
+                                entityA.platformUnderneath = null;
+                            }
+                        } else {
+                            // Can't verify, clear the link
+                            entityA.platformUnderneath = null;
+                        }
+                    } else {
+                        // Not a multi-screen platform, clear normally
+                        entityA.platformUnderneath = null; // Clear and will be reset during collision if still on platform
+                    }
 
                     // Debug log para ver si entra al loop
                     if (indexA === 0 && now % 1000 < 16) {
-                        console.log(`[COLLISION DEBUG] Checking collisions for ${entityA.instance.name}, total entities: ${entitiesRef.current.length}`);
+                        // console.log(`[COLLISION DEBUG] Checking collisions for ${entityA.instance.name}, total entities: ${entitiesRef.current.length}`);
                     }
 
                     for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
@@ -2125,11 +2351,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 continue; // Skip this collision pair
                             }
 
-                            console.log('[COLLISION DEBUG] AABB overlap detected!');
-                            console.log(`  Entity A: ${entityA.instance.name} (layer=${layerA}, collidesWith=${collidesWithA})`);
-                            console.log(`  Entity B: ${entityB.instance.name} (layer=${layerB}, collidesWith=${collidesWithB})`);
-                            console.log(`  HitboxA:`, hitboxA);
-                            console.log(`  HitboxB:`, hitboxB);
+                            // console.log('[COLLISION DEBUG] AABB overlap detected!');
+                            // console.log(`  Entity A: ${entityA.instance.name} (layer=${layerA}, collidesWith=${collidesWithA})`);
+                            // console.log(`  Entity B: ${entityB.instance.name} (layer=${layerB}, collidesWith=${collidesWithB})`);
+                            // console.log(`  HitboxA:`, hitboxA);
+                            // console.log(`  HitboxB:`, hitboxB);
 
                             // Check if layers allow collision
                             const aCanCollideWithB = (collidesWithA & layerB) !== 0;
@@ -2244,15 +2470,87 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // --- 6. Lógica de Patrulla ---
                 // Only process patrol AI if physics is enabled
                 if (canProcessPhysics) {
-                    const patrolComp = entityA.instance.componentOverrides?.comp_patrol;
+                    // Merge patrol component defaultValues with componentOverrides
+                    const patrolTemplateComp3 = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
+                    const patrolComp = {
+                        ...(patrolTemplateComp3?.defaultValues || {}),
+                        ...(entityA.instance.componentOverrides?.comp_patrol || {})
+                    };
                     if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
-                        const startPixelX = patrolComp.waypoint1_x; const startPixelY = patrolComp.waypoint1_y;
-                        const endPixelX = patrolComp.waypoint2_x ?? startPixelX; const endPixelY = patrolComp.waypoint2_y ?? startPixelY;
-                        if ((entityA.vx > 0 && entityA.x >= Math.max(startPixelX, endPixelX)) || (entityA.vx < 0 && entityA.x <= Math.min(startPixelX, endPixelX))) {
-                             entityA.vx = -entityA.vx;
-                        }
-                        if ((entityA.vy > 0 && entityA.y >= Math.max(startPixelY, endPixelY)) || (entityA.vy < 0 && entityA.y <= Math.min(startPixelY, endPixelY))) {
-                            entityA.vy = -entityA.vy;
+                        const isMultiScreen = patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
+
+                        if (isMultiScreen && entityA.globalX !== undefined && entityA.globalY !== undefined && entityA.originScreenId) {
+                            // Multi-screen patrol: work with global coordinates
+                            const originScreenPos = screenWorldMapRef.current.get(entityA.originScreenId);
+                            if (originScreenPos) {
+                                // Update global coordinates
+                                const oldGlobalX = entityA.globalX;
+                                const oldGlobalY = entityA.globalY;
+                                entityA.globalX += entityA.vx;
+                                entityA.globalY += entityA.vy;
+
+                                // Debug log for coordinate updates
+                                if (now % 500 < 16) { // Log every ~500ms
+                                    console.log(`[MULTISCREEN UPDATE] ${entityA.instance.name}: global=(${oldGlobalX.toFixed(1)}, ${oldGlobalY.toFixed(1)}) -> (${entityA.globalX.toFixed(1)}, ${entityA.globalY.toFixed(1)}), velocity=(${entityA.vx}, ${entityA.vy})`);
+                                }
+
+                                // Debug: log when crossing screen boundaries
+                                if ((entityA.x < -50 || entityA.x > PREVIEW_WIDTH + 50) && now % 500 < 16) {
+                                    console.log(`[MULTISCREEN] ${entityA.instance.name}: globalX=${entityA.globalX.toFixed(1)}, localX=${entityA.x.toFixed(1)}, vx=${entityA.vx}`);
+                                }
+
+                                // Waypoints are in local coordinates relative to origin screen
+                                const globalWaypoint1X = originScreenPos.globalX + Number(patrolComp.waypoint1_x);
+                                const globalWaypoint1Y = originScreenPos.globalY + Number(patrolComp.waypoint1_y);
+                                const globalWaypoint2X = originScreenPos.globalX + Number(patrolComp.waypoint2_x ?? patrolComp.waypoint1_x);
+                                const globalWaypoint2Y = originScreenPos.globalY + Number(patrolComp.waypoint2_y ?? patrolComp.waypoint1_y);
+
+                                // Bounce logic in global space
+                                if ((entityA.vx > 0 && entityA.globalX >= Math.max(globalWaypoint1X, globalWaypoint2X)) ||
+                                    (entityA.vx < 0 && entityA.globalX <= Math.min(globalWaypoint1X, globalWaypoint2X))) {
+                                    entityA.vx = -entityA.vx;
+                                }
+                                if ((entityA.vy > 0 && entityA.globalY >= Math.max(globalWaypoint1Y, globalWaypoint2Y)) ||
+                                    (entityA.vy < 0 && entityA.globalY <= Math.min(globalWaypoint1Y, globalWaypoint2Y))) {
+                                    entityA.vy = -entityA.vy;
+                                }
+
+                                // Convert global coordinates back to local for current screen
+                                const localCoord = globalToLocal(
+                                    { x: entityA.globalX, y: entityA.globalY },
+                                    screenWorldMapRef.current
+                                );
+
+                                if (localCoord && localCoord.screenId === currentScreenMap.id) {
+                                    // Entity is in current screen
+                                    entityA.x = localCoord.x;
+                                    entityA.y = localCoord.y;
+                                } else {
+                                    // Entity is in another screen - position it off-screen
+                                    entityA.x = -1000;
+                                    entityA.y = -1000;
+                                }
+                            }
+                        } else if (isMultiScreen) {
+                            // Multi-screen patrol but global coords not initialized properly
+                            if (now % 500 < 16) { // Log every ~500ms
+                                console.error(`[MULTISCREEN BROKEN] ${entityA.instance.name}: multiScreen=true but globalX=${entityA.globalX}, globalY=${entityA.globalY}, originScreenId=${entityA.originScreenId}`);
+                            }
+                        } else {
+                            // Traditional single-screen patrol
+                            const startPixelX = patrolComp.waypoint1_x;
+                            const startPixelY = patrolComp.waypoint1_y;
+                            const endPixelX = patrolComp.waypoint2_x ?? startPixelX;
+                            const endPixelY = patrolComp.waypoint2_y ?? startPixelY;
+
+                            if ((entityA.vx > 0 && entityA.x >= Math.max(startPixelX, endPixelX)) ||
+                                (entityA.vx < 0 && entityA.x <= Math.min(startPixelX, endPixelX))) {
+                                entityA.vx = -entityA.vx;
+                            }
+                            if ((entityA.vy > 0 && entityA.y >= Math.max(startPixelY, endPixelY)) ||
+                                (entityA.vy < 0 && entityA.y <= Math.min(startPixelY, endPixelY))) {
+                                entityA.vy = -entityA.vy;
+                            }
                         }
                     }
                 }
@@ -2266,16 +2564,99 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                         // Transfer platform velocity if standing on a moving platform
                         if (entityA === heroRef.current) {
-                            // Add platform's horizontal velocity to entity's position
-                            // This makes the entity "stick" to the platform as it moves
-                            entityA.x += entityA.platformUnderneath.vx;
-                            // Also transfer vertical velocity if platform is moving vertically
-                            if (entityA.platformUnderneath.vy !== 0) {
-                                entityA.y += entityA.platformUnderneath.vy;
+                            // Establish parent-child link for multi-screen platforms
+                            // Merge patrol component defaultValues with componentOverrides
+                            const platformPatrolTemplateComp = entityA.platformUnderneath.template.components.find(c => c.definitionId === 'comp_patrol');
+                            const platformPatrolComp = {
+                                ...(platformPatrolTemplateComp?.defaultValues || {}),
+                                ...(entityA.platformUnderneath.instance.componentOverrides?.comp_patrol || {})
+                            };
+                            const isMultiScreenPlatform = platformPatrolComp && (platformPatrolComp.multiScreen === true || platformPatrolComp.multiScreen === 'true');
+
+                            if (isMultiScreenPlatform) {
+                                // Link player to platform
+                                entityA.parentEntityId = entityA.platformUnderneath.instance.id;
+                                console.log(`[Multi-Screen PLATFORM] Player linked to platform ${entityA.platformUnderneath.instance.name}`);
+
+                                // Sync global coordinates if platform has them
+                                console.log(`[Multi-Screen PLATFORM] Platform global coords: globalX=${entityA.platformUnderneath.globalX}, globalY=${entityA.platformUnderneath.globalY}`);
+                                if (entityA.platformUnderneath.globalX !== undefined && entityA.platformUnderneath.globalY !== undefined) {
+                                    // Initialize player's global coordinates if not set
+                                    if (entityA.globalX === undefined || entityA.globalY === undefined) {
+                                        const currentScreenPos = screenWorldMapRef.current.get(currentScreenMap.id);
+                                        if (currentScreenPos) {
+                                            entityA.globalX = currentScreenPos.globalX + entityA.x;
+                                            entityA.globalY = currentScreenPos.globalY + entityA.y;
+                                            entityA.originScreenId = currentScreenMap.id;
+                                            console.log(`[Multi-Screen PLATFORM] Initialized player global coords: global=(${entityA.globalX}, ${entityA.globalY}), local=(${entityA.x}, ${entityA.y}), screen=${currentScreenMap.id}`);
+                                        } else {
+                                            console.warn(`[Multi-Screen PLATFORM] Failed to get screen position for ${currentScreenMap.id}`);
+                                        }
+                                    }
+
+                                    // Transfer platform velocity in global space
+                                    if (entityA.globalX !== undefined && entityA.globalY !== undefined) {
+                                        const oldGlobalX = entityA.globalX;
+                                        const oldGlobalY = entityA.globalY;
+
+                                        entityA.globalX += entityA.platformUnderneath.vx;
+                                        entityA.globalY += entityA.platformUnderneath.vy;
+
+                                        console.log(`[Multi-Screen PLATFORM] Player riding platform ${entityA.platformUnderneath.instance.name}: global=(${oldGlobalX}, ${oldGlobalY}) -> (${entityA.globalX}, ${entityA.globalY}), platform velocity=(${entityA.platformUnderneath.vx}, ${entityA.platformUnderneath.vy})`);
+
+                                        // Convert back to local coordinates for rendering
+                                        const localCoord = globalToLocal(
+                                            { x: entityA.globalX, y: entityA.globalY },
+                                            screenWorldMapRef.current
+                                        );
+
+                                        if (localCoord) {
+                                            console.log(`[Multi-Screen PLATFORM] Player local coords: screen=${localCoord.screenId}, local=(${localCoord.x}, ${localCoord.y}), current screen=${currentScreenMap.id}`);
+
+                                            entityA.x = localCoord.x;
+                                            entityA.y = localCoord.y;
+
+                                            // Check if player moved to a different screen
+                                            if (localCoord.screenId !== currentScreenMap.id) {
+                                                console.log(`[Multi-Screen PLATFORM] *** SCREEN TRANSITION TRIGGERED *** Player moved to screen ${localCoord.screenId} while riding platform`);
+                                                // Trigger screen transition
+                                                const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
+                                                if (targetScreenNode) {
+                                                    console.log(`[Multi-Screen PLATFORM] Found target screen node: ${targetScreenNode.id}, transitioning...`);
+                                                    // Set entry point for smooth transition
+                                                    setPlayerEntryPoint({ x: localCoord.x, y: localCoord.y });
+                                                    handleScreenTransition(targetScreenNode.id);
+                                                    return; // Stop processing this frame to allow transition
+                                                } else {
+                                                    console.error(`[Multi-Screen PLATFORM] Target screen node NOT FOUND for screen ${localCoord.screenId}`);
+                                                }
+                                            }
+                                        } else {
+                                            console.error(`[Multi-Screen PLATFORM] globalToLocal returned null for global=(${entityA.globalX}, ${entityA.globalY})`);
+                                            console.error(`[Multi-Screen PLATFORM] Available screens in map:`, Array.from(screenWorldMapRef.current.entries()).map(([id, pos]) => `${id}: (${pos.globalX}, ${pos.globalY})`).join(', '));
+                                        }
+                                    } else {
+                                        console.warn(`[Multi-Screen PLATFORM] Player global coords not initialized: globalX=${entityA.globalX}, globalY=${entityA.globalY}`);
+                                    }
+                                }
+                            } else {
+                                // Traditional single-screen platform
+                                entityA.x += entityA.platformUnderneath.vx;
+                                if (entityA.platformUnderneath.vy !== 0) {
+                                    entityA.y += entityA.platformUnderneath.vy;
+                                }
                             }
+
                             console.log(`[PLATFORM] Transferring velocity from ${entityA.platformUnderneath.instance.name}: vx=${entityA.platformUnderneath.vx}, vy=${entityA.platformUnderneath.vy}`);
                         }
+                    } else {
+                        // Not on a platform - clear parent link
+                        if (entityA === heroRef.current && entityA.parentEntityId) {
+                            console.log(`[PLATFORM] Player dismounted from platform`);
+                            entityA.parentEntityId = null;
+                        }
                     }
+
                     // Detect falling off platform
                     if (previousPlatform && !entityA.platformUnderneath) {
                         console.log(`[PLATFORM] ${entityA.instance.name} fell off platform ${previousPlatform.instance.name}`);

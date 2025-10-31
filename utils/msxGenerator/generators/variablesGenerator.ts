@@ -165,6 +165,9 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `temp_byte_6         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
 
+  code += `temp_byte_7         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
   code += `temp_word_3         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage (64 bytes)\n`;
   currentAddress += 64;
 
