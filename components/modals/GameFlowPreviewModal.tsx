@@ -1193,6 +1193,33 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         console.error(`[Multi-Screen Carry-Over] PROBLEM: ${entity.instance.name} has undefined global coords! globalX=${entity.globalX}, globalY=${entity.globalY}`);
                     }
 
+                    // Ensure frame images are loaded (in case of context reset or missing images)
+                    try {
+                        const spriteData = entity.sprite;
+                        if (!entity.frameImages || entity.frameImages.length === 0 || !entity.frameImages[0] || !entity.frameImages[0].complete) {
+                            const rebuilt = spriteData.frames.map(frame => {
+                                const img = new Image();
+                                img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                return img;
+                            });
+                            entity.frameImages = rebuilt;
+                            if (spriteData.facingDirection === 'left' || spriteData.facingDirection === 'right') {
+                                const mirrored = spriteData.frames.map(frame => {
+                                    const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                                    const mimg = new Image();
+                                    mimg.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
+                                    return mimg;
+                                });
+                                entity.mirroredFrameImages = mirrored;
+                            }
+                            entity.currentFrame = 0;
+                            entity.lastFrameUpdateTime = 0;
+                            console.log(`[Multi-Screen Carry-Over] Rebuilt frame images for ${entity.instance.name}`);
+                        }
+                    } catch (err) {
+                        console.error(`[Multi-Screen Carry-Over] Failed to ensure frames for ${entity.instance.name}:`, err);
+                    }
+
                     // Always add multi-screen entity (it's already filtered from duplicates)
                     entitiesToAnimate.push(entity);
                 });
