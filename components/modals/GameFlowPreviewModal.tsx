@@ -2301,11 +2301,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 if (targetNodeId) {
                                     let newPlayerPos = { x: entityA.x, y: entityA.y };
                                     console.log(`[Border Crossing] Current player position: (${entityA.x}, ${entityA.y}), exit direction: ${exitDirection}`);
+                                    const entryMargin = 2;
                                     switch (exitDirection) {
-                                        case 'east': newPlayerPos.x = 0; break;
-                                        case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth; break;
-                                        case 'south': newPlayerPos.y = 0; break;
-                                        case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight; break;
+                                        case 'east': newPlayerPos.x = 0 + entryMargin; break;
+                                        case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth - entryMargin; break;
+                                        case 'south': newPlayerPos.y = 0 + entryMargin; break;
+                                        case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight - entryMargin; break;
                                     }
                                     console.log(`[Border Crossing] New entry point calculated: (${newPlayerPos.x}, ${newPlayerPos.y})`);
                                     setPlayerEntryPoint(newPlayerPos);
@@ -2708,17 +2709,31 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                             // Check if player moved to a different screen
                                             if (localCoord.screenId !== currentScreenMap.id) {
-                                                console.log(`[Multi-Screen PLATFORM] *** SCREEN TRANSITION TRIGGERED *** Player moved to screen ${localCoord.screenId} while riding platform`);
-                                                // Trigger screen transition
-                                                const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
-                                                if (targetScreenNode) {
-                                                    console.log(`[Multi-Screen PLATFORM] Found target screen node: ${targetScreenNode.id}, transitioning...`);
-                                                    // Set entry point for smooth transition
-                                                    setPlayerEntryPoint({ x: localCoord.x, y: localCoord.y });
-                                                    handleScreenTransition(targetScreenNode.id);
-                                                    return; // Stop processing this frame to allow transition
-                                                } else {
-                                                    console.error(`[Multi-Screen PLATFORM] Target screen node NOT FOUND for screen ${localCoord.screenId}`);
+                                                // Debounce platform-driven transitions to avoid oscillation at borders
+                                                const nowTs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                                                const recentlyTransitioned = (nowTs - lastScreenTransitionTimeRef.current) < 300;
+                                                if (!recentlyTransitioned) {
+                                                    console.log(`[Multi-Screen PLATFORM] *** SCREEN TRANSITION TRIGGERED *** Player moved to screen ${localCoord.screenId} while riding platform`);
+                                                    // Trigger screen transition
+                                                    const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
+                                                    if (targetScreenNode) {
+                                                        console.log(`[Multi-Screen PLATFORM] Found target screen node: ${targetScreenNode.id}, transitioning...`);
+                                                        // Set entry point slightly inside the target screen to avoid immediate re-exit due to rounding
+                                                        const spriteW = entityA.sprite.size.width;
+                                                        const spriteH = entityA.sprite.size.height;
+                                                        const margin = 2;
+                                                        const entryX = Math.max(0 + margin, Math.min(PREVIEW_WIDTH - spriteW - margin, localCoord.x));
+                                                        const entryY = Math.max(0 + margin, Math.min(PREVIEW_HEIGHT - spriteH - margin, localCoord.y));
+                                                        setPlayerEntryPoint({ x: entryX, y: entryY });
+
+                                                        // Mark transition timestamp
+                                                        try { lastScreenTransitionTimeRef.current = (typeof performance !== 'undefined' ? performance.now() : Date.now()); } catch { lastScreenTransitionTimeRef.current = Date.now(); }
+
+                                                        handleScreenTransition(targetScreenNode.id);
+                                                        return; // Stop processing this frame to allow transition
+                                                    } else {
+                                                        console.error(`[Multi-Screen PLATFORM] Target screen node NOT FOUND for screen ${localCoord.screenId}`);
+                                                    }
                                                 }
                                             }
                                         } else {
