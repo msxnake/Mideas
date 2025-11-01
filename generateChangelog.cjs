@@ -19,7 +19,7 @@ for (let line of lines) {
 
 // Si no hay versión en los commits, no hacemos nada
 if (!commitVersion) {
-  console.log("  No se encontró commit con 'new version X.XX'. No se actualiza version.txt");
+  console.log("  No se encontró commit con 'version X.XX'. No se actualiza changeLog.txt");
   process.exit(0);
 }
 
@@ -30,12 +30,18 @@ let filtered = lines.filter((line, i, arr) => {
   return line !== arr[i - 1]; // quitar duplicados seguidos
 });
 
-// Crear bloque de changelog
+// Crear bloque de changelog (encabezado + lista) y PREPENDERLO arriba
 const date = new Date().toLocaleDateString("es-ES");
 const commitLines = filtered.map(l => `- ${l}`).join("\n");
-const newBlock = `\nVersión ${commitVersion} - ${date}\n${commitLines}\n`;
+const newBlock = `Versión ${commitVersion} - ${date}\n${commitLines}\n\n`;
 
-// Añadir al archivo
-fs.appendFileSync(versionFile, newBlock);
+let previous = "";
+try {
+  previous = fs.readFileSync(versionFile, "utf8");
+} catch {}
+
+const combined = newBlock + (previous || "");
+fs.writeFileSync(versionFile, combined, "utf8");
 
 console.log(` Actualizado ${versionFile} a versión ${commitVersion}`);
+
