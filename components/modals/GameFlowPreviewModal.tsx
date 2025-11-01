@@ -152,6 +152,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const setPlayerEntryPointRef = useRef<(entry: { x: number; y: number } | null) => void>(() => {});
     const handleScreenTransitionRef = useRef<(toNodeId: string) => void>(() => {});
     const runtimeCollisionLayerRef = useRef<ScreenTile[][]>([]);
+    // Cooldown to avoid immediate re-trigger of screen exits after a transition
+    const lastScreenTransitionTimeRef = useRef<number>(0);
 
     // Handler para posicionar al player con click
     const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -775,6 +777,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // NO guardamos checkpoint aquí porque:
         // - Si viene del cruce de bordes, playerEntryPoint ya está set y se guardará en el effect con la posición correcta
         // - Si viene de botón manual, también se guardará en el effect con la posición inicial
+        // Mark transition time to debounce immediate re-exit on arrival
+        try { lastScreenTransitionTimeRef.current = (typeof performance !== 'undefined' ? performance.now() : Date.now()); } catch { lastScreenTransitionTimeRef.current = Date.now(); }
 
         setCurrentScreenMap(nextScreenAsset.data as ScreenMap);
     }, [currentWorldMapGraph, allAssets]);
@@ -2262,7 +2266,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         entityA.currentState?.toLowerCase().includes(state.toLowerCase())
                     );
 
-                    if (!isExitingDisabled) {
+                    // Prevent immediate re-trigger right after a screen change
+                    const nowTs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                    const recentlyTransitioned = (nowTs - lastScreenTransitionTimeRef.current) < 300;
+                    if (!isExitingDisabled && !recentlyTransitioned) {
                         const spriteWidth = entityA.sprite.size.width;
                         const spriteHeight = entityA.sprite.size.height;
                         let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
@@ -2276,10 +2283,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const centerX = entityA.x + spriteWidth / 2;
                         const centerY = entityA.y + spriteHeight / 2;
 
-                        if (centerX < 0 && (effectiveVx < 0 || entityA.platformUnderneath)) exitDirection = 'west';
-                        else if (centerX > PREVIEW_WIDTH && (effectiveVx > 0 || entityA.platformUnderneath)) exitDirection = 'east';
-                        else if (centerY < 0 && (effectiveVy < 0 || entityA.platformUnderneath)) exitDirection = 'north';
-                        else if (centerY > PREVIEW_HEIGHT && (effectiveVy > 0 || entityA.platformUnderneath)) exitDirection = 'south';
+                        if (centerX < 0 && (effectiveVx < 0)) exitDirection = 'west';
+                        else if (centerX > PREVIEW_WIDTH && (effectiveVx > 0)) exitDirection = 'east';
+                        else if (centerY < 0 && (effectiveVy < 0)) exitDirection = 'north';
+                        else if (centerY > PREVIEW_HEIGHT && (effectiveVy > 0)) exitDirection = 'south';
 
                         if (exitDirection) {
                             console.log(`[Exit Detected] Direction: ${exitDirection}`);
