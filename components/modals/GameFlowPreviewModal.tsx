@@ -2642,7 +2642,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     // If we're on a platform (platformUnderneath was set during collisions), we're on ground
                     // Also honor a short grace period to smooth descending platforms
                     const hasPlatformGrace = (entityA.platformGraceFramesLeft || 0) > 0;
-                    const platformToFollow = entityA.platformUnderneath || (hasPlatformGrace ? previousPlatform : null);
+                    // Only follow movement of a platform when actually standing on it; grace only affects grounded flag
+                    const platformToFollow = entityA.platformUnderneath;
                     if (platformToFollow) {
                         entityA.isOnGround = true;
                         console.log(`[PLATFORM] ${entityA.instance.name} is on ground via platform ${platformToFollow.instance.name}`);
@@ -2749,15 +2750,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 entityA.x += platformToFollow.vx;
                                 entityA.y += platformToFollow.vy;
 
-                                // Snap player to platform top to avoid jitter on descending platforms
+                                // Snap player to platform top to avoid drift/jitter after jumps/landings
                                 const propsA = entityCollisionProps(entityA);
                                 const propsP = entityCollisionProps(platformToFollow);
                                 if (propsA && propsP) {
                                     const platformTop = platformToFollow.y + (propsP.offsetY || 0);
                                     const playerBottom = entityA.y + (propsA.offsetY || 0) + (propsA.hitboxHeight || entityA.sprite.size.height);
                                     const delta = platformTop - playerBottom;
-                                    // If we're within a small threshold, keep feet glued to platform
-                                    if (Math.abs(delta) <= 3) {
+                                    // When riding and not moving upwards, enforce alignment with platform top
+                                    if (entityA.vy >= 0) {
                                         entityA.y += delta;
                                         entityA.vy = 0;
                                     }
@@ -2767,10 +2768,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             console.log(`[PLATFORM] Transferring velocity from ${platformToFollow.instance.name}: vx=${platformToFollow.vx}, vy=${platformToFollow.vy}`);
                         }
                     } else {
-                        // Not on a platform - clear parent link
-                        if (entityA === heroRef.current && entityA.parentEntityId) {
-                            console.log(`[PLATFORM] Player dismounted from platform`);
-                            entityA.parentEntityId = null;
+                        // Not on a platform - clear parent link and stale global coords
+                        if (entityA === heroRef.current) {
+                            if (entityA.parentEntityId) {
+                                console.log(`[PLATFORM] Player dismounted from platform`);
+                                entityA.parentEntityId = null;
+                            }
+                            if (entityA.globalX !== undefined || entityA.globalY !== undefined) {
+                                entityA.globalX = undefined;
+                                entityA.globalY = undefined;
+                            }
                         }
                     }
 
