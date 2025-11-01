@@ -73,6 +73,7 @@ interface AnimatedEntity {
     originScreenId?: string; // Screen where entity was originally created
     parentEntityId?: string | null; // ID of parent entity (for riding platforms)
     platformUnderneath?: AnimatedEntity | null; // Reference to platform entity this entity is standing on
+    platformGraceFramesLeft?: number; // Small grace period to keep grounded after brief de-anchoring
 }
 
 interface GameFlowPreviewModalProps {
@@ -855,7 +856,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                     checkKeyTransitions(heroRef.current.instance.id, e.key, true);
                 }
-                if (e.key === 'Escape') handleGoBack();
+                if (e.key === 'Escape') {
+                    // If in fullscreen, exit fullscreen first
+                    if (isFullscreen) {
+                        setIsFullscreen(false);
+                    } else {
+                        handleGoBack();
+                    }
+                }
                 return;
             }
             const currentScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === currentScreenMap?.id);
@@ -874,7 +882,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 case 'Escape': handleGoBack(); break;
             }
         }
-    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions, nodes, connections]);
+    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions, nodes, connections, isFullscreen]);
 
     useEffect(() => {
         if (!isOpen || currentNode?.type !== 'WorldLink' || currentScreenMap) return;
@@ -1090,7 +1098,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
                 stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
-                globalX, globalY, originScreenId, parentEntityId: null
+                globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0
             };
 
             // Debug log for multi-screen entities
@@ -1696,13 +1704,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
 
             if (entity.vy > 0) { // Cayendo
-            if (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap) ||
-                checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap)) {
-                collisionY = true;
-                const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
-                tentativeY = tileTopEdge - (entityCollisionProps.offsetY || 0) - tentativeHitbox.height;
-                entity.vy = 0;
-            }
+                const onPlatform = entity.platformUnderneath != null;
+                if (!onPlatform && (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap) ||
+                    checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap))) {
+                    collisionY = true;
+                    const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
+                    tentativeY = tileTopEdge - (entityCollisionProps.offsetY || 0) - tentativeHitbox.height;
+                    entity.vy = 0;
+                }
             } else if (entity.vy < 0) { // Saltando (hacia arriba)
             if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap) ||
                 checkCollisionAt(centerX2, tentativeHitbox.y, screenMap)) {
@@ -1891,8 +1900,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
             }
 
+            const isPlatformCase = entityA.platformUnderneath === entityB || entityB.platformUnderneath === entityA;
+
             // Find minimum translation vector (MTV) - separate on axis with less overlap
-            if (overlapX < overlapY) {
+            if (overlapX < overlapY && !isPlatformCase) {
                 // Separate on X axis
                 const direction = (hitboxA.x + hitboxA.width / 2) < (hitboxB.x + hitboxB.width / 2) ? -1 : 1;
                 const separation = overlapX * direction;
@@ -1912,9 +1923,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     entityB.x -= halfSep;
 
                     // Exchange velocities (simple elastic collision)
-                    const tempVx = entityA.vx;
-                    entityA.vx = entityB.vx;
-                    entityB.vx = tempVx;
+                    const isBPlatformX = (propsB.collisionLayer & 8) !== 0;
+                    const isAPlatformX = (propsA.collisionLayer & 8) !== 0;
+
+                    if (isAPlatformX || isBPlatformX) {
+                        // For platforms, don't exchange velocity. Just stop the dynamic entity.
+                        if (isBPlatformX && !isAPlatformX) entityA.vx = 0;
+                        if (isAPlatformX && !isBPlatformX) entityB.vx = 0;
+                    } else {
+                        const tempVx = entityA.vx;
+                        entityA.vx = entityB.vx;
+                        entityB.vx = tempVx;
+                    }
                 }
             } else {
                 // Separate on Y axis
@@ -1936,9 +1956,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     entityB.y -= halfSep;
 
                     // Exchange velocities (simple elastic collision)
-                    const tempVy = entityA.vy;
-                    entityA.vy = entityB.vy;
-                    entityB.vy = tempVy;
+                    const isBPlatformY = (propsB.collisionLayer & 8) !== 0;
+                    const isAPlatformY = (propsA.collisionLayer & 8) !== 0;
+
+                    if (isAPlatformY || isBPlatformY) {
+                        // When on a platform, stop the entity's vertical velocity.
+                        // The platform will move the entity directly in the platform update section.
+                        if (isBPlatformY && !isAPlatformY && isAAboveB) {
+                            entityA.vy = 0; // Stop player velocity, platform will move it
+                        } else if (isAPlatformY && !isBPlatformY && isBAboveA) {
+                            entityB.vy = 0; // Stop entity velocity, platform will move it
+                        } else {
+                            // Side or bottom collision, just stop.
+                            if (isBPlatformY && !isAPlatformY) entityA.vy = 0;
+                            if (isAPlatformY && !isBPlatformY) entityB.vy = 0;
+                        }
+                    } else {
+                        const tempVy = entityA.vy;
+                        entityA.vy = entityB.vy;
+                        entityB.vy = tempVy;
+                    }
                 }
             }
         };
@@ -2012,11 +2049,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         // Check tiles OR platform from PREVIOUS frame (before it gets cleared)
                         const onTiles = checkCollisionAt(centerX1, bottomY, screenMapToRender) ||
                                        checkCollisionAt(centerX2, bottomY, screenMapToRender);
-                        const onPlatformPreviousFrame = entityA.platformUnderneath !== null &&
-                                                       entityA.platformUnderneath !== undefined &&
-                                                       entitiesRef.current.includes(entityA.platformUnderneath);
+                        // Be robust: consider we were on a platform last frame if the reference exists
+                        const onPlatformPreviousFrame = !!entityA.platformUnderneath;
 
-                        entityA.isOnGround = onTiles || onPlatformPreviousFrame;
+                        // Coyote-time: keep grounded for a few frames after leaving a platform
+                        if (onPlatformPreviousFrame) {
+                            entityA.platformGraceFramesLeft = 6; // ~6 frames of tolerance
+                        } else if ((entityA.platformGraceFramesLeft || 0) > 0) {
+                            entityA.platformGraceFramesLeft = (entityA.platformGraceFramesLeft || 0) - 1;
+                        }
+
+                        const hasPlatformGrace = (entityA.platformGraceFramesLeft || 0) > 0;
+                        entityA.isOnGround = onTiles || onPlatformPreviousFrame || hasPlatformGrace;
                     } else {
                         entityA.isOnGround = false;
                     }
@@ -2122,7 +2166,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (canProcessPhysics) {
                     // --- Gravity ---
                     const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
-                    if (gravityComp) {
+                    if (gravityComp && !entityA.isOnGround) {
                       const gravityProps = { ...gravityComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_gravity'] || {}) };
                       const strength = Number(gravityProps.strength || 0) / 60;
                       const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
@@ -2141,16 +2185,40 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const isMultiScreenEntity =
                         (patrolCompProps2.multiScreen === true || patrolCompProps2.multiScreen === 'true') &&
                         entityA.globalX !== undefined && entityA.globalY !== undefined;
+                    const hasPatrolComponent = !!patrolTemplateComp2;
 
                     // Multi-screen entities don't use tilemap collision - their position is controlled by global coordinates
                     if (!isMultiScreenEntity) {
-                      if (hasCollisionComp && collisionCompDef && screenMapToRender) {
-                        handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
-                      } else {
-                        // Standard position update for non-collision entities
-                        entityA.x += entityA.vx;
-                        entityA.y += entityA.vy;
-                      }
+                        // Apply tilemap collision or standard position update for single-screen entities
+                        if (hasCollisionComp && collisionCompDef && screenMapToRender) {
+                            handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
+                        } else {
+                            entityA.x += entityA.vx;
+                            entityA.y += entityA.vy;
+                        }
+                
+                        // --- Screen border restrictions for non-multiscreen entities ---
+                        if (entityA !== heroRef.current) {
+                            const spriteWidth = entityA.sprite.size.width;
+                            const spriteHeight = entityA.sprite.size.height;
+                            if (entityA.x < 0) {
+                                entityA.x = 0;
+                                if (entityA.vx < 0) entityA.vx = 0;
+                            } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
+                                entityA.x = PREVIEW_WIDTH - spriteWidth;
+                                if (entityA.vx > 0) entityA.vx = 0;
+                            }
+                            // Allow platforms/patrolling entities to exit vertically (avoid getting stuck at top/bottom)
+                            if (!hasPatrolComponent) {
+                                if (entityA.y < 0) {
+                                    entityA.y = 0;
+                                    if (entityA.vy < 0) entityA.vy = 0;
+                                } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
+                                    entityA.y = PREVIEW_HEIGHT - spriteHeight;
+                                    if (entityA.vy > 0) entityA.vy = 0;
+                                }
+                            }
+                        }
                     }
                     // Multi-screen entities: position will be calculated from globalX/globalY in patrol logic below
                 } else {
@@ -2172,10 +2240,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const spriteHeight = entityA.sprite.size.height;
                         let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
 
-                        if (entityA.x + spriteWidth / 2 < 0 && entityA.vx < 0) exitDirection = 'west';
-                        else if (entityA.x + spriteWidth / 2 > PREVIEW_WIDTH && entityA.vx > 0) exitDirection = 'east';
-                        else if (entityA.y + spriteHeight / 2 < 0 && entityA.vy < 0) exitDirection = 'north';
-                        else if (entityA.y + spriteHeight / 2 > PREVIEW_HEIGHT && entityA.vy > 0) exitDirection = 'south';
+                        // Use platform velocity when riding to infer movement direction
+                        const platformVx = entityA.platformUnderneath ? entityA.platformUnderneath.vx : 0;
+                        const platformVy = entityA.platformUnderneath ? entityA.platformUnderneath.vy : 0;
+                        const effectiveVx = (Math.abs(platformVx) > Math.abs(entityA.vx)) ? platformVx : entityA.vx;
+                        const effectiveVy = (Math.abs(platformVy) > Math.abs(entityA.vy)) ? platformVy : entityA.vy;
+
+                        const centerX = entityA.x + spriteWidth / 2;
+                        const centerY = entityA.y + spriteHeight / 2;
+
+                        if (centerX < 0 && (effectiveVx < 0 || entityA.platformUnderneath)) exitDirection = 'west';
+                        else if (centerX > PREVIEW_WIDTH && (effectiveVx > 0 || entityA.platformUnderneath)) exitDirection = 'east';
+                        else if (centerY < 0 && (effectiveVy < 0 || entityA.platformUnderneath)) exitDirection = 'north';
+                        else if (centerY > PREVIEW_HEIGHT && (effectiveVy > 0 || entityA.platformUnderneath)) exitDirection = 'south';
 
                         if (exitDirection) {
                             console.log(`[Exit Detected] Direction: ${exitDirection}`);
@@ -2204,40 +2281,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             }
                         }
                     }
-                }
-
-                // --- 4. Límites para Entidades No Héroe ---
-                if (entityA !== heroRef.current) {
-                  // Check if entity is multi-screen (should not be restricted to screen borders)
-                  // Merge defaultValues from template with componentOverrides
-                  const patrolTemplateComp = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
-                  const patrolCompProps = {
-                      ...(patrolTemplateComp?.defaultValues || {}),
-                      ...(entityA.instance.componentOverrides?.comp_patrol || {})
-                  };
-                  const isMultiScreenEntity =
-                      (patrolCompProps.multiScreen === true || patrolCompProps.multiScreen === 'true') &&
-                      entityA.globalX !== undefined && entityA.globalY !== undefined;
-
-                  // Only apply border restrictions to non-multiscreen entities
-                  if (!isMultiScreenEntity) {
-                    const spriteWidth = entityA.sprite.size.width;
-                    const spriteHeight = entityA.sprite.size.height;
-                    if (entityA.x < 0) {
-                      entityA.x = 0;
-                      if (entityA.vx < 0) entityA.vx = 0;
-                    } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
-                      entityA.x = PREVIEW_WIDTH - spriteWidth;
-                      if (entityA.vx > 0) entityA.vx = 0;
-                    }
-                    if (entityA.y < 0) {
-                      entityA.y = 0;
-                      if (entityA.vy < 0) entityA.vy = 0;
-                    } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
-                      entityA.y = PREVIEW_HEIGHT - spriteHeight;
-                      if (entityA.vy > 0) entityA.vy = 0;
-                    }
-                  }
                 }
 
                 // --- 5. Lógica de Colisión entre Entidades ---
@@ -2285,10 +2328,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             // Check if player is above platform (with some tolerance)
                             const isAbovePlatform = (playerGlobalHitbox.y + playerGlobalHitbox.height) <= (platformGlobalHitbox.y + 4);
 
-                            // Check horizontal overlap
+                            // Check horizontal overlap with a dynamic tolerance based on platform speed
+                            const tolerance = Math.abs(platform.vx) + 1; // +1 for rounding/sub-pixel errors
                             const horizontalOverlap =
-                                playerGlobalHitbox.x < (platformGlobalHitbox.x + platformGlobalHitbox.width) &&
-                                (playerGlobalHitbox.x + playerGlobalHitbox.width) > platformGlobalHitbox.x;
+                                (playerGlobalHitbox.x - tolerance) < (platformGlobalHitbox.x + platformGlobalHitbox.width) &&
+                                (playerGlobalHitbox.x + playerGlobalHitbox.width + tolerance) > platformGlobalHitbox.x;
 
                             // Check if player is falling or stationary (not jumping)
                             const notJumping = entityA.vy >= -2; // Allow small upward velocity
@@ -2306,8 +2350,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             entityA.platformUnderneath = null;
                         }
                     } else {
-                        // Not a multi-screen platform, clear normally
-                        entityA.platformUnderneath = null; // Clear and will be reset during collision if still on platform
+                        // Not a multi-screen platform: preserve link briefly to avoid desync/jitter
+                        // Keep the previous platform reference during grace frames so the player continues riding smoothly
+                        if (!entityA.platformGraceFramesLeft || entityA.platformGraceFramesLeft <= 0) {
+                            entityA.platformUnderneath = null; // Clear and will be reset during collision if still on platform
+                        }
                     }
 
                     // Debug log para ver si entra al loop
@@ -2536,7 +2583,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             if (now % 500 < 16) { // Log every ~500ms
                                 console.error(`[MULTISCREEN BROKEN] ${entityA.instance.name}: multiScreen=true but globalX=${entityA.globalX}, globalY=${entityA.globalY}, originScreenId=${entityA.originScreenId}`);
                             }
-                        } else {
+                        } else if (!isMultiScreen) {
                             // Traditional single-screen patrol
                             const startPixelX = patrolComp.waypoint1_x;
                             const startPixelY = patrolComp.waypoint1_y;
@@ -2558,29 +2605,32 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // --- 6.5. Update isOnGround after entity collisions to include platform riding ---
                 if (hasCollisionComp) {
                     // If we're on a platform (platformUnderneath was set during collisions), we're on ground
-                    if (entityA.platformUnderneath) {
+                    // Also honor a short grace period to smooth descending platforms
+                    const hasPlatformGrace = (entityA.platformGraceFramesLeft || 0) > 0;
+                    const platformToFollow = entityA.platformUnderneath || (hasPlatformGrace ? previousPlatform : null);
+                    if (platformToFollow) {
                         entityA.isOnGround = true;
-                        console.log(`[PLATFORM] ${entityA.instance.name} is on ground via platform ${entityA.platformUnderneath.instance.name}`);
+                        console.log(`[PLATFORM] ${entityA.instance.name} is on ground via platform ${platformToFollow.instance.name}`);
 
                         // Transfer platform velocity if standing on a moving platform
                         if (entityA === heroRef.current) {
                             // Establish parent-child link for multi-screen platforms
                             // Merge patrol component defaultValues with componentOverrides
-                            const platformPatrolTemplateComp = entityA.platformUnderneath.template.components.find(c => c.definitionId === 'comp_patrol');
+                            const platformPatrolTemplateComp = platformToFollow.template.components.find(c => c.definitionId === 'comp_patrol');
                             const platformPatrolComp = {
                                 ...(platformPatrolTemplateComp?.defaultValues || {}),
-                                ...(entityA.platformUnderneath.instance.componentOverrides?.comp_patrol || {})
+                                ...(platformToFollow.instance.componentOverrides?.comp_patrol || {})
                             };
                             const isMultiScreenPlatform = platformPatrolComp && (platformPatrolComp.multiScreen === true || platformPatrolComp.multiScreen === 'true');
 
                             if (isMultiScreenPlatform) {
                                 // Link player to platform
-                                entityA.parentEntityId = entityA.platformUnderneath.instance.id;
-                                console.log(`[Multi-Screen PLATFORM] Player linked to platform ${entityA.platformUnderneath.instance.name}`);
+                                entityA.parentEntityId = platformToFollow.instance.id;
+                                console.log(`[Multi-Screen PLATFORM] Player linked to platform ${platformToFollow.instance.name}`);
 
                                 // Sync global coordinates if platform has them
-                                console.log(`[Multi-Screen PLATFORM] Platform global coords: globalX=${entityA.platformUnderneath.globalX}, globalY=${entityA.platformUnderneath.globalY}`);
-                                if (entityA.platformUnderneath.globalX !== undefined && entityA.platformUnderneath.globalY !== undefined) {
+                                console.log(`[Multi-Screen PLATFORM] Platform global coords: globalX=${platformToFollow.globalX}, globalY=${platformToFollow.globalY}`);
+                                if (platformToFollow.globalX !== undefined && platformToFollow.globalY !== undefined) {
                                     // Initialize player's global coordinates if not set
                                     if (entityA.globalX === undefined || entityA.globalY === undefined) {
                                         const currentScreenPos = screenWorldMapRef.current.get(currentScreenMap.id);
@@ -2599,10 +2649,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         const oldGlobalX = entityA.globalX;
                                         const oldGlobalY = entityA.globalY;
 
-                                        entityA.globalX += entityA.platformUnderneath.vx;
-                                        entityA.globalY += entityA.platformUnderneath.vy;
+                                        // Add player's own velocity for this frame.
+                                        // vx/vy might have been zeroed by tile collision, which is correct.
+                                        entityA.globalX += entityA.vx;
+                                        entityA.globalY += entityA.vy;
 
-                                        console.log(`[Multi-Screen PLATFORM] Player riding platform ${entityA.platformUnderneath.instance.name}: global=(${oldGlobalX}, ${oldGlobalY}) -> (${entityA.globalX}, ${entityA.globalY}), platform velocity=(${entityA.platformUnderneath.vx}, ${entityA.platformUnderneath.vy})`);
+                                        // Add platform's velocity (both X and Y)
+                                        entityA.globalX += platformToFollow.vx;
+                                        entityA.globalY += platformToFollow.vy;
+
+                                        console.log(`[Multi-Screen PLATFORM] Player riding platform ${platformToFollow.instance.name}: global=(${oldGlobalX}, ${oldGlobalY}) -> (${entityA.globalX}, ${entityA.globalY}), player vel=(${entityA.vx}, ${entityA.vy}), platform vel=(${platformToFollow.vx}, ${platformToFollow.vy})`);
 
                                         // Convert back to local coordinates for rendering
                                         const localCoord = globalToLocal(
@@ -2641,13 +2697,25 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 }
                             } else {
                                 // Traditional single-screen platform
-                                entityA.x += entityA.platformUnderneath.vx;
-                                if (entityA.platformUnderneath.vy !== 0) {
-                                    entityA.y += entityA.platformUnderneath.vy;
+                                entityA.x += platformToFollow.vx;
+                                entityA.y += platformToFollow.vy;
+
+                                // Snap player to platform top to avoid jitter on descending platforms
+                                const propsA = entityCollisionProps(entityA);
+                                const propsP = entityCollisionProps(platformToFollow);
+                                if (propsA && propsP) {
+                                    const platformTop = platformToFollow.y + (propsP.offsetY || 0);
+                                    const playerBottom = entityA.y + (propsA.offsetY || 0) + (propsA.hitboxHeight || entityA.sprite.size.height);
+                                    const delta = platformTop - playerBottom;
+                                    // If we're within a small threshold, keep feet glued to platform
+                                    if (Math.abs(delta) <= 3) {
+                                        entityA.y += delta;
+                                        entityA.vy = 0;
+                                    }
                                 }
                             }
 
-                            console.log(`[PLATFORM] Transferring velocity from ${entityA.platformUnderneath.instance.name}: vx=${entityA.platformUnderneath.vx}, vy=${entityA.platformUnderneath.vy}`);
+                            console.log(`[PLATFORM] Transferring velocity from ${platformToFollow.instance.name}: vx=${platformToFollow.vx}, vy=${platformToFollow.vy}`);
                         }
                     } else {
                         // Not on a platform - clear parent link
@@ -2858,7 +2926,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
         msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
         // Asegurarse de que dependencias de las funciones internas estén aquí si cambian
-        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug
+        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, isFullscreen
     ]);
 
     if (!isOpen) return null;
@@ -2902,38 +2970,34 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const modalContent = (
         <div
             ref={modalRef}
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4 outline-none"
-            onClick={onClose}
+            className={`fixed inset-0 ${isFullscreen ? 'bg-black' : 'bg-black bg-opacity-75'} flex items-center justify-center z-50 animate-fadeIn ${isFullscreen ? '' : 'p-4'} outline-none`}
+            onClick={isFullscreen ? undefined : onClose}
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
             tabIndex={-1}
         >
-            <div
-                className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
-                onClick={e => e.stopPropagation()}
-            >
-                <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Game Flow Preview</h2>
-                <p className="text-xs text-msx-textsecondary mb-2">Use Arrows, Enter/Space, and Escape to navigate.</p>
-                <div className="relative" style={{ width: PREVIEW_WIDTH * (isFullscreen ? 4 : 2), height: PREVIEW_HEIGHT * (isFullscreen ? 4 : 2) }}>
+            {isFullscreen ? (
+                // Fullscreen mode - only game canvas centered on black background
+                <div className="relative" style={{ width: PREVIEW_WIDTH * 4, height: PREVIEW_HEIGHT * 4 }}>
                     <CRTShaderOverlay enabled={isFullscreen} config={crtConfig}>
-                    <canvas
-                        ref={canvasRef}
-                        width={PREVIEW_WIDTH}
-                        height={PREVIEW_HEIGHT}
-                        className={`border-2 border-msx-border ${isPositioningMode ? 'cursor-crosshair' : ''}`}
-                        style={{
-                            width: PREVIEW_WIDTH * (isFullscreen ? 4 : 2),
-                            height: PREVIEW_HEIGHT * (isFullscreen ? 4 : 2),
-                            imageRendering: 'pixelated',
-                            backgroundColor: canvasBackgroundColor
-                        }}
-                        onClick={handleCanvasClick}
-                    />
+                        <canvas
+                            ref={canvasRef}
+                            width={PREVIEW_WIDTH}
+                            height={PREVIEW_HEIGHT}
+                            className={`${isPositioningMode ? 'cursor-crosshair' : ''}`}
+                            style={{
+                                width: PREVIEW_WIDTH * 4,
+                                height: PREVIEW_HEIGHT * 4,
+                                imageRendering: 'pixelated',
+                                backgroundColor: canvasBackgroundColor
+                            }}
+                            onClick={handleCanvasClick}
+                        />
                     </CRTShaderOverlay>
                     {cursorAsset && subMenuNode && (() => {
                         const expandedOpts = expandMenuOptions(subMenuNode);
                         const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
-                        const scale = isFullscreen ? 4 : 2;
+                        const scale = 4;
                         return (
                             <img
                                 src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
@@ -2949,31 +3013,75 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             />
                         );
                     })()}
-                    {currentScreenMap && !isPlayMode && (
-                        <>
-                            {northExits.map((conn, index) => (
-                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('north', index, northExits.length)} className={`absolute bg-black bg-opacity-50 text-white p-1 rounded-full ${isFullscreen ? 'p-2' : ''}`}>
-                                    <ArrowUpIcon className={isFullscreen ? 'w-12 h-12' : 'w-6 h-6'} />
-                                </button>
-                            ))}
-                            {southExits.map((conn, index) => (
-                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('south', index, southExits.length)} className={`absolute bg-black bg-opacity-50 text-white p-1 rounded-full ${isFullscreen ? 'p-2' : ''}`}>
-                                    <ArrowDownIcon className={isFullscreen ? 'w-12 h-12' : 'w-6 h-6'} />
-                                </button>
-                            ))}
-                            {westExits.map((conn, index) => (
-                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('west', index, westExits.length)} className={`absolute bg-black bg-opacity-50 text-white p-1 rounded-full ${isFullscreen ? 'p-2' : ''}`}>
-                                    <ArrowLeftIcon className={isFullscreen ? 'w-12 h-12' : 'w-6 h-6'} />
-                                </button>
-                            ))}
-                            {eastExits.map((conn, index) => (
-                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('east', index, eastExits.length)} className={`absolute bg-black bg-opacity-50 text-white p-1 rounded-full ${isFullscreen ? 'p-2' : ''}`}>
-                                    <ArrowRightIcon className={isFullscreen ? 'w-12 h-12' : 'w-6 h-6'} />
-                                </button>
-                            ))}
-                        </>
-                    )}
                 </div>
+            ) : (
+                // Normal mode - full modal with controls
+                <div
+                    className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
+                    onClick={e => e.stopPropagation()}
+                >
+                    <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Game Flow Preview</h2>
+                    <p className="text-xs text-msx-textsecondary mb-2">Use Arrows, Enter/Space, and Escape to navigate.</p>
+                    <div className="relative" style={{ width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}>
+                        <CRTShaderOverlay enabled={false} config={crtConfig}>
+                            <canvas
+                                ref={canvasRef}
+                                width={PREVIEW_WIDTH}
+                                height={PREVIEW_HEIGHT}
+                                className={`border-2 border-msx-border ${isPositioningMode ? 'cursor-crosshair' : ''}`}
+                                style={{
+                                    width: PREVIEW_WIDTH * 2,
+                                    height: PREVIEW_HEIGHT * 2,
+                                    imageRendering: 'pixelated',
+                                    backgroundColor: canvasBackgroundColor
+                                }}
+                                onClick={handleCanvasClick}
+                            />
+                        </CRTShaderOverlay>
+                        {cursorAsset && subMenuNode && (() => {
+                            const expandedOpts = expandMenuOptions(subMenuNode);
+                            const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
+                            const scale = 2;
+                            return (
+                                <img
+                                    src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
+                                    alt="cursor"
+                                    className="absolute pointer-events-none"
+                                    style={{
+                                        left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(selectedText, 1).width) / 2 - 16) * scale,
+                                        top: ((80 + selectedOptionIndex * 12) - 4) * scale,
+                                        imageRendering: 'pixelated',
+                                        width: (cursorAsset.data as Sprite).size.width * scale,
+                                        height: (cursorAsset.data as Sprite).size.height * scale,
+                                    }}
+                                />
+                            );
+                        })()}
+                        {currentScreenMap && !isPlayMode && (
+                            <>
+                                {northExits.map((conn, index) => (
+                                    <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('north', index, northExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                        <ArrowUpIcon className="w-6 h-6" />
+                                    </button>
+                                ))}
+                                {southExits.map((conn, index) => (
+                                    <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('south', index, southExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                        <ArrowDownIcon className="w-6 h-6" />
+                                    </button>
+                                ))}
+                                {westExits.map((conn, index) => (
+                                    <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('west', index, westExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                        <ArrowLeftIcon className="w-6 h-6" />
+                                    </button>
+                                ))}
+                                {eastExits.map((conn, index) => (
+                                    <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('east', index, eastExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                        <ArrowRightIcon className="w-6 h-6" />
+                                    </button>
+                                ))}
+                            </>
+                        )}
+                    </div>
                 <div className="flex items-center mt-4">
                     {!isPlayMode && (
                         <>
@@ -3036,7 +3144,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     )}
                     <Button onClick={onClose} variant="primary" size="md">Close</Button>
                 </div>
-            </div>
+                </div>
+            )}
         </div>
     );
 
