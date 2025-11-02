@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, EffectZoneFlagKey, ComponentDefinition } from '../../types';
+import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, EffectZoneFlagKey, ComponentDefinition, TileStamp } from '../../types';
 import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, EFFECT_ZONE_FLAGS, MSX1_PALETTE } from '../../constants';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
@@ -74,6 +74,10 @@ export interface ScreenGridProps {
   waypointPickerState: { isPicking: boolean; };
   /** Callback function when a waypoint is picked. */
   onWaypointPicked: (point: Point) => void;
+  /** Whether to show the sector grid lines (for MSX Screen 2). */
+  showSectorLines: boolean;
+  /** The currently selected stamp for placement. */
+  selectedStamp?: TileStamp | null;
 }
 
 /**
@@ -90,10 +94,11 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
   hudElements, editorBaseTileDim, tileBanks, msxFont, msxFontColorAttributes,
   selectedEntityInstanceId, effectZones, selectedEffectZoneId,
   currentScreenTool, selectionRect, onSelectionChange,
-  componentDefinitions, entityTemplates, waypointPickerState, onWaypointPicked
+  componentDefinitions, entityTemplates, waypointPickerState, onWaypointPicked, showSectorLines, selectedStamp
 }) => {
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [startSelectionPoint, setStartSelectionPoint] = useState<Point | null>(null);
+  const [hoverPoint, setHoverPoint] = useState<Point | null>(null); // Track mouse position for stamp preview
   const gridRef = useRef<HTMLDivElement>(null);
 
   const { layers, width: screenWidth, height: screenHeight, activeAreaX = 0, activeAreaY = 0, activeAreaWidth = screenWidth, activeAreaHeight = screenHeight } = mapData;
@@ -185,7 +190,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
         } else {
             onEffectZoneSelect(null);
         }
-    } else if (currentScreenTool === 'draw' || currentScreenTool === 'erase') {
+    } else if (currentScreenTool === 'draw' || currentScreenTool === 'erase' || currentScreenTool === 'stamp') {
         if (activeLayer === 'entities') {
             onEntityPlace(point); // Place new entity if "Entities" layer is active and click is on empty space
         } else { // Background or Collision layer
@@ -199,11 +204,16 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
   /**
    * Handles the mouse move event on the grid.
    * This is primarily used to update the selection rectangle when the user is dragging.
+   * Also tracks mouse position for stamp preview.
    * @param event The mouse event.
    */
   const handleMouseMove = (event: React.MouseEvent) => {
-    if (!isMouseDown || !startSelectionPoint || currentScreenTool !== 'select' || activeLayer === 'effects' || activeLayer === 'entities') return;
     const currentPoint = getGridCoordinatesFromMouseEvent(event);
+
+    // Update hover point for stamp preview
+    setHoverPoint(currentPoint);
+
+    if (!isMouseDown || !startSelectionPoint || currentScreenTool !== 'select' || activeLayer === 'effects' || activeLayer === 'entities') return;
     if (!currentPoint) return;
 
     const newRectX = Math.min(startSelectionPoint.x, currentPoint.x);
@@ -527,7 +537,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
         aria-hidden="true"
       />
       {/* MSX Screen 2 Sector Dividers (Horizontal Lines) */}
-      {currentScreenMode === "SCREEN 2 (Graphics I)" && (
+      {currentScreenMode === "SCREEN 2 (Graphics I)" && showSectorLines && (
         <>
           {/* Sector 0/1 divider at line 8 (Y = 8 tiles) */}
           <div
@@ -639,10 +649,31 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
             width: selectionRect.width * gridPixelSize,
             height: selectionRect.height * gridPixelSize,
             boxSizing: 'border-box',
-            zIndex: 20 
+            zIndex: 20
           }}
           aria-hidden="true"
         />
+      )}
+
+      {/* Stamp Preview Overlay */}
+      {currentScreenTool === 'stamp' && selectedStamp && hoverPoint && (activeLayer === 'background' || activeLayer === 'collision') && (
+        <div
+          className="absolute border-2 border-dashed border-blue-400 pointer-events-none"
+          style={{
+            left: hoverPoint.x * gridPixelSize,
+            top: hoverPoint.y * gridPixelSize,
+            width: selectedStamp.width * gridPixelSize,
+            height: selectedStamp.height * gridPixelSize,
+            backgroundColor: 'rgba(100, 150, 255, 0.2)',
+            boxSizing: 'border-box',
+            zIndex: 25
+          }}
+          aria-hidden="true"
+        >
+          <span className="absolute -top-5 left-0 text-[0.65rem] bg-blue-500/80 text-white px-1 rounded">
+            {selectedStamp.name}
+          </span>
+        </div>
       )}
     </div>
   );

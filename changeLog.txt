@@ -1,4 +1,16 @@
-﻿Versión 0.260 - 1/11/2025
+﻿Versión 0.261 - 2/11/2025
+- feat(screen-editor): Add Multi-Tile Brush / Stamp Tool system
+  * New "Create Stamp" button to save tile selections as reusable patterns
+  * Stamp library panel with visual preview and delete functionality
+  * Blue preview overlay when placing stamps on grid
+  * ESC key to deselect active stamp
+  * Full stamp placement logic with boundary checking
+- feat(screen-editor): Add sector grid lines toggle switch for MSX Screen 2 mode
+  * On/Off switch in left panel to show/hide sector division lines
+  * Helps visualize the 3 tile bank zones (Sector 0, 1, 2)
+- fix(screen-editor): Enable stamp tool click handling in ScreenGrid
+
+Versión 0.260 - 1/11/2025
 - codex: add version bump instructions + script (bumpVersionCodex.cjs)
 - platform riding: stop grace-based movement; always snap to platform top; clear stale global coords on dismount
 - debounce platform-driven transitions + entry margin to avoid re-exit jitter

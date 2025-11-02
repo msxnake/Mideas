@@ -2,9 +2,10 @@
 import React from 'react';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
-import { 
-    TrashIcon, SparklesIcon, StopCircleIcon, PaintBrushIcon, 
-    ArrowsPointingOutIcon, ClipboardDocumentListIcon as PasteIcon, ViewfinderCircleIcon 
+import {
+    TrashIcon, SparklesIcon, StopCircleIcon, PaintBrushIcon,
+    ArrowsPointingOutIcon, ClipboardDocumentListIcon as PasteIcon, ViewfinderCircleIcon,
+    DocumentPlusIcon
 } from '../icons/MsxIcons';
 import { ScreenSelectionRect, Tile, ScreenEditorTool } from '../../types';
 
@@ -41,6 +42,8 @@ interface ScreenSelectionToolsPanelProps {
   onPasteScreen: () => void;
   /** Whether the paste action should be disabled. */
   isPasteDisabled: boolean;
+  /** Callback function to create a stamp from the current selection. */
+  onCreateStamp: () => void;
 }
 
 /**
@@ -65,6 +68,7 @@ export const ScreenSelectionToolsPanel: React.FC<ScreenSelectionToolsPanelProps>
   onCopyScreen,
   onPasteScreen,
   isPasteDisabled,
+  onCreateStamp,
 }) => {
   const selectedTileForFillOperations = tileset.find(t => t.id === selectedTileId);
   const isZigZagPossible = selectedTileForFillOperations &&
@@ -110,27 +114,38 @@ export const ScreenSelectionToolsPanel: React.FC<ScreenSelectionToolsPanelProps>
         >
           Clear Selection
         </Button>
-        <Button 
-            onClick={onFillSelection} 
-            disabled={isFillDisabled} 
-            size="sm" 
-            variant="secondary" 
-            icon={<PaintBrushIcon className="w-3.5 h-3.5 mr-1" />} 
+        <Button
+            onClick={onFillSelection}
+            disabled={isFillDisabled}
+            size="sm"
+            variant="secondary"
+            icon={<PaintBrushIcon className="w-3.5 h-3.5 mr-1" />}
             className="w-full justify-start"
             title="Fill selected area with the current tile"
         >
           Fill Selection
         </Button>
-        <Button 
-            onClick={onZigZagFillSelection} 
-            disabled={isZigZagFillDisabled} 
-            size="sm" 
-            variant="secondary" 
-            icon={<SparklesIcon className="w-3.5 h-3.5 mr-1" />} 
+        <Button
+            onClick={onZigZagFillSelection}
+            disabled={isZigZagFillDisabled}
+            size="sm"
+            variant="secondary"
+            icon={<SparklesIcon className="w-3.5 h-3.5 mr-1" />}
             className="w-full justify-start"
             title="Fill selected area with the current tile in a ZigZag pattern (tile must be >= 2x2 cells)"
         >
           Zig-Zag Fill
+        </Button>
+        <Button
+            onClick={onCreateStamp}
+            disabled={!selectionRect || !activeLayerIsEditable}
+            size="sm"
+            variant="primary"
+            icon={<DocumentPlusIcon className="w-3.5 h-3.5 mr-1" />}
+            className="w-full justify-start"
+            title="Save selected area as a reusable stamp pattern"
+        >
+          Create Stamp
         </Button>
         
         <div className="pt-2 mt-2 border-t border-msx-border">

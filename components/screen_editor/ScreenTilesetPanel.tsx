@@ -3,10 +3,10 @@
 
 
 import React, { useMemo } from 'react';
-import { Tile, ScreenEditorTool, EffectZone, TileBank, ProjectAsset } from '../../types';
+import { Tile, ScreenEditorTool, EffectZone, TileBank, ProjectAsset, TileStamp } from '../../types';
 import { createTileDataURL } from '../utils/screenUtils';
 import { Button } from '../common/Button';
-import { EraserIcon } from '../icons/MsxIcons';
+import { EraserIcon, DocumentPlusIcon, TrashIcon } from '../icons/MsxIcons';
 
 /**
  * Props for the {@link ScreenTilesetPanel} component.
@@ -41,6 +41,18 @@ interface ScreenTilesetPanelProps {
   selectedTileBankId?: string;
   /** All project assets (for TileBank lookup). */
   allProjectAssets?: ProjectAsset[];
+  /** Whether to show the sector grid lines (for MSX Screen 2). */
+  showSectorLines?: boolean;
+  /** Callback to toggle sector grid lines visibility. */
+  onToggleSectorLines?: () => void;
+  /** List of saved stamp patterns. */
+  stamps?: TileStamp[];
+  /** The ID of the currently selected stamp. */
+  selectedStampId?: string | null;
+  /** Callback to select a stamp. */
+  onSelectStamp?: (stampId: string | null) => void;
+  /** Callback to delete a stamp. */
+  onDeleteStamp?: (stampId: string) => void;
 }
 
 /**
@@ -66,6 +78,12 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
   currentSector,
   selectedTileBankId,
   allProjectAssets,
+  showSectorLines,
+  onToggleSectorLines,
+  stamps = [],
+  selectedStampId,
+  onSelectStamp,
+  onDeleteStamp,
 }) => {
 
   const eraserButtonClass = `w-full mt-1 p-1 text-xs rounded ${currentScreenTool === 'erase' ? 'bg-msx-highlight text-msx-bgcolor' : 'bg-msx-border text-msx-textsecondary hover:bg-msx-highlight/70'}`;
@@ -203,17 +221,106 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
     </div>
   );
 
+  const renderStampLibrary = () => {
+    if (!stamps || stamps.length === 0) {
+      return (
+        <div className="text-xs text-msx-textsecondary italic p-2">
+          No stamps saved. Select an area and click "Create Stamp" to save a reusable pattern.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-1">
+        {stamps.map(stamp => (
+          <div
+            key={stamp.id}
+            className={`p-2 border rounded cursor-pointer flex items-center justify-between ${
+              selectedStampId === stamp.id && currentScreenTool === 'stamp'
+                ? 'border-msx-accent bg-msx-accent/30'
+                : 'border-msx-border hover:border-msx-highlight'
+            }`}
+            onClick={() => {
+              if (onSelectStamp) {
+                onSelectStamp(stamp.id);
+                onSetScreenTool('stamp');
+              }
+            }}
+            title={`${stamp.name} - Click to use, right-click to delete`}
+          >
+            <div className="flex-1">
+              <div className="text-xs font-bold text-msx-text truncate">{stamp.name}</div>
+              <div className="text-[0.65rem] text-msx-textsecondary">{stamp.width}x{stamp.height}</div>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onDeleteStamp) {
+                  onDeleteStamp(stamp.id);
+                }
+              }}
+              className="ml-2 p-1 hover:bg-red-500/20 rounded"
+              title="Delete stamp"
+            >
+              <TrashIcon className="w-3 h-3 text-red-400" />
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
 
   return (
     <div className="w-48 p-2 border-r border-msx-border overflow-y-auto flex-shrink-0">
       <h4 className="text-sm pixel-font text-msx-highlight mb-2">
-        {activeLayer === 'entities' ? 'Entities' : 
+        {activeLayer === 'entities' ? 'Entities' :
          activeLayer === 'effects' ? 'Effect Zones' : 'Tileset & Tools'}
       </h4>
+
+      {/* Sector Grid Lines Toggle (only for SCREEN 2 mode) */}
+      {currentScreenMode === "SCREEN 2 (Graphics I)" && onToggleSectorLines && (
+        <div className="mb-2 p-2 bg-msx-darkblue/20 border border-msx-accent/30 rounded">
+          <label className="flex items-center justify-between cursor-pointer">
+            <span className="text-xs text-msx-text">Sector Lines</span>
+            <button
+              onClick={onToggleSectorLines}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                showSectorLines ? 'bg-msx-accent' : 'bg-msx-border'
+              }`}
+              title={showSectorLines ? "Hide sector grid lines" : "Show sector grid lines"}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  showSectorLines ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </label>
+        </div>
+      )}
+
       {activeLayer === 'entities' && (
          <p className="text-xs text-msx-textsecondary">Select an Entity Template from the right panel to place instances.</p>
       )}
-      {(activeLayer === 'background' || activeLayer === 'collision') && renderTileBasedTools()}
+
+      {(activeLayer === 'background' || activeLayer === 'collision') && (
+        <>
+          {renderTileBasedTools()}
+
+          {/* Stamps Library */}
+          {stamps && stamps.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-msx-border">
+              <h5 className="text-xs font-bold text-msx-highlight mb-2 flex items-center">
+                <DocumentPlusIcon className="w-3 h-3 mr-1" />
+                Stamp Library
+              </h5>
+              {renderStampLibrary()}
+            </div>
+          )}
+        </>
+      )}
+
       {activeLayer === 'effects' && renderEffectZoneTools()}
     </div>
   );

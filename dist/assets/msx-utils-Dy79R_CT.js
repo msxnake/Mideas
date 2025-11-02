@@ -1,4 +1,4 @@
-const st=[16,24,32];var re=(e=>(e.Score="Score",e.HighScore="HighScore",e.Lives="Lives",e.EnergyBar="EnergyBar",e.ItemDisplay="ItemDisplay",e.SceneName="SceneName",e.MiniMap="MiniMap",e.CoinCounter="CoinCounter",e.BossEnergyBar="BossEnergyBar",e.PhaseIndicator="PhaseIndicator",e.AttackAlert="AttackAlert",e.TextBox="TextBox",e.NumericField="NumericField",e.CustomCounter="CustomCounter",e))(re||{});const le={water:{bit:0,label:"Water Effect",maskValue:1,color:"rgba(50, 100, 200, 0.4)"},customGravity:{bit:1,label:"Custom Gravity",maskValue:2,color:"rgba(150, 50, 200, 0.4)"},icePhysics:{bit:2,label:"Ice Physics",maskValue:4,color:"rgba(100, 200, 255, 0.4)"},spriteConceal:{bit:3,label:"Sprite Concealment",maskValue:8,color:"rgba(100, 100, 100, 0.4)"}};var se=(e=>(e.None="None",e.Tile="Tile",e.Sprite="Sprite",e.Screen="Screen",e.Code="Code",e.Attributes="Attributes",e.Sound="Sound",e.Platformer="Platformer",e.WorldMap="WorldMap",e.Track="Track",e.HUD="HUD",e.TileBanks="TileBanks",e.Font="Font",e.HelpDocs="HelpDocs",e.BehaviorEditor="BehaviorEditor",e.ComponentDefinitionEditor="ComponentDefinitionEditor",e.EntityTemplateEditor="EntityTemplateEditor",e.Boss="Boss",e.WorldView="WorldView",e.GameFlow="GameFlow",e.MainMenu="MainMenu",e.StateMachine="StateMachine",e.GlobalVariables="GlobalVariables",e))(se||{});const ct=[1,3,5,7],dt=[{id:0,name:"NoSolid (Passable)",isSolid:!1},{id:1,name:"Solid (Wall/Ground)",isSolid:!0},{id:2,name:"Platform (Top-Solid)",isSolid:!0},{id:3,name:"Slope (Solid)",isSolid:!0}],_t={isBreakable:{bit:0,label:"Breakable"},isMovable:{bit:1,label:"Movable"},causesDamage:{bit:2,label:"Deadly"},isInteractiveSwitch:{bit:3,label:"Interactable"}},pt="0.257",ne=[{name:"Transparent",hex:"rgba(0,0,0,0)"},{name:"Black",hex:"#000000"},{name:"Medium Green",hex:"#3EB847"},{name:"Light Green",hex:"#74D07D"},{name:"Dark Blue",hex:"#2F2FC1"},{name:"Light Blue",hex:"#5858FC"},{name:"Dark Red",hex:"#B63125"},{name:"Cyan",hex:"#68D2DA"},{name:"Medium Red",hex:"#FC584A"},{name:"Light Red",hex:"#FF8E81"},{name:"Dark Yellow",hex:"#C0BF3B"},{name:"Light Yellow",hex:"#E7E474"},{name:"Dark Green",hex:"#309337"},{name:"Magenta",hex:"#B640C8"},{name:"Gray",hex:"#999999"},{name:"White",hex:"#FFFFFF"}],F=[{name:"Transparent (Backdrop)",hex:"rgba(0,0,0,0)",index:0},{name:"Black",hex:"#000000",index:1},{name:"Medium Green",hex:"#21C842",index:2},{name:"Light Green",hex:"#5EDC78",index:3},{name:"Dark Blue",hex:"#5455ED",index:4},{name:"Light Blue",hex:"#7D76FC",index:5},{name:"Dark Red",hex:"#D4524D",index:6},{name:"Cyan",hex:"#42EBF5",index:7},{name:"Medium Red",hex:"#FC5554",index:8},{name:"Light Red",hex:"#FF7978",index:9},{name:"Dark Yellow",hex:"#D4C154",index:10},{name:"Light Yellow",hex:"#E6CE80",index:11},{name:"Dark Green",hex:"#21B03B",index:12},{name:"Magenta",hex:"#C95BBA",index:13},{name:"Gray",hex:"#CCCCCC",index:14},{name:"White",hex:"#FFFFFF",index:15}],mt=[8,16,24,32],ut=16,Et=16,ht=16,Q=32,Tt=24,ce=8,v=255,ft="SCREEN 2 (Graphics I)",gt=["ADC","ADD","AND","BIT","CALL","CCF","CP","CPD","CPDR","CPI","CPIR","CPL","DAA","DEC","DI","DJNZ","EI","EX","EXX","HALT","IM","IN","INC","IND","INDR","INI","INIR","JP","JR","LD","LDD","LDDR","LDI","LDIR","NEG","NOP","OR","OTDR","OTIR","OUT","OUTD","OUTI","POP","PUSH","RES","RET","RETI","RETN","RL","RLA","RLC","RLCA","RLD","RR","RRA","RRC","RRCA","RRD","RST","SBC","SCF","SET","SLA","SLL","SRA","SRL","SUB","XOR"],St=["A","F","B","C","D","E","H","L","AF","BC","DE","HL","IXH","IXL","IYH","IYL","IX","IY","SP","PC","I","R","AF'"],At=["NZ","Z","NC","C","PO","PE","P","M"],Ct=[".ORG","ORG","END",".END",".EQU","EQU",".DB","DB",".BYTE","BYTE","DEFB",".DW","DW",".WORD","WORD","DEFW",".DS","DS",".BLOCK","BLOCK","DEFS",".DEFINE","DEFINE",".MACRO","MACRO",".ENDM","ENDM",".IF","IF",".ENDIF","ENDIF",".ELSE","ELSE",".INCLUDE","INCLUDE",".DEFM","DEFM",".ZILOG",".PHASE",".REPT",".ENDR",".SEARCH",".RANDOM",".ROM",".MEGAROM",".BASIC",".CAS",".WAV",".MSXDOS"],It=[{id:"pac_man_collection",name:"Pac-Man Tile Collection",code:`; Pac-Man Style Tile Collection System for MSX
+const st=[16,24,32];var re=(e=>(e.Score="Score",e.HighScore="HighScore",e.Lives="Lives",e.EnergyBar="EnergyBar",e.ItemDisplay="ItemDisplay",e.SceneName="SceneName",e.MiniMap="MiniMap",e.CoinCounter="CoinCounter",e.BossEnergyBar="BossEnergyBar",e.PhaseIndicator="PhaseIndicator",e.AttackAlert="AttackAlert",e.TextBox="TextBox",e.NumericField="NumericField",e.CustomCounter="CustomCounter",e))(re||{});const le={water:{bit:0,label:"Water Effect",maskValue:1,color:"rgba(50, 100, 200, 0.4)"},customGravity:{bit:1,label:"Custom Gravity",maskValue:2,color:"rgba(150, 50, 200, 0.4)"},icePhysics:{bit:2,label:"Ice Physics",maskValue:4,color:"rgba(100, 200, 255, 0.4)"},spriteConceal:{bit:3,label:"Sprite Concealment",maskValue:8,color:"rgba(100, 100, 100, 0.4)"}};var se=(e=>(e.None="None",e.Tile="Tile",e.Sprite="Sprite",e.Screen="Screen",e.Code="Code",e.Attributes="Attributes",e.Sound="Sound",e.Platformer="Platformer",e.WorldMap="WorldMap",e.Track="Track",e.HUD="HUD",e.TileBanks="TileBanks",e.Font="Font",e.HelpDocs="HelpDocs",e.BehaviorEditor="BehaviorEditor",e.ComponentDefinitionEditor="ComponentDefinitionEditor",e.EntityTemplateEditor="EntityTemplateEditor",e.Boss="Boss",e.WorldView="WorldView",e.GameFlow="GameFlow",e.MainMenu="MainMenu",e.StateMachine="StateMachine",e.GlobalVariables="GlobalVariables",e))(se||{});const ct=[1,3,5,7],dt=[{id:0,name:"NoSolid (Passable)",isSolid:!1},{id:1,name:"Solid (Wall/Ground)",isSolid:!0},{id:2,name:"Platform (Top-Solid)",isSolid:!0},{id:3,name:"Slope (Solid)",isSolid:!0}],_t={isBreakable:{bit:0,label:"Breakable"},isMovable:{bit:1,label:"Movable"},causesDamage:{bit:2,label:"Deadly"},isInteractiveSwitch:{bit:3,label:"Interactable"}},pt="0.260",ne=[{name:"Transparent",hex:"rgba(0,0,0,0)"},{name:"Black",hex:"#000000"},{name:"Medium Green",hex:"#3EB847"},{name:"Light Green",hex:"#74D07D"},{name:"Dark Blue",hex:"#2F2FC1"},{name:"Light Blue",hex:"#5858FC"},{name:"Dark Red",hex:"#B63125"},{name:"Cyan",hex:"#68D2DA"},{name:"Medium Red",hex:"#FC584A"},{name:"Light Red",hex:"#FF8E81"},{name:"Dark Yellow",hex:"#C0BF3B"},{name:"Light Yellow",hex:"#E7E474"},{name:"Dark Green",hex:"#309337"},{name:"Magenta",hex:"#B640C8"},{name:"Gray",hex:"#999999"},{name:"White",hex:"#FFFFFF"}],F=[{name:"Transparent (Backdrop)",hex:"rgba(0,0,0,0)",index:0},{name:"Black",hex:"#000000",index:1},{name:"Medium Green",hex:"#21C842",index:2},{name:"Light Green",hex:"#5EDC78",index:3},{name:"Dark Blue",hex:"#5455ED",index:4},{name:"Light Blue",hex:"#7D76FC",index:5},{name:"Dark Red",hex:"#D4524D",index:6},{name:"Cyan",hex:"#42EBF5",index:7},{name:"Medium Red",hex:"#FC5554",index:8},{name:"Light Red",hex:"#FF7978",index:9},{name:"Dark Yellow",hex:"#D4C154",index:10},{name:"Light Yellow",hex:"#E6CE80",index:11},{name:"Dark Green",hex:"#21B03B",index:12},{name:"Magenta",hex:"#C95BBA",index:13},{name:"Gray",hex:"#CCCCCC",index:14},{name:"White",hex:"#FFFFFF",index:15}],mt=[8,16,24,32],ut=16,Et=16,ht=16,Q=32,Tt=24,ce=8,v=255,ft="SCREEN 2 (Graphics I)",gt=["ADC","ADD","AND","BIT","CALL","CCF","CP","CPD","CPDR","CPI","CPIR","CPL","DAA","DEC","DI","DJNZ","EI","EX","EXX","HALT","IM","IN","INC","IND","INDR","INI","INIR","JP","JR","LD","LDD","LDDR","LDI","LDIR","NEG","NOP","OR","OTDR","OTIR","OUT","OUTD","OUTI","POP","PUSH","RES","RET","RETI","RETN","RL","RLA","RLC","RLCA","RLD","RR","RRA","RRC","RRCA","RRD","RST","SBC","SCF","SET","SLA","SLL","SRA","SRL","SUB","XOR"],St=["A","F","B","C","D","E","H","L","AF","BC","DE","HL","IXH","IXL","IYH","IYL","IX","IY","SP","PC","I","R","AF'"],At=["NZ","Z","NC","C","PO","PE","P","M"],Ct=[".ORG","ORG","END",".END",".EQU","EQU",".DB","DB",".BYTE","BYTE","DEFB",".DW","DW",".WORD","WORD","DEFW",".DS","DS",".BLOCK","BLOCK","DEFS",".DEFINE","DEFINE",".MACRO","MACRO",".ENDM","ENDM",".IF","IF",".ENDIF","ENDIF",".ELSE","ELSE",".INCLUDE","INCLUDE",".DEFM","DEFM",".ZILOG",".PHASE",".REPT",".ENDR",".SEARCH",".RANDOM",".ROM",".MEGAROM",".BASIC",".CAS",".WAV",".MSXDOS"],It=[{id:"pac_man_collection",name:"Pac-Man Tile Collection",code:`; Pac-Man Style Tile Collection System for MSX
 ; Optimized for MSX hardware limitations
 ; Uses: DE = Player position, HL = Screen map address
 
@@ -1236,6 +1236,7 @@ TOTAL_SCREENS           EQU ${((a=e.screenMaps)==null?void 0:a.length)||0}
 `,t+=32,n+=`temp_byte_4         EQU #${t.toString(16).toUpperCase().padStart(4,"0")}   ; Temporary 8-bit storage (32 bytes)
 `,t+=32,n+=`temp_byte_5         EQU #${t.toString(16).toUpperCase().padStart(4,"0")}   ; Temporary 8-bit storage (32 bytes)
 `,t+=32,n+=`temp_byte_6         EQU #${t.toString(16).toUpperCase().padStart(4,"0")}   ; Temporary 8-bit storage (32 bytes)
+`,t+=32,n+=`temp_byte_7         EQU #${t.toString(16).toUpperCase().padStart(4,"0")}   ; Temporary 8-bit storage (32 bytes)
 `,t+=32,n+=`temp_word_3         EQU #${t.toString(16).toUpperCase().padStart(4,"0")}   ; Temporary 16-bit storage (64 bytes)
 `,t+=64,n+=`temp_word_4         EQU #${t.toString(16).toUpperCase().padStart(4,"0")}   ; Temporary 16-bit storage (64 bytes)
 `,t+=64,n+=`
@@ -2553,10 +2554,23 @@ sprite_update_loop:
     and COMP_MASK_SPRITE       ; Check if has sprite component
     jr z, sprite_next_entity   ; Skip if no sprite component
 
-    ; Render sprite at entity position
+    ; Check if entity is in current screen (multi-screen support)
     push bc
     push hl
 
+    ; Check entity screen ID
+    ld hl, entity_screen_id
+    ld e, c                    ; Entity index
+    ld d, 0
+    add hl, de                 ; HL points to entity screen ID
+    ld a, (hl)                 ; A = entity screen ID
+
+    ; Compare with current screen ID
+    ld hl, current_screen_id
+    cp (hl)                    ; Compare entity screen with current screen
+    jr nz, sprite_hide         ; If different screen, hide sprite
+
+    ; Entity is in current screen - render normally
     ; Get entity position
     ld hl, entity_x_pos
     ld e, c                    ; Entity index
@@ -2573,7 +2587,18 @@ sprite_update_loop:
     ld d, 0                    ; Pattern 0 (TODO: get from entity data)
     ld e, 15                   ; Color white (TODO: get from entity data)
     call show_sprite
+    jr sprite_continue
 
+sprite_hide:
+    ; Entity is in different screen - hide sprite (Y = 208+)
+    ld a, c                    ; Sprite number = entity index
+    ld b, 0                    ; X = 0 (doesn't matter when hidden)
+    ld c, 208                  ; Y = 208 (off-screen, hides sprite)
+    ld d, 0                    ; Pattern 0
+    ld e, 0                    ; Color 0
+    call show_sprite
+
+sprite_continue:
     pop hl
     pop bc
 
@@ -3472,6 +3497,10 @@ init_entity_sprite:
     ; Initialize component systems (OPTIMIZED - only used components)
     ; Used: ${Array.from(n).join(", ")}
 
+    ; Initialize current screen ID (multi-screen support)
+    ld a, 0                    ; Start at screen 0
+    ld (current_screen_id), a
+
     ; Clear all component masks
     ld hl, entity_comp_masks
     ld de, entity_comp_masks+1
@@ -3605,6 +3634,9 @@ entity_gravity_vel  EQU temp_word_4       ; Accumulated gravity velocity (signed
 ; Input/Cursors Component Data (Direction restrictions)
 entity_dir_mask     EQU temp_byte_6       ; Direction allowed mask per entity (32 bytes)
                                           ; Bit 0=UP, Bit 1=DOWN, Bit 2=LEFT, Bit 3=RIGHT
+
+; Multi-Screen Component Data (Screen tracking for entities)
+entity_screen_id    EQU temp_byte_7       ; Screen ID where entity is located (32 bytes)
 
 ; ==================================================================
 ; CORE ECS SYSTEM FUNCTIONS
@@ -3747,6 +3779,11 @@ update_entities:
     ld hl, entity_y_pos
     add hl, de
     ld (hl), ${f}         ; Set real Y position from JSON
+
+    ; Set entity screen ID (for multi-screen support)
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), 0                 ; Screen ID 0 (default to first screen)
 
     ; Set sprite pattern and color
     ld hl, sprite_pattern
@@ -4587,4 +4624,4 @@ print_loop:
 `,t+=`; ==================================================================
 ; END OF MENUS
 ; ==================================================================
-`,t}function lt(e,n,t={}){if(console.log("🔧 Generating modular ASM files..."),!e)throw console.error("❌ projectName is required"),new Error("projectName is required");if(!n)throw console.error("❌ assets is undefined or null"),new Error("assets array is required");if(!Array.isArray(n))throw console.error("❌ assets is not an array"),new Error("assets must be an array");console.log(`📊 Project: ${e}, Assets: ${n.length}, Config:`,t);let a;try{a=K(e,n),console.log(`🔍 Analysis complete: ${a.sprites.length} sprites, ${a.tiles.length} tiles`)}catch(i){console.error("❌ Error analyzing project:",i),a={hasSprites:!1,hasTiles:!1,hasScreens:!1,hasEntities:!1,hasComponents:!1,hasGameFlow:!1,hasMenus:!1,hasFonts:!1,components:[],entities:[],sprites:[],tiles:[],screens:[],projectName:e,globalVariables:[]},console.log("🔄 Using fallback empty analysis")}const o={"bios.asm":Me(),"constants.asm":Ue(a),"variables.asm":ve(a),"header.asm":we(e,a),"patterns.asm":$e(a),"colors.asm":ke(a),"components.asm":tt(a),"entities.asm":nt(a),"worlds.asm":it(a),"screens.asm":at(a),"sprites.asm":He(a),"font.asm":ot(a),"menus.asm":rt(a),"gameflow.asm":"","main.asm":xe(e,a),"unitedFiles.asm":""};return t.generateUnified&&(o["unitedFiles.asm"]=Be(o,e,a)),console.log("✅ Modular ASM files generated successfully!"),console.log(`📊 Generated ${Object.keys(o).filter(i=>o[i]).length} files`),o}const dn=Object.freeze(Object.defineProperty({__proto__:null,generateModularASM:lt},Symbol.toStringTag,{value:"Module"}));export{Ut as $,qt as A,Te as B,fe as C,Lt as D,mt as E,Rt as F,bt as G,re as H,on as I,Gt as J,ln as K,nn as L,ne as M,an as N,he as O,_t as P,se as Q,Dt as R,Y as S,Mt as T,Ot as U,Pt as V,$t as W,vt as X,wt as Y,St as Z,Ft as _,At as a,xt as a0,kt as a1,Q as a2,Tt as a3,Nt as a4,Et as a5,ut as a6,W as a7,sn as a8,Bt as a9,ge as aa,pt as ab,K as ac,cn as ad,Ht as ae,ft as af,de as ag,It as ah,ht as ai,jt as aj,dn as ak,gt as b,Ct as c,zt as d,yt as e,pe as f,Vt as g,me as h,F as i,ct as j,dt as k,V as l,Qt as m,Wt as n,Xt as o,Kt as p,Zt as q,B as r,Yt as s,G as t,tn as u,Jt as v,st as w,rn as x,ce as y,en as z};
+`,t}function lt(e,n,t={}){if(console.log("🔧 Generating modular ASM files..."),!e)throw console.error("❌ projectName is required"),new Error("projectName is required");if(!n)throw console.error("❌ assets is undefined or null"),new Error("assets array is required");if(!Array.isArray(n))throw console.error("❌ assets is not an array"),new Error("assets must be an array");console.log(`📊 Project: ${e}, Assets: ${n.length}, Config:`,t);let a;try{a=K(e,n),console.log(`🔍 Analysis complete: ${a.sprites.length} sprites, ${a.tiles.length} tiles`)}catch(i){console.error("❌ Error analyzing project:",i),a={hasSprites:!1,hasTiles:!1,hasScreens:!1,hasEntities:!1,hasComponents:!1,hasGameFlow:!1,hasMenus:!1,hasFonts:!1,components:[],entities:[],sprites:[],tiles:[],screens:[],projectName:e,globalVariables:[]},console.log("🔄 Using fallback empty analysis")}const o={"bios.asm":Me(),"constants.asm":Ue(a),"variables.asm":ve(a),"header.asm":we(e,a),"patterns.asm":$e(a),"colors.asm":ke(a),"components.asm":tt(a),"entities.asm":nt(a),"worlds.asm":it(a),"screens.asm":at(a),"sprites.asm":He(a),"font.asm":ot(a),"menus.asm":rt(a),"gameflow.asm":"","main.asm":xe(e,a),"unitedFiles.asm":""};return t.generateUnified&&(o["unitedFiles.asm"]=Be(o,e,a)),console.log("✅ Modular ASM files generated successfully!"),console.log(`📊 Generated ${Object.keys(o).filter(i=>o[i]).length} files`),o}const dn=Object.freeze(Object.defineProperty({__proto__:null,generateModularASM:lt},Symbol.toStringTag,{value:"Module"}));export{Ut as $,qt as A,Te as B,fe as C,Lt as D,mt as E,Rt as F,bt as G,re as H,on as I,Gt as J,nn as K,ln as L,ne as M,an as N,he as O,_t as P,se as Q,Dt as R,Y as S,Mt as T,Ot as U,Pt as V,$t as W,vt as X,wt as Y,St as Z,Ft as _,At as a,xt as a0,kt as a1,Q as a2,Tt as a3,Nt as a4,Et as a5,ut as a6,W as a7,sn as a8,Bt as a9,ge as aa,pt as ab,K as ac,cn as ad,Ht as ae,ft as af,de as ag,It as ah,ht as ai,jt as aj,dn as ak,gt as b,Ct as c,zt as d,yt as e,pe as f,Vt as g,me as h,F as i,ct as j,dt as k,V as l,Qt as m,Wt as n,Xt as o,Kt as p,Zt as q,B as r,Yt as s,G as t,tn as u,Jt as v,st as w,rn as x,ce as y,en as z};

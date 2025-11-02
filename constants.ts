@@ -1,7 +1,7 @@
 import { MSXColor, MSX1Color, MSX1ColorValue, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_FLAGS as EFFECT_ZONE_FLAGS_TYPE, MainMenuConfig } from './types';
 
 /** The current version of the application. */
-export const APP_VERSION = "0.260";
+export const APP_VERSION = "0.261";
 
 /**
  * The 16-color palette for MSX SCREEN 5.

@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem } from '../../types';
+import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
 import { ExportLayoutASMModal } from '../modals/ExportLayoutASMModal';
@@ -109,7 +109,20 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     onNavigateToAsset, onShowContextMenu, waypointPickerState, onWaypointPicked,
     zoom, setZoom
 }) => {
-  const [activeLayer, setActiveLayerInternal] = useState<ScreenEditorLayerName>('background');
+  // Initialize activeLayer from localStorage if available
+  const getInitialActiveLayer = (): ScreenEditorLayerName => {
+    try {
+      const savedLayer = localStorage.getItem('screenEditorLastActiveLayer');
+      if (savedLayer && ['background', 'collision', 'effects', 'entities'].includes(savedLayer)) {
+        return savedLayer as ScreenEditorLayerName;
+      }
+    } catch (error) {
+      console.warn('Failed to load last active layer from localStorage:', error);
+    }
+    return 'background'; // Default fallback
+  };
+
+  const [activeLayer, setActiveLayerInternal] = useState<ScreenEditorLayerName>(getInitialActiveLayer);
   const [lastClickedCell, setLastClickedCell] = useState<Point | null>(null);
 
   const EDITOR_BASE_TILE_DIM = currentScreenMode === "SCREEN 2 (Graphics I)" ? CONST_EDITOR_BASE_TILE_DIM_S2 : SCREEN_EDITOR_BASE_TILE_DIM_OTHER;
@@ -134,10 +147,22 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [currentScreenTool, setCurrentScreenTool] = useState<ScreenEditorTool>('draw');
   const [selectionRect, setSelectionRect] = useState<ScreenSelectionRect | null>(null);
   const [currentSector, setCurrentSector] = useState<0 | 1 | 2>(0); // Track current MSX Screen 2 sector
+  const [showSectorLines, setShowSectorLines] = useState<boolean>(true); // Toggle for sector grid lines
+
+  // Stamp tool state
+  const [stamps, setStamps] = useState<TileStamp[]>([]);
+  const [selectedStampId, setSelectedStampId] = useState<string | null>(null);
 
   const setActiveLayer = (newLayer: ScreenEditorLayerName) => {
     setActiveLayerInternal(newLayer);
     onActiveLayerChange?.(newLayer); // Call the callback prop
+
+    // Save to localStorage for persistence
+    try {
+      localStorage.setItem('screenEditorLastActiveLayer', newLayer);
+    } catch (error) {
+      console.warn('Failed to save active layer to localStorage:', error);
+    }
   };
 
 
@@ -148,6 +173,23 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setLocalActiveH((screenMap.activeAreaHeight ?? screenMap.height ?? 0).toString());
   }, [screenMap.activeAreaX, screenMap.activeAreaY, screenMap.activeAreaWidth, screenMap.activeAreaHeight, screenMap.width, screenMap.height]);
 
+  // Handle ESC key to deselect stamp
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (selectedStampId) {
+          setSelectedStampId(null);
+          setCurrentScreenTool('draw');
+          setStatusBarMessage('Stamp deselected');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedStampId, setStatusBarMessage]);
 
   const handleActiveAreaInputChange = (
     prop: 'activeAreaX' | 'activeAreaY' | 'activeAreaWidth' | 'activeAreaHeight',
@@ -232,13 +274,39 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       }
     }
 
-    if (activeLayer === 'entities' || activeLayer === 'effects' || currentScreenTool === 'select') return; 
+    if (activeLayer === 'entities' || activeLayer === 'effects' || currentScreenTool === 'select') return;
 
     const newLayers = { ...screenMap.layers };
     const layerToUpdateKey = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>; // Ensure it's a valid layer key for tile data
-    const layerToUpdate = newLayers[layerToUpdateKey]; 
+    const layerToUpdate = newLayers[layerToUpdateKey];
     const currentLayerData = layerToUpdate.map(row => [...row]);
     let changed = false;
+
+    // Handle stamp placement
+    if (currentScreenTool === 'stamp' && selectedStampId) {
+      const selectedStamp = stamps.find(s => s.id === selectedStampId);
+      if (selectedStamp) {
+        // Place the entire stamp pattern starting at the clicked position
+        for (let dy = 0; dy < selectedStamp.height; dy++) {
+          for (let dx = 0; dx < selectedStamp.width; dx++) {
+            const targetX = point.x + dx;
+            const targetY = point.y + dy;
+            if (targetY >= 0 && targetY < currentLayerData.length && targetX >= 0 && targetX < currentLayerData[0].length) {
+              const stampTile = selectedStamp.tiles[dy][dx];
+              if (stampTile) {
+                currentLayerData[targetY][targetX] = { ...stampTile };
+                changed = true;
+              }
+            }
+          }
+        }
+        if (changed) {
+          newLayers[layerToUpdateKey] = currentLayerData;
+          onUpdate({ layers: newLayers });
+        }
+        return;
+      }
+    }
 
     const selectedTileAsset = tileset.find(t => t.id === selectedTileId);
 
@@ -296,7 +364,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       newLayers[layerToUpdateKey] = currentLayerData;
       onUpdate({ layers: newLayers });
     }
-  }, [screenMap.layers, screenMap.tileBankAssetId, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool, currentScreenMode, allProjectAssets, setSelectedTileId, setStatusBarMessage, getSectorFromY, setCurrentSector]);
+  }, [screenMap.layers, screenMap.tileBankAssetId, activeLayer, onUpdate, selectedTileId, tileset, EDITOR_BASE_TILE_DIM, setLastClickedCell, currentScreenTool, currentScreenMode, allProjectAssets, setSelectedTileId, setStatusBarMessage, getSectorFromY, setCurrentSector, stamps, selectedStampId]);
 
   const handleClearSelection = () => {
     if (!selectionRect || activeLayer === 'entities' || activeLayer === 'effects') return;
@@ -326,6 +394,59 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         setCurrentScreenTool('draw');
     }
   };
+
+  const handleCreateStamp = useCallback(() => {
+    if (!selectionRect || activeLayer === 'entities' || activeLayer === 'effects') {
+      setStatusBarMessage("Cannot create stamp from entities or effects layer.");
+      return;
+    }
+
+    const layerToStampKey = activeLayer as Exclude<ScreenEditorLayerName, 'entities' | 'effects'>;
+    const sourceLayer = screenMap.layers[layerToStampKey];
+
+    // Extract tiles from selection
+    const stampTiles: ScreenTile[][] = [];
+    for (let y = 0; y < selectionRect.height; y++) {
+      const row: ScreenTile[] = [];
+      for (let x = 0; x < selectionRect.width; x++) {
+        const mapY = selectionRect.y + y;
+        const mapX = selectionRect.x + x;
+        const tile = sourceLayer[mapY]?.[mapX];
+        row.push(tile ? { ...tile } : { tileId: null });
+      }
+      stampTiles.push(row);
+    }
+
+    // Generate unique ID and name
+    const stampId = `stamp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const stampName = `Stamp ${stamps.length + 1} (${selectionRect.width}x${selectionRect.height})`;
+
+    const newStamp: TileStamp = {
+      id: stampId,
+      name: stampName,
+      width: selectionRect.width,
+      height: selectionRect.height,
+      tiles: stampTiles,
+    };
+
+    setStamps([...stamps, newStamp]);
+    setStatusBarMessage(`Created stamp: ${stampName}`);
+  }, [selectionRect, activeLayer, screenMap.layers, stamps, setStatusBarMessage]);
+
+  const handleSelectStamp = useCallback((stampId: string | null) => {
+    setSelectedStampId(stampId);
+    if (stampId) {
+      setCurrentScreenTool('stamp');
+    }
+  }, []);
+
+  const handleDeleteStamp = useCallback((stampId: string) => {
+    setStamps(stamps.filter(s => s.id !== stampId));
+    if (selectedStampId === stampId) {
+      setSelectedStampId(null);
+    }
+    setStatusBarMessage('Stamp deleted');
+  }, [stamps, selectedStampId, setStatusBarMessage]);
 
   const handleFillSelection = () => {
     if (!selectionRect || activeLayer === 'entities' || activeLayer === 'effects' || !selectedTileId) return;
@@ -932,6 +1053,12 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           currentSector={currentSector}
           selectedTileBankId={screenMap.tileBankAssetId}
           allProjectAssets={allProjectAssets}
+          showSectorLines={showSectorLines}
+          onToggleSectorLines={() => setShowSectorLines(!showSectorLines)}
+          stamps={stamps}
+          selectedStampId={selectedStampId}
+          onSelectStamp={handleSelectStamp}
+          onDeleteStamp={handleDeleteStamp}
         />
 
         <div className="flex-grow p-2 overflow-auto flex items-start justify-start relative">
@@ -974,6 +1101,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             onTileContextMenu={handleTileContextMenu}
             waypointPickerState={waypointPickerState}
             onWaypointPicked={onWaypointPicked}
+            showSectorLines={showSectorLines}
+            selectedStamp={selectedStampId ? stamps.find(s => s.id === selectedStampId) : null}
           />
           <PatrolPathLayer
             selectedEntity={selectedEntity}
@@ -998,6 +1127,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             onCopyScreen={handleCopyScreen}
             onPasteScreen={handlePasteScreen}
             isPasteDisabled={!copiedScreenBuffer}
+            onCreateStamp={handleCreateStamp}
         />
       </div>
       <ScreenEditorStatusBar

@@ -1122,8 +1122,27 @@ export interface HelpDocSection { id: string; title: string; articles: HelpDocAr
 export type DrawingTool = 'pencil' | 'floodfill' | 'dither';
 export const DITHER_BRUSH_DIAMETERS = [1, 3, 5, 7] as const;
 export type DitherBrushDiameter = typeof DITHER_BRUSH_DIAMETERS[number];
-export type ScreenEditorTool = 'draw' | 'erase' | 'select' | 'placeEntity' | 'defineEffectZone'; // Added 'defineEffectZone'
+export type ScreenEditorTool = 'draw' | 'erase' | 'select' | 'placeEntity' | 'defineEffectZone' | 'stamp'; // Added 'stamp'
 export interface ScreenSelectionRect { x: number; y: number; width: number; height: number; }
+
+/**
+ * Represents a reusable tile pattern (stamp) for the Screen Editor.
+ * Allows users to save and reuse common tile arrangements.
+ */
+export interface TileStamp {
+  /** Unique identifier for the stamp. */
+  id: string;
+  /** User-friendly name for the stamp. */
+  name: string;
+  /** Width of the stamp in tiles. */
+  width: number;
+  /** Height of the stamp in tiles. */
+  height: number;
+  /** The tile data for this stamp (2D array of ScreenTile). */
+  tiles: ScreenTile[][];
+  /** Optional preview thumbnail data URL. */
+  thumbnailDataUrl?: string;
+}
 
 export const SOLIDITY_TYPES = [
   { id: 0, name: "NoSolid (Passable)", isSolid: false },
