@@ -2942,12 +2942,22 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // --- Transport carried box along with hero ---
                 if (entityA === heroRef.current && entityA.carriedBox) {
                     const box = entityA.carriedBox;
-                    // Follow hero: place just below the hero sprite (adjust offset as needed)
-                    const props = entityCollisionProps(box);
-                    const boxH = props?.hitboxHeight || box.sprite.size.height;
-                    const offY = props?.offsetY || 0;
-                    box.x = entityA.x;
-                    box.y = entityA.y + entityA.sprite.size.height - boxH - offY + 2; // slight visual offset
+                    // Carry overhead: place box above the hero using hitboxes
+                    const heroProps = entityCollisionProps(entityA);
+                    const boxProps = entityCollisionProps(box);
+                    const heroHitbox = heroProps ? getHitboxFor(entityA, heroProps) : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
+                    const boxW = boxProps?.hitboxWidth || box.sprite.size.width;
+                    const boxH = boxProps?.hitboxHeight || box.sprite.size.height;
+                    const offX = boxProps?.offsetX || 0;
+                    const offY = boxProps?.offsetY || 0;
+                    const overheadGap = 16; // raise box 16px above hero hitbox top
+
+                    // Center horizontally above the hero hitbox
+                    const centerX = heroHitbox.x + (heroHitbox.width / 2);
+                    box.x = Math.round(centerX - (boxW / 2) - offX);
+                    // Position so box hitbox bottom sits overheadGap above hero hitbox top
+                    box.y = Math.round((heroHitbox.y - overheadGap) - (boxH + offY));
+
                     // Freeze box while carried
                     box.vx = 0;
                     box.vy = 0;
