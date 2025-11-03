@@ -133,6 +133,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         return saved ? JSON.parse(saved) : defaultCRTConfig;
     });
     const [isCrtConfigOpen, setIsCrtConfigOpen] = useState(false);
+    // Carry offset now comes from comp_carry on the Player entity (editable in entity attrs)
     const [gameGlobalVariables, setGameGlobalVariables] = useState<Record<string, any>>({});
     const [gameFlowStack, setGameFlowStack] = useState<Array<{parentGraphData: GameFlowGraph, returnNodeId: string, parentGameFlowName: string}>>([]);
     const [currentNestedGraphData, setCurrentNestedGraphData] = useState<GameFlowGraph | null>(null);
@@ -1708,10 +1709,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             ...(entity.instance.componentOverrides?.['comp_collision'] || {})
         };
         const getHitboxFor = (x: number, y: number) => ({
-            x: x + (entityCollisionProps.offsetX || 0),
-            y: y + (entityCollisionProps.offsetY || 0),
-            width: entityCollisionProps.hitboxWidth || entity.sprite.size.width,
-            height: entityCollisionProps.hitboxHeight || entity.sprite.size.height,
+            x: x + Number(entityCollisionProps.offsetX ?? 0),
+            y: y + Number(entityCollisionProps.offsetY ?? 0),
+            width: Number(entityCollisionProps.hitboxWidth) || entity.sprite.size.width,
+            height: Number(entityCollisionProps.hitboxHeight) || entity.sprite.size.height,
         });
         let tentativeX = entity.x + entity.vx;
         let tentativeY = entity.y + entity.vy;
@@ -1728,7 +1729,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2, screenMap)) {
                 collisionX = true;
                 const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
-                tentativeX = tileLeftEdge - (entityCollisionProps.offsetX || 0) - tentativeHitbox.width;
+                tentativeX = tileLeftEdge - Number(entityCollisionProps.offsetX ?? 0) - tentativeHitbox.width;
                 entity.vx = 0;
             }
             } else if (entity.vx < 0) { // Izquierda
@@ -1736,7 +1737,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 checkCollisionAt(tentativeHitbox.x, centerY2, screenMap)) {
                 collisionX = true;
                 const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
-                tentativeX = tileRightEdge - (entityCollisionProps.offsetX || 0);
+                tentativeX = tileRightEdge - Number(entityCollisionProps.offsetX ?? 0);
                 entity.vx = 0;
             }
             }
@@ -1757,7 +1758,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap))) {
                     collisionY = true;
                     const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
-                    tentativeY = tileTopEdge - (entityCollisionProps.offsetY || 0) - tentativeHitbox.height;
+                    tentativeY = tileTopEdge - Number(entityCollisionProps.offsetY ?? 0) - tentativeHitbox.height;
                     entity.vy = 0;
                 }
             } else if (entity.vy < 0) { // Saltando (hacia arriba)
@@ -1767,7 +1768,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 console.log('Collision Y detected (upwards)');
                 const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
                 const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
-                tentativeY = tileBottomEdge - (entityCollisionProps.offsetY || 0);
+                tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
                 entity.vy = 0; // Detener velocidad Y (golpeÃƒÆ’Ã‚Â³ techo)
 
           
@@ -2084,10 +2085,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             entitiesRef.current.forEach((entityA, indexA) => {
                 const isCarriedBox = heroRef.current?.carriedBox === entityA;
+                // Treat entities tagged as box as collidable with tiles even if they don't explicitly have comp_collision
+                const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
                 // --- 0. Compute isOnGround based on current position ---
                 const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
                 const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-                if (hasCollisionComp && collisionCompDef && screenMapToRender && !isCarriedBox) {
+                // Boxes should also interact with tile collisions even without comp_collision
+                if ((hasCollisionComp || isBoxEntity) && collisionCompDef && screenMapToRender && !isCarriedBox) {
                     const props = entityCollisionProps(entityA);
                     if (props) {
                         const hitbox = getHitboxForPosition(entityA, entityA.x, entityA.y + 1, props); // Check 1px below
@@ -2137,7 +2141,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     // Process input (cursors, jump, actions) - Only if state allows it
                     if (canProcessInput) {
-                        const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity');
+                        const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity') || !!(entityA.instance.componentOverrides?.['comp_gravity']);
                         const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
                         
                         // Horizontal Movement
@@ -2245,19 +2249,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     const offX = boxProps?.offsetX || 0;
                                     const offY = boxProps?.offsetY || 0;
 
-                                    // Base drop position slightly in front at hero's feet
-                                    let dropX = entityA.x;
-                                    let dropY = entityA.y + entityA.sprite.size.height - boxH - offY;
+                                    // Use hero hitbox for accurate drop anchor
+                                    const heroPropsDrop = entityCollisionProps(entityA);
+                                    const heroHitboxDrop = heroPropsDrop
+                                        ? getHitboxFor(entityA, heroPropsDrop)
+                                        : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
 
                                     const facingDefaultRight = entityA.sprite.facingDirection === 'right';
                                     const facingDefaultLeft = entityA.sprite.facingDirection === 'left';
                                     const facingLeft = (facingDefaultRight && entityA.isFacingMirrored) || (facingDefaultLeft && !entityA.isFacingMirrored);
 
-                                    if (facingLeft) dropX = entityA.x - (boxW + offX);
-                                    else dropX = entityA.x + entityA.sprite.size.width - offX;
+                                    // Desired hitbox top-left for the box (hx, hy)
+                                    let hx = heroHitboxDrop.x + heroHitboxDrop.width; // right side by default
+                                    if (facingLeft) {
+                                        hx = heroHitboxDrop.x - boxW; // left side
+                                    }
+                                    const hy = heroHitboxDrop.y + heroHitboxDrop.height - boxH; // at hero's feet
 
-                                    const hx = dropX + offX;
-                                    const hy = dropY + offY;
+                                    // Convert desired hitbox position to sprite (visual) top-left
+                                    const dropX = hx - offX;
+                                    const dropY = hy - offY;
                                     const clear = !(
                                         checkCollisionAt(hx, hy, screenMapToRender) ||
                                         checkCollisionAt(hx + boxW - 1, hy, screenMapToRender) ||
@@ -2268,9 +2279,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     if (clear) {
                                         box.x = dropX;
                                         box.y = dropY;
-                                        box.vx = 0; box.vy = 0;
+                                        // Apply impulse in facing direction and vertical
+                                        const impulseH = 2;   // px/frame
+                                        const impulseV = -2;  // upward kick
+                                        box.vx = facingLeft ? -impulseH : impulseH;
+                                        box.vy = impulseV;
+                                        // Ensure physics re-engages after being carried
+                                        box.isOnGround = false;
+                                        box.platformUnderneath = null;
                                         entityA.carriedBox = null;
-                                        console.log(`[ACTION] Dropped box at (${dropX}, ${dropY})`);
+                                        console.log(`[ACTION] Dropped box at (${dropX}, ${dropY}) with impulse vx=${box.vx}, vy=${box.vy}`);
                                     } else {
                                         console.log('[ACTION] Cannot drop box here (collision)');
                                     }
@@ -2290,10 +2308,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const skipPhysics = heroRef.current?.carriedBox === entityA; // Skip physics for carried box
                     // --- Gravity ---
                     const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
-                    if (!skipPhysics && gravityComp && !entityA.isOnGround) {
-                      const gravityProps = { ...gravityComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_gravity'] || {}) };
-                      const strength = Number(gravityProps.strength || 0) / 60;
-                      const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
+                    const gravityOverride = entityA.instance.componentOverrides?.['comp_gravity'];
+                    const gravityEnabled = !!gravityComp || !!gravityOverride; // allow instance-level activation
+                    if (!skipPhysics && gravityEnabled && !entityA.isOnGround) {
+                      const gravityProps = { ...(gravityComp?.defaultValues || {}), ...(gravityOverride || {}) } as any;
+                      const strength = Number(gravityProps.strength ?? 0) / 60;
+                      const terminalVelocity = Number(gravityProps.terminalVelocity ?? 2);
                       entityA.vy += strength;
                       if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
                     }
@@ -2314,7 +2334,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     // Multi-screen entities don't use tilemap collision - their position is controlled by global coordinates
                     if (!skipPhysics && !isMultiScreenEntity) {
                         // Apply tilemap collision or standard position update for single-screen entities
-                        if (hasCollisionComp && collisionCompDef && screenMapToRender) {
+                        if ((hasCollisionComp || isBoxEntity) && collisionCompDef && screenMapToRender) {
                             handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
                         } else {
                             entityA.x += entityA.vx;
@@ -2943,15 +2963,25 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (entityA === heroRef.current && entityA.carriedBox) {
                     const box = entityA.carriedBox;
                     // Carry overhead: align visually using sprite bounds (ignores hitbox offsets while carried)
-                    const overheadGap = 16; // pixels above hero sprite top
+                    // Read carry offset from comp_carry (template defaultValues + instance overrides)
+                    const carryTemplateComp = entityA.template.components.find(c => c.definitionId === 'comp_carry');
+                    const carryProps = {
+                        ...(carryTemplateComp?.defaultValues || {}),
+                        ...(entityA.instance.componentOverrides?.comp_carry || {})
+                    } as any;
+                    const overheadGap = Number(carryProps.offset ?? 0);
 
-                    // Visual center/top based on sprite sizes
-                    const heroCenterX = entityA.x + (entityA.sprite.size.width / 2);
+                    // Visual center/top based on HERO HITBOX for better alignment
+                    const heroPropsCarry = entityCollisionProps(entityA);
+                    const heroHitboxCarry = heroPropsCarry
+                        ? getHitboxFor(entityA, heroPropsCarry)
+                        : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
+                    const heroCenterX = heroHitboxCarry.x + (heroHitboxCarry.width / 2);
                     const boxWVis = box.sprite.size.width;
                     const boxHVis = box.sprite.size.height;
 
                     box.x = Math.round(heroCenterX - (boxWVis / 2));
-                    box.y = Math.round(entityA.y - overheadGap - boxHVis);
+                    box.y = Math.round(heroHitboxCarry.y - overheadGap - boxHVis);
 
                     // Freeze box while carried
                     box.vx = 0;
@@ -3281,6 +3311,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
                                         Position Player: {isPositioningMode ? 'On' : 'Off'}
                                     </Button>
+                                    {/* Carry offset is now configured via comp_carry on the Player entity */}
                                 </>
                             )}
                             {currentNode?.type === 'WorldLink' && (() => {
@@ -3327,6 +3358,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             >
                                 CRT Config
                             </Button>
+                            {/* Carry offset is now configured via comp_carry on the Player entity */}
                         </>
                     )}
                     <Button onClick={onClose} variant="primary" size="md">Close</Button>

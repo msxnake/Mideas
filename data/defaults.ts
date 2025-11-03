@@ -15,6 +15,13 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     description: "Defines an entity's 2D coordinates."
   },
+  {
+    id: "comp_carry", name: "Carry",
+    description: "Configures how the entity carries objects (e.g., vertical offset above head).",
+    properties: [
+      { name: "offset", type: "byte", defaultValue: "0", description: "Vertical pixels between hero head and carried object (0 = pegado)." }
+    ],
+  },
   { 
     id: "comp_render", name: "Renderable", 
     properties: [
@@ -307,6 +314,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_gravity", defaultValues: { strength: "80" } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
       { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 2 }}, // Example player collision
+      { definitionId: "comp_carry", defaultValues: { offset: 0 } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
       { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", isEnabled: true }},
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 }}
