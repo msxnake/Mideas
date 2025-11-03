@@ -2942,21 +2942,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // --- Transport carried box along with hero ---
                 if (entityA === heroRef.current && entityA.carriedBox) {
                     const box = entityA.carriedBox;
-                    // Carry overhead: place box above the hero using hitboxes
-                    const heroProps = entityCollisionProps(entityA);
-                    const boxProps = entityCollisionProps(box);
-                    const heroHitbox = heroProps ? getHitboxFor(entityA, heroProps) : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
-                    const boxW = boxProps?.hitboxWidth || box.sprite.size.width;
-                    const boxH = boxProps?.hitboxHeight || box.sprite.size.height;
-                    const offX = boxProps?.offsetX || 0;
-                    const offY = boxProps?.offsetY || 0;
-                    const overheadGap = 16; // raise box 16px above hero hitbox top
+                    // Carry overhead: align visually using sprite bounds (ignores hitbox offsets while carried)
+                    const overheadGap = 16; // pixels above hero sprite top
 
-                    // Center horizontally above the hero hitbox
-                    const centerX = heroHitbox.x + (heroHitbox.width / 2);
-                    box.x = Math.round(centerX - (boxW / 2) - offX);
-                    // Position so box hitbox bottom sits overheadGap above hero hitbox top
-                    box.y = Math.round((heroHitbox.y - overheadGap) - (boxH + offY));
+                    // Visual center/top based on sprite sizes
+                    const heroCenterX = entityA.x + (entityA.sprite.size.width / 2);
+                    const boxWVis = box.sprite.size.width;
+                    const boxHVis = box.sprite.size.height;
+
+                    box.x = Math.round(heroCenterX - (boxWVis / 2));
+                    box.y = Math.round(entityA.y - overheadGap - boxHVis);
 
                     // Freeze box while carried
                     box.vx = 0;
