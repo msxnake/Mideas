@@ -74,6 +74,8 @@ interface AnimatedEntity {
     parentEntityId?: string | null; // ID of parent entity (for riding platforms)
     platformUnderneath?: AnimatedEntity | null; // Reference to platform entity this entity is standing on
     platformGraceFramesLeft?: number; // Small grace period to keep grounded after brief de-anchoring
+    // Carry mechanics
+    carriedBox?: AnimatedEntity | null; // Reference to the box currently carried (only meaningful for hero)
 }
 
 interface GameFlowPreviewModalProps {
@@ -116,6 +118,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const heroRef = useRef<AnimatedEntity | null>(null);
     const pressedKeys = useRef<Set<string>>(new Set());
     const jumpKeyProcessed = useRef<boolean>(false);
+    const actionKeyProcessed = useRef<boolean>(false); // For pickup/drop action debouncing (e.g., KeyZ)
     const pendingEvents = useRef<Map<string, Set<string>>>(new Map()); // entityId -> Set of event names
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
@@ -1128,6 +1131,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             console.log('[Effect] Native hero removed from array to avoid duplicates');
 
             entitiesToAnimate.push(heroRef.current);
+            // Also carry over any carried box
+            if (heroRef.current.carriedBox) {
+                const carried = heroRef.current.carriedBox;
+                if (!entitiesToAnimate.some(e => e.instance.id === carried.instance.id)) {
+                    entitiesToAnimate.push(carried);
+                }
+            }
             heroForThisScreen = heroRef.current;
         } else {
             // Si NO hay playerEntryPoint, buscar hero nativo o usar carry over
@@ -1136,6 +1146,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (heroRef.current && !heroForThisScreen) {
                 console.log('[Effect] No native hero. Carrying over:', heroRef.current.instance.name);
                 entitiesToAnimate.push(heroRef.current);
+                // Also carry over any carried box
+                if (heroRef.current.carriedBox) {
+                    const carried = heroRef.current.carriedBox;
+                    if (!entitiesToAnimate.some(e => e.instance.id === carried.instance.id)) {
+                        entitiesToAnimate.push(carried);
+                    }
+                }
                 heroForThisScreen = heroRef.current;
             }
         }
@@ -2066,10 +2083,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // }
 
             entitiesRef.current.forEach((entityA, indexA) => {
+                const isCarriedBox = heroRef.current?.carriedBox === entityA;
                 // --- 0. Compute isOnGround based on current position ---
                 const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
                 const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-                if (hasCollisionComp && collisionCompDef && screenMapToRender) {
+                if (hasCollisionComp && collisionCompDef && screenMapToRender && !isCarriedBox) {
                     const props = entityCollisionProps(entityA);
                     if (props) {
                         const hitbox = getHitboxForPosition(entityA, entityA.x, entityA.y + 1, props); // Check 1px below
@@ -2117,7 +2135,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const statesWithoutInput = ['Dead', 'GameOver', 'Stunned', 'Frozen']; // States that disable controls
                     const canProcessInput = !entityA.currentState || !statesWithoutInput.includes(entityA.currentState);
 
-                    // Process input (cursors and jump) - Only if state allows it
+                    // Process input (cursors, jump, actions) - Only if state allows it
                     if (canProcessInput) {
                         const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity');
                         const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
@@ -2187,6 +2205,80 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 jumpKeyProcessed.current = false;
                             }
                         }
+
+                        // --- Action: Pick up / Drop box (KeyZ)
+                        const actionPressed = pressedKeys.current.has('KeyZ') || pressedKeys.current.has('z') || pressedKeys.current.has('Z');
+                        const isBoxEntity = (e: AnimatedEntity) => e.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(e.template.name);
+
+                        if (actionPressed && !actionKeyProcessed.current) {
+                            if (!entityA.carriedBox) {
+                                // Try to pick up a nearby box (within 1 tile)
+                                const heroProps = entityCollisionProps(entityA);
+                                const heroHitbox = heroProps ? getHitboxFor(entityA, heroProps) : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
+                                const heroCenterX = heroHitbox.x + heroHitbox.width / 2;
+                                const heroCenterY = heroHitbox.y + heroHitbox.height / 2;
+                                const proximityPx = TILE_SIZE; // 8px
+
+                                const candidate = entitiesRef.current.find(e => (
+                                    e !== entityA && isBoxEntity(e) && e !== heroRef.current?.carriedBox
+                                ) && (() => {
+                                    const boxProps = entityCollisionProps(e);
+                                    const boxHitbox = boxProps ? getHitboxFor(e, boxProps) : { x: e.x, y: e.y, width: e.sprite.size.width, height: e.sprite.size.height };
+                                    const boxCenterX = boxHitbox.x + boxHitbox.width / 2;
+                                    const boxCenterY = boxHitbox.y + boxHitbox.height / 2;
+                                    return Math.abs(boxCenterX - heroCenterX) <= proximityPx && Math.abs(boxCenterY - heroCenterY) <= proximityPx;
+                                })());
+
+                                if (candidate) {
+                                    entityA.carriedBox = candidate;
+                                    // Freeze box motion immediately
+                                    candidate.vx = 0; candidate.vy = 0;
+                                    console.log(`[ACTION] Picked up box: ${candidate.instance.name}`);
+                                }
+                            } else {
+                                // Drop currently carried box in front of the hero if space is free
+                                const box = entityA.carriedBox;
+                                if (box && screenMapToRender) {
+                                    const boxProps = entityCollisionProps(box);
+                                    const boxW = boxProps?.hitboxWidth || box.sprite.size.width;
+                                    const boxH = boxProps?.hitboxHeight || box.sprite.size.height;
+                                    const offX = boxProps?.offsetX || 0;
+                                    const offY = boxProps?.offsetY || 0;
+
+                                    // Base drop position slightly in front at hero's feet
+                                    let dropX = entityA.x;
+                                    let dropY = entityA.y + entityA.sprite.size.height - boxH - offY;
+
+                                    const facingDefaultRight = entityA.sprite.facingDirection === 'right';
+                                    const facingDefaultLeft = entityA.sprite.facingDirection === 'left';
+                                    const facingLeft = (facingDefaultRight && entityA.isFacingMirrored) || (facingDefaultLeft && !entityA.isFacingMirrored);
+
+                                    if (facingLeft) dropX = entityA.x - (boxW + offX);
+                                    else dropX = entityA.x + entityA.sprite.size.width - offX;
+
+                                    const hx = dropX + offX;
+                                    const hy = dropY + offY;
+                                    const clear = !(
+                                        checkCollisionAt(hx, hy, screenMapToRender) ||
+                                        checkCollisionAt(hx + boxW - 1, hy, screenMapToRender) ||
+                                        checkCollisionAt(hx, hy + boxH - 1, screenMapToRender) ||
+                                        checkCollisionAt(hx + boxW - 1, hy + boxH - 1, screenMapToRender)
+                                    );
+
+                                    if (clear) {
+                                        box.x = dropX;
+                                        box.y = dropY;
+                                        box.vx = 0; box.vy = 0;
+                                        entityA.carriedBox = null;
+                                        console.log(`[ACTION] Dropped box at (${dropX}, ${dropY})`);
+                                    } else {
+                                        console.log('[ACTION] Cannot drop box here (collision)');
+                                    }
+                                }
+                            }
+                            actionKeyProcessed.current = true;
+                        }
+                        if (!actionPressed) actionKeyProcessed.current = false;
                     } // End of canProcessInput check
                 }
 
@@ -2195,9 +2287,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const canProcessPhysics = !entityA.currentState || !statesWithoutPhysics.includes(entityA.currentState);
 
                 if (canProcessPhysics) {
+                    const skipPhysics = heroRef.current?.carriedBox === entityA; // Skip physics for carried box
                     // --- Gravity ---
                     const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
-                    if (gravityComp && !entityA.isOnGround) {
+                    if (!skipPhysics && gravityComp && !entityA.isOnGround) {
                       const gravityProps = { ...gravityComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_gravity'] || {}) };
                       const strength = Number(gravityProps.strength || 0) / 60;
                       const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
@@ -2219,7 +2312,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const hasPatrolComponent = !!patrolTemplateComp2;
 
                     // Multi-screen entities don't use tilemap collision - their position is controlled by global coordinates
-                    if (!isMultiScreenEntity) {
+                    if (!skipPhysics && !isMultiScreenEntity) {
                         // Apply tilemap collision or standard position update for single-screen entities
                         if (hasCollisionComp && collisionCompDef && screenMapToRender) {
                             handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
@@ -2401,6 +2494,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
                         const entityB = entitiesRef.current[indexB];
+                        // Skip collisions for carried box
+                        if (heroRef.current?.carriedBox === entityA || heroRef.current?.carriedBox === entityB) {
+                            continue;
+                        }
                         const entityBHasCollision = entityB.template.components.some(c => c.definitionId === 'comp_collision');
 
                         if (indexA === 0 && now % 1000 < 16) {
@@ -2842,6 +2939,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                 }
 
+                // --- Transport carried box along with hero ---
+                if (entityA === heroRef.current && entityA.carriedBox) {
+                    const box = entityA.carriedBox;
+                    // Follow hero: place just below the hero sprite (adjust offset as needed)
+                    const props = entityCollisionProps(box);
+                    const boxH = props?.hitboxHeight || box.sprite.size.height;
+                    const offY = props?.offsetY || 0;
+                    box.x = entityA.x;
+                    box.y = entityA.y + entityA.sprite.size.height - boxH - offY + 2; // slight visual offset
+                    // Freeze box while carried
+                    box.vx = 0;
+                    box.vy = 0;
+                }
+
                 // --- 8. Dibujar Entidad ---
                 // Safety check: ensure frameImages array has elements and currentFrame is valid
                 if (entityA.frameImages.length > 0) {
@@ -2875,7 +2986,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     let imageToDraw = shouldUseMirrored ? entityA.mirroredFrameImages![entityA.currentFrame] : entityA.frameImages[entityA.currentFrame];
                     // Asegurarse de que la imagen estÃƒÂ© cargada antes de dibujar es crucial para el rendimiento
                     if (imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
-                         ctx.drawImage(imageToDraw, entityA.x, entityA.y);
+                         if (heroRef.current?.carriedBox !== entityA) { ctx.drawImage(imageToDraw, entityA.x, entityA.y); }
                     } else if (imageToDraw) {
                          // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
                          // console.warn("Imagen no cargada aÃƒÂºn:", entityA.instance.name);
@@ -2883,8 +2994,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
                 // If frameImages is empty, simply skip drawing but continue processing
 
+                // Draw carried box after hero to ensure it appears on top
+                if (entityA === heroRef.current && entityA.carriedBox) {
+                    const box = entityA.carriedBox;
+                    if (box.frameImages.length > 0) {
+                        const img = box.frameImages[box.currentFrame] || box.frameImages[0];
+                        if (img && img.complete && img.naturalWidth > 0) {
+                            ctx.drawImage(img, box.x, box.y);
+                        }
+                    }
+                }
+
                 // --- 9. DEBUG: Dibujar Hitboxes (si tiene comp_collision) ---
-                if (showHitboxDebug && hasCollisionComp) {
+                if (showHitboxDebug && hasCollisionComp && heroRef.current?.carriedBox !== entityA) {
                     const props = entityCollisionProps(entityA);
                     if (props) {
                         const hitbox = getHitboxFor(entityA, props);
