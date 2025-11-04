@@ -22,6 +22,13 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "offset", type: "byte", defaultValue: "0", description: "Vertical pixels between hero head and carried object (0 = pegado)." }
     ],
   },
+  {
+    id: "comp_box", name: "Box",
+    description: "Marks this entity as a carriable box that can be picked up and moved.",
+    properties: [
+      { name: "isCarriable", type: "boolean", defaultValue: "true", description: "Whether this box can be picked up by entities with comp_carry." }
+    ],
+  },
   { 
     id: "comp_render", name: "Renderable", 
     properties: [
@@ -313,7 +320,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "2" } }, 
       { definitionId: "comp_gravity", defaultValues: { strength: "80" } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
-      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 2 }}, // Example player collision
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 10 }}, // Player collision: layer 1, collides with 2 (enemies) + 8 (platforms) = 10
       { definitionId: "comp_carry", defaultValues: { offset: 0 } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
       { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", isEnabled: true }},
@@ -457,5 +464,23 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "pacman_idle", animationSpeed: "6", loops: true, isPlaying: true }}
     ],
     description: "Advanced Pac-Man player with pixel-perfect movement, 8-pixel collision checks, direction intention system, and 60fps smooth movement. Optimized for MSX Screen 2 mode with 16x16 sprites."
+  },
+  {
+    id: "tpl_box", name: "Box", icon: "📦",
+    components: [
+      { definitionId: "comp_pos", defaultValues: {x: 64, y: 64}},
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_box", isVisible: true, layer: 1 }},
+      { definitionId: "comp_box", defaultValues: { isCarriable: true }},
+      { definitionId: "comp_collision", defaultValues: {
+        hitboxWidth: 16,
+        hitboxHeight: 16,
+        offsetX: 0,
+        offsetY: 0,
+        collisionLayer: 8,  // Layer 8 = platform/wall (bit 3: 0000 1000) - entities can stand on top
+        collidesWith: 255   // Collides with all layers
+      }},
+      { definitionId: "comp_gravity", defaultValues: { strength: "80", terminalVelocity: "2" }}
+    ],
+    description: "A movable box that acts as a solid platform. Can be picked up and carried with action key (Z)."
   },
 ];

@@ -1928,24 +1928,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (isAAboveB && entityA.vy >= 0) {
                 console.log(`[PLATFORM CHECK] INSIDE IF: Checking isPlatformLayer...`);
 
-                // A is above B and falling/stationary - check if B is a platform
+                // A is above B and falling/stationary - check if B is a platform OR a box
                 const isPlatformLayer = (propsB.collisionLayer & 8) !== 0;
-                if (isPlatformLayer) {
+                const isBoxEntity = entityB.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityB.template.name);
+                if (isPlatformLayer || isBoxEntity) {
                     entityA.platformUnderneath = entityB;
-                    console.log(`[PLATFORM] ${entityA.instance.name} is on platform ${entityB.instance.name} (layer8: true, vx: ${entityB.vx}, vy: ${entityB.vy})`);
+                    console.log(`[PLATFORM] ${entityA.instance.name} is on platform/box ${entityB.instance.name} (layer8: ${isPlatformLayer}, isBox: ${isBoxEntity}, vx: ${entityB.vx}, vy: ${entityB.vy})`);
                 } else {
-                    console.log(`[PLATFORM] A is above B but B is not layer 8 (layer=${propsB.collisionLayer})`);
+                    console.log(`[PLATFORM] A is above B but B is not layer 8 or box (layer=${propsB.collisionLayer})`);
                 }
             } else if (isAAboveB) {
                 console.log(`[PLATFORM] A is above B but A.vy < 0 (A.vy=${entityA.vy})`);
             }
 
             if (isBAboveA && entityB.vy >= 0) {
-                // B is above A and falling/stationary - check if A is a platform
+                // B is above A and falling/stationary - check if A is a platform OR a box
                 const isPlatformLayer = (propsA.collisionLayer & 8) !== 0;
-                if (isPlatformLayer) {
+                const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
+                if (isPlatformLayer || isBoxEntity) {
                     entityB.platformUnderneath = entityA;
-                    console.log(`[PLATFORM] ${entityB.instance.name} is on platform ${entityA.instance.name} (layer8: true, vx: ${entityA.vx}, vy: ${entityA.vy})`);
+                    console.log(`[PLATFORM] ${entityB.instance.name} is on platform/box ${entityA.instance.name} (layer8: ${isPlatformLayer}, isBox: ${isBoxEntity}, vx: ${entityA.vx}, vy: ${entityA.vy})`);
                 }
             }
 
@@ -2201,6 +2203,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     const jumpPower = Number(jumpProps.jumpPower || 256);
                                     entityA.vy = -jumpPower / 40;
                                     jumpKeyProcessed.current = true;
+                                    // Clear platform reference when jumping to prevent infinite jumps
+                                    entityA.platformUnderneath = null;
+                                    entityA.isOnGround = false;
+                                    console.log(`[JUMP] ${entityA.instance.name} jumped with power ${jumpPower}, cleared platformUnderneath`);
                                 }
                             }
 
@@ -2216,12 +2222,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                         if (actionPressed && !actionKeyProcessed.current) {
                             if (!entityA.carriedBox) {
-                                // Try to pick up a nearby box (within 1 tile)
+                                // Try to pick up a nearby box (expanded detection area)
                                 const heroProps = entityCollisionProps(entityA);
                                 const heroHitbox = heroProps ? getHitboxFor(entityA, heroProps) : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
                                 const heroCenterX = heroHitbox.x + heroHitbox.width / 2;
                                 const heroCenterY = heroHitbox.y + heroHitbox.height / 2;
-                                const proximityPx = TILE_SIZE; // 8px
+                                const proximityPxHorizontal = TILE_SIZE * 2.5; // 20px horizontal (allows side pickup)
+                                const proximityPxDown = TILE_SIZE * 3; // 24px down (can pick box underneath)
+                                const proximityPxUp = TILE_SIZE; // 8px up
 
                                 const candidate = entitiesRef.current.find(e => (
                                     e !== entityA && isBoxEntity(e) && e !== heroRef.current?.carriedBox
@@ -2230,7 +2238,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     const boxHitbox = boxProps ? getHitboxFor(e, boxProps) : { x: e.x, y: e.y, width: e.sprite.size.width, height: e.sprite.size.height };
                                     const boxCenterX = boxHitbox.x + boxHitbox.width / 2;
                                     const boxCenterY = boxHitbox.y + boxHitbox.height / 2;
-                                    return Math.abs(boxCenterX - heroCenterX) <= proximityPx && Math.abs(boxCenterY - heroCenterY) <= proximityPx;
+                                    const deltaX = Math.abs(boxCenterX - heroCenterX);
+                                    const deltaY = boxCenterY - heroCenterY; // positive if box is below hero
+
+                                    // Extended pickup zone: normal range horizontally, but larger range downward
+                                    const inRangeX = deltaX <= proximityPxHorizontal;
+                                    const inRangeY = (deltaY >= -proximityPxUp && deltaY <= proximityPxDown);
+                                    return inRangeX && inRangeY;
                                 })());
 
                                 if (candidate) {
@@ -2316,6 +2330,17 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                       const terminalVelocity = Number(gravityProps.terminalVelocity ?? 2);
                       entityA.vy += strength;
                       if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
+                    }
+
+                    // --- Friction (for boxes on ground) ---
+                    const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
+                    if (!skipPhysics && isBoxEntity && entityA.isOnGround) {
+                        const frictionCoeff = 0.85; // Friction coefficient (lower = more friction, 1 = no friction)
+                        entityA.vx *= frictionCoeff;
+                        // Stop completely when velocity is very small (avoid infinite sliding)
+                        if (Math.abs(entityA.vx) < 0.1) {
+                            entityA.vx = 0;
+                        }
                     }
 
                     // --- 2. Resolver ColisiÃƒÂ³n y Aplicar Nueva PosiciÃƒÂ³n ---
@@ -2500,10 +2525,44 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             entityA.platformUnderneath = null;
                         }
                     } else {
-                        // Not a multi-screen platform: preserve link briefly to avoid desync/jitter
-                        // Keep the previous platform reference during grace frames so the player continues riding smoothly
-                        if (!entityA.platformGraceFramesLeft || entityA.platformGraceFramesLeft <= 0) {
-                            entityA.platformUnderneath = null; // Clear and will be reset during collision if still on platform
+                        // Not a multi-screen platform: verify if still on platform
+                        // Check if player is jumping (vy < -2) - if so, clear immediately
+                        const isJumping = entityA.vy < -2;
+                        if (isJumping) {
+                            console.log(`[PLATFORM] Player is jumping (vy=${entityA.vy}), clearing platformUnderneath`);
+                            entityA.platformUnderneath = null;
+                        } else if (entityA.platformUnderneath) {
+                            // Verify if player still has horizontal support under their feet
+                            const platform = entityA.platformUnderneath;
+                            const propsA = entityCollisionProps(entityA);
+                            const propsB = entityCollisionProps(platform);
+
+                            if (propsA && propsB) {
+                                // Get hitboxes in local screen space
+                                const playerHitbox = getHitboxFor(entityA, propsA);
+                                const platformHitbox = getHitboxFor(platform, propsB);
+
+                                // Check if player's feet are above platform's top (with small tolerance)
+                                const playerBottom = playerHitbox.y + playerHitbox.height;
+                                const platformTop = platformHitbox.y;
+                                const isAbovePlatform = playerBottom <= (platformTop + 4); // 4px tolerance
+
+                                // Check horizontal overlap (player's feet must be over the platform)
+                                const horizontalOverlap =
+                                    playerHitbox.x < (platformHitbox.x + platformHitbox.width) &&
+                                    (playerHitbox.x + playerHitbox.width) > platformHitbox.x;
+
+                                const stillOnPlatform = isAbovePlatform && horizontalOverlap;
+
+                                if (!stillOnPlatform) {
+                                    console.log(`[PLATFORM] Player walked off platform ${platform.instance.name}: above=${isAbovePlatform}, overlap=${horizontalOverlap}`);
+                                    entityA.platformUnderneath = null;
+                                    entityA.platformGraceFramesLeft = 0; // Clear grace frames too
+                                }
+                            } else {
+                                // Can't verify, clear the link
+                                entityA.platformUnderneath = null;
+                            }
                         }
                     }
 
