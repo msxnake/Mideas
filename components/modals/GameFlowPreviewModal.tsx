@@ -128,6 +128,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Collectible items persistence registry: tracks which items have been collected from their original screens
     // Key: "${screenId}_${entityInstanceId}", Value: true if collected (should not respawn)
     const collectedItemsRegistry = useRef<Set<string>>(new Set());
+    // Secret passage tiles registry: tracks which background tiles have been revealed (made invisible)
+    // Key: "${screenId}_${x}_${y}", Value: true if revealed (should stay hidden)
+    const revealedSecretTiles = useRef<Set<string>>(new Set());
+    // Visual effects for secret discovery (sparkles/particles)
+    const secretDiscoveryEffects = useRef<Array<{x: number, y: number, lifetime: number, maxLifetime: number}>>([]);
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
@@ -1513,6 +1518,21 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                  ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                  if (tileBufferRef.current) {
                      ctx.drawImage(tileBufferRef.current, 0, 0); // Dibujar buffer pre-renderizado
+
+                     // Hide revealed secret tiles
+                     if (currentScreenMapRef.current) {
+                         ctx.fillStyle = '#000000';
+                         revealedSecretTiles.current.forEach((key) => {
+                             const parts = key.split('_');
+                             const screenId = parts.slice(0, -2).join('_');
+                             const tx = parseInt(parts[parts.length - 2], 10);
+                             const ty = parseInt(parts[parts.length - 1], 10);
+
+                             if (screenId === currentScreenMapRef.current?.id) {
+                                 ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                             }
+                         });
+                     }
                  }
              }
             switch (currentNode.type) {
@@ -2041,6 +2061,22 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // Dibujar el fondo pre-renderizado (tiles)
             if (tileBufferRef.current) {
                 ctx.drawImage(tileBufferRef.current, 0, 0);
+
+                // Hide revealed secret tiles by drawing black rectangles over them
+                if (currentScreenMapRef.current) {
+                    ctx.fillStyle = '#000000'; // Background color
+                    revealedSecretTiles.current.forEach((key) => {
+                        const parts = key.split('_');
+                        const screenId = parts.slice(0, -2).join('_');
+                        const tx = parseInt(parts[parts.length - 2], 10);
+                        const ty = parseInt(parts[parts.length - 1], 10);
+
+                        if (screenId === currentScreenMapRef.current?.id) {
+                            // Draw black rectangle to hide this tile
+                            ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                        }
+                    });
+                }
             } else {
                 // Si no hay buffer (por ejemplo, en nodos de texto), limpiar y dibujar fondo
                 ctx.fillStyle = '#000000'; // Color por defecto
@@ -2124,7 +2160,52 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     entityA.isOnGround = false;
                 }
 
-                // --- 0.5. Procesar eventos de colisiÃƒÂ³n (State Machine transitions) ---
+                // --- 0.5. Detect Secret Passages ---
+                // When player overlaps a background tile that has no collision, reveal it
+                if (entityA === heroRef.current && screenMapToRender && currentScreenMapRef.current) {
+                    const playerTileX = Math.floor(entityA.x / TILE_SIZE);
+                    const playerTileY = Math.floor(entityA.y / TILE_SIZE);
+
+                    // Check if there's a background tile but no collision tile
+                    const bgTile = screenMapToRender.layers.background[playerTileY]?.[playerTileX];
+                    const collTile = screenMapToRender.layers.collision[playerTileY]?.[playerTileX];
+
+                    if (bgTile?.tileId && (!collTile?.tileId || !checkCollisionAt(entityA.x + 4, entityA.y + 4, screenMapToRender))) {
+                        // Player is in a secret passage! Reveal nearby background tiles
+                        const revealRadius = 2; // Reveal 2 tiles around player
+                        for (let dy = -revealRadius; dy <= revealRadius; dy++) {
+                            for (let dx = -revealRadius; dx <= revealRadius; dx++) {
+                                const tx = playerTileX + dx;
+                                const ty = playerTileY + dy;
+
+                                if (ty >= 0 && ty < screenMapToRender.height && tx >= 0 && tx < screenMapToRender.width) {
+                                    const bgTileCheck = screenMapToRender.layers.background[ty]?.[tx];
+                                    const collTileCheck = screenMapToRender.layers.collision[ty]?.[tx];
+
+                                    // Only reveal if there's background but no solid collision
+                                    if (bgTileCheck?.tileId && !collTileCheck?.tileId) {
+                                        const key = `${currentScreenMapRef.current.id}_${tx}_${ty}`;
+                                        if (!revealedSecretTiles.current.has(key)) {
+                                            revealedSecretTiles.current.add(key);
+                                            console.log(`🔍 Secret tile revealed at (${tx}, ${ty})`);
+                                            tileBufferNeedsUpdate.current = false; // Don't force re-render, just hide tiles
+
+                                            // Add sparkle effect for discovered secret tile
+                                            secretDiscoveryEffects.current.push({
+                                                x: tx * TILE_SIZE + TILE_SIZE / 2,
+                                                y: ty * TILE_SIZE + TILE_SIZE / 2,
+                                                lifetime: 0,
+                                                maxLifetime: 1000 // 1 second
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- 0.6. Procesar eventos de colisiÃƒÂ³n (State Machine transitions) ---
                 processEventTransitions(entityA);
 
                 // --- 1. Actualizar Velocidad ---
@@ -3158,6 +3239,31 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
             });
 
+            // --- Render Secret Discovery Effects (Sparkles) ---
+            const deltaTime = 16; // Approximate frame time
+            secretDiscoveryEffects.current = secretDiscoveryEffects.current.filter(effect => {
+                effect.lifetime += deltaTime;
+                if (effect.lifetime > effect.maxLifetime) {
+                    return false; // Remove expired effects
+                }
+
+                // Draw sparkle effect
+                const progress = effect.lifetime / effect.maxLifetime;
+                const alpha = 1 - progress; // Fade out
+                const size = 3 + Math.sin(progress * Math.PI) * 3; // Pulse size
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = '#FFFF00'; // Yellow sparkle
+
+                // Draw cross shape
+                ctx.fillRect(effect.x - size, effect.y - 1, size * 2, 2);
+                ctx.fillRect(effect.x - 1, effect.y - size, 2, size * 2);
+
+                ctx.restore();
+                return true; // Keep effect
+            });
+
             // --- Remove destroyed entities ---
             entitiesRef.current = entitiesRef.current.filter(e => !e.markedForDestruction);
 
@@ -3196,6 +3302,21 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                 if (tileBufferRef.current) { // Dibujar buffer estÃƒÂ¡tico
                     ctx.drawImage(tileBufferRef.current, 0, 0);
+
+                    // Hide revealed secret tiles
+                    if (currentScreenMapRef.current) {
+                        ctx.fillStyle = '#000000';
+                        revealedSecretTiles.current.forEach((key) => {
+                            const parts = key.split('_');
+                            const screenId = parts.slice(0, -2).join('_');
+                            const tx = parseInt(parts[parts.length - 2], 10);
+                            const ty = parseInt(parts[parts.length - 1], 10);
+
+                            if (screenId === currentScreenMapRef.current?.id) {
+                                ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                            }
+                        });
+                    }
                 } else {
                     // Si no hay buffer, dibujar fondo por defecto
                      ctx.fillStyle = '#000000';
