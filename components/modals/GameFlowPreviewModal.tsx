@@ -76,6 +76,8 @@ interface AnimatedEntity {
     platformGraceFramesLeft?: number; // Small grace period to keep grounded after brief de-anchoring
     // Carry mechanics
     carriedBox?: AnimatedEntity | null; // Reference to the box currently carried (only meaningful for hero)
+    // Box persistence
+    ownerScreenId?: string | null; // For Box entities: which screen this box belongs to (null if being carried)
 }
 
 interface GameFlowPreviewModalProps {
@@ -120,6 +122,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const jumpKeyProcessed = useRef<boolean>(false);
     const actionKeyProcessed = useRef<boolean>(false); // For pickup/drop action debouncing (e.g., KeyZ)
     const pendingEvents = useRef<Map<string, Set<string>>>(new Map()); // entityId -> Set of event names
+    // Box persistence registry: tracks which boxes have been picked up from their original screens
+    // Key: "${screenId}_${entityInstanceId}", Value: true if picked up (should not respawn)
+    const boxPickedUpRegistry = useRef<Set<string>>(new Set());
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
@@ -209,7 +214,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // Ã¢Å“â€¦ Marcar que el buffer necesita actualizaciÃƒÂ³n en el prÃƒÂ³ximo frame
         tileBufferNeedsUpdate.current = true;
 
-        console.log(`[TILE MOD] Modified tile at (${tileX}, ${tileY}) Ã¢â€ â€™ ${newTileId || 'empty'}`);
     }, []);
 
     // Disparar un evento para una entidad
@@ -218,7 +222,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             pendingEvents.current.set(entityId, new Set());
         }
         pendingEvents.current.get(entityId)!.add(eventName);
-        console.log(`[EVENT] Triggered "${eventName}" for entity ${entityId}`);
     }, []);
 
     // Evaluar si una condiciÃƒÂ³n se cumple basada en el estado de la entidad
@@ -233,7 +236,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const key = condition.params?.key;
                 if (!key) return false;
                 const isPressed = pressedKeys.current.has(key);
-                // console.log(`[KEY_PRESSED] Checking key "${key}": ${isPressed ? 'Ã¢Å“â€œ PRESSED' : 'Ã¢Å“â€” not pressed'} (current keys: ${Array.from(pressedKeys.current).join(', ')})`);
                 return isPressed;
 
             case 'HAS_COLLISION':
@@ -292,7 +294,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (transition.conditions && evaluateCondition(transition.conditions, entity)) {
                 const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
                 if (nextState) {
-                    console.log(`[STATE MACHINE] ${entity.instance.name}: Condition met, transitioning from ${entity.currentState} to ${nextState.name}`);
                     entity.currentState = nextState.name;
 
                     // Aplicar propiedades del nuevo estado
@@ -308,7 +309,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 case 'SET_VELOCITY':
                                     entity.vx = action.params.x || 0;
                                     entity.vy = action.params.y || 0;
-                                    console.log(`[ACTION] SET_VELOCITY: vx=${entity.vx}, vy=${entity.vy}`);
                                     break;
 
                                 case 'CHANGE_SPRITE':
@@ -347,7 +347,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             // Load images asynchronously
                                             Promise.all(imageLoadPromises).then((loadedImages) => {
                                                 entity.frameImages = loadedImages;
-                                                console.log(`[ACTION] CHANGE_SPRITE: Successfully loaded sprite "${spriteName}" with ${loadedImages.length} frames`);
                                             }).catch(() => {
                                                 console.error(`[ACTION] CHANGE_SPRITE: Failed to load some frames for "${spriteName}"`);
                                             });
@@ -375,7 +374,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                                 // Load mirrored images asynchronously
                                                 Promise.all(mirroredImageLoadPromises).then((loadedMirroredImages) => {
                                                     entity.mirroredFrameImages = loadedMirroredImages;
-                                                    console.log(`[ACTION] CHANGE_SPRITE: Successfully loaded mirrored frames for sprite "${spriteName}"`);
                                                 }).catch(() => {
                                                     console.error(`[ACTION] CHANGE_SPRITE: Failed to load some mirrored frames for "${spriteName}"`);
                                                 });
@@ -384,7 +382,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                                 entity.mirroredFrameImages = undefined;
                                             }
 
-                                            console.log(`[ACTION] CHANGE_SPRITE: Changing to sprite "${spriteName}"...`);
                                         } else {
                                             const availableSprites = allAssets.filter(a => a.type === 'sprite').map(a => a.data.name);
                                             console.warn(`[ACTION] CHANGE_SPRITE: Sprite "${spriteName}" not found. Available sprites:`, availableSprites);
@@ -396,40 +393,33 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                 case 'PLAY_ANIMATION':
                                     const animName = action.params.animationName;
-                                    console.log(`[ACTION] PLAY_ANIMATION: ${animName} (not fully implemented)`);
                                     // TODO: Implement animation system if needed
                                     break;
 
                                 case 'DESTROY_ENTITY':
                                     entity.markedForDestruction = true;
-                                    console.log(`[ACTION] DESTROY_ENTITY: Marked ${entity.instance.name} for destruction`);
                                     break;
 
                                 case 'SET_POSITION':
                                     if (action.params.x !== undefined) entity.x = Number(action.params.x);
                                     if (action.params.y !== undefined) entity.y = Number(action.params.y);
-                                    console.log(`[ACTION] SET_POSITION: x=${entity.x}, y=${entity.y}`);
                                     break;
 
                                 case 'MOVE_BY':
                                     entity.x += Number(action.params.x || 0);
                                     entity.y += Number(action.params.y || 0);
-                                    console.log(`[ACTION] MOVE_BY: dx=${action.params.x}, dy=${action.params.y}`);
                                     break;
 
                                 case 'SET_VARIABLE':
                                     // TODO: Implement global variables system
-                                    console.log(`[ACTION] SET_VARIABLE: ${action.params.variableName} = ${action.params.value}`);
                                     break;
 
                                 case 'INCREMENT_VARIABLE':
                                     // TODO: Implement global variables system
-                                    console.log(`[ACTION] INCREMENT_VARIABLE: ${action.params.variableName} += ${action.params.amount}`);
                                     break;
 
                                 case 'DECREMENT_VARIABLE':
                                     // TODO: Implement global variables system
-                                    console.log(`[ACTION] DECREMENT_VARIABLE: ${action.params.variableName} -= ${action.params.amount}`);
                                     break;
 
                                 case 'CHANGE_GAME_FLOW_NODE':
@@ -440,7 +430,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         const startNode = nodes.find(n => n.type === 'Start');
                                         if (startNode) {
                                             targetNodeId = startNode.id;
-                                            console.log(`[ACTION] CHANGE_GAME_FLOW_NODE: "START" resolved to node "${targetNodeId}"`);
                                         } else {
                                             console.warn(`[ACTION] CHANGE_GAME_FLOW_NODE: No Start node found in graph`);
                                             break;
@@ -448,7 +437,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     }
 
                                     if (targetNodeId) {
-                                        console.log(`[ACTION] CHANGE_GAME_FLOW_NODE: Navigating to node "${targetNodeId}"`);
                                         // Store the target node for deferred navigation (after frame completes)
                                         (entity as any).pendingNodeTransition = targetNodeId;
                                     } else {
@@ -471,7 +459,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         }
                                         entity.instance.componentOverrides['comp_health'].current = newLives;
 
-                                        console.log(`[ACTION] DECREASE_LIVES: ${currentLives} Ã¢â€ â€™ ${newLives} (decreased by ${decreaseAmount})`);
                                     } else {
                                         console.warn(`[ACTION] DECREASE_LIVES: Entity has no comp_health component`);
                                     }
@@ -492,7 +479,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         }
                                         entity.instance.componentOverrides['comp_health'].current = newLives;
 
-                                        console.log(`[ACTION] INCREASE_LIVES: ${currentLives} Ã¢â€ â€™ ${newLives} (increased by ${increaseAmount})`);
                                     } else {
                                         console.warn(`[ACTION] INCREASE_LIVES: Entity has no comp_health component`);
                                     }
@@ -507,15 +493,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     spawnX = Number(gameGlobalVariables.playerCheckpointX);
                                     spawnY = Number(gameGlobalVariables.playerCheckpointY);
                                     targetScreenId = gameGlobalVariables.playerCheckpointScreen;
-                                    console.log(`[ACTION] RESPAWN_PLAYER: Using checkpoint at (${spawnX}, ${spawnY}) on screen ${targetScreenId}`);
                                 } else if (action.params.x !== undefined || action.params.y !== undefined) {
                                     spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
                                     spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
-                                    console.log(`[ACTION] RESPAWN_PLAYER: Using action params at (${spawnX}, ${spawnY})`);
                                 } else {
                                     spawnX = entity.instance.position.x * 8;
                                     spawnY = entity.instance.position.y * 8;
-                                    console.log(`[ACTION] RESPAWN_PLAYER: Using initial position at (${spawnX}, ${spawnY})`);
                                 }
 
                                 const currentScreenMap = currentScreenMapRef.current;
@@ -523,7 +506,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                 // Ã¢Å“â€¦ Si el checkpoint pertenece a otra pantalla, cambiar a ella
                                 if (targetScreenId && currentScreenMap?.id !== targetScreenId) {
-                                    console.log(`[ACTION] RESPAWN_PLAYER: Switching to screen ${targetScreenId} before respawning`);
                                     const setPlayerEntryPoint = setPlayerEntryPointRef.current;
                                     const handleScreenTransition = handleScreenTransitionRef.current;
 
@@ -546,7 +528,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 entity.y = spawnY;
                                 entity.vx = 0;
                                 entity.vy = 0;
-                                console.log(`[ACTION] RESPAWN_PLAYER: Player respawned at (${spawnX}, ${spawnY})`);
                                 break;
                             }
 
@@ -587,25 +568,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             // Solo romper si el tile es breakable
                                             if (tileData?.logicalProperties?.isBreakable) {
                                                 modifyTileInLayer(targetTileX, targetTileY, null);
-                                                console.log(`[ACTION] BREAK_TILE: Broke tile at (${targetTileX}, ${targetTileY})`);
                                             } else {
-                                                console.log(`[ACTION] BREAK_TILE: Tile not breakable at (${targetTileX}, ${targetTileY})`);
                                             }
                                         } else if (action.type === 'REPLACE_TILE') {
                                             // Reemplazar con nuevo tile
                                             const newTileId = params.replacementTileId || null;
                                             modifyTileInLayer(targetTileX, targetTileY, newTileId);
-                                            console.log(`[ACTION] REPLACE_TILE: Replaced tile at (${targetTileX}, ${targetTileY}) with ${newTileId || 'empty'}`);
                                         }
                                     } else if (!targetTile?.tileId && action.type === 'REPLACE_TILE') {
                                         // Permitir colocar tile en espacio vacÃƒÂ­o
                                         const newTileId = params.replacementTileId || null;
                                         if (newTileId) {
                                             modifyTileInLayer(targetTileX, targetTileY, newTileId);
-                                            console.log(`[ACTION] REPLACE_TILE: Placed tile at empty position (${targetTileX}, ${targetTileY})`);
                                         }
                                     } else {
-                                        console.log(`[ACTION] ${action.type}: No tile at target position (${targetTileX}, ${targetTileY})`);
                                     }
                                     break;
                                 }
@@ -631,7 +607,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
         const entity = entitiesRef.current.find(e => e.instance.id === entityId);
         if (!entity) {
-            console.log(`Entity ${entityId} not found`);
             return;
         }
         if (!entity.stateMachine) {
@@ -639,15 +614,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return;
         }
         if (!entity.currentState) {
-            console.log(`Entity ${entityId} has no current state`);
             return;
         }
         const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
         if (!currentStateDef) {
-            console.log(`Current state ${entity.currentState} not found in state machine`);
             return;
         }
-        console.log(`Entity ${entityId}: Current state = ${entity.currentState}, Key = ${pressedKey}, KeyDown = ${isKeyDown}`);
         for (const transition of entity.stateMachine.transitions) {
             if (transition.fromStateId !== currentStateDef.id) continue;
             const condition = transition.conditions;
@@ -661,14 +633,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (conditionMet) {
                 const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
                 if (nextState) {
-                    console.log(`Transitioning from ${entity.currentState} to ${nextState.name}`);
                     entity.currentState = nextState.name;
                     if (transition.actions) {
                         for (const action of transition.actions) {
                             if (action.type === 'SET_VELOCITY') {
                                 entity.vx = action.params.x || 0;
                                 entity.vy = action.params.y || 0;
-                                console.log(`Setting velocity: x=${entity.vx}, y=${entity.vy}`);
                             }
                         }
                     }
@@ -739,7 +709,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 ...prev,
                 [selectedOption.globalVariableName!]: selectedExpanded.controlValue
             }));
-            console.log(`Global variable ${selectedOption.globalVariableName} set to: ${selectedExpanded.controlValue}`);
         }
         const connection = connections.find(c => c.from.nodeId === currentNode.id && c.from.sourceId === selectedOption.id);
         if (connection) {
@@ -909,26 +878,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Build screen world map when WorldMapGraph changes
     useEffect(() => {
         if (currentWorldMapGraph) {
-            console.log('[Multi-Screen] WorldMapGraph nodes:', currentWorldMapGraph.nodes.length);
-            console.log('[Multi-Screen] WorldMapGraph connections:', currentWorldMapGraph.connections.length);
 
             // Log all nodes
             currentWorldMapGraph.nodes.forEach(node => {
-                console.log(`[Multi-Screen] Node ${node.id}: screenAssetId=${node.screenAssetId}`);
             });
 
             // Log all connections
             currentWorldMapGraph.connections.forEach(conn => {
-                console.log(`[Multi-Screen] Connection: ${conn.fromNodeId} (${conn.fromDirection}) -> ${conn.toNodeId} (${conn.toDirection})`);
             });
 
             const screenWorldMap = buildScreenWorldMap(currentWorldMapGraph);
             screenWorldMapRef.current = screenWorldMap;
-            console.log('[Multi-Screen] Screen world map built:', screenWorldMap.size, 'screens');
 
             // Log all screen positions
             screenWorldMap.forEach((pos, screenId) => {
-                console.log(`[Multi-Screen] Screen ${screenId}: globalX=${pos.globalX}, globalY=${pos.globalY}`);
             });
         } else {
             screenWorldMapRef.current = new Map();
@@ -962,16 +925,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         setPlayerEntryPointRef.current = setPlayerEntryPoint;
         handleScreenTransitionRef.current = handleScreenTransition;
 
-        console.log(`[Effect] Loading screen: ${currentScreenMap.name}`);
-        console.log('[Effect] Entry point on load:', playerEntryPoint);
 
         // Initialize runtime collision layer (cloned from screenMap for in-game modifications)
         if (currentScreenMap.layers?.collision) {
             const clonedLayer = JSON.parse(JSON.stringify(currentScreenMap.layers.collision));
-            console.log('[TILE SYSTEM] Collision layer initialized for runtime modifications');
-            console.log('[TILE SYSTEM] Original collision layer sample [16][17]:', currentScreenMap.layers.collision[16]?.[17]);
-            console.log('[TILE SYSTEM] Cloned collision layer sample [16][17]:', clonedLayer[16]?.[17]);
-            console.log('[TILE SYSTEM] Collision layer dimensions:', currentScreenMap.layers.collision.length, 'x', currentScreenMap.layers.collision[0]?.length);
             runtimeCollisionLayerRef.current = clonedLayer; // Update ref immediately for synchronous access
             setRuntimeCollisionLayer(clonedLayer);
         } else {
@@ -981,7 +938,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             );
             runtimeCollisionLayerRef.current = emptyLayer; // Update ref immediately for synchronous access
             setRuntimeCollisionLayer(emptyLayer);
-            console.log('[TILE SYSTEM] Created empty collision layer');
         }
 
         const getAsset = <T extends AssetType>(assetId: string | null | undefined, assetType: T): ProjectAsset | undefined => {
@@ -1044,7 +1000,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     if (!initialState && startStateId) initialState = stateMachine.states.find(s => s.name === startStateId);
                     if (!initialState) initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
                     currentState = initialState?.name;
-                    console.log(`[ENTITY INIT] ${instance.name}: State Machine initialized to "${currentState}" (stateId: ${initialState?.id})`);
                 }
             }
             // Merge patrol component defaultValues with componentOverrides
@@ -1056,7 +1011,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             let startX = instance.position.x * TILE_SIZE;
             let startY = instance.position.y * TILE_SIZE;
 
-            console.log(`[ENTITY INIT] ${instance.name}: instance.position=(${instance.position.x}, ${instance.position.y}), pixels=(${startX}, ${startY})`);
 
             let vx = 0, vy = 0;
             if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
@@ -1067,7 +1021,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Calcular direcciÃƒÂ³n hacia waypoint2
                 const endX = Number(patrolComp.waypoint2_x ?? startX);
                 const endY = Number(patrolComp.waypoint2_y ?? startY);
-                console.log(`[ENTITY INIT] ${instance.name} has patrol: waypoint1=(${startX}, ${startY}), waypoint2=(${endX}, ${endY}), multiScreen=${patrolComp.multiScreen}`);
 
                 const dx = endX - startX;
                 const dy = endY - startY;
@@ -1080,7 +1033,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     vy = (dy / dist) * speed;
                 }
 
-                console.log(`[ENTITY INIT] ${instance.name} patrol velocity: vx=${vx}, vy=${vy} (speed=${speed}, distance=${dist.toFixed(2)})`);
             }
 
             // Initialize multi-screen properties if enabled
@@ -1091,14 +1043,23 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (patrolComp?.multiScreen === true || patrolComp?.multiScreen === 'true') {
                 originScreenId = currentScreenMap.id;
                 const screenPos = screenWorldMapRef.current.get(currentScreenMap.id);
-                console.log(`[Multi-Screen INIT] ${instance.name}: screenPos=`, screenPos, `startX=${startX}, startY=${startY}`);
                 if (screenPos) {
                     globalX = screenPos.globalX + startX;
                     globalY = screenPos.globalY + startY;
-                    console.log(`[Multi-Screen INIT] ${instance.name}: screenPos.globalX=${screenPos.globalX}, screenPos.globalY=${screenPos.globalY}`);
-                    console.log(`[Multi-Screen INIT] ${instance.name}: local=(${startX}, ${startY}), global=(${globalX}, ${globalY}), originScreen=${originScreenId}`);
                 } else {
                     console.error(`[Multi-Screen INIT] ${instance.name}: screenPos is null/undefined for screen ${currentScreenMap.id}`);
+                }
+            }
+
+            // Initialize ownerScreenId for Box entities (screen persistence)
+            const isBoxEntity = template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(template.name);
+            const ownerScreenId = isBoxEntity ? currentScreenMap.id : undefined;
+
+            // Skip Box entities that have already been picked up from this screen
+            if (isBoxEntity && ownerScreenId) {
+                const registryKey = `${ownerScreenId}_${instance.id}`;
+                if (boxPickedUpRegistry.current.has(registryKey)) {
+                    return null; // This box was already picked up, don't respawn it
                 }
             }
 
@@ -1106,12 +1067,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
                 stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
-                globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0
+                globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
+                ownerScreenId
             };
 
             // Debug log for multi-screen entities
             if (globalX !== undefined || globalY !== undefined) {
-                console.log(`[ENTITY CREATED] ${instance.name}: x=${startX}, y=${startY}, globalX=${globalX}, globalY=${globalY}, originScreen=${originScreenId}`);
             }
 
             return newEntity;
@@ -1122,14 +1083,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
         // Si hay playerEntryPoint (cruce de borde), SIEMPRE usar el hero actual (carry over)
         if (playerEntryPoint && heroRef.current) {
-            console.log('[Effect] Border crossing detected. Carrying over hero:', heroRef.current.instance.name);
 
             // IMPORTANTE: Remover el player nativo si existe, para evitar duplicados
             entitiesToAnimate = entitiesToAnimate.filter(e =>
                 !e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') &&
                 e.template.name !== 'Player'
             );
-            console.log('[Effect] Native hero removed from array to avoid duplicates');
 
             entitiesToAnimate.push(heroRef.current);
             // Also carry over any carried box
@@ -1143,9 +1102,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         } else {
             // Si NO hay playerEntryPoint, buscar hero nativo o usar carry over
             heroForThisScreen = entitiesToAnimate.find(e => e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') || e.template.name === 'Player');
-            console.log('[Effect] Native hero found:', heroForThisScreen?.instance.name);
             if (heroRef.current && !heroForThisScreen) {
-                console.log('[Effect] No native hero. Carrying over:', heroRef.current.instance.name);
                 entitiesToAnimate.push(heroRef.current);
                 // Also carry over any carried box
                 if (heroRef.current.carriedBox) {
@@ -1160,6 +1117,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
         // === CARRY-OVER DE ENTIDADES MULTI-PANTALLA ===
         // Mantener entidades multi-pantalla entre transiciones (como plataformas)
+        // ALSO persist Box entities that have been moved to other screens
         if (entitiesRef.current.length > 0) {
             const previousMultiScreenEntities = entitiesRef.current.filter(e => {
                 if (e === heroRef.current) return false; // Hero ya se maneja por separado
@@ -1170,12 +1128,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     ...(patrolTemplateComp?.defaultValues || {}),
                     ...(e.instance.componentOverrides?.comp_patrol || {})
                 };
+                const isMultiScreenPatrol = patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
 
-                return patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
+                // Also keep Box entities that have ownerScreenId (belong to a specific screen)
+                const isBox = e.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(e.template.name);
+                const boxHasOwner = isBox && e.ownerScreenId !== undefined;
+
+                return isMultiScreenPatrol || boxHasOwner;
             });
 
             if (previousMultiScreenEntities.length > 0) {
-                console.log(`[Multi-Screen Carry-Over] Found ${previousMultiScreenEntities.length} multi-screen entities to carry over`);
 
                 // IMPORTANT: Remove native entities that have same instance.id as multi-screen entities
                 // to avoid duplicates when returning to a screen
@@ -1184,14 +1146,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 entitiesToAnimate = entitiesToAnimate.filter(e => {
                     const isDuplicate = multiScreenInstanceIds.has(e.instance.id);
                     if (isDuplicate) {
-                        console.log(`[Multi-Screen Carry-Over] Removing duplicate native entity ${e.instance.name} (id: ${e.instance.id})`);
                     }
                     return !isDuplicate;
                 });
-                console.log(`[Multi-Screen Carry-Over] Removed ${originalCount - entitiesToAnimate.length} duplicate native entities`);
 
                 previousMultiScreenEntities.forEach(entity => {
-                    console.log(`[Multi-Screen Carry-Over] Processing ${entity.instance.name}: globalX=${entity.globalX}, globalY=${entity.globalY}`);
 
                     // Update local coordinates from global coordinates for new screen
                     if (entity.globalX !== undefined && entity.globalY !== undefined) {
@@ -1204,12 +1163,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             // Entity is visible in current screen
                             entity.x = localCoord.x;
                             entity.y = localCoord.y;
-                            console.log(`[Multi-Screen Carry-Over] ${entity.instance.name} visible in screen ${currentScreenMap.id}: local=(${entity.x}, ${entity.y}), global=(${entity.globalX}, ${entity.globalY})`);
                         } else {
                             // Entity is in another screen - position off-screen but keep in memory
                             entity.x = -1000;
                             entity.y = -1000;
-                            console.log(`[Multi-Screen Carry-Over] ${entity.instance.name} in different screen ${localCoord?.screenId}, hiding off-screen`);
                         }
                     } else {
                         console.error(`[Multi-Screen Carry-Over] PROBLEM: ${entity.instance.name} has undefined global coords! globalX=${entity.globalX}, globalY=${entity.globalY}`);
@@ -1236,7 +1193,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             }
                             entity.currentFrame = 0;
                             entity.lastFrameUpdateTime = 0;
-                            console.log(`[Multi-Screen Carry-Over] Rebuilt frame images for ${entity.instance.name}`);
                         }
                     } catch (err) {
                         console.error(`[Multi-Screen Carry-Over] Failed to ensure frames for ${entity.instance.name}:`, err);
@@ -1261,12 +1217,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 heroForThisScreen.vy = 0;
                 checkpointX = Math.round(playerEntryPoint.x);
                 checkpointY = Math.round(playerEntryPoint.y);
-                console.log(`[CHECKPOINT] Saved border entry: (${checkpointX}, ${checkpointY})`);
             } else {
                 // Carga inicial Ã¢â€ â€™ usar posiciÃƒÂ³n del hÃƒÂ©roe
                 checkpointX = Math.round(heroForThisScreen.x);
                 checkpointY = Math.round(heroForThisScreen.y);
-                console.log(`[CHECKPOINT] Saved initial position: (${checkpointX}, ${checkpointY})`);
             }
 
     // Ã¢Å“â€¦ SIEMPRE guardar, incluso si ya habÃƒÂ­a checkpoint en esta pantalla
@@ -1293,13 +1247,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         setPlayerEntryPoint(null);
         entitiesRef.current = entitiesToAnimate;
         heroRef.current = heroForThisScreen || null;
-        console.log('[Effect] Final hero ref:', heroRef.current?.instance.name);
 
         if (heroForThisScreen && playerEntryPoint) {
-            console.log('[Effect] Re-applying velocity after transition.');
             pressedKeys.current.forEach(key => {
                 if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
-                    console.log(`[Effect] Re-applying key: ${key} to hero ${heroForThisScreen!.instance.id}`);
                     checkKeyTransitions(heroForThisScreen!.instance.id, key, true);
                 }
             });
@@ -1765,7 +1716,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap) ||
                 checkCollisionAt(centerX2, tentativeHitbox.y, screenMap)) {
                 collisionY = true;
-                console.log('Collision Y detected (upwards)');
                 const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
                 const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
                 tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
@@ -1871,7 +1821,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 isTrigger
             };
 
-            // console.log(`[FINAL HITBOX] ${entity.instance.name}:`, result);
             return result;
         };
 
@@ -1910,7 +1859,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // DEBUG: Log collision details for platform detection
             const isPlatformInvolved = (propsA.collisionLayer & 8) !== 0 || (propsB.collisionLayer & 8) !== 0;
             if (isPlatformInvolved) {
-                console.log(`[COLLISION RESOLVE] ${entityA.instance.name} vs ${entityB.instance.name}: overlapX=${overlapX.toFixed(2)}, overlapY=${overlapY.toFixed(2)}, axis=${overlapX < overlapY ? 'X' : 'Y'}`);
             }
 
             // Detect platform riding BEFORE axis separation (works regardless of separation axis)
@@ -1920,25 +1868,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             // DEBUG: Log platform detection conditions
             if (isPlatformInvolved) {
-                console.log(`[PLATFORM CHECK] isAAboveB=${isAAboveB}, isBAboveA=${isBAboveA}, A.vy=${entityA.vy}, B.vy=${entityB.vy}`);
-                console.log(`[PLATFORM CHECK] A.layer=${propsA.collisionLayer}, B.layer=${propsB.collisionLayer}, B.isLayer8=${(propsB.collisionLayer & 8) !== 0}`);
-                console.log(`[PLATFORM CHECK] About to check if condition: isAAboveB(${isAAboveB}) && A.vy(${entityA.vy}) >= 0 = ${isAAboveB && entityA.vy >= 0}`);
             }
 
             if (isAAboveB && entityA.vy >= 0) {
-                console.log(`[PLATFORM CHECK] INSIDE IF: Checking isPlatformLayer...`);
 
                 // A is above B and falling/stationary - check if B is a platform OR a box
                 const isPlatformLayer = (propsB.collisionLayer & 8) !== 0;
                 const isBoxEntity = entityB.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityB.template.name);
                 if (isPlatformLayer || isBoxEntity) {
                     entityA.platformUnderneath = entityB;
-                    console.log(`[PLATFORM] ${entityA.instance.name} is on platform/box ${entityB.instance.name} (layer8: ${isPlatformLayer}, isBox: ${isBoxEntity}, vx: ${entityB.vx}, vy: ${entityB.vy})`);
                 } else {
-                    console.log(`[PLATFORM] A is above B but B is not layer 8 or box (layer=${propsB.collisionLayer})`);
                 }
             } else if (isAAboveB) {
-                console.log(`[PLATFORM] A is above B but A.vy < 0 (A.vy=${entityA.vy})`);
             }
 
             if (isBAboveA && entityB.vy >= 0) {
@@ -1947,7 +1888,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
                 if (isPlatformLayer || isBoxEntity) {
                     entityB.platformUnderneath = entityA;
-                    console.log(`[PLATFORM] ${entityB.instance.name} is on platform/box ${entityA.instance.name} (layer8: ${isPlatformLayer}, isBox: ${isBoxEntity}, vx: ${entityA.vx}, vy: ${entityA.vy})`);
                 }
             }
 
@@ -2044,7 +1984,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
                 tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode, layerToUse);
                 tileBufferNeedsUpdate.current = false;
-                console.log('[TILE BUFFER] Regenerated due to tile modification');
             }
 
             // Limpiar solo el ÃƒÂ¡rea principal
@@ -2069,18 +2008,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             // Debug: Log entities with collision component (only once per second to avoid spam)
             // if (now % 1000 < 16) { // Aproximadamente cada segundo
-            //     // console.log(`[COLLISION DEBUG] Total entities in scene: ${entitiesRef.current.length}`);
-            //     entitiesRef.current.forEach((e, idx) => {
+            ////     entitiesRef.current.forEach((e, idx) => {
             //         const hasComp = e.template.components.some(c => c.definitionId === 'comp_collision');
             //         const props = entityCollisionProps(e);
-            //         console.log(`  [${idx}] ${e.instance.name}:`);
-            //         console.log(`      Template: ${e.template.name} (id: ${e.template.id})`);
-            //         console.log(`      Has comp_collision: ${hasComp}`);
-            //         console.log(`      Components: ${e.template.components.map(c => c.definitionId).join(', ')}`);
             //         if (hasComp && props) {
-            //             console.log(`      Props: layer=${props.collisionLayer}, collidesWith=${props.collidesWith}, hitbox=${props.hitboxWidth}x${props.hitboxHeight}`);
             //         } else if (hasComp && !props) {
-            //             console.log(`      Ã¢Å¡Â Ã¯Â¸Â WARNING: Has component but props are NULL!`);
             //         }
             //     });
             // }
@@ -2089,6 +2021,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const isCarriedBox = heroRef.current?.carriedBox === entityA;
                 // Treat entities tagged as box as collidable with tiles even if they don't explicitly have comp_collision
                 const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
+
+                // Filter Box entities: only process if they belong to current screen or are being carried
+                if (isBoxEntity) {
+                    const shouldProcessBox = entityA.ownerScreenId === null || // Being carried
+                        entityA.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+
+                    if (!shouldProcessBox) {
+                        return; // Skip processing this Box (it belongs to another screen)
+                    }
+                }
                 // --- 0. Compute isOnGround based on current position ---
                 const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
                 const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
@@ -2206,7 +2148,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     // Clear platform reference when jumping to prevent infinite jumps
                                     entityA.platformUnderneath = null;
                                     entityA.isOnGround = false;
-                                    console.log(`[JUMP] ${entityA.instance.name} jumped with power ${jumpPower}, cleared platformUnderneath`);
                                 }
                             }
 
@@ -2251,7 +2192,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     entityA.carriedBox = candidate;
                                     // Freeze box motion immediately
                                     candidate.vx = 0; candidate.vy = 0;
-                                    console.log(`[ACTION] Picked up box: ${candidate.instance.name}`);
+
+                                    // Register this box as picked up from its original screen
+                                    if (candidate.ownerScreenId) {
+                                        const registryKey = `${candidate.ownerScreenId}_${candidate.instance.id}`;
+                                        boxPickedUpRegistry.current.add(registryKey);
+                                    }
+
+                                    // Remove box from its current screen (it's now being carried)
+                                    candidate.ownerScreenId = null;
                                 }
                             } else {
                                 // Drop currently carried box in front of the hero if space is free
@@ -2301,10 +2250,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         // Ensure physics re-engages after being carried
                                         box.isOnGround = false;
                                         box.platformUnderneath = null;
+                                        // Assign box to current screen
+                                        box.ownerScreenId = currentScreenMap?.id || null;
                                         entityA.carriedBox = null;
-                                        console.log(`[ACTION] Dropped box at (${dropX}, ${dropY}) with impulse vx=${box.vx}, vy=${box.vy}`);
                                     } else {
-                                        console.log('[ACTION] Cannot drop box here (collision)');
                                     }
                                 }
                             }
@@ -2427,7 +2376,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         else if (centerY > PREVIEW_HEIGHT && (effectiveVy > 0)) exitDirection = 'south';
 
                         if (exitDirection) {
-                            console.log(`[Exit Detected] Direction: ${exitDirection}`);
                             const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
                             if (currentScreenNode) {
                                 let connection = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === exitDirection);
@@ -2438,7 +2386,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 }
                                 if (targetNodeId) {
                                     let newPlayerPos = { x: entityA.x, y: entityA.y };
-                                    console.log(`[Border Crossing] Current player position: (${entityA.x}, ${entityA.y}), exit direction: ${exitDirection}`);
 
                                     // Reverted: always use margin-based entry
                                     const entryMargin = 2;
@@ -2448,7 +2395,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         case 'south': newPlayerPos.y = 0 + entryMargin; break;
                                         case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight - entryMargin; break;
                                     }
-                                    console.log(`[Border Crossing] Margin-based entry: (${newPlayerPos.x}, ${newPlayerPos.y})`);
                                     setPlayerEntryPoint(newPlayerPos);
                                     handleScreenTransition(targetNodeId);
                                     return; // Detener el procesamiento de este frame para permitir la transiciÃƒÂ³n
@@ -2465,7 +2411,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (hasCollisionComp) {
                     // Clear platform reference at start of frame - will be re-established if still colliding
                     if (entityA.platformUnderneath && !entitiesRef.current.includes(entityA.platformUnderneath)) {
-                        console.log(`[PLATFORM] Platform no longer exists for ${entityA.instance.name}`);
                         entityA.platformUnderneath = null;
                     }
                     // Store previous platform to detect when we fall off
@@ -2515,9 +2460,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             const stillOnPlatform = isAbovePlatform && horizontalOverlap && notJumping;
 
                             if (stillOnPlatform) {
-                                console.log(`[PLATFORM] Preserving multi-screen platform link for ${entityA.instance.name}`);
                             } else {
-                                console.log(`[PLATFORM] Player left multi-screen platform: above=${isAbovePlatform}, overlap=${horizontalOverlap}, notJumping=${notJumping}`);
                                 entityA.platformUnderneath = null;
                             }
                         } else {
@@ -2529,7 +2472,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         // Check if player is jumping (vy < -2) - if so, clear immediately
                         const isJumping = entityA.vy < -2;
                         if (isJumping) {
-                            console.log(`[PLATFORM] Player is jumping (vy=${entityA.vy}), clearing platformUnderneath`);
                             entityA.platformUnderneath = null;
                         } else if (entityA.platformUnderneath) {
                             // Verify if player still has horizontal support under their feet
@@ -2555,7 +2497,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 const stillOnPlatform = isAbovePlatform && horizontalOverlap;
 
                                 if (!stillOnPlatform) {
-                                    console.log(`[PLATFORM] Player walked off platform ${platform.instance.name}: above=${isAbovePlatform}, overlap=${horizontalOverlap}`);
                                     entityA.platformUnderneath = null;
                                     entityA.platformGraceFramesLeft = 0; // Clear grace frames too
                                 }
@@ -2568,7 +2509,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     // Debug log para ver si entra al loop
                     if (indexA === 0 && now % 1000 < 16) {
-                        // console.log(`[COLLISION DEBUG] Checking collisions for ${entityA.instance.name}, total entities: ${entitiesRef.current.length}`);
                     }
 
                     for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
@@ -2580,7 +2520,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const entityBHasCollision = entityB.template.components.some(c => c.definitionId === 'comp_collision');
 
                         if (indexA === 0 && now % 1000 < 16) {
-                            console.log(`  Checking entity B: ${entityB.instance.name}, hasCollision: ${entityBHasCollision}`);
                         }
 
                         if (!entityBHasCollision) continue;
@@ -2607,21 +2546,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             const entityBAge = now - entityB.spawnTime;
 
                             if (entityAAge < SPAWN_GRACE_PERIOD_MS || entityBAge < SPAWN_GRACE_PERIOD_MS) {
-                                console.log(`[COLLISION] Ignoring spawn collision between ${entityA.instance.name} (age: ${entityAAge}ms) and ${entityB.instance.name} (age: ${entityBAge}ms)`);
                                 continue; // Skip this collision pair
                             }
 
-                            // console.log('[COLLISION DEBUG] AABB overlap detected!');
-                            // console.log(`  Entity A: ${entityA.instance.name} (layer=${layerA}, collidesWith=${collidesWithA})`);
-                            // console.log(`  Entity B: ${entityB.instance.name} (layer=${layerB}, collidesWith=${collidesWithB})`);
-                            // console.log(`  HitboxA:`, hitboxA);
-                            // console.log(`  HitboxB:`, hitboxB);
 
                             // Check if layers allow collision
                             const aCanCollideWithB = (collidesWithA & layerB) !== 0;
                             const bCanCollideWithA = (collidesWithB & layerA) !== 0;
 
-                            console.log(`  Layer check: A can hit B = ${aCanCollideWithB}, B can hit A = ${bCanCollideWithA}`);
 
                             if (aCanCollideWithB && bCanCollideWithA) {
                                 // Check if either entity is a trigger
@@ -2630,7 +2562,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                 if (isATrigger || isBTrigger) {
                                     // TRIGGER COLLISION: No physical separation, only event detection
-                                    console.log(`  Ã°Å¸Å½Â¯ TRIGGER COLLISION: ${isATrigger ? entityA.instance.name : ''}${isATrigger && isBTrigger ? ' & ' : ''}${isBTrigger ? entityB.instance.name : ''} (no pushback)`);
 
                                     // Helper function: Determine collision event type based on entity layer and components
                                     const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
@@ -2675,7 +2606,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     }
                                 } else {
                                     // SOLID COLLISION: Apply physical separation
-                                    console.log(`  Ã°Å¸â€™Â¥ SOLID COLLISION: Applying physical pushback...`);
                                     resolveEntityCollision(entityA, entityB, propsA, propsB);
 
                                     // Helper function: Determine collision event type based on entity layer and components
@@ -2721,7 +2651,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     }
                                 }
                             } else {
-                                console.log(`  Ã¢ÂÅ’ Layer check failed - no collision response`);
                             }
                         }
                     }
@@ -2751,12 +2680,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                 // Debug log for coordinate updates
                                 if (now % 500 < 16) { // Log every ~500ms
-                                    console.log(`[MULTISCREEN UPDATE] ${entityA.instance.name}: global=(${oldGlobalX.toFixed(1)}, ${oldGlobalY.toFixed(1)}) -> (${entityA.globalX.toFixed(1)}, ${entityA.globalY.toFixed(1)}), velocity=(${entityA.vx}, ${entityA.vy})`);
                                 }
 
                                 // Debug: log when crossing screen boundaries
                                 if ((entityA.x < -50 || entityA.x > PREVIEW_WIDTH + 50) && now % 500 < 16) {
-                                    console.log(`[MULTISCREEN] ${entityA.instance.name}: globalX=${entityA.globalX.toFixed(1)}, localX=${entityA.x.toFixed(1)}, vx=${entityA.vx}`);
                                 }
 
                                 // Waypoints are in local coordinates relative to origin screen
@@ -2824,7 +2751,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const platformToFollow = entityA.platformUnderneath;
                     if (platformToFollow) {
                         entityA.isOnGround = true;
-                        console.log(`[PLATFORM] ${entityA.instance.name} is on ground via platform ${platformToFollow.instance.name}`);
 
                         // Transfer platform velocity if standing on a moving platform
                         if (entityA === heroRef.current) {
@@ -2840,10 +2766,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             if (isMultiScreenPlatform) {
                                 // Link player to platform
                                 entityA.parentEntityId = platformToFollow.instance.id;
-                                console.log(`[Multi-Screen PLATFORM] Player linked to platform ${platformToFollow.instance.name}`);
 
                                 // Sync global coordinates if platform has them
-                                console.log(`[Multi-Screen PLATFORM] Platform global coords: globalX=${platformToFollow.globalX}, globalY=${platformToFollow.globalY}`);
                                 if (platformToFollow.globalX !== undefined && platformToFollow.globalY !== undefined) {
                                     // Initialize player's global coordinates if not set
                                     if (entityA.globalX === undefined || entityA.globalY === undefined) {
@@ -2852,7 +2776,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             entityA.globalX = currentScreenPos.globalX + entityA.x;
                                             entityA.globalY = currentScreenPos.globalY + entityA.y;
                                             entityA.originScreenId = currentScreenMap.id;
-                                            console.log(`[Multi-Screen PLATFORM] Initialized player global coords: global=(${entityA.globalX}, ${entityA.globalY}), local=(${entityA.x}, ${entityA.y}), screen=${currentScreenMap.id}`);
                                         } else {
                                             console.warn(`[Multi-Screen PLATFORM] Failed to get screen position for ${currentScreenMap.id}`);
                                         }
@@ -2874,7 +2797,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                         // (Reverted) Do not enforce attach offset vertically here
 
-                                        console.log(`[Multi-Screen PLATFORM] Player riding platform ${platformToFollow.instance.name}: global=(${oldGlobalX}, ${oldGlobalY}) -> (${entityA.globalX}, ${entityA.globalY}), player vel=(${entityA.vx}, ${entityA.vy}), platform vel=(${platformToFollow.vx}, ${platformToFollow.vy})`);
 
                                         // Convert back to local coordinates for rendering
                                         const localCoord = globalToLocal(
@@ -2883,7 +2805,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         );
 
                                         if (localCoord) {
-                                            console.log(`[Multi-Screen PLATFORM] Player local coords: screen=${localCoord.screenId}, local=(${localCoord.x}, ${localCoord.y}), current screen=${currentScreenMap.id}`);
 
                                             entityA.x = localCoord.x;
                                             entityA.y = localCoord.y;
@@ -2894,11 +2815,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                                 const nowTs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
                                                 const recentlyTransitioned = (nowTs - lastScreenTransitionTimeRef.current) < 300;
                                 if (!recentlyTransitioned) {
-                                                    console.log(`[Multi-Screen PLATFORM] *** SCREEN TRANSITION TRIGGERED *** Player moved to screen ${localCoord.screenId} while riding platform`);
                                                     // Trigger screen transition
                                                     const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
                                                     if (targetScreenNode) {
-                                                        console.log(`[Multi-Screen PLATFORM] Found target screen node: ${targetScreenNode.id}, transitioning...`);
                                                         // Revert: clamp to margin inside target screen using computed local coords
                                                         const spriteW = entityA.sprite.size.width;
                                                         const spriteH = entityA.sprite.size.height;
@@ -2945,13 +2864,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 }
                             }
 
-                            console.log(`[PLATFORM] Transferring velocity from ${platformToFollow.instance.name}: vx=${platformToFollow.vx}, vy=${platformToFollow.vy}`);
                         }
                     } else {
                         // Not on a platform - clear parent link and stale global coords
                         if (entityA === heroRef.current) {
                             if (entityA.parentEntityId) {
-                                console.log(`[PLATFORM] Player dismounted from platform`);
                                 entityA.parentEntityId = null;
                             }
                             if (entityA.globalX !== undefined || entityA.globalY !== undefined) {
@@ -2963,7 +2880,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     // Detect falling off platform
                     if (previousPlatform && !entityA.platformUnderneath) {
-                        console.log(`[PLATFORM] ${entityA.instance.name} fell off platform ${previousPlatform.instance.name}`);
                     }
                 }
 
@@ -3048,6 +2964,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
 
                 // --- 8. Dibujar Entidad ---
+                // Filter Box entities: only render if they belong to current screen or are being carried
+                const shouldRenderBox = !isBoxEntity ||
+                    entityA.ownerScreenId === null || // Being carried
+                    entityA.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+
+                if (!shouldRenderBox) {
+                    return; // Skip rendering this Box (it belongs to another screen)
+                }
+
                 // Safety check: ensure frameImages array has elements and currentFrame is valid
                 if (entityA.frameImages.length > 0) {
                     // Ensure currentFrame is within bounds
@@ -3107,7 +3032,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                         // Log detallado para debug
                         if (now % 1000 < 16) {
-                            console.log(`[HITBOX DRAW] ${entityA.instance.name}: hasComp=${hasCollisionComp}, props=${!!props}, isTrigger=${props.isTrigger}, hitbox=`, hitbox);
                         }
 
                         // Color segÃƒÂºn tipo de colisiÃƒÂ³n
@@ -3133,12 +3057,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         ctx.fillText(label, hitbox.x, hitbox.y - 2);
                     } else {
                         if (now % 1000 < 16) {
-                            console.log(`[HITBOX DRAW] ${entityA.instance.name}: hasComp=${hasCollisionComp}, but props is NULL!`);
                         }
                     }
                 } else if (showHitboxDebug) {
                     if (now % 1000 < 16) {
-                        console.log(`[HITBOX DRAW] ${entityA.instance.name}: hasComp=${hasCollisionComp} (no hitbox to draw)`);
                     }
                 }
             });
@@ -3149,7 +3071,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const targetNodeId = (entityWithPendingTransition as any).pendingNodeTransition;
                 delete (entityWithPendingTransition as any).pendingNodeTransition;
 
-                console.log(`[GAME FLOW] Executing pending node transition to "${targetNodeId}"`);
 
                 // Handle different transition types
                 if (currentNode.type === 'WorldLink') {
@@ -3185,6 +3106,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                      ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                 }
                 entitiesRef.current.forEach(entity => {
+                    // Filter Box entities: only render if they belong to current screen or are being carried
+                    const isBox = entity.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entity.template.name);
+                    const shouldRenderBox = !isBox ||
+                        entity.ownerScreenId === null || // Being carried
+                        entity.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+
+                    if (!shouldRenderBox) return; // Skip this Box (belongs to another screen)
+
                     if (entity.frameImages.length > 0 && entity.frameImages[0].complete) {
                         ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
                     }
