@@ -125,6 +125,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Box persistence registry: tracks which boxes have been picked up from their original screens
     // Key: "${screenId}_${entityInstanceId}", Value: true if picked up (should not respawn)
     const boxPickedUpRegistry = useRef<Set<string>>(new Set());
+    // Collectible items persistence registry: tracks which items have been collected from their original screens
+    // Key: "${screenId}_${entityInstanceId}", Value: true if collected (should not respawn)
+    const collectedItemsRegistry = useRef<Set<string>>(new Set());
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
@@ -311,6 +314,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     entity.vy = action.params.y || 0;
                                     break;
 
+                                case 'APPLY_FORCE':
+                                    // Add force to current velocity (additive, unlike SET_VELOCITY)
+                                    const forceX = Number(action.params.x || 0);
+                                    const forceY = Number(action.params.y || 0);
+                                    entity.vx = (entity.vx || 0) + forceX;
+                                    entity.vy = (entity.vy || 0) + forceY;
+                                    break;
+
                                 case 'CHANGE_SPRITE':
                                     const spriteName = action.params.sprite || action.params.spriteName || action.params.sprite_name;
                                     if (spriteName) {
@@ -396,9 +407,38 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     // TODO: Implement animation system if needed
                                     break;
 
-                                case 'DESTROY_ENTITY':
-                                    entity.markedForDestruction = true;
+                                case 'DESTROY_ENTITY': {
+                                    const target = action.params?.target || 'self';
+                                    if (target === 'other') {
+                                        // Destroy the entity we last collided with
+                                        const otherEntity = (entity as any).lastCollidedEntity;
+                                        if (otherEntity) {
+                                            otherEntity.markedForDestruction = true;
+
+                                            // If it's a collectible item, register it as collected to prevent respawning
+                                            const isCollectible = otherEntity.template.components?.some(c => c.definitionId === 'comp_collectible');
+                                            if (isCollectible && otherEntity.ownerScreenId) {
+                                                const registryKey = `${otherEntity.ownerScreenId}_${otherEntity.instance.id}`;
+                                                collectedItemsRegistry.current.add(registryKey);
+                                                console.log(`✨ Collectible item ${otherEntity.template.name} registered as collected from screen ${otherEntity.ownerScreenId}`);
+                                            }
+                                        } else {
+                                            console.warn(`[ACTION] DESTROY_ENTITY: No collision target found for entity ${entity.template.name}`);
+                                        }
+                                    } else {
+                                        // Default: destroy self
+                                        entity.markedForDestruction = true;
+
+                                        // If destroying self and it's a collectible item, register it
+                                        const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
+                                        if (isCollectible && entity.ownerScreenId) {
+                                            const registryKey = `${entity.ownerScreenId}_${entity.instance.id}`;
+                                            collectedItemsRegistry.current.add(registryKey);
+                                            console.log(`✨ Collectible item ${entity.template.name} registered as collected from screen ${entity.ownerScreenId}`);
+                                        }
+                                    }
                                     break;
+                                }
 
                                 case 'SET_POSITION':
                                     if (action.params.x !== undefined) entity.x = Number(action.params.x);
@@ -1053,13 +1093,22 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             // Initialize ownerScreenId for Box entities (screen persistence)
             const isBoxEntity = template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(template.name);
-            const ownerScreenId = isBoxEntity ? currentScreenMap.id : undefined;
+            const isCollectibleItem = template.components?.some(c => c.definitionId === 'comp_collectible');
+            const ownerScreenId = (isBoxEntity || isCollectibleItem) ? currentScreenMap.id : undefined;
 
             // Skip Box entities that have already been picked up from this screen
             if (isBoxEntity && ownerScreenId) {
                 const registryKey = `${ownerScreenId}_${instance.id}`;
                 if (boxPickedUpRegistry.current.has(registryKey)) {
                     return null; // This box was already picked up, don't respawn it
+                }
+            }
+
+            // Skip Collectible items that have already been collected from this screen
+            if (isCollectibleItem && ownerScreenId) {
+                const registryKey = `${ownerScreenId}_${instance.id}`;
+                if (collectedItemsRegistry.current.has(registryKey)) {
+                    return null; // This item was already collected, don't respawn it
                 }
             }
 
@@ -2021,6 +2070,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const isCarriedBox = heroRef.current?.carriedBox === entityA;
                 // Treat entities tagged as box as collidable with tiles even if they don't explicitly have comp_collision
                 const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
+                const isCollectibleItem = entityA.template.components?.some(c => c.definitionId === 'comp_collectible');
 
                 // Filter Box entities: only process if they belong to current screen or are being carried
                 if (isBoxEntity) {
@@ -2029,6 +2079,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     if (!shouldProcessBox) {
                         return; // Skip processing this Box (it belongs to another screen)
+                    }
+                }
+
+                // Filter Collectible items: only process if they belong to current screen
+                if (isCollectibleItem) {
+                    const shouldProcessCollectible = entityA.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+
+                    if (!shouldProcessCollectible) {
+                        return; // Skip processing this item (it belongs to another screen)
                     }
                 }
                 // --- 0. Compute isOnGround based on current position ---
@@ -2599,10 +2658,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     if (!isAInvulnerable) {
                                         const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
                                         triggerEvent(entityA.instance.id, eventNameA);
+                                        // Store reference to the other entity for DESTROY_ENTITY action
+                                        (entityA as any).lastCollidedEntity = entityB;
                                     }
                                     if (!isBInvulnerable) {
                                         const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
                                         triggerEvent(entityB.instance.id, eventNameB);
+                                        // Store reference to the other entity for DESTROY_ENTITY action
+                                        (entityB as any).lastCollidedEntity = entityA;
                                     }
                                 } else {
                                     // SOLID COLLISION: Apply physical separation
@@ -2644,10 +2707,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     if (!isAInvulnerable) {
                                         const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
                                         triggerEvent(entityA.instance.id, eventNameA);
+                                        // Store reference to the other entity for DESTROY_ENTITY action
+                                        (entityA as any).lastCollidedEntity = entityB;
                                     }
                                     if (!isBInvulnerable) {
                                         const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
                                         triggerEvent(entityB.instance.id, eventNameB);
+                                        // Store reference to the other entity for DESTROY_ENTITY action
+                                        (entityB as any).lastCollidedEntity = entityA;
                                     }
                                 }
                             } else {
@@ -2973,6 +3040,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     return; // Skip rendering this Box (it belongs to another screen)
                 }
 
+                // Filter Collectible items: only render if they belong to current screen
+                const shouldRenderCollectible = !isCollectibleItem ||
+                    entityA.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+
+                if (!shouldRenderCollectible) {
+                    return; // Skip rendering this item (it belongs to another screen)
+                }
+
                 // Safety check: ensure frameImages array has elements and currentFrame is valid
                 if (entityA.frameImages.length > 0) {
                     // Ensure currentFrame is within bounds
@@ -3065,6 +3140,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
             });
 
+            // --- Remove destroyed entities ---
+            entitiesRef.current = entitiesRef.current.filter(e => !e.markedForDestruction);
+
             // --- Check for pending node transitions (from CHANGE_GAME_FLOW_NODE action) ---
             const entityWithPendingTransition = entitiesRef.current.find(e => (e as any).pendingNodeTransition);
             if (entityWithPendingTransition) {
@@ -3108,11 +3186,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 entitiesRef.current.forEach(entity => {
                     // Filter Box entities: only render if they belong to current screen or are being carried
                     const isBox = entity.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entity.template.name);
+                    const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
+
                     const shouldRenderBox = !isBox ||
                         entity.ownerScreenId === null || // Being carried
                         entity.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
 
                     if (!shouldRenderBox) return; // Skip this Box (belongs to another screen)
+
+                    // Filter Collectible items: only render if they belong to current screen
+                    const shouldRenderCollectible = !isCollectible ||
+                        entity.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+
+                    if (!shouldRenderCollectible) return; // Skip this item (belongs to another screen)
 
                     if (entity.frameImages.length > 0 && entity.frameImages[0].complete) {
                         ctx.drawImage(entity.frameImages[0], entity.x, entity.y);

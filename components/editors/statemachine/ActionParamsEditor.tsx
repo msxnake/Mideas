@@ -238,6 +238,28 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
           </div>
         );
 
+      case ActionTypes.DESTROY_ENTITY:
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-16">Target</label>
+              <select
+                value={action.params.target || 'self'}
+                onChange={(e) => handleParamChange('target', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="self">💀 Self (Destroy this entity)</option>
+                <option value="other">💥 Other (Destroy collided entity)</option>
+              </select>
+            </div>
+            <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded">
+              {action.params.target === 'other'
+                ? '💥 Destroys the entity we just collided with (e.g., pick up an item)'
+                : '💀 Destroys this entity (e.g., enemy dies)'}
+            </div>
+          </div>
+        );
+
       case ActionTypes.BREAK_TILE:
       case ActionTypes.REPLACE_TILE:
         const availableTiles = allAssets.filter(a => a.type === 'tile');
