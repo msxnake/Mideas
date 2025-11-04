@@ -2153,7 +2153,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 ...cursorsComp.defaultValues,
                                 ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
                             };
-                            const speed = Number(cursorsProps.speed) || 2;
+                            let speed = Number(cursorsProps.speed) || 2;
+
+                            // Reduce speed by half when carrying a box
+                            if (entityA.carriedBox) {
+                                speed = speed * 0.5;
+                            }
+
                             const allowLeft = cursorsProps.allowLeft !== false;
                             const allowRight = cursorsProps.allowRight !== false;
                             const leftPressed = pressedKeys.current.has('ArrowLeft');
@@ -2174,7 +2180,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 ...cursorsComp.defaultValues,
                                 ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
                             };
-                            const speed = Number(cursorsProps.speed) || 2;
+                            let speed = Number(cursorsProps.speed) || 2;
+
+                            // Reduce speed by half when carrying a box
+                            if (entityA.carriedBox) {
+                                speed = speed * 0.5;
+                            }
+
                             const allowUp = cursorsProps.allowUp !== false;
                             const allowDown = cursorsProps.allowDown !== false;
                             const upPressed = pressedKeys.current.has('ArrowUp');
@@ -2201,7 +2213,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 const canJump = !requireKeyRelease || !jumpKeyProcessed.current;
 
                                 if (canJump) {
-                                    const jumpPower = Number(jumpProps.jumpPower || 256);
+                                    let jumpPower = Number(jumpProps.jumpPower || 256);
+
+                                    // Reduce jump power by 25% when carrying a box
+                                    if (entityA.carriedBox) {
+                                        jumpPower = jumpPower * 0.75;
+                                    }
+
                                     entityA.vy = -jumpPower / 40;
                                     jumpKeyProcessed.current = true;
                                     // Clear platform reference when jumping to prevent infinite jumps
