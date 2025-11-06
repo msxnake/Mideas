@@ -186,6 +186,23 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
   },
   {
+    id: "comp_shoot", name: "Shoot",
+    description: "Configures a basic projectile shot for an entity (e.g., player/boss/enemy).",
+    properties: [
+      { name: "spriteAssetId", type: 'sprite_ref', defaultValue: '', description: "Projectile sprite asset to render (Render)." },
+      { name: "offsetX", type: 'word', defaultValue: '0', description: "Horizontal offset from shooter center (Offset X)." },
+      { name: "offsetY", type: 'word', defaultValue: '0', description: "Vertical offset from shooter center (Offset Y)." },
+      { name: "velocityX", type: 'word', defaultValue: '0', description: "Projectile speed on X (px/frame)." },
+      { name: "velocityY", type: 'word', defaultValue: '0', description: "Projectile speed on Y (px/frame)." },
+      { name: "range", type: 'word', defaultValue: '128', description: "Max travel distance in pixels (distancia de alcance)." },
+      { name: "damage", type: 'word', defaultValue: '1', description: "Damage applied on hit (daño)." },
+      { name: "cooldownMs", type: 'word', defaultValue: '250', description: "Time between shots in ms (fire rate)." },
+      { name: "fireKey", type: 'string', defaultValue: 'KeyX', description: "Keyboard code to fire (e.code), defaults to KeyX." },
+      { name: "expireOnHit", type: 'boolean', defaultValue: 'true', description: "If true, projectile despawns on first hit." },
+      { name: "anchor", type: 'string', defaultValue: 'center', description: "Spawn anchor relative to shooter (Parent/anchor). Currently informational." }
+    ],
+  },
+  {
     id: "comp_bounce", name: "Bounce",
     description: "Makes an entity bounce off surfaces upon collision.",
     properties: [

@@ -30,6 +30,7 @@ import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils'
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
 import { StateMachine } from '../../statemachine.types';
+import { AYSynthesizer } from '../utils/aySynthesizer';
 import {
     buildScreenWorldMap,
     localToGlobal,
@@ -78,6 +79,17 @@ interface AnimatedEntity {
     carriedBox?: AnimatedEntity | null; // Reference to the box currently carried (only meaningful for hero)
     // Box persistence
     ownerScreenId?: string | null; // For Box entities: which screen this box belongs to (null if being carried)
+    // Timer/Wait system
+    waitUntilTime?: number; // Timestamp when WAIT action will complete (blocks state machine transitions)
+    // Shooting / projectile
+    lastShotTime?: number; // Cooldown tracker for shooting
+    isProjectile?: boolean; // Marks this entity as a projectile
+    projectileOwnerId?: string; // Owner entity id (to avoid self-collisions)
+    projectileStartX?: number; // Where the projectile started (for range)
+    projectileStartY?: number;
+    projectileMaxRange?: number; // Pixels
+    projectileDamage?: number; // Damage to apply on hit
+    projectileExpireOnHit?: boolean; // Destroy projectile after first hit
 }
 
 interface GameFlowPreviewModalProps {
@@ -158,6 +170,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const screenWorldMapRef = useRef<Map<string, ScreenWorldPosition>>(new Map()); // Multi-screen coordinate system
     const tileBufferRef = useRef<HTMLCanvasElement | null>(null);
 
+    // Music playback state
+    const musicSynthesizerRef = useRef<any>(null); // AYSynthesizer instance for music
+    const musicPlaybackIntervalRef = useRef<number | null>(null);
+    const currentMusicTrackIdRef = useRef<string | null>(null);
+    const musicIsMutedRef = useRef<boolean>(false);
+
     const currentGraphData = currentNestedGraphData || graphData;
     const { nodes, connections } = currentGraphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
@@ -205,7 +223,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const modifyTileInLayer = useCallback((tileX: number, tileY: number, newTileId: string | null) => {
         // Validar coordenadas
         if (tileY < 0 || tileY >= 24 || tileX < 0 || tileX >= 32) {
-            console.warn(`[TILE MOD] Invalid coordinates: (${tileX}, ${tileY})`);
             return;
         }
 
@@ -291,6 +308,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const processEventTransitions = useCallback((entity: AnimatedEntity) => {
         if (!entity.stateMachine || !entity.currentState) return;
 
+        // Check if entity is waiting (WAIT action blocks all state transitions)
+        if (entity.waitUntilTime !== undefined) {
+            const now = performance.now();
+            if (now < entity.waitUntilTime) {
+                // Still waiting, block all transitions
+                return;
+            } else {
+                // Wait completed, clear the timer
+                entity.waitUntilTime = undefined;
+            }
+        }
+
         const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
         if (!currentStateDef) return;
 
@@ -348,13 +377,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                                     const img = new Image();
                                                     img.onload = () => resolve(img);
                                                     img.onerror = (error) => {
-                                                        console.error(`[ACTION] CHANGE_SPRITE: Failed to load frame ${idx} for "${spriteName}"`, error);
                                                         reject(error);
                                                     };
                                                     try {
                                                         img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
                                                     } catch (err) {
-                                                        console.error(`[ACTION] CHANGE_SPRITE: Error creating data URL for frame ${idx}:`, err);
                                                         reject(err);
                                                     }
                                                 });
@@ -364,7 +391,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             Promise.all(imageLoadPromises).then((loadedImages) => {
                                                 entity.frameImages = loadedImages;
                                             }).catch(() => {
-                                                console.error(`[ACTION] CHANGE_SPRITE: Failed to load some frames for "${spriteName}"`);
+                                                // Silently fail
                                             });
 
                                             // Regenerate mirrored frame images if sprite has facing direction
@@ -374,14 +401,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                                         const img = new Image();
                                                         img.onload = () => resolve(img);
                                                         img.onerror = (error) => {
-                                                            console.error(`[ACTION] CHANGE_SPRITE: Failed to load mirrored frame ${idx} for "${spriteName}"`, error);
                                                             reject(error);
                                                         };
                                                         try {
                                                             const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
                                                             img.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
                                                         } catch (err) {
-                                                            console.error(`[ACTION] CHANGE_SPRITE: Error creating mirrored data URL for frame ${idx}:`, err);
                                                             reject(err);
                                                         }
                                                     });
@@ -391,26 +416,89 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                                 Promise.all(mirroredImageLoadPromises).then((loadedMirroredImages) => {
                                                     entity.mirroredFrameImages = loadedMirroredImages;
                                                 }).catch(() => {
-                                                    console.error(`[ACTION] CHANGE_SPRITE: Failed to load some mirrored frames for "${spriteName}"`);
+                                                    // Silently fail
                                                 });
                                             } else {
                                                 // Clear mirrored frames if new sprite doesn't support mirroring
                                                 entity.mirroredFrameImages = undefined;
                                             }
 
-                                        } else {
-                                            const availableSprites = allAssets.filter(a => a.type === 'sprite').map(a => a.data.name);
-                                            console.warn(`[ACTION] CHANGE_SPRITE: Sprite "${spriteName}" not found. Available sprites:`, availableSprites);
                                         }
-                                    } else {
-                                        console.warn(`[ACTION] CHANGE_SPRITE: No sprite name provided. Params:`, action.params);
                                     }
                                     break;
 
-                                case 'PLAY_ANIMATION':
-                                    const animName = action.params.animationName;
-                                    // TODO: Implement animation system if needed
+                                case 'PLAY_ANIMATION': {
+                                    const animName = action.params.animationName || action.params.animation;
+                                    const loop = action.params.loop !== undefined ? action.params.loop : true;
+
+                                    // Reset animation to first frame
+                                    entity.currentFrame = 0;
+                                    entity.lastFrameUpdateTime = performance.now();
+
+                                    // Clear animation completion flag
+                                    entity.animationHasCompleted = false;
+
+                                    // If animation name is specified, try to find corresponding sprite
+                                    if (animName) {
+                                        // Find sprite with matching name or animation property
+                                        const spriteAsset = allAssets.find(a =>
+                                            a.type === 'sprite' &&
+                                            (a.name === animName || a.data.name === animName || a.data.animationName === animName)
+                                        );
+
+                                        if (spriteAsset) {
+                                            const spriteData = spriteAsset.data as Sprite;
+                                            entity.sprite = spriteData;
+
+                                            // Regenerate frame images
+                                            const imageLoadPromises = spriteData.frames.map(frame => {
+                                                return new Promise<HTMLImageElement>((resolve, reject) => {
+                                                    const img = new Image();
+                                                    img.onload = () => resolve(img);
+                                                    img.onerror = reject;
+                                                    try {
+                                                        img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                                    } catch (err) {
+                                                        reject(err);
+                                                    }
+                                                });
+                                            });
+
+                                            Promise.all(imageLoadPromises).then(loadedImages => {
+                                                entity.frameImages = loadedImages;
+                                            }).catch(() => {
+                                                // Silently fail
+                                            });
+
+                                            // Regenerate mirrored frames if needed
+                                            if (['right', 'left'].includes(spriteData.facingDirection)) {
+                                                const mirroredPromises = spriteData.frames.map(frame => {
+                                                    return new Promise<HTMLImageElement>((resolve, reject) => {
+                                                        const img = new Image();
+                                                        img.onload = () => resolve(img);
+                                                        img.onerror = reject;
+                                                        try {
+                                                            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                                                            img.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
+                                                        } catch (err) {
+                                                            reject(err);
+                                                        }
+                                                    });
+                                                });
+
+                                                Promise.all(mirroredPromises).then(loadedMirroredImages => {
+                                                    entity.mirroredFrameImages = loadedMirroredImages;
+                                                }).catch(() => {
+                                                    // Silently fail
+                                                });
+                                            }
+                                        }
+                                    }
+
+                                    // Store loop setting (could be used in animation update logic)
+                                    (entity as any).animationLoop = loop;
                                     break;
+                                }
 
                                 case 'DESTROY_ENTITY': {
                                     const target = action.params?.target || 'self';
@@ -425,10 +513,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             if (isCollectible && otherEntity.ownerScreenId) {
                                                 const registryKey = `${otherEntity.ownerScreenId}_${otherEntity.instance.id}`;
                                                 collectedItemsRegistry.current.add(registryKey);
-                                                console.log(`✨ Collectible item ${otherEntity.template.name} registered as collected from screen ${otherEntity.ownerScreenId}`);
                                             }
-                                        } else {
-                                            console.warn(`[ACTION] DESTROY_ENTITY: No collision target found for entity ${entity.template.name}`);
                                         }
                                     } else {
                                         // Default: destroy self
@@ -439,7 +524,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         if (isCollectible && entity.ownerScreenId) {
                                             const registryKey = `${entity.ownerScreenId}_${entity.instance.id}`;
                                             collectedItemsRegistry.current.add(registryKey);
-                                            console.log(`✨ Collectible item ${entity.template.name} registered as collected from screen ${entity.ownerScreenId}`);
                                         }
                                     }
                                     break;
@@ -455,17 +539,455 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     entity.y += Number(action.params.y || 0);
                                     break;
 
-                                case 'SET_VARIABLE':
-                                    // TODO: Implement global variables system
+                                case 'SET_VARIABLE': {
+                                    const varName = action.params.variableName || action.params.name;
+                                    const varValue = action.params.value;
+                                    if (varName !== undefined && varValue !== undefined) {
+                                        setGameGlobalVariables(prev => ({
+                                            ...prev,
+                                            [varName]: varValue
+                                        }));
+                                    }
                                     break;
+                                }
 
-                                case 'INCREMENT_VARIABLE':
-                                    // TODO: Implement global variables system
+                                case 'INCREMENT_VARIABLE': {
+                                    const varName = action.params.variableName || action.params.name;
+                                    const incrementAmount = Number(action.params.amount || 1);
+                                    if (varName !== undefined) {
+                                        setGameGlobalVariables(prev => {
+                                            const currentValue = Number(prev[varName] || 0);
+                                            return {
+                                                ...prev,
+                                                [varName]: currentValue + incrementAmount
+                                            };
+                                        });
+                                    }
                                     break;
+                                }
 
-                                case 'DECREMENT_VARIABLE':
-                                    // TODO: Implement global variables system
+                                case 'DECREMENT_VARIABLE': {
+                                    const varName = action.params.variableName || action.params.name;
+                                    const decrementAmount = Number(action.params.amount || 1);
+                                    if (varName !== undefined) {
+                                        setGameGlobalVariables(prev => {
+                                            const currentValue = Number(prev[varName] || 0);
+                                            return {
+                                                ...prev,
+                                                [varName]: currentValue - decrementAmount
+                                            };
+                                        });
+                                    }
                                     break;
+                                }
+
+                                case 'GOTO_STATE': {
+                                    const targetStateName = action.params.stateName || action.params.state;
+                                    if (targetStateName && entity.stateMachine) {
+                                        // Find state by name in the state machine
+                                        const targetState = entity.stateMachine.states.find(
+                                            s => s.name === targetStateName || s.id === targetStateName
+                                        );
+                                        if (targetState) {
+                                            entity.currentState = targetState.name;
+                                            // Apply state properties if defined
+                                            if (targetState.properties) {
+                                                if (targetState.properties.velocityX !== undefined) {
+                                                    entity.vx = targetState.properties.velocityX;
+                                                }
+                                                if (targetState.properties.velocityY !== undefined) {
+                                                    entity.vy = targetState.properties.velocityY;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    break;
+                                }
+
+                                case 'SPAWN_ENTITY': {
+                                    const templateId = action.params.templateId || action.params.entityTemplateId;
+                                    const spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
+                                    const spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
+
+                                    if (!templateId) break;
+
+                                    // Find entity template
+                                    const template = entityTemplates.find(t => t.id === templateId || t.name === templateId);
+                                    if (!template) break;
+
+                                    // Find sprite for this entity
+                                    let spriteAssetId: string | undefined;
+                                    for (const comp of template.components) {
+                                        const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                                        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                                        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                                            spriteAssetId = comp.defaultValues[spriteProp.name];
+                                            break;
+                                        }
+                                    }
+
+                                    const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+                                    const sprite = spriteAsset?.data as Sprite;
+                                    if (!sprite?.frames?.length) break;
+
+                                    // Create frame images
+                                    const frameImages = sprite.frames.map(frame => {
+                                        const img = new Image();
+                                        img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
+                                        return img;
+                                    });
+
+                                    // Create mirrored frames if needed
+                                    let mirroredFrameImages: HTMLImageElement[] | undefined;
+                                    if (['right', 'left'].includes(sprite.facingDirection)) {
+                                        mirroredFrameImages = sprite.frames.map(frame => {
+                                            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                                            const img = new Image();
+                                            img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+                                            return img;
+                                        });
+                                    }
+
+                                    // Find state machine if entity has one
+                                    let stateMachine: StateMachine | undefined;
+                                    let currentState: string | undefined;
+                                    const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+                                    const stateMachineAssetId = smc?.defaultValues?.stateMachineAssetId;
+                                    if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
+                                        const stateMachineAsset = allAssets.find(a =>
+                                            a.id === stateMachineAssetId && a.type === 'statemachine'
+                                        );
+                                        stateMachine = stateMachineAsset?.data as StateMachine | undefined;
+                                        if (stateMachine) {
+                                            const startStateId = smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
+                                            let initialState = stateMachine.states.find(s => s.id === startStateId);
+                                            if (!initialState && startStateId) {
+                                                initialState = stateMachine.states.find(s => s.name === startStateId);
+                                            }
+                                            if (!initialState) {
+                                                initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle')
+                                                    || stateMachine.states[0];
+                                            }
+                                            currentState = initialState?.name;
+                                        }
+                                    }
+
+                                    // Create new entity instance
+                                    const newInstance: EntityInstance = {
+                                        id: `spawned_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                        entityTemplateId: template.id,
+                                        position: { x: Math.floor(spawnX / 8), y: Math.floor(spawnY / 8) },
+                                        componentOverrides: {}
+                                    };
+
+                                    // Create animated entity
+                                    const newEntity: AnimatedEntity = {
+                                        instance: newInstance,
+                                        template,
+                                        sprite,
+                                        x: spawnX,
+                                        y: spawnY,
+                                        vx: 0,
+                                        vy: 0,
+                                        frameImages,
+                                        mirroredFrameImages,
+                                        currentFrame: 0,
+                                        lastFrameUpdateTime: performance.now(),
+                                        stateMachine,
+                                        currentState,
+                                        isOnGround: false,
+                                        spawnTime: performance.now(),
+                                        parentEntityId: null,
+                                        platformGraceFramesLeft: 0
+                                    };
+
+                                    // Add to entities list
+                                    entitiesRef.current.push(newEntity);
+                                    break;
+                                }
+
+                                case 'WAIT': {
+                                    const durationMs = Number(action.params.duration || action.params.time || 1000);
+                                    // Set wait timer - this will block state machine transitions until time expires
+                                    entity.waitUntilTime = performance.now() + durationMs;
+                                    break;
+                                }
+
+                                case 'PLAY_SOUND': {
+                                    const soundId = action.params.soundId || action.params.sound || action.params.soundAssetId;
+                                    if (soundId) {
+                                        // Find sound asset
+                                        const soundAsset = allAssets.find(a =>
+                                            a.type === 'sound' && (a.id === soundId || a.name === soundId)
+                                        );
+
+                                        if (soundAsset) {
+                                            const soundData = soundAsset.data as any; // PSGSoundData
+
+                                            // Create Web Audio context if not exists
+                                            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+                                            // PSG constants
+                                            const PSG_INPUT_CLOCK = 3579545 / 2; // ~1.79 MHz
+                                            const REFERENCE_BPM = 120;
+
+                                            const calculateFrequencyFromTonePeriod = (tonePeriod: number): number => {
+                                                if (tonePeriod === 0 || tonePeriod > 4095) return 0;
+                                                return PSG_INPUT_CLOCK / (16 * tonePeriod);
+                                            };
+
+                                            const calculateFrequencyFromNoisePeriod = (noisePeriod: number): number => {
+                                                const effectiveNP = (noisePeriod === 0) ? 1 : noisePeriod & 0x1F;
+                                                return PSG_INPUT_CLOCK / (32 * effectiveNP);
+                                            };
+
+                                            // Master gain
+                                            const masterGain = audioCtx.createGain();
+                                            masterGain.gain.value = soundData.masterVolume || 1.0;
+                                            masterGain.connect(audioCtx.destination);
+
+                                            // Create global noise source
+                                            const noiseFilterNode = audioCtx.createBiquadFilter();
+                                            noiseFilterNode.type = 'bandpass';
+                                            noiseFilterNode.Q.value = 1.0;
+                                            const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod || 16);
+                                            const maxFilterFreq = audioCtx.sampleRate / 2;
+                                            const frequency = Math.min(Math.max(20, noiseFreq), maxFilterFreq);
+                                            if (isFinite(frequency)) {
+                                                noiseFilterNode.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                                            }
+
+                                            const bufferSize = audioCtx.sampleRate * 0.5;
+                                            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                                            const output = buffer.getChannelData(0);
+                                            for (let i = 0; i < bufferSize; i++) {
+                                                output[i] = Math.random() * 2 - 1;
+                                            }
+                                            const globalNoiseSource = audioCtx.createBufferSource();
+                                            globalNoiseSource.buffer = buffer;
+                                            globalNoiseSource.loop = true;
+                                            try {
+                                                globalNoiseSource.start();
+                                                globalNoiseSource.connect(noiseFilterNode);
+                                            } catch (e) {
+                                                console.error("Failed to start global noise source:", e);
+                                            }
+
+                                            // Function to play a single step for a channel
+                                            const playStepForChannel = (channel: any, stepIndex: number, startTime: number): number => {
+                                                if (stepIndex >= channel.steps.length) {
+                                                    if (channel.loop && channel.steps.length > 0) {
+                                                        return playStepForChannel(channel, 0, startTime);
+                                                    }
+                                                    return startTime;
+                                                }
+
+                                                const step = channel.steps[stepIndex];
+
+                                                // Create channel gain node
+                                                const channelGain = audioCtx.createGain();
+                                                channelGain.gain.value = step.useEnvelope ? 0 : step.volume / 15;
+                                                channelGain.connect(masterGain);
+
+                                                // Tone oscillator
+                                                if (step.toneEnabled) {
+                                                    const osc = audioCtx.createOscillator();
+                                                    osc.type = 'square';
+                                                    const freq = calculateFrequencyFromTonePeriod(step.tonePeriod || 257);
+                                                    if (freq > 0 && isFinite(freq)) {
+                                                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                                                        osc.connect(channelGain);
+                                                        try {
+                                                            osc.start(startTime);
+                                                        } catch (e) {
+                                                            console.warn("Error starting oscillator", e);
+                                                        }
+                                                    }
+                                                }
+
+                                                // Noise
+                                                if (step.noiseEnabled && noiseFilterNode) {
+                                                    noiseFilterNode.connect(channelGain);
+                                                }
+
+                                                // Calculate effective duration (with tempo scaling)
+                                                const tempo = soundData.tempoBPM > 0 ? soundData.tempoBPM : REFERENCE_BPM;
+                                                const durationScaleFactor = REFERENCE_BPM / tempo;
+                                                const effectiveDurationMs = step.durationMs * durationScaleFactor;
+                                                const effectiveDurationSec = effectiveDurationMs / 1000;
+
+                                                // Apply envelope if enabled
+                                                if (step.useEnvelope) {
+                                                    const now = startTime;
+                                                    const peakVolume = Math.max(0, Math.min(1, (step.volume || 0) / 15));
+
+                                                    channelGain.gain.cancelScheduledValues(now);
+                                                    if (isFinite(peakVolume)) {
+                                                        channelGain.gain.setValueAtTime(0, now);
+                                                    }
+
+                                                    // Use step-specific envelope shape if defined, otherwise use global
+                                                    const shape = step.envelopeShape ?? soundData.envelopeShape;
+                                                    const isAttack = (shape & 0b0100) !== 0;
+                                                    const isAlternate = (shape & 0b0010) !== 0;
+
+                                                    if (isAttack) {
+                                                        channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
+                                                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec);
+                                                    } else { // Fall
+                                                        if (isFinite(peakVolume)) {
+                                                            channelGain.gain.setValueAtTime(peakVolume, now);
+                                                        }
+                                                        channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
+                                                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec);
+                                                    }
+                                                }
+
+                                                // Schedule disconnect after step duration
+                                                const nextStartTime = startTime + effectiveDurationSec;
+                                                setTimeout(() => {
+                                                    if (step.noiseEnabled && noiseFilterNode) {
+                                                        try {
+                                                            noiseFilterNode.disconnect(channelGain);
+                                                        } catch (e) {}
+                                                    }
+                                                    try {
+                                                        channelGain.disconnect();
+                                                    } catch (e) {}
+                                                }, effectiveDurationMs);
+
+                                                // Play next step recursively
+                                                return playStepForChannel(channel, stepIndex + 1, nextStartTime);
+                                            };
+
+                                            // Play all channels starting from step 0
+                                            soundData.channels?.forEach((channel: any) => {
+                                                if (channel.steps && channel.steps.length > 0) {
+                                                    playStepForChannel(channel, 0, audioCtx.currentTime);
+                                                }
+                                            });
+
+                                            console.log(`[PLAY_SOUND] Playing sound: ${soundAsset.name}`);
+                                        }
+                                    }
+                                    break;
+                                }
+
+                                case 'PLAY_MUSIC': {
+                                    const trackId = action.params.trackId;
+                                    const loop = action.params.loop ?? true;
+
+                                    if (trackId) {
+                                        // Find track asset
+                                        const trackAsset = allAssets.find(a =>
+                                            a.type === 'track' && (a.id === trackId || a.name === trackId)
+                                        );
+
+                                        if (trackAsset) {
+                                            const trackData = trackAsset.data as any; // TrackerSongData
+
+                                            // Stop current music if playing
+                                            if (musicSynthesizerRef.current) {
+                                                musicSynthesizerRef.current.stopAllNotes();
+                                                if (musicPlaybackIntervalRef.current) {
+                                                    clearInterval(musicPlaybackIntervalRef.current);
+                                                    musicPlaybackIntervalRef.current = null;
+                                                }
+                                            }
+
+                                            // Create new synthesizer
+                                            const synth = new AYSynthesizer(trackData.globalVolume / 15);
+                                            synth.setSongData(trackData);
+                                            musicSynthesizerRef.current = synth;
+                                            currentMusicTrackIdRef.current = trackId;
+                                            musicIsMutedRef.current = false;
+
+                                            // Start playback
+                                            synth.ensureAudioContext().then(() => {
+                                                let currentPatternIndexInOrder = 0;
+                                                let currentRow = 0;
+
+                                                const playNextRow = () => {
+                                                    if (musicIsMutedRef.current || !musicSynthesizerRef.current) return;
+
+                                                    const orderIndex = currentPatternIndexInOrder;
+                                                    if (orderIndex >= trackData.order.length) {
+                                                        if (loop) {
+                                                            currentPatternIndexInOrder = trackData.restartPosition || 0;
+                                                            currentRow = 0;
+                                                            return;
+                                                        } else {
+                                                            // Stop playback
+                                                            if (musicPlaybackIntervalRef.current) {
+                                                                clearInterval(musicPlaybackIntervalRef.current);
+                                                                musicPlaybackIntervalRef.current = null;
+                                                            }
+                                                            return;
+                                                        }
+                                                    }
+
+                                                    const patternIndex = trackData.order[orderIndex];
+                                                    const pattern = trackData.patterns[patternIndex];
+                                                    if (!pattern) return;
+
+                                                    const rowData = pattern.rows[currentRow];
+                                                    if (rowData) {
+                                                        // Play notes for each channel
+                                                        ['A', 'B', 'C'].forEach((chId, chIndex) => {
+                                                            const cell = rowData[chId as 'A' | 'B' | 'C'];
+                                                            synth.playNote(
+                                                                chIndex as 0 | 1 | 2,
+                                                                cell.note,
+                                                                cell.instrument,
+                                                                cell.ornament,
+                                                                cell.volume
+                                                            );
+                                                        });
+                                                    }
+
+                                                    currentRow++;
+                                                    if (currentRow >= pattern.numRows) {
+                                                        currentRow = 0;
+                                                        currentPatternIndexInOrder++;
+                                                    }
+                                                };
+
+                                                // Calculate row duration
+                                                const rowDurationMs = (2500 * trackData.speed) / trackData.bpm;
+
+                                                musicPlaybackIntervalRef.current = window.setInterval(playNextRow, Math.max(20, rowDurationMs));
+                                                playNextRow(); // Play first row immediately
+                                            });
+
+                                            console.log(`[PLAY_MUSIC] Playing track: ${trackAsset.name}`);
+                                        }
+                                    }
+                                    break;
+                                }
+
+                                case 'MUTE_MUSIC': {
+                                    if (musicSynthesizerRef.current) {
+                                        musicSynthesizerRef.current.stopAllNotes();
+                                        musicIsMutedRef.current = true;
+                                        console.log(`[MUTE_MUSIC] Music muted`);
+                                    }
+                                    break;
+                                }
+
+                                case 'STOP_MUSIC': {
+                                    if (musicSynthesizerRef.current) {
+                                        musicSynthesizerRef.current.stopAllNotes();
+                                        if (musicPlaybackIntervalRef.current) {
+                                            clearInterval(musicPlaybackIntervalRef.current);
+                                            musicPlaybackIntervalRef.current = null;
+                                        }
+                                        musicSynthesizerRef.current = null;
+                                        currentMusicTrackIdRef.current = null;
+                                        musicIsMutedRef.current = false;
+                                        console.log(`[STOP_MUSIC] Music stopped`);
+                                    }
+                                    break;
+                                }
 
                                 case 'CHANGE_GAME_FLOW_NODE':
                                     let targetNodeId = action.params.nodeId || action.params.targetNodeId;
@@ -476,7 +998,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         if (startNode) {
                                             targetNodeId = startNode.id;
                                         } else {
-                                            console.warn(`[ACTION] CHANGE_GAME_FLOW_NODE: No Start node found in graph`);
                                             break;
                                         }
                                     }
@@ -484,8 +1005,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     if (targetNodeId) {
                                         // Store the target node for deferred navigation (after frame completes)
                                         (entity as any).pendingNodeTransition = targetNodeId;
-                                    } else {
-                                        console.warn(`[ACTION] CHANGE_GAME_FLOW_NODE: No target node specified`);
                                     }
                                     break;
 
@@ -504,8 +1023,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         }
                                         entity.instance.componentOverrides['comp_health'].current = newLives;
 
-                                    } else {
-                                        console.warn(`[ACTION] DECREASE_LIVES: Entity has no comp_health component`);
                                     }
                                     break;
 
@@ -524,8 +1041,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         }
                                         entity.instance.componentOverrides['comp_health'].current = newLives;
 
-                                    } else {
-                                        console.warn(`[ACTION] INCREASE_LIVES: Entity has no comp_health component`);
                                     }
                                     break;
 
@@ -562,8 +1077,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             handleScreenTransition(targetScreenNode.id);
                                             // No modificar entity.x/y aquÃƒÂ­: se harÃƒÂ¡ en el useEffect tras la transiciÃƒÂ³n
                                             return;
-                                        } else {
-                                            console.warn(`[ACTION] RESPAWN_PLAYER: Target screen node not found for ID ${targetScreenId}`);
                                         }
                                     }
                                 }
@@ -632,7 +1145,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 }
 
                                 default:
-                                    console.warn(`[ACTION] Unknown action type: ${action.type}`);
                                     break;
                             }
                         }
@@ -833,7 +1345,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 case ' ': case 'Enter': handleAction(); break;
                 case 'Escape': handleGoBack(); break;
             }
-        } else if (currentNode.type === 'Text' || currentNode.type === 'Restart') {
+        } else if (currentNode.type === 'Text' || currentNode.type === 'Restart' || currentNode.type === 'Music') {
             switch (e.key) {
                 case ' ': case 'Enter':
                     if (currentNode.type === 'Restart') {
@@ -1091,8 +1603,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (screenPos) {
                     globalX = screenPos.globalX + startX;
                     globalY = screenPos.globalY + startY;
-                } else {
-                    console.error(`[Multi-Screen INIT] ${instance.name}: screenPos is null/undefined for screen ${currentScreenMap.id}`);
                 }
             }
 
@@ -1222,8 +1732,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             entity.x = -1000;
                             entity.y = -1000;
                         }
-                    } else {
-                        console.error(`[Multi-Screen Carry-Over] PROBLEM: ${entity.instance.name} has undefined global coords! globalX=${entity.globalX}, globalY=${entity.globalY}`);
                     }
 
                     // Ensure frame images are loaded (in case of context reset or missing images)
@@ -1249,7 +1757,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             entity.lastFrameUpdateTime = 0;
                         }
                     } catch (err) {
-                        console.error(`[Multi-Screen Carry-Over] Failed to ensure frames for ${entity.instance.name}:`, err);
+                        // Silently fail
                     }
 
                     // Always add multi-screen entity (it's already filtered from duplicates)
@@ -1388,6 +1896,93 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             tileBufferNeedsUpdate.current = false; // Reset flag
         }
         // --- Fin Nuevo ---
+
+        // --- Shooting helpers ---
+        const getMergedComponentValues = (entity: AnimatedEntity, compId: string): Record<string, any> | null => {
+            const templateComp = entity.template.components.find(c => c.definitionId === compId);
+            if (!templateComp) return null;
+            return {
+                ...(templateComp.defaultValues || {}),
+                ...(entity.instance.componentOverrides?.[compId] || {})
+            } as Record<string, any>;
+        };
+
+        const spawnProjectile = (shooter: AnimatedEntity) => {
+            const shootProps = getMergedComponentValues(shooter, 'comp_shoot');
+            if (!shootProps) return;
+
+            const spriteAssetId = shootProps.spriteAssetId || shootProps.renderSpriteAssetId || shootProps.render;
+            const projectileSpriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+            const projectileSprite = projectileSpriteAsset?.data as Sprite | undefined;
+            if (!projectileSprite || !projectileSprite.frames?.length) return;
+
+            let offsetX = Number(shootProps.offsetX || 0);
+            let offsetY = Number(shootProps.offsetY || 0);
+            if (shooter.isFacingMirrored && (shooter.sprite.facingDirection === 'right' || shooter.sprite.facingDirection === 'left')) {
+                offsetX = -offsetX;
+            }
+
+            const spawnX = Math.round(shooter.x + (shooter.sprite.size.width / 2) - (projectileSprite.size.width / 2) + offsetX);
+            const spawnY = Math.round(shooter.y + (shooter.sprite.size.height / 2) - (projectileSprite.size.height / 2) + offsetY);
+
+            let vx = Number(shootProps.velocityX);
+            let vy = Number(shootProps.velocityY);
+            if (isNaN(vx)) {
+                const base = 3;
+                if (shooter.sprite.facingDirection === 'right') {
+                    vx = shooter.isFacingMirrored ? -base : base;
+                } else if (shooter.sprite.facingDirection === 'left') {
+                    vx = shooter.isFacingMirrored ? base : -base;
+                } else {
+                    vx = base;
+                }
+            }
+            if (isNaN(vy)) vy = 0;
+
+            const maxRange = Number(shootProps.range || shootProps.maxRange || 128);
+            const damage = Number(shootProps.damage || 1);
+            const expireOnHit = (shootProps.expireOnHit === undefined) ? true : (shootProps.expireOnHit === true || shootProps.expireOnHit === 'true');
+
+            const frameImages = projectileSprite.frames.map(frame => {
+                const img = new Image();
+                img.src = createSpriteDataURL(frame.data, projectileSprite.size.width, projectileSprite.size.height);
+                return img;
+            });
+
+            const proj: AnimatedEntity = {
+                instance: {
+                    id: `proj_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                    entityTemplateId: 'tpl_projectile_runtime',
+                    name: 'Projectile',
+                    position: { x: Math.floor(spawnX / TILE_SIZE), y: Math.floor(spawnY / TILE_SIZE) },
+                    componentOverrides: {}
+                },
+                template: { id: 'tpl_projectile_runtime', name: 'Projectile', components: [], description: 'Runtime projectile' },
+                sprite: projectileSprite,
+                x: spawnX,
+                y: spawnY,
+                vx,
+                vy,
+                frameImages,
+                mirroredFrameImages: undefined,
+                currentFrame: 0,
+                lastFrameUpdateTime: performance.now(),
+                isOnGround: false,
+                spawnTime: performance.now(),
+                parentEntityId: shooter.instance.id,
+                platformGraceFramesLeft: 0,
+                isProjectile: true,
+                projectileOwnerId: shooter.instance.id,
+                projectileStartX: spawnX,
+                projectileStartY: spawnY,
+                projectileMaxRange: maxRange,
+                projectileDamage: damage,
+                projectileExpireOnHit: expireOnHit
+            };
+
+            entitiesRef.current.push(proj);
+            shooter.lastShotTime = performance.now();
+        };
 
         const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes, customFont?: MSXFont, customColorAttrs?: MSXFontColorAttributes) => {
             return new Promise<void>((resolve) => {
@@ -1625,6 +2220,99 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                     await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, promptColorAttrs, textNodeFont, promptColorAttrs);
                     break;
+                case 'Music':
+                    const musicNode = currentNode as any;
+                    if (musicNode.trackAssetId && musicNode.autoPlay !== false) {
+                        // Find track asset
+                        const trackAsset = allAssets.find(a =>
+                            a.type === 'track' && a.id === musicNode.trackAssetId
+                        );
+
+                        if (trackAsset) {
+                            const trackData = trackAsset.data as any; // TrackerSongData
+
+                            // Stop current music if playing
+                            if (musicSynthesizerRef.current) {
+                                musicSynthesizerRef.current.stopAllNotes();
+                                if (musicPlaybackIntervalRef.current) {
+                                    clearInterval(musicPlaybackIntervalRef.current);
+                                    musicPlaybackIntervalRef.current = null;
+                                }
+                            }
+
+                            // Create new synthesizer
+                            const synth = new AYSynthesizer(trackData.globalVolume / 15);
+                            synth.setSongData(trackData);
+                            musicSynthesizerRef.current = synth;
+                            currentMusicTrackIdRef.current = musicNode.trackAssetId;
+                            musicIsMutedRef.current = false;
+
+                            // Start playback
+                            synth.ensureAudioContext().then(() => {
+                                let currentPatternIndexInOrder = 0;
+                                let currentRow = 0;
+
+                                const playNextRow = () => {
+                                    if (musicIsMutedRef.current || !musicSynthesizerRef.current) return;
+
+                                    const orderIndex = currentPatternIndexInOrder;
+                                    if (orderIndex >= trackData.order.length) {
+                                        if (musicNode.loop !== false) {
+                                            currentPatternIndexInOrder = trackData.restartPosition || 0;
+                                            currentRow = 0;
+                                            return;
+                                        } else {
+                                            // Stop playback
+                                            if (musicPlaybackIntervalRef.current) {
+                                                clearInterval(musicPlaybackIntervalRef.current);
+                                                musicPlaybackIntervalRef.current = null;
+                                            }
+                                            return;
+                                        }
+                                    }
+
+                                    const patternIndex = trackData.order[orderIndex];
+                                    const pattern = trackData.patterns[patternIndex];
+                                    if (!pattern) return;
+
+                                    const rowData = pattern.rows[currentRow];
+                                    if (rowData) {
+                                        // Play notes for each channel
+                                        ['A', 'B', 'C'].forEach((chId, chIndex) => {
+                                            const cell = rowData[chId as 'A' | 'B' | 'C'];
+                                            synth.playNote(
+                                                chIndex as 0 | 1 | 2,
+                                                cell.note,
+                                                cell.instrument,
+                                                cell.ornament,
+                                                cell.volume
+                                            );
+                                        });
+                                    }
+
+                                    currentRow++;
+                                    if (currentRow >= pattern.numRows) {
+                                        currentRow = 0;
+                                        currentPatternIndexInOrder++;
+                                    }
+                                };
+
+                                // Calculate row duration
+                                const rowDurationMs = (2500 * trackData.speed) / trackData.bpm;
+
+                                musicPlaybackIntervalRef.current = window.setInterval(playNextRow, Math.max(20, rowDurationMs));
+                                playNextRow(); // Play first row immediately
+                            });
+
+                            console.log(`[Music Node] Playing track: ${trackAsset.name}`);
+                        }
+                    }
+                    // Auto-navigate to next node after music starts
+                    setTimeout(() => {
+                        const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                        if (conn) setCurrentNodeId(conn.to.nodeId);
+                    }, 500);
+                    break;
                 case 'End':
                     if (gameFlowStack.length > 0) {
                         const { parentGraphData, returnNodeId, parentGameFlowName } = gameFlowStack[gameFlowStack.length - 1];
@@ -1827,7 +2515,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const entityCollisionProps = (entity: AnimatedEntity) => {
              const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
              if (!collisionCompDef) {
-                 console.error('[COLLISION PROPS ERROR] comp_collision definition not found');
                  return null;
              }
 
@@ -2126,6 +2813,84 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         return; // Skip processing this item (it belongs to another screen)
                     }
                 }
+
+                // --- PROJECTILES: movement, range and collisions ---
+                if (entityA.isProjectile) {
+                    // Move projectile
+                    entityA.x += entityA.vx || 0;
+                    entityA.y += entityA.vy || 0;
+
+                    // Out-of-bounds quick cull
+                    if (entityA.x < -32 || entityA.x > PREVIEW_WIDTH + 32 || entityA.y < -32 || entityA.y > PREVIEW_HEIGHT + 32) {
+                        entityA.markedForDestruction = true as any;
+                    }
+
+                    // Range check
+                    const sx = entityA.projectileStartX ?? entityA.x;
+                    const sy = entityA.projectileStartY ?? entityA.y;
+                    const dxr = (entityA.x - sx);
+                    const dyr = (entityA.y - sy);
+                    const dist = Math.sqrt(dxr * dxr + dyr * dyr);
+                    if (entityA.projectileMaxRange !== undefined && dist >= entityA.projectileMaxRange) {
+                        entityA.markedForDestruction = true as any;
+                    }
+
+                    // Tile collision (center and edges)
+                    if (screenMapToRender) {
+                        const w = entityA.sprite.size.width;
+                        const h = entityA.sprite.size.height;
+                        const cx = entityA.x + Math.floor(w / 2);
+                        const cy = entityA.y + Math.floor(h / 2);
+                        const hitTile =
+                            checkCollisionAt(cx, cy, screenMapToRender) ||
+                            checkCollisionAt(entityA.x, cy, screenMapToRender) ||
+                            checkCollisionAt(entityA.x + w - 1, cy, screenMapToRender) ||
+                            checkCollisionAt(cx, entityA.y, screenMapToRender) ||
+                            checkCollisionAt(cx, entityA.y + h - 1, screenMapToRender);
+                        if (hitTile) {
+                            entityA.markedForDestruction = true as any;
+                        }
+                    }
+
+                    // Entity collisions
+                    for (let j = 0; j < entitiesRef.current.length && !entityA.markedForDestruction; j++) {
+                        if (j === indexA) continue;
+                        const target = entitiesRef.current[j];
+                        if (target.instance.id === entityA.projectileOwnerId) continue;
+                        if (target.isProjectile) continue;
+
+                        const ax1 = entityA.x, ay1 = entityA.y, ax2 = ax1 + entityA.sprite.size.width, ay2 = ay1 + entityA.sprite.size.height;
+                        const bx1 = target.x, by1 = target.y, bx2 = bx1 + target.sprite.size.width, by2 = by1 + target.sprite.size.height;
+                        const overlap = (ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1);
+                        if (!overlap) continue;
+
+                        const healthComp = target.template.components.find(c => c.definitionId === 'comp_health');
+                        if (healthComp) {
+                            if (!target.instance.componentOverrides) target.instance.componentOverrides = {} as any;
+                            if (!target.instance.componentOverrides['comp_health']) target.instance.componentOverrides['comp_health'] = {};
+                            const overrides = target.instance.componentOverrides['comp_health'];
+                            const current = Number(overrides.current ?? healthComp.defaultValues?.current ?? 1);
+                            const newVal = Math.max(0, current - (entityA.projectileDamage || 1));
+                            overrides.current = newVal;
+                            if (newVal <= 0) {
+                                target.markedForDestruction = true as any;
+                            }
+                        }
+
+                        if (entityA.projectileExpireOnHit !== false) {
+                            entityA.markedForDestruction = true as any;
+                        }
+                    }
+
+                    // Render projectile immediately and skip rest
+                    if (entityA.frameImages.length > 0) {
+                        const img = entityA.frameImages[entityA.currentFrame] || entityA.frameImages[0];
+                        if (img && img.complete && img.naturalWidth > 0) {
+                            ctx.drawImage(img, entityA.x, entityA.y);
+                        }
+                    }
+                    return;
+                }
                 // --- 0. Compute isOnGround based on current position ---
                 const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
                 const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
@@ -2187,7 +2952,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         const key = `${currentScreenMapRef.current.id}_${tx}_${ty}`;
                                         if (!revealedSecretTiles.current.has(key)) {
                                             revealedSecretTiles.current.add(key);
-                                            console.log(`🔍 Secret tile revealed at (${tx}, ${ty})`);
                                             tileBufferNeedsUpdate.current = false; // Don't force re-render, just hide tiles
 
                                             // Add sparkle effect for discovered secret tile
@@ -2418,6 +3182,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             actionKeyProcessed.current = true;
                         }
                         if (!actionPressed) actionKeyProcessed.current = false;
+
+                        // Shooting: if entity has comp_shoot and fire key pressed
+                        const shootComp = entityA.template.components.find(c => c.definitionId === 'comp_shoot');
+                        if (shootComp) {
+                            const shootProps = getMergedComponentValues(entityA, 'comp_shoot') || {};
+                            const fireKey = shootProps.fireKey || 'KeyX';
+                            const firePressed = pressedKeys.current.has(fireKey) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
+                            const cooldownMs = Number(shootProps.cooldownMs || shootProps.fireRateMs || 250);
+                            const nowTs = performance.now();
+                            const canFire = !entityA.lastShotTime || (nowTs - entityA.lastShotTime >= cooldownMs);
+                            if (firePressed && canFire) {
+                                spawnProjectile(entityA);
+                            }
+                        }
                     } // End of canProcessInput check
                 }
 
@@ -2886,9 +3664,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             }
                         } else if (isMultiScreen) {
                             // Multi-screen patrol but global coords not initialized properly
-                            if (now % 500 < 16) { // Log every ~500ms
-                                console.error(`[MULTISCREEN BROKEN] ${entityA.instance.name}: multiScreen=true but globalX=${entityA.globalX}, globalY=${entityA.globalY}, originScreenId=${entityA.originScreenId}`);
-                            }
                         } else if (!isMultiScreen) {
                             // Traditional single-screen patrol
                             const startPixelX = patrolComp.waypoint1_x;
@@ -2942,8 +3717,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             entityA.globalX = currentScreenPos.globalX + entityA.x;
                                             entityA.globalY = currentScreenPos.globalY + entityA.y;
                                             entityA.originScreenId = currentScreenMap.id;
-                                        } else {
-                                            console.warn(`[Multi-Screen PLATFORM] Failed to get screen position for ${currentScreenMap.id}`);
                                         }
                                     }
 
@@ -2997,17 +3770,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                                         handleScreenTransition(targetScreenNode.id);
                                                         return; // Stop processing this frame to allow transition
-                                                    } else {
-                                                        console.error(`[Multi-Screen PLATFORM] Target screen node NOT FOUND for screen ${localCoord.screenId}`);
                                                     }
                                                 }
                                             }
-                                        } else {
-                                            console.error(`[Multi-Screen PLATFORM] globalToLocal returned null for global=(${entityA.globalX}, ${entityA.globalY})`);
-                                            console.error(`[Multi-Screen PLATFORM] Available screens in map:`, Array.from(screenWorldMapRef.current.entries()).map(([id, pos]) => `${id}: (${pos.globalX}, ${pos.globalY})`).join(', '));
                                         }
-                                    } else {
-                                        console.warn(`[Multi-Screen PLATFORM] Player global coords not initialized: globalX=${entityA.globalX}, globalY=${entityA.globalY}`);
                                     }
                                 }
                             } else {
@@ -3392,6 +4158,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         setCrtConfig(config);
         localStorage.setItem('crtShaderConfig', JSON.stringify(config));
     };
+
+    // Cleanup music on unmount or when modal closes
+    useEffect(() => {
+        return () => {
+            if (musicSynthesizerRef.current) {
+                musicSynthesizerRef.current.stopAllNotes();
+            }
+            if (musicPlaybackIntervalRef.current) {
+                clearInterval(musicPlaybackIntervalRef.current);
+                musicPlaybackIntervalRef.current = null;
+            }
+        };
+    }, []);
 
     const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
     const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
