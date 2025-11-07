@@ -1,4 +1,4 @@
-
+﻿
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CRTShaderOverlay, CRTShaderConfig, defaultCRTConfig } from '../../src/components/CRTShaderOverlay';
@@ -90,6 +90,8 @@ interface AnimatedEntity {
     projectileMaxRange?: number; // Pixels
     projectileDamage?: number; // Damage to apply on hit
     projectileExpireOnHit?: boolean; // Destroy projectile after first hit
+    // Projectile animation control
+    animateProjectile?: boolean; // If true, projectile cycles its frames
 }
 
 interface GameFlowPreviewModalProps {
@@ -213,20 +215,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         );
 
         if (playerEntity) {
-            // Mover player a la posiciÃƒÂ³n del click (centrado en el sprite)
+            // Mover player a la posiciÃƒÆ’Ã‚Â³n del click (centrado en el sprite)
             playerEntity.x = x - playerEntity.sprite.size.width / 2;
             playerEntity.y = y - playerEntity.sprite.size.height / 2;
         }
     }, [isPositioningMode, isDynamic, currentNode, isFullscreen]);
 
-    // Modificar un tile en la capa de colisiÃƒÂ³n runtime
+    // Modificar un tile en la capa de colisiÃƒÆ’Ã‚Â³n runtime
     const modifyTileInLayer = useCallback((tileX: number, tileY: number, newTileId: string | null) => {
         // Validar coordenadas
         if (tileY < 0 || tileY >= 24 || tileX < 0 || tileX >= 32) {
             return;
         }
 
-        // Modificar collision layer (para lÃƒÂ³gica de colisiÃƒÂ³n y render visual)
+        // Modificar collision layer (para lÃƒÆ’Ã‚Â³gica de colisiÃƒÆ’Ã‚Â³n y render visual)
         setRuntimeCollisionLayer(prev => {
             const newLayer = JSON.parse(JSON.stringify(prev));
             if (!newLayer[tileY]) newLayer[tileY] = [];
@@ -236,7 +238,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return newLayer;
         });
 
-        // Ã¢Å“â€¦ Marcar que el buffer necesita actualizaciÃƒÂ³n en el prÃƒÂ³ximo frame
+        // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Marcar que el buffer necesita actualizaciÃƒÆ’Ã‚Â³n en el prÃƒÆ’Ã‚Â³ximo frame
         tileBufferNeedsUpdate.current = true;
 
     }, []);
@@ -249,7 +251,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         pendingEvents.current.get(entityId)!.add(eventName);
     }, []);
 
-    // Evaluar si una condiciÃƒÂ³n se cumple basada en el estado de la entidad
+    // Evaluar si una condiciÃƒÆ’Ã‚Â³n se cumple basada en el estado de la entidad
     const evaluateCondition = useCallback((condition: any, entity: AnimatedEntity): boolean => {
         if (!condition) return false;
 
@@ -257,14 +259,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
         switch (condition.type) {
             case 'KEY_PRESSED':
-                // Verificar si la tecla especificada estÃƒÂ¡ presionada
+                // Verificar si la tecla especificada estÃƒÆ’Ã‚Â¡ presionada
                 const key = condition.params?.key;
                 if (!key) return false;
                 const isPressed = pressedKeys.current.has(key);
                 return isPressed;
 
             case 'HAS_COLLISION':
-                // Verificar tipo especÃƒÂ­fico de colisiÃƒÂ³n (enemy, item, wall, any)
+                // Verificar tipo especÃƒÆ’Ã‚Â­fico de colisiÃƒÆ’Ã‚Â³n (enemy, item, wall, any)
                 const collisionType = condition.params?.collisionType || 'any';
 
                 switch (collisionType) {
@@ -276,14 +278,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         return entityEvents.has('collision_wall');
                     case 'any':
                     default:
-                        // Cualquier tipo de colisiÃƒÂ³n
+                        // Cualquier tipo de colisiÃƒÆ’Ã‚Â³n
                         return entityEvents.has('collision_enemy') ||
                                entityEvents.has('collision_item') ||
                                entityEvents.has('collision_wall');
                 }
 
             case 'HAS_DEADLY_TILE_COLLISION':
-                // Verificar si la entidad estÃƒÂ¡ tocando un tile mortal
+                // Verificar si la entidad estÃƒÆ’Ã‚Â¡ tocando un tile mortal
                 return entity.hasDangerousTileCollision === true;
 
             case 'ANIMATION_COMPLETE':
@@ -327,7 +329,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         for (const transition of entity.stateMachine.transitions) {
             if (transition.fromStateId !== currentStateDef.id) continue;
 
-            // Evaluar la condiciÃƒÂ³n de la transiciÃƒÂ³n (pasa la entidad completa)
+            // Evaluar la condiciÃƒÆ’Ã‚Â³n de la transiciÃƒÆ’Ã‚Â³n (pasa la entidad completa)
             if (transition.conditions && evaluateCondition(transition.conditions, entity)) {
                 const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
                 if (nextState) {
@@ -339,7 +341,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         if (nextState.properties.velocityY !== undefined) entity.vy = nextState.properties.velocityY;
                     }
 
-                    // Ejecutar acciones de la transiciÃƒÂ³n
+                    // Ejecutar acciones de la transiciÃƒÆ’Ã‚Â³n
                     if (transition.actions) {
                         for (const action of transition.actions) {
                             switch (action.type) {
@@ -1064,7 +1066,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 const currentScreenMap = currentScreenMapRef.current;
                                 const currentWorldMapGraph = currentWorldMapGraphRef.current;
 
-                                // Ã¢Å“â€¦ Si el checkpoint pertenece a otra pantalla, cambiar a ella
+                                // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Si el checkpoint pertenece a otra pantalla, cambiar a ella
                                 if (targetScreenId && currentScreenMap?.id !== targetScreenId) {
                                     const setPlayerEntryPoint = setPlayerEntryPointRef.current;
                                     const handleScreenTransition = handleScreenTransitionRef.current;
@@ -1075,13 +1077,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         const targetScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === targetScreenId);
                                         if (targetScreenNode) {
                                             handleScreenTransition(targetScreenNode.id);
-                                            // No modificar entity.x/y aquÃƒÂ­: se harÃƒÂ¡ en el useEffect tras la transiciÃƒÂ³n
+                                            // No modificar entity.x/y aquÃƒÆ’Ã‚Â­: se harÃƒÆ’Ã‚Â¡ en el useEffect tras la transiciÃƒÆ’Ã‚Â³n
                                             return;
                                         }
                                     }
                                 }
 
-                                // Ã¢Å“â€¦ Si ya estamos en la pantalla correcta, respawnear localmente
+                                // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Si ya estamos en la pantalla correcta, respawnear localmente
                                 entity.x = spawnX;
                                 entity.y = spawnY;
                                 entity.vx = 0;
@@ -1094,7 +1096,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     const params = action.params;
                                     const dir = params.direction || 'up';
 
-                                    // Calcular posiciÃƒÂ³n del tile segÃƒÂºn direcciÃƒÂ³n relativa al player
+                                    // Calcular posiciÃƒÆ’Ã‚Â³n del tile segÃƒÆ’Ã‚Âºn direcciÃƒÆ’Ã‚Â³n relativa al player
                                     const offsets: Record<string, { x: number; y: number }> = {
                                         up: { x: 0, y: -1 },
                                         down: { x: 0, y: 1 },
@@ -1107,15 +1109,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         'down-left': { x: -1, y: 1 }
                                     };
 
-                                    // PosiciÃƒÂ³n del player en tiles (8x8)
+                                    // PosiciÃƒÆ’Ã‚Â³n del player en tiles (8x8)
                                     const playerTileX = Math.floor((entity.x + entity.sprite.size.width / 2) / 8);
                                     const playerTileY = Math.floor((entity.y + entity.sprite.size.height / 2) / 8);
 
-                                    // PosiciÃƒÂ³n del tile target
+                                    // PosiciÃƒÆ’Ã‚Â³n del tile target
                                     const targetTileX = playerTileX + offsets[dir].x;
                                     const targetTileY = playerTileY + offsets[dir].y;
 
-                                    // Verificar que el tile target existe (usar ref para acceso sÃƒÂ­ncrono)
+                                    // Verificar que el tile target existe (usar ref para acceso sÃƒÆ’Ã‚Â­ncrono)
                                     const targetTile = runtimeCollisionLayerRef.current[targetTileY]?.[targetTileX];
 
                                     if (targetTile?.tileId) {
@@ -1134,7 +1136,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             modifyTileInLayer(targetTileX, targetTileY, newTileId);
                                         }
                                     } else if (!targetTile?.tileId && action.type === 'REPLACE_TILE') {
-                                        // Permitir colocar tile en espacio vacÃƒÂ­o
+                                        // Permitir colocar tile en espacio vacÃƒÆ’Ã‚Â­o
                                         const newTileId = params.replacementTileId || null;
                                         if (newTileId) {
                                             modifyTileInLayer(targetTileX, targetTileY, newTileId);
@@ -1150,12 +1152,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     }
 
-                    // Limpiar TODOS los eventos despuÃƒÂ©s de procesar la transiciÃƒÂ³n
+                    // Limpiar TODOS los eventos despuÃƒÆ’Ã‚Â©s de procesar la transiciÃƒÆ’Ã‚Â³n
                     const entityEvents = pendingEvents.current.get(entity.instance.id);
                     if (entityEvents) {
                         entityEvents.clear();
                     }
-                    break; // Solo una transiciÃƒÂ³n por frame
+                    break; // Solo una transiciÃƒÆ’Ã‚Â³n por frame
                 }
             }
         }
@@ -1304,9 +1306,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const nextScreenAsset = allAssets.find(a => a.id === nextScreenNode.screenAssetId && a.type === 'screenmap');
         if (!nextScreenAsset) return;
 
-        // NO guardamos checkpoint aquÃƒÂ­ porque:
-        // - Si viene del cruce de bordes, playerEntryPoint ya estÃƒÂ¡ set y se guardarÃƒÂ¡ en el effect con la posiciÃƒÂ³n correcta
-        // - Si viene de botÃƒÂ³n manual, tambiÃƒÂ©n se guardarÃƒÂ¡ en el effect con la posiciÃƒÂ³n inicial
+        // NO guardamos checkpoint aquÃƒÆ’Ã‚Â­ porque:
+        // - Si viene del cruce de bordes, playerEntryPoint ya estÃƒÆ’Ã‚Â¡ set y se guardarÃƒÆ’Ã‚Â¡ en el effect con la posiciÃƒÆ’Ã‚Â³n correcta
+        // - Si viene de botÃƒÆ’Ã‚Â³n manual, tambiÃƒÆ’Ã‚Â©n se guardarÃƒÆ’Ã‚Â¡ en el effect con la posiciÃƒÆ’Ã‚Â³n inicial
         // Mark transition time to debounce immediate re-exit on arrival
         try { lastScreenTransitionTimeRef.current = (typeof performance !== 'undefined' ? performance.now() : Date.now()); } catch { lastScreenTransitionTimeRef.current = Date.now(); }
 
@@ -1476,7 +1478,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             entitiesRef.current = [];
             return;
         };
-        // Guardar refs para uso en acciones asincrÃƒÂ³nicas
+        // Guardar refs para uso en acciones asincrÃƒÆ’Ã‚Â³nicas
         currentScreenMapRef.current = currentScreenMap;
         currentWorldMapGraphRef.current = currentWorldMapGraph;
         setPlayerEntryPointRef.current = setPlayerEntryPoint;
@@ -1571,11 +1573,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             let vx = 0, vy = 0;
             if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
-                // IMPORTANTE: Si waypoint1 estÃƒÂ¡ definido, usar esas coordenadas como inicio PRIMERO
+                // IMPORTANTE: Si waypoint1 estÃƒÆ’Ã‚Â¡ definido, usar esas coordenadas como inicio PRIMERO
                 startX = Number(patrolComp.waypoint1_x);
                 startY = Number(patrolComp.waypoint1_y);
 
-                // Calcular direcciÃƒÂ³n hacia waypoint2
+                // Calcular direcciÃƒÆ’Ã‚Â³n hacia waypoint2
                 const endX = Number(patrolComp.waypoint2_x ?? startX);
                 const endY = Number(patrolComp.waypoint2_y ?? startY);
 
@@ -1766,13 +1768,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         }
 
-        // Guardar checkpoint del hÃƒÂ©roe
+        // Guardar checkpoint del hÃƒÆ’Ã‚Â©roe
         if (heroForThisScreen) {
             let checkpointX: number;
             let checkpointY: number;
 
             if (playerEntryPoint) {
-                // Entrada por borde Ã¢â€ â€™ usar playerEntryPoint
+                // Entrada por borde ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ usar playerEntryPoint
                 heroForThisScreen.x = playerEntryPoint.x;
                 heroForThisScreen.y = playerEntryPoint.y;
                 heroForThisScreen.vx = 0;
@@ -1780,22 +1782,22 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 checkpointX = Math.round(playerEntryPoint.x);
                 checkpointY = Math.round(playerEntryPoint.y);
             } else {
-                // Carga inicial Ã¢â€ â€™ usar posiciÃƒÂ³n del hÃƒÂ©roe
+                // Carga inicial ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ usar posiciÃƒÆ’Ã‚Â³n del hÃƒÆ’Ã‚Â©roe
                 checkpointX = Math.round(heroForThisScreen.x);
                 checkpointY = Math.round(heroForThisScreen.y);
             }
 
-    // Ã¢Å“â€¦ SIEMPRE guardar, incluso si ya habÃƒÂ­a checkpoint en esta pantalla
-        // Ã¢Å“â€¦ Punto de entrada: solo para colocar al player
+    // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ SIEMPRE guardar, incluso si ya habÃƒÆ’Ã‚Â­a checkpoint en esta pantalla
+        // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Punto de entrada: solo para colocar al player
         if (playerEntryPoint) {
         heroForThisScreen.x = playerEntryPoint.x
         heroForThisScreen.y = playerEntryPoint.y
         heroForThisScreen.vx = 0
         heroForThisScreen.vy = 0
-        setPlayerEntryPoint(null)   // Ã¢â€ Â ya se usÃƒÂ³
+        setPlayerEntryPoint(null)   // ÃƒÂ¢Ã¢â‚¬Â Ã‚Â ya se usÃƒÆ’Ã‚Â³
         }
 
-        // Ã¢Å“â€¦ Checkpoint: zona SEGURA dentro de la pantalla
+        // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Checkpoint: zona SEGURA dentro de la pantalla
         const safeX = Math.max(8, Math.min(PREVIEW_WIDTH  - heroForThisScreen.sprite.size.width  - 8, Math.round(heroForThisScreen.x)))
         const safeY = Math.max(8, Math.min(PREVIEW_HEIGHT - heroForThisScreen.sprite.size.height - 8, Math.round(heroForThisScreen.y)))
 
@@ -1841,7 +1843,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const tileY = Math.floor(y / TILE_SIZE);
             if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
 
-            // Usar runtimeCollisionLayerRef si estamos en currentScreenMap Y el layer estÃƒÂ¡ inicializado (permite modificaciÃƒÂ³n de tiles)
+            // Usar runtimeCollisionLayerRef si estamos en currentScreenMap Y el layer estÃƒÆ’Ã‚Â¡ inicializado (permite modificaciÃƒÆ’Ã‚Â³n de tiles)
             const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
             const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
             const tileOnLayer = collisionLayer[tileY]?.[tileX];
@@ -1881,7 +1883,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 layers: {
                     ...map.layers,
                     background: map.layers.background,  // Mantener background original para renderizado
-                    collision: runtimeLayer              // Solo usar runtime para detecciÃƒÂ³n de colisiones
+                    collision: runtimeLayer              // Solo usar runtime para detecciÃƒÆ’Ã‚Â³n de colisiones
                 }
             } : map;
 
@@ -1889,7 +1891,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return tileCanvas;
         };
 
-        // Pre-renderizar el mapa actual si existe, usando runtimeCollisionLayer si estÃƒÂ¡ disponible
+        // Pre-renderizar el mapa actual si existe, usando runtimeCollisionLayer si estÃƒÆ’Ã‚Â¡ disponible
         if (screenMapToRender) {
             const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
             tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode, layerToUse);
@@ -1916,32 +1918,86 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const projectileSprite = projectileSpriteAsset?.data as Sprite | undefined;
             if (!projectileSprite || !projectileSprite.frames?.length) return;
 
+            // --- Determine aim and velocity (supports 4-direction shooting) ---
+            const aimMode = String(shootProps.aimMode || 'facing').toLowerCase();
+            const allowDiagonals = (shootProps.allowDiagonals === true) || (shootProps.allowDiagonals === 'true');
+            const speedProp = Number(shootProps.speed);
+            const vxProp = Number(shootProps.velocityX);
+            const vyProp = Number(shootProps.velocityY);
+
+            // Determine facing sign for horizontal
+            let dirX = 1;
+            if (shooter.sprite.facingDirection === 'right') {
+                dirX = shooter.isFacingMirrored ? -1 : 1;
+            } else if (shooter.sprite.facingDirection === 'left') {
+                dirX = shooter.isFacingMirrored ? 1 : -1;
+            }
+
+            // Read input for aiming
+            const upPressed = pressedKeys.current.has('ArrowUp') || pressedKeys.current.has('w') || pressedKeys.current.has('W');
+            const downPressed = pressedKeys.current.has('ArrowDown') || pressedKeys.current.has('s') || pressedKeys.current.has('S');
+            const leftPressed = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('a') || pressedKeys.current.has('A');
+            const rightPressed = pressedKeys.current.has('ArrowRight') || pressedKeys.current.has('d') || pressedKeys.current.has('D');
+
+            let dx = 0, dy = 0;
+            if (aimMode === '4dir' || aimMode === 'four' || aimMode === 'fourdir' || aimMode === '4-dir') {
+                const anyVertical = (upPressed && !downPressed) || (downPressed && !upPressed);
+                const anyHorizontal = (leftPressed && !rightPressed) || (rightPressed && !leftPressed);
+                if (allowDiagonals && anyVertical && anyHorizontal) {
+                    dx = leftPressed ? -1 : (rightPressed ? 1 : 0);
+                    dy = upPressed ? -1 : (downPressed ? 1 : 0);
+                } else {
+                    if (upPressed && !downPressed) { dy = -1; }
+                    else if (downPressed && !upPressed) { dy = 1; }
+                    else if (leftPressed && !rightPressed) { dx = -1; }
+                    else if (rightPressed && !leftPressed) { dx = 1; }
+                    else { dx = dirX; dy = 0; }
+                }
+            } else {
+                // Default: facing-based horizontal
+                dx = dirX; dy = 0;
+            }
+
+            // Determine speed magnitude
+            let speed = (!isNaN(speedProp) && speedProp > 0) ? speedProp : NaN;
+            let vx = 0, vy = 0;
+            if (aimMode === '4dir' || aimMode === 'four' || aimMode === 'fourdir' || aimMode === '4-dir') {
+                if (isNaN(speed)) {
+                    const candX = isNaN(vxProp) ? 0 : Math.abs(vxProp);
+                    const candY = isNaN(vyProp) ? 0 : Math.abs(vyProp);
+                    speed = Math.max(candX, candY, 0);
+                    if (!speed || speed <= 0) speed = 3;
+                }
+                vx = dx * speed;
+                vy = dy * speed;
+            } else {
+                // Facing-based: keep semantics where positive vx means magnitude auto-flipped; negative is explicit
+                if (!isNaN(vxProp)) {
+                    vx = (vxProp >= 0) ? (Math.abs(vxProp) * dirX) : vxProp;
+                } else {
+                    vx = (isNaN(speed) ? 3 : speed) * dirX;
+                }
+                vy = isNaN(vyProp) ? 0 : vyProp;
+            }
+
+            // Compute offsets, flipping horizontally only if actually shooting horizontally
             let offsetX = Number(shootProps.offsetX || 0);
             let offsetY = Number(shootProps.offsetY || 0);
-            if (shooter.isFacingMirrored && (shooter.sprite.facingDirection === 'right' || shooter.sprite.facingDirection === 'left')) {
+            const isHorizontalShot = Math.abs(dx) > 0 && Math.abs(dy) === 0;
+            if (isHorizontalShot && shooter.isFacingMirrored && (shooter.sprite.facingDirection === 'right' || shooter.sprite.facingDirection === 'left')) {
                 offsetX = -offsetX;
             }
 
             const spawnX = Math.round(shooter.x + (shooter.sprite.size.width / 2) - (projectileSprite.size.width / 2) + offsetX);
             const spawnY = Math.round(shooter.y + (shooter.sprite.size.height / 2) - (projectileSprite.size.height / 2) + offsetY);
 
-            let vx = Number(shootProps.velocityX);
-            let vy = Number(shootProps.velocityY);
-            if (isNaN(vx)) {
-                const base = 3;
-                if (shooter.sprite.facingDirection === 'right') {
-                    vx = shooter.isFacingMirrored ? -base : base;
-                } else if (shooter.sprite.facingDirection === 'left') {
-                    vx = shooter.isFacingMirrored ? base : -base;
-                } else {
-                    vx = base;
-                }
-            }
-            if (isNaN(vy)) vy = 0;
-
             const maxRange = Number(shootProps.range || shootProps.maxRange || 128);
             const damage = Number(shootProps.damage || 1);
             const expireOnHit = (shootProps.expireOnHit === undefined) ? true : (shootProps.expireOnHit === true || shootProps.expireOnHit === 'true');
+            // Optional: allow comp_shoot to control if projectile animates
+            const playAnimation = (shootProps.playAnimation === undefined)
+                ? true
+                : (shootProps.playAnimation === true || shootProps.playAnimation === 'true');
 
             const frameImages = projectileSprite.frames.map(frame => {
                 const img = new Image();
@@ -1977,7 +2033,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 projectileStartY: spawnY,
                 projectileMaxRange: maxRange,
                 projectileDamage: damage,
-                projectileExpireOnHit: expireOnHit
+                projectileExpireOnHit: expireOnHit,
+                animateProjectile: playAnimation
             };
 
             entitiesRef.current.push(proj);
@@ -2426,7 +2483,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         let tentativeY = entity.y + entity.vy;
         let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
 
-        // --- ColisiÃƒÂ³n en X: usar puntos verticales centrados (evita esquinas inferiores/superiores) ---
+        // --- ColisiÃƒÆ’Ã‚Â³n en X: usar puntos verticales centrados (evita esquinas inferiores/superiores) ---
         if (entity.vx !== 0) {
             let collisionX = false;
             const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
@@ -2454,7 +2511,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         }
 
-        // --- ColisiÃƒÂ³n en Y: usar puntos horizontales centrados ---
+        // --- ColisiÃƒÆ’Ã‚Â³n en Y: usar puntos horizontales centrados ---
         if (entity.vy !== 0) {
             let collisionY = false;
             const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
@@ -2476,7 +2533,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
                 const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
                 tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
-                entity.vy = 0; // Detener velocidad Y (golpeÃƒÆ’Ã‚Â³ techo)
+                entity.vy = 0; // Detener velocidad Y (golpeÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³ techo)
 
           
             }
@@ -2487,17 +2544,17 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         }
 
-        // Aplicar posiciÃƒÂ³n final
+        // Aplicar posiciÃƒÆ’Ã‚Â³n final
         entity.x = tentativeX;
         entity.y = tentativeY;
 
-        // Verificar si el player estÃƒÂ¡ tocando un tile peligroso (causesDamage)
+        // Verificar si el player estÃƒÆ’Ã‚Â¡ tocando un tile peligroso (causesDamage)
         const finalHitbox = getHitboxFor(entity.x, entity.y);
         const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
         const centerY = finalHitbox.y + Math.floor(finalHitbox.height / 2);
         const bottomY = finalHitbox.y + finalHitbox.height;
 
-        // Verificar varios puntos del hitbox para mejor detecciÃƒÂ³n
+        // Verificar varios puntos del hitbox para mejor detecciÃƒÆ’Ã‚Â³n
         const isDangerous =
             checkDangerousTileAt(centerX, centerY, screenMap) ||  // Centro
             checkDangerousTileAt(finalHitbox.x, centerY, screenMap) ||  // Izquierda
@@ -2507,9 +2564,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // Actualizar flag para state machine
         entity.hasDangerousTileCollision = isDangerous;
 
-        // NOTA: El daÃƒÂ±o/muerte no se aplica automÃƒÂ¡ticamente aquÃƒÂ­
-        // El state machine puede detectar HAS_DEADLY_TILE_COLLISION y decidir quÃƒÂ© hacer
-        // (Ej: transiciÃƒÂ³n a estado "Taking Damage" o "Dead" con animaciÃƒÂ³n)
+        // NOTA: El daÃƒÆ’Ã‚Â±o/muerte no se aplica automÃƒÆ’Ã‚Â¡ticamente aquÃƒÆ’Ã‚Â­
+        // El state machine puede detectar HAS_DEADLY_TILE_COLLISION y decidir quÃƒÆ’Ã‚Â© hacer
+        // (Ej: transiciÃƒÆ’Ã‚Â³n a estado "Taking Damage" o "Dead" con animaciÃƒÆ’Ã‚Â³n)
         };
 
         const entityCollisionProps = (entity: AnimatedEntity) => {
@@ -2526,9 +2583,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
              const spriteHitbox = entity.sprite.hitbox;
              const defaults = collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>);
 
-             // FunciÃƒÂ³n helper para obtener valor con prioridad correcta
+             // FunciÃƒÆ’Ã‚Â³n helper para obtener valor con prioridad correcta
              const getPriorityValue = (propName: string, spriteFallback?: number) => {
-                 // 1. Instance override (mÃƒÂ¡s alta prioridad)
+                 // 1. Instance override (mÃƒÆ’Ã‚Â¡s alta prioridad)
                  if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') {
                      return Number(instanceValues[propName]);
                  }
@@ -2536,7 +2593,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                  if (templateValues[propName] !== undefined && templateValues[propName] !== '') {
                      return Number(templateValues[propName]);
                  }
-                 // 3. Sprite hitbox (si estÃƒÂ¡ disponible)
+                 // 3. Sprite hitbox (si estÃƒÆ’Ã‚Â¡ disponible)
                  if (spriteFallback !== undefined) {
                      return spriteFallback;
                  }
@@ -2727,7 +2784,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         };
 
-        // --- Nueva FunciÃƒÂ³n de AnimaciÃƒÂ³n ---
+        // --- Nueva FunciÃƒÆ’Ã‚Â³n de AnimaciÃƒÆ’Ã‚Â³n ---
         let lastTime = 0;
         const animate = (currentTime: number) => {
             // --- Calcular deltaTime (opcional) ---
@@ -2742,7 +2799,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 tileBufferNeedsUpdate.current = false;
             }
 
-            // Limpiar solo el ÃƒÂ¡rea principal
+            // Limpiar solo el ÃƒÆ’Ã‚Â¡rea principal
             ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 
             // Dibujar el fondo pre-renderizado (tiles)
@@ -2882,6 +2939,19 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     }
 
+                                        // Animate projectile frames if enabled
+                    if (entityA.animateProjectile !== false && entityA.frameImages.length > 1) {
+                        if (now - entityA.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
+                            const loops = (entityA.sprite.loops !== undefined) ? entityA.sprite.loops : true;
+                            if (loops) {
+                                entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
+                            } else if (entityA.currentFrame < entityA.frameImages.length - 1) {
+                                entityA.currentFrame++;
+                            }
+                            entityA.lastFrameUpdateTime = now;
+                        }
+                    }
+
                     // Render projectile immediately and skip rest
                     if (entityA.frameImages.length > 0) {
                         const img = entityA.frameImages[entityA.currentFrame] || entityA.frameImages[0];
@@ -2969,7 +3039,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                 }
 
-                // --- 0.6. Procesar eventos de colisiÃƒÂ³n (State Machine transitions) ---
+                // --- 0.6. Procesar eventos de colisiÃƒÆ’Ã‚Â³n (State Machine transitions) ---
                 processEventTransitions(entityA);
 
                 // --- 1. Actualizar Velocidad ---
@@ -3228,7 +3298,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     }
 
-                    // --- 2. Resolver ColisiÃƒÂ³n y Aplicar Nueva PosiciÃƒÂ³n ---
+                    // --- 2. Resolver ColisiÃƒÆ’Ã‚Â³n y Aplicar Nueva PosiciÃƒÆ’Ã‚Â³n ---
                     // Check if entity is multi-screen - if so, position is calculated from global coords in patrol logic
                     // Merge defaultValues from template with componentOverrides
                     const patrolTemplateComp2 = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
@@ -3281,9 +3351,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     entityA.vy = 0;
                 }
 
-                // --- 3. LÃƒÂ³gica de TransiciÃƒÂ³n de Pantalla (Solo para el HÃƒÂ©roe) ---
+                // --- 3. LÃƒÆ’Ã‚Â³gica de TransiciÃƒÆ’Ã‚Â³n de Pantalla (Solo para el HÃƒÆ’Ã‚Â©roe) ---
                 if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap && canProcessPhysics) {
-                    // Estados que desactivan la detecciÃƒÂ³n de salida por bordes (evitan transiciones no deseadas tras respawn/muerte)
+                    // Estados que desactivan la detecciÃƒÆ’Ã‚Â³n de salida por bordes (evitan transiciones no deseadas tras respawn/muerte)
                     const statesThatDisableScreenExit = ['Dead', 'Death', 'Respawn', 'Spawning', 'Hurt', 'Hit', 'GameOver', 'Invulnerable'];
                     const isExitingDisabled = entityA.currentState && statesThatDisableScreenExit.some(state =>
                         entityA.currentState?.toLowerCase().includes(state.toLowerCase())
@@ -3333,14 +3403,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     }
                                     setPlayerEntryPoint(newPlayerPos);
                                     handleScreenTransition(targetNodeId);
-                                    return; // Detener el procesamiento de este frame para permitir la transiciÃƒÂ³n
+                                    return; // Detener el procesamiento de este frame para permitir la transiciÃƒÆ’Ã‚Â³n
                                 }
                             }
                         }
                     }
                 }
 
-                // --- 5. LÃƒÂ³gica de ColisiÃƒÂ³n entre Entidades ---
+                // --- 5. LÃƒÆ’Ã‚Â³gica de ColisiÃƒÆ’Ã‚Â³n entre Entidades ---
                 // Store previous platform to detect when we fall off (declare outside if block)
                 let previousPlatform: AnimatedEntity | null = null;
 
@@ -3600,7 +3670,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                 }
 
-                // --- 6. LÃƒÂ³gica de Patrulla ---
+                // --- 6. LÃƒÆ’Ã‚Â³gica de Patrulla ---
                 // Only process patrol AI if physics is enabled
                 if (canProcessPhysics) {
                     // Merge patrol component defaultValues with componentOverrides
@@ -3815,7 +3885,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                 }
 
-                // --- 7. AnimaciÃƒÂ³n de Sprites ---
+                // --- 7. AnimaciÃƒÆ’Ã‚Â³n de Sprites ---
                 const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
                 if (animComp && entityA.frameImages.length > 1 && now - entityA.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
                     // Check if animation should only play when moving
@@ -3943,12 +4013,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
 
                     let imageToDraw = shouldUseMirrored ? entityA.mirroredFrameImages![entityA.currentFrame] : entityA.frameImages[entityA.currentFrame];
-                    // Asegurarse de que la imagen estÃƒÂ© cargada antes de dibujar es crucial para el rendimiento
+                    // Asegurarse de que la imagen estÃƒÆ’Ã‚Â© cargada antes de dibujar es crucial para el rendimiento
                     if (imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
                          if (heroRef.current?.carriedBox !== entityA) { ctx.drawImage(imageToDraw, entityA.x, entityA.y); }
                     } else if (imageToDraw) {
                          // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
-                         // console.warn("Imagen no cargada aÃƒÂºn:", entityA.instance.name);
+                         // console.warn("Imagen no cargada aÃƒÆ’Ã‚Âºn:", entityA.instance.name);
                     }
                 }
                 // If frameImages is empty, simply skip drawing but continue processing
@@ -3974,13 +4044,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         if (now % 1000 < 16) {
                         }
 
-                        // Color segÃƒÂºn tipo de colisiÃƒÂ³n
+                        // Color segÃƒÆ’Ã‚Âºn tipo de colisiÃƒÆ’Ã‚Â³n
                         if (props.isTrigger) {
                             ctx.strokeStyle = '#FFAA00'; // Naranja para triggers (sin empuje)
-                            ctx.setLineDash([4, 2]); // LÃƒÂ­nea punteada para triggers
+                            ctx.setLineDash([4, 2]); // LÃƒÆ’Ã‚Â­nea punteada para triggers
                         } else {
                             ctx.strokeStyle = '#00FF00'; // Verde para solid (con empuje)
-                            ctx.setLineDash([]); // LÃƒÂ­nea sÃƒÂ³lida
+                            ctx.setLineDash([]); // LÃƒÆ’Ã‚Â­nea sÃƒÆ’Ã‚Â³lida
                         }
                         ctx.lineWidth = 2;
                         ctx.strokeRect(hitbox.x, hitbox.y, hitbox.width, hitbox.height);
@@ -4057,7 +4127,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             animationFrameId.current = requestAnimationFrame(animate);
         };
-        // --- Fin Nueva FunciÃƒÂ³n ---
+        // --- Fin Nueva FunciÃƒÆ’Ã‚Â³n ---
 
         if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         if (currentNode.type === 'WorldLink') {
@@ -4066,7 +4136,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 animationFrameId.current = requestAnimationFrame(animate);
             } else {
                 ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                if (tileBufferRef.current) { // Dibujar buffer estÃƒÂ¡tico
+                if (tileBufferRef.current) { // Dibujar buffer estÃƒÆ’Ã‚Â¡tico
                     ctx.drawImage(tileBufferRef.current, 0, 0);
 
                     // Hide revealed secret tiles
@@ -4121,7 +4191,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     }, [
         isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
         msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
-        // Asegurarse de que dependencias de las funciones internas estÃƒÂ©n aquÃƒÂ­ si cambian
+        // Asegurarse de que dependencias de las funciones internas estÃƒÆ’Ã‚Â©n aquÃƒÆ’Ã‚Â­ si cambian
         componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, isFullscreen
     ]);
 
@@ -4372,3 +4442,4 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         </>
     );
 };
+
