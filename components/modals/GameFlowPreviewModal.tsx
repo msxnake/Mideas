@@ -154,6 +154,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [currentWorldMapGraph, setCurrentWorldMapGraph] = useState<WorldMapGraph | null>(null);
     const [isDynamic, setIsDynamic] = useState(initialIsDynamic);
     const [showHitboxDebug, setShowHitboxDebug] = useState(false);
+    const [showTileHitboxes, setShowTileHitboxes] = useState(false); // Debug: outlines for solid Collision tiles
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [crtConfig, setCrtConfig] = useState<CRTShaderConfig>(() => {
         const saved = localStorage.getItem('crtShaderConfig');
@@ -1891,6 +1892,43 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return tileCanvas;
         };
 
+        // Debug helper: draw outlines for solid tiles from the Collision layer
+        const drawCollisionTileOutlines = (ctx: CanvasRenderingContext2D) => {
+            if (!showTileHitboxes) return;
+            const map = currentScreenMapRef.current;
+            if (!map) return;
+
+            // Prefer runtime collision layer when available (reflects tile changes during play)
+            const collisionLayer: ScreenTile[][] = (runtimeCollisionLayerRef.current && runtimeCollisionLayerRef.current.length > 0)
+                ? runtimeCollisionLayerRef.current
+                : map.layers.collision;
+
+            if (!collisionLayer) return;
+
+            // Precompute solid tile ids
+            const solidIds = new Set<string>();
+            for (const t of tileset) {
+                if (t?.logicalProperties?.isSolid) solidIds.add(t.id);
+            }
+
+            ctx.save();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#00FFFF';
+            ctx.setLineDash([3, 2]);
+            for (let ty = 0; ty < map.height; ty++) {
+                const row = collisionLayer[ty];
+                if (!row) continue;
+                for (let tx = 0; tx < map.width; tx++) {
+                    const cell = row[tx];
+                    const id = cell?.tileId || null;
+                    if (!id || !solidIds.has(id)) continue;
+                    ctx.strokeRect(tx * TILE_SIZE + 0.5, ty * TILE_SIZE + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+                }
+            }
+            ctx.setLineDash([]);
+            ctx.restore();
+        };
+
         // Pre-renderizar el mapa actual si existe, usando runtimeCollisionLayer si estÃƒÆ’Ã‚Â¡ disponible
         if (screenMapToRender) {
             const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
@@ -2473,12 +2511,23 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
             ...(entity.instance.componentOverrides?.['comp_collision'] || {})
         };
-        const getHitboxFor = (x: number, y: number) => ({
-            x: x + Number(entityCollisionProps.offsetX ?? 0),
-            y: y + Number(entityCollisionProps.offsetY ?? 0),
-            width: Number(entityCollisionProps.hitboxWidth) || entity.sprite.size.width,
-            height: Number(entityCollisionProps.hitboxHeight) || entity.sprite.size.height,
-        });
+        const getHitboxFor = (x: number, y: number) => {
+            // Respect sprite-defined hitbox when comp values are not provided
+            const sHit = entity.sprite.hitbox;
+            const offsetX = (entityCollisionProps.offsetX !== undefined && entityCollisionProps.offsetX !== '')
+                ? Number(entityCollisionProps.offsetX)
+                : (sHit?.offsetX ?? 0);
+            const offsetY = (entityCollisionProps.offsetY !== undefined && entityCollisionProps.offsetY !== '')
+                ? Number(entityCollisionProps.offsetY)
+                : (sHit?.offsetY ?? 0);
+            const width = (entityCollisionProps.hitboxWidth !== undefined && entityCollisionProps.hitboxWidth !== '')
+                ? Number(entityCollisionProps.hitboxWidth)
+                : (sHit?.width ?? entity.sprite.size.width);
+            const height = (entityCollisionProps.hitboxHeight !== undefined && entityCollisionProps.hitboxHeight !== '')
+                ? Number(entityCollisionProps.hitboxHeight)
+                : (sHit?.height ?? entity.sprite.size.height);
+            return { x: x + offsetX, y: y + offsetY, width, height };
+        };
         let tentativeX = entity.x + entity.vx;
         let tentativeY = entity.y + entity.vy;
         let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
@@ -2821,6 +2870,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     });
                 }
+
+                // Debug overlay: outlines for solid tiles in Collision layer
+                drawCollisionTileOutlines(ctx);
             } else {
                 // Si no hay buffer (por ejemplo, en nodos de texto), limpiar y dibujar fondo
                 ctx.fillStyle = '#000000'; // Color por defecto
@@ -2892,32 +2944,55 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         entityA.markedForDestruction = true as any;
                     }
 
-                    // Tile collision (center and edges)
+                    // Tile collision (respect sprite hitbox if present)
                     if (screenMapToRender) {
-                        const w = entityA.sprite.size.width;
-                        const h = entityA.sprite.size.height;
-                        const cx = entityA.x + Math.floor(w / 2);
-                        const cy = entityA.y + Math.floor(h / 2);
+                        const sHit = entityA.sprite.hitbox;
+                        const hbX = entityA.x + (sHit?.offsetX ?? 0);
+                        const hbY = entityA.y + (sHit?.offsetY ?? 0);
+                        const hbW = sHit?.width ?? entityA.sprite.size.width;
+                        const hbH = sHit?.height ?? entityA.sprite.size.height;
+
+                        const cx = hbX + Math.floor(hbW / 2);
+                        const cy = hbY + Math.floor(hbH / 2);
                         const hitTile =
                             checkCollisionAt(cx, cy, screenMapToRender) ||
-                            checkCollisionAt(entityA.x, cy, screenMapToRender) ||
-                            checkCollisionAt(entityA.x + w - 1, cy, screenMapToRender) ||
-                            checkCollisionAt(cx, entityA.y, screenMapToRender) ||
-                            checkCollisionAt(cx, entityA.y + h - 1, screenMapToRender);
+                            checkCollisionAt(hbX, cy, screenMapToRender) ||
+                            checkCollisionAt(hbX + hbW - 1, cy, screenMapToRender) ||
+                            checkCollisionAt(cx, hbY, screenMapToRender) ||
+                            checkCollisionAt(cx, hbY + hbH - 1, screenMapToRender);
                         if (hitTile) {
                             entityA.markedForDestruction = true as any;
                         }
                     }
 
-                    // Entity collisions
+                    // Entity collisions (respect both projectile and target hitboxes)
                     for (let j = 0; j < entitiesRef.current.length && !entityA.markedForDestruction; j++) {
                         if (j === indexA) continue;
                         const target = entitiesRef.current[j];
                         if (target.instance.id === entityA.projectileOwnerId) continue;
                         if (target.isProjectile) continue;
 
-                        const ax1 = entityA.x, ay1 = entityA.y, ax2 = ax1 + entityA.sprite.size.width, ay2 = ay1 + entityA.sprite.size.height;
-                        const bx1 = target.x, by1 = target.y, bx2 = bx1 + target.sprite.size.width, by2 = by1 + target.sprite.size.height;
+                        // Projectile hitbox from sprite or sprite size
+                        const pHB = entityA.sprite.hitbox;
+                        const ax1 = entityA.x + (pHB?.offsetX ?? 0);
+                        const ay1 = entityA.y + (pHB?.offsetY ?? 0);
+                        const ax2 = ax1 + (pHB?.width ?? entityA.sprite.size.width);
+                        const ay2 = ay1 + (pHB?.height ?? entityA.sprite.size.height);
+
+                        // Target hitbox from comp_collision (with sprite fallback) or sprite.hitbox/size
+                        let bx1 = target.x, by1 = target.y, bx2 = bx1 + target.sprite.size.width, by2 = by1 + target.sprite.size.height;
+                        const tProps = entityCollisionProps(target);
+                        if (tProps) {
+                            const thb = getHitboxFor(target, tProps);
+                            bx1 = thb.x; by1 = thb.y; bx2 = thb.x + thb.width; by2 = thb.y + thb.height;
+                        } else if (target.sprite.hitbox) {
+                            const sh = target.sprite.hitbox;
+                            bx1 = target.x + (sh.offsetX ?? 0);
+                            by1 = target.y + (sh.offsetY ?? 0);
+                            bx2 = bx1 + (sh.width ?? target.sprite.size.width);
+                            by2 = by1 + (sh.height ?? target.sprite.size.height);
+                        }
+
                         const overlap = (ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1);
                         if (!overlap) continue;
 
@@ -4192,7 +4267,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
         msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
         // Asegurarse de que dependencias de las funciones internas estÃƒÆ’Ã‚Â©n aquÃƒÆ’Ã‚Â­ si cambian
-        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, isFullscreen
+        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, showTileHitboxes, isFullscreen
     ]);
 
     if (!isOpen) return null;
@@ -4369,6 +4444,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 <>
                                     <Button onClick={() => setShowHitboxDebug(!showHitboxDebug)} variant={showHitboxDebug ? 'secondary' : 'ghost'} size="md" className="mr-4">
                                         Hitbox Debug: {showHitboxDebug ? 'On' : 'Off'}
+                                    </Button>
+                                    <Button onClick={() => setShowTileHitboxes(!showTileHitboxes)} variant={showTileHitboxes ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        Hitbox Tiles: {showTileHitboxes ? 'On' : 'Off'}
                                     </Button>
                                     <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
                                         Position Player: {isPositioningMode ? 'On' : 'Off'}
