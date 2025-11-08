@@ -349,8 +349,19 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
                           </select>
                         </div>
                         <div className="md:col-span-2">
-                          <label className="block text-msx-textsecondary mb-0.5">Default Value (as string):</label>
-                          <input type="text" value={String(prop.defaultValue ?? '')} onChange={e => handlePropertyChange(index, 'defaultValue', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                          <label className="block text-msx-textsecondary mb-0.5">Default Value{editingDefinition?.id === 'comp_shoot' && prop.name === 'aimMode' ? ' (select)' : ' (as string)'}:</label>
+                          {editingDefinition?.id === 'comp_shoot' && prop.name === 'aimMode' ? (
+                            <select
+                              value={String(prop.defaultValue ?? 'facing')}
+                              onChange={e => handlePropertyChange(index, 'defaultValue', e.target.value)}
+                              className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                            >
+                              <option value="facing">facing (izq/dcha según mirror)</option>
+                              <option value="4dir">4dir (flechas/WASD)</option>
+                            </select>
+                          ) : (
+                            <input type="text" value={String(prop.defaultValue ?? '')} onChange={e => handlePropertyChange(index, 'defaultValue', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                          )}
                         </div>
                         <div className="md:col-span-2">
                           <label className="block text-msx-textsecondary mb-0.5">Description:</label>

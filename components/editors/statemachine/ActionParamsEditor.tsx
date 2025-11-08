@@ -91,12 +91,107 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         );
 
       case ActionTypes.PLAY_SOUND:
+        const availableSounds = allAssets.filter(a => a.type === 'sound');
+
+        if (availableSounds.length === 0) {
+          return (
+            <div className="space-y-2">
+              <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded border border-yellow-600">
+                ⚠️ No sound assets available. Create a sound asset first using the toolbar (New Asset → Sound).
+              </div>
+            </div>
+          );
+        }
+
         return (
-          <ParamInput 
-            label="Sound ID"
-            value={action.params.soundId}
-            onChange={(e) => handleParamChange('soundId', e.target.value)}
-          />
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-16">Sound</label>
+              <select
+                value={action.params.soundId || ''}
+                onChange={(e) => handleParamChange('soundId', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="">-- Select Sound --</option>
+                {availableSounds.map((soundAsset) => (
+                  <option key={soundAsset.id} value={soundAsset.id}>
+                    {soundAsset.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="text-xs text-blue-400 italic">
+              🔊 Plays the selected PSG sound effect (Yamaha AY-3-8910)
+            </div>
+          </div>
+        );
+
+      case ActionTypes.PLAY_MUSIC:
+        const availableTracks = allAssets.filter(a => a.type === 'track');
+
+        if (availableTracks.length === 0) {
+          return (
+            <div className="space-y-2">
+              <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded border border-yellow-600">
+                ⚠️ No music tracks available. Create a tracker song first using the toolbar (New Asset → Track).
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-16">Track</label>
+              <select
+                value={action.params.trackId || ''}
+                onChange={(e) => handleParamChange('trackId', e.target.value)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="">-- Select Music Track --</option>
+                {availableTracks.map((trackAsset) => (
+                  <option key={trackAsset.id} value={trackAsset.id}>
+                    {trackAsset.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-16">Loop</label>
+              <input
+                type="checkbox"
+                checked={action.params.loop ?? true}
+                onChange={(e) => handleParamChange('loop', e.target.checked)}
+                className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
+              />
+              <span className="text-xs text-gray-400">Repeat music continuously</span>
+            </div>
+            <div className="text-xs text-blue-400 italic">
+              🎵 Plays background music from Tracker Composer (PT3-style)
+            </div>
+          </div>
+        );
+
+      case ActionTypes.MUTE_MUSIC:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-blue-400 italic p-2 bg-black bg-opacity-30 rounded border border-blue-600">
+              🔇 Mutes the currently playing music (useful for pause mode).
+              <br />
+              Use PLAY_MUSIC to resume, or STOP_MUSIC to completely stop playback.
+            </div>
+          </div>
+        );
+
+      case ActionTypes.STOP_MUSIC:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-red-400 italic p-2 bg-black bg-opacity-30 rounded border border-red-600">
+              ⏹️ Stops the currently playing music and clears the playback state.
+              <br />
+              To temporarily pause, use MUTE_MUSIC instead.
+            </div>
+          </div>
         );
 
       case ActionTypes.SET_VARIABLE:

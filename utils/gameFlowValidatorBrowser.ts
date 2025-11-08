@@ -301,17 +301,6 @@ export function validateGameFlowBrowser(
   gameFlow: GameFlowGraph,
   allAssets: ProjectAsset[]
 ): GameFlowValidationResult {
-  console.log('🔄 Validating GameFlow in browser...');
-
   const result = validateGameFlow(gameFlow, allAssets);
-
-  console.log(`✅ Validation complete: ${result.status}`);
-  if (result.issues.length > 0) {
-    console.log(`⚠️  Issues found: ${result.issues.length}`);
-    result.issues.forEach(issue => {
-      console.log(`   ${issue.type}: ${issue.message}`);
-    });
-  }
-
   return result;
 }

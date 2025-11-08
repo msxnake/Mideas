@@ -57,12 +57,13 @@ interface OrnamentState {
 export class AYSynthesizer {
     private audioContext: AudioContext | null = null;
     private masterGain: GainNode | null = null;
-    
+
     private toneOscillators: (OscillatorNode | null)[] = [null, null, null];
     private channelMainGains: (GainNode | null)[] = [null, null, null];
-    
+
     private noiseBuffer: AudioBuffer | null = null;
     private noiseSources: (AudioBufferSourceNode | null)[] = [null, null, null];
+    private noiseFilters: (BiquadFilterNode | null)[] = [null, null, null];
 
     private isInitialized = false;
     private currentMasterVolume = 0.5;
@@ -110,10 +111,15 @@ export class AYSynthesizer {
         if (freq === null || freq <= 0) return null;
         return Math.round(AY_CLOCK_FREQUENCY / (16 * freq));
     }
-    
+
     private getFrequencyFromPeriod(period: number | null): number | null {
         if (period === null || period <= 0) return 0;
         return AY_CLOCK_FREQUENCY / (16 * period);
+    }
+
+    private getFrequencyFromNoisePeriod(noisePeriod: number): number {
+        const effectiveNP = (noisePeriod === 0) ? 1 : noisePeriod & 0x1F; // Ensure 5-bit, treat 0 as 1
+        return AY_CLOCK_FREQUENCY / (32 * effectiveNP);
     }
 
     /**
@@ -168,6 +174,10 @@ export class AYSynthesizer {
             try { this.noiseSources[channel]!.stop(); } catch (e) {}
             this.noiseSources[channel]!.disconnect();
             this.noiseSources[channel] = null;
+        }
+        if (this.noiseFilters[channel]) {
+            this.noiseFilters[channel]!.disconnect();
+            this.noiseFilters[channel] = null;
         }
     }
 
@@ -244,12 +254,33 @@ export class AYSynthesizer {
     private setupNoiseSource(channel: 0 | 1 | 2) {
         if (!this.audioContext || !this.noiseBuffer || !this.channelMainGains[channel]) return;
         this.stopNoiseSource(channel);
+
+        // Create bandpass filter for noise (similar to SoundEditor)
+        const noiseFilter = this.audioContext.createBiquadFilter();
+        noiseFilter.type = 'bandpass';
+        noiseFilter.Q.value = 1.0;
+
+        // Calculate noise frequency from ayNoisePeriod (default 16 if not set)
+        const noisePeriod = this.songDataRef?.ayNoisePeriod ?? 16;
+        const noiseFreq = this.getFrequencyFromNoisePeriod(noisePeriod);
+        const maxFilterFreq = this.audioContext.sampleRate / 2;
+        const frequency = Math.min(Math.max(20, noiseFreq), maxFilterFreq);
+        if (isFinite(frequency)) {
+            noiseFilter.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+        }
+
+        // Create noise source
         const noiseSourceNode = this.audioContext.createBufferSource();
         noiseSourceNode.buffer = this.noiseBuffer;
         noiseSourceNode.loop = true;
-        noiseSourceNode.connect(this.channelMainGains[channel]!);
+
+        // Connect: source -> filter -> channel gain
+        noiseSourceNode.connect(noiseFilter);
+        noiseFilter.connect(this.channelMainGains[channel]!);
+
         try { noiseSourceNode.start(); } catch (e) { console.error("Error starting noise source:", e); }
         this.noiseSources[channel] = noiseSourceNode;
+        this.noiseFilters[channel] = noiseFilter;
     }
 
     /**
@@ -455,7 +486,8 @@ export class AYSynthesizer {
             const hwEnv = this.channelHardwareEnvelopeState[channel]!;
             if (!hwEnv.finished) {
                 hwEnv.periodCounter--;
-                const ticksPerEnvelopeStep = Math.max(1, Math.round( ((16 * (this.songDataRef?.ayHardwareEnvelopePeriod || 1)) / AY_CLOCK_FREQUENCY) / (this.effectsUpdateIntervalMs / 1000.0) ));
+                // MSX PSG envelope generator changes every 256 * EP clock cycles (not 16 * EP)
+                const ticksPerEnvelopeStep = Math.max(1, Math.round( ((256 * (this.songDataRef?.ayHardwareEnvelopePeriod || 1)) / AY_CLOCK_FREQUENCY) / (this.effectsUpdateIntervalMs / 1000.0) ));
 
                 if (hwEnv.periodCounter <= 0) {
                     hwEnv.periodCounter = ticksPerEnvelopeStep;

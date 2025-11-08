@@ -540,6 +540,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             tileBanksForScreenEditor={tileBanks}
             waypointPickerState={waypointPickerState}
             onSetWaypointPickerState={setWaypointPickerState}
+            onUpdateAsset={(assetId, data) => handleUpdateAsset(assetId, data)}
           />
         </div>
       </div>

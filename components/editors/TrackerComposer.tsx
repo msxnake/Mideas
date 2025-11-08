@@ -250,6 +250,7 @@ const createOdeToJoySampleSong = (): TrackerSongData => {
         currentPatternIndexInOrder: 0,
         currentPatternId: patterns[0].id,
         ayHardwareEnvelopePeriod: 100,
+        ayNoisePeriod: 16,
     };
 };
 
@@ -345,24 +346,22 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
   }, [songData, synthesizer]);
 
-  useEffect(() => { 
-    if (isLogModalOpen && songData.name !== localSongName) addLog(`useEffect: Setting localSongName to '${songData.name}' (was '${localSongName}')`);
-    setLocalSongName(songData.name); 
-  }, [songData.name, isLogModalOpen, addLog, localSongName]);
-  
-  useEffect(() => { 
-    const currentLocalTitle = localSongTitle;
-    const propTitle = songData.title || "";
-    if (isLogModalOpen && propTitle !== currentLocalTitle) addLog(`useEffect: Setting localSongTitle to '${propTitle}' (was '${currentLocalTitle}')`);
-    setLocalSongTitle(propTitle); 
-  }, [songData.title, isLogModalOpen, addLog, localSongTitle]);
+  useEffect(() => {
+    if (isLogModalOpen) addLog(`useEffect: Setting localSongName to '${songData.name}'`);
+    setLocalSongName(songData.name);
+  }, [songData.name, isLogModalOpen, addLog]);
 
-  useEffect(() => { 
-    const currentLocalAuthor = localSongAuthor;
+  useEffect(() => {
+    const propTitle = songData.title || "";
+    if (isLogModalOpen) addLog(`useEffect: Setting localSongTitle to '${propTitle}'`);
+    setLocalSongTitle(propTitle);
+  }, [songData.title, isLogModalOpen, addLog]);
+
+  useEffect(() => {
     const propAuthor = songData.author || "";
-    if (isLogModalOpen && propAuthor !== currentLocalAuthor) addLog(`useEffect: Setting localSongAuthor to '${propAuthor}' (was '${currentLocalAuthor}')`);
-    setLocalSongAuthor(propAuthor); 
-  }, [songData.author, isLogModalOpen, addLog, localSongAuthor]);
+    if (isLogModalOpen) addLog(`useEffect: Setting localSongAuthor to '${propAuthor}'`);
+    setLocalSongAuthor(propAuthor);
+  }, [songData.author, isLogModalOpen, addLog]);
   
   useEffect(() => {
     if (songData && songData.id && isLogModalOpen) { 
@@ -419,12 +418,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
   }, [focusedCell, currentPattern]);
 
-  const handleGlobalDataChange = useCallback((field: 'bpm' | 'speed' | 'globalVolume' | 'lengthInPatterns' | 'restartPosition', value: string | number) => {
+  const handleGlobalDataChange = useCallback((field: 'bpm' | 'speed' | 'globalVolume' | 'lengthInPatterns' | 'restartPosition' | 'ayHardwareEnvelopePeriod' | 'ayNoisePeriod', value: string | number) => {
     let valToUpdate = parseInt(String(value), 10);
     if (isNaN(valToUpdate)) {
         if (field === 'bpm') valToUpdate = DEFAULT_PT3_BPM;
         else if (field === 'speed') valToUpdate = DEFAULT_PT3_SPEED;
         else if (field === 'globalVolume') valToUpdate = 15;
+        else if (field === 'ayHardwareEnvelopePeriod') valToUpdate = 100;
+        else if (field === 'ayNoisePeriod') valToUpdate = 16;
         else valToUpdate = 0;
     }
     if (field === 'globalVolume') {
@@ -432,9 +433,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         synthesizer?.setMasterVolume(valToUpdate / 15);
     }
     if (field === 'bpm') valToUpdate = Math.max(30, Math.min(300, valToUpdate));
-    if (field === 'speed') valToUpdate = Math.max(1, Math.min(31, valToUpdate)); 
+    if (field === 'speed') valToUpdate = Math.max(1, Math.min(31, valToUpdate));
     if (field === 'lengthInPatterns') valToUpdate = Math.max(1, Math.min(songData.order?.length || 1, valToUpdate));
     if (field === 'restartPosition') valToUpdate = Math.max(0, Math.min(Math.max(0, songData.lengthInPatterns - 1), valToUpdate));
+    if (field === 'ayHardwareEnvelopePeriod') valToUpdate = Math.max(1, Math.min(65535, valToUpdate));
+    if (field === 'ayNoisePeriod') valToUpdate = Math.max(0, Math.min(31, valToUpdate));
 
     onUpdate({ [field]: valToUpdate });
   }, [onUpdate, synthesizer, songData.order?.length, songData.lengthInPatterns]);
@@ -1024,8 +1027,12 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onPatternRowsChange={handlePatternRowsChange}
         editStepJump={editStepJump} onEditStepJumpChange={setEditStepJump}
         globalVolume={songData.globalVolume} onGlobalVolumeChange={(val) => handleGlobalDataChange('globalVolume', val)}
+        ayHardwareEnvelopePeriod={songData.ayHardwareEnvelopePeriod}
+        onAyHardwareEnvelopePeriodChange={(val) => handleGlobalDataChange('ayHardwareEnvelopePeriod', val)}
+        ayNoisePeriod={songData.ayNoisePeriod}
+        onAyNoisePeriodChange={(val) => handleGlobalDataChange('ayNoisePeriod', val)}
         isPlaying={isPlaying} onPlayStop={handlePlayStop}
-        onLoadSampleSong={handleLoadSampleSong} 
+        onLoadSampleSong={handleLoadSampleSong}
         onSilenceAllChannels={handleSilenceAllChannels}
       />
 

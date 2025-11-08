@@ -41,6 +41,14 @@ interface TrackerHeaderProps {
   globalVolume: number;
   /** Callback to update the global volume. */
   onGlobalVolumeChange: (value: number | string) => void;
+  /** The AY hardware envelope period (1-65535). */
+  ayHardwareEnvelopePeriod?: number;
+  /** Callback to update the hardware envelope period. */
+  onAyHardwareEnvelopePeriodChange?: (value: number | string) => void;
+  /** The AY noise generator period (0-31). */
+  ayNoisePeriod?: number;
+  /** Callback to update the noise period. */
+  onAyNoisePeriodChange?: (value: number | string) => void;
   /** Whether the song is currently playing. */
   isPlaying: boolean;
   /** Callback to toggle playback. */
@@ -62,7 +70,9 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   songName, onSongNameChange, songTitle, onSongTitleChange, songAuthor, onSongAuthorChange,
   bpm, onBpmChange, speed, onSpeedChange, patternRows, onPatternRowsChange,
   editStepJump, onEditStepJumpChange, globalVolume, onGlobalVolumeChange,
-  isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels // Added onSilenceAllChannels
+  ayHardwareEnvelopePeriod, onAyHardwareEnvelopePeriodChange,
+  ayNoisePeriod, onAyNoisePeriodChange,
+  isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
 
@@ -136,6 +146,34 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
         <label className="text-msx-textsecondary mr-1">Vol:</label>
         <input type="number" value={isNaN(globalVolume) ? '' : globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
       </div>
+      {onAyHardwareEnvelopePeriodChange && (
+        <div>
+          <label className="text-msx-textsecondary mr-1" title="Hardware Envelope Period (1-65535)">HW Env:</label>
+          <input
+            type="number"
+            value={ayHardwareEnvelopePeriod ?? 100}
+            min="1"
+            max="65535"
+            onChange={e => onAyHardwareEnvelopePeriodChange(e.target.value)}
+            className="p-1 bg-msx-bgcolor border border-msx-border rounded w-16"
+            title="AY Hardware Envelope Period (higher = slower envelope)"
+          />
+        </div>
+      )}
+      {onAyNoisePeriodChange && (
+        <div>
+          <label className="text-msx-textsecondary mr-1" title="Noise Generator Period (0-31)">Noise:</label>
+          <input
+            type="number"
+            value={ayNoisePeriod ?? 16}
+            min="0"
+            max="31"
+            onChange={e => onAyNoisePeriodChange(e.target.value)}
+            className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"
+            title="AY Noise Period (lower = higher pitch noise)"
+          />
+        </div>
+      )}
       <div className="flex-grow"></div>
       <Button onClick={onPlayStop} size="sm" variant={isPlaying ? "danger" : "primary"} icon={isPlaying ? <StopIcon /> : <PlayIcon />}>
         {isPlaying ? 'Stop' : 'Play Pattern'}

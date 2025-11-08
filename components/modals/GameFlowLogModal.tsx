@@ -37,7 +37,6 @@ export const GameFlowLogModal: React.FC<GameFlowLogModalProps> = ({
           setValidationStatus('UNKNOWN');
         }
       } catch (error) {
-        console.error('Error loading GameFlow log:', error);
         setLogContent(`Error loading log file: ${error}`);
         setLogExists(false);
         setValidationStatus('ERROR');

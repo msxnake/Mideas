@@ -208,9 +208,10 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
         gainNode.gain.cancelScheduledValues(now);
         if (isFinite(peakVolume)) {
           gainNode.gain.setValueAtTime(0, now);
-        } 
-        
-        const shape = soundData.envelopeShape;
+        }
+
+        // Use step-specific envelope shape if defined, otherwise use global
+        const shape = step.envelopeShape ?? soundData.envelopeShape;
         const isAttack = (shape & 0b0100) !== 0;
         const isAlternate = (shape & 0b0010) !== 0;
         
@@ -355,12 +356,160 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
     onUpdate({ channels: newChannels });
   };
 
-  const generateExportCode = () => { /* ... unchanged ... */ };
+  const generateExportCode = () => {
+    if (!soundData.channels || soundData.channels.length === 0) {
+      setExportedCode('; No channel data available');
+      return;
+    }
+
+    const channelA = soundData.channels.find(ch => ch.id === 'A');
+    if (!channelA || channelA.steps.length === 0) {
+      setExportedCode('; No steps in Channel A');
+      return;
+    }
+
+    const firstStep = channelA.steps[0];
+
+    if (exportFormat === 'basic') {
+      // MSX BASIC export (first step of Channel A only)
+      const envelopeLines = firstStep.useEnvelope ? `
+75 OUT &HA0,13: OUT &HA1,${firstStep.envelopeShape ?? soundData.envelopeShape} : REM Envelope Shape
+76 OUT &HA0,8: OUT &HA1,16 : REM Volume Ch.A (Use Envelope)` : '';
+
+      const code = `10 REM PSG Sound: ${soundData.name}
+20 REM Channel A - Step 1
+30 REM Tone Period: ${firstStep.tonePeriod}, Volume: ${firstStep.volume}${firstStep.useEnvelope ? ', Envelope: 0x' + (firstStep.envelopeShape ?? soundData.envelopeShape).toString(16) : ''}
+40 OUT &HA0,0: OUT &HA1,${firstStep.tonePeriod % 256} : REM Fine Tune Ch.A
+50 OUT &HA0,1: OUT &HA1,${Math.floor(firstStep.tonePeriod / 256)} : REM Coarse Tune Ch.A
+60 OUT &HA0,8: OUT &HA1,${firstStep.useEnvelope ? '16' : firstStep.volume} : REM Volume Ch.A${firstStep.useEnvelope ? ' (Use Envelope)' : ''}
+70 OUT &HA0,7: OUT &HA1,${firstStep.toneEnabled ? '&B00111110' : '&B00111111'} : REM Mixer (Tone ${firstStep.toneEnabled ? 'ON' : 'OFF'})${envelopeLines}
+80 REM Wait ${firstStep.durationMs}ms then set volume to 0
+90 FOR I=1 TO ${Math.floor(firstStep.durationMs / 20)}: NEXT I
+100 OUT &HA0,8: OUT &HA1,0 : REM Silence Ch.A`;
+      setExportedCode(code);
+    } else {
+      // Z80 ASM export (first step of Channel A only)
+      const toneLow = firstStep.tonePeriod % 256;
+      const toneHigh = Math.floor(firstStep.tonePeriod / 256);
+      const mixerValue = firstStep.toneEnabled ? 0x3E : 0x3F; // Tone A enabled/disabled
+      const envelopeShapeCode = firstStep.useEnvelope ? `
+    ; Set Envelope Shape
+    ld a, 13
+    out (#A0), a
+    ld a, ${firstStep.envelopeShape ?? soundData.envelopeShape}
+    out (#A1), a
+` : '';
+
+      const code = `; PSG Sound: ${soundData.name}
+; Channel A - Step 1
+; Tone Period: ${firstStep.tonePeriod}, Volume: ${firstStep.volume}${firstStep.useEnvelope ? ', Envelope: 0x' + (firstStep.envelopeShape ?? soundData.envelopeShape).toString(16) : ''}
+
+play_sound_${soundData.name.toLowerCase().replace(/\s+/g, '_')}:
+    ; Set Channel A Fine Tune
+    ld a, 0
+    out (#A0), a
+    ld a, ${toneLow}
+    out (#A1), a
+
+    ; Set Channel A Coarse Tune
+    ld a, 1
+    out (#A0), a
+    ld a, ${toneHigh}
+    out (#A1), a
+${envelopeShapeCode}
+    ; Set Channel A Volume
+    ld a, 8
+    out (#A0), a
+    ld a, ${firstStep.useEnvelope ? '16' : firstStep.volume} ; ${firstStep.useEnvelope ? 'Use envelope' : 'Direct volume'}
+    out (#A1), a
+
+    ; Set Mixer (Tone ${firstStep.toneEnabled ? 'ON' : 'OFF'})
+    ld a, 7
+    out (#A0), a
+    ld a, ${mixerValue}
+    out (#A1), a
+
+    ret`;
+      setExportedCode(code);
+    }
+  };
+
   const LS_SOUND_PRESETS_KEY = 'msxIdeSoundPresets_v2';
-  useEffect(() => { /* ... unchanged ... */ }, []);
-  const savePreset = () => { /* ... unchanged ... */ };
-  const loadPreset = (presetName: string) => { /* ... unchanged ... */ };
-  const deletePreset = (presetName: string) => { /* ... unchanged ... */ };
+
+  useEffect(() => {
+    // Load presets from localStorage on mount
+    try {
+      const savedPresets = localStorage.getItem(LS_SOUND_PRESETS_KEY);
+      if (savedPresets) {
+        const parsed = JSON.parse(savedPresets);
+        setPresets(parsed);
+      }
+    } catch (e) {
+      console.error('Failed to load sound presets:', e);
+    }
+  }, []);
+
+  const savePreset = () => {
+    if (!newPresetName.trim()) {
+      alert('Please enter a preset name');
+      return;
+    }
+
+    try {
+      const updatedPresets = {
+        ...presets,
+        [newPresetName]: { ...soundData }
+      };
+      localStorage.setItem(LS_SOUND_PRESETS_KEY, JSON.stringify(updatedPresets));
+      setPresets(updatedPresets);
+      setNewPresetName('');
+      alert(`Preset "${newPresetName}" saved successfully!`);
+    } catch (e) {
+      console.error('Failed to save preset:', e);
+      alert('Failed to save preset. Storage might be full.');
+    }
+  };
+
+  const loadPreset = (presetName: string) => {
+    const preset = presets[presetName];
+    if (!preset) {
+      alert('Preset not found');
+      return;
+    }
+
+    try {
+      // Update all sound data from preset
+      onUpdate({
+        name: preset.name,
+        tempoBPM: preset.tempoBPM,
+        channels: preset.channels,
+        noisePeriod: preset.noisePeriod,
+        envelopePeriod: preset.envelopePeriod,
+        envelopeShape: preset.envelopeShape,
+        masterVolume: preset.masterVolume
+      });
+      alert(`Preset "${presetName}" loaded successfully!`);
+    } catch (e) {
+      console.error('Failed to load preset:', e);
+      alert('Failed to load preset');
+    }
+  };
+
+  const deletePreset = (presetName: string) => {
+    if (!confirm(`Delete preset "${presetName}"?`)) {
+      return;
+    }
+
+    try {
+      const updatedPresets = { ...presets };
+      delete updatedPresets[presetName];
+      localStorage.setItem(LS_SOUND_PRESETS_KEY, JSON.stringify(updatedPresets));
+      setPresets(updatedPresets);
+    } catch (e) {
+      console.error('Failed to delete preset:', e);
+      alert('Failed to delete preset');
+    }
+  };
 
   const channelSequenceControl = (channelState: PSGSoundChannelState) => {
     const channelId = channelState.id;
@@ -387,7 +536,7 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
             <div>
               <label className="block text-msx-textsecondary text-xs">Tone Period (0-4095):</label>
               <input type="number" min="0" max="4095" value={buffer.tonePeriod} onChange={e => handleStepAddBufferChange(channelId, 'tonePeriod', e.target.value)} className="w-full p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary" />
-              <span className="text-msx-textsecondary text-[0.6rem]">Freq: {calculateFrequencyFromTonePeriod(buffer.tonePeriod).toFixed(1)} Hz</span> {/* Changed text-msx-gray */}
+              <span className="text-msx-textsecondary text-[0.6rem]">Freq: {calculateFrequencyFromTonePeriod(buffer.tonePeriod).toFixed(1)} Hz</span>
             </div>
             <div>
               <label className="block text-msx-textsecondary text-xs">Volume (0-15):</label>
@@ -408,10 +557,26 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
                 </label>
                 <label className="flex items-center space-x-1.5">
                     <input type="checkbox" checked={buffer.useEnvelope} onChange={e => handleStepAddBufferChange(channelId, 'useEnvelope', e.target.checked)} className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"/>
-                    <span>Use Global Env.</span>
+                    <span>Use Envelope</span>
                 </label>
             </div>
           </div>
+          {buffer.useEnvelope && (
+            <div className="mt-2">
+              <label className="block text-msx-textsecondary text-xs mb-1">Envelope Shape:</label>
+              <select
+                value={buffer.envelopeShape ?? soundData.envelopeShape}
+                onChange={e => handleStepAddBufferChange(channelId, 'envelopeShape', parseInt(e.target.value))}
+                className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary text-xs"
+              >
+                {FULL_ENVELOPE_SHAPES.map(shape => (
+                  <option key={shape.value} value={shape.value} title={shape.description}>
+                    {shape.name} (0x{shape.value.toString(16).toUpperCase()})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex space-x-2 mt-1.5">
             <Button onClick={() => handleAddStep(channelId)} size="sm" variant="secondary" icon={<PlusCircleIcon />}>Add as New Step</Button>
           </div>
@@ -432,8 +597,15 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
                 <span>Dur: {step.durationMs}ms</span>
                 <span className={step.toneEnabled ? 'text-green-400' : 'text-red-400'}>Tone: {step.toneEnabled ? 'On' : 'Off'}</span>
                 <span className={step.noiseEnabled ? 'text-green-400' : 'text-red-400'}>Noise: {step.noiseEnabled ? 'On' : 'Off'}</span>
-                <span className={step.useEnvelope ? 'text-blue-400' : 'text-gray-500'}>Env: {step.useEnvelope ? 'On' : 'Off'}</span>
+                <span className={step.useEnvelope ? 'text-blue-400' : 'text-gray-500'}>
+                  Env: {step.useEnvelope ? 'On' : 'Off'}
+                </span>
               </div>
+              {step.useEnvelope && step.envelopeShape !== undefined && (
+                <div className="text-[0.65rem] text-blue-400 mt-0.5">
+                  Shape: {FULL_ENVELOPE_SHAPES.find(s => s.value === step.envelopeShape)?.name || `0x${step.envelopeShape.toString(16)}`}
+                </div>
+              )}
               <div className="flex space-x-1 mt-1">
                 <Button onClick={() => openEditStepModal(channelId, step.id)} size="sm" variant="ghost" className="p-0.5" title="Modify Step"><PencilIcon className="w-2.5 h-2.5"/></Button>
                 <Button onClick={() => handleDeleteStep(channelId, step.id)} size="sm" variant="danger" className="p-0.5" title="Delete Step" icon={<TrashIcon className="w-2.5 h-2.5"/>}>{null}</Button>
@@ -446,6 +618,18 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
       </div>
     );
   };
+
+  // Safety check: ensure soundData has required structure
+  if (!soundData || !soundData.channels || soundData.channels.length !== 3) {
+    return (
+      <Panel title="Sound Editor: Error" className="flex-grow flex flex-col bg-msx-bgcolor overflow-y-auto">
+        <div className="p-4 text-center text-msx-textsecondary">
+          <p>Error: Sound data is not properly initialized.</p>
+          <p className="mt-2 text-xs">Expected 3 PSG channels (A, B, C) but found {soundData?.channels?.length || 0}.</p>
+        </div>
+      </Panel>
+    );
+  }
 
   return (
     <Panel title={`Sound Editor: ${localSoundName}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-y-auto">
@@ -575,10 +759,26 @@ export const SoundEditor: React.FC<SoundEditorProps> = ({ soundData, onUpdate })
                   </label>
                   <label className="flex items-center space-x-2">
                       <input type="checkbox" checked={modalEditBuffer.useEnvelope} onChange={e => handleModalStepBufferChange('useEnvelope', e.target.checked)} className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"/>
-                      <span className="text-xs">Use Global Envelope</span>
+                      <span className="text-xs">Use Envelope</span>
                   </label>
               </div>
             </div>
+            {modalEditBuffer.useEnvelope && (
+              <div className="mt-3">
+                <label className="block text-msx-textsecondary text-xs mb-1">Envelope Shape:</label>
+                <select
+                  value={modalEditBuffer.envelopeShape ?? soundData.envelopeShape}
+                  onChange={e => handleModalStepBufferChange('envelopeShape', parseInt(e.target.value))}
+                  className="w-full p-1.5 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary text-sm"
+                >
+                  {FULL_ENVELOPE_SHAPES.map(shape => (
+                    <option key={shape.value} value={shape.value} title={shape.description}>
+                      {shape.name} (0x{shape.value.toString(16).toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex justify-end space-x-2 mt-4">
               <Button onClick={handleCancelStepEdit} variant="ghost" size="md">Cancel</Button>
               <Button onClick={handleConfirmStepEdit} variant="primary" size="md">OK</Button>

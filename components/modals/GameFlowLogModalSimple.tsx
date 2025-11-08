@@ -33,7 +33,6 @@ export const GameFlowLogModal: React.FC<GameFlowLogModalProps> = ({
         setIssues(result.issues);
         setTimestamp(new Date().toLocaleString());
       } catch (error) {
-        console.error('Error validating GameFlow:', error);
         setValidationStatus('ERROR');
         setIssues([{
           type: 'ERROR',

@@ -146,6 +146,8 @@ export interface Sprite {
   frames: SpriteFrame[];
   /** The index of the currently displayed frame. */
   currentFrameIndex: number;
+  /** Desired animation speed in milliseconds per frame (optional). */
+  animationSpeedMs?: number;
   /** A key-value map of custom attributes. */
   attributes?: Record<string, any>;
   /** The default facing direction of the sprite. */
@@ -495,19 +497,21 @@ export interface WorldMapGraph {
  */
 export interface PSGSoundChannelStep {
   /** A unique identifier for the step. */
-  id: string; 
+  id: string;
   /** The tone period for the PSG. */
-  tonePeriod: number; 
+  tonePeriod: number;
   /** The volume for the PSG channel (0-15). */
-  volume: number; 
+  volume: number;
   /** Whether the tone is enabled for this step. */
   toneEnabled: boolean;
   /** Whether the noise is enabled for this step. */
   noiseEnabled: boolean;
   /** Whether to use the hardware envelope for this step. */
-  useEnvelope: boolean; 
+  useEnvelope: boolean;
+  /** The envelope shape to use when useEnvelope is true (0-15). Optional, defaults to global envelope shape. */
+  envelopeShape?: number;
   /** The duration of the step in milliseconds. */
-  durationMs: number; 
+  durationMs: number;
 }
 
 /**
@@ -655,7 +659,9 @@ export interface TrackerSongData {
   /** An array of all ornaments used in the song. */
   ornaments: PT3Ornament[];
   /** The AY hardware envelope period. */
-  ayHardwareEnvelopePeriod?: number; 
+  ayHardwareEnvelopePeriod?: number;
+  /** The AY noise generator period (0-31). */
+  ayNoisePeriod?: number;
   /** The currently active pattern index in the order list. */
   currentPatternIndexInOrder: number; 
   /** The ID of the currently active pattern. */
@@ -908,7 +914,7 @@ export interface MainMenuConfig {
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
-export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse';
+export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse' | 'Music';
 
 /** The base interface for a game flow node. */
 export interface GameFlowNode_Base {
@@ -999,6 +1005,14 @@ export interface GameFlowWaypointNode extends GameFlowNode_Base {
   type: 'Waypoint';
 }
 
+/** Represents a music playback node. */
+export interface GameFlowMusicNode extends GameFlowNode_Base {
+  type: 'Music';
+  trackAssetId?: string;
+  loop?: boolean;
+  autoPlay?: boolean;
+}
+
 /** Represents a screen transition effect node. */
 export interface GameFlowTransitionNode extends GameFlowNode_Base {
   type: 'Transition';
@@ -1025,7 +1039,7 @@ export interface GameFlowIfThenElseNode extends GameFlowNode_Base {
 }
 
 /** A union type for all possible game flow node types. */
-export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode;
+export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowMusicNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode;
 
 /** Represents a connection between two nodes in the game flow graph. */
 export interface GameFlowConnection {

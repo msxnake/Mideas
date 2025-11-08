@@ -273,7 +273,7 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   const lastUpdateTimeRef = useRef<number>(0);
 
   const [isAnimationPlaying, setIsAnimationPlaying] = useState(false);
-  const [animationSpeedMs, setAnimationSpeedMs] = useState<number>(200);
+  const [animationSpeedMs, setAnimationSpeedMs] = useState<number>(sprite.animationSpeedMs ?? 200);
   const animationIntervalRef = useRef<number | null>(null);
 
   const [isImportConfigModalOpen, setIsImportConfigModalOpen] = useState(false);
@@ -1172,6 +1172,13 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
     };
   }, [sprite.frames.length, sprite.currentFrameIndex, animationSpeedMs, isAnimationPlaying, onUpdate]);
 
+  // Keep local speed in sync if sprite prop changes (e.g., loaded from asset)
+  useEffect(() => {
+    if (typeof sprite.animationSpeedMs === 'number' && !isNaN(sprite.animationSpeedMs)) {
+      setAnimationSpeedMs(sprite.animationSpeedMs);
+    }
+  }, [sprite.animationSpeedMs, sprite.id]);
+
 
   if (!currentFrameData && sprite.frames.length > 0 && sprite.currentFrameIndex < sprite.frames.length) {
     if (sprite.frames.length > 0) {
@@ -1549,7 +1556,20 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
                 <Button onClick={() => setIsAnimationPlaying(p => !p)} variant="ghost" size="sm" icon={isAnimationPlaying ? <StopIcon/> : <PlayIcon/>} className="flex-1">{isAnimationPlaying ? "Pause" : "Play"}</Button>
                 <Button onClick={() => setIsWatcherModalOpen(true)} variant="secondary" size="sm" icon={<ViewfinderCircleIcon />} title="Open Animation Watcher">Watch</Button>
                 <label className="text-[0.6rem] text-msx-textsecondary">Speed:</label>
-                <input type="range" min="50" max="1000" step="50" value={animationSpeedMs} onChange={e => setAnimationSpeedMs(parseInt(e.target.value))} className="w-12 accent-msx-accent" title={`Frame Animation Speed: ${animationSpeedMs}ms/frame`}/>
+                <input
+                  type="range"
+                  min="50"
+                  max="1000"
+                  step="50"
+                  value={animationSpeedMs}
+                  onChange={e => {
+                    const v = parseInt(e.target.value);
+                    setAnimationSpeedMs(v);
+                    onUpdate({ animationSpeedMs: v });
+                  }}
+                  className="w-12 accent-msx-accent"
+                  title={`Frame Animation Speed: ${animationSpeedMs}ms/frame`}
+                />
             </div>
             <h4 className="text-sm pixel-font text-msx-highlight mb-1.5 mt-3">Onion Skinning</h4>
             <div className="space-y-2 text-xs">

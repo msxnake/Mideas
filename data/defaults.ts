@@ -190,8 +190,12 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Configures a basic projectile shot for an entity (e.g., player/boss/enemy).",
     properties: [
       { name: "spriteAssetId", type: 'sprite_ref', defaultValue: '', description: "Projectile sprite asset to render (Render)." },
+      { name: "render2", type: 'sprite_ref', defaultValue: '', description: "Explosion sprite asset to render on impact (Render2). Non-looping animation recommended." },
       { name: "offsetX", type: 'word', defaultValue: '0', description: "Horizontal offset from shooter center (Offset X)." },
       { name: "offsetY", type: 'word', defaultValue: '0', description: "Vertical offset from shooter center (Offset Y)." },
+      { name: "speed", type: 'word', defaultValue: '3', description: "Projectile speed magnitude in px/frame. Used for 4-dir aiming or when velocityX is positive." },
+      { name: "aimMode", type: 'string', defaultValue: 'facing', description: "Aiming mode: 'facing' (left/right based on mirror) or '4dir' (aim with Arrow keys)." },
+      { name: "allowDiagonals", type: 'boolean', defaultValue: 'false', description: "If true and two direction keys are held, shoot diagonally." },
       { name: "velocityX", type: 'word', defaultValue: '0', description: "Projectile speed on X (px/frame)." },
       { name: "velocityY", type: 'word', defaultValue: '0', description: "Projectile speed on Y (px/frame)." },
       { name: "range", type: 'word', defaultValue: '128', description: "Max travel distance in pixels (distancia de alcance)." },

@@ -20,6 +20,7 @@ import {
     EntityInstance,
     WorldMapConnection,
     Sprite,
+    FacingDirection,
     ComponentDefinition,
     PixelData,
     AssetType
@@ -45,7 +46,7 @@ import {
 const TILE_SIZE = 8;
 const PREVIEW_WIDTH = 256;
 const PREVIEW_HEIGHT = 192;
-const ANIMATION_SPEED_MS = 200;
+const ANIMATION_SPEED_MS = 200; // Fallback if sprite.animationSpeedMs is undefined
 
 interface AnimatedEntity {
     instance: EntityInstance;
@@ -92,6 +93,13 @@ interface AnimatedEntity {
     projectileExpireOnHit?: boolean; // Destroy projectile after first hit
     // Projectile animation control
     animateProjectile?: boolean; // If true, projectile cycles its frames
+    // Explosion (Render2) support
+    isExploding?: boolean; // True once impact triggers explosion animation
+    explosionSprite?: Sprite; // Explosion sprite (Render2)
+    explosionFrameImages?: HTMLImageElement[]; // Prebuilt frames for Render2
+    explosionMirroredFrameImages?: HTMLImageElement[]; // Mirrored frames for Render2 if needed
+    // Desired world-facing direction for correct mirroring decisions
+    desiredFacingDirection?: FacingDirection; // 'left' | 'right' | 'neutral'
 }
 
 interface GameFlowPreviewModalProps {
@@ -2037,11 +2045,41 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 ? true
                 : (shootProps.playAnimation === true || shootProps.playAnimation === 'true');
 
-            const frameImages = projectileSprite.frames.map(frame => {
-                const img = new Image();
-                img.src = createSpriteDataURL(frame.data, projectileSprite.size.width, projectileSprite.size.height);
-                return img;
-            });
+            // Build projectile frame images (and optional mirrored set)
+            const buildFrames = (spr: Sprite) => {
+                const frames = spr.frames.map(frame => {
+                    const img = new Image();
+                    img.src = createSpriteDataURL(frame.data, spr.size.width, spr.size.height);
+                    return img;
+                });
+                const mirrored = spr.frames.map(frame => {
+                    const img = new Image();
+                    img.src = createSpriteDataURL(
+                        mirrorPixelDataHorizontally(frame.data),
+                        spr.size.width,
+                        spr.size.height
+                    );
+                    return img;
+                });
+                return { frames, mirrored };
+            };
+
+            const projFrames = buildFrames(projectileSprite);
+
+            // Optional: explosion sprite (Render2)
+            const explosionSpriteId = shootProps.spriteAssetId2 || shootProps.renderSpriteAssetId2 || shootProps.render2;
+            const explosionSprite = explosionSpriteId
+                ? (allAssets.find(a => a.id === explosionSpriteId && a.type === 'sprite')?.data as Sprite | undefined)
+                : undefined;
+            const explosionFrames = explosionSprite ? buildFrames(explosionSprite) : null;
+
+            // Determine desired facing (world) based on shot direction or shooter mirroring
+            const isHoriz = Math.abs(vx) > Math.abs(vy);
+            const desiredFacing: FacingDirection = isHoriz
+                ? (vx < 0 ? 'left' : 'right')
+                : (shooter.isFacingMirrored ? 'left' : 'right');
+            // Decide if projectile needs mirroring comparing its sprite facing with desired world facing
+            const projMirrored = computeMirrorForSprite(projectileSprite, desiredFacing);
 
             const proj: AnimatedEntity = {
                 instance: {
@@ -2057,14 +2095,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 y: spawnY,
                 vx,
                 vy,
-                frameImages,
-                mirroredFrameImages: undefined,
+                frameImages: projFrames.frames,
+                mirroredFrameImages: projFrames.mirrored,
                 currentFrame: 0,
                 lastFrameUpdateTime: performance.now(),
                 isOnGround: false,
                 spawnTime: performance.now(),
                 parentEntityId: shooter.instance.id,
                 platformGraceFramesLeft: 0,
+                isFacingMirrored: projMirrored,
                 isProjectile: true,
                 projectileOwnerId: shooter.instance.id,
                 projectileStartX: spawnX,
@@ -2072,7 +2111,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 projectileMaxRange: maxRange,
                 projectileDamage: damage,
                 projectileExpireOnHit: expireOnHit,
-                animateProjectile: playAnimation
+                animateProjectile: playAnimation,
+                // Explosion (Render2)
+                isExploding: false,
+                explosionSprite: explosionSprite,
+                explosionFrameImages: explosionFrames?.frames,
+                explosionMirroredFrameImages: explosionFrames?.mirrored,
+                desiredFacingDirection: desiredFacing,
             };
 
             entitiesRef.current.push(proj);
@@ -2087,6 +2132,43 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const colorAttrsToUse = customColorAttrs || colorAttrs;
                 textImg.src = renderMSX1TextToDataURL(text, fontToUse, colorAttrsToUse, 1, 1);
             });
+        };
+
+        // Given a sprite's default facing and a desired world facing, decide if we must mirror horizontally
+        const computeMirrorForSprite = (sprite: Sprite, desired: FacingDirection | undefined): boolean => {
+            if (!sprite) return false;
+            const desiredDir = desired === 'left' || desired === 'right' ? desired : 'right';
+            const baseDir = sprite.facingDirection === 'left' || sprite.facingDirection === 'right' ? sprite.facingDirection : 'right';
+            if (sprite.facingDirection === 'neutral' || sprite.facingDirection === 'up' || sprite.facingDirection === 'down') {
+                return false; // Neutral or vertical-facing sprites don't need mirroring decisions
+            }
+            // Mirror when desired world direction differs from sprite's default facing
+            return (baseDir === 'right' && desiredDir === 'left') || (baseDir === 'left' && desiredDir === 'right');
+        };
+
+        // Trigger projectile explosion (Render2). If no Render2 defined, destroy immediately.
+        const startProjectileExplosion = (proj: AnimatedEntity) => {
+            if (!proj.isProjectile) return;
+            if (proj.isExploding) return;
+
+            // If we have explosion frames, switch to them and stop movement
+            if (proj.explosionSprite && proj.explosionFrameImages && proj.explosionFrameImages.length > 0) {
+                proj.isExploding = true;
+                proj.vx = 0; proj.vy = 0;
+                // Swap sprite and frames to Render2
+                proj.sprite = proj.explosionSprite;
+                proj.frameImages = proj.explosionFrameImages;
+                // Keep mirrored frames if available so direction can be respected
+                proj.mirroredFrameImages = proj.explosionMirroredFrameImages;
+                // Re-evaluate mirroring using the explosion sprite facing parameter and desired world direction
+                const desired = proj.desiredFacingDirection;
+                proj.isFacingMirrored = computeMirrorForSprite(proj.sprite, desired);
+                proj.currentFrame = 0;
+                proj.lastFrameUpdateTime = performance.now();
+            } else {
+                // Fallback: no explosion configured
+                (proj as any).markedForDestruction = true;
+            }
         };
 
         const applyTransitionEffect = async (effect: string, duration: number) => {
@@ -2961,7 +3043,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             checkCollisionAt(cx, hbY, screenMapToRender) ||
                             checkCollisionAt(cx, hbY + hbH - 1, screenMapToRender);
                         if (hitTile) {
-                            entityA.markedForDestruction = true as any;
+                            // On solid tile, trigger explosion (Render2) if present; otherwise destroy
+                            startProjectileExplosion(entityA);
                         }
                     }
 
@@ -3010,18 +3093,29 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
 
                         if (entityA.projectileExpireOnHit !== false) {
-                            entityA.markedForDestruction = true as any;
+                            // On entity impact, explode if configured, else destroy
+                            startProjectileExplosion(entityA);
                         }
                     }
 
                                         // Animate projectile frames if enabled
-                    if (entityA.animateProjectile !== false && entityA.frameImages.length > 1) {
-                        if (now - entityA.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
-                            const loops = (entityA.sprite.loops !== undefined) ? entityA.sprite.loops : true;
-                            if (loops) {
-                                entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
-                            } else if (entityA.currentFrame < entityA.frameImages.length - 1) {
-                                entityA.currentFrame++;
+                    if ((entityA.isExploding || entityA.animateProjectile !== false) && entityA.frameImages.length > 1) {
+                        const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
+                        if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
+                            if (entityA.isExploding) {
+                                // Explosion should not loop; end when finished
+                                if (entityA.currentFrame < entityA.frameImages.length - 1) {
+                                    entityA.currentFrame++;
+                                } else {
+                                    (entityA as any).markedForDestruction = true;
+                                }
+                            } else {
+                                const loops = (entityA.sprite.loops !== undefined) ? entityA.sprite.loops : true;
+                                if (loops) {
+                                    entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
+                                } else if (entityA.currentFrame < entityA.frameImages.length - 1) {
+                                    entityA.currentFrame++;
+                                }
                             }
                             entityA.lastFrameUpdateTime = now;
                         }
@@ -3029,7 +3123,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     // Render projectile immediately and skip rest
                     if (entityA.frameImages.length > 0) {
-                        const img = entityA.frameImages[entityA.currentFrame] || entityA.frameImages[0];
+                        const useMirrored = !!(entityA.isFacingMirrored && entityA.mirroredFrameImages && entityA.mirroredFrameImages.length > 0);
+                        const framesToUse = useMirrored ? (entityA.mirroredFrameImages as HTMLImageElement[]) : entityA.frameImages;
+                        const img = framesToUse[entityA.currentFrame] || framesToUse[0];
                         if (img && img.complete && img.naturalWidth > 0) {
                             ctx.drawImage(img, entityA.x, entityA.y);
                         }
@@ -3962,7 +4058,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 // --- 7. AnimaciÃƒÆ’Ã‚Â³n de Sprites ---
                 const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
-                if (animComp && entityA.frameImages.length > 1 && now - entityA.lastFrameUpdateTime > ANIMATION_SPEED_MS) {
+                if (animComp && entityA.frameImages.length > 1) {
+                    const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
+                    if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
                     // Check if animation should only play when moving
                     const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
                     const isMoving = entityA.vx !== 0 || entityA.vy !== 0;
@@ -4009,6 +4107,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         // Reset to first frame when stopped (and not in priority state)
                         entityA.currentFrame = 0;
                     }
+                }
+
                 }
 
                 // --- Transport carried box along with hero ---

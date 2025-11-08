@@ -147,6 +147,9 @@ export const ActionTypes = {
 
   // Sound
   PLAY_SOUND: 'PLAY_SOUND',
+  PLAY_MUSIC: 'PLAY_MUSIC',
+  MUTE_MUSIC: 'MUTE_MUSIC',
+  STOP_MUSIC: 'STOP_MUSIC',
 
   // Game Logic
   SET_VARIABLE: 'SET_VARIABLE',

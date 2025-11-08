@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import {
   ProjectAsset, EditorType, Tile, Sprite, ScreenMap, SpriteFrame,
-  TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph
+  TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
+  PSGSoundChannelState, PSGSoundChannelStep
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE,
@@ -178,13 +179,35 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Code;
         break;
       case 'sound':
+        // PSG Sound for Yamaha AY-3-8910 (MSX1)
+        // 3 tone channels (A, B, C) + 1 shared noise generator + 1 shared envelope generator
+        const defaultChannelState = {
+          id: 'A' as 'A' | 'B' | 'C',
+          steps: [{
+            id: `step_${Date.now()}`,
+            tonePeriod: 257,
+            volume: 10,
+            toneEnabled: true,
+            noiseEnabled: false,
+            useEnvelope: false,
+            durationMs: 200
+          }],
+          loop: false
+        };
+
         newAssetData = {
+          id,
           name: defaultName,
+          tempoBPM: 120,
           channels: [
-            { frequency: 440, envelope: 'none', duration: 100 },
-            { frequency: 0, envelope: 'none', duration: 0 },
-            { frequency: 0, envelope: 'none', duration: 0 }
-          ]
+            defaultChannelState,
+            { ...defaultChannelState, id: 'B' as 'B', steps: [] },
+            { ...defaultChannelState, id: 'C' as 'C', steps: [] }
+          ],
+          noisePeriod: 16,
+          envelopePeriod: 256,
+          envelopeShape: 0b1000, // Continuous fall
+          masterVolume: 1.0
         };
         newEditorType = EditorType.Sound;
         break;

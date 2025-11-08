@@ -137,6 +137,8 @@ interface PropertiesPanelProps {
   waypointPickerState: { isPicking: boolean; };
   /** Callback to set the state of the waypoint picker tool. */
   onSetWaypointPickerState: (state: { isPicking: boolean; entityInstanceId: string | null; componentDefId: string | null; waypointPrefix: 'waypoint1' | 'waypoint2'; }) => void;
+  /** Callback to update the selected asset's data (used to persist Sprite animation speed, etc.). */
+  onUpdateAsset?: (assetId: string, data: any) => void;
 }
 
 /**
@@ -156,10 +158,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   currentScreenMode, activeEditorType, screenEditorActiveLayer, 
   msxFontName, msxFontStats,
   screenEditorSelectedTileId, tilesetForScreenEditor, tileBanksForScreenEditor,
-  waypointPickerState, onSetWaypointPickerState
+  waypointPickerState, onSetWaypointPickerState,
+  onUpdateAsset
 }) => {
   const [currentFrame, setCurrentFrame] = useState(0); 
-  const [animationSpeedMs, setAnimationSpeedMs] = useState<number>(200); 
+  const [animationSpeedMs, setAnimationSpeedMs] = useState<number>(asset?.type === 'sprite' ? ((asset.data as Sprite).animationSpeedMs ?? 200) : 200); 
   const animationIntervalRef = useRef<number | null>(null);
 
   const [localEntityName, setLocalEntityName] = useState(entityInstance?.name || "");
@@ -207,6 +210,14 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       setLocalEffectZoneName(""); setLocalEffectZoneRect({ x: 0, y: 0, width: 4, height: 4 }); setLocalEffectZoneMask(0); setLocalEffectZoneDesc("");
     }
   }, [effectZone]);
+
+  // Keep local preview speed in sync with selected sprite asset
+  useEffect(() => {
+    if (asset?.type === 'sprite') {
+      const s = asset.data as Sprite;
+      setAnimationSpeedMs(typeof s.animationSpeedMs === 'number' ? s.animationSpeedMs : 200);
+    }
+  }, [asset?.id]);
 
   const openAssetPicker = (
     propertyType: ComponentPropertyDefinition['type'],
@@ -335,7 +346,30 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     if (!asset) return <p className="text-msx-textsecondary">No asset selected.</p>;
     switch (asset.type) {
       case 'tile': const tile = asset.data as Tile; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {tile.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {tile.width}x{tile.height} px</div> <div><strong className="text-msx-highlight">MapID:</strong> {tile.logicalProperties.mapId} (Family: {tile.logicalProperties.familyId}, Inst: {tile.logicalProperties.instanceId})</div> {tile.lineAttributes && currentScreenMode === "SCREEN 2 (Graphics I)" && <LineAttributesPreview lineAttributes={tile.lineAttributes} tileWidth={tile.width} tileHeight={tile.height} />} <PixelGridPreview data={tile.data} className="mt-1" /> </div> );
-      case 'sprite': const sprite = asset.data as Sprite; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {sprite.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {sprite.size.width}x{sprite.size.height} px</div> <div><strong className="text-msx-highlight">Frames:</strong> {sprite.frames.length}</div> {sprite.frames[currentFrame] && <PixelGridPreview data={sprite.frames[currentFrame].data} className="mt-1"/>} <label className="text-xs">Anim Speed (ms): <input type="number" value={isNaN(animationSpeedMs) ? '' : animationSpeedMs} onChange={e => setAnimationSpeedMs(parseInt(e.target.value))} min="50" max="2000" step="50" className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded"/></label> </div> );
+      case 'sprite': {
+        const sprite = asset.data as Sprite;
+        return (
+          <div className="space-y-1">
+            <div><strong className="text-msx-highlight">Name:</strong> {sprite.name}</div>
+            <div><strong className="text-msx-highlight">Size:</strong> {sprite.size.width}x{sprite.size.height} px</div>
+            <div><strong className="text-msx-highlight">Frames:</strong> {sprite.frames.length}</div>
+            {sprite.frames[currentFrame] && <PixelGridPreview data={sprite.frames[currentFrame].data} className="mt-1"/>}
+            <label className="text-xs">Anim Speed (ms):
+              <input
+                type="number"
+                value={isNaN(animationSpeedMs) ? '' : animationSpeedMs}
+                onChange={e => {
+                  const v = parseInt(e.target.value);
+                  setAnimationSpeedMs(v);
+                  onUpdateAsset && onUpdateAsset(asset.id, { animationSpeedMs: v });
+                }}
+                min="50" max="2000" step="50"
+                className="w-16 p-0.5 bg-msx-bgcolor border-msx-border rounded"
+              />
+            </label>
+          </div>
+        );
+      }
       case 'screenmap': const map = asset.data as ScreenMap; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {map.name}</div> <div><strong className="text-msx-highlight">Size:</strong> {map.width}x{map.height} cells</div> <div><strong className="text-msx-highlight">Entities:</strong> {map.layers.entities.length}</div> <div><strong className="text-msx-highlight">Effect Zones:</strong> {map.effectZones?.length || 0}</div> </div> );
       case 'code': case 'behavior': const codeData = typeof asset.data === 'string' ? asset.data : (asset.data as BehaviorScript)?.code; return ( <div className="space-y-1"> <div><strong className="text-msx-highlight">Name:</strong> {asset.name}</div> <div className="text-xs text-msx-textsecondary truncate" title={codeData}>Content: {codeData?.substring(0, 50)}...</div> </div> );
       case 'globalvariables':
@@ -557,6 +591,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                                             {state.name} ({state.id})
                                         </option>
                                     ))}
+                                </select>
+                            ) : (componentDef.id === 'comp_shoot' && propDef.name === 'aimMode') ? (
+                                <select
+                                    id={inputId}
+                                    value={String(currentValue ?? 'facing')}
+                                    onChange={e => handleComponentOverrideChange(componentDef.id, propDef.name, e.target.value, propDef.type)}
+                                    className="w-full p-0.5 text-xs bg-msx-bgcolor border-msx-border rounded"
+                                >
+                                    <option value="facing">facing (izq/dcha según mirror)</option>
+                                    <option value="4dir">4dir (flechas/WASD)</option>
                                 </select>
                             ) : isRefType ? (
                                 <div className="flex items-center space-x-1">
