@@ -189,6 +189,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     id: "comp_shoot", name: "Shoot",
     description: "Configures a basic projectile shot for an entity (e.g., player/boss/enemy).",
     properties: [
+      { name: "hasAmmo", type: 'boolean', defaultValue: 'true', description: "If false, shooting is disabled (HasAmmo). Manageable from State Machine." },
       { name: "spriteAssetId", type: 'sprite_ref', defaultValue: '', description: "Projectile sprite asset to render (Render)." },
       { name: "render2", type: 'sprite_ref', defaultValue: '', description: "Explosion sprite asset to render on impact (Render2). Non-looping animation recommended." },
       { name: "offsetX", type: 'word', defaultValue: '0', description: "Horizontal offset from shooter center (Offset X)." },

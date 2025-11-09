@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Action, ActionTypes } from '../../../statemachine.types';
 import { ProjectAsset } from '../../../types';
 import { getAllGlobalVariables } from '../../../utils/globalVariablesUtils';
+import { DEFAULT_COMPONENT_DEFINITIONS } from '../../../data/defaults';
 
 interface ActionParamsEditorProps {
   action: Action;
@@ -28,6 +29,10 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
 
   const handleParamChange = (paramName: string, value: any) => {
     onUpdateParams({ ...action.params, [paramName]: value });
+  };
+
+  const isNumericType = (t?: string) => {
+    return t === 'byte' || t === 'word' || t === '8bit' || t === '16bit' || t === 'number';
   };
 
   const renderParams = () => {
@@ -194,15 +199,25 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
           </div>
         );
 
-      case ActionTypes.SET_VARIABLE:
+      case ActionTypes.SET_VARIABLE: {
         const selectedVar = allVariables.find(v => v.name === action.params.variable);
+        const selectedVarType = selectedVar?.type;
+        const hasEnumValues = (selectedVar?.values || []).length > 0 && !selectedVar?.values?.some(v => v.value === 'number');
+        const supportsNumeric = isNumericType(selectedVarType) || selectedVar?.values?.some(v => v.value === 'number');
+        const isBoolean = selectedVarType === 'boolean';
+        const varNameLower = (selectedVar?.name || '').toLowerCase();
+        const isAmmoVar = varNameLower.includes('ammo');
+        const numericPlaceholder = isAmmoVar ? 'e.g., -1 = infinite' : (selectedVarType === 'byte' ? '0..255' : selectedVarType === 'word' ? '0..65535' : 'Enter number');
         return (
           <div className="space-y-2">
             <div className="flex items-center space-x-2">
               <label className="text-xs text-gray-400 w-16">Variable</label>
               <select
-                value={action.params.variable || 'Goal'}
-                onChange={(e) => handleParamChange('variable', e.target.value)}
+                value={action.params.variable || (allVariables[0]?.name || '')}
+                onChange={(e) => {
+                  // Reset value when variable changes
+                  onUpdateParams({ ...action.params, variable: e.target.value, value: '' });
+                }}
                 className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
               >
                 {allVariables.map((variable) => (
@@ -212,23 +227,58 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 ))}
               </select>
             </div>
+
             <div className="flex items-center space-x-2">
               <label className="text-xs text-gray-400 w-16">Value</label>
-              <select
-                value={action.params.value || ''}
-                onChange={(e) => handleParamChange('value', e.target.value)}
-                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
-              >
-                <option value="">-- Select Value --</option>
-                {selectedVar?.values.map((val) => (
-                  <option key={val.value} value={val.label}>
-                    {val.label} ({val.value})
-                  </option>
-                ))}
-              </select>
+              {supportsNumeric ? (
+                <input
+                  type="number"
+                  value={action.params.value ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const parsed = val === '' ? '' : Number(val);
+                    handleParamChange('value', parsed);
+                  }}
+                  placeholder={numericPlaceholder}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                />
+              ) : isBoolean ? (
+                <select
+                  value={String(action.params.value ?? '')}
+                  onChange={(e) => handleParamChange('value', e.target.value === 'true')}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                >
+                  <option value="true">True</option>
+                  <option value="false">False</option>
+                </select>
+              ) : hasEnumValues ? (
+                <select
+                  value={action.params.value ?? ''}
+                  onChange={(e) => handleParamChange('value', e.target.value)}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                >
+                  <option value="">-- Select Value --</option>
+                  {selectedVar?.values.map((val) => (
+                    <option key={String(val.value)} value={String(val.value)}>
+                      {val.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={action.params.value ?? ''}
+                  onChange={(e) => handleParamChange('value', e.target.value)}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                />
+              )}
             </div>
+            {isAmmoVar && (
+              <div className="text-xs text-msx-textsecondary italic">Tip: -1 = infinite ammo; ≥ 0 consumes per shot.</div>
+            )}
           </div>
         );
+      }
 
       case ActionTypes.INCREMENT_VARIABLE:
       case ActionTypes.DECREMENT_VARIABLE:
@@ -403,6 +453,152 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
             </div>
           </div>
         );
+
+      case ActionTypes.SET_COMPONENT_PROPERTY: {
+        const compDefs = DEFAULT_COMPONENT_DEFINITIONS;
+        const selectedCompId = action.params.componentId || action.params.component || action.params.compId || '';
+        const selectedComp = compDefs.find(cd => cd.id === selectedCompId);
+        const selectedPropName = action.params.propertyName || action.params.prop || action.params.name || '';
+        const selectedProp = selectedComp?.properties?.find(p => p.name === selectedPropName);
+
+        const assetTypeMap: Record<string, ProjectAsset['type']> = {
+          'sprite_ref': 'sprite',
+          'sound_ref': 'sound',
+          'behavior_script_ref': 'behavior',
+          'entity_template_ref': 'entitytemplate',
+          'statemachine_ref': 'statemachine',
+          'tile_ref': 'tile',
+        };
+
+        const availableForRef = (propType?: string): ProjectAsset[] => {
+          const at = propType ? assetTypeMap[propType] : undefined;
+          return at ? allAssets.filter(a => a.type === at) : [];
+        };
+
+        const handleComponentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+          const compId = e.target.value;
+          // Reset property/value on component change
+          onUpdateParams({ componentId: compId, propertyName: '', value: '' });
+        };
+
+        const handlePropertyChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+          const propName = e.target.value;
+          // Reset value when property changes
+          onUpdateParams({ ...action.params, propertyName: propName, value: '' });
+        };
+
+        const renderValueEditor = () => {
+          const propType = selectedProp?.type;
+          // Boolean
+          if (propType === 'boolean') {
+            return (
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-20">Value</label>
+                <select
+                  value={String(action.params.value ?? '')}
+                  onChange={(e) => onUpdateParams({ ...action.params, value: e.target.value === 'true' })}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              </div>
+            );
+          }
+          // Number-like
+          if (propType === 'byte' || propType === 'word' || propType === '8bit' || propType === '16bit') {
+            return (
+              <ParamInput
+                label="Value"
+                type="number"
+                value={action.params.value}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const parsedVal = val === '' ? 0 : parseFloat(val);
+                  onUpdateParams({ ...action.params, value: isNaN(parsedVal) ? 0 : parsedVal });
+                }}
+              />
+            );
+          }
+          // Asset references
+          if (propType && propType.endsWith('_ref')) {
+            const list = availableForRef(propType);
+            if (list.length > 0) {
+              return (
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-gray-400 w-20">Value</label>
+                  <select
+                    value={action.params.value || ''}
+                    onChange={(e) => onUpdateParams({ ...action.params, value: e.target.value })}
+                    className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                  >
+                    <option value="">-- Select --</option>
+                    {list.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            }
+          }
+          // Default: string
+          return (
+            <ParamInput
+              label="Value"
+              value={action.params.value}
+              onChange={(e) => onUpdateParams({ ...action.params, value: e.target.value })}
+            />
+          );
+        };
+
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Component</label>
+              <select
+                value={selectedCompId}
+                onChange={handleComponentChange}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="">-- Select Component --</option>
+                {compDefs.map(cd => (
+                  <option key={cd.id} value={cd.id}>{cd.name} ({cd.id})</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Property</label>
+              {selectedComp ? (
+                <select
+                  value={selectedPropName}
+                  onChange={handlePropertyChange}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                >
+                  <option value="">-- Select Property --</option>
+                  {selectedComp.properties.map(p => (
+                    <option key={p.name} value={p.name}>{p.name} [{p.type}]</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="propertyName"
+                  value={selectedPropName}
+                  onChange={handlePropertyChange}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                />
+              )}
+            </div>
+
+            {renderValueEditor()}
+
+            <div className="text-xs text-blue-400 italic p-2 bg-black bg-opacity-30 rounded">
+              Updates a component property at runtime using component overrides. Useful for toggling hasAmmo or switching projectile sprite.
+            </div>
+          </div>
+        );
+      }
 
       default:
         return <div className="text-xs text-gray-500">No parameters for this action.</div>;

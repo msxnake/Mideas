@@ -1,14 +1,31 @@
 import React, { useState } from 'react';
 import { Condition, ConditionType, ConditionTypes } from '../../../statemachine.types';
+import { ProjectAsset, EntityTemplate, ScreenMap, EntityInstance } from '../../../types';
 import { Button } from '../../common/Button';
 
 interface ConditionBuilderProps {
   onUpdate: (condition: Condition | null) => void;
-  condition: Condition;
+  condition: Condition | null;
   level?: number;
+  allAssets?: ProjectAsset[];
+  entityTemplates?: EntityTemplate[];
 }
 
-export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, condition, level = 0 }) => {
+export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, condition, level = 0, allAssets = [], entityTemplates = [] }) => {
+  // Local refresh flag to force re-scan of assets for dropdowns
+  const [refreshTick, setRefreshTick] = useState(0);
+  // Handle null condition gracefully: offer to create a default condition
+  if (!condition) {
+    const createDefault = () => onUpdate({ type: ConditionTypes.KEY_PRESSED, params: { key: '' } });
+    return (
+      <div className="p-2 rounded border border-msx-border space-y-2">
+        <div className="text-xs text-msx-textsecondary">No condition defined.</div>
+        <div>
+          <button className="px-2 py-1 text-xs bg-msx-primary rounded" onClick={createDefault}>+ Add Condition</button>
+        </div>
+      </div>
+    );
+  }
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newType = e.target.value as ConditionType;
@@ -69,6 +86,91 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             <div className="text-xs text-yellow-400 italic">
               ℹ️ Requires GameTime variable to be tracked in your game logic
             </div>
+            {/* condition.params?.collisionType === 'item' && (
+              <>
+                <div className="flex items-center justify-end">
+                  <button
+                    type="button"
+                    className="px-2 py-1 text-xs bg-msx-primary rounded"
+                    onClick={() => onUpdate({ ...condition })}
+                    title="Re-scan project assets for item options"
+                  >Refresh options</button>
+                </div>
+                <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-msx-textsecondary w-28">itemType</label>
+                  {itemTypeOptions.length > 0 ? (
+                    <select
+                      value={condition.params?.itemType || ''}
+                      onChange={(e) => handleParamChange('itemType', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    >
+                      <option value="">-- Any --</option>
+                      {itemTypeOptions.map(it => (<option key={it} value={it}>{it}</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Filter by itemType (optional)"
+                      value={condition.params?.itemType || ''}
+                      onChange={(e) => handleParamChange('itemType', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    />
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-msx-textsecondary w-28">templateId</label>
+                  {templateOptions.length > 0 ? (
+                    <select
+                      value={condition.params?.templateId || ''}
+                      onChange={(e) => handleParamChange('templateId', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    >
+                      <option value="">-- Any --</option>
+                      {templateOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.name} ({opt.id})</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Filter by templateId (optional)"
+                      value={condition.params?.templateId || ''}
+                      onChange={(e) => handleParamChange('templateId', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    />
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-msx-textsecondary w-28">templateName</label>
+                  {templateOptions.length > 0 ? (
+                    <select
+                      value={condition.params?.templateName || ''}
+                      onChange={(e) => handleParamChange('templateName', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    >
+                      <option value="">-- Any --</option>
+                      {templateOptions.map(opt => (<option key={opt.name} value={opt.name}>{opt.name}</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Filter by templateName (optional)"
+                      value={condition.params?.templateName || ''}
+                      onChange={(e) => handleParamChange('templateName', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    />
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-msx-textsecondary">Use filters to restrict which item triggers the transition.</div>
+                  <button
+                    type="button"
+                    className="px-2 py-1 text-xs bg-msx-primary rounded"
+                    onClick={() => setRefreshTick(t => t + 1)}
+                    title="Re-scan project assets for item options"
+                  >Refresh options</button>
+                </div>
+              </div>
+            */}
           </div>
         );
       case ConditionTypes.CAN_MOVE_DIRECTION:
@@ -85,6 +187,57 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
           </select>
         );
       case ConditionTypes.HAS_COLLISION:
+        // Build dropdown options for collectibles (no memo to avoid stale caches)
+        // Merge templates from assets and from explicit entityTemplates prop
+        const templateMapById = new Map<string, EntityTemplate>();
+        // From allAssets (if some templates are registered as assets)
+        (allAssets || []).forEach(a => {
+          if (a.type === 'entitytemplate' && a.data) {
+            const t = a.data as EntityTemplate;
+            if (t?.components?.some(c => c.definitionId === 'comp_collectible')) templateMapById.set(t.id, t);
+          }
+        });
+        // From prop entityTemplates (global project templates)
+        (entityTemplates || []).forEach(t => {
+          if (t?.components?.some(c => c.definitionId === 'comp_collectible')) templateMapById.set(t.id, t);
+        });
+        const collectibleTemplates: EntityTemplate[] = Array.from(templateMapById.values());
+
+        const itemTypeSet = new Set<string>();
+        // From collectible templates defaultValues
+        collectibleTemplates.forEach(t => {
+          const comp = t.components?.find(c => c.definitionId === 'comp_collectible');
+          const it = (comp?.defaultValues as any)?.itemType;
+          if (it) itemTypeSet.add(String(it));
+        });
+        // From screenmap instances overrides
+        (allAssets || []).filter(a => a.type === 'screenmap').forEach(a => {
+          const sm = a.data as ScreenMap;
+          sm?.layers?.entities?.forEach((inst: EntityInstance) => {
+            const over = inst?.componentOverrides?.['comp_collectible'] as any;
+            const it = over?.itemType;
+            if (it) itemTypeSet.add(String(it));
+          });
+        });
+        const itemTypeOptions = Array.from(itemTypeSet.values()).sort();
+
+        const templateMap = new Map<string, {id:string; name:string}>();
+        collectibleTemplates.forEach(t => { templateMap.set(t.id, { id: t.id, name: t.name }); });
+        // From screenmaps instances (resolve to template asset when possible)
+        (allAssets || []).filter(a => a.type === 'screenmap').forEach(a => {
+          const sm = a.data as ScreenMap;
+          sm?.layers?.entities?.forEach((inst: EntityInstance) => {
+            const tplId = inst?.entityTemplateId;
+            if (tplId && !templateMap.has(tplId)) {
+              const tplAsset = (allAssets || []).find(ax => ax.type === 'entitytemplate' && ax.id === tplId);
+              if (tplAsset) {
+                const t = tplAsset.data as EntityTemplate;
+                templateMap.set(t.id, { id: t.id, name: t.name });
+              }
+            }
+          });
+        });
+        const templateOptions = Array.from(templateMap.values()).sort((a,b) => a.name.localeCompare(b.name));
         return (
           <div className="space-y-2">
             <select
@@ -103,6 +256,74 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
               {condition.params?.collisionType === 'wall' && '🧱 Triggers when colliding with solid walls'}
               {(!condition.params?.collisionType || condition.params?.collisionType === 'any') && 'Triggers on any type of collision'}
             </div>
+            {condition.params?.collisionType === 'item' && (
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-msx-textsecondary w-28">itemType</label>
+                  {itemTypeOptions.length > 0 ? (
+                    <select
+                      value={condition.params?.itemType || ''}
+                      onChange={(e) => handleParamChange('itemType', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    >
+                      <option value="">-- Any --</option>
+                      {itemTypeOptions.map(it => (<option key={it} value={it}>{it}</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Filter by itemType (optional)"
+                      value={condition.params?.itemType || ''}
+                      onChange={(e) => handleParamChange('itemType', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    />
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-msx-textsecondary w-28">templateId</label>
+                  {templateOptions.length > 0 ? (
+                    <select
+                      value={condition.params?.templateId || ''}
+                      onChange={(e) => handleParamChange('templateId', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    >
+                      <option value="">-- Any --</option>
+                      {templateOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.name} ({opt.id})</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Filter by templateId (optional)"
+                      value={condition.params?.templateId || ''}
+                      onChange={(e) => handleParamChange('templateId', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    />
+                  )}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-msx-textsecondary w-28">templateName</label>
+                  {templateOptions.length > 0 ? (
+                    <select
+                      value={condition.params?.templateName || ''}
+                      onChange={(e) => handleParamChange('templateName', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    >
+                      <option value="">-- Any --</option>
+                      {templateOptions.map(opt => (<option key={opt.name} value={opt.name}>{opt.name}</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Filter by templateName (optional)"
+                      value={condition.params?.templateName || ''}
+                      onChange={(e) => handleParamChange('templateName', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    />
+                  )}
+                </div>
+                  <div className="text-xs text-msx-textsecondary">Use filters to restrict which item triggers the transition.</div>
+                </div>
+            )}
           </div>
         );
       case ConditionTypes.PATH_CLEAR:
@@ -201,6 +422,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                 condition={sub} 
                 onUpdate={(sc) => handleSubConditionUpdate(index, sc)} 
                 level={level + 1} 
+                allAssets={allAssets}
               />
               {/* Logical Operators for sub-conditions - Only show for simple conditions and within nesting limits */}
               {canAddLogicalOperators && sub.type !== 'AND' && sub.type !== 'OR' && sub.type !== 'XOR' && sub.type !== 'NOT' && (

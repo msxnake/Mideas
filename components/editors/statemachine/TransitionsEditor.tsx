@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Panel } from '../../common/Panel';
 import { Button } from '../../common/Button';
 import { StateMachine, Condition, StateMachineTransition, Action } from '../../../statemachine.types';
-import { ProjectAsset } from '../../../types';
+import { ProjectAsset, EntityTemplate } from '../../../types';
 import { TrashIcon } from '../../icons/MsxIcons';
 import { ConditionBuilder } from './ConditionBuilder';
 import { ActionSequenceEditor } from './ActionSequenceEditor';
@@ -14,6 +14,7 @@ interface TransitionsEditorProps {
   onDeleteTransition: (id: string) => void;
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void;
   allAssets: ProjectAsset[];
+  entityTemplates?: EntityTemplate[];
 }
 
 export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
@@ -21,7 +22,8 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
   onAddTransition,
   onDeleteTransition,
   onUpdateTransition,
-  allAssets
+  allAssets,
+  entityTemplates
 }) => {
   const { states, transitions } = stateMachine;
 
@@ -107,6 +109,15 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
                 <tr className="border-b border-msx-border">
                   <td colSpan={5} className="p-2 bg-msx-bgcolor-dark space-y-3">
                     <div>
+                      <h5 className="text-xs font-bold mb-2">Condition</h5>
+                      <ConditionBuilder
+                        condition={transition.conditions as any}
+                        onUpdate={(c) => onUpdateTransition(transition.id, { conditions: c as any })}
+                        allAssets={allAssets}
+                        entityTemplates={entityTemplates}
+                      />
+                    </div>
+                    <div>
                       <h5 className="text-xs font-bold mb-2">Guard (Condition)</h5>
                       <TransitionGuardEditor
                         guard={transition.guard}
@@ -149,7 +160,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
         <div>
           <h5 className="text-xs font-bold mb-1">Condition</h5>
           {condition ? (
-            <ConditionBuilder condition={condition} onUpdate={setCondition} />
+            <ConditionBuilder condition={condition} onUpdate={setCondition} allAssets={allAssets} entityTemplates={entityTemplates} />
           ) : (
             <Button onClick={() => setCondition({ type: 'KEY_PRESSED', params: { key: '' } })} size="sm">+ Add Condition</Button>
           )}

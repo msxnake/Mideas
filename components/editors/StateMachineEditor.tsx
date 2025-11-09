@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Connection } from '@xyflow/react';
 import { StateMachine, StateMachineState, StateMachineStateName, StateMachineTransition, Condition, Action } from '../../statemachine.types';
-import { ProjectAsset } from '../../types';
+import { ProjectAsset, EntityTemplate } from '../../types';
 import { StatesPanel } from './statemachine/StatesPanel';
 import { TransitionsEditor } from './statemachine/TransitionsEditor';
 import { ActionSequenceEditor } from './statemachine/ActionSequenceEditor';
@@ -15,6 +15,7 @@ interface StateMachineEditorProps {
   currentAsset: ProjectAsset;
   onUpdateAsset: (updatedData: Partial<StateMachine>) => void;
   allAssets: ProjectAsset[];
+  entityTemplates: EntityTemplate[];
 }
 
 const StateDetailView = ({
@@ -25,7 +26,8 @@ const StateDetailView = ({
   onAddTransition,
   onDeleteTransition,
   onUpdateTransition,
-  allAssets
+  allAssets,
+  entityTemplates
 }: {
   state: StateMachineState | undefined,
   onUpdateActions: (actionList: 'onEnter' | 'onExit', newActions: Action[]) => void,
@@ -33,6 +35,7 @@ const StateDetailView = ({
   stateMachine: StateMachine,
   onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[], guard?: any) => void,
   allAssets: ProjectAsset[],
+  entityTemplates: EntityTemplate[],
   onDeleteTransition: (id: string) => void,
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void
 }) => {
@@ -50,6 +53,7 @@ const StateDetailView = ({
               onDeleteTransition={onDeleteTransition}
               onUpdateTransition={onUpdateTransition}
               allAssets={allAssets}
+              entityTemplates={entityTemplates}
             />
           </div>
         </Panel>
@@ -88,13 +92,14 @@ const StateDetailView = ({
       </Panel>
       <Panel title="Transitions">
         <div className="p-2">
-          <TransitionsEditor
-            stateMachine={stateMachine}
-            onAddTransition={onAddTransition}
-            onDeleteTransition={onDeleteTransition}
-            onUpdateTransition={onUpdateTransition}
-            allAssets={allAssets}
-          />
+            <TransitionsEditor
+              stateMachine={stateMachine}
+              onAddTransition={onAddTransition}
+              onDeleteTransition={onDeleteTransition}
+              onUpdateTransition={onUpdateTransition}
+              allAssets={allAssets}
+              entityTemplates={allAssets.filter(a=>a.type==='entitytemplate').map(a=>a.data as any).filter(Boolean) as any}
+            />
         </div>
       </Panel>
     </div>
@@ -105,6 +110,7 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
   currentAsset,
   onUpdateAsset,
   allAssets,
+  entityTemplates,
 }) => {
   const [language, setLanguage] = useState<'en' | 'es'>('en');
   const [view, setView] = useState<'list' | 'visual'>('list');
@@ -270,6 +276,7 @@ export const StateMachineEditor: React.FC<StateMachineEditorProps> = ({
                 onDeleteTransition={handleDeleteTransition}
                 onUpdateTransition={handleUpdateTransition}
                 allAssets={allAssets}
+                entityTemplates={entityTemplates}
               />
             </div>
           </div>

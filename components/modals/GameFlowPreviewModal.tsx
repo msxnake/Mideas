@@ -141,6 +141,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const entitiesRef = useRef<AnimatedEntity[]>([]);
     const heroRef = useRef<AnimatedEntity | null>(null);
     const pressedKeys = useRef<Set<string>>(new Set());
+    // Track last gamepad-derived keys to emit key transitions cleanly
+    const prevGamepadKeysRef = useRef<Set<string>>(new Set());
+    // Track previous menu button states for edge detection (SubMenu navigation)
+    const menuPadPrevRef = useRef<{ up: boolean; down: boolean; a: boolean; b: boolean }>({ up: false, down: false, a: false, b: false });
+    // Refs to invoke actions without TDZ issues
+    const handleActionRef = useRef<() => void>(() => {});
+    const handleGoBackRef = useRef<() => void>(() => {});
+    const checkKeyTransitionsRef = useRef<((entityId: string, key: string, isDown: boolean) => void) | null>(null);
+    const expandMenuOptionsRef = useRef<((sub: GameFlowSubMenuNode) => Array<{text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string}>) | null>(null);
     const jumpKeyProcessed = useRef<boolean>(false);
     const actionKeyProcessed = useRef<boolean>(false); // For pickup/drop action debouncing (e.g., KeyZ)
     const pendingEvents = useRef<Map<string, Set<string>>>(new Map()); // entityId -> Set of event names
@@ -200,6 +209,114 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const runtimeCollisionLayerRef = useRef<ScreenTile[][]>([]);
     // Cooldown to avoid immediate re-trigger of screen exits after a transition
     const lastScreenTransitionTimeRef = useRef<number>(0);
+
+    const isGamepadAllowed = useCallback(() => {
+        const t = (gameGlobalVariables?.CONTROL_TYPE || '').toString().toUpperCase();
+        if (t === 'KEYS' || t === 'CURSORS') return false;
+        if (t === 'JOYSTICK') return true;
+        // Default: allow if unset
+        return true;
+    }, [gameGlobalVariables]);
+
+    // Map a connected gamepad to our pressedKeys set (A=fire, B=jump; D-Pad/Left stick for arrows)
+    const syncGamepadToPressedKeys = useCallback(() => {
+        // Only process during gameplay where keys are read continuously
+        if (!isOpen) return;
+        if (!isGamepadAllowed()) {
+            // Clear any previously injected keys
+            for (const key of prevGamepadKeysRef.current) {
+                if (pressedKeys.current.has(key)) pressedKeys.current.delete(key);
+            }
+            prevGamepadKeysRef.current.clear();
+            return;
+        }
+        // Try to get first connected gamepad
+        const gps = (typeof navigator !== 'undefined' && navigator.getGamepads) ? navigator.getGamepads() : [] as any;
+        const gp = gps && Array.isArray(gps) ? (gps.find(g => g && g.connected) as Gamepad | undefined) : undefined;
+        const newKeys = new Set<string>();
+        if (gp) {
+            // Standard mapping: buttons 12..15 -> dpad U/D/L/R
+            const btn = gp.buttons || [];
+            const axes = gp.axes || [];
+            const pressed = (i: number) => !!btn[i] && btn[i].pressed === true;
+            // D-Pad
+            if (pressed(12)) newKeys.add('ArrowUp');
+            if (pressed(13)) newKeys.add('ArrowDown');
+            if (pressed(14)) newKeys.add('ArrowLeft');
+            if (pressed(15)) newKeys.add('ArrowRight');
+            // Left stick with threshold acts as arrows too
+            const AXIS_THRESHOLD = 0.5;
+            const axX = axes[0] ?? 0;
+            const axY = axes[1] ?? 0;
+            if (axX <= -AXIS_THRESHOLD) newKeys.add('ArrowLeft');
+            if (axX >= AXIS_THRESHOLD) newKeys.add('ArrowRight');
+            if (axY <= -AXIS_THRESHOLD) newKeys.add('ArrowUp');
+            if (axY >= AXIS_THRESHOLD) newKeys.add('ArrowDown');
+            // Buttons: 0 (A) -> Fire (KeyX), 1 (B) -> Jump (Space)
+            if (pressed(0)) newKeys.add('KeyX');
+            if (pressed(1)) newKeys.add(' ');
+        }
+
+        const prev = prevGamepadKeysRef.current;
+        // Added keys
+        for (const key of newKeys) {
+            if (!prev.has(key)) {
+                // New press
+                if (!pressedKeys.current.has(key)) {
+                    pressedKeys.current.add(key);
+                }
+                // Emit state machine key transitions for arrows
+                if (heroRef.current && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) {
+                    try { checkKeyTransitionsRef.current?.(heroRef.current.instance.id, key, true); } catch {}
+                }
+            }
+        }
+        // Released keys
+        for (const key of prev) {
+            if (!newKeys.has(key)) {
+                if (pressedKeys.current.has(key)) {
+                    pressedKeys.current.delete(key);
+                }
+                if (heroRef.current && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) {
+                    try { checkKeyTransitionsRef.current?.(heroRef.current.instance.id, key, false); } catch {}
+                }
+            }
+        }
+        prevGamepadKeysRef.current = newKeys;
+    }, [isOpen, isGamepadAllowed]);
+
+    // Handle SubMenu navigation via gamepad (D-Pad Up/Down, A=accept, B=back)
+    const syncGamepadForMenu = useCallback(() => {
+        if (!isOpen) return;
+        if (!isGamepadAllowed()) return;
+        if (!currentNode || currentNode.type !== 'SubMenu') return;
+        const gps = (typeof navigator !== 'undefined' && navigator.getGamepads) ? navigator.getGamepads() : [] as any;
+        const gp = gps && Array.isArray(gps) ? (gps.find(g => g && g.connected) as Gamepad | undefined) : undefined;
+        if (!gp) return;
+        const btn = gp.buttons || [];
+        const axes = gp.axes || [];
+        const pressed = (i: number) => !!btn[i] && btn[i].pressed === true;
+        const AXIS_THRESHOLD = 0.5;
+        const up = pressed(12) || ((axes[1] ?? 0) <= -AXIS_THRESHOLD);
+        const down = pressed(13) || ((axes[1] ?? 0) >= AXIS_THRESHOLD);
+        const a = pressed(0);
+        const b = pressed(1);
+        const prev = menuPadPrevRef.current;
+
+        const subMenuNode = currentNode as GameFlowSubMenuNode;
+        const expandedOptions = (expandMenuOptionsRef.current
+            ? expandMenuOptionsRef.current(subMenuNode)
+            : []);
+        const maxIndex = expandedOptions.length - 1;
+
+        // Rising edges only to avoid fast repeats
+        if (up && !prev.up) setSelectedOptionIndex(prevIdx => Math.max(0, prevIdx - 1));
+        if (down && !prev.down) setSelectedOptionIndex(prevIdx => Math.min(maxIndex, prevIdx + 1));
+        if (a && !prev.a) handleActionRef.current();
+        if (b && !prev.b) handleGoBackRef.current();
+
+        menuPadPrevRef.current = { up, down, a, b };
+    }, [isOpen, isGamepadAllowed, currentNode]);
 
     // Handler para posicionar al player con click
     const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -281,8 +398,37 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 switch (collisionType) {
                     case 'enemy':
                         return entityEvents.has('collision_enemy');
-                    case 'item':
-                        return entityEvents.has('collision_item');
+                    case 'item': {
+                        // Permite filtrar por tipo de item o plantilla concreta
+                        // Params opcionales: itemType, templateId, templateName
+                        if (!entityEvents.has('collision_item')) return false;
+
+                        const other: any = (entity as any).lastCollidedEntity;
+                        if (!other) return false;
+
+                        const wantsItemType = condition.params?.itemType;
+                        const wantsTemplateId = condition.params?.templateId;
+                        const wantsTemplateName = condition.params?.templateName;
+
+                        if (!wantsItemType && !wantsTemplateId && !wantsTemplateName) {
+                            return true; // Sin filtro específico, cualquier item vale
+                        }
+
+                        // 1) Filtrar por template id/nombre si se especifica
+                        if (wantsTemplateId && String(other.template.id) !== String(wantsTemplateId)) return false;
+                        if (wantsTemplateName && String(other.template.name) !== String(wantsTemplateName)) return false;
+
+                        // 2) Filtrar por itemType (propiedad de comp_collectible)
+                        if (wantsItemType) {
+                            const comp = other.template.components?.find((c: any) => c.definitionId === 'comp_collectible');
+                            let otherItemType = comp?.defaultValues?.itemType;
+                            const overrideType = other.instance?.componentOverrides?.['comp_collectible']?.itemType;
+                            if (overrideType !== undefined) otherItemType = overrideType;
+                            if (String((otherItemType ?? '')).toLowerCase() !== String(wantsItemType).toLowerCase()) return false;
+                        }
+
+                        return true;
+                    }
                     case 'wall':
                         return entityEvents.has('collision_wall');
                     case 'any':
@@ -554,23 +700,53 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     const varName = action.params.variableName || action.params.name;
                                     const varValue = action.params.value;
                                     if (varName !== undefined && varValue !== undefined) {
-                                        setGameGlobalVariables(prev => ({
-                                            ...prev,
-                                            [varName]: varValue
-                                        }));
+                                        // Coerce numeric-looking strings to numbers (e.g., "10" -> 10, "-1" -> -1)
+                                        const parsed = (typeof varValue === 'string')
+                                            ? ((): any => {
+                                                const t = varValue.trim();
+                                                const n = Number(t);
+                                                return (t !== '' && !Number.isNaN(n)) ? n : varValue;
+                                              })()
+                                            : varValue;
+                                        setGameGlobalVariables(prev => {
+                                            // Log only when Ammo decreases
+                                            if (String(varName).toLowerCase() === 'ammo') {
+                                                const prevRaw = (prev as any)[varName];
+                                                const prevNum = Number(typeof prevRaw === 'string' ? prevRaw.trim() : prevRaw);
+                                                const nextNum = Number(typeof parsed === 'string' ? (parsed as any).trim?.() ?? parsed : parsed as any);
+                                                if (!Number.isNaN(prevNum) && !Number.isNaN(nextNum) && nextNum < prevNum) {
+                                                    try { console.log(`[Ammo] ${prevNum} -> ${nextNum} (SET_VARIABLE)`); } catch {}
+                                                }
+                                            }
+                                            return {
+                                                ...prev,
+                                                [varName]: parsed
+                                            };
+                                        });
                                     }
                                     break;
                                 }
 
                                 case 'INCREMENT_VARIABLE': {
                                     const varName = action.params.variableName || action.params.name;
-                                    const incrementAmount = Number(action.params.amount || 1);
+                                    // Coerce amount to number (supports numeric strings)
+                                    const incrementAmount = (() => {
+                                        const raw = action.params.amount ?? 1;
+                                        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
+                                        return Number.isNaN(n) ? 1 : n;
+                                    })();
                                     if (varName !== undefined) {
                                         setGameGlobalVariables(prev => {
-                                            const currentValue = Number(prev[varName] || 0);
+                                            const raw = (prev as any)[varName];
+                                            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
+                                            const currentValue = Number.isNaN(curr) ? 0 : curr;
+                                            const newValue = currentValue + incrementAmount;
+                                            if (String(varName).toLowerCase() === 'ammo' && newValue < currentValue) {
+                                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (INCREMENT_VARIABLE)`); } catch {}
+                                            }
                                             return {
                                                 ...prev,
-                                                [varName]: currentValue + incrementAmount
+                                                [varName]: newValue
                                             };
                                         });
                                     }
@@ -579,15 +755,38 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                 case 'DECREMENT_VARIABLE': {
                                     const varName = action.params.variableName || action.params.name;
-                                    const decrementAmount = Number(action.params.amount || 1);
+                                    // Coerce amount to number (supports numeric strings)
+                                    const decrementAmount = (() => {
+                                        const raw = action.params.amount ?? 1;
+                                        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
+                                        return Number.isNaN(n) ? 1 : n;
+                                    })();
                                     if (varName !== undefined) {
                                         setGameGlobalVariables(prev => {
-                                            const currentValue = Number(prev[varName] || 0);
+                                            const raw = (prev as any)[varName];
+                                            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
+                                            const currentValue = Number.isNaN(curr) ? 0 : curr;
+                                            const newValue = currentValue - decrementAmount;
+                                            if (String(varName).toLowerCase() === 'ammo' && newValue < currentValue) {
+                                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch {}
+                                            }
                                             return {
                                                 ...prev,
-                                                [varName]: currentValue - decrementAmount
+                                                [varName]: newValue
                                             };
                                         });
+                                    }
+                                    break;
+                                }
+
+                                case 'SET_COMPONENT_PROPERTY': {
+                                    const compId = action.params.componentId || action.params.component || action.params.compId;
+                                    const propName = action.params.propertyName || action.params.prop || action.params.name;
+                                    const value = action.params.value;
+                                    if (compId && propName !== undefined) {
+                                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {} as any;
+                                        if (!entity.instance.componentOverrides[compId]) entity.instance.componentOverrides[compId] = {} as any;
+                                        entity.instance.componentOverrides[compId][propName] = value;
                                     }
                                     break;
                                 }
@@ -1308,6 +1507,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         }
     }, [navigationStack, currentNode, onClose]);
 
+    // Keep refs in sync for gamepad handlers
+    useEffect(() => {
+        handleActionRef.current = handleAction;
+        handleGoBackRef.current = handleGoBack;
+    }, [handleAction, handleGoBack]);
+    useEffect(() => {
+        checkKeyTransitionsRef.current = checkKeyTransitions;
+    }, [checkKeyTransitions]);
+    useEffect(() => {
+        expandMenuOptionsRef.current = expandMenuOptions;
+    }, [expandMenuOptions]);
+
     const handleScreenTransition = useCallback((toNodeId: string) => {
         if (!currentWorldMapGraph) return;
         const nextScreenNode = currentWorldMapGraph.nodes.find(n => n.id === toNodeId);
@@ -1960,7 +2171,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (!shootProps) return;
 
             const spriteAssetId = shootProps.spriteAssetId || shootProps.renderSpriteAssetId || shootProps.render;
-            const projectileSpriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+            // Allow lookup by asset id or asset name (or inner data name/id)
+            const projectileSpriteAsset = allAssets.find(a => (
+                a.type === 'sprite' && (
+                    a.id === spriteAssetId ||
+                    a.name === spriteAssetId ||
+                    (a.data && (a.data as any).id === spriteAssetId) ||
+                    (a.data && (a.data as any).name === spriteAssetId)
+                )
+            ));
             const projectileSprite = projectileSpriteAsset?.data as Sprite | undefined;
             if (!projectileSprite || !projectileSprite.frames?.length) return;
 
@@ -2918,6 +3137,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // --- Nueva FunciÃƒÆ’Ã‚Â³n de AnimaciÃƒÆ’Ã‚Â³n ---
         let lastTime = 0;
         const animate = (currentTime: number) => {
+            // Sync gamepad state into pressedKeys before processing input/physics
+            try { syncGamepadToPressedKeys(); } catch {}
+            // Allow gamepad to navigate SubMenu
+            try { syncGamepadForMenu(); } catch {}
             // --- Calcular deltaTime (opcional) ---
             // const deltaTime = currentTime - lastTime;
             // lastTime = currentTime;
@@ -3320,8 +3543,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             }
                         }
 
-                        // --- Action: Pick up / Drop box (KeyZ)
-                        const actionPressed = pressedKeys.current.has('KeyZ') || pressedKeys.current.has('z') || pressedKeys.current.has('Z');
+                        // --- Action: Pick up / Drop box ---
+                        // Allow: KeyZ (legacy) OR (Down + Fire button)
+                        // Determine fire key from comp_shoot (defaults to 'KeyX')
+                        const shootCompForAction = entityA.template.components.find(c => c.definitionId === 'comp_shoot');
+                        const shootPropsForAction = shootCompForAction ? getMergedComponentValues(entityA, 'comp_shoot') || {} : {} as any;
+                        const fireKeyForAction = shootPropsForAction.fireKey || 'KeyX';
+                        const downPressedForAction = pressedKeys.current.has('ArrowDown') || pressedKeys.current.has('s') || pressedKeys.current.has('S');
+                        const firePressedForAction = pressedKeys.current.has(fireKeyForAction) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
+                        const actionPressed = (
+                            pressedKeys.current.has('KeyZ') || pressedKeys.current.has('z') || pressedKeys.current.has('Z') ||
+                            (downPressedForAction && firePressedForAction)
+                        );
                         const isBoxEntity = (e: AnimatedEntity) => e.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(e.template.name);
 
                         if (actionPressed && !actionKeyProcessed.current) {
@@ -3433,8 +3666,37 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             const cooldownMs = Number(shootProps.cooldownMs || shootProps.fireRateMs || 250);
                             const nowTs = performance.now();
                             const canFire = !entityA.lastShotTime || (nowTs - entityA.lastShotTime >= cooldownMs);
-                            if (firePressed && canFire) {
+                            // Ammo gating: if hasAmmo is explicitly false, block shooting
+                            const hasAmmo = !(shootProps.hasAmmo === false || shootProps.hasAmmo === 'false');
+                            // Global Ammo variable gating: allow if Ammo not set, or if Ammo > 0, or Ammo < 0 (infinite)
+                            const ammoRaw = (gameGlobalVariables as any)?.Ammo;
+                            let allowByAmmoVar = true;
+                            if (ammoRaw !== undefined) {
+                                const ammoVal = Number(ammoRaw);
+                                if (!Number.isNaN(ammoVal)) {
+                                    allowByAmmoVar = (ammoVal > 0) || (ammoVal < 0); // -1 => infinite
+                                }
+                            }
+                            if (firePressed && canFire && hasAmmo && allowByAmmoVar) {
                                 spawnProjectile(entityA);
+                                // Decrement Ammo if finite (>= 0)
+                                if (ammoRaw !== undefined) {
+                                    const currentAmmo = Number(ammoRaw);
+                                    if (!Number.isNaN(currentAmmo) && currentAmmo >= 0) {
+                                        const newAmmo = Math.max(0, currentAmmo - 1);
+                                        try { console.log(`[Ammo] ${currentAmmo} -> ${newAmmo} (SHOOT)`); } catch {}
+                                        setGameGlobalVariables(prev => ({
+                                            ...prev,
+                                            Ammo: newAmmo
+                                        }));
+                                        if (newAmmo === 0) {
+                                            // Also flip hasAmmo to false on this entity's shoot component
+                                            if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {} as any;
+                                            if (!entityA.instance.componentOverrides['comp_shoot']) entityA.instance.componentOverrides['comp_shoot'] = {} as any;
+                                            entityA.instance.componentOverrides['comp_shoot'].hasAmmo = false;
+                                        }
+                                    }
+                                }
                             }
                         }
                     } // End of canProcessInput check
@@ -4448,6 +4710,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             onClick={handleCanvasClick}
                         />
                     </CRTShaderOverlay>
+                    {(gameGlobalVariables as any)?.Ammo !== undefined && (
+                        <div
+                            className="absolute text-white bg-black bg-opacity-50 px-2 py-1 rounded pixel-font"
+                            style={{ top: 8, left: 8, fontSize: 16 }}
+                        >
+                            {`Ammo: ${(() => { const v = (gameGlobalVariables as any).Ammo; const n = Number(v); return (!Number.isNaN(n) && n < 0) ? '∞' : String(v); })()}`}
+                        </div>
+                    )}
                     {cursorAsset && subMenuNode && (() => {
                         const expandedOpts = expandMenuOptions(subMenuNode);
                         const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
@@ -4492,6 +4762,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 onClick={handleCanvasClick}
                             />
                         </CRTShaderOverlay>
+                        {(gameGlobalVariables as any)?.Ammo !== undefined && (
+                            <div
+                                className="absolute text-white bg-black bg-opacity-50 px-2 py-0.5 rounded pixel-font"
+                                style={{ top: 4, left: 4, fontSize: 12 }}
+                            >
+                                {`Ammo: ${(() => { const v = (gameGlobalVariables as any).Ammo; const n = Number(v); return (!Number.isNaN(n) && n < 0) ? '∞' : String(v); })()}`}
+                            </div>
+                        )}
                         {cursorAsset && subMenuNode && (() => {
                             const expandedOpts = expandMenuOptions(subMenuNode);
                             const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
