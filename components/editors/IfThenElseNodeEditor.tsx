@@ -18,7 +18,7 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
 
   const [variableName, setVariableName] = useState(node.variableName || defaultVariableName);
   const [operator, setOperator] = useState(node.operator || '==');
-  const [compareValue, setCompareValue] = useState(node.compareValue || '0');
+  const [compareValue, setCompareValue] = useState(node.compareValue || '');
   const [customValue, setCustomValue] = useState('');
 
   // Use custom variables instead of all variables
@@ -26,34 +26,46 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
 
   const selectedVariable = allVariables.find(v => v.name === variableName);
   const availableValues = selectedVariable?.values || [];
-  const isCustomValue = availableValues.length > 0 && availableValues[0].value === 'number';
+  // Decide input mode primarily by the variable type
+  const varType = (selectedVariable?.type || '').toLowerCase();
+  const isNumeric = varType === 'byte' || varType === 'word' || varType === '8bit' || varType === '16bit';
+  const isBoolean = varType === 'boolean';
+  const isString = varType === 'string';
+  // Backward compatibility: some numeric variables expose values[0] = { value: 'number' }
+  const isCustomValue = isNumeric || (availableValues.length > 0 && (availableValues[0] as any).value === 'number');
 
   useEffect(() => {
-    // If current compareValue is not in available values, treat as custom
-    if (isCustomValue && !isNaN(Number(compareValue))) {
-      setCustomValue(compareValue);
+    // Keep the UI field in sync for custom inputs
+    if (isCustomValue || isString) {
+      setCustomValue(compareValue ?? '');
     }
-  }, [variableName, compareValue, isCustomValue]);
+  }, [variableName, compareValue, isCustomValue, isString]);
 
   const handleVariableChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newVariable = e.target.value;
     setVariableName(newVariable);
 
-    // Reset compare value to first available option
+    // Reset compare value depending on variable type and available values
     const variable = allVariables.find(v => v.name === newVariable);
-    if (variable && variable.values.length > 0) {
-      if (variable.values[0].value === 'number') {
-        setCompareValue('0');
-        setCustomValue('0');
-      } else {
-        setCompareValue(variable.values[0].label);
-      }
+    const nextType = (variable?.type || '').toLowerCase();
+    let nextCompare = '';
+    if (nextType === 'boolean') {
+      nextCompare = (variable?.values?.[0]?.label?.toString()) || 'False';
+    } else if (nextType === 'string') {
+      nextCompare = '';
+    } else if (nextType === 'byte' || nextType === '8bit' || nextType === 'word' || nextType === '16bit') {
+      nextCompare = '0';
+    } else if (variable && variable.values && variable.values.length > 0) {
+      nextCompare = variable.values[0].label.toString();
     }
+
+    setCompareValue(nextCompare);
+    setCustomValue(nextCompare);
 
     onNodeChange({
       ...node,
       variableName: newVariable,
-      compareValue: variable?.values[0]?.value === 'number' ? '0' : (variable?.values[0]?.label || 'Completed'),
+      compareValue: nextCompare,
       operator: '=='
     });
   };
@@ -74,10 +86,20 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
     const newValue = e.target.value;
     setCustomValue(newValue);
 
-    // Validate numeric input
-    if (!isNaN(Number(newValue))) {
+    // For string variables, accept free text
+    if (isString) {
       setCompareValue(newValue);
       onNodeChange({ ...node, compareValue: newValue });
+      return;
+    }
+
+    // For numeric variables, accept positive and negative integers only
+    if (/^-?\d*$/.test(newValue)) {
+      setCompareValue(newValue);
+      // Persist only when it's a complete integer (not just '-')
+      if (/^-?\d+$/.test(newValue)) {
+        onNodeChange({ ...node, compareValue: newValue });
+      }
     }
   };
 
@@ -91,14 +113,14 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
   }, {} as Record<string, typeof allVariables>);
 
   const categoryLabels: Record<string, string> = {
-    objective: '🎯 Objectives',
-    score: '💯 Score & Points',
-    player: '👤 Player State',
-    inventory: '🎒 Inventory',
-    progress: '🗺️ Progress',
-    time: '⏱️ Time',
-    difficulty: '⚡ Difficulty',
-    special: '⭐ Special'
+    objective: 'Objectives',
+    score: 'Score & Points',
+    player: 'Player State',
+    inventory: 'Inventory',
+    progress: 'Progress',
+    time: 'Time',
+    difficulty: 'Difficulty',
+    special: 'Special'
   };
 
   // Check if there are no custom variables
@@ -138,7 +160,7 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
             <optgroup key={category} label={categoryLabels[category] || category}>
               {variables.map(variable => (
                 <option key={variable.name} value={variable.name}>
-                  {variable.name} ({variable.type === '16bit' ? '16-bit' : '8-bit'})
+                  {variable.name} ({(['word','16bit'] as any).includes((variable as any).type) ? '16-bit' : '8-bit'})
                 </option>
               ))}
             </optgroup>
@@ -175,32 +197,55 @@ export const IfThenElseNodeEditor: React.FC<IfThenElseNodeEditorProps> = ({ node
         <label className="block text-sm font-medium text-msx-textcolor mb-1">
           Compare Value:
         </label>
-        {isCustomValue ? (
+        {isString ? (
           <div>
             <input
-              type="number"
+              type="text"
               value={customValue}
               onChange={handleCustomValueChange}
               className="w-full px-3 py-2 bg-msx-bgcolor border border-msx-border text-msx-textcolor rounded pixel-font"
-              placeholder="Enter number"
-              min={selectedVariable?.type === '16bit' ? 0 : 0}
-              max={selectedVariable?.type === '16bit' ? 65535 : 255}
+              placeholder={'Enter text'}
             />
-            <p className="text-xs text-msx-textcolor opacity-70 mt-1">
-              Range: 0-{selectedVariable?.type === '16bit' ? '65535' : '255'}
-            </p>
           </div>
+        ) : isCustomValue && !isBoolean ? (
+          <div>
+            <input
+              type={'text'}
+              value={customValue}
+              onChange={handleCustomValueChange}
+              className="w-full px-3 py-2 bg-msx-bgcolor border border-msx-border text-msx-textcolor rounded pixel-font"
+              placeholder={'Enter number (e.g., -5, 42)'}
+            />
+            <p className="text-xs text-msx-textcolor opacity-70 mt-1">Accepts positive and negative integers</p>
+          </div>
+        ) : isBoolean ? (
+          <select
+            value={compareValue || 'False'}
+            onChange={handleCompareValueChange}
+            className="w-full px-3 py-2 bg-msx-bgcolor border border-msx-border text-msx-textcolor rounded pixel-font"
+          >
+            {(availableValues.length > 0 ? availableValues : [
+              { label: 'False', value: 0 },
+              { label: 'True', value: 1 },
+            ]).map((val: any) => (
+              <option key={String(val.label)} value={String(val.label)}>{String(val.label)}</option>
+            ))}
+          </select>
         ) : (
           <select
             value={compareValue}
             onChange={handleCompareValueChange}
             className="w-full px-3 py-2 bg-msx-bgcolor border border-msx-border text-msx-textcolor rounded pixel-font"
           >
-            {availableValues.map(val => (
-              <option key={val.label} value={val.label}>
-                {val.label} ({val.value})
-              </option>
-            ))}
+            {availableValues.length > 0 ? (
+              availableValues.map((val: any) => (
+                <option key={String(val.label)} value={String(val.label)}>
+                  {String(val.label)}{(val.value !== undefined && val.value !== null && val.value !== 'number') ? ` (${val.value})` : ''}
+                </option>
+              ))
+            ) : (
+              <option value="">-- enter value --</option>
+            )}
           </select>
         )}
       </div>

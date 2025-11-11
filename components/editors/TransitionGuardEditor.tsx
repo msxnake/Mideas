@@ -38,11 +38,14 @@ export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ gu
   const selectedVariable = customVariables.find(v => v.name === variableName);
   const availableValues = selectedVariable?.values || [];
 
-  // Determine if we need a number input (for byte/word types or variables with 'number' value)
+  // Determine if we need a number input (for byte/word/8bit/16bit types or variables with 'number' value)
+  const typeLower = (selectedVariable?.type || '').toLowerCase();
   const isNumericInput =
-    selectedVariable?.type === 'byte' ||
-    selectedVariable?.type === 'word' ||
-    (availableValues.length > 0 && availableValues[0].value === 'number');
+    typeLower === 'byte' ||
+    typeLower === 'word' ||
+    typeLower === '8bit' ||
+    typeLower === '16bit' ||
+    (availableValues.length > 0 && (availableValues[0] as any).value === 'number');
 
   const handleEnabledChange = (checked: boolean) => {
     setEnabled(checked);
@@ -82,9 +85,10 @@ export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ gu
   };
 
   const getDefaultCompareValue = (variable: MideasGlobalVariable): string => {
-    if (variable.type === 'boolean') return 'true';
-    if (variable.type === 'byte' || variable.type === 'word') return '0';
-    if (variable.type === 'string') return '';
+    const t = (variable.type || '').toLowerCase();
+    if (t === 'boolean') return 'false';
+    if (t === 'byte' || t === 'word' || t === '8bit' || t === '16bit') return '0';
+    if (t === 'string') return '';
     if (variable.values && variable.values.length > 0) {
       return variable.values[0].value === 'number' ? '0' : variable.values[0].label;
     }
@@ -128,6 +132,19 @@ export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ gu
       });
     }
   };
+  // For free numeric input: allow temporary '-' and commit only when a complete integer is present
+  const handleNumericTextChange = (newValue: string) => {
+    setCompareValue(newValue);
+    if (/^-?\d+$/.test(newValue)) {
+      if (enabled) {
+        onGuardChange({
+          variableName,
+          operator: operator as any,
+          compareValue: newValue
+        });
+      }
+    }
+  };
 
   // Group variables by category
   const variablesByCategory = customVariables.reduce((acc, variable) => {
@@ -139,15 +156,15 @@ export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ gu
   }, {} as Record<string, typeof customVariables>);
 
   const categoryLabels: Record<string, string> = {
-    objective: '🎯 Objectives',
-    score: '💯 Score',
-    player: '👤 Player',
-    inventory: '🎒 Inventory',
-    progress: '🗺️ Progress',
-    time: '⏱️ Time',
-    difficulty: '⚡ Difficulty',
-    special: '⭐ Special',
-    custom: '🔧 Custom'
+    objective: 'Objectives',
+    score: 'Score',
+    player: 'Player',
+    inventory: 'Inventory',
+    progress: 'Progress',
+    time: 'Time',
+    difficulty: 'Difficulty',
+    special: 'Special',
+    custom: 'Custom'
   };
 
   // Show message if no GlobalVariables assets exist
@@ -350,20 +367,16 @@ export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ gu
                     ))}
                   </select>
                 ) : (
-                  // Free numeric input
+                  // Free numeric input (accepts positive or negative integers)
                   <div>
                     <input
-                      type="number"
+                      type="text"
                       value={compareValue}
-                      onChange={(e) => handleCompareValueChange(e.target.value)}
+                      onChange={(e) => handleNumericTextChange(e.target.value)}
                       className="w-full px-2 py-1 text-xs bg-msx-bgcolor border border-msx-border text-msx-textcolor rounded pixel-font"
-                      placeholder="Enter number"
-                      min={0}
-                      max={selectedVariable?.type === 'word' ? 65535 : 255}
+                      placeholder="Enter number (e.g., -5, 42)"
                     />
-                    <p className="text-xs text-msx-textsecondary mt-1">
-                      Range: 0-{selectedVariable?.type === 'word' ? '65535' : '255'}
-                    </p>
+                    <p className="text-xs text-msx-textsecondary mt-1">Accepts positive and negative integers</p>
                   </div>
                 )}
               </>
@@ -385,3 +398,4 @@ export const TransitionGuardEditor: React.FC<TransitionGuardEditorProps> = ({ gu
     </div>
   );
 };
+

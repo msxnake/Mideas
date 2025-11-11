@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowRestartNode, GameFlowWaypointNode, GameFlowIfThenElseNode, ContextMenuItem } from '../../types';
+import { GameFlowGraph, GameFlowNode, GameFlowConnection, Point, GameFlowSubMenuNode, GameFlowWorldLinkNode, GameFlowSubMenuOption, ProjectAsset, GameFlowEndNode, GameFlowTextNode, GameFlowRestartNode, GameFlowWaypointNode, GameFlowIfThenElseNode, ContextMenuItem, GameFlowGlobalsNode } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, CodeIcon, ArrowsPointingOutIcon, ScissorsIcon } from '../icons/MsxIcons';
@@ -8,6 +8,7 @@ import { GameFlowPreviewModal } from '../modals/GameFlowPreviewModal';
 import { GameFlowLogModal } from '../modals/GameFlowLogModalSimple';
 import { SubMenuAppearanceEditor } from './SubMenuAppearanceEditor';
 import { TextNodeEditor } from './TextNodeEditor';
+import { GlobalsNodeEditor } from './GlobalsNodeEditor';
 import { IfThenElseNodeEditor } from './IfThenElseNodeEditor';
 import { Modal } from '../modals/Modal';
 import { DEFAULT_MAIN_MENU_CONFIG } from '../../constants';
@@ -135,11 +136,13 @@ const GameFlowNodeComponent: React.FC<{
     onEditMusicNode: (node: any) => void;
     /** Callback to open the editor for an if-then-else node. */
     onEditIfThenElseNode: (node: GameFlowIfThenElseNode) => void;
+    /** Callback to open the editor for a globals node. */
+    onEditGlobalsNode: (node: GameFlowGlobalsNode) => void;
     /** Whether we are currently in linking mode (creating a connection). */
     isLinkingMode: boolean;
     /** The name of the current GameFlow asset. */
     gameFlowAssetName?: string;
-}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance, onEditTextNode, onEditRestartNode, onEditTransitionNode, onEditMusicNode, onEditIfThenElseNode, isLinkingMode, gameFlowAssetName }) => {
+}> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance, onEditTextNode, onEditRestartNode, onEditTransitionNode, onEditMusicNode, onEditIfThenElseNode, onEditGlobalsNode, isLinkingMode, gameFlowAssetName }) => {
   const [isHovered, setIsHovered] = useState(false);
   const nodeHeight = getNodeHeight(node);
   const isMainGameFlow = gameFlowAssetName === 'Main';
@@ -152,6 +155,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'Transition' ? 'hsl(40, 60%, 40%)'
     : node.type === 'Group' ? 'hsl(270, 50%, 45%)'
     : node.type === 'IfThenElse' ? 'hsl(30, 70%, 45%)'
+    : node.type === 'Globals' ? 'hsl(200, 60%, 40%)'
     : node.type === 'Waypoint' ? 'hsl(0, 0%, 30%)'
     : 'hsl(260, 30%, 40%)';
 
@@ -165,6 +169,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'Transition' ? 'hsl(40, 70%, 60%)'
     : node.type === 'Group' ? 'hsl(270, 60%, 65%)'
     : node.type === 'IfThenElse' ? 'hsl(30, 80%, 65%)'
+    : node.type === 'Globals' ? 'hsl(200, 70%, 60%)'
     : node.type === 'Waypoint' ? 'hsl(0, 0%, 50%)'
     : 'hsl(260, 50%, 70%)';
 
@@ -192,7 +197,7 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'WorldLink' ? `Mundo: ${worldNode?.name || '???'}`
     : node.type === 'End' ? (node as GameFlowEndNode).endType
     : node.type === 'Text' ? (node as GameFlowTextNode).title
-    : node.type === 'Music' ? (musicTrack?.name || 'Music')
+    : node.type === 'Music' ? ((node as any).stop ? 'Stop Music' : (musicTrack?.name || 'Music'))
     : node.type === 'Restart' ? 'Reiniciar'
     : node.type === 'Transition' ? getTransitionEffectLabel((node as any).effect)
     : node.type === 'Group' ? (node as any).name || 'Group'
@@ -369,9 +374,15 @@ const GameFlowNodeComponent: React.FC<{
             Transición
           </text>
           <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
-            <Button onClick={() => onEditTransitionNode(node)} size="xs">Edit Effect</Button>
+          <Button onClick={() => onEditTransitionNode(node)} size="xs">Edit Effect</Button>
           </foreignObject>
         </>
+      )}
+
+      {node.type === 'Globals' && (
+        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+          <Button onClick={() => onEditGlobalsNode(node as GameFlowGlobalsNode)} size="xs">Edit</Button>
+        </foreignObject>
       )}
 
       {node.type === 'Group' && (
@@ -418,6 +429,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [editingMusicNode, setEditingMusicNode] = useState<any>(null);
   const [isIfThenElseModalOpen, setIsIfThenElseModalOpen] = useState(false);
   const [editingIfThenElseNode, setEditingIfThenElseNode] = useState<GameFlowIfThenElseNode | null>(null);
+  const [isGlobalsNodeModalOpen, setIsGlobalsNodeModalOpen] = useState(false);
+  const [editingGlobalsNode, setEditingGlobalsNode] = useState<GameFlowGlobalsNode | null>(null);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [hasInitializedView, setHasInitializedView] = useState(false);
 
@@ -594,6 +607,24 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       onUpdate({ nodes: newNodes });
     }
     handleCloseTextNodeModal();
+  };
+
+  const handleOpenGlobalsNodeModal = (node: GameFlowGlobalsNode) => {
+    setEditingGlobalsNode(node);
+    setIsGlobalsNodeModalOpen(true);
+  };
+
+  const handleCloseGlobalsNodeModal = () => {
+    setEditingGlobalsNode(null);
+    setIsGlobalsNodeModalOpen(false);
+  };
+
+  const handleSaveGlobalsNode = () => {
+    if (editingGlobalsNode) {
+      const newNodes = nodes.map(n => n.id === editingGlobalsNode.id ? editingGlobalsNode : n);
+      onUpdate({ nodes: newNodes });
+    }
+    handleCloseGlobalsNodeModal();
   };
 
   const handleTextNodeChange = (newNode: GameFlowTextNode) => {
@@ -790,7 +821,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       }
   };
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
-  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint' | 'IfThenElse' | 'Music') => {
+  const handleAddNode = (type: 'SubMenu' | 'WorldLink' | 'Text' | 'End' | 'Restart' | 'Transition' | 'Group' | 'Waypoint' | 'IfThenElse' | 'Music' | 'Globals') => {
     let newNodeData: NodeToPlace;
     if (type === 'SubMenu') {
         newNodeData = {
@@ -865,6 +896,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
     } else if (type === 'Music') {
         newNodeData = {
             type: 'Music',
+            stop: false,
             trackAssetId: undefined,
             loop: true,
             autoPlay: true
@@ -874,6 +906,15 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         newNodeData = {
             type: 'Waypoint'
         };
+        setNodeToPlace(newNodeData);
+    } else if (type === 'Globals') {
+        newNodeData = {
+            type: 'Globals',
+            title: 'Set Globals',
+            variables: [
+                { id: 'var1', name: 'Ammo', value: '0' }
+            ]
+        } as unknown as NodeToPlace;
         setNodeToPlace(newNodeData);
     }
   };
@@ -1074,7 +1115,8 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
 
   return (
     <Panel title="Game Flow Editor" className="flex-grow flex flex-col bg-msx-bgcolor select-none">
-      <div className="p-2 border-b border-msx-border flex space-x-2 items-center flex-shrink-0">
+      <div className="p-2 border-b border-msx-border flex flex-col gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
         <Button onClick={() => handleAddNode('SubMenu')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Submenu</Button>
         <Button onClick={() => handleAddNode('WorldLink')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add World Link</Button>
         <Button onClick={() => handleAddNode('Text')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Text</Button>
@@ -1084,6 +1126,9 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button onClick={() => handleAddNode('Restart')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Restart</Button>
         <Button onClick={() => handleAddNode('Transition')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Transition</Button>
         <Button onClick={() => handleAddNode('Group')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>}>Add Group</Button>
+        <Button onClick={() => handleAddNode('Globals')} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add node to set global variables">Add Globals</Button>
+        </div>
+        <div className="flex items-center gap-2">
         <Button onClick={() => handleAddNode('Waypoint')} size="sm" variant="ghost" icon={<PlusCircleIcon className="w-4 h-4"/>} title="Add waypoint for visual organization">Waypoint</Button>
         <Button
           onClick={() => setIsCutMode(!isCutMode)}
@@ -1100,6 +1145,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         <Button size="sm" variant="ghost" onClick={() => setIsLogModalOpen(true)} title="View GameFlow validation log">View Log 📄</Button>
         <Button size="sm" variant="primary" onClick={handlePreviewClick}>Preview</Button>
         <Button size="sm" variant="secondary" onClick={handlePlayClick}>Play Game</Button>
+        </div>
       </div>
       <div className="flex-grow relative" style={{ background: '#1A101A', overflow: 'auto' }}>
         <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
@@ -1151,7 +1197,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               );
           })}
           {nodes.map(node => (
-            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} onEditTextNode={handleOpenTextNodeModal} onEditRestartNode={handleOpenRestartNodeModal} onEditTransitionNode={handleOpenTransitionNodeModal} onEditMusicNode={handleOpenMusicNodeModal} onEditIfThenElseNode={handleOpenIfThenElseModal} isLinkingMode={isLinkingMode} gameFlowAssetName={gameFlowAssetName} />
+            <GameFlowNodeComponent key={node.id} node={node} allAssets={allAssets} onPortClick={handlePortClick} isSelected={selectedNodeId === node.id} onSelect={handleNodeSelect} onMouseDown={handleNodeMouseDown} onContextMenu={handleContextMenu} onEditAppearance={handleOpenSubMenuModal} onEditTextNode={handleOpenTextNodeModal} onEditRestartNode={handleOpenRestartNodeModal} onEditTransitionNode={handleOpenTransitionNodeModal} onEditMusicNode={handleOpenMusicNodeModal} onEditIfThenElseNode={handleOpenIfThenElseModal} onEditGlobalsNode={handleOpenGlobalsNodeModal} isLinkingMode={isLinkingMode} gameFlowAssetName={gameFlowAssetName} />
           ))}
           {nodeToPlace && mousePosition && <g transform={`translate(${mousePosition.x - getNodeWidth(nodeToPlace)/2}, ${mousePosition.y - getNodeHeight(nodeToPlace)/2})`} opacity={0.6}><GameFlowNodeComponent node={{...nodeToPlace, id: 'ghost', position: {x:0, y:0}}} allAssets={allAssets} onPortClick={()=>{}} isSelected={false} onSelect={()=>{}} onMouseDown={()=>{}} onContextMenu={()=>{}} onEditAppearance={() => {}} onEditTextNode={() => {}} onEditRestartNode={() => {}} onEditTransitionNode={() => {}} onEditMusicNode={() => {}} onEditIfThenElseNode={() => {}} isLinkingMode={false} gameFlowAssetName={gameFlowAssetName} /></g>}
           {linkingState && mousePosition && (() => {
@@ -1206,12 +1252,20 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       {isTransitionNodeModalOpen && editingTransitionNode && (
         <Modal isOpen={isTransitionNodeModalOpen} onClose={handleCloseTransitionNodeModal} title="Edit Transition Effect">
           <div className="p-4 space-y-4">
+            <div className="flex items-center space-x-2">
+              <input type="checkbox" id="music-stop"
+                checked={!!editingMusicNode.stop}
+                onChange={(e) => handleMusicNodeChange('stop', e.target.checked)}
+                className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
+              />
+              <label htmlFor="music-stop" className="text-sm">Stop current music when reached</label>
+            </div>
             <div>
               <label className="block text-sm font-medium mb-2">Effect Type:</label>
               <select
                 value={editingTransitionNode.effect}
                 onChange={(e) => handleTransitionNodeChange(e.target.value, editingTransitionNode.duration || 1000)}
-                className="w-full p-2 border border-msx-border bg-msx-bgcolor text-white rounded"
+                disabled={!!editingMusicNode.stop} className="w-full p-2 border border-msx-border bg-msx-bgcolor text-white rounded"
               >
                 <option value="cls">CLS (Clear Screen)</option>
                 <option value="dissolve_pixels">Disolver Píxeles</option>
@@ -1243,11 +1297,20 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       {isMusicNodeModalOpen && editingMusicNode && (
         <Modal isOpen={isMusicNodeModalOpen} onClose={handleCloseMusicNodeModal} title="Edit Music Node">
           <div className="p-4 space-y-4">
+            <div className="flex items-center space-x-2">
+              <input type="checkbox" id="music-stop"
+                checked={!!editingMusicNode.stop}
+                onChange={(e) => handleMusicNodeChange('stop', e.target.checked)}
+                className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
+              />
+              <label htmlFor="music-stop" className="text-sm">Stop current music when reached</label>
+            </div>
             <div>
               <label className="block text-sm font-medium mb-2">Music Track:</label>
               <select
                 value={editingMusicNode.trackAssetId || ''}
                 onChange={(e) => handleMusicNodeChange('trackAssetId', e.target.value)}
+                disabled={!!editingMusicNode.stop}
                 className="w-full p-2 border border-msx-border bg-msx-bgcolor text-white rounded"
               >
                 <option value="">-- Select Track --</option>
@@ -1269,6 +1332,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
                 id="music-loop"
                 checked={editingMusicNode.loop ?? true}
                 onChange={(e) => handleMusicNodeChange('loop', e.target.checked)}
+                disabled={!!editingMusicNode.stop}
                 className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
               />
               <label htmlFor="music-loop" className="text-sm">Loop music continuously</label>
@@ -1279,6 +1343,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
                 id="music-autoplay"
                 checked={editingMusicNode.autoPlay ?? true}
                 onChange={(e) => handleMusicNodeChange('autoPlay', e.target.checked)}
+                disabled={!!editingMusicNode.stop}
                 className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
               />
               <label htmlFor="music-autoplay" className="text-sm">Auto-play when node is reached</label>
@@ -1301,6 +1366,17 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           />
           <div className="flex justify-end p-4">
             <Button onClick={handleSaveIfThenElseNode}>Save</Button>
+          </div>
+        </Modal>
+      )}
+      {isGlobalsNodeModalOpen && editingGlobalsNode && (
+        <Modal isOpen={isGlobalsNodeModalOpen} onClose={handleCloseGlobalsNodeModal} title="Edit Global Variables">
+          <GlobalsNodeEditor
+            node={editingGlobalsNode}
+            onNodeChange={(n) => setEditingGlobalsNode(n)}
+          />
+          <div className="flex justify-end p-4">
+            <Button onClick={handleSaveGlobalsNode}>Save</Button>
           </div>
         </Modal>
       )}

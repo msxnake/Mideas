@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+﻿import React, { useMemo } from 'react';
 import { Action, ActionTypes } from '../../../statemachine.types';
 import { ProjectAsset } from '../../../types';
 import { getAllGlobalVariables } from '../../../utils/globalVariablesUtils';
@@ -102,7 +102,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
           return (
             <div className="space-y-2">
               <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded border border-yellow-600">
-                ⚠️ No sound assets available. Create a sound asset first using the toolbar (New Asset → Sound).
+                âš ï¸ No sound assets available. Create a sound asset first using the toolbar (New Asset â†’ Sound).
               </div>
             </div>
           );
@@ -126,7 +126,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               </select>
             </div>
             <div className="text-xs text-blue-400 italic">
-              🔊 Plays the selected PSG sound effect (Yamaha AY-3-8910)
+              ðŸ”Š Plays the selected PSG sound effect (Yamaha AY-3-8910)
             </div>
           </div>
         );
@@ -138,7 +138,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
           return (
             <div className="space-y-2">
               <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded border border-yellow-600">
-                ⚠️ No music tracks available. Create a tracker song first using the toolbar (New Asset → Track).
+                âš ï¸ No music tracks available. Create a tracker song first using the toolbar (New Asset â†’ Track).
               </div>
             </div>
           );
@@ -172,7 +172,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               <span className="text-xs text-gray-400">Repeat music continuously</span>
             </div>
             <div className="text-xs text-blue-400 italic">
-              🎵 Plays background music from Tracker Composer (PT3-style)
+              ðŸŽµ Plays background music from Tracker Composer (PT3-style)
             </div>
           </div>
         );
@@ -181,7 +181,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         return (
           <div className="space-y-2">
             <div className="text-xs text-blue-400 italic p-2 bg-black bg-opacity-30 rounded border border-blue-600">
-              🔇 Mutes the currently playing music (useful for pause mode).
+              ðŸ”‡ Mutes the currently playing music (useful for pause mode).
               <br />
               Use PLAY_MUSIC to resume, or STOP_MUSIC to completely stop playback.
             </div>
@@ -192,7 +192,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         return (
           <div className="space-y-2">
             <div className="text-xs text-red-400 italic p-2 bg-black bg-opacity-30 rounded border border-red-600">
-              ⏹️ Stops the currently playing music and clears the playback state.
+              â¹ï¸ Stops the currently playing music and clears the playback state.
               <br />
               To temporarily pause, use MUTE_MUSIC instead.
             </div>
@@ -200,7 +200,8 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         );
 
       case ActionTypes.SET_VARIABLE: {
-        const selectedVar = allVariables.find(v => v.name === action.params.variable);
+        const legacyVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+        const selectedVar = allVariables.find(v => v.name === legacyVarName);
         const selectedVarType = selectedVar?.type;
         const hasEnumValues = (selectedVar?.values || []).length > 0 && !selectedVar?.values?.some(v => v.value === 'number');
         const supportsNumeric = isNumericType(selectedVarType) || selectedVar?.values?.some(v => v.value === 'number');
@@ -213,7 +214,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
             <div className="flex items-center space-x-2">
               <label className="text-xs text-gray-400 w-16">Variable</label>
               <select
-                value={action.params.variable || (allVariables[0]?.name || '')}
+                value={legacyVarName || (allVariables[0]?.name || '')}
                 onChange={(e) => {
                   // Reset value when variable changes
                   onUpdateParams({ ...action.params, variable: e.target.value, value: '' });
@@ -222,7 +223,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               >
                 {allVariables.map((variable) => (
                   <option key={variable.name} value={variable.name}>
-                    {variable.category} → {variable.name}
+                    {variable.category} â†’ {variable.name}
                   </option>
                 ))}
               </select>
@@ -274,7 +275,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               )}
             </div>
             {isAmmoVar && (
-              <div className="text-xs text-msx-textsecondary italic">Tip: -1 = infinite ammo; ≥ 0 consumes per shot.</div>
+              <div className="text-xs text-msx-textsecondary italic">Tip: -1 = infinite ammo; â‰¥ 0 consumes per shot.</div>
             )}
           </div>
         );
@@ -287,13 +288,13 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
             <div className="flex items-center space-x-2">
               <label className="text-xs text-gray-400 w-16">Variable</label>
               <select
-                value={action.params.variable || 'Score'}
+                value={(action.params.variable ?? (action.params as any).variableName ?? (action.params as any).name) || 'Score'}
                 onChange={(e) => handleParamChange('variable', e.target.value)}
                 className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
               >
                 {allVariables.map((variable) => (
                   <option key={variable.name} value={variable.name}>
-                    {variable.category} → {variable.name}
+                    {variable.category} â†’ {variable.name}
                   </option>
                 ))}
               </select>
@@ -326,7 +327,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               />
             </div>
             <div className="text-xs text-yellow-400 italic">
-              🎮 Use "START" to go to the Start node, or enter a specific node ID
+              ðŸŽ® Use "START" to go to the Start node, or enter a specific node ID
             </div>
           </div>
         );
@@ -346,7 +347,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               }}
             />
             <div className="text-xs text-yellow-400 italic">
-              ❤️ Modifies the entity's comp_health.current value
+              â¤ï¸ Modifies the entity's comp_health.current value
             </div>
           </div>
         );
@@ -378,7 +379,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               }}
             />
             <div className="text-xs text-yellow-400 italic">
-              🔄 Resets entity position and velocity
+              ðŸ”„ Resets entity position and velocity
             </div>
           </div>
         );
@@ -393,14 +394,14 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 onChange={(e) => handleParamChange('target', e.target.value)}
                 className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
               >
-                <option value="self">💀 Self (Destroy this entity)</option>
-                <option value="other">💥 Other (Destroy collided entity)</option>
+                <option value="self">ðŸ’€ Self (Destroy this entity)</option>
+                <option value="other">ðŸ’¥ Other (Destroy collided entity)</option>
               </select>
             </div>
             <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded">
               {action.params.target === 'other'
-                ? '💥 Destroys the entity we just collided with (e.g., pick up an item)'
-                : '💀 Destroys this entity (e.g., enemy dies)'}
+                ? 'ðŸ’¥ Destroys the entity we just collided with (e.g., pick up an item)'
+                : 'ðŸ’€ Destroys this entity (e.g., enemy dies)'}
             </div>
           </div>
         );
@@ -417,14 +418,14 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 onChange={(e) => handleParamChange('direction', e.target.value)}
                 className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
               >
-                <option value="up">⬆️ Up (Above player)</option>
-                <option value="down">⬇️ Down (Below player)</option>
-                <option value="left">⬅️ Left (Left of player)</option>
-                <option value="right">➡️ Right (Right of player)</option>
-                <option value="up-right">↗️ Up-Right (Diagonal)</option>
-                <option value="up-left">↖️ Up-Left (Diagonal)</option>
-                <option value="down-right">↘️ Down-Right (Diagonal)</option>
-                <option value="down-left">↙️ Down-Left (Diagonal)</option>
+                <option value="up">â¬†ï¸ Up (Above player)</option>
+                <option value="down">â¬‡ï¸ Down (Below player)</option>
+                <option value="left">â¬…ï¸ Left (Left of player)</option>
+                <option value="right">âž¡ï¸ Right (Right of player)</option>
+                <option value="up-right">â†—ï¸ Up-Right (Diagonal)</option>
+                <option value="up-left">â†–ï¸ Up-Left (Diagonal)</option>
+                <option value="down-right">â†˜ï¸ Down-Right (Diagonal)</option>
+                <option value="down-left">â†™ï¸ Down-Left (Diagonal)</option>
               </select>
             </div>
 
@@ -448,8 +449,8 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
 
             <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded">
               {action.type === ActionTypes.BREAK_TILE
-                ? '🔨 Breaks tile only if it has "isBreakable" property enabled in Tile Editor'
-                : '🔄 Replaces tile with selected tile (or removes it if empty)'}
+                ? 'ðŸ”¨ Breaks tile only if it has "isBreakable" property enabled in Tile Editor'
+                : 'ðŸ”„ Replaces tile with selected tile (or removes it if empty)'}
             </div>
           </div>
         );

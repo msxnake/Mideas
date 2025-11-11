@@ -179,8 +179,66 @@ export const useProjectHandlers = ({
       console.log(`🧹 Cleanup: Removed ${stats.componentsRemoved} unused components, ${stats.templatesRemoved} unused templates`);
     }
 
+    // Normalize project data before saving (migrations)
+    const normalizeCondition = (cond: any): any => {
+      if (!cond) return cond;
+      const copy: any = { ...cond };
+      if (copy.params) {
+        const p: any = { ...copy.params };
+        // Remove deprecated filters
+        if ('templateId' in p) delete p.templateId;
+        if ('templateName' in p) delete p.templateName;
+        copy.params = p;
+      }
+      if (Array.isArray(copy.conditions)) copy.conditions = copy.conditions.map(normalizeCondition);
+      return copy;
+    };
+
+    const normalizeActions = (actions?: any[]) =>
+      (actions || []).map(a => {
+        const p: any = { ...(a?.params || {}) };
+        // Unify variable key
+        if (p.variable === undefined) {
+          if (p.variableName !== undefined) p.variable = p.variableName;
+          else if (p.name !== undefined) p.variable = p.name;
+        }
+        delete p.variableName;
+        // Do not delete generic 'name' because some actions may use it for other purposes,
+        // but for our known variable actions we will clean it when saving transitions below.
+        const result = { ...a, params: p };
+        return result;
+      });
+
+    const assetsNormalized = assets.map(asset => {
+      if (asset.type === 'statemachine' && asset.data) {
+        const sm: any = asset.data as any;
+        const normalizedTransitions = (sm.transitions || []).map((t: any) => {
+          const normActions = normalizeActions(t.actions).map((act: any) => {
+            if (act && (act.type === 'SET_VARIABLE' || act.type === 'INCREMENT_VARIABLE' || act.type === 'DECREMENT_VARIABLE')) {
+              const pp: any = { ...act.params };
+              if (pp.variable === undefined) {
+                if (pp.variableName !== undefined) pp.variable = pp.variableName;
+                else if (pp.name !== undefined) pp.variable = pp.name;
+              }
+              delete pp.variableName;
+              delete pp.name; // safe here for variable actions
+              return { ...act, params: pp };
+            }
+            return act;
+          });
+          return {
+            ...t,
+            conditions: normalizeCondition(t.conditions),
+            actions: normActions,
+          };
+        });
+        return { ...asset, data: { ...sm, transitions: normalizedTransitions } };
+      }
+      return asset;
+    });
+
     const projectData = {
-      assets,
+      assets: assetsNormalized,
       currentScreenMode,
       selectedAssetId,
       currentEditor,
@@ -241,13 +299,57 @@ export const useProjectHandlers = ({
           setCopiedLayerBuffer(null);
 
           if (projectData.assets) {
-            const assetsWithEnsuredEffectZones = projectData.assets.map((asset: ProjectAsset) => {
+            // Normalize legacy data on load (migrations)
+            const normalizeCondition = (cond: any): any => {
+              if (!cond) return cond;
+              const copy: any = { ...cond };
+              if (copy.params) {
+                const p: any = { ...copy.params };
+                if ('templateId' in p) delete p.templateId;
+                if ('templateName' in p) delete p.templateName;
+                copy.params = p;
+              }
+              if (Array.isArray(copy.conditions)) copy.conditions = copy.conditions.map(normalizeCondition);
+              return copy;
+            };
+
+            const normalizeActions = (actions?: any[]) =>
+              (actions || []).map(a => {
+                const p: any = { ...(a?.params || {}) };
+                if (p.variable === undefined) {
+                  if (p.variableName !== undefined) p.variable = p.variableName;
+                  else if (p.name !== undefined) p.variable = p.name;
+                }
+                delete p.variableName;
+                // do not delete generic name by default here
+                return { ...a, params: p };
+              });
+
+            const migratedAssets = projectData.assets.map((asset: ProjectAsset) => {
+              // Ensure effectZones array exists on screenmaps
               if (asset.type === 'screenmap' && asset.data && !(asset.data as ScreenMap).effectZones) {
                 return { ...asset, data: { ...(asset.data as ScreenMap), effectZones: [] } };
               }
+              if (asset.type === 'statemachine' && asset.data) {
+                const sm: any = asset.data as any;
+                const normalizedTransitions = (sm.transitions || []).map((t: any) => ({
+                  ...t,
+                  conditions: normalizeCondition(t.conditions),
+                  actions: normalizeActions(t.actions).map((act: any) => {
+                    if (act && (act.type === 'SET_VARIABLE' || act.type === 'INCREMENT_VARIABLE' || act.type === 'DECREMENT_VARIABLE')) {
+                      const pp: any = { ...act.params };
+                      delete pp.name; // clean leftover field for these actions
+                      return { ...act, params: pp };
+                    }
+                    return act;
+                  })
+                }));
+                return { ...asset, data: { ...sm, transitions: normalizedTransitions } };
+              }
               return asset;
             });
-            setAssetsWithHistory(() => assetsWithEnsuredEffectZones);
+
+            setAssetsWithHistory(() => migratedAssets);
           }
 
           if (projectData.currentScreenMode) setCurrentScreenMode(projectData.currentScreenMode);

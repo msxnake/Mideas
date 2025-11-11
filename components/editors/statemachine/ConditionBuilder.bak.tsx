@@ -12,8 +12,6 @@ interface ConditionBuilderProps {
 }
 
 export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, condition, level = 0, allAssets = [], entityTemplates = [] }) => {
-  // Local refresh flag to force re-scan of assets for dropdowns
-  const [refreshTick, setRefreshTick] = useState(0);
   // Handle null condition gracefully: offer to create a default condition
   if (!condition) {
     const createDefault = () => onUpdate({ type: ConditionTypes.KEY_PRESSED, params: { key: '' } });
@@ -86,17 +84,8 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             <div className="text-xs text-yellow-400 italic">
               ℹ️ Requires GameTime variable to be tracked in your game logic
             </div>
-            {/* condition.params?.collisionType === 'item' && (
-              <>
-                <div className="flex items-center justify-end">
-                  <button
-                    type="button"
-                    className="px-2 py-1 text-xs bg-msx-primary rounded"
-                    onClick={() => onUpdate({ ...condition })}
-                    title="Re-scan project assets for item options"
-                  >Refresh options</button>
-                </div>
-                <div className="grid grid-cols-1 gap-2">
+            {condition.params?.collisionType === 'item' && (
+              <div className="grid grid-cols-1 gap-2">
                 <div className="flex items-center space-x-2">
                   <label className="text-xs text-msx-textsecondary w-28">itemType</label>
                   {itemTypeOptions.length > 0 ? (
@@ -118,17 +107,51 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                     />
                   )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-msx-textsecondary">Use filters to restrict which item triggers the transition.</div>
-                  <button
-                    type="button"
-                    className="px-2 py-1 text-xs bg-msx-primary rounded"
-                    onClick={() => setRefreshTick(t => t + 1)}
-                    title="Re-scan project assets for item options"
-                  >Refresh options</button>
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-msx-textsecondary w-28">templateId</label>
+                  {templateOptions.length > 0 ? (
+                    <select
+                      value={condition.params?.templateId || ''}
+                      onChange={(e) => handleParamChange('templateId', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    >
+                      <option value="">-- Any --</option>
+                      {templateOptions.map(opt => (<option key={opt.id} value={opt.id}>{opt.name} ({opt.id})</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Filter by templateId (optional)"
+                      value={condition.params?.templateId || ''}
+                      onChange={(e) => handleParamChange('templateId', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    />
+                  )}
                 </div>
+                <div className="flex items-center space-x-2">
+                  <label className="text-xs text-msx-textsecondary w-28">templateName</label>
+                  {templateOptions.length > 0 ? (
+                    <select
+                      value={condition.params?.templateName || ''}
+                      onChange={(e) => handleParamChange('templateName', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    >
+                      <option value="">-- Any --</option>
+                      {templateOptions.map(opt => (<option key={opt.name} value={opt.name}>{opt.name}</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Filter by templateName (optional)"
+                      value={condition.params?.templateName || ''}
+                      onChange={(e) => handleParamChange('templateName', e.target.value)}
+                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                    />
+                  )}
+                </div>
+                <div className="text-xs text-msx-textsecondary">Use filters to restrict which item triggers the transition.</div>
               </div>
-            */}
+            )}
           </div>
         );
       case ConditionTypes.CAN_MOVE_DIRECTION:
@@ -216,30 +239,31 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             </div>
             {condition.params?.collisionType === 'item' && (
               <div className="grid grid-cols-1 gap-2">
-                <div className="flex items-center space-x-2">
-                  <label className="text-xs text-msx-textsecondary w-28">itemType</label>
-                  {itemTypeOptions.length > 0 ? (
-                    <select
-                      value={condition.params?.itemType || ''}
-                      onChange={(e) => handleParamChange('itemType', e.target.value)}
-                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-                    >
-                      <option value="">-- Any --</option>
-                      {itemTypeOptions.map(it => (<option key={it} value={it}>{it}</option>))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      placeholder="Filter by itemType (optional)"
-                      value={condition.params?.itemType || ''}
-                      onChange={(e) => handleParamChange('itemType', e.target.value)}
-                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-                    />
-                  )}
+                <input
+                  type="text"
+                  placeholder="Filter by itemType (optional)"
+                  value={condition.params?.itemType || ''}
+                  onChange={(e) => handleParamChange('itemType', e.target.value)}
+                  className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                />
+                <input
+                  type="text"
+                  placeholder="Filter by templateId (optional)"
+                  value={condition.params?.templateId || ''}
+                  onChange={(e) => handleParamChange('templateId', e.target.value)}
+                  className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                />
+                <input
+                  type="text"
+                  placeholder="Filter by templateName (optional)"
+                  value={condition.params?.templateName || ''}
+                  onChange={(e) => handleParamChange('templateName', e.target.value)}
+                  className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                />
+                <div className="text-xs text-msx-textsecondary">
+                  Use filters above to restrict the item collision (e.g., itemType = 'weapon_pistol').
                 </div>
-                {/* Removed templateId/templateName filters intentionally */}
-                  <div className="text-xs text-msx-textsecondary">Use filters to restrict which item triggers the transition.</div>
-                </div>
+              </div>
             )}
           </div>
         );

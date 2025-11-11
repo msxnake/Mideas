@@ -914,7 +914,7 @@ export interface MainMenuConfig {
 // --- Game Flow Types ---
 
 /** The type of a node in the game flow graph. */
-export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse' | 'Music';
+export type GameFlowNodeType = 'Start' | 'SubMenu' | 'WorldLink' | 'End' | 'Text' | 'Restart' | 'Waypoint' | 'Transition' | 'Group' | 'IfThenElse' | 'Music' | 'Globals';
 
 /** The base interface for a game flow node. */
 export interface GameFlowNode_Base {
@@ -1008,6 +1008,8 @@ export interface GameFlowWaypointNode extends GameFlowNode_Base {
 /** Represents a music playback node. */
 export interface GameFlowMusicNode extends GameFlowNode_Base {
   type: 'Music';
+  /** If true, stop any currently playing music when this node is reached. */
+  stop?: boolean;
   trackAssetId?: string;
   loop?: boolean;
   autoPlay?: boolean;
@@ -1018,6 +1020,20 @@ export interface GameFlowTransitionNode extends GameFlowNode_Base {
   type: 'Transition';
   effect: 'cls' | 'dissolve_pixels' | 'dissolve_chars' | 'vertical_lines' | 'horizontal_lines' | 'spiral' | 'fill_white_squares';
   duration?: number; // milliseconds (optional, for preview timing)
+}
+
+/** Represents a node that sets or initializes global variables at runtime. */
+export interface GameFlowGlobalsNode extends GameFlowNode_Base {
+  type: 'Globals';
+  /** Optional display name for the node. */
+  title?: string;
+  /** List of variable assignments to apply when this node is reached. */
+  variables: Array<{
+    id: string;
+    name: string;
+    /** Stored as string in editor; parsed to boolean/number/string at runtime. */
+    value: string;
+  }>;
 }
 
 /** Represents a group node that calls another GameFlow asset (nested GameFlow). */
@@ -1039,7 +1055,7 @@ export interface GameFlowIfThenElseNode extends GameFlowNode_Base {
 }
 
 /** A union type for all possible game flow node types. */
-export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowMusicNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode;
+export type GameFlowNode = GameFlowStartNode | GameFlowSubMenuNode | GameFlowWorldLinkNode | GameFlowEndNode | GameFlowTextNode | GameFlowRestartNode | GameFlowWaypointNode | GameFlowMusicNode | GameFlowTransitionNode | GameFlowGroupNode | GameFlowIfThenElseNode | GameFlowGlobalsNode;
 
 /** Represents a connection between two nodes in the game flow graph. */
 export interface GameFlowConnection {
