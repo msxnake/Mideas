@@ -2,7 +2,7 @@
 
 This file documents all the locations where the version number needs to be updated when releasing a new version.
 
-## Current Version: 0.264
+## Current Version: 0.265
 
 ## Files to Update:
 
@@ -63,3 +63,4 @@ After updating the version:
 - No need to manually update the About modal or Toolbar files
 - Always update this file when changing versions to keep track of the current version
 - **Remember**: Standard increment is +0.01
+

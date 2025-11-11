@@ -1,6 +1,6 @@
 # Mideas - MSX Retro Game IDE
 
-**Version 0.264**
+**Version 0.265**
 
 Mideas is a web-based Integrated Development Environment (IDE) designed for creating games for the MSX (MSX1/MSX2) platform. It provides a comprehensive suite of visual editors and tools to streamline the game development process, from asset creation to level design.
 
@@ -98,3 +98,4 @@ The backend server provides compilation and compression services. To run it:
 *   **View Properties:** When you select an asset or an element within an editor (like an entity on a map), its properties will be displayed in the "Properties Panel" on the right.
 *   **Save Your Work:** Use "File > Save Project" or "File > Save As..." to save your entire project as a single `.json` file. Regular autosaving is also enabled by default.
 *   **Export:** Most editors have an "Export" button to get your assets in a game-ready format (`.asm` or `.bin`). You can also export all code and binary files as a `.zip` archive from the main toolbar.
+
