@@ -1,3 +1,45 @@
+Versión 0.265 - 13/11/2025
+- docs: update changeLog.txt for v0.265
+- chore: add CHANGELOG for v0.265
+- ghost entities bug! Fix: hard reset session state on Restart to prevent carried boxes/ghost entities persisting across runs
+- adding ammo
+- varias modificaciones y capturas de pantalla para mejorar la funcionalidad y corregir errores. modo shoot mejorado y optimizado.
+- better hitbox projectil detection
+- best shoot modal
+- docs(changelog): add 0.264 entry (shoot component/runtime)
+- shoot ok
+- Add mini_game62.json example project
+- Secret passages system (Sam's Journey style)
+- salto mejorado con Box
+- recollector perfect
+- Add Box persistence system: boxes stay in the screen where they are dropped
+- Fix platform detection for boxes: add horizontal overlap verification
+- box mejorado, ahora tiene gravedad y collision
+- Carry placement: use sprite bounds (visual) for overhead alignment (fix too-high offset)
+- Carry placement: position box overhead (Y heroHitboxTop - 16), centered by hitboxes
+- first box management
+- fix jump
+- changelog: prepend newest entry; fix generator to write latest on top
+- changelog: 0.260
+- codex: add version bump instructions + script (bumpVersionCodex.cjs)
+- platform riding: stop grace-based movement; always snap to platform top; clear stale global coords on dismount
+- debounce platform-driven transitions + entry margin to avoid re-exit jitter
+- partial fix
+- fix: render multi-screen platform after vertical transition (rebuild frames on carry-over)
+- fix soft platform descendant mov.
+- platform jump
+- fix(gameflow): Fix hitbox priority to use sprite values over defaults
+- fix parcial platform
+- fix gameflow layer
+- fix(gameflow): Fix tile break/replace visual update with buffer regeneration
+- fix(gameflow): Fix collision detection race condition and screen transition bugs
+- feat(statemachine): Add runtime tile manipulation system (break/replace)
+- fix(gameflow): Improve checkpoint system with safe spawn zones
+- feat(animation): Add sprite-level loop control and refactor animation completion detection
+- Varis canvis, Full screen shader CRT i optimitzacions diverses
+- feat(collision): Use sprite-defined hitbox from Sprite Editor
+- feat(animation): Preserve sprite facing direction when idle
+
 Versión 0.265 - 11/11/2025
 - chore: add CHANGELOG for v0.265
 - ghost entities bug! Fix: hard reset session state on Restart to prevent carried boxes/ghost entities persisting across runs

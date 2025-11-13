@@ -1,4 +1,4 @@
-
+﻿
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CRTShaderOverlay, CRTShaderConfig, defaultCRTConfig } from '../../src/components/CRTShaderOverlay';
@@ -48,6 +48,20 @@ const TILE_SIZE = 8;
 const PREVIEW_WIDTH = 256;
 const PREVIEW_HEIGHT = 192;
 const ANIMATION_SPEED_MS = 200; // Fallback if sprite.animationSpeedMs is undefined
+const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
+
+interface ChildLinkConfig {
+    parentTemplateId?: string;
+    parentInstanceId?: string;
+    parentInstanceName?: string;
+    offsetX: number;
+    offsetY: number;
+    inheritVelocity: boolean;
+    inheritFacing: boolean;
+    followParentGlobal: boolean;
+    detachOnParentLost: boolean;
+    mirrorParent?: boolean;
+}
 
 interface AnimatedEntity {
     instance: EntityInstance;
@@ -101,7 +115,133 @@ interface AnimatedEntity {
     explosionMirroredFrameImages?: HTMLImageElement[]; // Mirrored frames for Render2 if needed
     // Desired world-facing direction for correct mirroring decisions
     desiredFacingDirection?: FacingDirection; // 'left' | 'right' | 'neutral'
+    childLink?: ChildLinkConfig;
 }
+
+const normalizeChildLinkString = (value: any): string | undefined => {
+    if (value === undefined || value === null) return undefined;
+    const str = `${value}`.trim();
+    return str.length > 0 ? str : undefined;
+};
+
+const toChildLinkNumber = (value: any): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const parseChildLinkConfig = (template: EntityTemplate, instance: EntityInstance): ChildLinkConfig | undefined => {
+    const templateComp = template.components.find(c => c.definitionId === CHILD_LINK_COMPONENT_ID);
+    if (!templateComp) return undefined;
+
+    const overrides = instance.componentOverrides?.[CHILD_LINK_COMPONENT_ID] || {};
+    const values = {
+        ...(templateComp.defaultValues || {}),
+        ...overrides
+    };
+
+    const parentTemplateId = normalizeChildLinkString(values.parentTemplateId ?? values.parentEntityTemplateId);
+    const parentInstanceId = normalizeChildLinkString(values.parentInstanceId);
+    const parentInstanceName = normalizeChildLinkString(values.parentInstanceName ?? values.parentName);
+
+    if (!parentTemplateId && !parentInstanceId && !parentInstanceName) {
+        return undefined;
+    }
+
+    return {
+        parentTemplateId,
+        parentInstanceId,
+        parentInstanceName,
+        offsetX: toChildLinkNumber(values.offsetX),
+        offsetY: toChildLinkNumber(values.offsetY),
+        inheritVelocity: values.inheritVelocity !== false,
+        inheritFacing: values.inheritFacing !== false,
+        followParentGlobal: values.followParentGlobal !== false,
+        detachOnParentLost: values.detachOnParentLost === true,
+        mirrorParent: values.mirrorParent === true || values.mirrorParent === 'true'
+    };
+};
+
+const resolveChildLinkParents = (
+    entities: AnimatedEntity[],
+    entityLookup: Map<string, AnimatedEntity>
+) => {
+    entities.forEach(entity => {
+        const config = entity.childLink;
+        if (!config) return;
+
+        if (entity.parentEntityId) {
+            const stillExists = entityLookup.get(entity.parentEntityId);
+            if (stillExists) {
+                return;
+            }
+        }
+
+        const desiredName = config.parentInstanceName?.toLowerCase();
+        let parent: AnimatedEntity | undefined;
+
+        if (config.parentInstanceId) {
+            parent = entityLookup.get(config.parentInstanceId);
+        }
+
+        if (!parent) {
+            parent = entities.find(candidate => {
+                if (candidate.instance.id === entity.instance.id) return false;
+                const templateMatches = config.parentTemplateId
+                    ? (candidate.template.id === config.parentTemplateId ||
+                        candidate.template.name === config.parentTemplateId)
+                    : true;
+                const nameMatches = desiredName
+                    ? candidate.instance.name?.toLowerCase() === desiredName
+                    : true;
+                return templateMatches && nameMatches;
+            });
+        }
+
+        if (parent) {
+            entity.parentEntityId = parent.instance.id;
+        } else if (config.detachOnParentLost) {
+            entity.parentEntityId = null;
+        }
+    });
+};
+
+const applyChildLinkTransform = (
+    child: AnimatedEntity,
+    parent: AnimatedEntity,
+    config: ChildLinkConfig
+) => {
+    const rawOffsetX = Number.isFinite(config.offsetX) ? config.offsetX : 0;
+    const offsetY = Number.isFinite(config.offsetY) ? config.offsetY : 0;
+    const shouldFlipOffsetX = config.mirrorParent && (parent.isFacingMirrored || parent.isMirrored);
+    const offsetX = shouldFlipOffsetX ? -rawOffsetX : rawOffsetX;
+
+    child.x = parent.x + offsetX;
+    child.y = parent.y + offsetY;
+
+    if (config.inheritVelocity) {
+        child.vx = parent.vx;
+        child.vy = parent.vy;
+    }
+
+    if (config.followParentGlobal) {
+        if (parent.globalX !== undefined && parent.globalY !== undefined) {
+            child.globalX = parent.globalX + offsetX;
+            child.globalY = parent.globalY + offsetY;
+        } else {
+            child.globalX = undefined;
+            child.globalY = undefined;
+        }
+    }
+
+    if (config.inheritFacing) {
+        child.isFacingMirrored = parent.isFacingMirrored;
+        child.desiredFacingDirection = parent.desiredFacingDirection;
+    }
+
+    if (config.mirrorParent) {
+        child.isMirrored = parent.isMirrored;
+    }
+};
 
 interface GameFlowPreviewModalProps {
     isOpen: boolean;
@@ -547,6 +687,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // Check if entity is waiting (WAIT action blocks all state transitions)
         if (entity.waitUntilTime !== undefined) {
             const now = performance.now();
+            const entityLookup = new Map<string, AnimatedEntity>();
+            for (const entity of entitiesRef.current) {
+                entityLookup.set(entity.instance.id, entity);
+            }
+            resolveChildLinkParents(entitiesRef.current, entityLookup);
             if (now < entity.waitUntilTime) {
                 // Still waiting, block all transitions
                 return;
@@ -969,6 +1114,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         componentOverrides: {}
                                     };
 
+                                    const childLink = parseChildLinkConfig(template, newInstance);
+
                                     // Create animated entity
                                     const newEntity: AnimatedEntity = {
                                         instance: newInstance,
@@ -987,7 +1134,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         isOnGround: false,
                                         spawnTime: performance.now(),
                                         parentEntityId: null,
-                                        platformGraceFramesLeft: 0
+                                        platformGraceFramesLeft: 0,
+                                        childLink
                                     };
 
                                     // Add to entities list
@@ -1515,6 +1663,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // - Clear collected item registries
             try { boxPickedUpRegistry.current.clear(); } catch {}
             try { collectedItemsRegistry.current.clear(); } catch {}
+            try { revealedSecretTiles.current.clear(); } catch {}
             // - Reset global variables (will be re-initialized by Globals node if present)
             setGameGlobalVariables({});
             // - Reset internal refs related to globals and timers
@@ -1709,6 +1858,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         // Hard reset transient gameplay/session state to avoid stale entities (e.g., carried boxes)
                         try { boxPickedUpRegistry.current.clear(); } catch {}
                         try { collectedItemsRegistry.current.clear(); } catch {}
+                        try { revealedSecretTiles.current.clear(); } catch {}
                         setGameGlobalVariables({});
                         try { gameGlobalVariablesRef.current = {}; } catch {}
                         try { lastScreenTransitionTimeRef.current = 0; } catch {}
@@ -2021,12 +2171,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
             }
 
+            const childLink = parseChildLinkConfig(template, instance);
+
             const newEntity = {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
                 stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
                 globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
-                ownerScreenId
+                ownerScreenId,
+                childLink
             };
 
             // Debug log for multi-screen entities
@@ -2073,10 +2226,23 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         }
 
-        // === CARRY-OVER DE ENTIDADES MULTI-PANTALLA ===
-        // Mantener entidades multi-pantalla entre transiciones (como plataformas)
-        // ALSO persist Box entities that have been moved to other screens
+        // === CARRY-OVER DE ENTIDADES MULTI-PANTALLA Y SUS HIJOS ===
+        // Mantener entidades multi-pantalla (como plataformas) y cualquier child-link atado a ellas o al player
         if (entitiesRef.current.length > 0) {
+            const carryOverParents = new Set<string>();
+            if (heroForThisScreen) {
+                carryOverParents.add(heroForThisScreen.instance.id);
+            }
+
+            const carryOverEntities: AnimatedEntity[] = [];
+            const carryOverInstanceIds = new Set<string>();
+            const enqueueCarryOver = (entity: AnimatedEntity) => {
+                if (entity === heroRef.current) return;
+                if (carryOverInstanceIds.has(entity.instance.id)) return;
+                carryOverInstanceIds.add(entity.instance.id);
+                carryOverEntities.push(entity);
+            };
+
             const previousMultiScreenEntities = entitiesRef.current.filter(e => {
                 if (e === heroRef.current) return false; // Hero ya se maneja por separado
 
@@ -2095,20 +2261,43 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 return isMultiScreenPatrol || boxHasOwner;
             });
 
-            if (previousMultiScreenEntities.length > 0) {
+            previousMultiScreenEntities.forEach(entity => {
+                enqueueCarryOver(entity);
+                carryOverParents.add(entity.instance.id);
+            });
 
-                // IMPORTANT: Remove native entities that have same instance.id as multi-screen entities
-                // to avoid duplicates when returning to a screen
-                const multiScreenInstanceIds = new Set(previousMultiScreenEntities.map(e => e.instance.id));
+            // Propagar child-links que dependen de un parent que persiste (player o multi-screen)
+            if (carryOverParents.size > 0) {
+                let foundFollower = true;
+                while (foundFollower) {
+                    foundFollower = false;
+                    for (const candidate of entitiesRef.current) {
+                        if (candidate === heroRef.current) continue;
+                        if (!candidate.childLink || !candidate.parentEntityId) continue;
+                        if (carryOverInstanceIds.has(candidate.instance.id)) continue;
+                        if (carryOverParents.has(candidate.parentEntityId)) {
+                            enqueueCarryOver(candidate);
+                            carryOverParents.add(candidate.instance.id);
+                            foundFollower = true;
+                        }
+                    }
+                }
+            }
+
+            if (carryOverEntities.length > 0) {
+
+                // IMPORTANT: Remove native entities that have same instance.id as carry-over entities
+                // to avoid duplicates when returning a screen
+                const carryOverIds = new Set(carryOverEntities.map(e => e.instance.id));
                 const originalCount = entitiesToAnimate.length;
                 entitiesToAnimate = entitiesToAnimate.filter(e => {
-                    const isDuplicate = multiScreenInstanceIds.has(e.instance.id);
+                    const isDuplicate = carryOverIds.has(e.instance.id);
                     if (isDuplicate) {
                     }
                     return !isDuplicate;
                 });
 
-                previousMultiScreenEntities.forEach(entity => {
+                carryOverEntities.forEach(entity => {
 
                     // Update local coordinates from global coordinates for new screen
                     if (entity.globalX !== undefined && entity.globalY !== undefined) {
@@ -2154,7 +2343,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         // Silently fail
                     }
 
-                    // Always add multi-screen entity (it's already filtered from duplicates)
+                    // Always add carry-over entity (it's already filtered from duplicates)
                     entitiesToAnimate.push(entity);
                 });
             }
@@ -3368,6 +3557,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode, layerToUse);
                 tileBufferNeedsUpdate.current = false;
             }
+            // === RESOLVE PARENTS FOR CHILD-LINKED ENTITIES ===
+            const entityLookup = new Map<string, AnimatedEntity>();
+            for (const entity of entitiesRef.current) {
+            entityLookup.set(entity.instance.id, entity);
+            }
+            resolveChildLinkParents(entitiesRef.current, entityLookup);
+            // ================================================
 
             // Limpiar solo el ÃƒÂ¡rea principal
             ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
@@ -3424,11 +3620,31 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Treat entities tagged as box as collidable with tiles even if they don't explicitly have comp_collision
                 const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
                 const isCollectibleItem = entityA.template.components?.some(c => c.definitionId === 'comp_collectible');
+                const childLinkConfig = entityA.childLink;
+                const childLinkParent = childLinkConfig && entityA.parentEntityId
+                    ? entityLookup.get(entityA.parentEntityId)
+                    : undefined;
+
+                // --- Early-out para entidades que no pertenecen a esta pantalla ---
+                // Salvo que sean hijas y su padre esté visible aquí
+                const currentScreenId = currentScreenMapRef.current?.id;
+                const isChildOfVisibleParent = childLinkConfig &&
+                                                childLinkParent &&
+                                                childLinkParent.ownerScreenId === currentScreenId;
+
+                if (
+                entityA.ownerScreenId &&
+                entityA.ownerScreenId !== currentScreenId &&
+                !isChildOfVisibleParent
+                ) {
+                return; // No se dibuja ni se procesa más
+                }
 
                 // Filter Box entities: only process if they belong to current screen or are being carried
                 if (isBoxEntity) {
                     const shouldProcessBox = entityA.ownerScreenId === null || // Being carried
-                        entityA.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+                        entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
+                        isChildOfVisibleParent; // Child rendered with its parent
 
                     if (!shouldProcessBox) {
                         return; // Skip processing this Box (it belongs to another screen)
@@ -3437,7 +3653,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 // Filter Collectible items: only process if they belong to current screen
                 if (isCollectibleItem) {
-                    const shouldProcessCollectible = entityA.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+                    const shouldProcessCollectible = entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
+                        isChildOfVisibleParent;
 
                     if (!shouldProcessCollectible) {
                         return; // Skip processing this item (it belongs to another screen)
@@ -4597,6 +4814,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 }
 
+                if (childLinkConfig) {
+                    if (childLinkParent) {
+                        applyChildLinkTransform(entityA, childLinkParent, childLinkConfig);
+                    } else if (childLinkConfig.followParentGlobal) {
+                        entityA.globalX = undefined;
+                        entityA.globalY = undefined;
+                    }
+                }
+
                 // --- Transport carried box along with hero ---
                 if (entityA === heroRef.current && entityA.carriedBox) {
                     const box = entityA.carriedBox;
@@ -4630,7 +4856,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Filter Box entities: only render if they belong to current screen or are being carried
                 const shouldRenderBox = !isBoxEntity ||
                     entityA.ownerScreenId === null || // Being carried
-                    entityA.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+                    entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
+                    isChildOfVisibleParent;
 
                 if (!shouldRenderBox) {
                     return; // Skip rendering this Box (it belongs to another screen)
@@ -4638,7 +4865,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 // Filter Collectible items: only render if they belong to current screen
                 const shouldRenderCollectible = !isCollectibleItem ||
-                    entityA.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+                    entityA.ownerScreenId === currentScreenMapRef.current?.id ||
+                    isChildOfVisibleParent;
 
                 if (!shouldRenderCollectible) {
                     return; // Skip rendering this item (it belongs to another screen)
@@ -4819,22 +5047,74 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                      ctx.fillStyle = '#000000';
                      ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                 }
+
+                // === RESOLVE CHILD-LINK PARENTS EVERY FRAME ===
+                const entityLookup = new Map<string, AnimatedEntity>();
+                for (const entity of entitiesRef.current) {
+                entityLookup.set(entity.instance.id, entity);
+                }
+                resolveChildLinkParents(entitiesRef.current, entityLookup);
+                // ==============================================
+
                 entitiesRef.current.forEach(entity => {
+                    const currentScreenId = currentScreenMapRef.current?.id;
+                    const childLinkConfig = entity.childLink;
+                    const childLinkParent = childLinkConfig && entity.parentEntityId
+                        ? entityLookup.get(entity.parentEntityId)
+                        : undefined;
+                    const isChildOfVisibleParent =
+                        !!childLinkConfig &&
+                        !!childLinkParent &&
+                        childLinkParent.ownerScreenId === currentScreenId;
+
+                    // Skip entities from other screens unless they are child-linked to a visible parent
+                    if (
+                        entity.ownerScreenId &&
+                        entity.ownerScreenId !== currentScreenId &&
+                        !isChildOfVisibleParent
+                    ) {
+                        return;
+                    }
+
                     // Filter Box entities: only render if they belong to current screen or are being carried
                     const isBox = entity.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entity.template.name);
-                    const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
-
                     const shouldRenderBox = !isBox ||
                         entity.ownerScreenId === null || // Being carried
-                        entity.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+                        entity.ownerScreenId === currentScreenId || // Belongs to current screen
+                        isChildOfVisibleParent; // Child of a visible parent
 
-                    if (!shouldRenderBox) return; // Skip this Box (belongs to another screen)
+                    if (!shouldRenderBox) return; // Skip this Box (belongs to another screen and not linked)
 
                     // Filter Collectible items: only render if they belong to current screen
+                    const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
                     const shouldRenderCollectible = !isCollectible ||
-                        entity.ownerScreenId === currentScreenMapRef.current?.id; // Belongs to current screen
+                        entity.ownerScreenId === currentScreenId ||
+                        isChildOfVisibleParent;
 
-                    if (!shouldRenderCollectible) return; // Skip this item (belongs to another screen)
+                    if (!shouldRenderCollectible) return; // Skip this item (belongs to another screen and not linked)
+
+                    // Apply relative position if this entity is child-linked
+                    if (childLinkConfig && entity.parentEntityId) {
+                        const parent = entityLookup.get(entity.parentEntityId);
+                        if (parent) {
+                            const rawOffsetX = Number(childLinkConfig.offsetX) || 0;
+                            const offsetY = Number(childLinkConfig.offsetY) || 0;
+                            const shouldFlipOffsetX =
+                                childLinkConfig.mirrorParent && (parent.isFacingMirrored || parent.isMirrored);
+                            const offsetX = shouldFlipOffsetX ? -rawOffsetX : rawOffsetX;
+                            entity.x = parent.x + offsetX;
+                            entity.y = parent.y + offsetY;
+
+                            if (childLinkConfig.followParentGlobal && parent.globalX !== undefined && parent.globalY !== undefined) {
+                                entity.globalX = parent.globalX + offsetX;
+                                entity.globalY = parent.globalY + offsetY;
+                            }
+
+                            if (childLinkConfig.mirrorParent) {
+                                entity.isMirrored = parent.isMirrored;
+                            }
+                        }
+                    }
 
                     if (entity.frameImages.length > 0 && entity.frameImages[0].complete) {
                         ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
