@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { ProjectAsset, ComponentPropertyDefinition, Sprite } from '../../types';
+import { ProjectAsset, Sprite, EntityTemplate } from '../../types';
 import { Button } from '../common/Button';
 import { createSpriteDataURL } from '../utils/screenUtils';
 import { SoundIcon, PuzzlePieceIcon, SpriteIcon as EntityIcon } from '../icons/MsxIcons';
@@ -30,6 +30,35 @@ const AssetTypeIcon: React.FC<{ type: ProjectAsset['type'] }> = ({ type }) => {
         case 'entitytemplate': return <EntityIcon className={iconClass} />;
         default: return <div className="w-4 h-4" />;
     }
+};
+
+const TEMPLATE_SPRITE_PROP_KEYS = ['spriteAssetId', 'renderSpriteAssetId', 'render', 'sprite'];
+
+const getSpriteForTemplate = (template: EntityTemplate, allAssets: ProjectAsset[]): Sprite | undefined => {
+    for (const component of template.components) {
+        const defaults = component.defaultValues || {};
+        for (const key of TEMPLATE_SPRITE_PROP_KEYS) {
+            const reference = defaults[key];
+            if (typeof reference !== 'string') continue;
+            const match = allAssets.find(asset =>
+                asset.type === 'sprite' && (asset.id === reference || asset.name === reference)
+            );
+            if (match?.data) {
+                return match.data as Sprite;
+            }
+        }
+    }
+    return undefined;
+};
+
+const EntityTemplatePreview: React.FC<{ template: EntityTemplate; allAssets: ProjectAsset[] }> = ({ template, allAssets }) => {
+    const sprite = useMemo(() => getSpriteForTemplate(template, allAssets), [template, allAssets]);
+    if (!sprite || !sprite.frames?.length) {
+        return <div className="w-8 h-8 flex items-center justify-center bg-msx-panelbg border border-dashed border-msx-border flex-shrink-0">
+            <EntityIcon className="w-4 h-4 text-msx-textsecondary" />
+        </div>;
+    }
+    return <SpritePreview sprite={sprite} />;
 };
 
 /**
@@ -113,7 +142,13 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
                                     }
                                 >
                                     {asset.type === 'sprite' ? (
-                                        <SpritePreview sprite={asset.data as Sprite} />
+                                        <div className="w-8 h-8 mr-2 flex-shrink-0">
+                                            <SpritePreview sprite={asset.data as Sprite} />
+                                        </div>
+                                    ) : asset.type === 'entitytemplate' ? (
+                                        <div className="w-8 h-8 flex items-center justify-center mr-2 flex-shrink-0">
+                                            <EntityTemplatePreview template={asset.data as EntityTemplate} allAssets={allAssets} />
+                                        </div>
                                     ) : (
                                         <div className="w-8 h-8 flex items-center justify-center mr-2 flex-shrink-0"><AssetTypeIcon type={asset.type} /></div>
                                     )}
@@ -121,9 +156,9 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
                                 </button>
                             </li>
                         ))}
-                         {filteredAssets.length === 0 && (
+                        {filteredAssets.length === 0 && (
                             <p className="p-4 text-center text-msx-textsecondary text-sm">No matching assets found.</p>
-                         )}
+                        )}
                     </ul>
                 </div>
                 <div className="mt-4 flex justify-end">

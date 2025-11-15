@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
     ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, LineColorAttribute, 
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
@@ -10,6 +10,8 @@ import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MA
 import { Button } from '../common/Button'; 
 import { TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons'; 
 import { AssetPickerModal } from '../modals/AssetPickerModal';
+
+const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
 
 
 /**
@@ -188,6 +190,60 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     currentValue: string | null;
   }>({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null });
 
+  const assetsWithEntityTemplates = useMemo(() => {
+    if (!entityTemplates || entityTemplates.length === 0) {
+      return allAssets;
+    }
+
+    const existingEntityTemplateIds = new Set(
+      allAssets
+        .filter(asset => asset.type === 'entitytemplate')
+        .map(asset => asset.id)
+    );
+
+    const syntheticTemplateAssets = entityTemplates
+      .filter(template => template && !existingEntityTemplateIds.has(template.id))
+      .map<ProjectAsset>(template => ({
+        id: template.id,
+        name: template.name || template.id,
+        type: 'entitytemplate',
+        data: template,
+      }));
+
+    return syntheticTemplateAssets.length > 0
+      ? [...allAssets, ...syntheticTemplateAssets]
+      : allAssets;
+  }, [allAssets, entityTemplates]);
+
+  const screenMapFromAsset = useMemo<ScreenMap | null>(() => {
+    if (asset?.type === 'screenmap') {
+      return asset.data as ScreenMap;
+    }
+    return null;
+  }, [asset]);
+
+  const entityTemplateNameLookup = useMemo(() => {
+    const lookup = new Map<string, string>();
+    entityTemplates.forEach(template => {
+      if (template?.id) {
+        lookup.set(template.id, template.name || template.id);
+      }
+    });
+    return lookup;
+  }, [entityTemplates]);
+
+  const availableChildLinkParents = useMemo(() => {
+    if (!entityInstance || !screenMapFromAsset) return [];
+    return screenMapFromAsset.layers.entities
+      .filter(instance => instance.id !== entityInstance.id)
+      .map(instance => ({
+        id: instance.id,
+        name: instance.name || instance.id,
+        templateId: instance.entityTemplateId,
+        templateName: entityTemplateNameLookup.get(instance.entityTemplateId) || instance.entityTemplateId,
+      }));
+  }, [entityInstance, screenMapFromAsset, entityTemplateNameLookup]);
+
 
   useEffect(() => {
     if (entityInstance) {
@@ -270,6 +326,44 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     newOverrides[componentDefId][propertyName] = processedValue;
     setLocalComponentOverrides(newOverrides);
     onUpdateEntityInstance(entityInstance.id, { componentOverrides: newOverrides });
+  };
+
+  const applyChildLinkOverrides = (componentDefId: string, updates: Record<string, string | null>) => {
+    if (!entityInstance || !onUpdateEntityInstance) return;
+    const newOverrides = JSON.parse(JSON.stringify(localComponentOverrides));
+    if (!newOverrides[componentDefId]) {
+      newOverrides[componentDefId] = {};
+    }
+
+    Object.entries(updates).forEach(([key, val]) => {
+      if (val === null) {
+        delete newOverrides[componentDefId][key];
+      } else {
+        newOverrides[componentDefId][key] = val;
+      }
+    });
+
+    setLocalComponentOverrides(newOverrides);
+    onUpdateEntityInstance(entityInstance.id, { componentOverrides: newOverrides });
+  };
+
+  const handleChildLinkParentSelection = (componentDefId: string, parentInstanceId: string) => {
+    if (!entityInstance || !onUpdateEntityInstance) return;
+    if (!parentInstanceId) {
+      applyChildLinkOverrides(componentDefId, {
+        parentInstanceId: null,
+        parentInstanceName: null,
+        parentTemplateId: null,
+      });
+      return;
+    }
+
+    const selectedParent = availableChildLinkParents.find(parent => parent.id === parentInstanceId);
+    applyChildLinkOverrides(componentDefId, {
+      parentInstanceId,
+      parentInstanceName: selectedParent?.name || '',
+      parentTemplateId: selectedParent?.templateId || '',
+    });
   };
 
   const handleDeleteEntityClick = () => { if (entityInstance && onDeleteEntityInstance) { onDeleteEntityInstance(entityInstance.id); }};
@@ -520,9 +614,69 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             }
 
 
+            const isChildLinkComponent = componentDef.id === CHILD_LINK_COMPONENT_ID;
+            const childLinkParentInstanceId = isChildLinkComponent
+              ? (
+                  localComponentOverrides[componentDef.id]?.parentInstanceId ??
+                  templateComponent.defaultValues.parentInstanceId ??
+                  componentDef.properties.find(p => p.name === 'parentInstanceId')?.defaultValue ??
+                  ''
+                )
+              : '';
+            const childLinkParentValue = String(childLinkParentInstanceId ?? '');
+            const childLinkParentExists = childLinkParentValue
+              ? availableChildLinkParents.some(parent => parent.id === childLinkParentValue)
+              : false;
+
             return (
                 <div key={componentDef.id} className="p-1.5 border border-msx-border/50 rounded bg-msx-bgcolor/30">
                 <h5 className="text-xs text-msx-highlight mb-1">{componentDef.name}</h5>
+                {isChildLinkComponent && (
+                    <div className="mb-2 p-2 bg-msx-bgcolor/40 border border-dashed border-msx-border/60 rounded">
+                        <label className="block text-[0.7rem] text-msx-textsecondary mb-1">
+                            Parent entity (auto completa Template/Instance)
+                        </label>
+                        {availableChildLinkParents.length === 0 ? (
+                            <p className="text-[0.7rem] text-msx-textsecondary">
+                                No hay otras entidades en esta pantalla para usar como padre.
+                            </p>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <select
+                                    value={childLinkParentValue}
+                                    onChange={e => handleChildLinkParentSelection(componentDef.id, e.target.value)}
+                                    className="flex-1 p-0.5 text-xs bg-msx-bgcolor border-msx-border rounded"
+                                >
+                                    <option value="">-- Sin asignar --</option>
+                                    {!childLinkParentExists && childLinkParentValue && (
+                                        <option value={childLinkParentValue} disabled>
+                                            {childLinkParentValue} (fuera de esta pantalla)
+                                        </option>
+                                    )}
+                                    {availableChildLinkParents.map(parent => (
+                                        <option key={parent.id} value={parent.id}>
+                                            {parent.name} � {parent.templateName}
+                                        </option>
+                                    ))}
+                                </select>
+                                {childLinkParentValue && (
+                                    <Button
+                                        size="xs"
+                                        variant="ghost"
+                                        className="px-2"
+                                        title="Quitar referencia al padre"
+                                        onClick={() => handleChildLinkParentSelection(componentDef.id, '')}
+                                    >
+                                        Limpiar
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+                        <p className="text-[0.65rem] text-msx-textsecondary mt-1">
+                            Al elegir un padre se llenan autom&aacute;ticamente los campos de plantilla, ID y nombre.
+                        </p>
+                    </div>
+                )}
                 {componentDef.properties.map(propDef => {
                     const overrideValue = localComponentOverrides[componentDef.id]?.[propDef.name];
                     const templateDefaultValue = templateComponent.defaultValues[propDef.name];
@@ -547,7 +701,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                                 || stateMachineAssetIdProp.defaultValue;
                             
                             if (stateMachineAssetId && stateMachineAssetId !== "0" && stateMachineAssetId !== "") {
-                                const stateMachineAsset = allAssets.find(asset => asset.id === stateMachineAssetId && asset.type === 'statemachine');
+                                const stateMachineAsset = assetsWithEntityTemplates.find(asset => asset.id === stateMachineAssetId && asset.type === 'statemachine');
                                 if (stateMachineAsset && stateMachineAsset.data) {
                                     availableStates = (stateMachineAsset.data as any).states || [];
                                     
@@ -605,7 +759,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                             ) : isRefType ? (
                                 <div className="flex items-center space-x-1">
                                     <span className="p-1 text-xs bg-msx-bgcolor border border-msx-border/30 rounded flex-grow truncate" title={currentValue || "None"}>
-                                        {allAssets.find(a => a.id === currentValue)?.name || "None"}
+                                        {assetsWithEntityTemplates.find(a => a.id === currentValue)?.name || "None"}
                                     </span>
                                     <Button size="sm" variant="secondary" onClick={() => openAssetPicker(propDef.type, currentValue, (assetId) => handleComponentOverrideChange(componentDef.id, propDef.name, assetId, propDef.type))}>...</Button>
                                 </div>
@@ -813,7 +967,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     }
     if (gameFlowNode.type === 'Group') {
         const node = gameFlowNode as any; // GameFlowGroupNode
-        const gameFlowAssets = allAssets.filter(a => a.type === 'gameflow');
+        const gameFlowAssets = assetsWithEntityTemplates.filter(a => a.type === 'gameflow');
         const selectedGameFlow = gameFlowAssets.find(a => a.id === node.gameFlowAssetId);
         return (
             <div className="space-y-2">
@@ -913,8 +1067,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
   return (
     <>
-    <Panel title={panelTitle} className="text-xs">
-      <div className="space-y-1 p-2">
+    <Panel
+      title={panelTitle}
+      className="text-xs flex-1 flex flex-col min-h-0"
+      bodyClassName="flex-1 flex flex-col min-h-0"
+    >
+      <div className="space-y-1 p-2 flex-1 overflow-auto">
         {gameFlowNode && activeEditorType === EditorType.GameFlow
           ? renderGameFlowNodeProperties()
           : entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'
@@ -954,7 +1112,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               setAssetPickerState({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null });
           }}
           assetTypeToPick={assetPickerState.assetTypeToPick!}
-          allAssets={allAssets}
+          allAssets={assetsWithEntityTemplates}
           currentSelectedId={assetPickerState.currentValue}
       />
     )}

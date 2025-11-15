@@ -29,6 +29,22 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "isCarriable", type: "boolean", defaultValue: "true", description: "Whether this box can be picked up by entities with comp_carry." }
     ],
   },
+  {
+    id: "comp_child_link", name: "Child Link",
+    description: "Attaches this entity to a parent entity so it follows its position (e.g., satellite \"options\").",
+    properties: [
+      { name: "parentTemplateId", type: "entity_template_ref", defaultValue: "", description: "Template ID of the entity to follow (e.g., tpl_player)." },
+      { name: "parentInstanceId", type: "string", defaultValue: "", description: "Specific instance ID to follow (optional, overrides template search)." },
+      { name: "parentInstanceName", type: "string", defaultValue: "", description: "Optional instance name to match when multiple parents share template." },
+      { name: "offsetX", type: "word", defaultValue: "0", description: "Horizontal pixel offset relative to the parent origin." },
+      { name: "offsetY", type: "word", defaultValue: "0", description: "Vertical pixel offset relative to the parent origin." },
+      { name: "inheritVelocity", type: "boolean", defaultValue: "true", description: "If true, copy the parent's velocity values each frame." },
+      { name: "inheritFacing", type: "boolean", defaultValue: "true", description: "If true, mirror this sprite based on the parent's facing direction." },
+      { name: "followParentGlobal", type: "boolean", defaultValue: "true", description: "Keep global coordinates in sync for multi-screen movement." },
+      { name: "detachOnParentLost", type: "boolean", defaultValue: "false", description: "Automatically clear the link if the target parent is missing." },
+      { name: "mirrorParent", type: "boolean", defaultValue: "false", description: "If true, mirror this child when the parent flips horizontally (also inverts offsetX)." }
+    ],
+  },
   { 
     id: "comp_render", name: "Renderable", 
     properties: [

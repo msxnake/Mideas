@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { EntityTemplate, ComponentDefinition, EntityTemplateComponent, ComponentPropertyDefinition, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
@@ -48,6 +48,29 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
     onSelect: ((assetId: string) => void) | null;
     currentValue: string | null;
   }>({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null });
+
+  const assetsWithEntityTemplates = useMemo(() => {
+    if (!entityTemplates || entityTemplates.length === 0) return allAssets;
+
+    const existingTemplateIds = new Set(
+      allAssets
+        .filter(asset => asset.type === 'entitytemplate')
+        .map(asset => asset.id)
+    );
+
+    const syntheticTemplateAssets = entityTemplates
+      .filter(template => template && !existingTemplateIds.has(template.id))
+      .map<ProjectAsset>(template => ({
+        id: template.id,
+        name: template.name || template.id,
+        type: 'entitytemplate',
+        data: template,
+      }));
+
+    return syntheticTemplateAssets.length > 0
+      ? [...allAssets, ...syntheticTemplateAssets]
+      : allAssets;
+  }, [allAssets, entityTemplates]);
 
 
   useEffect(() => {
@@ -443,7 +466,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                                             {isRefType ? (
                                                 <div className="flex items-center space-x-1">
                                                     <span className="p-1 bg-msx-bgcolor border border-msx-border/30 rounded text-msx-textsecondary flex-grow truncate" title={currentValue || "None"}>
-                                                        {allAssets.find(a => a.id === currentValue)?.name || "None"}
+                                                        {assetsWithEntityTemplates.find(a => a.id === currentValue)?.name || "None"}
                                                     </span>
                                                     <Button size="sm" variant="secondary" onClick={() => openAssetPicker(propDef.type, currentValue, (assetId) => handleComponentDefaultValueChange(compDef.id, propDef.name, assetId))}>...</Button>
                                                 </div>
@@ -486,7 +509,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                 setAssetPickerState({ isOpen: false, assetTypeToPick: null, onSelect: null, currentValue: null });
             }}
             assetTypeToPick={assetPickerState.assetTypeToPick!}
-            allAssets={allAssets}
+            allAssets={assetsWithEntityTemplates}
             currentSelectedId={assetPickerState.currentValue}
         />
       )}

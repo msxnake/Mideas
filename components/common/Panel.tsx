@@ -16,12 +16,24 @@ interface PanelProps {
   icon?: React.ReactNode;
   /** Optional buttons or other elements to display in the header. */
   headerButtons?: React.ReactNode;
+  /** Optional classes for the panel body wrapper. */
+  bodyClassName?: string;
 }
 
 /**
  * A general-purpose panel component with a header and content area.
  */
-export const Panel: React.FC<PanelProps> = ({ title, children, className = '', titleClassName = '', icon, headerButtons }) => {
+export const Panel: React.FC<PanelProps> = ({
+  title,
+  children,
+  className = '',
+  titleClassName = '',
+  icon,
+  headerButtons,
+  bodyClassName
+}) => {
+  const resolvedBodyClass = bodyClassName ?? 'p-2 flex-grow overflow-auto';
+
   return (
     <div className={`bg-msx-panelbg border border-msx-border rounded-md shadow-lg flex flex-col ${className}`}>
       <h3 className={`font-sans text-sm text-msx-textprimary p-2 border-b border-msx-border flex items-center ${titleClassName}`}> {/* Changed font and text color */}
@@ -29,7 +41,7 @@ export const Panel: React.FC<PanelProps> = ({ title, children, className = '', t
         <span className="flex-grow">{title}</span>
         {headerButtons && <div className="flex items-center space-x-1">{headerButtons}</div>}
       </h3>
-      <div className="p-2 flex-grow overflow-auto">
+      <div className={resolvedBodyClass}>
         {children}
       </div>
     </div>
