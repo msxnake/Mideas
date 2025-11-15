@@ -56,6 +56,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
     case 'componentdefinition': return <PuzzlePieceIcon className={`${iconClass} text-purple-400 group-hover:text-msx-accent`} />;
     case 'entitytemplate': return <SpriteIcon className={`${iconClass} text-teal-400 group-hover:text-msx-accent`} />;
     case 'globalvariables': return <SparklesIcon className={`${iconClass} text-yellow-400 group-hover:text-msx-accent`} />;
+    case 'palette': return <SparklesIcon className={`${iconClass} text-fuchsia-300 group-hover:text-msx-accent`} />;
     case 'tilebanks': return <ListBulletIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'fonteditor': return <PencilIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
     case 'helpdocs': return <QuestionMarkCircleIcon className={`${iconClass} text-msx-textsecondary group-hover:text-msx-accent`} />;
@@ -67,7 +68,7 @@ const AssetIcon: React.FC<{type: ProjectAsset['type'] | 'tilebanks' | 'fontedito
 };
 
 /** The order in which asset type folders should be displayed. @constant */
-const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'sprite', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'tilebank', 'sound', 'track', 'globalvariables', 'code'];
+const FOLDER_TYPE_ORDER: ProjectAsset['type'][] = ['statemachine', 'tile', 'sprite', 'font', 'boss', 'screenmap', 'worldmap', 'gameflow', 'palette', 'tilebank', 'sound', 'track', 'globalvariables', 'code'];
 /** A mapping from asset type keys to their display names. @constant */
 const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   statemachine: "State Machines",
@@ -85,6 +86,7 @@ const FOLDER_DISPLAY_NAMES: Record<ProjectAsset['type'], string> = {
   componentdefinition: "Component Definitions (Data)",
   entitytemplate: "Entity Templates (Data)",
   globalvariables: "Global Variables",
+  palette: "Palettes",
   code: "Code Files",
 };
 
@@ -105,6 +107,7 @@ const ASSET_TYPE_TO_EDITOR: Record<ProjectAsset['type'], EditorType> = {
   componentdefinition: EditorType.ComponentDefinitionEditor,
   entitytemplate: EditorType.EntityTemplateEditor,
   globalvariables: EditorType.GlobalVariables,
+  palette: EditorType.Palette,
   code: EditorType.Code,
 };
 

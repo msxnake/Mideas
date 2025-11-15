@@ -1,4 +1,4 @@
-import { MSXColor, MSX1Color, MSX1ColorValue, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_FLAGS as EFFECT_ZONE_FLAGS_TYPE, MainMenuConfig } from './types';
+import { MSXColor, MSX1Color, MSX1ColorValue, Screen5PaletteSlot, TileBank, TileBankDefinition, PianoKeyLayoutEntry, HelpDocSection, Snippet, EFFECT_ZONE_FLAGS as EFFECT_ZONE_FLAGS_TYPE, MainMenuConfig } from './types';
 
 /** The current version of the application. */
 export const APP_VERSION = "0.266";
@@ -48,6 +48,87 @@ export const MSX1_PALETTE: MSX1Color[] = [
   { name: 'Gray', hex: '#CCCCCC', index: 14 },
   { name: 'White', hex: '#FFFFFF', index: 15 },
 ];
+
+/** Intensity levels available for each RGB component on MSX2 SCREEN 5. */
+export const MSX2_COLOR_LEVELS = [0x00, 0x24, 0x49, 0x6D, 0x92, 0xB6, 0xDB, 0xFF] as const;
+
+export interface Screen5MasterColor {
+  index: number;
+  hex: string;
+  rLevel: number;
+  gLevel: number;
+  bLevel: number;
+}
+
+const toHex = (value: number) => value.toString(16).padStart(2, '0').toUpperCase();
+
+/** Complete 512-color master palette for SCREEN 5 (MSX2). */
+export const MSX_SCREEN5_MASTER_PALETTE: Screen5MasterColor[] = (() => {
+  const palette: Screen5MasterColor[] = [];
+  for (let r = 0; r < MSX2_COLOR_LEVELS.length; r++) {
+    for (let g = 0; g < MSX2_COLOR_LEVELS.length; g++) {
+      for (let b = 0; b < MSX2_COLOR_LEVELS.length; b++) {
+        const index = (r << 6) | (g << 3) | b;
+        palette.push({
+          index,
+          hex: `#${toHex(MSX2_COLOR_LEVELS[r])}${toHex(MSX2_COLOR_LEVELS[g])}${toHex(MSX2_COLOR_LEVELS[b])}`,
+          rLevel: r,
+          gLevel: g,
+          bLevel: b,
+        });
+      }
+    }
+  }
+  return palette;
+})();
+
+const findClosestLevelIndex = (channelValue: number): number => {
+  let closestIndex = 0;
+  let closestDiff = Infinity;
+  MSX2_COLOR_LEVELS.forEach((level, levelIndex) => {
+    const diff = Math.abs(level - channelValue);
+    if (diff < closestDiff) {
+      closestDiff = diff;
+      closestIndex = levelIndex;
+    }
+  });
+  return closestIndex;
+};
+
+const normalizeHexColor = (hex: string): string => {
+  if (!hex || !hex.startsWith('#') || (hex.length !== 7)) {
+    return '#000000';
+  }
+  return hex.toUpperCase();
+};
+
+/**
+ * Snaps an arbitrary RGB hex color to the closest entry in the SCREEN 5 master palette.
+ * Returns both the snapped color and the hardware palette index (0-511).
+ */
+export const snapHexToScreen5MasterColor = (hex: string): { hex: string; masterIndex: number } => {
+  const normalized = normalizeHexColor(hex);
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+
+  const rIdx = findClosestLevelIndex(r);
+  const gIdx = findClosestLevelIndex(g);
+  const bIdx = findClosestLevelIndex(b);
+
+  const snappedHex = `#${toHex(MSX2_COLOR_LEVELS[rIdx])}${toHex(MSX2_COLOR_LEVELS[gIdx])}${toHex(MSX2_COLOR_LEVELS[bIdx])}`;
+  const masterIndex = (rIdx << 6) | (gIdx << 3) | bIdx;
+  return { hex: snappedHex, masterIndex };
+};
+
+/** Default 16-color configuration (slot 0 kept as transparent) for SCREEN 5 tiles. */
+export const DEFAULT_SCREEN5_CUSTOM_PALETTE: Screen5PaletteSlot[] = MSX_SCREEN5_PALETTE.map((color, idx) => {
+  if (idx === 0) {
+    return { slotIndex: 0, masterIndex: -1, hex: 'rgba(0,0,0,0)' };
+  }
+  const snapped = snapHexToScreen5MasterColor(color.hex);
+  return { slotIndex: idx, masterIndex: snapped.masterIndex, hex: snapped.hex };
+});
 
 
 /** An array of allowed tile dimensions (width/height) in the tile editor. */

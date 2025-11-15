@@ -211,6 +211,7 @@ const App: React.FC = () => {
     currentEditor,
     setCurrentEditor,
     setStatusBarMessage,
+    setSelectedColor,
     setConfirmModalProps,
     setIsConfirmModalOpen,
     setIsNewProjectModalOpen,
@@ -391,18 +392,6 @@ const App: React.FC = () => {
   }, [setAssetToRenameInfo, setIsRenameModalOpen]);
 
   // Handle screen mode update
-  const handleUpdateScreenMode = (mode: string) => {
-    setCurrentScreenMode(mode);
-    setStatusBarMessage(`Screen mode changed to ${mode}.`);
-    if (mode === "SCREEN 2 (Graphics I)") {
-      // Set appropriate color for Screen 2
-      setSelectedColor('#FFFFFF');
-    } else {
-      // Set appropriate color for other modes
-      setSelectedColor('#FF0000');
-    }
-  };
-
   // Handle entity instance deletion
   const handleDeleteEntityInstance = (entityIdToDelete: string) => {
     if (!selectedAssetId) return;
@@ -596,7 +585,6 @@ const App: React.FC = () => {
     memoizedOnRequestRename,
     handleConfirmRename,
     handleCancelRename,
-    handleUpdateScreenMode,
 
     // Toggle editor
     isToggleEditorDisabled: previousEditorContext === null,

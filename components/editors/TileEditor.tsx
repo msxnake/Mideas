@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Tile, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams, FrameGeneratorParams } from '../../types';
+import { Tile, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams, FrameGeneratorParams, Screen5PaletteSlot } from '../../types';
 import { Panel } from '../common/Panel';
 import { 
   EDITABLE_TILE_DIMENSIONS, MSX1_PALETTE, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP,
@@ -22,6 +22,7 @@ import {
   mirrorTileDataVertical
 } from '../utils/tileUtils';
 import { TileEditorAdvancedLayout } from './TileEditorAdvancedLayout';
+import { ensureScreen5PaletteSlots, getScreen5PaletteColor, screen5SlotsToMsxColors } from '../../utils/screen5PaletteUtils';
 
 
 /**
@@ -1001,9 +1002,9 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                         <div className="space-y-2">
                            {!isScreen2 ? (
                                 <>
-                                <PalettePicker label="Base Color:" selectedColor={rockParams.baseColor} onChange={color => onParamsChange({...params, Rock: {...rockParams, baseColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Highlight Color:" selectedColor={rockParams.highlightColor} onChange={color => onParamsChange({...params, Rock: {...rockParams, highlightColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Shadow Color:" selectedColor={rockParams.shadowColor} onChange={color => onParamsChange({...params, Rock: {...rockParams, shadowColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                <PalettePicker label="Base Color:" selectedColor={rockParams.baseColor} onChange={color => onParamsChange({...params, Rock: {...rockParams, baseColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Highlight Color:" selectedColor={rockParams.highlightColor} onChange={color => onParamsChange({...params, Rock: {...rockParams, highlightColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Shadow Color:" selectedColor={rockParams.shadowColor} onChange={color => onParamsChange({...params, Rock: {...rockParams, shadowColor: color}})} palette={screen5PaletteForPicker} />
                                 </>
                             ) : (
                                 <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
@@ -1020,8 +1021,8 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                         <div className="space-y-2">
                             {!isScreen2 ? (
                                 <>
-                                <PalettePicker label="Brick Color:" selectedColor={brickParams.brickColor} onChange={color => onParamsChange({...params, Brick: {...brickParams, brickColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Mortar Color:" selectedColor={brickParams.mortarColor} onChange={color => onParamsChange({...params, Brick: {...brickParams, mortarColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                <PalettePicker label="Brick Color:" selectedColor={brickParams.brickColor} onChange={color => onParamsChange({...params, Brick: {...brickParams, brickColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Mortar Color:" selectedColor={brickParams.mortarColor} onChange={color => onParamsChange({...params, Brick: {...brickParams, mortarColor: color}})} palette={screen5PaletteForPicker} />
                                 </>
                             ) : (
                                 <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
@@ -1042,9 +1043,9 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                          <div className="space-y-2">
                             {!isScreen2 ? (
                                 <>
-                                <PalettePicker label="Rail Color:" selectedColor={ladderParams.railColor} onChange={color => onParamsChange({...params, Ladder: {...ladderParams, railColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Rung Color:" selectedColor={ladderParams.rungColor} onChange={color => onParamsChange({...params, Ladder: {...ladderParams, rungColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Background Color:" selectedColor={ladderParams.backgroundColor} onChange={color => onParamsChange({...params, Ladder: {...ladderParams, backgroundColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                <PalettePicker label="Rail Color:" selectedColor={ladderParams.railColor} onChange={color => onParamsChange({...params, Ladder: {...ladderParams, railColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Rung Color:" selectedColor={ladderParams.rungColor} onChange={color => onParamsChange({...params, Ladder: {...ladderParams, rungColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Background Color:" selectedColor={ladderParams.backgroundColor} onChange={color => onParamsChange({...params, Ladder: {...ladderParams, backgroundColor: color}})} palette={screen5PaletteForPicker} />
                                 </>
                             ) : (
                                 <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
@@ -1063,9 +1064,9 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                         <div className="space-y-2">
                            {!isScreen2 ? (
                                 <>
-                                <PalettePicker label="Base Color:" selectedColor={iceParams.baseColor} onChange={color => onParamsChange({...params, Ice: {...iceParams, baseColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Crack Color:" selectedColor={iceParams.crackColor} onChange={color => onParamsChange({...params, Ice: {...iceParams, crackColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Shine Color:" selectedColor={iceParams.shineColor} onChange={color => onParamsChange({...params, Ice: {...iceParams, shineColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                <PalettePicker label="Base Color:" selectedColor={iceParams.baseColor} onChange={color => onParamsChange({...params, Ice: {...iceParams, baseColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Crack Color:" selectedColor={iceParams.crackColor} onChange={color => onParamsChange({...params, Ice: {...iceParams, crackColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Shine Color:" selectedColor={iceParams.shineColor} onChange={color => onParamsChange({...params, Ice: {...iceParams, shineColor: color}})} palette={screen5PaletteForPicker} />
                                 </>
                             ) : (
                                 <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
@@ -1078,9 +1079,9 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                          <div className="space-y-2">
                            {!isScreen2 ? (
                                 <>
-                                <PalettePicker label="Base Grass Color:" selectedColor={grassParams.baseGrassColor} onChange={color => onParamsChange({...params, Grass: {...grassParams, baseGrassColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Shadow/Blade Color:" selectedColor={grassParams.shadowGrassColor} onChange={color => onParamsChange({...params, Grass: {...grassParams, shadowGrassColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Detail (Flower) Color:" selectedColor={grassParams.detailColor} onChange={color => onParamsChange({...params, Grass: {...grassParams, detailColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                <PalettePicker label="Base Grass Color:" selectedColor={grassParams.baseGrassColor} onChange={color => onParamsChange({...params, Grass: {...grassParams, baseGrassColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Shadow/Blade Color:" selectedColor={grassParams.shadowGrassColor} onChange={color => onParamsChange({...params, Grass: {...grassParams, shadowGrassColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Detail (Flower) Color:" selectedColor={grassParams.detailColor} onChange={color => onParamsChange({...params, Grass: {...grassParams, detailColor: color}})} palette={screen5PaletteForPicker} />
                                 </>
                             ) : (
                                 <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
@@ -1093,8 +1094,8 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                         <div className="space-y-2">
                             {!isScreen2 ? (
                                 <>
-                                <PalettePicker label="Light Grass Color:" selectedColor={stylizedGrassParams.lightGrassColor} onChange={color => onParamsChange({...params, StylizedGrass: {...stylizedGrassParams, lightGrassColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Dark Grass Color:" selectedColor={stylizedGrassParams.darkGrassColor} onChange={color => onParamsChange({...params, StylizedGrass: {...stylizedGrassParams, darkGrassColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                <PalettePicker label="Light Grass Color:" selectedColor={stylizedGrassParams.lightGrassColor} onChange={color => onParamsChange({...params, StylizedGrass: {...stylizedGrassParams, lightGrassColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Dark Grass Color:" selectedColor={stylizedGrassParams.darkGrassColor} onChange={color => onParamsChange({...params, StylizedGrass: {...stylizedGrassParams, darkGrassColor: color}})} palette={screen5PaletteForPicker} />
                                 </>
                              ) : (
                                 <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
@@ -1115,8 +1116,8 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                         <div className="space-y-2">
                             {!isScreen2 ? (
                                 <>
-                                <PalettePicker label="Frame Color:" selectedColor={(params.Frame as FrameGeneratorParams).frameColor} onChange={color => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), frameColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                <PalettePicker label="Background Color:" selectedColor={(params.Frame as FrameGeneratorParams).backgroundColor} onChange={color => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), backgroundColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                <PalettePicker label="Frame Color:" selectedColor={(params.Frame as FrameGeneratorParams).frameColor} onChange={color => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), frameColor: color}})} palette={screen5PaletteForPicker} />
+                                <PalettePicker label="Background Color:" selectedColor={(params.Frame as FrameGeneratorParams).backgroundColor} onChange={color => onParamsChange({...params, Frame: {...(params.Frame as FrameGeneratorParams), backgroundColor: color}})} palette={screen5PaletteForPicker} />
                                 </>
                             ) : (
                                 <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
@@ -1160,8 +1161,8 @@ const TextureGeneratorModal: React.FC<TextureGeneratorModalProps> = ({ isOpen, o
                                 <div className="space-y-2">
                                     {!isScreen2 ? (
                                         <>
-                                        <PalettePicker label="Bar Color:" selectedColor={cellParams.barColor} onChange={color => onParamsChange({...params, CellBars: {...cellParams, barColor: color}})} palette={MSX_SCREEN5_PALETTE} />
-                                        <PalettePicker label="Background Color:" selectedColor={cellParams.backgroundColor} onChange={color => onParamsChange({...params, CellBars: {...cellParams, backgroundColor: color}})} palette={MSX_SCREEN5_PALETTE} />
+                                        <PalettePicker label="Bar Color:" selectedColor={cellParams.barColor} onChange={color => onParamsChange({...params, CellBars: {...cellParams, barColor: color}})} palette={screen5PaletteForPicker} />
+                                        <PalettePicker label="Background Color:" selectedColor={cellParams.backgroundColor} onChange={color => onParamsChange({...params, CellBars: {...cellParams, backgroundColor: color}})} palette={screen5PaletteForPicker} />
                                         </>
                                     ) : (
                                         <p className="text-xs text-msx-textsecondary p-1 border border-dashed border-msx-border rounded">
@@ -1250,6 +1251,8 @@ interface TileEditorProps {
   zoom: number;
   /** Callback to set the zoom level. */
   setZoom: (zoom: number) => void;
+  /** Callback to update the global palette selection (used for Screen 5 custom palettes). */
+  onSelectGlobalColor: (color: MSXColorValue) => void;
 }
 
 const defaultLogicalProps: TileLogicalProperties = {
@@ -1268,7 +1271,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     allTileAssets, onUpdateAllTileAssets,
     selectedColor, currentScreenMode,
     dataOutputFormat, copiedTileData, onCopyTileData, setStatusBarMessage,
-    zoom, setZoom
+    zoom, setZoom, onSelectGlobalColor
 }) => {
   const [showCenterGuide, setShowCenterGuide] = useState(true); 
   const [copiedAttribute, setCopiedAttribute] = useState<LineColorAttribute | null>(null);
@@ -1282,7 +1285,6 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   const [currentTool, setCurrentTool] = useState<DrawingTool>('pencil');
   const [ditherBrushDiameter, setDitherBrushDiameter] = useState<DitherBrushDiameter>(3);
   const [isFileModalOpen, setIsFileModalOpen] = useState(false);
-
   const [selectedSolidityFamilyId, setSelectedSolidityFamilyId] = useState<SolidityTypeId>(0);
   const [flagStates, setFlagStates] = useState<Record<PropertyFlagKey, boolean>>({
     isBreakable: false, isMovable: false, causesDamage: false, isInteractiveSwitch: false,
@@ -1290,18 +1292,58 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
   
   const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
-  
+  const { slots: screen5PaletteSlots, changed: screen5PaletteChanged } = useMemo(() => ensureScreen5PaletteSlots(tile.screen5Palette), [tile.screen5Palette]);
+  const screen5PaletteForPicker = useMemo(() => screen5SlotsToMsxColors(screen5PaletteSlots), [screen5PaletteSlots]);
+  const [activeScreen5PaletteSlot, setActiveScreen5PaletteSlot] = useState(1);
+
+  useEffect(() => {
+    if (!isScreen2 && screen5PaletteChanged) {
+      onUpdate({ screen5Palette: screen5PaletteSlots });
+    }
+  }, [isScreen2, screen5PaletteChanged, screen5PaletteSlots, onUpdate]);
+
+  useEffect(() => {
+    if (isScreen2) {
+      setActiveScreen5PaletteSlot(1);
+      return;
+    }
+    if (activeScreen5PaletteSlot <= 0 || activeScreen5PaletteSlot >= screen5PaletteSlots.length) {
+      setActiveScreen5PaletteSlot(1);
+    }
+  }, [isScreen2, activeScreen5PaletteSlot, screen5PaletteSlots.length]);
+
+  const getScreen5Color = useCallback((slotIndex: number, fallbackSlotIndex = 1) => {
+    const fallbackHex = MSX_SCREEN5_PALETTE[fallbackSlotIndex]?.hex ?? '#000000';
+    return getScreen5PaletteColor(screen5PaletteSlots, slotIndex, fallbackHex);
+  }, [screen5PaletteSlots]);
+
+  const getEffectiveSelectedColor = useCallback((color: MSXColorValue) => {
+    if (isScreen2) return color;
+    const exists = screen5PaletteSlots.some(slot => slot.hex === color);
+    if (exists) return color;
+    return getScreen5Color(Math.max(1, activeScreen5PaletteSlot));
+  }, [isScreen2, screen5PaletteSlots, getScreen5Color, activeScreen5PaletteSlot]);
+
+  const handleSelectScreen5PaletteSlot = useCallback((slotIndex: number) => {
+    if (isScreen2) return;
+    setActiveScreen5PaletteSlot(slotIndex);
+    const slotColor = screen5PaletteSlots[slotIndex]?.hex;
+    if (slotColor && onSelectGlobalColor) {
+      onSelectGlobalColor(slotColor);
+    }
+  }, [isScreen2, screen5PaletteSlots, onSelectGlobalColor]);
+
   const [generatorParams, setGeneratorParams] = useState<AllGeneratorParams>(() => ({
       Rock: {
-          baseColor: isScreen2 ? MSX1_PALETTE[14].hex : MSX_SCREEN5_PALETTE[14].hex,
-          highlightColor: isScreen2 ? MSX1_PALETTE[15].hex : MSX_SCREEN5_PALETTE[15].hex,
-          shadowColor: isScreen2 ? MSX1_PALETTE[1].hex : MSX_SCREEN5_PALETTE[1].hex,
+          baseColor: isScreen2 ? MSX1_PALETTE[14].hex : getScreen5Color(14, 14),
+          highlightColor: isScreen2 ? MSX1_PALETTE[15].hex : getScreen5Color(15, 15),
+          shadowColor: isScreen2 ? MSX1_PALETTE[1].hex : getScreen5Color(1, 1),
           density: 50,
           seamless: true,
       },
       Brick: {
-          brickColor: isScreen2 ? MSX1_PALETTE[6].hex : MSX_SCREEN5_PALETTE[6].hex,
-          mortarColor: isScreen2 ? MSX1_PALETTE[14].hex : MSX_SCREEN5_PALETTE[14].hex,
+          brickColor: isScreen2 ? MSX1_PALETTE[6].hex : getScreen5Color(6, 6),
+          mortarColor: isScreen2 ? MSX1_PALETTE[14].hex : getScreen5Color(14, 14),
           brickWidth: 8,
           brickHeight: 4,
           mortarThickness: 1,
@@ -1309,8 +1351,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
           edgeVariation: 10,
       },
       Ladder: {
-          railColor: isScreen2 ? MSX1_PALETTE[10].hex : MSX_SCREEN5_PALETTE[10].hex,
-          rungColor: isScreen2 ? MSX1_PALETTE[10].hex : MSX_SCREEN5_PALETTE[10].hex,
+          railColor: isScreen2 ? MSX1_PALETTE[10].hex : getScreen5Color(10, 10),
+          rungColor: isScreen2 ? MSX1_PALETTE[10].hex : getScreen5Color(10, 10),
           backgroundColor: 'transparent',
           railWidth: 1,
           rungHeight: 1,
@@ -1319,33 +1361,33 @@ export const TileEditor: React.FC<TileEditorProps> = ({
           style: 'solid',
       },
       CellBars: {
-          barColor: isScreen2 ? MSX1_PALETTE[15].hex : MSX_SCREEN5_PALETTE[15].hex,
+          barColor: isScreen2 ? MSX1_PALETTE[15].hex : getScreen5Color(15, 15),
           backgroundColor: isScreen2 ? MSX1_PALETTE[0].hex : 'transparent',
           barCount: 3,
           barThickness: 1,
           hasOutline: true,
       },
       Ice: {
-        baseColor: isScreen2 ? MSX1_PALETTE[5].hex : '#B4FFFF', // Light Blue
-        crackColor: isScreen2 ? MSX1_PALETTE[7].hex : '#00C4C4', // Cyan
-        shineColor: isScreen2 ? MSX1_PALETTE[15].hex : '#FFFFFF', // White
+        baseColor: isScreen2 ? MSX1_PALETTE[5].hex : getScreen5Color(5, 5),
+        crackColor: isScreen2 ? MSX1_PALETTE[7].hex : getScreen5Color(7, 7),
+        shineColor: isScreen2 ? MSX1_PALETTE[15].hex : getScreen5Color(15, 15),
         crackDensity: 0.4,
       },
       Grass: {
-          baseGrassColor: isScreen2 ? MSX1_PALETTE[3].hex : '#3AD84A', // Light Green
-          shadowGrassColor: isScreen2 ? MSX1_PALETTE[12].hex : '#1E8C28', // Dark Green
-          detailColor: isScreen2 ? MSX1_PALETTE[9].hex : '#FF7373', // Light Red
+          baseGrassColor: isScreen2 ? MSX1_PALETTE[3].hex : getScreen5Color(3, 3),
+          shadowGrassColor: isScreen2 ? MSX1_PALETTE[12].hex : getScreen5Color(12, 12),
+          detailColor: isScreen2 ? MSX1_PALETTE[9].hex : getScreen5Color(9, 9),
           detailProbability: 0.15,
       },
       StylizedGrass: {
-          lightGrassColor: isScreen2 ? MSX1_PALETTE[2].hex : '#5EF75A', // Medium Green
-          darkGrassColor: isScreen2 ? MSX1_PALETTE[12].hex : '#2A7D2E', // Dark Green
+          lightGrassColor: isScreen2 ? MSX1_PALETTE[2].hex : getScreen5Color(2, 2),
+          darkGrassColor: isScreen2 ? MSX1_PALETTE[12].hex : getScreen5Color(12, 12),
           bladeDensity: 0.6,
           style: 'wavy',
       },
       Frame: {
-          frameColor: isScreen2 ? MSX1_PALETTE[15].hex : MSX_SCREEN5_PALETTE[15].hex, // White
-          backgroundColor: isScreen2 ? MSX1_PALETTE[0].hex : MSX_SCREEN5_PALETTE[0].hex, // Black/Transparent
+          frameColor: isScreen2 ? MSX1_PALETTE[15].hex : getScreen5Color(15, 15),
+          backgroundColor: isScreen2 ? MSX1_PALETTE[0].hex : getScreen5Color(0, 0),
           thickness: 2,
           style: 'simple',
           corners: 'square',
@@ -1528,8 +1570,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       if (!attributes) return primarySelectedColor; 
       return isRightClick ? attributes.bg : attributes.fg;
     }
-    return isRightClick ? MSX_SCREEN5_PALETTE[0].hex : primarySelectedColor; 
-  }, []);
+    return isRightClick ? getScreen5Color(0, 0) : getEffectiveSelectedColor(primarySelectedColor); 
+  }, [getScreen5Color, getEffectiveSelectedColor]);
 
 
   const drawPixelSymmetrically = useCallback((point: Point, isRightClick: boolean) => {
@@ -1612,9 +1654,9 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                         const segFg = attributes?.fg || DEFAULT_SCREEN2_FG_COLOR;
                         const segBg = attributes?.bg || DEFAULT_SCREEN2_BG_COLOR;
                         ditherColorToUse = ((localX % 2) === (localY % 2)) ? segFg : segBg;
-                    } else {
-                        const primaryDitherColor = selectedColor;
-                        const secondaryDitherColor = MSX_SCREEN5_PALETTE[0].hex; // Transparent
+                      } else {
+                        const primaryDitherColor = getEffectiveSelectedColor(selectedColor);
+                        const secondaryDitherColor = getScreen5Color(0, 0); // Transparent/eraser
                         ditherColorToUse = ((localX % 2) === (localY % 2)) ? primaryDitherColor : secondaryDitherColor;
                     }
                     
@@ -1631,7 +1673,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     if (changed) {
         onUpdate({ data: newData });
     }
-  }, [tile.data, tile.width, tile.height, tile.lineAttributes, selectedColor, currentScreenMode, ditherBrushDiameter, onUpdate, getSymmetricPoints]);
+  }, [tile.data, tile.width, tile.height, tile.lineAttributes, selectedColor, currentScreenMode, ditherBrushDiameter, onUpdate, getSymmetricPoints, getEffectiveSelectedColor, getScreen5Color]);
 
 
   const handleGridInteraction = useCallback((point: Point, isRightClick: boolean) => {
@@ -1655,7 +1697,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
         })
       );
     } else {
-      const colorToClearWith = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : selectedColor;
+      const colorToClearWith = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : getEffectiveSelectedColor(selectedColor);
       clearedData = Array(tile.height).fill(null).map(() => Array(tile.width).fill(colorToClearWith));
     }
     onUpdate({ data: clearedData });
@@ -1749,7 +1791,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                     if (tile.data[originalPixelY] && tile.data[originalPixelY][originalPixelX] !== undefined) {
                          newRow.push(tile.data[originalPixelY][originalPixelX]);
                     } else {
-                         newRow.push(currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : MSX_SCREEN5_PALETTE[1].hex); // Fallback pixel
+                        newRow.push(currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : getScreen5Color(1, 1)); // Fallback pixel
                     }
                 }
                 newTilePixelData.push(newRow);
@@ -1775,7 +1817,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                 height: 8,
                 data: newTilePixelData,
                 lineAttributes: newTileLineAttributes,
-                logicalProperties: { ...defaultLogicalProps } // New tiles get default logical props
+                logicalProperties: { ...defaultLogicalProps }, // New tiles get default logical props
+                ...(isScreen2 ? {} : { screen5Palette: screen5PaletteSlots.map(slot => ({ ...slot })) })
             };
             newAssetsToCreate.push({
                 id: newTileId,
@@ -1808,7 +1851,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
         if (r < tile.data.length && c < tile.data[r]?.length) {
           return tile.data[r][c]; 
         }
-        return MSX_SCREEN5_PALETTE[1].hex; 
+        return getScreen5Color(1, 1); 
       })
     );
   
@@ -1960,7 +2003,37 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                   </div>
               </div>
             </Panel>
-
+            {!isScreen2 && (
+              <Panel title="SCREEN 5 Palette (16 colores)">
+                <p className="text-xs text-msx-textsecondary mb-2">
+                  Selecciona un slot (0 reservado como transparente). Los colores se cargan desde las paletas guardadas.
+                </p>
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {screen5PaletteSlots.map((slot) => {
+                    const isActive = slot.slotIndex === activeScreen5PaletteSlot;
+                    return (
+                      <button
+                        key={`screen5-slot-${slot.slotIndex}`}
+                        type="button"
+                        onClick={() => handleSelectScreen5PaletteSlot(slot.slotIndex)}
+                        className={`p-2 rounded border text-left transition-colors ${
+                          isActive ? 'border-msx-highlight ring-1 ring-msx-highlight' : 'border-msx-border'
+                        } ${slot.slotIndex === 0 ? 'opacity-80 cursor-not-allowed' : 'hover:border-msx-highlight'}`}
+                        style={{ backgroundColor: slot.hex === 'rgba(0,0,0,0)' ? undefined : slot.hex }}
+                        title={slot.slotIndex === 0 ? 'Transparente / borrado' : `Slot ${slot.slotIndex}`}
+                      >
+                        <div className={`text-[0.7rem] font-semibold ${slot.slotIndex === 0 ? 'text-msx-textsecondary' : 'text-msx-bgcolor mix-blend-difference'}`}>
+                          {slot.slotIndex === 0 ? 'Slot 0' : `Slot ${slot.slotIndex}`}
+                        </div>
+                        <div className="text-[0.6rem] text-msx-textsecondary mt-1">
+                          {slot.slotIndex === 0 ? 'Transparente' : `Idx ${slot.masterIndex}`}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Panel>
+            )}
             <Panel title="Logical Properties (Collision/Behavior)">
               <div className="space-y-2 text-xs">
                     <p className="text-[0.65rem] text-msx-textsecondary">Define gameplay attributes for this tile. These are exported in the Behavior Map.</p>
@@ -2123,3 +2196,4 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     </Panel>
   );
 };
+

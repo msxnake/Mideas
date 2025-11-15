@@ -9,6 +9,18 @@ export type MSXColorValue = string;
 export type MSX1ColorValue = string;
 
 /**
+ * Represents a single configurable color slot for MSX2 SCREEN 5 tiles.
+ */
+export interface Screen5PaletteSlot {
+  /** Position in the 16-color palette (0-15). */
+  slotIndex: number;
+  /** Index of the MSX2 master palette entry (0-511). */
+  masterIndex: number;
+  /** Hex color stored for quick rendering. */
+  hex: MSXColorValue;
+}
+
+/**
  * Represents a color in the MSX SCREEN 5 palette.
  */
 export interface MSXColor {
@@ -84,6 +96,8 @@ export interface Tile {
   lineAttributes?: LineColorAttribute[][]; 
   /** Logical properties for game mechanics. */
   logicalProperties: TileLogicalProperties; 
+  /** Optional custom palette definition for SCREEN 5 tiles. */
+  screen5Palette?: Screen5PaletteSlot[];
 }
 
 /**
@@ -1094,6 +1108,7 @@ export enum EditorType {
   MainMenu = "MainMenu",
   StateMachine = "StateMachine",
   GlobalVariables = "GlobalVariables",
+  Palette = "Palette",
 }
 
 /**
@@ -1105,9 +1120,9 @@ export interface ProjectAsset {
   /** The name of the asset. */
   name: string;
   /** The type of the asset. */
-  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables';
+  type: 'tile' | 'sprite' | 'boss' | 'screenmap' | 'code' | 'sound' | 'worldmap' | 'track' | 'behavior' | 'componentdefinition' | 'entitytemplate' | 'gameflow' | 'statemachine' | 'font' | 'tilebank' | 'globalvariables' | 'palette';
   /** The data associated with the asset, which varies by type. */
-  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset;
+  data?: Tile | Sprite | ScreenMap | string | WorldMapGraph | PSGSoundData | TrackerSongData | BehaviorScript | ComponentDefinition | EntityTemplate | Boss | GameFlowGraph | StateMachine | MSXFontAsset | TileBank | GlobalVariablesAsset | PaletteAsset;
 }
 
 export interface Point { x: number; y: number; }
@@ -1133,6 +1148,15 @@ export interface MSXFontAsset {
 export interface GlobalVariablesAsset {
   /** List of custom global variables for this project */
   customVariables: MideasGlobalVariable[];
+}
+
+export interface PaletteAsset {
+  /** Palette slots (SCREEN 5 style). */
+  slots: Screen5PaletteSlot[];
+  /** Optional notes about usage. */
+  notes?: string;
+  /** Intended palette mode. */
+  mode: 'SCREEN5';
 }
 
 export type DataFormat = 'hex' | 'decimal';

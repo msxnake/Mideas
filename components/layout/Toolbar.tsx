@@ -79,6 +79,8 @@ interface ToolbarProps {
   onToggleEditor: () => void;
   /** Whether the editor toggle button is disabled. */
   isToggleEditorDisabled: boolean;
+  /** Current MSX screen mode for asset creation/rendering. */
+  currentScreenMode: string;
 }
 
 /**
@@ -188,7 +190,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
   onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenWorldView, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
-  onToggleEditor, isToggleEditorDisabled
+  onToggleEditor, isToggleEditorDisabled,
+  currentScreenMode
 }) => {
     const { loadConfig: loadThemeConfig } = useTheme();
 
@@ -247,6 +250,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon/>} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">World Map</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon/>} colorClass="text-violet-200 hover:bg-violet-500 hover:text-white">Game Flow</DropdownItem>
         <DropdownSeparator />
+        <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon/>} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white">Palette</DropdownItem>
+        <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon/>} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white">Tile Banks</DropdownItem>
         <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon/>} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
         <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon/>} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
@@ -254,9 +259,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white">Data Struct (Code)</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon/>} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Sound FX</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon/>} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white">Music Track</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>} colorClass="text-lime-200 hover:bg-lime-500 hover:text-white">Code File</DropdownItem>
-      </DropdownMenu>
+      <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon/>} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white">Music Track</DropdownItem>
+      <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>} colorClass="text-lime-200 hover:bg-lime-500 hover:text-white">Code File</DropdownItem>
+    </DropdownMenu>
+
+    <div className="px-3 py-1.5 text-xs border border-msx-border rounded text-msx-textsecondary">
+      Mode: <span className="text-msx-highlight">{currentScreenMode}</span> (locked)
+    </div>
 
       {/* Run Menu */}
       <DropdownMenu label="Run">

@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import {
   ProjectAsset, EditorType, Tile, Sprite, ScreenMap, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
-  PSGSoundChannelState, PSGSoundChannelStep
+  PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE,
@@ -12,6 +12,7 @@ import {
 } from '../constants';
 import { createDefaultLineAttributes } from '../components/utils/tileUtils';
 import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
+import { createDefaultScreen5PaletteSlots } from '../utils/screen5PaletteUtils';
 
 interface AssetHandlersProps {
   assets: ProjectAsset[];
@@ -131,7 +132,8 @@ export const useAssetHandlers = ({
             id, name: defaultName, width: tileW, height: tileH,
             data: Array(tileH).fill(null).map(() => Array(tileW).fill(initialColor)),
             ...(currentScreenMode === "SCREEN 2 (Graphics I)" && { lineAttributes: createDefaultLineAttributes(tileW, tileH, DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR) }),
-            logicalProperties: defaultLogicalProps
+            logicalProperties: defaultLogicalProps,
+            ...(currentScreenMode !== "SCREEN 2 (Graphics I)" && { screen5Palette: createDefaultScreen5PaletteSlots() })
         };
         newEditorType = EditorType.Tile;
         break;
@@ -278,6 +280,14 @@ export const useAssetHandlers = ({
           customVariables: []
         };
         newEditorType = EditorType.GlobalVariables;
+        break;
+      case 'palette':
+        newAssetData = {
+          slots: createDefaultScreen5PaletteSlots(),
+          notes: '',
+          mode: 'SCREEN5'
+        } as PaletteAsset;
+        newEditorType = EditorType.Palette;
         break;
       case 'font':
         // Create default color attributes for each character in the font

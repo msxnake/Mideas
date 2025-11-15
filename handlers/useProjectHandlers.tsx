@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { ProjectAsset, EditorType, ScreenMap, TileBank, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes } from '../types';
-import { DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_MAIN_MENU_CONFIG } from '../constants';
+import { ProjectAsset, EditorType, ScreenMap, TileBank, ComponentDefinition, EntityTemplate, MainMenuConfig, Snippet, HelpDocSection, DataFormat, MSXFont, MSXFontColorAttributes, MSXColorValue } from '../types';
+import { DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_MAIN_MENU_CONFIG, DEFAULT_SCREEN_MODE, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
 import { cleanUnusedDefinitions } from '../utils/projectCleanup';
@@ -18,6 +18,7 @@ interface ProjectHandlersProps {
   currentEditor: EditorType;
   setCurrentEditor: (editor: EditorType) => void;
   setStatusBarMessage: (message: string) => void;
+  setSelectedColor: (color: MSXColorValue) => void;
   setConfirmModalProps: (props: any) => void;
   setIsConfirmModalOpen: (open: boolean) => void;
   setIsNewProjectModalOpen: (open: boolean) => void;
@@ -59,6 +60,7 @@ export const useProjectHandlers = ({
   currentEditor,
   setCurrentEditor,
   setStatusBarMessage,
+  setSelectedColor,
   setConfirmModalProps,
   setIsConfirmModalOpen,
   setIsNewProjectModalOpen,
@@ -87,14 +89,26 @@ export const useProjectHandlers = ({
   helpDocsData
 }: ProjectHandlersProps) => {
 
+  const applyScreenModeDefaults = useCallback((mode: string) => {
+    setCurrentScreenMode(mode);
+    if (mode === 'SCREEN 2 (Graphics I)') {
+      setSelectedColor(MSX1_PALETTE[15].hex);
+    } else {
+      setSelectedColor(MSX_SCREEN5_PALETTE[1].hex);
+    }
+  }, [setCurrentScreenMode, setSelectedColor]);
+
   const handleOpenNewProjectModal = () => setIsNewProjectModalOpen(true);
 
-  const handleConfirmNewProject = (projectNameFromModal: string) => {
+  const handleConfirmNewProject = (projectNameFromModal: string, selectedMode: string) => {
     setConfirmModalProps({
       title: "Create New Project?",
       message: (
         <>
           <p>Are you sure you want to create a new project named "{projectNameFromModal}"?</p>
+          <p className="text-msx-textsecondary mt-2">
+            Target screen mode: <strong>{selectedMode}</strong> (cannot be changed later).
+          </p>
           <p className="text-msx-warning mt-2">This will clear all current unsaved assets and history.</p>
         </>
       ),
@@ -103,6 +117,7 @@ export const useProjectHandlers = ({
         setSelectedAssetId(null);
         setCurrentProjectName(projectNameFromModal);
         setCurrentEditor(EditorType.None);
+        applyScreenModeDefaults(selectedMode || DEFAULT_SCREEN_MODE);
         setTileBanksState(DEFAULT_TILE_BANK_DEFINITIONS);
         setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
         setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
@@ -139,9 +154,9 @@ export const useProjectHandlers = ({
         if (mainAsmAssetId) {
           setSelectedAssetId(mainAsmAssetId);
           setCurrentEditor(EditorType.Code);
-          setStatusBarMessage(`Project "${projectNameFromModal}" created. main.asm opened.`);
+          setStatusBarMessage(`Project "${projectNameFromModal}" created in ${selectedMode}. main.asm opened.`);
         } else {
-          setStatusBarMessage(`Project "${projectNameFromModal}" created.`);
+          setStatusBarMessage(`Project "${projectNameFromModal}" created in ${selectedMode}.`);
         }
         setIsNewProjectModalOpen(false);
         setIsConfirmModalOpen(false);
@@ -352,7 +367,8 @@ export const useProjectHandlers = ({
             setAssetsWithHistory(() => migratedAssets);
           }
 
-          if (projectData.currentScreenMode) setCurrentScreenMode(projectData.currentScreenMode);
+          const loadedMode = projectData.currentScreenMode || DEFAULT_SCREEN_MODE;
+          applyScreenModeDefaults(loadedMode);
           if (projectData.selectedAssetId) setSelectedAssetId(projectData.selectedAssetId);
           if (projectData.currentEditor) setCurrentEditor(projectData.currentEditor);
 

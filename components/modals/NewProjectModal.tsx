@@ -9,8 +9,8 @@ import { Button } from '../common/Button';
 interface NewProjectModalProps {
   /** Whether the modal is currently open. */
   isOpen: boolean;
-  /** Callback function when the user confirms the new project name. */
-  onConfirm: (projectName: string) => void;
+  /** Callback function when the user confirms the new project name and mode. */
+  onConfirm: (projectName: string, screenMode: string) => void;
   /** Callback function to close the modal. */
   onClose: () => void;
 }
@@ -23,14 +23,29 @@ interface NewProjectModalProps {
  * @returns A React component.
  * @category Modal
  */
+const SCREEN_MODE_OPTIONS = [
+  {
+    value: 'SCREEN 2 (Graphics I)',
+    title: 'SCREEN 2 (Graphics I) – MSX-1',
+    description: 'Modo tileado (256×192, 4 colores) ideal para compatibilidad MSX-1 y VRAM mínima.',
+  },
+  {
+    value: 'SCREEN 5 (Graphics III)',
+    title: 'SCREEN 5 (Graphics III) – MSX-2',
+    description: 'Modo bitmap (256×212, 16 colores/px) con scroll fino y doble buffer en MSX-2.',
+  },
+];
+
 export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onConfirm, onClose }) => {
   const [projectName, setProjectName] = useState('');
   const [error, setError] = useState('');
+  const [selectedMode, setSelectedMode] = useState<string>(SCREEN_MODE_OPTIONS[0].value);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setProjectName('MyMSXGame'); // Default project name
+      setSelectedMode(SCREEN_MODE_OPTIONS[0].value);
       setError('');
       // Focus input when modal opens
       setTimeout(() => {
@@ -57,7 +72,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onConf
         setError("Project name is too long (max 50 characters).");
         return;
     }
-    onConfirm(trimmedName);
+    onConfirm(trimmedName, selectedMode);
   };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -102,6 +117,35 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ isOpen, onConf
           {error && (
             <p className="text-xs text-msx-danger mt-1">{error}</p>
           )}
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-xs text-msx-textsecondary mb-2">
+            Target Screen Mode (cannot be changed later):
+          </label>
+          <div className="space-y-2">
+            {SCREEN_MODE_OPTIONS.map(option => (
+              <label
+                key={option.value}
+                className={`flex items-start space-x-2 p-2 border rounded cursor-pointer transition-colors ${
+                  selectedMode === option.value ? 'border-msx-accent bg-msx-accent/10' : 'border-msx-border hover:border-msx-accent'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="screenMode"
+                  value={option.value}
+                  checked={selectedMode === option.value}
+                  onChange={() => setSelectedMode(option.value)}
+                  className="mt-1"
+                />
+                <div>
+                  <p className="text-sm text-msx-textprimary font-semibold">{option.title}</p>
+                  <p className="text-xs text-msx-textsecondary">{option.description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
         </div>
 
         <div className="flex justify-end space-x-2">
