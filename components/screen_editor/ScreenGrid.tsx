@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { ScreenMap, Tile, Point, MSX1ColorValue, HUDElement, HUDElementType, TileBank, MSXFont, MSXFontColorAttributes, Sprite, ProjectAsset, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, EffectZone, EffectZoneFlagKey, ComponentDefinition, TileStamp } from '../../types';
 import { MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX_SCREEN5_PALETTE, EFFECT_ZONE_FLAGS, MSX1_PALETTE } from '../../constants';
+import { getBackgroundColorHex } from '../../utils/screenModeConfig';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { createTileDataURL, createSpriteDataURL } from '../utils/screenUtils';
 
@@ -355,7 +356,7 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
 
   // Get background color from screenMap or default to black
   const bgColorIndex = mapData.backgroundColor !== undefined ? mapData.backgroundColor : 1;
-  const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
+  const bgColor = getBackgroundColorHex(bgColorIndex, currentScreenMode);
 
   return (
     <div

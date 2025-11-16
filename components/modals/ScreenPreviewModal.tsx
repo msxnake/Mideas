@@ -4,7 +4,7 @@ import { Button } from '../common/Button';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { renderUnifiedTextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT } from '../utils/msxFontRenderer';
-import { MSX1_PALETTE, MSX1_DEFAULT_COLOR } from '../../constants';
+import { getBackgroundColorHex } from '../../utils/screenModeConfig';
 
 /** The width of the preview canvas in pixels. @constant */
 const PREVIEW_WIDTH = 256;
@@ -398,8 +398,7 @@ export const ScreenPreviewModal: React.FC<ScreenPreviewModalProps> = ({
 
         // 1. Draw Background Color (MSX VDP backdrop)
         ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-        const bgColorIndex = screenMap.backgroundColor !== undefined ? screenMap.backgroundColor : 1;
-        const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
+        const bgColor = getBackgroundColorHex(screenMap.backgroundColor, currentScreenMode);
         ctx.fillStyle = bgColor;
         ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 

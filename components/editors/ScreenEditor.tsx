@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { ScreenMap, Tile, Point, MSXColorValue, ScreenLayerData, ScreenTile, MSX1ColorValue, HUDConfiguration, HUDElement, HUDElementType, TileBank, TileBankDefinition, MSXFont, DataFormat, MSXFontColorAttributes, EntityInstance, MockEntityType, ProjectAsset, Sprite, SpriteFrame, LayoutASMExportData, BehaviorMapASMExportData, CopiedScreenData, ScreenEditorTool, ScreenSelectionRect, EntityTemplate, CopiedLayerData, EffectZone, ScreenEditorLayerName, ComponentDefinition, ContextMenuItem, TileStamp } from '../../types';
 import { Panel } from '../common/Panel';
 import { DEFAULT_SCREEN_WIDTH_TILES, DEFAULT_SCREEN_HEIGHT_TILES, MSX_SCREEN5_PALETTE, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2 as CONST_EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE_EDITOR } from '../../constants';
@@ -19,9 +19,7 @@ import { ScreenEditorStatusBar } from '../screen_editor/ScreenEditorStatusBar';
 import { ScreenSelectionToolsPanel } from '../screen_editor/ScreenSelectionToolsPanel';
 import { PatrolPathLayer } from '../screen_editor/PatrolPathLayer';
 import { ScreenPlayModal } from '../modals/ScreenPlayModal';
-
-
-const SCREEN_EDITOR_BASE_TILE_DIM_OTHER = 16;
+import { getScreenModeMetrics, isScreen2Mode } from '../../utils/screenModeConfig';
 
 /**
  * Props for the ScreenEditor component.
@@ -110,13 +108,64 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     zoom, setZoom
 }) => {
 
+  const screenModeMetrics = useMemo(() => getScreenModeMetrics(currentScreenMode), [currentScreenMode]);
+  const isScreen2 = isScreen2Mode(currentScreenMode);
+  const EDITOR_BASE_TILE_DIM = screenModeMetrics.baseTileSize;
+
   useEffect(() => {
-    if (currentScreenMode === 'SCREEN 5') {
-      if (screenMap.width !== 32 || screenMap.height !== 26) {
-        onUpdate({ width: 32, height: 26 });
-      }
+    const targetWidth = screenModeMetrics.widthTiles;
+    const targetHeight = screenModeMetrics.heightTiles;
+    const needsResize = screenMap.width !== targetWidth || screenMap.height !== targetHeight;
+    if (!needsResize) {
+      return;
     }
-  }, [currentScreenMode, onUpdate, screenMap.width, screenMap.height]);
+
+    const resizeLayer = (layer: ScreenLayerData): ScreenLayerData => {
+      const newLayer: ScreenLayerData = [];
+      for (let row = 0; row < targetHeight; row++) {
+        const sourceRow = layer[row] ?? [];
+        const resizedRow: ScreenTile[] = [];
+        for (let col = 0; col < targetWidth; col++) {
+          const sourceTile = sourceRow[col];
+          resizedRow.push(sourceTile ? { ...sourceTile } : { tileId: null });
+        }
+        newLayer.push(resizedRow);
+      }
+      return newLayer;
+    };
+
+    const clampedActiveWidth = Math.min(screenMap.activeAreaWidth ?? targetWidth, targetWidth);
+    const clampedActiveHeight = Math.min(screenMap.activeAreaHeight ?? targetHeight, targetHeight);
+    const maxActiveX = Math.max(0, targetWidth - clampedActiveWidth);
+    const maxActiveY = Math.max(0, targetHeight - clampedActiveHeight);
+    const clampedActiveX = Math.min(screenMap.activeAreaX ?? 0, maxActiveX);
+    const clampedActiveY = Math.min(screenMap.activeAreaY ?? 0, maxActiveY);
+
+    onUpdate({
+      width: targetWidth,
+      height: targetHeight,
+      layers: {
+        ...screenMap.layers,
+        background: resizeLayer(screenMap.layers.background),
+        collision: resizeLayer(screenMap.layers.collision),
+        effects: resizeLayer(screenMap.layers.effects),
+      },
+      activeAreaWidth: clampedActiveWidth,
+      activeAreaHeight: clampedActiveHeight,
+      activeAreaX: clampedActiveX,
+      activeAreaY: clampedActiveY,
+    });
+  }, [
+    onUpdate,
+    screenMap.activeAreaHeight,
+    screenMap.activeAreaWidth,
+    screenMap.activeAreaX,
+    screenMap.activeAreaY,
+    screenMap.height,
+    screenMap.layers,
+    screenMap.width,
+    screenModeMetrics,
+  ]);
 
   // Initialize activeLayer from localStorage if available
   const getInitialActiveLayer = (): ScreenEditorLayerName => {
@@ -133,8 +182,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
   const [activeLayer, setActiveLayerInternal] = useState<ScreenEditorLayerName>(getInitialActiveLayer);
   const [lastClickedCell, setLastClickedCell] = useState<Point | null>(null);
-
-  const EDITOR_BASE_TILE_DIM = currentScreenMode === "SCREEN 2 (Graphics I)" ? CONST_EDITOR_BASE_TILE_DIM_S2 : SCREEN_EDITOR_BASE_TILE_DIM_OTHER;
 
   const [isExportLayoutModalOpen, setIsExportLayoutModalOpen] = useState(false);
   const [layoutASMExportData, setLayoutASMExportData] = useState<LayoutASMExportData | null>(null);
@@ -255,7 +302,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setLastClickedCell(point);
 
     // Update current sector based on Y position (for SCREEN 2)
-    if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+    if (isScreen2) {
       const sector = getSectorFromY(point.y);
       setCurrentSector(sector);
 
@@ -559,43 +606,46 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     // Extract TileBankDefinition[] from TileBank[] wrapper
     // tileBanks prop is TileBank[] where each TileBank has banks: TileBankDefinition[]
     // We need to flatten all banks from all TileBank assets into a single array
-    const tileBankDefinitions = tileBanks && tileBanks.length > 0
+    const tileBankDefinitions = isScreen2 && tileBanks && tileBanks.length > 0
       ? tileBanks.flatMap(tb => tb.banks || [])
       : undefined;
 
-    // DEBUG: Log TileBank info
-    console.log('🔍 Layout Export Debug:');
-    console.log('  - Number of TileBank assets:', tileBanks?.length || 0);
-    console.log('  - TileBank assets RAW:', tileBanks);
-    if (tileBanks && tileBanks.length > 0) {
-      tileBanks.forEach((tb, i) => {
-        console.log(`  - TileBank ${i}:`, {
-          id: tb.id,
-          name: tb.name,
-          hasBanksProperty: 'banks' in tb,
-          banksValue: tb.banks,
-          banksType: typeof tb.banks,
-          banksIsArray: Array.isArray(tb.banks),
-          allKeys: Object.keys(tb)
+    if (isScreen2) {
+      // DEBUG: Log TileBank info
+      console.log('?? Layout Export Debug:');
+      console.log('  - Number of TileBank assets:', tileBanks?.length || 0);
+      console.log('  - TileBank assets RAW:', tileBanks);
+      if (tileBanks && tileBanks.length > 0) {
+        tileBanks.forEach((tb, i) => {
+          console.log(`  - TileBank ${i}:`, {
+            id: tb.id,
+            name: tb.name,
+            hasBanksProperty: 'banks' in tb,
+            banksValue: tb.banks,
+            banksType: typeof tb.banks,
+            banksIsArray: Array.isArray(tb.banks),
+            allKeys: Object.keys(tb)
+          });
         });
-      });
-    }
-    console.log('  - Total banks combined:', tileBankDefinitions?.length || 0);
-    console.log('  - currentScreenMode:', currentScreenMode);
-    if (tileBankDefinitions) {
-      tileBankDefinitions.forEach((bank, i) => {
-        console.log(`  - Bank ${i} (${bank.name}):`, {
-          enabled: bank.enabled,
-          assignedTilesCount: Object.keys(bank.assignedTiles).length,
-          assignedTileIds: Object.keys(bank.assignedTiles),
-          charsetRange: `${bank.charsetRangeStart}-${bank.charsetRangeEnd}`
+      }
+      console.log('  - Total banks combined:', tileBankDefinitions?.length || 0);
+      console.log('  - currentScreenMode:', currentScreenMode);
+      if (tileBankDefinitions) {
+        tileBankDefinitions.forEach((bank, i) => {
+          console.log(`  - Bank ${i} (${bank.name}):`, {
+            enabled: bank.enabled,
+            assignedTilesCount: Object.keys(bank.assignedTiles).length,
+            assignedTileIds: Object.keys(bank.assignedTiles),
+            charsetRange: `${bank.charsetRangeStart}-${bank.charsetRangeEnd}`
+          });
         });
-      });
+      }
     }
+
 
     const layoutBytes = generateScreenMapLayoutBytes(screenMap, tileset, tileBankDefinitions, currentScreenMode);
     const comments: string[] = [];
-    if (currentScreenMode !== "SCREEN 2 (Graphics I)") {
+    if (!isScreen2) {
         const tempMap = new Map<number, {name: string, tileId: string, subX: number, subY: number}>();
         const activeLayerData = screenMap.layers.background; 
         for (let r = 0; r < (screenMap.activeAreaHeight ?? screenMap.height); r++) {
@@ -1007,7 +1057,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   };
 
   return (
-    <Panel title={`Screen Editor: ${screenMap.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})` : `(Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
+    <Panel title={`Screen Editor: ${screenMap.name} (Base ${EDITOR_BASE_TILE_DIM}x${EDITOR_BASE_TILE_DIM})`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-hidden select-none">
       <ScreenEditorToolbar
         activeLayer={activeLayer}
         onLayerChange={handleLayerChange}
@@ -1094,7 +1144,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             currentScreenMode={currentScreenMode}
             hudElements={screenMap.hudConfiguration?.elements}
             editorBaseTileDim={EDITOR_BASE_TILE_DIM}
-            tileBanks={currentScreenMode === "SCREEN 2 (Graphics I)" && screenMap.tileBankAssetId ?
+            tileBanks={isScreen2 && screenMap.tileBankAssetId ?
               [allProjectAssets.find(asset => asset.id === screenMap.tileBankAssetId && asset.type === 'tilebank')?.data as TileBank].filter(Boolean) :
               undefined}
             msxFont={msx1FontData}
@@ -1119,6 +1169,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             gridCellSize={{ width: baseCellPixelWidth, height: baseCellPixelHeight }}
             gridSize={{ width: screenMap.width, height: screenMap.height }}
             onSetPatrolPath={handleSetPatrolPath}
+            currentScreenMode={currentScreenMode}
           />
         </div>
         <ScreenSelectionToolsPanel

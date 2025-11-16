@@ -9,6 +9,7 @@ import { Button } from '../common/Button';
 import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, PlayIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
 import { ScreenMap, ProjectAsset } from '../../types';
 import { MSX1_PALETTE } from '../../constants';
+import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
 
 /**
  * Represents the name of a layer in the screen editor.
@@ -115,8 +116,10 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
 }) => {
 
   const tileBankAssets = allProjectAssets?.filter(asset => asset.type === 'tilebank') || [];
-  const isMSXScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
+  const isMSXScreen2 = isScreen2Mode(currentScreenMode);
   const hasNoTileBanks = isMSXScreen2 && tileBankAssets.length === 0;
+  const backgroundSwatch = getBackgroundColorHex(backgroundColor, currentScreenMode);
+  const borderSwatch = getBackgroundColorHex(borderColor, currentScreenMode);
   
   return (
     <div className="p-2 border-b border-msx-border flex flex-wrap gap-x-2 gap-y-1 items-center text-xs">
@@ -179,7 +182,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
           </select>
           <div
             className="w-5 h-5 border border-msx-border rounded"
-            style={{ backgroundColor: MSX1_PALETTE[backgroundColor]?.hex || MSX1_PALETTE[1].hex }}
+            style={{ backgroundColor: backgroundSwatch }}
             title={MSX1_PALETTE[backgroundColor]?.name || 'Black'}
           />
         </div>
@@ -201,7 +204,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
           </select>
           <div
             className="w-5 h-5 border border-msx-border rounded"
-            style={{ backgroundColor: MSX1_PALETTE[borderColor]?.hex || MSX1_PALETTE[1].hex }}
+            style={{ backgroundColor: borderSwatch }}
             title={MSX1_PALETTE[borderColor]?.name || 'Black'}
           />
         </div>

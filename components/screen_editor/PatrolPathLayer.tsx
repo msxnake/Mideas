@@ -1,6 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { EntityInstance } from '../../../types';
+import { EntityInstance } from '../../types';
+import { getScreenModeMetrics } from '../../utils/screenModeConfig';
 
 /**
  * Props for the {@link PatrolPathLayer} component.
@@ -17,11 +18,9 @@ interface PatrolPathLayerProps {
   gridSize: { width: number; height: number };
   /** Callback function to set or clear the patrol path for the selected entity. */
   onSetPatrolPath: (x: number | null, y: number | null) => void;
+  /** The current MSX screen mode. */
+  currentScreenMode: string;
 }
-
-// MSX Screen dimensions in pixels
-const SCREEN_WIDTH_PX = 256;
-const SCREEN_HEIGHT_PX = 192;
 
 /**
  * A React component that renders a layer to display and manage the patrol path for a selected entity.
@@ -35,10 +34,14 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
   gridZoom,
   gridCellSize,
   gridSize,
-  onSetPatrolPath
+  onSetPatrolPath,
+  currentScreenMode
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showMultiScreenInfo, setShowMultiScreenInfo] = useState(false);
+  const { pixelWidth, pixelHeight } = getScreenModeMetrics(currentScreenMode);
+  const pixelScaleX = gridCellSize.width ? gridZoom / gridCellSize.width : 1;
+  const pixelScaleY = gridCellSize.height ? gridZoom / gridCellSize.height : 1;
 
   // Check for patrol component in componentOverrides
   const patrolComp = selectedEntity?.componentOverrides?.comp_patrol;
@@ -70,7 +73,7 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
       return;
     }
 
-    let startX, startY, endX, endY;
+    let startX = 0, startY = 0, endX = 0, endY = 0;
     let isMultiScreen = false;
 
     if (hasPatrolPath) {
@@ -80,33 +83,35 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
       endX = Number(patrolComp.waypoint2_x);
       endY = Number(patrolComp.waypoint2_y);
       isMultiScreen = patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
-    } else {
+    } else if (selectedEntity) {
       // Legacy format: patrol in tiles
-      startX = selectedEntity.x * gridCellSize.width;
-      startY = selectedEntity.y * gridCellSize.height;
-      endX = selectedEntity.patrolX * gridCellSize.width;
-      endY = selectedEntity.patrolY * gridCellSize.height;
+      const originX = Number((selectedEntity.position?.x ?? 0) || 0);
+      const originY = Number((selectedEntity.position?.y ?? 0) || 0);
+      startX = originX * gridCellSize.width;
+      startY = originY * gridCellSize.height;
+      endX = Number(selectedEntity.patrolX) * gridCellSize.width;
+      endY = Number(selectedEntity.patrolY) * gridCellSize.height;
     }
 
     // Check if patrol exceeds screen bounds (indicating multi-screen)
-    const exceedsHorizontal = Math.abs(endX - startX) > SCREEN_WIDTH_PX ||
-                              endX > SCREEN_WIDTH_PX || startX > SCREEN_WIDTH_PX;
-    const exceedsVertical = Math.abs(endY - startY) > SCREEN_HEIGHT_PX ||
-                            endY > SCREEN_HEIGHT_PX || startY > SCREEN_HEIGHT_PX;
+    const exceedsHorizontal = Math.abs(endX - startX) > pixelWidth ||
+                              endX > pixelWidth || startX > pixelWidth;
+    const exceedsVertical = Math.abs(endY - startY) > pixelHeight ||
+                            endY > pixelHeight || startY > pixelHeight;
     const isAutoMultiScreen = exceedsHorizontal || exceedsVertical;
 
     // Calculate distance and screens crossed
     const distanceX = Math.abs(endX - startX);
     const distanceY = Math.abs(endY - startY);
     const totalDistance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-    const screensX = Math.floor(distanceX / SCREEN_WIDTH_PX) + 1;
-    const screensY = Math.floor(distanceY / SCREEN_HEIGHT_PX) + 1;
+    const screensX = Math.floor(distanceX / pixelWidth) + 1;
+    const screensY = Math.floor(distanceY / pixelHeight) + 1;
 
     // Convert pixel coordinates to canvas coordinates
-    const pixelStartX = startX * gridZoom;
-    const pixelStartY = startY * gridZoom;
-    const pixelEndX = endX * gridZoom;
-    const pixelEndY = endY * gridZoom;
+    const pixelStartX = startX * pixelScaleX;
+    const pixelStartY = startY * pixelScaleY;
+    const pixelEndX = endX * pixelScaleX;
+    const pixelEndY = endY * pixelScaleY;
 
     // Choose color based on multi-screen status
     if (isMultiScreen || isAutoMultiScreen) {
@@ -168,7 +173,7 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
       );
     }
 
-  }, [selectedEntity, gridZoom, gridCellSize, hasPatrolPath, hasLegacyPatrolPath, patrolComp]);
+  }, [selectedEntity, gridZoom, gridCellSize, hasPatrolPath, hasLegacyPatrolPath, patrolComp, pixelHeight, pixelScaleX, pixelScaleY, pixelWidth]);
 
   const handleDelete = () => {
     onSetPatrolPath(null, null);
@@ -184,17 +189,17 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
     const endY = Number(patrolComp.waypoint2_y);
     const isMultiScreen = patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
 
-    const exceedsHorizontal = Math.abs(endX - startX) > SCREEN_WIDTH_PX ||
-                              endX > SCREEN_WIDTH_PX || startX > SCREEN_WIDTH_PX;
-    const exceedsVertical = Math.abs(endY - startY) > SCREEN_HEIGHT_PX ||
-                            endY > SCREEN_HEIGHT_PX || startY > SCREEN_HEIGHT_PX;
+    const exceedsHorizontal = Math.abs(endX - startX) > pixelWidth ||
+                              endX > pixelWidth || startX > pixelWidth;
+    const exceedsVertical = Math.abs(endY - startY) > pixelHeight ||
+                            endY > pixelHeight || startY > pixelHeight;
 
     showMultiScreenBadge = isMultiScreen || exceedsHorizontal || exceedsVertical;
     if (showMultiScreenBadge) {
       const distanceX = Math.abs(endX - startX);
       const distanceY = Math.abs(endY - startY);
-      const screensX = Math.floor(distanceX / SCREEN_WIDTH_PX) + 1;
-      const screensY = Math.floor(distanceY / SCREEN_HEIGHT_PX) + 1;
+      const screensX = Math.floor(distanceX / pixelWidth) + 1;
+      const screensY = Math.floor(distanceY / pixelHeight) + 1;
       badgeText = `Multi-Screen Patrol: ${screensX > 1 ? screensX + 'x' : ''}${screensY > 1 ? screensY + 'y' : ''}`;
     }
   }
@@ -203,8 +208,8 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
     <>
       <canvas
         ref={canvasRef}
-        width={gridSize.width * gridCellSize.width * gridZoom}
-        height={gridSize.height * gridCellSize.height * gridZoom}
+        width={gridSize.width * gridZoom}
+        height={gridSize.height * gridZoom}
         className="absolute top-0 left-0 pointer-events-none"
         style={{ zIndex: 20 }}
       />
@@ -212,8 +217,8 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
         <div
           className="absolute"
           style={{
-            left: `${(selectedEntity.patrolX * gridCellSize.width + gridCellSize.width / 2) * gridZoom}px`,
-            top: `${(selectedEntity.patrolY * gridCellSize.height + gridCellSize.height / 2) * gridZoom}px`,
+            left: `${(selectedEntity.patrolX + 0.5) * gridZoom}px`,
+            top: `${(selectedEntity.patrolY + 0.5) * gridZoom}px`,
             zIndex: 21,
             transform: 'translate(-50%, -50%)',
           }}
@@ -231,8 +236,8 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
         <div
           className="absolute bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-bold shadow-lg pointer-events-none"
           style={{
-            left: `${selectedEntity.position.x * gridCellSize.width * gridZoom}px`,
-            top: `${(selectedEntity.position.y * gridCellSize.height - 10) * gridZoom}px`,
+            left: `${selectedEntity.position.x * gridZoom}px`,
+            top: `${selectedEntity.position.y * gridZoom - 10 * pixelScaleY}px`,
             zIndex: 22,
             transform: 'translateX(-50%)',
           }}

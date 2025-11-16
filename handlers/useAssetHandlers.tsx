@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import {
-  ProjectAsset, EditorType, Tile, Sprite, ScreenMap, SpriteFrame,
+  ProjectAsset, EditorType, Tile, Sprite, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset
 } from '../types';
@@ -13,6 +13,7 @@ import {
 import { createDefaultLineAttributes } from '../components/utils/tileUtils';
 import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
 import { createDefaultScreen5PaletteSlots } from '../utils/screen5PaletteUtils';
+import { getScreenModeMetrics } from '../utils/screenModeConfig';
 
 interface AssetHandlersProps {
   assets: ProjectAsset[];
@@ -154,17 +155,20 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.Sprite;
         break;
       case 'screenmap':
-        const mapW = DEFAULT_SCREEN_WIDTH_TILES;
-        const mapH = DEFAULT_SCREEN_HEIGHT_TILES;
-        const emptyLayer = Array(mapH).fill(null).map(() => Array(mapW).fill({ tileId: null }));
+        const { widthTiles: mapW, heightTiles: mapH } = getScreenModeMetrics(currentScreenMode);
+        const createEmptyLayer = (): ScreenLayerData =>
+          Array.from({ length: mapH }, () =>
+            Array.from({ length: mapW }, (): ScreenTile => ({ tileId: null }))
+          );
+        const emptyLayer = createEmptyLayer();
         newAssetData = {
             id, name: defaultName,
             width: mapW,
             height: mapH,
             layers: {
                 background: emptyLayer,
-                collision: [...emptyLayer.map(r => r.map(c => ({...c})))],
-                effects: [...emptyLayer.map(r => r.map(c => ({...c})))],
+                collision: createEmptyLayer(),
+                effects: createEmptyLayer(),
                 entities: []
             },
             effectZones: [],

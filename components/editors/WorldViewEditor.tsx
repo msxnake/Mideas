@@ -2,11 +2,10 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { WorldMapGraph, ScreenMap, Tile, ConnectionDirection } from '../../types';
 import { Panel } from '../common/Panel';
 import { WorldViewIcon, RefreshCwIcon } from '../icons/MsxIcons';
-import { EDITOR_BASE_TILE_DIM_S2, MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
+import { MSX1_PALETTE, MSX_SCREEN5_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
 import { Button } from '../common/Button';
 import { GridToggleButton } from './GridToggleButton';
-
-const SCREEN_EDITOR_BASE_TILE_DIM_OTHER = 16;
+import { getScreenModeMetrics } from '../../utils/screenModeConfig';
 
 interface WorldViewEditorProps {
   allWorldMapGraphs: WorldMapGraph[];
@@ -117,9 +116,8 @@ export const WorldViewEditor: React.FC<WorldViewEditorProps> = ({
 
     const handleToggleGrid = () => setIsGridVisible(prevState => !prevState);
 
-    const EDITOR_BASE_TILE_DIM = currentScreenMode === "SCREEN 2 (Graphics I)" 
-        ? EDITOR_BASE_TILE_DIM_S2 
-        : SCREEN_EDITOR_BASE_TILE_DIM_OTHER;
+    const screenModeMetrics = useMemo(() => getScreenModeMetrics(currentScreenMode), [currentScreenMode]);
+    const EDITOR_BASE_TILE_DIM = screenModeMetrics.baseTileSize;
 
     useEffect(() => {
         if (allWorldMapGraphs.length > 0) {

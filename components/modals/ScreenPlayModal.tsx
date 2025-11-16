@@ -14,7 +14,7 @@ import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils'
 import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
 import { renderMSX1TextToDataURL, getTextDimensionsMSX1, DEFAULT_MSX_FONT, createTileBasedFont } from '../utils/msxFontRenderer';
 import { wallCollisionEngine, entityCollisionEngine, pacMovementEngine, pacmanMovementV2Engine } from '../../src/engines';
-import { MSX1_PALETTE } from '../../constants';
+import { getBackgroundColorHex } from '../../utils/screenModeConfig';
 
 // Sprite rotation utilities for auto-generated directional sprites
 const rotatePixelData90CW = (pixelData: any[][]): any[][] => {
@@ -2264,8 +2264,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             tileCtx.imageSmoothingEnabled = false;
 
             // Draw background color
-            const bgColorIndex = screenMap.backgroundColor !== undefined ? screenMap.backgroundColor : 1;
-            const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
+            const bgColor = getBackgroundColorHex(screenMap.backgroundColor, currentScreenMode);
             tileCtx.fillStyle = bgColor;
             tileCtx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
 

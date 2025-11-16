@@ -1,5 +1,6 @@
 import { ScreenMap, Tile, TileBank, TileBankDefinition, ScreenTile, SuperRLEExportData, ScreenLayerData, SpriteFrame, ProjectAsset } from '../../types';
 import { EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE as CONST_EMPTY_CELL_CHAR_CODE, SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, MSX1_PALETTE, MSX_SCREEN5_PALETTE } from '../../constants'; 
+import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
 
 const RLE_MARKER_PLETTER = 0xC9;
 
@@ -815,7 +816,7 @@ export const renderScreenToCanvas = (
   tileBanks?: TileBank[],
   allAssets?: ProjectAsset[]
 ) => {
-  const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
+  const isScreen2 = isScreen2Mode(currentScreenMode);
 
   canvas.width = screenMap.width * baseSliceDim;
   canvas.height = screenMap.height * baseSliceDim;
@@ -824,9 +825,7 @@ export const renderScreenToCanvas = (
   ctx.imageSmoothingEnabled = false;
 
   // Use backgroundColor from screenMap if available, otherwise use default
-  const bgColorIndex = screenMap.backgroundColor !== undefined ? screenMap.backgroundColor : 1;
-  const bgColor = MSX1_PALETTE[bgColorIndex]?.hex || MSX1_PALETTE[1].hex;
-  const defaultBg = isScreen2 ? bgColor : MSX_SCREEN5_PALETTE[4].hex;
+  const defaultBg = getBackgroundColorHex(screenMap.backgroundColor, currentScreenMode);
   ctx.fillStyle = defaultBg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
