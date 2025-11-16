@@ -109,6 +109,15 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     onNavigateToAsset, onShowContextMenu, waypointPickerState, onWaypointPicked,
     zoom, setZoom
 }) => {
+
+  useEffect(() => {
+    if (currentScreenMode === 'SCREEN 5') {
+      if (screenMap.width !== 32 || screenMap.height !== 26) {
+        onUpdate({ width: 32, height: 26 });
+      }
+    }
+  }, [currentScreenMode, onUpdate, screenMap.width, screenMap.height]);
+
   // Initialize activeLayer from localStorage if available
   const getInitialActiveLayer = (): ScreenEditorLayerName => {
     try {
