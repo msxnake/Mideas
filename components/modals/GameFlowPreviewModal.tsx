@@ -1,5 +1,5 @@
-﻿
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CRTShaderOverlay, CRTShaderConfig, defaultCRTConfig } from '../../src/components/CRTShaderOverlay';
 import { CRTConfigModal } from '../../src/components/CRTConfigModal';
@@ -37,17 +37,22 @@ import {
     localToGlobal,
     globalToLocal,
     getAdjacentScreens,
-    SCREEN_WIDTH_PX,
-    SCREEN_HEIGHT_PX,
     type ScreenWorldPosition
 } from '../../utils/screenCoordinates';
+import { getScreenModeMetrics } from '../../utils/screenModeConfig';
 import { log } from 'console';
 
 
-const TILE_SIZE = 8;
-const PREVIEW_WIDTH = 256;
-const PREVIEW_HEIGHT = 192;
 const ANIMATION_SPEED_MS = 200; // Fallback if sprite.animationSpeedMs is undefined
+const SCREEN2_LABEL = "SCREEN 2 (Graphics I)";
+const SCREEN5_LABEL = "SCREEN 5 (Graphics III)";
+
+const resolveScreenModeForMap = (map: ScreenMap | null, fallback: string): string => {
+    if (!map) return fallback;
+    if (map.height && map.height > 24) return SCREEN5_LABEL;
+    if (map.tileBankAssetId) return SCREEN2_LABEL;
+    return fallback;
+};
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
 
 interface ChildLinkConfig {
@@ -357,6 +362,17 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Cooldown to avoid immediate re-trigger of screen exits after a transition
     const lastScreenTransitionTimeRef = useRef<number>(0);
 
+    const previewScreenMode = useMemo(
+        () => resolveScreenModeForMap(currentScreenMap, currentScreenMode),
+        [currentScreenMap, currentScreenMode]
+    );
+    const screenModeMetrics = useMemo(() => getScreenModeMetrics(previewScreenMode), [previewScreenMode]);
+    const TILE_SIZE = screenModeMetrics.baseTileSize || 8;
+    const gridWidthTiles = currentScreenMap?.width ?? screenModeMetrics.widthTiles;
+    const gridHeightTiles = currentScreenMap?.height ?? screenModeMetrics.heightTiles;
+    const PREVIEW_WIDTH = gridWidthTiles * TILE_SIZE;
+    const PREVIEW_HEIGHT = gridHeightTiles * TILE_SIZE;
+
     const isGamepadAllowed = useCallback(() => {
         const t = (gameGlobalVariables?.CONTROL_TYPE || '').toString().toUpperCase();
         if (t === 'KEYS' || t === 'CURSORS') return false;
@@ -494,24 +510,23 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         }
     }, [isPositioningMode, isDynamic, currentNode, isFullscreen]);
 
-    // Modificar un tile en la capa de colisiÃƒÂ³n runtime
+    // Modificar un tile en la capa de colisión runtime
     const modifyTileInLayer = useCallback((tileX: number, tileY: number, newTileId: string | null) => {
-        // Validar coordenadas
-        if (tileY < 0 || tileY >= 24 || tileX < 0 || tileX >= 32) {
+        const currentLayer = runtimeCollisionLayerRef.current;
+        const maxRows = currentLayer.length || currentScreenMapRef.current?.height || 0;
+        const maxCols = (currentLayer[0]?.length ?? currentScreenMapRef.current?.width) || 0;
+        if (tileY < 0 || tileY >= maxRows || tileX < 0 || tileX >= maxCols) {
             return;
         }
 
-        // Modificar collision layer (para lÃƒÂ³gica de colisiÃƒÂ³n y render visual)
         setRuntimeCollisionLayer(prev => {
             const newLayer = JSON.parse(JSON.stringify(prev));
             if (!newLayer[tileY]) newLayer[tileY] = [];
             newLayer[tileY][tileX] = { tileId: newTileId };
-            // Update ref immediately for synchronous access in checkCollisionAt
             runtimeCollisionLayerRef.current = newLayer;
             return newLayer;
         });
 
-        // Ã¢Å“â€¦ Marcar que el buffer necesita actualizaciÃƒÂ³n en el prÃƒÂ³ximo frame
         tileBufferNeedsUpdate.current = true;
 
     }, []);
@@ -538,125 +553,130 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const isPressed = pressedKeys.current.has(key);
                 return isPressed;
 
-            case 'HAS_COLLISION':
-                // Verificar tipo espec�fico de colisi�n (enemy, item, wall, any)
+                                    case 'HAS_COLLISION':
+                // Verificar tipo específico de colisión (enemy, item, wall, any)
                 const collisionType = condition.params?.collisionType || 'any';
                 
                 switch (collisionType) {
                     case 'enemy':
-                    return entityEvents.has('collision_enemy');
+                        return entityEvents.has('collision_enemy');
                     
                     case 'item': {
-                    // Permite filtrar por tipo de item o plantilla concreta
-                    // Params opcionales: itemType, templateId, templateName
-                    
-                    if (!entityEvents.has('collision_item')) return false;
-                    
-                    const other = (entity as any).lastCollidedEntity;
-                    if (!other || !other.template) {
-                        console.warn('collision_item event detected but lastCollidedEntity is missing or invalid');
-                        return false;
+                        // Permite filtrar por tipo de item o plantilla concreta
+                        // Params opcionales: itemType, templateId, templateName
+                        if (!entityEvents.has('collision_item')) return false;
+                        const other = (entity as any).lastCollidedEntity;
+                        if (!other || !other.template) {
+                            console.warn('collision_item event detected but lastCollidedEntity is missing or invalid');
+                            return false;
+                        }
+
+                        // Remove deprecated filters from state-machine conditions
+                        // We ignore templateId/templateName so transitions only use itemType.
+                        if (condition && (condition as any).params) {
+                            delete (condition as any).params.templateId;
+                            delete (condition as any).params.templateName;
+                        }
+
+                        // Función para normalizar valores (trim + lowercase)
+                        const normalizeValue = (value: any) => {
+                            if (value === null || value === undefined || value === '') return '';
+                            return String(value).trim().toLowerCase();
+                        };
+
+                        // Obtener y normalizar parámetros de la condición
+                        const wantsItemType = condition.params?.itemType;
+                        const wantsTemplateId = condition.params?.templateId;
+                        const wantsTemplateName = condition.params?.templateName;
+
+                        // Debug logging mejorado
+                        console.log(`[Collision Debug] Item collided: ${other.template.name} (ID: ${other.template.id})`);
+                        const debugParams = {
+                            wantsItemType: wantsItemType,
+                            wantsTemplateId: wantsTemplateId,
+                            wantsTemplateName: wantsTemplateName
+                        };
+                        console.log(`[Collision Debug] State machine condition params:`, debugParams);
+
+                        // 1) Filtrar por templateId si se especifica (más específico)
+                        if (wantsTemplateId) {
+                            const normalizedWantedId = normalizeValue(wantsTemplateId);
+                            const normalizedActualId = normalizeValue(other.template.id);
+                            if (normalizedActualId !== normalizedWantedId) {
+                                console.debug(`Template ID mismatch: wanted "${normalizedWantedId}", got "${normalizedActualId}"`);
+                                return false;
+                            }
+                            console.debug(`Template ID match: "${normalizedWantedId}"`);
+                        }
+
+                        // 2) Filtrar por templateName si se especifica
+                        if (wantsTemplateName) {
+                            const normalizedWantedName = normalizeValue(wantsTemplateName);
+                            const normalizedActualName = normalizeValue(other.template.name);
+                            if (normalizedActualName !== normalizedWantedName) {
+                                console.debug(`Template name mismatch: wanted "${normalizedWantedName}", got "${normalizedActualName}"`);
+                                return false;
+                            }
+                            console.debug(`Template name match: "${normalizedWantedName}"`);
+                        }
+
+                        // 3) Filtrar por itemType (propiedad de comp_collectible)
+                        if (wantsItemType) {
+                            const comp = other.template.components?.find((c: any) => c.definitionId === 'comp_collectible');
+                            if (!comp) {
+                                console.warn(`Item entity ${other.template.name} is missing comp_collectible component`);
+                                return false;
+                            }
+                            let otherItemType = comp.defaultValues?.itemType || '';
+                            if (other.instance?.componentOverrides?.['comp_collectible']?.itemType !== undefined) {
+                                otherItemType = other.instance.componentOverrides['comp_collectible'].itemType;
+                            }
+                            const normalizedWantedType = normalizeValue(wantsItemType);
+                            const normalizedActualType = normalizeValue(otherItemType);
+                            if (normalizedActualType !== normalizedWantedType) {
+                                console.debug(`Item type mismatch: wanted "${normalizedWantedType}", got "${normalizedActualType}" (from template: ${other.template.name})`);
+                                return false;
+                            }
+                            console.debug(`Item type match: "${normalizedWantedType}"`);
+                        }
+
+                        console.log(`[Collision Debug] All conditions met for item: ${other.template.name}`);
+                        return true;
                     }
 
-                    // Remove deprecated filters from state-machine conditions
-                    // We ignore templateId/templateName so transitions only use itemType.
-                    if (condition && (condition as any).params) {
-                        delete (condition as any).params.templateId;
-                        delete (condition as any).params.templateName;
-                    }
-                    
-                    // Funci�n para normalizar valores (trim + lowercase)
-                    const normalizeValue = (value) => {
-                        if (value === null || value === undefined || value === '') return '';
-                        return String(value).trim().toLowerCase();
-                    };
-                    
-                    // Obtener y normalizar par�metros de la condici�n
-                    const wantsItemType = condition.params?.itemType;
-                    const wantsTemplateId = condition.params?.templateId;
-                    const wantsTemplateName = condition.params?.templateName;
-                    
-                    // Debug logging mejorado
-                    console.log(`[Collision Debug] Item collided: ${other.template.name} (ID: ${other.template.id})`);
-                    
-                    const debugParams = {
-                        wantsItemType: wantsItemType,
-                        wantsTemplateId: wantsTemplateId,
-                        wantsTemplateName: wantsTemplateName
-                    };
-                    console.log(`[Collision Debug] State machine condition params:`, debugParams);
-                    
-                    // 1) Filtrar por templateId si se especifica (m�s espec�fico)
-                    if (wantsTemplateId) {
-                        const normalizedWantedId = normalizeValue(wantsTemplateId);
-                        const normalizedActualId = normalizeValue(other.template.id);
-                        
-                        if (normalizedActualId !== normalizedWantedId) {
-                        console.debug(`Template ID mismatch: wanted "${normalizedWantedId}", got "${normalizedActualId}"`);
-                        // Si templateId no coincide, no comprobar itemType ni templateName
-                        return false;
-                        }
-                        // Si templateId coincide, podemos devolver true inmediatamente
-                        // o continuar para verificar itemType si tambi�n est� especificado
-                        console.debug(`Template ID match: "${normalizedWantedId}"`);
-                    }
-                    
-                    // 2) Filtrar por templateName si se especifica
-                    if (wantsTemplateName) {
-                        const normalizedWantedName = normalizeValue(wantsTemplateName);
-                        const normalizedActualName = normalizeValue(other.template.name);
-                        
-                        if (normalizedActualName !== normalizedWantedName) {
-                        console.debug(`Template name mismatch: wanted "${normalizedWantedName}", got "${normalizedActualName}"`);
-                        return false;
-                        }
-                        console.debug(`Template name match: "${normalizedWantedName}"`);
-                    }
-                    
-                    // 3) Filtrar por itemType (propiedad de comp_collectible)
-                    if (wantsItemType) {
-                        // Buscar el componente comp_collectible en el template
-                        const comp = other.template.components?.find((c: any) => c.definitionId === 'comp_collectible');
-                        
-                        if (!comp) {
-                        console.warn(`Item entity ${other.template.name} is missing comp_collectible component`);
-                        return false;
-                        }
-                        
-                        // Obtener itemType desde valores por defecto o overrides
-                        let otherItemType = comp.defaultValues?.itemType || '';
-                        
-                        // Verificar si hay overrides en la instancia
-                        if (other.instance?.componentOverrides?.['comp_collectible']?.itemType !== undefined) {
-                        otherItemType = other.instance.componentOverrides['comp_collectible'].itemType;
-                        }
-                        
-                        // Normalizar y comparar
-                        const normalizedWantedType = normalizeValue(wantsItemType);
-                        const normalizedActualType = normalizeValue(otherItemType);
-                        
-                        if (normalizedActualType !== normalizedWantedType) {
-                        console.debug(`Item type mismatch: wanted "${normalizedWantedType}", got "${normalizedActualType}" (from template: ${other.template.name})`);
-                        return false;
-                        }
-                        console.debug(`Item type match: "${normalizedWantedType}"`);
-                    }
-                    
-                    // Si llegamos aqu�, todas las condiciones especificadas se cumplen
-                    console.log(`[Collision Debug] All conditions met for item: ${other.template.name}`);
-                    return true;
-                    }
-    
-    case 'wall':
-      return entityEvents.has('collision_wall');
-      
-    case 'any':
-    default:
-      // Cualquier tipo de colisi�n
-      return entityEvents.has('collision_enemy') || 
-             entityEvents.has('collision_item') || 
-             entityEvents.has('collision_wall');
-  }
+                    case 'wall':
+                        return entityEvents.has('collision_wall');
+
+                    case 'any':
+                    default:
+                        return entityEvents.has('collision_enemy') ||
+                               entityEvents.has('collision_item') ||
+                               entityEvents.has('collision_wall');
+                }
+
+            case 'ON_WALL_COLLISION': {
+                const requestedDirection = (condition.params?.direction || 'any').toLowerCase();
+                if (requestedDirection === 'any') {
+                    return (
+                        entityEvents.has('collision_wall') ||
+                        entityEvents.has('collision_wall_left') ||
+                        entityEvents.has('collision_wall_right') ||
+                        entityEvents.has('collision_wall_up') ||
+                        entityEvents.has('collision_wall_down')
+                    );
+                }
+
+                const validDirections = ['left', 'right', 'up', 'down'];
+                const normalizedDirection = validDirections.includes(requestedDirection)
+                    ? requestedDirection
+                    : 'any';
+
+                if (normalizedDirection === 'any') {
+                    return entityEvents.has('collision_wall');
+                }
+
+                return entityEvents.has(`collision_wall_${normalizedDirection}`);
+            }
 
             case 'HAS_DEADLY_TILE_COLLISION':
                 // Verificar si la entidad estÃƒÂ¡ tocando un tile mortal
@@ -2030,14 +2050,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // Initialize runtime collision layer (cloned from screenMap for in-game modifications)
         if (currentScreenMap.layers?.collision) {
             const clonedLayer = JSON.parse(JSON.stringify(currentScreenMap.layers.collision));
-            runtimeCollisionLayerRef.current = clonedLayer; // Update ref immediately for synchronous access
+            runtimeCollisionLayerRef.current = clonedLayer;
             setRuntimeCollisionLayer(clonedLayer);
         } else {
-            // Create empty collision layer if not exists
-            const emptyLayer: ScreenTile[][] = Array(24).fill(null).map(() =>
-                Array(32).fill(null).map(() => ({ tileId: null }))
+            const height = currentScreenMap.height ?? gridHeightTiles;
+            const width = currentScreenMap.width ?? gridWidthTiles;
+            const emptyLayer: ScreenTile[][] = Array.from({ length: height }, () =>
+                Array.from({ length: width }, () => ({ tileId: null }))
             );
-            runtimeCollisionLayerRef.current = emptyLayer; // Update ref immediately for synchronous access
+            runtimeCollisionLayerRef.current = emptyLayer;
             setRuntimeCollisionLayer(emptyLayer);
         }
 
@@ -2411,9 +2432,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         ctx.imageSmoothingEnabled = false;
 
         // --- Nuevo: Pre-renderizado de Tiles ---
-        let tileCanvas: HTMLCanvasElement | null = null;
-        let tileCtx: CanvasRenderingContext2D | null = null;
-
         const subMenuNode = currentNode.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
         const bgAsset = subMenuNode?.appearance?.backgroundScreenAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.backgroundScreenAssetId) : null;
         const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
@@ -2450,12 +2468,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
         const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string, runtimeLayer?: ScreenTile[][]) => {
             if (!map) return null; // No hay mapa para renderizar
-            tileCanvas = document.createElement('canvas');
-            tileCanvas.width = PREVIEW_WIDTH;
-            tileCanvas.height = PREVIEW_HEIGHT;
-            tileCtx = tileCanvas.getContext('2d');
-            if (!tileCtx) return null;
-            tileCtx.imageSmoothingEnabled = false;
+            const canvas = tileBufferRef.current ?? document.createElement('canvas');
+            canvas.width = PREVIEW_WIDTH;
+            canvas.height = PREVIEW_HEIGHT;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            ctx.imageSmoothingEnabled = false;
 
             // Si hay runtime layer, crear copia temporal del screenMap con ese layer solo para collision
             // El background se mantiene original para el renderizado visual
@@ -2464,12 +2482,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 layers: {
                     ...map.layers,
                     background: map.layers.background,  // Mantener background original para renderizado
-                    collision: runtimeLayer              // Solo usar runtime para detecciÃƒÂ³n de colisiones
+                    collision: runtimeLayer              // Solo usar runtime para detección de colisiones
                 }
             } : map;
 
-            renderScreenToCanvas(tileCanvas, mapToRender, tset, mode, TILE_SIZE);
-            return tileCanvas;
+            renderScreenToCanvas(canvas, mapToRender, tset, mode, TILE_SIZE);
+            tileBufferRef.current = canvas;
+            return canvas;
         };
 
         // Debug helper: draw outlines for solid tiles from the Collision layer
@@ -2512,7 +2531,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         // Pre-renderizar el mapa actual si existe, usando runtimeCollisionLayer si estÃƒÂ¡ disponible
         if (screenMapToRender) {
             const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
-            tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode, layerToUse);
+            tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
             tileBufferNeedsUpdate.current = false; // Reset flag
         }
         // --- Fin Nuevo ---
@@ -3217,6 +3236,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
             ...(entity.instance.componentOverrides?.['comp_collision'] || {})
         };
+        const registerWallCollisionEvent = (direction: 'left' | 'right' | 'up' | 'down') => {
+            triggerEvent(entity.instance.id, 'collision_wall');
+            triggerEvent(entity.instance.id, `collision_wall_${direction}`);
+        };
         const getHitboxFor = (x: number, y: number) => {
             // Respect sprite-defined hitbox when comp values are not provided
             const sHit = entity.sprite.hitbox;
@@ -3251,6 +3274,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
                 tentativeX = tileLeftEdge - Number(entityCollisionProps.offsetX ?? 0) - tentativeHitbox.width;
                 entity.vx = 0;
+                registerWallCollisionEvent('right');
             }
             } else if (entity.vx < 0) { // Izquierda
             if (checkCollisionAt(tentativeHitbox.x, centerY1, screenMap) ||
@@ -3259,6 +3283,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
                 tentativeX = tileRightEdge - Number(entityCollisionProps.offsetX ?? 0);
                 entity.vx = 0;
+                registerWallCollisionEvent('left');
             }
             }
             if (collisionX) {
@@ -3280,6 +3305,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
                     tentativeY = tileTopEdge - Number(entityCollisionProps.offsetY ?? 0) - tentativeHitbox.height;
                     entity.vy = 0;
+                    registerWallCollisionEvent('down');
                 }
             } else if (entity.vy < 0) { // Saltando (hacia arriba)
             if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap) ||
@@ -3289,6 +3315,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
                 tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
                 entity.vy = 0; // Detener velocidad Y (golpeÃƒÆ’Ã‚Â³ techo)
+                registerWallCollisionEvent('up');
 
           
             }
@@ -3554,7 +3581,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // Regenerar buffer si es necesario (tiles modificados por BREAK_TILE/REPLACE_TILE)
             if (tileBufferNeedsUpdate.current && screenMapToRender) {
                 const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
-                tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, currentScreenMode, layerToUse);
+                tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
                 tileBufferNeedsUpdate.current = false;
             }
             // === RESOLVE PARENTS FOR CHILD-LINKED ENTITIES ===
