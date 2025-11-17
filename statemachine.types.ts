@@ -61,6 +61,8 @@ export interface StateMachineState {
   name: StateMachineStateName;
   position?: { x: number; y: number };
   properties?: { [key: string]: any };
+  onEnter?: Action[];
+  onExit?: Action[];
 }
 
 export type StateMachineInputType = 'key' | 'system_action' | 'collision';
