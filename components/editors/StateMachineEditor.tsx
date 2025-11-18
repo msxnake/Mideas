@@ -74,20 +74,22 @@ const StateDetailView = ({
       </Panel>
       <Panel title="On Enter Actions">
         <div className="p-2">
-          <ActionSequenceEditor
-            actions={state.onEnter || []}
-            onUpdateActions={(newActions) => onUpdateActions('onEnter', newActions)}
-            allAssets={allAssets}
-          />
+            <ActionSequenceEditor
+              actions={state.onEnter || []}
+              onUpdateActions={(newActions) => onUpdateActions('onEnter', newActions)}
+              allAssets={allAssets}
+              entityTemplates={entityTemplates}
+            />
         </div>
       </Panel>
       <Panel title="On Exit Actions">
         <div className="p-2">
-          <ActionSequenceEditor
-            actions={state.onExit || []}
-            onUpdateActions={(newActions) => onUpdateActions('onExit', newActions)}
-            allAssets={allAssets}
-          />
+            <ActionSequenceEditor
+              actions={state.onExit || []}
+              onUpdateActions={(newActions) => onUpdateActions('onExit', newActions)}
+              allAssets={allAssets}
+              entityTemplates={entityTemplates}
+            />
         </div>
       </Panel>
       <Panel title="Transitions">

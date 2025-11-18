@@ -1,4 +1,4 @@
-
+﻿
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CRTShaderOverlay, CRTShaderConfig, defaultCRTConfig } from '../../src/components/CRTShaderOverlay';
@@ -30,7 +30,7 @@ import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFont
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
-import { StateMachine, StateMachineState, Action } from '../../statemachine.types';
+import { StateMachine, StateMachineState, Action, TransitionGuard } from '../../statemachine.types';
 import { AYSynthesizer } from '../utils/aySynthesizer';
 import {
     buildScreenWorldMap,
@@ -171,6 +171,51 @@ const parseChildLinkConfig = (template: EntityTemplate, instance: EntityInstance
         detachOnParentLost: values.detachOnParentLost === true,
         mirrorParent: values.mirrorParent === true || values.mirrorParent === 'true'
     };
+};
+
+const normalizeVariableName = (value?: string | null): string | undefined => {
+    if (value === undefined || value === null) return undefined;
+    const raw = `${value}`.trim();
+    if (!raw) return undefined;
+    const separators = ['\u2192', '->', ':', '\u001A'];
+    let normalized = raw;
+    separators.forEach(separator => {
+        if (normalized.includes(separator)) {
+            const parts = normalized.split(separator);
+            const last = parts[parts.length - 1];
+            normalized = last ? last.trim() : normalized;
+        }
+    });
+    return normalized || undefined;
+};
+
+const coerceGlobalVariableValue = (value: any): any => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed === '') return true;
+        const lowered = trimmed.toLowerCase();
+        if (lowered === 'true') return true;
+        if (lowered === 'false') return false;
+        const numeric = Number(trimmed);
+        if (!Number.isNaN(numeric)) {
+            return numeric;
+        }
+        return trimmed;
+    }
+
+    if (value === null || value === undefined) {
+        return true;
+    }
+
+    if (typeof value === 'number') {
+        return value;
+    }
+
+    return value;
 };
 
 const resolveChildLinkParents = (
@@ -336,6 +381,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Keep a live ref for reads inside the animation loop and effects
     const gameGlobalVariablesRef = useRef<Record<string, any>>({});
     useEffect(() => { gameGlobalVariablesRef.current = gameGlobalVariables; }, [gameGlobalVariables]);
+    const updateGameGlobalVariables = useCallback((updater: (prev: Record<string, any>) => Record<string, any>) => {
+        setGameGlobalVariables(prev => {
+            const next = updater(prev);
+            gameGlobalVariablesRef.current = next;
+            return next;
+        });
+    }, [setGameGlobalVariables]);
     // HUD refresh key to make sure overlay re-paints when globals change
     const [hudVersion, setHudVersion] = useState(0);
     useEffect(() => { setHudVersion(v => v + 1); }, [gameGlobalVariables]);
@@ -707,6 +759,76 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         }
     }, []);
 
+    const evaluateGuard = useCallback((guard?: TransitionGuard | null): boolean => {
+        if (!guard || !guard.variableName) return true;
+        const normalizeValue = (value: any): any => {
+            if (typeof value === 'number' || typeof value === 'boolean') return value;
+            if (value === null || value === undefined || value === '') return '';
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (trimmed === '') return ''; // Should be caught above, but for safety
+                const lowered = trimmed.toLowerCase();
+                if (lowered === 'true') return true;
+                if (lowered === 'false') return false;
+                const num = Number(trimmed);
+                if (!Number.isNaN(num)) return num;
+                return trimmed;
+            }
+            return value;
+        };
+
+        const resolvedVarName = normalizeVariableName(guard.variableName) ?? (typeof guard.variableName === 'string' ? guard.variableName.trim() : `${guard.variableName}`.trim());
+        if (!resolvedVarName) return true;
+
+        // Normalizar ambos lados de la comparación para asegurar que los tipos coincidan
+        // (p. ej., booleano `true` se compara correctamente con la cadena `"true"`)
+        const leftValue = normalizeValue(gameGlobalVariablesRef.current?.[resolvedVarName]);
+        const rightValue = normalizeValue(guard.compareValue);
+
+        const compareNumbers = (left: number, right: number) => {
+            switch (guard.operator) {
+                case '==': return left === right;
+                case '!=': return left !== right;
+                case '>': return left > right;
+                case '<': return left < right;
+                case '>=': return left >= right;
+                case '<=': return left <= right;
+                default: return false;
+            }
+        };
+
+        const compareBooleans = (left: boolean, right: boolean) => {
+            switch (guard.operator) {
+                case '==': return left === right;
+                case '!=': return left !== right;
+                default: return false;
+            }
+        };
+
+        // Si después de normalizar, ambos son números, usa comparación numérica.
+        if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+            return compareNumbers(leftValue, rightValue);
+        }
+
+        // Si después de normalizar, ambos son booleanos, usa comparación booleana.
+        if (typeof leftValue === 'boolean' && typeof rightValue === 'boolean') {
+            return compareBooleans(leftValue, rightValue);
+        }
+
+        // Para cualquier otra combinación (string, etc.), compara como cadenas.
+        const leftStr = (leftValue ?? '').toString().toLowerCase();
+        const rightStr = (rightValue ?? '').toString().toLowerCase();
+
+        if (guard.operator === '==') {
+            return leftStr === rightStr;
+        }
+        if (guard.operator === '!=') {
+            return leftStr !== rightStr;
+        }
+        // Non-numeric comparisons for >, <, >=, <= are not supported for strings
+        return false;
+    }, []);
+
     const executeStateActions = (entity: AnimatedEntity, actions?: Action[]) => {
         if (!actions?.length) {
             return;
@@ -910,21 +1032,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     break;
 
                                 case 'SET_VARIABLE': {
-                                    const varName = action.params.variable ?? action.params.variableName ?? action.params.name;
-                                    const varValue = action.params.value;
-                                    if (varName !== undefined && varValue !== undefined) {
-                                        // Coerce numeric-looking strings to numbers (e.g., "10" -> 10, "-1" -> -1)
-                                        const parsed = (typeof varValue === 'string')
-                                            ? ((): any => {
-                                                const t = varValue.trim();
-                                                const n = Number(t);
-                                                return (t !== '' && !Number.isNaN(n)) ? n : varValue;
-                                              })()
-                                            : varValue;
-                                        setGameGlobalVariables(prev => {
-                                            // Log only when Ammo decreases
-                                            if (String(varName).toLowerCase() === 'ammo') {
-                                                const prevRaw = (prev as any)[varName];
+                                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
+                                    const varValue = action.params.value === undefined ? true : action.params.value;
+
+                                    if (resolvedVarName) {
+                                        const parsed = coerceGlobalVariableValue(varValue);
+                                        updateGameGlobalVariables(prev => {
+                                            if (resolvedVarName.toLowerCase() === 'ammo') {
+                                                const prevRaw = (prev as any)[resolvedVarName];
                                                 const prevNum = Number(typeof prevRaw === 'string' ? prevRaw.trim() : prevRaw);
                                                 const nextNum = Number(typeof parsed === 'string' ? (parsed as any).trim?.() ?? parsed : parsed as any);
                                                 if (!Number.isNaN(prevNum) && !Number.isNaN(nextNum) && nextNum < prevNum) {
@@ -933,7 +1049,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                             }
                                             return {
                                                 ...prev,
-                                                [varName]: parsed
+                                                [resolvedVarName]: parsed
                                             };
                                         });
                                     }
@@ -941,25 +1057,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 }
 
                                 case 'INCREMENT_VARIABLE': {
-                                    const varName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
                                     // Coerce amount to number (supports numeric strings)
                                     const incrementAmount = (() => {
                                         const raw = action.params.amount ?? 1;
                                         const n = Number(typeof raw === 'string' ? raw.trim() : raw);
                                         return Number.isNaN(n) ? 1 : n;
                                     })();
-                                    if (varName !== undefined) {
-                                        setGameGlobalVariables(prev => {
-                                            const raw = (prev as any)[varName];
+                                    if (resolvedVarName) {
+                                        updateGameGlobalVariables(prev => {
+                                            const raw = (prev as any)[resolvedVarName];
                                             const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
                                             const currentValue = Number.isNaN(curr) ? 0 : curr;
                                             const newValue = currentValue + incrementAmount;
-                                            if (String(varName).toLowerCase() === 'ammo' && newValue < currentValue) {
+                                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
                                                 try { console.log(`[Ammo] ${currentValue} -> ${newValue} (INCREMENT_VARIABLE)`); } catch {}
                                             }
                                             return {
                                                 ...prev,
-                                                [varName]: newValue
+                                                [resolvedVarName]: newValue
                                             };
                                         });
                                     }
@@ -967,25 +1084,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 }
 
                                 case 'DECREMENT_VARIABLE': {
-                                    const varName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
                                     // Coerce amount to number (supports numeric strings)
                                     const decrementAmount = (() => {
                                         const raw = action.params.amount ?? 1;
                                         const n = Number(typeof raw === 'string' ? raw.trim() : raw);
                                         return Number.isNaN(n) ? 1 : n;
                                     })();
-                                    if (varName !== undefined) {
-                                        setGameGlobalVariables(prev => {
-                                            const raw = (prev as any)[varName];
+                                    if (resolvedVarName) {
+                                        updateGameGlobalVariables(prev => {
+                                            const raw = (prev as any)[resolvedVarName];
                                             const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
                                             const currentValue = Number.isNaN(curr) ? 0 : curr;
                                             const newValue = currentValue - decrementAmount;
-                                            if (String(varName).toLowerCase() === 'ammo' && newValue < currentValue) {
+                                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
                                                 try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch {}
                                             }
                                             return {
                                                 ...prev,
-                                                [varName]: newValue
+                                                [resolvedVarName]: newValue
                                             };
                                         });
                                     }
@@ -1640,8 +1758,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         for (const transition of entity.stateMachine.transitions) {
             if (transition.fromStateId !== currentStateDef.id) continue;
 
-            // Evaluate the transition condition using the entire entity state
-            if (transition.conditions && evaluateCondition(transition.conditions, entity)) {
+            const conditionSatisfied = transition.conditions ? evaluateCondition(transition.conditions, entity) : true;
+            if (conditionSatisfied && evaluateGuard(transition.guard)) {
                 const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
                 if (nextState) {
                     const { stateChanged } = changeEntityState(entity, nextState, {
@@ -1666,7 +1784,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 }
             }
         }
-    }, [evaluateCondition, changeEntityState, executeStateActions]);
+    }, [evaluateCondition, changeEntityState, executeStateActions, evaluateGuard]);
 
     const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
         const entity = entitiesRef.current.find(e => e.instance.id === entityId);
@@ -1736,7 +1854,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             try { collectedItemsRegistry.current.clear(); } catch {}
             try { revealedSecretTiles.current.clear(); } catch {}
             // - Reset global variables (will be re-initialized by Globals node if present)
-            setGameGlobalVariables({});
+            updateGameGlobalVariables(() => ({}));
             // - Reset internal refs related to globals and timers
             gameGlobalVariablesRef.current = {};
             lastScreenTransitionTimeRef.current = 0;
@@ -1796,10 +1914,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const selectedOption = subMenuNode.options[selectedExpanded.originalIndex];
         if (!selectedOption) return;
         if (selectedExpanded.isControlOption && selectedExpanded.controlValue && selectedOption.globalVariableName) {
-            setGameGlobalVariables(prev => ({
-                ...prev,
-                [selectedOption.globalVariableName!]: selectedExpanded.controlValue
-            }));
+            const resolvedVarName = normalizeVariableName(selectedOption.globalVariableName);
+            if (resolvedVarName) {
+                updateGameGlobalVariables(prev => ({
+                    ...prev,
+                    [resolvedVarName]: selectedExpanded.controlValue
+                }));
+            }
         }
         const connection = connections.find(c => c.from.nodeId === currentNode.id && c.from.sourceId === selectedOption.id);
         if (connection) {
@@ -1930,7 +2051,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         try { boxPickedUpRegistry.current.clear(); } catch {}
                         try { collectedItemsRegistry.current.clear(); } catch {}
                         try { revealedSecretTiles.current.clear(); } catch {}
-                        setGameGlobalVariables({});
+                        updateGameGlobalVariables(() => ({}));
                         try { gameGlobalVariablesRef.current = {}; } catch {}
                         try { lastScreenTransitionTimeRef.current = 0; } catch {}
 
@@ -2460,7 +2581,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const safeX = Math.max(8, Math.min(PREVIEW_WIDTH - heroForThisScreen.sprite.size.width - 8, Math.round(heroForThisScreen.x)));
             const safeY = Math.max(8, Math.min(PREVIEW_HEIGHT - heroForThisScreen.sprite.size.height - 8, Math.round(heroForThisScreen.y)));
 
-            setGameGlobalVariables(prev => ({
+            updateGameGlobalVariables(prev => ({
                 ...prev,
                 playerCheckpointX: safeX,
                 playerCheckpointY: safeY,
@@ -3057,10 +3178,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     try {
                         const globalsNode: any = currentNode;
                         const vars: Array<{ name: string; value: string }> = globalsNode?.variables || [];
-                        setGameGlobalVariables(prev => {
+                        updateGameGlobalVariables(prev => {
                             const next: Record<string, any> = { ...prev };
                             for (const entry of vars) {
-                                const key = (entry?.name || '').trim();
+                                const baseName = (entry?.name || '').trim();
+                                const key = normalizeVariableName(entry?.name) ?? baseName;
                                 if (!key) continue;
                                 const raw = String(entry?.value ?? '');
                                 const lower = raw.trim().toLowerCase();
@@ -4196,9 +4318,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             allowByAmmoVar = (ammoVal > 0) || (ammoVal < 0); // -1 => infinite
                             }
                         }
-                        
-                        console.log(`[Shooting Debug] Entity: ${entityA.instance.name}, hasAmmo: ${hasAmmo}, Ammo: ${ammoRaw}, canFire: ${canFire && hasAmmo && allowByAmmoVar}`);
-                        
+
                         if (firePressed && canFire && hasAmmo && allowByAmmoVar) {
                             spawnProjectile(entityA);
                             
@@ -4208,7 +4328,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             if (!Number.isNaN(currentAmmo) && currentAmmo >= 0) {
                                 const newAmmo = Math.max(0, currentAmmo - 1);
                                 console.log(`[Ammo] ${currentAmmo} -> ${newAmmo} (SHOOT)`);
-                                setGameGlobalVariables(prev => ({
+                                updateGameGlobalVariables(prev => ({
                                 ...prev,
                                 Ammo: newAmmo
                                 }));
@@ -5486,4 +5606,3 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         </>
     );
 };
-

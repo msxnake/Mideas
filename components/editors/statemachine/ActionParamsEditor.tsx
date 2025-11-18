@@ -1,6 +1,6 @@
 ﻿import React, { useMemo } from 'react';
 import { Action, ActionTypes } from '../../../statemachine.types';
-import { ProjectAsset } from '../../../types';
+import { ProjectAsset, EntityTemplate } from '../../../types';
 import { getAllGlobalVariables } from '../../../utils/globalVariablesUtils';
 import { DEFAULT_COMPONENT_DEFINITIONS } from '../../../data/defaults';
 
@@ -8,6 +8,7 @@ interface ActionParamsEditorProps {
   action: Action;
   onUpdateParams: (params: { [key: string]: any }) => void;
   allAssets?: ProjectAsset[];
+  entityTemplates?: EntityTemplate[];
 }
 
 const ParamInput = ({ label, value, onChange, type = "text" }) => (
@@ -23,9 +24,23 @@ const ParamInput = ({ label, value, onChange, type = "text" }) => (
   </div>
 );
 
-export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, onUpdateParams, allAssets = [] }) => {
+export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, onUpdateParams, allAssets = [], entityTemplates = [] }) => {
   // Get all variables (default + custom)
   const allVariables = useMemo(() => getAllGlobalVariables(allAssets), [allAssets]);
+
+  const mergedEntityTemplates = useMemo(() => {
+    const assetTemplates = allAssets
+      .filter(asset => asset.type === 'entitytemplate' && asset.data)
+      .map(asset => asset.data as EntityTemplate);
+    const combined = [...entityTemplates, ...assetTemplates];
+    const unique = new Map<string, EntityTemplate>();
+    combined.forEach(template => {
+      if (template?.id && !unique.has(template.id)) {
+        unique.set(template.id, template);
+      }
+    });
+    return Array.from(unique.values());
+  }, [allAssets, entityTemplates]);
 
   const handleParamChange = (paramName: string, value: any) => {
     onUpdateParams({ ...action.params, [paramName]: value });
@@ -223,7 +238,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               >
                 {allVariables.map((variable) => (
                   <option key={variable.name} value={variable.name}>
-                    {variable.category} â†’ {variable.name}
+                    {`${variable.category} -> ${variable.name}`}
                   </option>
                 ))}
               </select>
@@ -294,7 +309,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
               >
                 {allVariables.map((variable) => (
                   <option key={variable.name} value={variable.name}>
-                    {variable.category} â†’ {variable.name}
+                    {`${variable.category} -> ${variable.name}`}
                   </option>
                 ))}
               </select>
@@ -405,6 +420,59 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
             </div>
           </div>
         );
+
+      case ActionTypes.SPAWN_ENTITY: {
+        const selectedTemplateId = action.params.templateId || action.params.entityTemplateId || '';
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Template</label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => handleParamChange('templateId', e.target.value || undefined)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="">-- Select Entity Template --</option>
+                {mergedEntityTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {mergedEntityTemplates.length === 0 && (
+              <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded border border-yellow-600">
+                No entity templates found. Create or import one in the Assets panel first.
+              </div>
+            )}
+            <div className="text-xs text-msx-textsecondary">
+              Leave X and Y empty to spawn at the current entity position.
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <ParamInput
+                label="X"
+                type="number"
+                value={action.params.x ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const parsed = val === '' ? undefined : parseFloat(val);
+                  handleParamChange('x', Number.isNaN(parsed) ? undefined : parsed);
+                }}
+              />
+              <ParamInput
+                label="Y"
+                type="number"
+                value={action.params.y ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const parsed = val === '' ? undefined : parseFloat(val);
+                  handleParamChange('y', Number.isNaN(parsed) ? undefined : parsed);
+                }}
+              />
+            </div>
+          </div>
+        );
+      }
 
       case ActionTypes.BREAK_TILE:
       case ActionTypes.REPLACE_TILE:
