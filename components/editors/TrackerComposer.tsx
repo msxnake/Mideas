@@ -1,18 +1,19 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { TrackerSongData, TrackerPattern, TrackerRow, TrackerCell, PT3Instrument, PT3Ornament, PT3ChannelId } from '../../types';
+import { TrackerSongData, TrackerPattern, TrackerRow, TrackerCell, PT3Instrument, PT3Ornament, PT3ChannelId, SCCInstrument, SCCChannelId, TrackerChannelId } from '../../types';
 import { Button } from '../common/Button';
 import {
-    DEFAULT_PT3_ROWS_PER_PATTERN, PT3_CHANNELS,
-    PT3_NOTE_NAMES, PT3_MAX_INSTRUMENTS, PT3_MAX_ORNAMENTS, PT3_PIANO_KEY_LAYOUT,
-    PT3_KEYBOARD_OCTAVE_MIN_MAX, 
-    DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED
-} from '../../constants'; 
+  DEFAULT_PT3_ROWS_PER_PATTERN, PT3_CHANNELS, SCC_CHANNELS,
+  PT3_NOTE_NAMES, PT3_MAX_INSTRUMENTS, PT3_MAX_ORNAMENTS, PT3_PIANO_KEY_LAYOUT,
+  PT3_KEYBOARD_OCTAVE_MIN_MAX,
+  DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED
+} from '../../constants';
 import { AYSynthesizer } from '../utils/aySynthesizer';
+import { SCCSynthesizer } from '../utils/sccSynthesizer';
 import {
-    createEmptyRow, createDefaultTrackerPattern,
-    NOTE_REGEX, INSTRUMENT_REGEX, ORNAMENT_REGEX, VOLUME_REGEX,
-    createEmptyCell
+  createEmptyRow, createDefaultTrackerPattern,
+  NOTE_REGEX, INSTRUMENT_REGEX, ORNAMENT_REGEX, VOLUME_REGEX,
+  createEmptyCell
 } from '../utils/trackerUtils';
 import { LogModal } from '../modals/LogModal'; // Import the new LogModal
 
@@ -27,6 +28,7 @@ import { PlusCircleIcon } from '../icons/MsxIcons';
 import { PatternEditorGrid } from '../tracker/PatternEditorGrid';
 import { InstrumentEditorModal } from '../tracker/InstrumentEditorModal';
 import { OrnamentEditorModal } from '../tracker/OrnamentEditorModal';
+import { WaveformEditorModal } from '../tracker/WaveformEditorModal';
 import { Panel } from '../common/Panel';
 
 
@@ -46,8 +48,8 @@ interface TrackerComposerProps {
  * @internal
  */
 interface InstrumentModalBuffer extends Omit<Partial<PT3Instrument>, 'volumeEnvelope' | 'toneEnvelope'> {
-    volumeEnvelope?: string;
-    toneEnvelope?: string;
+  volumeEnvelope?: string;
+  toneEnvelope?: string;
 }
 
 /**
@@ -55,7 +57,7 @@ interface InstrumentModalBuffer extends Omit<Partial<PT3Instrument>, 'volumeEnve
  * @internal
  */
 interface OrnamentModalBuffer extends Omit<Partial<PT3Ornament>, 'data'> {
-    data?: string;
+  data?: string;
 }
 
 /**
@@ -64,194 +66,195 @@ interface OrnamentModalBuffer extends Omit<Partial<PT3Ornament>, 'data'> {
  * @internal
  */
 const createOdeToJoySampleSong = (): TrackerSongData => {
-    const instruments: PT3Instrument[] = [
-        {
-            id: 1,
-            name: "Bajo eléctrico (Bass)",
-            volumeEnvelope: [0,50,100,127,110,100,80],
-            volumeLoop: 3,
-            toneEnvelope: [0],
-            toneLoop: 255,
-            ayToneEnabled: true,
-            ayNoiseEnabled: false,
-            ayEnvelopeShape: 9,
-        },
-        {
-            id: 2,
-            name: "Caja / Snare Drum",
-            volumeEnvelope: [127,100,80,40,20,0],
-            volumeLoop: 255,
-            toneEnvelope: [0],
-            ayToneEnabled: false,
-            ayNoiseEnabled: true,
-            ayEnvelopeShape: 0,
-        },
-        {
-            id: 3,
-            name: "Bombo / Kick Drum",
-            volumeEnvelope: [127,90,70,50,20,0],
-            toneEnvelope: [10,9,8,7,6,5,4,3,2,1,0],
-            volumeLoop: 255,
-            toneLoop: 255,
-            ayToneEnabled: true,
-            ayNoiseEnabled: false,
-            ayEnvelopeShape: 0,
-        },
-        {
-            id: 4,
-            name: "Platillo / Hi-Hat",
-            volumeEnvelope: [80,70,60,40,20,0],
-            toneEnvelope: [0],
-            volumeLoop: 255,
-            toneLoop: 255,
-            ayToneEnabled: false,
-            ayNoiseEnabled: true,
-            ayEnvelopeShape: 0,
-        },
-        {
-            id: 5,
-            name: "Lead con vibrato",
-            volumeEnvelope: [0,30,80,127,110,100,90],
-            volumeLoop: 2,
-            toneEnvelope: [0,1,2,1,0,-1,-2,-1],
-            toneLoop: 0,
-            ayToneEnabled: true,
-            ayNoiseEnabled: false,
-            ayEnvelopeShape: 11,
-        },
-        {
-            id: 6,
-            name: "Arpegio rápido (Chip Chord)",
-            volumeEnvelope: [100,127,100,90,100,127,90,80],
-            volumeLoop: 0,
-            toneEnvelope: [0,4,7,12,7,4,0],
-            toneLoop: 0,
-            ayToneEnabled: true,
-            ayNoiseEnabled: false,
-            ayEnvelopeShape: 13,
-        },
-        {
-            id: 7,
-            name: "Organillo / Pad simple",
-            volumeEnvelope: [0,40,80,120,127,100,90,80,70,60],
-            volumeLoop: 4,
-            toneEnvelope: [0,0,1,1,0,0,1,1],
-            toneLoop: 0,
-            ayToneEnabled: true,
-            ayNoiseEnabled: false,
-            ayEnvelopeShape: 12,
-        }
-    ];
+  const instruments: PT3Instrument[] = [
+    {
+      id: 1,
+      name: "Bajo eléctrico (Bass)",
+      volumeEnvelope: [0, 50, 100, 127, 110, 100, 80],
+      volumeLoop: 3,
+      toneEnvelope: [0],
+      toneLoop: 255,
+      ayToneEnabled: true,
+      ayNoiseEnabled: false,
+      ayEnvelopeShape: 9,
+    },
+    {
+      id: 2,
+      name: "Caja / Snare Drum",
+      volumeEnvelope: [127, 100, 80, 40, 20, 0],
+      volumeLoop: 255,
+      toneEnvelope: [0],
+      ayToneEnabled: false,
+      ayNoiseEnabled: true,
+      ayEnvelopeShape: 0,
+    },
+    {
+      id: 3,
+      name: "Bombo / Kick Drum",
+      volumeEnvelope: [127, 90, 70, 50, 20, 0],
+      toneEnvelope: [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+      volumeLoop: 255,
+      toneLoop: 255,
+      ayToneEnabled: true,
+      ayNoiseEnabled: false,
+      ayEnvelopeShape: 0,
+    },
+    {
+      id: 4,
+      name: "Platillo / Hi-Hat",
+      volumeEnvelope: [80, 70, 60, 40, 20, 0],
+      toneEnvelope: [0],
+      volumeLoop: 255,
+      toneLoop: 255,
+      ayToneEnabled: false,
+      ayNoiseEnabled: true,
+      ayEnvelopeShape: 0,
+    },
+    {
+      id: 5,
+      name: "Lead con vibrato",
+      volumeEnvelope: [0, 30, 80, 127, 110, 100, 90],
+      volumeLoop: 2,
+      toneEnvelope: [0, 1, 2, 1, 0, -1, -2, -1],
+      toneLoop: 0,
+      ayToneEnabled: true,
+      ayNoiseEnabled: false,
+      ayEnvelopeShape: 11,
+    },
+    {
+      id: 6,
+      name: "Arpegio rápido (Chip Chord)",
+      volumeEnvelope: [100, 127, 100, 90, 100, 127, 90, 80],
+      volumeLoop: 0,
+      toneEnvelope: [0, 4, 7, 12, 7, 4, 0],
+      toneLoop: 0,
+      ayToneEnabled: true,
+      ayNoiseEnabled: false,
+      ayEnvelopeShape: 13,
+    },
+    {
+      id: 7,
+      name: "Organillo / Pad simple",
+      volumeEnvelope: [0, 40, 80, 120, 127, 100, 90, 80, 70, 60],
+      volumeLoop: 4,
+      toneEnvelope: [0, 0, 1, 1, 0, 0, 1, 1],
+      toneLoop: 0,
+      ayToneEnabled: true,
+      ayNoiseEnabled: false,
+      ayEnvelopeShape: 12,
+    }
+  ];
 
-    const createPatternFromDetailedScore = (
-        idSuffix: string,
-        name: string,
-        melodyQuarterNotes: { note: string, instrument: number }[],
-        bassQuarterNotes: { note: string, instrument: number }[],
-        percussionQuarterNotes: { note: string, instrument: number }[],
-        numRowsPerPattern: number = 64
-    ): TrackerPattern => {
-        const pattern: TrackerPattern = {
-            id: `sample_p_${idSuffix}_${Date.now()}`,
-            name: name,
-            numRows: numRowsPerPattern,
-            rows: Array(numRowsPerPattern).fill(null).map(() => createEmptyRow())
-        };
+  const createPatternFromDetailedScore = (
+    idSuffix: string,
+    name: string,
+    melodyQuarterNotes: { note: string, instrument: number }[],
+    bassQuarterNotes: { note: string, instrument: number }[],
+    percussionQuarterNotes: { note: string, instrument: number }[],
+    numRowsPerPattern: number = 64
+  ): TrackerPattern => {
+    const pattern: TrackerPattern = {
+      id: `sample_p_${idSuffix}_${Date.now()}`,
+      name: name,
+      numRows: numRowsPerPattern,
+      rows: Array(numRowsPerPattern).fill(null).map(() => createEmptyRow())
+    };
 
-        const rowsPerQuarterNote = 4;
+    const rowsPerQuarterNote = 4;
 
-        const placeNotes = (notes: { note: string, instrument: number }[], channel: PT3ChannelId, defaultVolume: number) => {
-            for (let i = 0; i < notes.length; i++) {
-                const { note, instrument } = notes[i];
-                const startRow = i * rowsPerQuarterNote;
+    const placeNotes = (notes: { note: string, instrument: number }[], channel: PT3ChannelId, defaultVolume: number) => {
+      for (let i = 0; i < notes.length; i++) {
+        const { note, instrument } = notes[i];
+        const startRow = i * rowsPerQuarterNote;
 
-                if (startRow < numRowsPerPattern) {
-                    pattern.rows[startRow][channel] = {
-                        note: note,
-                        instrument: instrument,
-                        ornament: null,
-                        volume: note === "===" ? 0 : defaultVolume
-                    };
-                    for (let r = 1; r < rowsPerQuarterNote; r++) {
-                        if (startRow + r < numRowsPerPattern) {
-                            pattern.rows[startRow + r][channel] = createEmptyCell();
-                        }
-                    }
-                }
+        if (startRow < numRowsPerPattern) {
+          pattern.rows[startRow][channel] = {
+            note: note,
+            instrument: instrument,
+            ornament: null,
+            volume: note === "===" ? 0 : defaultVolume
+          };
+          for (let r = 1; r < rowsPerQuarterNote; r++) {
+            if (startRow + r < numRowsPerPattern) {
+              pattern.rows[startRow + r][channel] = createEmptyCell();
             }
-        };
-
-        placeNotes(melodyQuarterNotes, 'A', 15);
-        placeNotes(bassQuarterNotes, 'B', 12);
-        placeNotes(percussionQuarterNotes, 'C', 10);
-
-        return pattern;
+          }
+        }
+      }
     };
-    
-    const melodyP0 = [
-        { note: "E-4", instrument: 5 }, { note: "E-4", instrument: 5 }, { note: "F#4", instrument: 5 }, { note: "G-4", instrument: 5 },
-        { note: "G-4", instrument: 5 }, { note: "F#4", instrument: 5 }, { note: "E-4", instrument: 5 }, { note: "D-4", instrument: 5 },
-        { note: "C-4", instrument: 5 }, { note: "C-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "E-4", instrument: 5 },
-        { note: "E-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "D-4", instrument: 5 }
-    ];
-    const bassP0 = [
-        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
-        { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 },
-        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
-        { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }
-    ];
-    const percussionP0 = [
-        { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
-        { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
-        { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
-        { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "C-5", instrument: 2 }
-    ];
 
-    const melodyP1 = [
-        { note: "E-4", instrument: 6 }, { note: "E-4", instrument: 6 }, { note: "F#4", instrument: 6 }, { note: "G-4", instrument: 6 },
-        { note: "G-4", instrument: 6 }, { note: "F#4", instrument: 6 }, { note: "E-4", instrument: 6 }, { note: "D-4", instrument: 6 },
-        { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "D-4", instrument: 6 }, { note: "E-4", instrument: 6 },
-        { note: "D-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }
-    ];
-    const bassP1 = [
-        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
-        { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 },
-        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
-        { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }
-    ];
-    const percussionP1 = [
-        { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
-        { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
-        { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
-        { note: "C-5", instrument: 4 }, { note: "C-5", instrument: 2 }, { note: "C-5", instrument: 2 }, { note: "===", instrument: 0 }
-    ];
+    placeNotes(melodyQuarterNotes, 'A', 15);
+    placeNotes(bassQuarterNotes, 'B', 12);
+    placeNotes(percussionQuarterNotes, 'C', 10);
 
-    const patterns: TrackerPattern[] = [
-        createPatternFromDetailedScore("0", "Ode Pt1", melodyP0, bassP0, percussionP0),
-        createPatternFromDetailedScore("1", "Ode Pt2", melodyP1, bassP1, percussionP1),
-    ];
+    return pattern;
+  };
 
-    const order = [0, 1];
+  const melodyP0 = [
+    { note: "E-4", instrument: 5 }, { note: "E-4", instrument: 5 }, { note: "F#4", instrument: 5 }, { note: "G-4", instrument: 5 },
+    { note: "G-4", instrument: 5 }, { note: "F#4", instrument: 5 }, { note: "E-4", instrument: 5 }, { note: "D-4", instrument: 5 },
+    { note: "C-4", instrument: 5 }, { note: "C-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "E-4", instrument: 5 },
+    { note: "E-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "D-4", instrument: 5 }, { note: "D-4", instrument: 5 }
+  ];
+  const bassP0 = [
+    { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
+    { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 },
+    { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
+    { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }
+  ];
+  const percussionP0 = [
+    { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+    { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+    { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+    { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "C-5", instrument: 2 }
+  ];
 
-    return {
-        id: `sample_song_detailed_${Date.now()}`,
-        name: "Ode to Joy (MSX1)",
-        title: "Ode to Joy (Multi-Instrument)",
-        author: "Beethoven / MSX IDE",
-        bpm: 110,
-        speed: 6,
-        globalVolume: 15,
-        patterns: patterns,
-        order: order,
-        lengthInPatterns: order.length,
-        restartPosition: 0,
-        instruments: instruments,
-        ornaments: [],
-        currentPatternIndexInOrder: 0,
-        currentPatternId: patterns[0].id,
-        ayHardwareEnvelopePeriod: 100,
-        ayNoisePeriod: 16,
-    };
+  const melodyP1 = [
+    { note: "E-4", instrument: 6 }, { note: "E-4", instrument: 6 }, { note: "F#4", instrument: 6 }, { note: "G-4", instrument: 6 },
+    { note: "G-4", instrument: 6 }, { note: "F#4", instrument: 6 }, { note: "E-4", instrument: 6 }, { note: "D-4", instrument: 6 },
+    { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "D-4", instrument: 6 }, { note: "E-4", instrument: 6 },
+    { note: "D-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }, { note: "C-4", instrument: 6 }
+  ];
+  const bassP1 = [
+    { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
+    { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 }, { note: "G-2", instrument: 1 },
+    { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 },
+    { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }, { note: "C-3", instrument: 1 }
+  ];
+  const percussionP1 = [
+    { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+    { note: "C-5", instrument: 4 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+    { note: "C-5", instrument: 3 }, { note: "---", instrument: 0 }, { note: "C-5", instrument: 2 }, { note: "---", instrument: 0 },
+    { note: "C-5", instrument: 4 }, { note: "C-5", instrument: 2 }, { note: "C-5", instrument: 2 }, { note: "===", instrument: 0 }
+  ];
+
+  const patterns: TrackerPattern[] = [
+    createPatternFromDetailedScore("0", "Ode Pt1", melodyP0, bassP0, percussionP0),
+    createPatternFromDetailedScore("1", "Ode Pt2", melodyP1, bassP1, percussionP1),
+  ];
+
+  const order = [0, 1];
+
+  return {
+    id: `sample_song_detailed_${Date.now()}`,
+    name: "Ode to Joy (MSX1)",
+    soundChip: 'PSG',
+    title: "Ode to Joy (Multi-Instrument)",
+    author: "Beethoven / MSX IDE",
+    bpm: 110,
+    speed: 6,
+    globalVolume: 15,
+    patterns: patterns,
+    order: order,
+    lengthInPatterns: order.length,
+    restartPosition: 0,
+    instruments: instruments,
+    ornaments: [],
+    currentPatternIndexInOrder: 0,
+    currentPatternId: patterns[0].id,
+    ayHardwareEnvelopePeriod: 100,
+    ayNoisePeriod: 16,
+  };
 };
 
 
@@ -269,9 +272,9 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [localSongAuthor, setLocalSongAuthor] = useState(songData.author || "");
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRow, setPlaybackRow] = useState(0);
-  
-  const [focusedCell, setFocusedCell] = useState<{rowIndex: number, channelId: PT3ChannelId, field: keyof TrackerCell} | null>(null);
-  const [synthesizer, setSynthesizer] = useState<AYSynthesizer | null>(null);
+
+  const [focusedCell, setFocusedCell] = useState<{ rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell } | null>(null);
+  const [synthesizer, setSynthesizer] = useState<AYSynthesizer | SCCSynthesizer | null>(null);
 
   const playbackIntervalRef = useRef<number | null>(null);
   const patternEditorRef = useRef<HTMLDivElement>(null);
@@ -279,7 +282,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [isInstrumentModalOpen, setIsInstrumentModalOpen] = useState(false);
   const [editingInstrument, setEditingInstrument] = useState<PT3Instrument | null>(null);
   const [instrumentModalBuffer, setInstrumentModalBuffer] = useState<InstrumentModalBuffer>({});
-  
+
+  const [isWaveformModalOpen, setIsWaveformModalOpen] = useState(false);
+  const [editingSccInstrument, setEditingSccInstrument] = useState<SCCInstrument | null>(null);
+
   const [activeInstrumentId, setActiveInstrumentId] = useState<number | null>(null);
 
   const [isOrnamentModalOpen, setIsOrnamentModalOpen] = useState(false);
@@ -290,8 +296,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [keyboardOctaveOffset, setKeyboardOctaveOffset] = useState(0);
   const [activePianoKeys, setActivePianoKeys] = useState<Set<string>>(new Set());
   const activePianoKeysTimeoutRef = useRef<number | null>(null);
-  
-  const channelPendingNoteCutRef = useRef<boolean[]>([false, false, false]);
+
+  const channelPendingNoteCutRef = useRef<boolean[]>(Array(SCC_CHANNELS.length).fill(false));
 
   const [editStepJump, setEditStepJump] = useState<number>(1);
 
@@ -300,6 +306,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const [logMessages, setLogMessages] = useState<string[]>([]);
 
   const fieldsOrder: (keyof TrackerCell)[] = ['note', 'instrument', 'ornament', 'volume'];
+  const channels = useMemo(() => songData.soundChip === 'SCC' ? SCC_CHANNELS : PT3_CHANNELS, [songData.soundChip]);
 
   const addLog = useCallback((message: string) => {
     setLogMessages(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
@@ -307,24 +314,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   const activePatternIdToUse = useMemo(() => {
     if (songData && songData.patterns && songData.patterns.length > 0) {
-        if (songData.currentPatternId && songData.patterns.some(p => p.id === songData.currentPatternId)) {
-            return songData.currentPatternId;
+      if (songData.currentPatternId && songData.patterns.some(p => p.id === songData.currentPatternId)) {
+        return songData.currentPatternId;
+      }
+      const orderIndex = songData.currentPatternIndexInOrder;
+      if (songData.order && orderIndex >= 0 && orderIndex < songData.order.length) {
+        const patternIndexInStorage = songData.order[orderIndex];
+        if (patternIndexInStorage >= 0 && patternIndexInStorage < songData.patterns.length) {
+          return songData.patterns[patternIndexInStorage].id;
         }
-        const orderIndex = songData.currentPatternIndexInOrder;
-        if (songData.order && orderIndex >= 0 && orderIndex < songData.order.length) {
-            const patternIndexInStorage = songData.order[orderIndex];
-            if (patternIndexInStorage >= 0 && patternIndexInStorage < songData.patterns.length) {
-                return songData.patterns[patternIndexInStorage].id;
-            }
-        }
-        // Fallback to the first pattern in storage if other checks fail
-        if (songData.patterns[0]) {
-             return songData.patterns[0].id;
-        }
+      }
+      // Fallback to the first pattern in storage if other checks fail
+      if (songData.patterns[0]) {
+        return songData.patterns[0].id;
+      }
     }
     if (isLogModalOpen) addLog(`Warning: Could not determine activePatternIdToUse. songData.patterns count: ${songData?.patterns?.length}. songData.currentPatternId: ${songData?.currentPatternId}`);
-    return ""; 
-  }, [songData, isLogModalOpen, addLog]); 
+    return "";
+  }, [songData, isLogModalOpen, addLog]);
 
   const currentPattern = useMemo(() => {
     return songData.patterns.find(p => p.id === activePatternIdToUse);
@@ -332,17 +339,20 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
 
   useEffect(() => {
-    const synth = new AYSynthesizer(songData.globalVolume / 15);
+    const synth = songData.soundChip === 'SCC'
+      ? new SCCSynthesizer(songData.globalVolume / 15)
+      : new AYSynthesizer(songData.globalVolume / 15);
+
     synth.setSongData(songData);
     setSynthesizer(synth);
     return () => {
       synth.closeContext();
     };
-  }, []); 
+  }, [songData.soundChip]);
 
   useEffect(() => {
     if (synthesizer) {
-        synthesizer.setSongData(songData); 
+      synthesizer.setSongData(songData);
     }
   }, [songData, synthesizer]);
 
@@ -362,15 +372,15 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (isLogModalOpen) addLog(`useEffect: Setting localSongAuthor to '${propAuthor}'`);
     setLocalSongAuthor(propAuthor);
   }, [songData.author, isLogModalOpen, addLog]);
-  
+
   useEffect(() => {
-    if (songData && songData.id && isLogModalOpen) { 
-        addLog(`TrackerComposer received songData prop: ID=${songData.id}, Name='${songData.name}', currentPatternId='${songData.currentPatternId}'`);
-        addLog(`Derived activePatternIdToUse: '${activePatternIdToUse}'`);
-        addLog(`Derived currentPattern: ID='${currentPattern?.id}', Name='${currentPattern?.name}'`);
-        if (currentPattern) {
-            addLog(`   currentPattern.numRows: ${currentPattern.numRows}`);
-        }
+    if (songData && songData.id && isLogModalOpen) {
+      addLog(`TrackerComposer received songData prop: ID=${songData.id}, Name='${songData.name}', currentPatternId='${songData.currentPatternId}'`);
+      addLog(`Derived activePatternIdToUse: '${activePatternIdToUse}'`);
+      addLog(`Derived currentPattern: ID='${currentPattern?.id}', Name='${currentPattern?.name}'`);
+      if (currentPattern) {
+        addLog(`   currentPattern.numRows: ${currentPattern.numRows}`);
+      }
     }
   }, [songData, activePatternIdToUse, currentPattern, isLogModalOpen, addLog]);
 
@@ -402,35 +412,35 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   useEffect(() => {
     if (patternEditorRef.current && focusedCell && currentPattern) {
-        const cellId = `cell-${focusedCell.rowIndex}-${focusedCell.channelId}-${focusedCell.field}`;
-        const cellElement = document.getElementById(cellId) as HTMLInputElement | null;
-        if (cellElement) {
-            const cellRect = cellElement.getBoundingClientRect();
-            const editorRect = patternEditorRef.current.getBoundingClientRect();
-            
-            const isVerticallyVisible = cellRect.top >= editorRect.top && cellRect.bottom <= editorRect.bottom;
-            const isHorizontallyVisible = cellRect.left >= editorRect.left && cellRect.right <= editorRect.right;
+      const cellId = `cell-${focusedCell.rowIndex}-${focusedCell.channelId}-${focusedCell.field}`;
+      const cellElement = document.getElementById(cellId) as HTMLInputElement | null;
+      if (cellElement) {
+        const cellRect = cellElement.getBoundingClientRect();
+        const editorRect = patternEditorRef.current.getBoundingClientRect();
 
-            if (!isVerticallyVisible || !isHorizontallyVisible) {
-                 cellElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-            }
+        const isVerticallyVisible = cellRect.top >= editorRect.top && cellRect.bottom <= editorRect.bottom;
+        const isHorizontallyVisible = cellRect.left >= editorRect.left && cellRect.right <= editorRect.right;
+
+        if (!isVerticallyVisible || !isHorizontallyVisible) {
+          cellElement.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         }
+      }
     }
   }, [focusedCell, currentPattern]);
 
   const handleGlobalDataChange = useCallback((field: 'bpm' | 'speed' | 'globalVolume' | 'lengthInPatterns' | 'restartPosition' | 'ayHardwareEnvelopePeriod' | 'ayNoisePeriod', value: string | number) => {
     let valToUpdate = parseInt(String(value), 10);
     if (isNaN(valToUpdate)) {
-        if (field === 'bpm') valToUpdate = DEFAULT_PT3_BPM;
-        else if (field === 'speed') valToUpdate = DEFAULT_PT3_SPEED;
-        else if (field === 'globalVolume') valToUpdate = 15;
-        else if (field === 'ayHardwareEnvelopePeriod') valToUpdate = 100;
-        else if (field === 'ayNoisePeriod') valToUpdate = 16;
-        else valToUpdate = 0;
+      if (field === 'bpm') valToUpdate = DEFAULT_PT3_BPM;
+      else if (field === 'speed') valToUpdate = DEFAULT_PT3_SPEED;
+      else if (field === 'globalVolume') valToUpdate = 15;
+      else if (field === 'ayHardwareEnvelopePeriod') valToUpdate = 100;
+      else if (field === 'ayNoisePeriod') valToUpdate = 16;
+      else valToUpdate = 0;
     }
     if (field === 'globalVolume') {
-        valToUpdate = Math.max(0, Math.min(15, valToUpdate));
-        synthesizer?.setMasterVolume(valToUpdate / 15);
+      valToUpdate = Math.max(0, Math.min(15, valToUpdate));
+      synthesizer?.setMasterVolume(valToUpdate / 15);
     }
     if (field === 'bpm') valToUpdate = Math.max(30, Math.min(300, valToUpdate));
     if (field === 'speed') valToUpdate = Math.max(1, Math.min(31, valToUpdate));
@@ -451,82 +461,83 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     }
 
     const updatedPatterns = songData.patterns.map(p => {
-        if (p.id === currentPattern.id) {
-            const newRowsArray = [...p.rows];
-            if (num > p.numRows) {
-                for (let i = p.numRows; i < num; i++) {
-                    newRowsArray.push(createEmptyRow());
-                }
-            } else {
-                newRowsArray.length = num;
-            }
-            return { ...p, numRows: num, rows: newRowsArray };
+      if (p.id === currentPattern.id) {
+        const newRowsArray = [...p.rows];
+        if (num > p.numRows) {
+          for (let i = p.numRows; i < num; i++) {
+            newRowsArray.push(createEmptyRow(channels));
+          }
+        } else {
+          newRowsArray.length = num;
         }
-        return p;
+        return { ...p, numRows: num, rows: newRowsArray };
+      }
+      return p;
     });
     onUpdate({ patterns: updatedPatterns });
-  }, [currentPattern, songData.patterns, onUpdate]);
+  }, [currentPattern, songData.patterns, onUpdate, channels]);
 
 
-  const handleCellChange = useCallback((rowIndex: number, channelId: PT3ChannelId, field: keyof TrackerCell, inputValue: string | number | null) => {
+  const handleCellChange = useCallback((rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell, inputValue: string | number | null) => {
     if (!currentPattern) return;
     let finalValueToStore: string | number | null = null;
     let isValid = false;
     if (inputValue === null || (typeof inputValue === 'string' && inputValue.trim() === "")) {
-        finalValueToStore = null;
-        isValid = true;
+      finalValueToStore = null;
+      isValid = true;
     } else {
-        const upperInputValue = typeof inputValue === 'string' ? inputValue.toUpperCase() : String(inputValue);
-        switch(field) {
-            case 'note':
-                if (NOTE_REGEX.test(upperInputValue)) { finalValueToStore = upperInputValue; isValid = true; }
-                break;
-            case 'instrument':
-                if (INSTRUMENT_REGEX.test(String(inputValue))) { finalValueToStore = Number(inputValue); isValid = true; }
-                break;
-            case 'ornament':
-                if (ORNAMENT_REGEX.test(String(inputValue))) { finalValueToStore = Number(inputValue); isValid = true; }
-                break;
-            case 'volume':
-                if (VOLUME_REGEX.test(upperInputValue)) { finalValueToStore = parseInt(upperInputValue, 16); isValid = true; }
-                break;
-            default:
-                const _exhaustiveCheck: never = field; 
-                return _exhaustiveCheck;
-        }
+      const upperInputValue = typeof inputValue === 'string' ? inputValue.toUpperCase() : String(inputValue);
+      switch (field) {
+        case 'note':
+          if (NOTE_REGEX.test(upperInputValue)) { finalValueToStore = upperInputValue; isValid = true; }
+          break;
+        case 'instrument':
+          if (INSTRUMENT_REGEX.test(String(inputValue))) { finalValueToStore = Number(inputValue); isValid = true; }
+          break;
+        case 'ornament':
+          if (ORNAMENT_REGEX.test(String(inputValue))) { finalValueToStore = Number(inputValue); isValid = true; }
+          break;
+        case 'volume':
+          if (VOLUME_REGEX.test(upperInputValue)) { finalValueToStore = parseInt(upperInputValue, 16); isValid = true; }
+          break;
+        default:
+          const _exhaustiveCheck: never = field;
+          return _exhaustiveCheck;
+      }
     }
     if (isValid) {
-        const updatedPatterns = songData.patterns.map(p => {
-            if (p.id === currentPattern.id) {
-                const newRows = p.rows.map((r, rIdx) => {
-                    if (rIdx === rowIndex) {
-                        const newRow = {...r};
-                        const updatedChannelCell = { ...newRow[channelId] };
-                        (updatedChannelCell as any)[field] = finalValueToStore;
+      const updatedPatterns = songData.patterns.map(p => {
+        if (p.id === currentPattern.id) {
+          const newRows = p.rows.map((r, rIdx) => {
+            if (rIdx === rowIndex) {
+              const newRow = { ...r };
+              const updatedChannelCell = { ...newRow[channelId] };
+              (updatedChannelCell as any)[field] = finalValueToStore;
 
-                        // Auto-apply active instrument/ornament if cell's respective field is null and a new note is entered
-                        if (field === 'note' && finalValueToStore && typeof finalValueToStore === 'string' &&
-                            finalValueToStore !== "---" && finalValueToStore !== "===") {
-                            
-                            if (activeInstrumentId !== null && updatedChannelCell.instrument === null) { 
-                                updatedChannelCell.instrument = activeInstrumentId;
-                            }
-                            if (activeOrnamentId !== null && updatedChannelCell.ornament === null) { // New logic for ornament
-                                updatedChannelCell.ornament = activeOrnamentId;
-                            }
-                        }
-                        newRow[channelId] = updatedChannelCell;
-                        return newRow;
-                    }
-                    return r;
-                });
-                return { ...p, rows: newRows };
+              // Auto-apply active instrument/ornament if cell's respective field is null and a new note is entered
+              if (field === 'note' && finalValueToStore && typeof finalValueToStore === 'string' &&
+                finalValueToStore !== "---" && finalValueToStore !== "===") {
+
+                // Explicitly check for null, undefined, or 0
+                if (activeInstrumentId !== null && (updatedChannelCell.instrument === null || updatedChannelCell.instrument === undefined || updatedChannelCell.instrument === 0)) {
+                  updatedChannelCell.instrument = activeInstrumentId;
+                }
+                if (activeOrnamentId !== null && (updatedChannelCell.ornament === null || updatedChannelCell.ornament === undefined || updatedChannelCell.ornament === 0)) {
+                  updatedChannelCell.ornament = activeOrnamentId;
+                }
+              }
+              newRow[channelId] = updatedChannelCell;
+              return newRow;
             }
-            return p;
-        });
-        onUpdate({ patterns: updatedPatterns });
+            return r;
+          });
+          return { ...p, rows: newRows };
+        }
+        return p;
+      });
+      onUpdate({ patterns: updatedPatterns });
     }
-  }, [currentPattern, songData.patterns, onUpdate, activeInstrumentId, activeOrnamentId]); // Added activeOrnamentId
+  }, [currentPattern, songData.patterns, onUpdate, activeInstrumentId, activeOrnamentId]);
 
   const handlePlayStop = async () => {
     if (synthesizer) {
@@ -535,109 +546,110 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         setIsPlaying(false);
         if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
-        setPlaybackRow(0); 
+        setPlaybackRow(0);
       } else {
+        synthesizer.stopAllNotes();
         await synthesizer.ensureAudioContext();
         if (synthesizer['audioContext']?.state === 'running') {
-            setIsPlaying(true);
-            setPlaybackRow(0); 
-            channelPendingNoteCutRef.current = [false, false, false];
+          setIsPlaying(true);
+          setPlaybackRow(0);
+          channelPendingNoteCutRef.current = Array(channels.length).fill(false);
         } else {
-            console.warn("AudioContext could not be started or resumed. Playback prevented.");
+          console.warn("AudioContext could not be started or resumed. Playback prevented.");
         }
       }
     }
   };
-  
+
   const handleSilenceAllChannels = useCallback(() => {
     if (synthesizer) {
-        synthesizer.stopAllNotes();
+      synthesizer.stopAllNotes();
     }
     if (isPlaying) {
-        setIsPlaying(false);
+      setIsPlaying(false);
     }
     if (playbackIntervalRef.current) {
-        clearTimeout(playbackIntervalRef.current);
-        playbackIntervalRef.current = null;
+      clearTimeout(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
     }
     setPlaybackRow(0);
-    channelPendingNoteCutRef.current = [false, false, false];
-  }, [synthesizer, isPlaying]);
+    channelPendingNoteCutRef.current = Array(channels.length).fill(false);
+  }, [synthesizer, isPlaying, channels]);
 
 
   useEffect(() => {
     if (isPlaying && currentPattern && synthesizer && synthesizer['audioContext']?.state === 'running') {
-        let rowToProcess = playbackRow;
-        let patternToProcess = currentPattern;
-        let patternIndexInOrderToProcess = songData.currentPatternIndexInOrder;
+      let rowToProcess = playbackRow;
+      let patternToProcess = currentPattern;
+      let patternIndexInOrderToProcess = songData.currentPatternIndexInOrder;
 
-        const rowData = patternToProcess.rows[rowToProcess];
-        if (!rowData) {
-            setIsPlaying(false);
-            return;
+      const rowData = patternToProcess.rows[rowToProcess];
+      if (!rowData) {
+        setIsPlaying(false);
+        return;
+      }
+
+      for (let chIdx = 0; chIdx < channels.length; chIdx++) {
+        if (channelPendingNoteCutRef.current[chIdx]) {
+          synthesizer.playNote(chIdx as any, "===", null, null, null);
+          channelPendingNoteCutRef.current[chIdx] = false;
         }
-        
-        for (let chIdx = 0; chIdx < PT3_CHANNELS.length; chIdx++) {
-            if (channelPendingNoteCutRef.current[chIdx]) {
-                synthesizer.playNote(chIdx as 0 | 1 | 2, "===", null, null, null);
-                channelPendingNoteCutRef.current[chIdx] = false;
-            }
+      }
+
+      channels.forEach((chId, chIndex) => {
+        const cell = rowData[chId] || { note: "---", instrument: null, ornament: null, volume: null };
+        if (cell.note === "===") {
+          channelPendingNoteCutRef.current[chIndex] = true;
         }
-        
-        PT3_CHANNELS.forEach((chId, chIndex) => {
-            const cell = rowData[chId];
-            if (cell.note === "===") {
-                 channelPendingNoteCutRef.current[chIndex] = true;
+        synthesizer.playNote(
+          chIndex as any, cell.note, cell.instrument, cell.ornament, cell.volume
+        );
+      });
+
+      let rowDurationMs = (2500 * songData.speed) / songData.bpm;
+      if (songData.bpm === 0 || songData.speed === 0) rowDurationMs = 200;
+
+      if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
+      playbackIntervalRef.current = window.setTimeout(() => {
+        setPlaybackRow(prevRow => {
+          let nextRow = prevRow + 1;
+          let nextPatternOrderIdx = patternIndexInOrderToProcess;
+
+          if (nextRow >= patternToProcess.numRows) {
+            nextRow = 0;
+            nextPatternOrderIdx = patternIndexInOrderToProcess + 1;
+            if (nextPatternOrderIdx >= songData.lengthInPatterns) {
+              nextPatternOrderIdx = songData.restartPosition;
             }
-            synthesizer.playNote(
-                chIndex as 0 | 1 | 2, cell.note, cell.instrument, cell.ornament, cell.volume
-            );
+          }
+
+          if (nextPatternOrderIdx !== patternIndexInOrderToProcess) {
+            const nextPatternIdxInStorage = songData.order?.[nextPatternOrderIdx];
+            const nextPatternObj = songData.patterns[nextPatternIdxInStorage];
+            onUpdate({ currentPatternIndexInOrder: nextPatternOrderIdx, currentPatternId: nextPatternObj?.id });
+          }
+          return nextRow;
         });
-
-        let rowDurationMs = (2500 * songData.speed) / songData.bpm;
-        if (songData.bpm === 0 || songData.speed === 0) rowDurationMs = 200;
-
-        if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
-        playbackIntervalRef.current = window.setTimeout(() => {
-            setPlaybackRow(prevRow => {
-                let nextRow = prevRow + 1;
-                let nextPatternOrderIdx = patternIndexInOrderToProcess;
-
-                if (nextRow >= patternToProcess.numRows) {
-                    nextRow = 0;
-                    nextPatternOrderIdx = patternIndexInOrderToProcess + 1;
-                    if (nextPatternOrderIdx >= songData.lengthInPatterns) {
-                        nextPatternOrderIdx = songData.restartPosition;
-                    }
-                }
-
-                if (nextPatternOrderIdx !== patternIndexInOrderToProcess) {
-                    const nextPatternIdxInStorage = songData.order?.[nextPatternOrderIdx];
-                    const nextPatternObj = songData.patterns[nextPatternIdxInStorage];
-                    onUpdate({ currentPatternIndexInOrder: nextPatternOrderIdx, currentPatternId: nextPatternObj?.id });
-                }
-                return nextRow;
-            });
-        }, Math.max(20, rowDurationMs));
+      }, Math.max(20, rowDurationMs));
 
     } else {
-        if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
-        playbackIntervalRef.current = null;
-        if (!isPlaying && synthesizer) { 
-             synthesizer.stopAllNotes();
-        }
+      if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
+      playbackIntervalRef.current = null;
+      if (!isPlaying && synthesizer) {
+        synthesizer.stopAllNotes();
+      }
     }
     return () => { if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current); };
-  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern]);
+  }, [isPlaying, playbackRow, songData, synthesizer, onUpdate, currentPattern, channels]);
 
-  const focusCellAndSelectText = useCallback((rIdx: number, chId: PT3ChannelId, fld: keyof TrackerCell) => {
+  const focusCellAndSelectText = useCallback((rIdx: number, chId: TrackerChannelId, fld: keyof TrackerCell) => {
     if (!currentPattern || rIdx < 0 || rIdx >= currentPattern.numRows) return;
     const cellId = `cell-${rIdx}-${chId}-${fld}`;
     const cellElement = document.getElementById(cellId) as HTMLInputElement;
     if (cellElement) {
-        cellElement.focus();
-        cellElement.select();
-        setFocusedCell({ rowIndex: rIdx, channelId: chId, field: fld });
+      cellElement.focus();
+      cellElement.select();
+      setFocusedCell({ rowIndex: rIdx, channelId: chId, field: fld });
     }
   }, [currentPattern]);
 
@@ -645,75 +657,75 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (!focusedCell || !currentPattern) return;
     const { rowIndex, channelId, field } = focusedCell;
     const numRows = currentPattern.numRows;
-    const channelIndex = PT3_CHANNELS.indexOf(channelId);
+    const channelIndex = channels.indexOf(channelId);
     const currentFieldIndex = fieldsOrder.indexOf(field);
 
     const keyLower = e.key.toLowerCase();
     if (field === 'note' && PT3_PIANO_KEY_LAYOUT[keyLower] && synthesizer) {
-        e.preventDefault();
-        const layoutEntry = PT3_PIANO_KEY_LAYOUT[keyLower];
-        const finalOctave = Math.max(0, Math.min(7, layoutEntry.baseOctave + keyboardOctaveOffset));
-        const noteString = `${PT3_NOTE_NAMES[layoutEntry.noteNameIndex]}${finalOctave}`;
+      e.preventDefault();
+      const layoutEntry = PT3_PIANO_KEY_LAYOUT[keyLower];
+      const finalOctave = Math.max(0, Math.min(7, layoutEntry.baseOctave + keyboardOctaveOffset));
+      const noteString = `${PT3_NOTE_NAMES[layoutEntry.noteNameIndex]}${finalOctave}`;
 
-        handleCellChange(rowIndex, channelId, 'note', noteString);
-        
-        const cellData = currentPattern.rows[rowIndex]?.[channelId];
-        synthesizer.playNote(
-            channelIndex as 0 | 1 | 2, noteString, 
-            cellData?.instrument !== null && cellData?.instrument !== undefined ? cellData.instrument : activeInstrumentId, 
-            cellData?.ornament !== null && cellData?.ornament !== undefined ? cellData.ornament : activeOrnamentId, // Consider active ornament
-            cellData?.volume
-        );
-        
-        setActivePianoKeys(prev => new Set(prev).add(noteString));
-        if (activePianoKeysTimeoutRef.current) clearTimeout(activePianoKeysTimeoutRef.current);
-        activePianoKeysTimeoutRef.current = window.setTimeout(() => {
-            setActivePianoKeys(prev => { const newSet = new Set(prev); newSet.delete(noteString); return newSet; });
-        }, 150);
+      handleCellChange(rowIndex, channelId, 'note', noteString);
 
-        focusCellAndSelectText(Math.min(numRows - 1, rowIndex + editStepJump), channelId, 'note');
-        return;
+      const cellData = currentPattern.rows[rowIndex]?.[channelId];
+      synthesizer.playNote(
+        channelIndex as any, noteString,
+        cellData?.instrument !== null && cellData?.instrument !== undefined ? cellData.instrument : activeInstrumentId,
+        cellData?.ornament !== null && cellData?.ornament !== undefined ? cellData.ornament : activeOrnamentId, // Consider active ornament
+        cellData?.volume
+      );
+
+      setActivePianoKeys(prev => new Set(prev).add(noteString));
+      if (activePianoKeysTimeoutRef.current) clearTimeout(activePianoKeysTimeoutRef.current);
+      activePianoKeysTimeoutRef.current = window.setTimeout(() => {
+        setActivePianoKeys(prev => { const newSet = new Set(prev); newSet.delete(noteString); return newSet; });
+      }, 150);
+
+      focusCellAndSelectText(Math.min(numRows - 1, rowIndex + editStepJump), channelId, 'note');
+      return;
     }
 
-    switch(e.key) {
-        case 'ArrowUp': e.preventDefault(); focusCellAndSelectText(Math.max(0, rowIndex - 1), channelId, field); break;
-        case 'ArrowDown': e.preventDefault(); focusCellAndSelectText(Math.min(numRows - 1, rowIndex + 1), channelId, field); break;
-        case 'ArrowLeft': e.preventDefault();
-            if (currentFieldIndex > 0) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex - 1]);
-            else if (channelIndex > 0) focusCellAndSelectText(rowIndex, PT3_CHANNELS[channelIndex - 1], fieldsOrder[fieldsOrder.length - 1]);
-            break;
-        case 'ArrowRight': e.preventDefault();
-            if (currentFieldIndex < fieldsOrder.length - 1) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex + 1]);
-            else if (channelIndex < PT3_CHANNELS.length - 1) focusCellAndSelectText(rowIndex, PT3_CHANNELS[channelIndex + 1], fieldsOrder[0]);
-            break;
-        case 'PageUp': e.preventDefault(); focusCellAndSelectText(Math.max(0, rowIndex - 16), channelId, field); break;
-        case 'PageDown': e.preventDefault(); focusCellAndSelectText(Math.min(numRows - 1, rowIndex + 16), channelId, field); break;
-        case 'Home': e.preventDefault(); focusCellAndSelectText(0, channelId, field); break;
-        case 'End': e.preventDefault(); focusCellAndSelectText(numRows - 1, channelId, field); break;
-        case 'Tab': e.preventDefault();
-            if (e.shiftKey) {
-                if (currentFieldIndex > 0) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex - 1]);
-                else if (channelIndex > 0) focusCellAndSelectText(rowIndex, PT3_CHANNELS[channelIndex - 1], fieldsOrder[fieldsOrder.length - 1]);
-                else focusCellAndSelectText(Math.max(0, rowIndex - 1), PT3_CHANNELS[PT3_CHANNELS.length -1], fieldsOrder[fieldsOrder.length - 1]);
-            } else {
-                 if (currentFieldIndex < fieldsOrder.length - 1) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex + 1]);
-                 else if (channelIndex < PT3_CHANNELS.length - 1) focusCellAndSelectText(rowIndex, PT3_CHANNELS[channelIndex + 1], fieldsOrder[0]);
-                 else focusCellAndSelectText(Math.min(numRows -1, rowIndex + 1), PT3_CHANNELS[0], fieldsOrder[0]);
-            }
-            break;
-        case 'Enter': e.preventDefault();
-            const nextRowForEnter = Math.min(numRows - 1, rowIndex + editStepJump);
-            const didAdvanceRow = nextRowForEnter > rowIndex && nextRowForEnter < numRows;
-            if (field === 'note' && didAdvanceRow) focusCellAndSelectText(nextRowForEnter, channelId, 'note');
-            else if (currentFieldIndex < fieldsOrder.length - 1) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex + 1]);
-            else if (channelIndex < PT3_CHANNELS.length - 1) focusCellAndSelectText(rowIndex, PT3_CHANNELS[channelIndex + 1], fieldsOrder[0]);
-            else if (didAdvanceRow) focusCellAndSelectText(nextRowForEnter, PT3_CHANNELS[0], fieldsOrder[0]);
-            break;
-        case 'Escape': (e.target as HTMLElement).blur(); setFocusedCell(null); break;
-        case 'Delete': case 'Backspace': e.preventDefault(); handleCellChange(rowIndex, channelId, field, null); break;
-        default: break;
+    switch (e.key) {
+      case 'ArrowUp': e.preventDefault(); focusCellAndSelectText(Math.max(0, rowIndex - 1), channelId, field); break;
+      case 'ArrowDown': e.preventDefault(); focusCellAndSelectText(Math.min(numRows - 1, rowIndex + 1), channelId, field); break;
+      case 'ArrowLeft': e.preventDefault();
+        if (currentFieldIndex > 0) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex - 1]);
+        else if (channelIndex > 0) focusCellAndSelectText(rowIndex, channels[channelIndex - 1], fieldsOrder[fieldsOrder.length - 1]);
+        break;
+      case 'ArrowRight': e.preventDefault();
+        if (currentFieldIndex < fieldsOrder.length - 1) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex + 1]);
+        else if (channelIndex < channels.length - 1) focusCellAndSelectText(rowIndex, channels[channelIndex + 1], fieldsOrder[0]);
+        break;
+      case 'PageUp': e.preventDefault(); focusCellAndSelectText(Math.max(0, rowIndex - 16), channelId, field); break;
+      case 'PageDown': e.preventDefault(); focusCellAndSelectText(Math.min(numRows - 1, rowIndex + 16), channelId, field); break;
+      case 'Home': e.preventDefault(); focusCellAndSelectText(0, channelId, field); break;
+      case 'End': e.preventDefault(); focusCellAndSelectText(numRows - 1, channelId, field); break;
+      case 'Tab': e.preventDefault();
+        if (e.shiftKey) {
+          if (currentFieldIndex > 0) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex - 1]);
+          else if (channelIndex > 0) focusCellAndSelectText(rowIndex, channels[channelIndex - 1], fieldsOrder[fieldsOrder.length - 1]);
+          else focusCellAndSelectText(Math.max(0, rowIndex - 1), channels[channels.length - 1], fieldsOrder[fieldsOrder.length - 1]);
+        } else {
+          if (currentFieldIndex < fieldsOrder.length - 1) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex + 1]);
+          else if (channelIndex < channels.length - 1) focusCellAndSelectText(rowIndex, channels[channelIndex + 1], fieldsOrder[0]);
+          else focusCellAndSelectText(Math.min(numRows - 1, rowIndex + 1), channels[0], fieldsOrder[0]);
+        }
+        break;
+      case 'Enter': e.preventDefault();
+        const nextRowForEnter = Math.min(numRows - 1, rowIndex + editStepJump);
+        const didAdvanceRow = nextRowForEnter > rowIndex && nextRowForEnter < numRows;
+        if (field === 'note' && didAdvanceRow) focusCellAndSelectText(nextRowForEnter, channelId, 'note');
+        else if (currentFieldIndex < fieldsOrder.length - 1) focusCellAndSelectText(rowIndex, channelId, fieldsOrder[currentFieldIndex + 1]);
+        else if (channelIndex < channels.length - 1) focusCellAndSelectText(rowIndex, channels[channelIndex + 1], fieldsOrder[0]);
+        else if (didAdvanceRow) focusCellAndSelectText(nextRowForEnter, channels[0], fieldsOrder[0]);
+        break;
+      case 'Escape': (e.target as HTMLElement).blur(); setFocusedCell(null); break;
+      case 'Delete': case 'Backspace': e.preventDefault(); handleCellChange(rowIndex, channelId, field, null); break;
+      default: break;
     }
-  }, [focusedCell, currentPattern, PT3_CHANNELS, handleCellChange, focusCellAndSelectText, keyboardOctaveOffset, synthesizer, activeInstrumentId, activeOrnamentId, editStepJump, fieldsOrder, songData.instruments, songData.ornaments]);
+  }, [focusedCell, currentPattern, channels, handleCellChange, focusCellAndSelectText, keyboardOctaveOffset, synthesizer, activeInstrumentId, activeOrnamentId, editStepJump, fieldsOrder, songData.instruments, songData.ornaments]);
 
   const handleCurrentPatternIndexInOrderChange = useCallback((newIndex: number) => {
     if (songData.order && newIndex >= 0 && newIndex < songData.order.length) {
@@ -738,7 +750,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   const addPatternToOrder = useCallback(() => {
     if (songData.patterns.length === 0) { alert("Please create a pattern first."); return; }
-    const newOrder = [...(songData.order || []), 0]; 
+    const newOrder = [...(songData.order || []), 0];
     onUpdate({ order: newOrder, lengthInPatterns: newOrder.length });
   }, [songData.order, songData.patterns.length, onUpdate]);
 
@@ -746,39 +758,39 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     if (!songData.order || songData.order.length <= 1) { alert("Cannot remove the last pattern from the order list."); return; }
     const newOrder = songData.order.filter((_, idx) => idx !== orderIndexToRemove);
     let newCurrentPatternIndexInOrder = songData.currentPatternIndexInOrder;
-    if (orderIndexToRemove < songData.currentPatternIndexInOrder || (orderIndexToRemove === songData.currentPatternIndexInOrder && songData.currentPatternIndexInOrder === newOrder.length) ) {
-        newCurrentPatternIndexInOrder = Math.max(0, songData.currentPatternIndexInOrder -1);
+    if (orderIndexToRemove < songData.currentPatternIndexInOrder || (orderIndexToRemove === songData.currentPatternIndexInOrder && songData.currentPatternIndexInOrder === newOrder.length)) {
+      newCurrentPatternIndexInOrder = Math.max(0, songData.currentPatternIndexInOrder - 1);
     }
-    
+
     let newCurrentPatternId = songData.currentPatternId;
     if (newOrder.length > 0 && newCurrentPatternIndexInOrder < newOrder.length) {
-        const activePatternIdx = newOrder[newCurrentPatternIndexInOrder];
-        if (songData.patterns[activePatternIdx]) {
-            newCurrentPatternId = songData.patterns[activePatternIdx].id;
-        }
+      const activePatternIdx = newOrder[newCurrentPatternIndexInOrder];
+      if (songData.patterns[activePatternIdx]) {
+        newCurrentPatternId = songData.patterns[activePatternIdx].id;
+      }
     } else if (newOrder.length > 0 && songData.patterns[newOrder[0]]) {
-        newCurrentPatternIndexInOrder = 0;
-        newCurrentPatternId = songData.patterns[newOrder[0]].id;
+      newCurrentPatternIndexInOrder = 0;
+      newCurrentPatternId = songData.patterns[newOrder[0]].id;
     } else {
-        newCurrentPatternId = undefined; 
+      newCurrentPatternId = undefined;
     }
     onUpdate({ order: newOrder, lengthInPatterns: newOrder.length, currentPatternIndexInOrder: newCurrentPatternIndexInOrder, currentPatternId: newCurrentPatternId });
   }, [songData.order, songData.patterns, songData.currentPatternIndexInOrder, songData.currentPatternId, onUpdate]);
 
   const handleAddPattern = useCallback(() => {
     const newPatternIdSuffix = `pattern_${Date.now()}`;
-    const newPattern = createDefaultTrackerPattern(newPatternIdSuffix);
+    const newPattern = createDefaultTrackerPattern(newPatternIdSuffix, 64, channels);
     const newPatterns = [...songData.patterns, newPattern];
     const newPatternIndexInStorage = newPatterns.length - 1;
-    
+
     onUpdate({
-        patterns: newPatterns,
-        order: [...(songData.order || []), newPatternIndexInStorage],
-        lengthInPatterns: (songData.order?.length || 0) + 1,
-        currentPatternIndexInOrder: songData.order?.length || 0, 
-        currentPatternId: newPattern.id, 
+      patterns: newPatterns,
+      order: [...(songData.order || []), newPatternIndexInStorage],
+      lengthInPatterns: (songData.order?.length || 0) + 1,
+      currentPatternIndexInOrder: songData.order?.length || 0,
+      currentPatternId: newPattern.id,
     });
-  }, [songData.patterns, songData.order, onUpdate]);
+  }, [songData.patterns, songData.order, onUpdate, channels]);
 
   const handleDeleteCurrentPattern = useCallback(() => {
     if (songData.patterns.length <= 1) { alert("Cannot delete the last pattern."); return; }
@@ -789,25 +801,25 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
     const newPatterns = songData.patterns.filter(p => p.id !== currentPattern.id);
     const newOrder = (songData.order || [])
-        .map(orderPatternIndex => {
-            if (orderPatternIndex === currentPatternArrayIndex) return -1; 
-            return orderPatternIndex > currentPatternArrayIndex ? orderPatternIndex - 1 : orderPatternIndex;
-        })
-        .filter(orderPatternIndex => orderPatternIndex !== -1);
+      .map(orderPatternIndex => {
+        if (orderPatternIndex === currentPatternArrayIndex) return -1;
+        return orderPatternIndex > currentPatternArrayIndex ? orderPatternIndex - 1 : orderPatternIndex;
+      })
+      .filter(orderPatternIndex => orderPatternIndex !== -1);
 
     let newCurrentPatternIndexInOrder = songData.currentPatternIndexInOrder;
     if (newOrder.length === 0 && newPatterns.length > 0) newOrder.push(0);
-    
+
     if (newCurrentPatternIndexInOrder >= newOrder.length) newCurrentPatternIndexInOrder = Math.max(0, newOrder.length - 1);
 
     const nextActivePatternId = newPatterns.length > 0
-        ? (newOrder.length > 0 && newPatterns[newOrder[newCurrentPatternIndexInOrder]] ? newPatterns[newOrder[newCurrentPatternIndexInOrder]].id : newPatterns[0]?.id)
-        : "";
-    
+      ? (newOrder.length > 0 && newPatterns[newOrder[newCurrentPatternIndexInOrder]] ? newPatterns[newOrder[newCurrentPatternIndexInOrder]].id : newPatterns[0]?.id)
+      : "";
+
     onUpdate({
       patterns: newPatterns,
       order: newOrder.length > 0 ? newOrder : (newPatterns.length > 0 ? [0] : []),
-      lengthInPatterns: newOrder.length > 0 ? newOrder.length : (newPatterns.length > 0 ? 1: 0),
+      lengthInPatterns: newOrder.length > 0 ? newOrder.length : (newPatterns.length > 0 ? 1 : 0),
       currentPatternIndexInOrder: newCurrentPatternIndexInOrder,
       currentPatternId: nextActivePatternId,
     });
@@ -877,7 +889,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       }
       updatedOrnaments = [...(songData.ornaments || []), newOrnamentData];
     }
-    updatedOrnaments.sort((a,b) => a.id - b.id);
+    updatedOrnaments.sort((a, b) => a.id - b.id);
     onUpdate({ ornaments: updatedOrnaments });
     setIsOrnamentModalOpen(false);
     setEditingOrnament(null);
@@ -885,22 +897,22 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   const handleVirtualPianoKeyPress = useCallback((noteName: string) => {
     if (focusedCell && currentPattern) {
-        synthesizer?.playNote(
-            PT3_CHANNELS.indexOf(focusedCell.channelId) as 0 | 1 | 2,
-            noteName,
-            activeInstrumentId,
-            currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].ornament ?? activeOrnamentId, // Consider active ornament
-            currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].volume ?? 15
-        );
-        handleCellChange(focusedCell.rowIndex, focusedCell.channelId, 'note', noteName);
-        focusCellAndSelectText(
-            Math.min(currentPattern.numRows - 1, focusedCell.rowIndex + editStepJump),
-            focusedCell.channelId,
-            'note'
-        );
+      synthesizer?.playNote(
+        channels.indexOf(focusedCell.channelId) as any,
+        noteName,
+        activeInstrumentId,
+        currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].ornament ?? activeOrnamentId, // Consider active ornament
+        currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].volume ?? 15
+      );
+      handleCellChange(focusedCell.rowIndex, focusedCell.channelId, 'note', noteName);
+      focusCellAndSelectText(
+        Math.min(currentPattern.numRows - 1, focusedCell.rowIndex + editStepJump),
+        focusedCell.channelId,
+        'note'
+      );
     }
-  }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump]);
-  
+  }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump, channels]);
+
   const handleOpenInstrumentModal = useCallback((instrument: PT3Instrument | null) => {
     if (instrument) {
       setEditingInstrument(instrument);
@@ -920,7 +932,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         return;
       }
       setEditingInstrument(null);
-      setInstrumentModalBuffer({ 
+      setInstrumentModalBuffer({
         id: newId,
         name: `Instrument ${newId}`,
         volumeEnvelope: "127,0",
@@ -935,54 +947,94 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
     setIsInstrumentModalOpen(true);
   }, [songData.instruments]);
 
+  const handleOpenWaveformModal = useCallback((instrument: SCCInstrument | null) => {
+    if (instrument) {
+      setEditingSccInstrument(instrument);
+    } else {
+      const existingIds = (songData.instruments || []).map(i => i.id);
+      let newId = 1;
+      while (existingIds.includes(newId) && newId <= PT3_MAX_INSTRUMENTS) {
+        newId++;
+      }
+      if (newId > PT3_MAX_INSTRUMENTS) {
+        alert(`Cannot add more instruments (max ${PT3_MAX_INSTRUMENTS} reached).`);
+        return;
+      }
+      setEditingSccInstrument({
+        id: newId,
+        name: `Wave ${newId}`,
+        waveform: Array(32).fill(0),
+      });
+    }
+    setIsWaveformModalOpen(true);
+  }, [songData.instruments]);
+
+  const handleSaveSccInstrument = useCallback((instrument: SCCInstrument) => {
+    let updatedInstruments;
+    const existing = songData.instruments.find(i => i.id === instrument.id);
+
+    if (existing) {
+      updatedInstruments = (songData.instruments || []).map(instr =>
+        instr.id === instrument.id ? instrument : instr
+      );
+    } else {
+      updatedInstruments = [...(songData.instruments || []), instrument];
+    }
+    updatedInstruments.sort((a, b) => a.id - b.id);
+    onUpdate({ instruments: updatedInstruments });
+    setIsWaveformModalOpen(false);
+    setEditingSccInstrument(null);
+  }, [songData.instruments, onUpdate]);
+
+
   const handleOpenOrnamentModal = useCallback((ornament: PT3Ornament | null) => {
     if (ornament) {
-        setEditingOrnament(ornament);
-        setOrnamentModalBuffer({
-            ...ornament,
-            data: ornament.data?.join(','),
-        });
+      setEditingOrnament(ornament);
+      setOrnamentModalBuffer({
+        ...ornament,
+        data: ornament.data?.join(','),
+      });
     } else {
-        const existingIds = (songData.ornaments || []).map(o => o.id);
-        let newId = 1;
-        while (existingIds.includes(newId) && newId <= PT3_MAX_ORNAMENTS) {
-            newId++;
-        }
-        if (newId > PT3_MAX_ORNAMENTS) {
-            alert(`Cannot add more ornaments (max ${PT3_MAX_ORNAMENTS} reached).`);
-            return;
-        }
-        setEditingOrnament(null);
-        setOrnamentModalBuffer({ 
-            id: newId,
-            name: `Ornament ${newId}`,
-            data: "0",
-            loopPosition: 255, 
-        });
+      const existingIds = (songData.ornaments || []).map(o => o.id);
+      let newId = 1;
+      while (existingIds.includes(newId) && newId <= PT3_MAX_ORNAMENTS) {
+        newId++;
+      }
+      if (newId > PT3_MAX_ORNAMENTS) {
+        alert(`Cannot add more ornaments (max ${PT3_MAX_ORNAMENTS} reached).`);
+        return;
+      }
+      setEditingOrnament(null);
+      setOrnamentModalBuffer({
+        id: newId,
+        name: `Ornament ${newId}`,
+        data: "0",
+        loopPosition: 255,
+      });
     }
     setIsOrnamentModalOpen(true);
   }, [songData.ornaments]);
 
   const handleLoadSampleSong = useCallback(() => {
-    setLogMessages([]); 
+    setLogMessages([]);
     addLog("Button 'Load Sample Song' clicked.");
-    setIsLogModalOpen(true); 
+    setIsLogModalOpen(true);
 
     addLog("Initiating sample song load...");
     addLog("Calling createOdeToJoySampleSong().");
     const sampleSong = createOdeToJoySampleSong();
     addLog(`Sample song data created: ID=${sampleSong.id}, Name=${sampleSong.name}, Patterns=${sampleSong.patterns.length}, Instruments=${sampleSong.instruments.length}, currentPatternId=${sampleSong.currentPatternId}`);
-    
+
     addLog("Calling onUpdate() to update global application state with sample song.");
-    onUpdate(sampleSong); 
+    onUpdate(sampleSong);
     addLog("onUpdate() with sample song completed.");
 
     addLog("Resetting local TrackerComposer UI state (playback, focus).");
     if (isPlaying) {
-        setIsPlaying(false); 
+      setIsPlaying(false);
     }
-    setPlaybackRow(0); 
-    setFocusedCell(null); 
+    setPlaybackRow(0);
+    setFocusedCell(null);
     addLog("Sample song loading process finished in TrackerComposer.");
 
   }, [onUpdate, isPlaying, addLog]);
@@ -990,14 +1042,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const handleSelectPattern = useCallback((id: string) => {
     const patternObject = songData.patterns.find(p => p.id === id);
     if (patternObject) {
-        const patternArrayIndex = songData.patterns.indexOf(patternObject);
-        const orderIndex = songData.order?.findIndex(idx => idx === patternArrayIndex) ?? -1;
-        
-        setFocusedCell(null); 
-        onUpdate({
-            currentPatternId: id,
-            currentPatternIndexInOrder: (orderIndex !== -1) ? orderIndex : Math.max(0, songData.currentPatternIndexInOrder)
-        });
+      const patternArrayIndex = songData.patterns.indexOf(patternObject);
+      const orderIndex = songData.order?.findIndex(idx => idx === patternArrayIndex) ?? -1;
+
+      setFocusedCell(null);
+      onUpdate({
+        currentPatternId: id,
+        currentPatternIndexInOrder: (orderIndex !== -1) ? orderIndex : Math.max(0, songData.currentPatternIndexInOrder)
+      });
     }
   }, [songData, onUpdate]);
 
@@ -1007,11 +1059,11 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   }
   if (songData.patterns.length === 0 || !currentPattern) {
     return (
-        <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4">
-            <p className="text-msx-textsecondary mb-4">No patterns in this song yet.</p>
-            <Button onClick={handleAddPattern} variant="primary" icon={<PlusCircleIcon/>}>Create First Pattern</Button>
-             <Button onClick={handleLoadSampleSong} variant="secondary" className="mt-2">Load Sample Song</Button>
-        </Panel>
+      <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4">
+        <p className="text-msx-textsecondary mb-4">No patterns in this song yet.</p>
+        <Button onClick={handleAddPattern} variant="primary" icon={<PlusCircleIcon />}>Create First Pattern</Button>
+        <Button onClick={handleLoadSampleSong} variant="secondary" className="mt-2">Load Sample Song</Button>
+      </Panel>
     );
   }
 
@@ -1034,6 +1086,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         isPlaying={isPlaying} onPlayStop={handlePlayStop}
         onLoadSampleSong={handleLoadSampleSong}
         onSilenceAllChannels={handleSilenceAllChannels}
+        soundChip={songData.soundChip}
+        onSoundChipChange={(chip) => onUpdate({ soundChip: chip, instruments: [] })}
       />
 
       <div className="flex flex-grow overflow-hidden"> {/* Main content area (scrollable) */}
@@ -1055,29 +1109,31 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
           <InstrumentsPanel
             instruments={songData.instruments || []} activeInstrumentId={activeInstrumentId}
             onSetActiveInstrumentId={setActiveInstrumentId} onOpenInstrumentModal={handleOpenInstrumentModal}
+            soundChip={songData.soundChip} onOpenWaveformModal={handleOpenWaveformModal}
           />
-          <OrnamentsPanel 
-            ornaments={songData.ornaments || []} 
+          <OrnamentsPanel
+            ornaments={songData.ornaments || []}
             activeOrnamentId={activeOrnamentId}
             onSetActiveOrnamentId={setActiveOrnamentId}
-            onOpenOrnamentModal={handleOpenOrnamentModal} 
+            onOpenOrnamentModal={handleOpenOrnamentModal}
           />
         </div>
 
         <PatternEditorGrid
-            currentPattern={currentPattern} focusedCell={focusedCell}
-            isPlaying={isPlaying} playbackRow={playbackRow}
-            onCellChange={handleCellChange}
-            onCellFocus={(rIdx, chId, fld) => setFocusedCell({rowIndex: rIdx, channelId: chId, field: fld})}
-            onGridKeyDown={handleGridKeyDown} patternEditorRef={patternEditorRef}
+          currentPattern={currentPattern} focusedCell={focusedCell}
+          isPlaying={isPlaying} playbackRow={playbackRow}
+          onCellChange={handleCellChange}
+          onCellFocus={(rIdx, chId, fld) => setFocusedCell({ rowIndex: rIdx, channelId: chId, field: fld })}
+          onGridKeyDown={handleGridKeyDown} patternEditorRef={patternEditorRef}
+          channels={channels}
         />
       </div>
 
       <div className="flex-shrink-0"> {/* Piano controls, fixed height */}
         <TrackerPianoControls
-            pressedKeys={activePianoKeys} keyboardOctaveOffset={keyboardOctaveOffset}
-            onPianoKeyPress={handleVirtualPianoKeyPress} onOctaveChange={setKeyboardOctaveOffset}
-            minOctave={PT3_KEYBOARD_OCTAVE_MIN_MAX.min} maxOctave={PT3_KEYBOARD_OCTAVE_MIN_MAX.max}
+          pressedKeys={activePianoKeys} keyboardOctaveOffset={keyboardOctaveOffset}
+          onPianoKeyPress={handleVirtualPianoKeyPress} onOctaveChange={setKeyboardOctaveOffset}
+          minOctave={PT3_KEYBOARD_OCTAVE_MIN_MAX.min} maxOctave={PT3_KEYBOARD_OCTAVE_MIN_MAX.max}
         />
       </div>
 
@@ -1086,7 +1142,14 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         editingInstrument={editingInstrument} instrumentModalBuffer={instrumentModalBuffer}
         onInstrumentModalBufferChange={handleInstrumentModalFieldChange} onSubmit={handleInstrumentModalSubmit}
       />
-      
+
+      <WaveformEditorModal
+        isOpen={isWaveformModalOpen}
+        onClose={() => { setIsWaveformModalOpen(false); setEditingSccInstrument(null); }}
+        instrument={editingSccInstrument}
+        onSave={handleSaveSccInstrument}
+      />
+
       <OrnamentEditorModal
         isOpen={isOrnamentModalOpen} onClose={() => { setIsOrnamentModalOpen(false); setEditingOrnament(null); }}
         editingOrnament={editingOrnament} ornamentModalBuffer={ornamentModalBuffer}

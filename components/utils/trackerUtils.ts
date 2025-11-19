@@ -1,6 +1,6 @@
 
-import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, PT3Ornament } from '../../types';
-import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, PT3_NOTE_NAMES } from '../../constants';
+import { TrackerCell, TrackerRow, TrackerPattern, TrackerSongData, PT3Instrument, PT3Ornament, TrackerChannelId } from '../../types';
+import { DEFAULT_PT3_ROWS_PER_PATTERN, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, PT3_CHANNELS, PT3_NOTE_NAMES } from '../../constants';
 
 /**
  * Creates an empty tracker cell with all fields initialized to null.
@@ -11,30 +11,37 @@ export const createEmptyCell = (): TrackerCell => ({
   instrument: null,
   ornament: null,
   volume: null,
-  // effectCmd and effectVal removed
 });
 
 /**
- * Creates an empty tracker row with three empty cells (for channels A, B, and C).
+ * Creates an empty tracker row with empty cells for the given channels.
+ * @param channels An array of channel IDs to create cells for. Defaults to PT3 channels.
  * @returns A new TrackerRow object.
  */
-export const createEmptyRow = (): TrackerRow => ({
-  A: createEmptyCell(),
-  B: createEmptyCell(),
-  C: createEmptyCell(),
-});
+export const createEmptyRow = (channels: readonly TrackerChannelId[] = PT3_CHANNELS): TrackerRow => {
+  const row: TrackerRow = {};
+  for (const chId of channels) {
+    row[chId] = createEmptyCell();
+  }
+  return row;
+};
 
 /**
  * Creates a default tracker pattern with a specified number of empty rows.
  * @param idSuffix A suffix to append to the pattern's ID.
  * @param numRows The number of rows for the pattern. Defaults to DEFAULT_PT3_ROWS_PER_PATTERN.
+ * @param channels The channels to use for creating empty rows.
  * @returns A new TrackerPattern object.
  */
-export const createDefaultTrackerPattern = (idSuffix: string, numRows: number = DEFAULT_PT3_ROWS_PER_PATTERN): TrackerPattern => ({
+export const createDefaultTrackerPattern = (
+  idSuffix: string, 
+  numRows: number = DEFAULT_PT3_ROWS_PER_PATTERN,
+  channels: readonly TrackerChannelId[] = PT3_CHANNELS
+): TrackerPattern => ({
   id: `pattern_${idSuffix}`,
   name: `Pattern ${idSuffix.split('_').pop()?.padStart(2,'0') || '00'}`,
   numRows,
-  rows: Array(numRows).fill(null).map(() => createEmptyRow()),
+  rows: Array(numRows).fill(null).map(() => createEmptyRow(channels)),
 });
 
 /** Tailwind CSS class for the width of the note cell. */

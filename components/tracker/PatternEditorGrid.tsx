@@ -1,7 +1,6 @@
 
 import React from 'react';
-import { TrackerPattern, TrackerRow, TrackerCell, PT3ChannelId } from '../../types';
-import { PT3_CHANNELS } from '../../constants';
+import { TrackerPattern, TrackerRow, TrackerCell, TrackerChannelId } from '../../types';
 import { CellInput } from '../common/CellInput';
 import { 
     formatCellForDisplay, getCellPlaceholder, getCellTransform, getCellAllowedCharsPattern, getCellMaxLength,
@@ -16,16 +15,18 @@ import {
 interface PatternEditorGridProps {
   /** The pattern data to display and edit. */
   currentPattern: TrackerPattern;
+  /** The channels to display. */
+  channels: readonly TrackerChannelId[];
   /** The currently focused cell's coordinates, or null. */
-  focusedCell: { rowIndex: number; channelId: PT3ChannelId; field: keyof TrackerCell } | null;
+  focusedCell: { rowIndex: number; channelId: TrackerChannelId; field: keyof TrackerCell } | null;
   /** Whether the song is currently playing. */
   isPlaying: boolean;
   /** The current row being highlighted during playback. */
   playbackRow: number;
   /** Callback function when a cell's value changes. */
-  onCellChange: (rowIndex: number, channelId: PT3ChannelId, field: keyof TrackerCell, inputValue: string | number | null) => void;
+  onCellChange: (rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell, inputValue: string | number | null) => void;
   /** Callback function when a cell receives focus. */
-  onCellFocus: (rowIndex: number, channelId: PT3ChannelId, field: keyof TrackerCell) => void;
+  onCellFocus: (rowIndex: number, channelId: TrackerChannelId, field: keyof TrackerCell) => void;
   /** Callback for keydown events on the grid. */
   onGridKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   /** A ref to the main grid container for focusing. */
@@ -42,6 +43,7 @@ interface PatternEditorGridProps {
  */
 export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
   currentPattern,
+  channels,
   focusedCell,
   isPlaying,
   playbackRow,
@@ -67,7 +69,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
     >
       <div className="flex sticky top-0 bg-msx-panelbg z-10 pb-1 border-b border-msx-border" aria-hidden="true">
         <div className="w-8 text-center text-msx-textsecondary">Row</div>
-        {PT3_CHANNELS.map(chId => (
+        {channels.map(chId => (
           <div key={`header-${chId}`} className="flex border-l border-msx-border pl-1">
             <div className={`${CELL_WIDTH_NOTE} ${CELL_TEXT_ALIGN} text-msx-highlight`}>Ch {chId} Note</div>
             <div className={`${CELL_WIDTH_INSTR} ${CELL_TEXT_ALIGN} text-msx-highlight`}>Ins</div>
@@ -87,7 +89,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
             <div className={`w-8 text-center ${rowNumColorClass} select-none`} role="rowheader">
                 {String(rIdx).padStart(2, '0')}
             </div>
-            {PT3_CHANNELS.map(chId => {
+            {channels.map(chId => {
               const cellData = rowData ? rowData[chId] : createEmptyCell();
               const cellTextColor = isCurrentPlaybackRow ? 'text-msx-bgcolor' : 'text-msx-textprimary';
               return (
@@ -105,7 +107,7 @@ export const PatternEditorGrid: React.FC<PatternEditorGridProps> = React.memo(({
                         <CellInput
                             key={`${chId}-${rIdx}-${field}`}
                             id={`cell-${rIdx}-${chId}-${field}`}
-                            value={formatCellForDisplay(field, cellData[field])}
+                            value={formatCellForDisplay(field, cellData?.[field])}
                             placeholder={getCellPlaceholder(field)}
                             maxLength={getCellMaxLength(field)}
                             transformInput={getCellTransform(field)}

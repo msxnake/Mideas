@@ -384,6 +384,8 @@ export const PT3_MAX_INSTRUMENTS = 31;
 export const PT3_MAX_ORNAMENTS = 15;
 /** The PSG channel identifiers. */
 export const PT3_CHANNELS = ['A', 'B', 'C'] as const;
+/** The SCC channel identifiers. */
+export const SCC_CHANNELS = ['1', '2', '3', '4', '5'] as const;
 
 /** The names of notes in an octave for display. */
 export const PT3_NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];

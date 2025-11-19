@@ -87,15 +87,15 @@ export interface Tile {
   /** The name of the tile. */
   name: string;
   /** The width of the tile in pixels. */
-  width: number; 
+  width: number;
   /** The height of the tile in pixels. */
-  height: number; 
+  height: number;
   /** The pixel data for the tile. */
-  data: PixelData; 
+  data: PixelData;
   /** Line color attributes for SCREEN 2 mode. */
-  lineAttributes?: LineColorAttribute[][]; 
+  lineAttributes?: LineColorAttribute[][];
   /** Logical properties for game mechanics. */
-  logicalProperties: TileLogicalProperties; 
+  logicalProperties: TileLogicalProperties;
   /** Optional custom palette definition for SCREEN 5 tiles. */
   screen5Palette?: Screen5PaletteSlot[];
 }
@@ -107,7 +107,7 @@ export interface SpriteFrame {
   /** A unique identifier for the frame. */
   id: string;
   /** The pixel data for the frame. */
-  data: PixelData; 
+  data: PixelData;
 }
 
 /** The type of explosion to generate. */
@@ -128,15 +128,15 @@ export interface ExplosionParams {
   /** The number of frames in the animation. */
   numFrames: number;
   /** The intensity of the explosion. */
-  intensity: number; 
+  intensity: number;
   /** The amount of jitter or randomness. */
-  jitter: number;    
+  jitter: number;
   /** The number of simultaneous colors to use. */
   numSimultaneousColors: 1 | 2 | 3 | 4;
   /** The number of fragments for fragmented explosions. */
-  numFragments?: number; 
+  numFragments?: number;
   /** The variation in fragment speed. */
-  fragmentSpeedVariation?: number; 
+  fragmentSpeedVariation?: number;
 }
 
 /** The direction an entity is facing. */
@@ -151,7 +151,7 @@ export interface Sprite {
   /** The name of the sprite. */
   name: string;
   /** The size of the sprite in pixels. */
-  size: { width: number; height: number }; 
+  size: { width: number; height: number };
   /** The 4-color palette used by the sprite. */
   spritePalette: [MSXColorValue, MSXColorValue, MSXColorValue, MSXColorValue];
   /** The color treated as transparent. */
@@ -186,15 +186,15 @@ export interface Sprite {
  */
 export interface ScreenTile {
   /** The ID of the tile asset. */
-  tileId: string | null; 
+  tileId: string | null;
   /** The x-coordinate of the sub-tile within the larger tile asset (for meta-tiles). */
-  subTileX?: number;      
+  subTileX?: number;
   /** The y-coordinate of the sub-tile within the larger tile asset. */
-  subTileY?: number;      
+  subTileY?: number;
 }
 
 /** A 2D array representing a layer of a screen map. */
-export type ScreenLayerData = ScreenTile[][]; 
+export type ScreenLayerData = ScreenTile[][];
 
 /**
  * An enumeration of all possible HUD element types.
@@ -213,13 +213,13 @@ export interface HUDElementProperties_Base {
   /** The name of the HUD element. */
   name: string;
   /** The text content for text-based elements. */
-  text?: string; 
+  text?: string;
   /** The position of the element on the screen, in pixels. */
-  position: { x: number; y: number }; 
+  position: { x: number; y: number };
   /** Whether the element is currently visible. */
   visible: boolean;
   /** A key-value map of additional details specific to the element type. */
-  details?: Record<string, any>; 
+  details?: Record<string, any>;
   /** The memory address associated with the element's data. */
   memoryAddress?: string;
 }
@@ -339,10 +339,10 @@ export interface EntityInstance {
 // --- Effect Zone Types ---
 /** A constant object defining the available flags for an effect zone. */
 export const EFFECT_ZONE_FLAGS = {
-  water:          { bit: 0, label: "Water Effect", maskValue: 0b00000001, color: 'rgba(50, 100, 200, 0.4)' },
-  customGravity:  { bit: 1, label: "Custom Gravity", maskValue: 0b00000010, color: 'rgba(150, 50, 200, 0.4)' },
-  icePhysics:     { bit: 2, label: "Ice Physics", maskValue: 0b00000100, color: 'rgba(100, 200, 255, 0.4)' },
-  spriteConceal:  { bit: 3, label: "Sprite Concealment", maskValue: 0b00001000, color: 'rgba(100, 100, 100, 0.4)' },
+  water: { bit: 0, label: "Water Effect", maskValue: 0b00000001, color: 'rgba(50, 100, 200, 0.4)' },
+  customGravity: { bit: 1, label: "Custom Gravity", maskValue: 0b00000010, color: 'rgba(150, 50, 200, 0.4)' },
+  icePhysics: { bit: 2, label: "Ice Physics", maskValue: 0b00000100, color: 'rgba(100, 200, 255, 0.4)' },
+  spriteConceal: { bit: 3, label: "Sprite Concealment", maskValue: 0b00001000, color: 'rgba(100, 100, 100, 0.4)' },
 } as const;
 
 /** A type representing the keys of the EFFECT_ZONE_FLAGS object. */
@@ -370,30 +370,30 @@ export interface EffectZone {
  */
 export interface ScreenMap {
   /** A unique identifier for the screen map. */
-  id:string;
+  id: string;
   /** The name of the screen map. */
   name: string;
   /** The width of the map in tiles. */
-  width: number; 
+  width: number;
   /** The height of the map in tiles. */
-  height: number; 
+  height: number;
   /** The different layers of the screen map. */
   layers: {
     background: ScreenLayerData;
     collision: ScreenLayerData;
     effects: ScreenLayerData;
-    entities: EntityInstance[]; 
+    entities: EntityInstance[];
   };
   /** An array of rectangular effect zones on the map. */
   effectZones?: EffectZone[];
   /** The x-coordinate of the active (playable) area of the map. */
-  activeAreaX?: number; 
+  activeAreaX?: number;
   /** The y-coordinate of the active (playable) area of the map. */
-  activeAreaY?: number; 
+  activeAreaY?: number;
   /** The width of the active (playable) area of the map. */
-  activeAreaWidth?: number; 
+  activeAreaWidth?: number;
   /** The height of the active (playable) area of the map. */
-  activeAreaHeight?: number; 
+  activeAreaHeight?: number;
   /** The HUD configuration for this screen. */
   hudConfiguration?: HUDConfiguration;
   /** MSX Screen 2 sector configuration for TileBank/Font assignment per 8-line sector. */
@@ -434,9 +434,9 @@ export interface CopiedScreenData {
   /** The height of the copied active area. */
   activeAreaHeight: number;
   /** The HUD configuration of the copied screen. */
-  hudConfiguration?: HUDConfiguration; 
+  hudConfiguration?: HUDConfiguration;
   /** A list of tile assets referenced by the copied data. */
-  referencedTiles: Tile[]; 
+  referencedTiles: Tile[];
 }
 
 /**
@@ -457,15 +457,15 @@ export type ConnectionDirection = 'north' | 'south' | 'east' | 'west';
  */
 export interface WorldMapScreenNode {
   /** A unique identifier for the node. */
-  id: string; 
+  id: string;
   /** The ID of the screen map asset this node represents. */
-  screenAssetId: string; 
+  screenAssetId: string;
   /** The name of the node. */
-  name: string; 
+  name: string;
   /** The position of the node in the world map editor. */
-  position: { x: number; y: number }; 
+  position: { x: number; y: number };
   /** An optional zone identifier for the node. */
-  zone?: string; 
+  zone?: string;
 }
 
 /**
@@ -473,15 +473,15 @@ export interface WorldMapScreenNode {
  */
 export interface WorldMapConnection {
   /** A unique identifier for the connection. */
-  id: string; 
+  id: string;
   /** The ID of the starting node. */
   fromNodeId: string;
   /** The ID of the ending node. */
   toNodeId: string;
   /** The direction of the connection from the starting node. */
-  fromDirection: ConnectionDirection; 
+  fromDirection: ConnectionDirection;
   /** The direction of the connection to the ending node. */
-  toDirection: ConnectionDirection;   
+  toDirection: ConnectionDirection;
 }
 
 /**
@@ -497,9 +497,9 @@ export interface WorldMapGraph {
   /** An array of all connections between nodes. */
   connections: WorldMapConnection[];
   /** The ID of the starting screen node for the world map. */
-  startScreenNodeId: string | null; 
+  startScreenNodeId: string | null;
   /** The size of the grid cells in the editor. */
-  gridSize: number; 
+  gridSize: number;
   /** The current zoom level of the editor. */
   zoomLevel: number;
   /** The current pan offset of the editor. */
@@ -537,7 +537,7 @@ export interface PSGSoundChannelState {
   /** An array of steps for this channel's sequence. */
   steps: PSGSoundChannelStep[];
   /** Whether the channel's sequence should loop. */
-  loop: boolean; 
+  loop: boolean;
 }
 
 /**
@@ -545,46 +545,52 @@ export interface PSGSoundChannelState {
  */
 export interface PSGSoundData {
   /** A unique identifier for the sound effect. */
-  id: string; 
+  id: string;
   /** The name of the sound effect. */
-  name: string; 
+  name: string;
   /** The tempo of the sound effect in beats per minute. */
-  tempoBPM: number; 
+  tempoBPM: number;
   /** An array of the three PSG channel states. */
   channels: [PSGSoundChannelState, PSGSoundChannelState, PSGSoundChannelState];
   /** The noise period for the PSG. */
-  noisePeriod: number; 
+  noisePeriod: number;
   /** The hardware envelope period for the PSG. */
-  envelopePeriod: number; 
+  envelopePeriod: number;
   /** The hardware envelope shape for the PSG. */
-  envelopeShape: number; 
+  envelopeShape: number;
   /** The master volume for the sound effect. */
-  masterVolume: number; 
+  masterVolume: number;
 }
 
 /** A type representing the PSG channel identifiers in the tracker. */
 export type PT3ChannelId = 'A' | 'B' | 'C';
 
+/** A type representing the SCC channel identifiers in the tracker. */
+export type SCCChannelId = '1' | '2' | '3' | '4' | '5';
+
+/** A type representing any channel identifier in the tracker. */
+export type TrackerChannelId = PT3ChannelId | SCCChannelId;
+
 /**
- * Represents a PT3 instrument.
+ * Represents a PT3 instrument (PSG).
  */
 export interface PT3Instrument {
   /** The instrument's ID (1-31). */
-  id: number; 
+  id: number;
   /** The name of the instrument. */
   name: string;
   /** An array of volume envelope points. */
-  volumeEnvelope?: number[]; 
+  volumeEnvelope?: number[];
   /** An array of tone envelope points (pitch offsets). */
-  toneEnvelope?: number[];   
+  toneEnvelope?: number[];
   /** The loop position for the volume envelope. */
   volumeLoop?: number;
   /** The loop position for the tone envelope. */
   toneLoop?: number;
   /** (Not implemented) Sample data for the instrument. */
-  sampleData?: any; 
+  sampleData?: any;
   /** The AY hardware envelope shape (0-15). */
-  ayEnvelopeShape?: number; 
+  ayEnvelopeShape?: number;
   /** Whether the AY noise channel is enabled for this instrument. */
   ayNoiseEnabled?: boolean;
   /** Whether the AY tone channel is enabled for this instrument. */
@@ -592,15 +598,33 @@ export interface PT3Instrument {
 }
 
 /**
+ * Represents an SCC wavetable instrument.
+ */
+export interface SCCInstrument {
+  /** The instrument's ID (1-31). */
+  id: number;
+  /** The name of the instrument. */
+  name: string;
+  /** 32-byte wavetable data. Each value should be between -8 and 7. */
+  waveform: number[];
+  /** Optional volume for the instrument (0-15). */
+  volume?: number;
+  /** An array of volume envelope points. */
+  volumeEnvelope?: number[];
+  /** The loop position for the volume envelope. */
+  volumeLoop?: number;
+}
+
+/**
  * Represents a PT3 ornament.
  */
 export interface PT3Ornament {
   /** The ornament's ID (1-15). */
-  id: number; 
+  id: number;
   /** The name of the ornament. */
   name: string;
   /** An array of pitch offsets. */
-  data: number[]; 
+  data: number[];
   /** The loop position for the ornament data. */
   loopPosition?: number;
 }
@@ -610,22 +634,20 @@ export interface PT3Ornament {
  */
 export interface TrackerCell {
   /** The note to play (e.g., "C#5"). */
-  note: string | null; 
+  note: string | null;
   /** The ID of the instrument to use. */
-  instrument: number | null; 
+  instrument: number | null;
   /** The ID of the ornament to apply. */
-  ornament: number | null; 
+  ornament: number | null;
   /** The volume for this step (0-15). */
-  volume: number | null; 
+  volume: number | null;
 }
 
 /**
  * Represents a single row in a tracker pattern, containing cells for each channel.
  */
 export interface TrackerRow {
-  A: TrackerCell;
-  B: TrackerCell;
-  C: TrackerCell;
+  [key: string]: TrackerCell;
 }
 
 /**
@@ -637,7 +659,7 @@ export interface TrackerPattern {
   /** The name of the pattern. */
   name: string;
   /** The number of rows in the pattern. */
-  numRows: number; 
+  numRows: number;
   /** An array of rows that make up the pattern. */
   rows: TrackerRow[];
 }
@@ -650,26 +672,28 @@ export interface TrackerSongData {
   id: string;
   /** The name of the song asset. */
   name: string;
+  /** The sound chip to target. */
+  soundChip: 'PSG' | 'SCC';
   /** The display title of the song. */
-  title?: string; 
+  title?: string;
   /** The author of the song. */
-  author?: string; 
+  author?: string;
   /** The beats per minute of the song. */
-  bpm: number; 
+  bpm: number;
   /** The speed of the song in ticks per row. */
-  speed: number; 
+  speed: number;
   /** The global volume of the song (0-15). */
-  globalVolume: number; 
+  globalVolume: number;
   /** An array of all patterns in the song. */
   patterns: TrackerPattern[];
   /** An array of pattern indices defining the song's order. */
-  order: number[]; 
+  order: number[];
   /** The total length of the song in patterns. */
-  lengthInPatterns: number; 
+  lengthInPatterns: number;
   /** The position in the order list where the song will loop. */
-  restartPosition: number; 
+  restartPosition: number;
   /** An array of all instruments used in the song. */
-  instruments: PT3Instrument[];
+  instruments: (PT3Instrument | SCCInstrument)[];
   /** An array of all ornaments used in the song. */
   ornaments: PT3Ornament[];
   /** The AY hardware envelope period. */
@@ -677,11 +701,11 @@ export interface TrackerSongData {
   /** The AY noise generator period (0-31). */
   ayNoisePeriod?: number;
   /** The currently active pattern index in the order list. */
-  currentPatternIndexInOrder: number; 
+  currentPatternIndexInOrder: number;
   /** The ID of the currently active pattern. */
-  currentPatternId?: string; 
+  currentPatternId?: string;
   /** The calculated total length of the song in ticks. */
-  currentSongLengthTicks?: number; 
+  currentSongLengthTicks?: number;
 }
 
 /**
@@ -689,9 +713,9 @@ export interface TrackerSongData {
  */
 export interface PianoKeyLayoutEntry {
   /** The index of the note name (0-11). */
-  noteNameIndex: number; 
+  noteNameIndex: number;
   /** The base octave for the note. */
-  baseOctave: number;    
+  baseOctave: number;
 }
 
 /**
@@ -699,13 +723,13 @@ export interface PianoKeyLayoutEntry {
  */
 export interface TileBankScreenZone {
   /** The x-coordinate of the zone's top-left corner, in cells. */
-  x: number; 
+  x: number;
   /** The y-coordinate of the zone's top-left corner, in cells. */
-  y: number; 
+  y: number;
   /** The width of the zone, in cells. */
-  width: number; 
+  width: number;
   /** The height of the zone, in cells. */
-  height: number; 
+  height: number;
 }
 
 /**
@@ -713,9 +737,9 @@ export interface TileBankScreenZone {
  */
 export interface TileAssignment {
   /** The ID of the tile asset. */
-  tileId: string; 
+  tileId: string;
   /** The character code assigned to the tile. */
-  charCode: number; 
+  charCode: number;
 }
 
 /**
@@ -769,7 +793,7 @@ export interface BehaviorScript {
   /** The name of the script file. */
   name: string;
   /** The Z80 assembly code for the script. */
-  code: string; 
+  code: string;
 }
 
 /**
@@ -789,11 +813,11 @@ export interface BossAttack {
   /** The amount of damage the attack inflicts. */
   damage: number;
   /** The speed of the attack's projectile. */
-  speed?: number; 
+  speed?: number;
   /** The duration of the attack. */
-  duration?: number; 
+  duration?: number;
   /** The cooldown period after the attack. */
-  cooldown?: number; 
+  cooldown?: number;
 }
 
 /**
@@ -817,15 +841,15 @@ export interface BossPhaseWeakPoint {
  */
 export interface BossPhase {
   /** A unique identifier for the phase. */
-  id:string;
+  id: string;
   /** The name of the phase. */
   name: string;
   /** The health threshold at which this phase begins. */
-  healthThreshold: number; 
+  healthThreshold: number;
   /** The method used to build the boss's appearance for this phase. */
   buildType: 'sprite' | 'tile';
   /** The ID of the sprite asset to use if buildType is 'sprite'. */
-  spriteAssetId?: string; 
+  spriteAssetId?: string;
   /** The dimensions of the boss in tiles, if buildType is 'tile'. */
   dimensions?: { width: number; height: number };
   /** The ID of the tile bank to use if buildType is 'tile'. */
@@ -1127,9 +1151,9 @@ export interface ProjectAsset {
 
 export interface Point { x: number; y: number; }
 export interface SymmetrySettings { horizontal: boolean; vertical: boolean; diagonalMain: boolean; diagonalAnti: boolean; quadMirror: boolean; }
-export type MSXCharacterPattern = number[]; 
+export type MSXCharacterPattern = number[];
 export type MSXFont = Record<number, MSXCharacterPattern>;
-export type MSXFontRowColorAttributes = Array<{fg: MSX1ColorValue, bg: MSX1ColorValue}>;
+export type MSXFontRowColorAttributes = Array<{ fg: MSX1ColorValue, bg: MSX1ColorValue }>;
 export type MSXFontColorAttributes = Record<number, MSXFontRowColorAttributes>;
 
 /**
@@ -1165,10 +1189,10 @@ export interface Snippet { id: string; name: string; code: string; }
 
 // MockEntityType is now replaced by EntityTemplate for actual use, but kept for reference if needed elsewhere temporarily
 export interface MockEntityType {
-  id: string; 
-  name: string; 
-  icon?: string; 
-  defaultSpriteAssetId?: string; 
+  id: string;
+  name: string;
+  icon?: string;
+  defaultSpriteAssetId?: string;
 }
 
 export interface HelpDocArticle { id: string; title: string; content: string; tags?: string[]; }
@@ -1201,7 +1225,7 @@ export interface TileStamp {
 export const SOLIDITY_TYPES = [
   { id: 0, name: "NoSolid (Passable)", isSolid: false },
   { id: 1, name: "Solid (Wall/Ground)", isSolid: true },
-  { id: 2, name: "Platform (Top-Solid)", isSolid: true }, 
+  { id: 2, name: "Platform (Top-Solid)", isSolid: true },
   { id: 3, name: "Slope (Solid)", isSolid: true },
 ] as const;
 export type SolidityTypeId = typeof SOLIDITY_TYPES[number]['id'];
@@ -1209,8 +1233,8 @@ export type SolidityTypeId = typeof SOLIDITY_TYPES[number]['id'];
 export const PROPERTY_FLAGS = {
   isBreakable: { bit: 0, label: "Breakable" },
   isMovable: { bit: 1, label: "Movable" },
-  causesDamage: { bit: 2, label: "Deadly" }, 
-  isInteractiveSwitch: { bit: 3, label: "Interactable" }, 
+  causesDamage: { bit: 2, label: "Deadly" },
+  isInteractiveSwitch: { bit: 3, label: "Interactable" },
 } as const;
 export type PropertyFlagKey = keyof typeof PROPERTY_FLAGS;
 
@@ -1221,94 +1245,94 @@ export interface SuperRLEExportData { mapName: string; mapWidth: number; mapHeig
 export interface OptimizedRLEExportData { mapName: string; mapWidth: number; mapHeight: number; originalSize: number; compressedSize: number; optimizedRLEPackets: number[]; decompressorAsm: string; compressionMethodName: 'OptimizedRLE'; }
 export type ContextMenuItem =
   | {
-      isSeparator?: false;
-      label: string;
-      onClick: () => void;
-      icon?: React.ReactNode;
-      disabled?: boolean;
-    }
+    isSeparator?: false;
+    label: string;
+    onClick: () => void;
+    icon?: React.ReactNode;
+    disabled?: boolean;
+  }
   | {
-      isSeparator: true;
-    };
+    isSeparator: true;
+  };
 
 // --- Texture Generator Types ---
 export type TextureGeneratorType = 'Rock' | 'Brick' | 'Ladder' | 'CellBars' | 'Ice' | 'Grass' | 'StylizedGrass' | 'Frame';
 
 export interface RockGeneratorParams {
-    baseColor: MSXColorValue;
-    highlightColor: MSXColorValue;
-    shadowColor: MSXColorValue;
-    density: number; // 0-100
-    seamless: boolean;
+  baseColor: MSXColorValue;
+  highlightColor: MSXColorValue;
+  shadowColor: MSXColorValue;
+  density: number; // 0-100
+  seamless: boolean;
 }
 
 export interface BrickGeneratorParams {
-    brickColor: MSXColorValue;
-    mortarColor: MSXColorValue;
-    brickWidth: number; // in pixels
-    brickHeight: number; // in pixels
-    mortarThickness: number; // in pixels
-    rowOffset: number; // 0.0 to 1.0
-    edgeVariation: number; // 0-100
+  brickColor: MSXColorValue;
+  mortarColor: MSXColorValue;
+  brickWidth: number; // in pixels
+  brickHeight: number; // in pixels
+  mortarThickness: number; // in pixels
+  rowOffset: number; // 0.0 to 1.0
+  edgeVariation: number; // 0-100
 }
 
 export interface LadderGeneratorParams {
-    railColor: MSXColorValue;
-    rungColor: MSXColorValue;
-    backgroundColor: MSXColorValue;
-    railWidth: number; // 1 or 2
-    rungHeight: number; // 1 or 2
-    rungSpacing: number; // e.g., 2-8
-    railInset: number; // e.g., 0-3
-    style: 'solid' | 'dashed';
+  railColor: MSXColorValue;
+  rungColor: MSXColorValue;
+  backgroundColor: MSXColorValue;
+  railWidth: number; // 1 or 2
+  rungHeight: number; // 1 or 2
+  rungSpacing: number; // e.g., 2-8
+  railInset: number; // e.g., 0-3
+  style: 'solid' | 'dashed';
 }
 
 export interface CellBarsGeneratorParams {
-    barColor: MSXColorValue;
-    backgroundColor: MSXColorValue;
-    barCount: number;
-    barThickness: number;
-    hasOutline: boolean;
+  barColor: MSXColorValue;
+  backgroundColor: MSXColorValue;
+  barCount: number;
+  barThickness: number;
+  hasOutline: boolean;
 }
 
 export interface IceGeneratorParams {
-    baseColor: MSXColorValue;
-    crackColor: MSXColorValue;
-    shineColor: MSXColorValue;
-    crackDensity: number; // 0.0 to 1.0
+  baseColor: MSXColorValue;
+  crackColor: MSXColorValue;
+  shineColor: MSXColorValue;
+  crackDensity: number; // 0.0 to 1.0
 }
 
 export interface GrassGeneratorParams {
-    baseGrassColor: MSXColorValue;
-    shadowGrassColor: MSXColorValue;
-    detailColor: MSXColorValue;
-    detailProbability: number; // 0.0 to 1.0
+  baseGrassColor: MSXColorValue;
+  shadowGrassColor: MSXColorValue;
+  detailColor: MSXColorValue;
+  detailProbability: number; // 0.0 to 1.0
 }
 
 export interface StylizedGrassGeneratorParams {
-    lightGrassColor: MSXColorValue;
-    darkGrassColor: MSXColorValue;
-    bladeDensity: number; // 0.1 to 1.0
-    style: 'wavy' | 'straight' | 'random';
+  lightGrassColor: MSXColorValue;
+  darkGrassColor: MSXColorValue;
+  bladeDensity: number; // 0.1 to 1.0
+  style: 'wavy' | 'straight' | 'random';
 }
 
 export interface FrameGeneratorParams {
-    frameColor: MSXColorValue;
-    backgroundColor: MSXColorValue;
-    thickness: number; // 1-8 pixels
-    style: 'simple' | 'double' | 'decorative' | 'braided' | 'chain' | 'carved';
-    corners: 'square' | 'rounded' | 'fancy';
+  frameColor: MSXColorValue;
+  backgroundColor: MSXColorValue;
+  thickness: number; // 1-8 pixels
+  style: 'simple' | 'double' | 'decorative' | 'braided' | 'chain' | 'carved';
+  corners: 'square' | 'rounded' | 'fancy';
 }
 
 export interface AllGeneratorParams {
-    Rock: RockGeneratorParams;
-    Brick: BrickGeneratorParams;
-    Ladder: LadderGeneratorParams;
-    CellBars: CellBarsGeneratorParams;
-    Ice: IceGeneratorParams;
-    Grass: GrassGeneratorParams;
-    StylizedGrass: StylizedGrassGeneratorParams;
-    Frame: FrameGeneratorParams;
+  Rock: RockGeneratorParams;
+  Brick: BrickGeneratorParams;
+  Ladder: LadderGeneratorParams;
+  CellBars: CellBarsGeneratorParams;
+  Ice: IceGeneratorParams;
+  Grass: GrassGeneratorParams;
+  StylizedGrass: StylizedGrassGeneratorParams;
+  Frame: FrameGeneratorParams;
 }
 // --- End Texture Generator Types ---
 
@@ -1338,15 +1362,15 @@ export interface WaypointPickerState {
 export type HistoryActionType = 'ASSETS_UPDATE' | 'TILE_BANKS_UPDATE' | 'FONT_UPDATE' | 'FONT_COLOR_UPDATE' | 'COMPONENT_DEFINITIONS_UPDATE' | 'ENTITY_TEMPLATES_UPDATE' | 'MAIN_MENU_UPDATE';
 
 export interface HistoryAction {
-    type: HistoryActionType;
-    payload: {
-        before: any;
-        after: any;
-    }
+  type: HistoryActionType;
+  payload: {
+    before: any;
+    after: any;
+  }
 }
 
 export interface HistoryState {
-    undoStack: HistoryAction[];
-    redoStack: HistoryAction[];
+  undoStack: HistoryAction[];
+  redoStack: HistoryAction[];
 }
 // --- End Centralized History System ---

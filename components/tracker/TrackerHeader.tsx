@@ -57,6 +57,10 @@ interface TrackerHeaderProps {
   onLoadSampleSong: () => void;
   /** Callback to silence all channels. */
   onSilenceAllChannels: () => void;
+  /** The sound chip to target. */
+  soundChip: 'PSG' | 'SCC';
+  /** Callback to update the sound chip. */
+  onSoundChipChange: (chip: 'PSG' | 'SCC') => void;
 }
 
 /**
@@ -72,7 +76,8 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   editStepJump, onEditStepJumpChange, globalVolume, onGlobalVolumeChange,
   ayHardwareEnvelopePeriod, onAyHardwareEnvelopePeriodChange,
   ayNoisePeriod, onAyNoisePeriodChange,
-  isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels
+  isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels,
+  soundChip, onSoundChipChange
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
 
@@ -101,6 +106,14 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
       </div>
       <div className="flex items-center space-x-1">
         <Button onClick={onLoadSampleSong} size="sm" variant="ghost" icon={<MusicNoteIcon />} title="Load 'Ode to Joy' Sample">Sample</Button> 
+      </div>
+      <span className="border-l border-msx-border h-5 mx-1"></span>
+      <div>
+        <label className="text-msx-textsecondary mr-1">Chip:</label>
+        <select value={soundChip} onChange={e => onSoundChipChange(e.target.value as 'PSG' | 'SCC')} className="p-1 bg-msx-bgcolor border border-msx-border rounded">
+          <option value="PSG">PSG</option>
+          <option value="SCC">SCC</option>
+        </select>
       </div>
       <span className="border-l border-msx-border h-5 mx-1"></span>
       <div>
@@ -146,7 +159,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
         <label className="text-msx-textsecondary mr-1">Vol:</label>
         <input type="number" value={isNaN(globalVolume) ? '' : globalVolume} min="0" max="15" onChange={e => onGlobalVolumeChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-12"/>
       </div>
-      {onAyHardwareEnvelopePeriodChange && (
+      {soundChip === 'PSG' && onAyHardwareEnvelopePeriodChange && (
         <div>
           <label className="text-msx-textsecondary mr-1" title="Hardware Envelope Period (1-65535)">HW Env:</label>
           <input
@@ -160,7 +173,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
           />
         </div>
       )}
-      {onAyNoisePeriodChange && (
+      {soundChip === 'PSG' && onAyNoisePeriodChange && (
         <div>
           <label className="text-msx-textsecondary mr-1" title="Noise Generator Period (0-31)">Noise:</label>
           <input
