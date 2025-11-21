@@ -440,6 +440,16 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 ))}
               </select>
             </div>
+            <ParamInput
+              label="Lifetime (ms)"
+              type="number"
+              value={action.params.lifetimeMs ?? ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                const parsed = val === '' ? undefined : parseFloat(val);
+                handleParamChange('lifetimeMs', Number.isNaN(parsed) ? undefined : parsed);
+              }}
+            />
             {mergedEntityTemplates.length === 0 && (
               <div className="text-xs text-yellow-400 italic p-2 bg-black bg-opacity-30 rounded border border-yellow-600">
                 No entity templates found. Create or import one in the Assets panel first.
