@@ -121,6 +121,9 @@ interface AnimatedEntity {
     // Desired world-facing direction for correct mirroring decisions
     desiredFacingDirection?: FacingDirection; // 'left' | 'right' | 'neutral'
     childLink?: ChildLinkConfig;
+    // Lifetime
+    lifetimeMs?: number;
+    expiresAt?: number;
 }
 
 interface StateTransitionOptions {
@@ -171,6 +174,15 @@ const parseChildLinkConfig = (template: EntityTemplate, instance: EntityInstance
         detachOnParentLost: values.detachOnParentLost === true,
         mirrorParent: values.mirrorParent === true || values.mirrorParent === 'true'
     };
+};
+
+const resolveLifetimeMs = (template: EntityTemplate, instance: EntityInstance, overrideMs?: number): number | undefined => {
+    const lifetimeComp = template.components.find(c => c.definitionId === 'comp_lifetime');
+    if (!lifetimeComp) return undefined;
+    const lifetimeOverride = instance.componentOverrides?.['comp_lifetime']?.lifetimeMs;
+    const raw = overrideMs ?? lifetimeOverride ?? (lifetimeComp as any)?.defaultValues?.lifetimeMs ?? (lifetimeComp as any)?.defaultValues?.lifeTimeMs;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 };
 
 const normalizeVariableName = (value?: string | null): string | undefined => {
@@ -370,6 +382,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [isDynamic, setIsDynamic] = useState(initialIsDynamic);
     const [showHitboxDebug, setShowHitboxDebug] = useState(false);
     const [showTileHitboxes, setShowTileHitboxes] = useState(false); // Debug: outlines for solid Collision tiles
+    const [showEntityCount, setShowEntityCount] = useState(false);
+    const [visibleEntityCount, setVisibleEntityCount] = useState(0);
+    const visibleEntityCountRef = useRef(0);
+    const showEntityCountRef = useRef(showEntityCount);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [crtConfig, setCrtConfig] = useState<CRTShaderConfig>(() => {
         const saved = localStorage.getItem('crtShaderConfig');
@@ -391,6 +407,13 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // HUD refresh key to make sure overlay re-paints when globals change
     const [hudVersion, setHudVersion] = useState(0);
     useEffect(() => { setHudVersion(v => v + 1); }, [gameGlobalVariables]);
+    useEffect(() => {
+        showEntityCountRef.current = showEntityCount;
+        if (!showEntityCount) {
+            visibleEntityCountRef.current = 0;
+            setVisibleEntityCount(0);
+        }
+    }, [showEntityCount]);
     const [gameFlowStack, setGameFlowStack] = useState<Array<{parentGraphData: GameFlowGraph, returnNodeId: string, parentGameFlowName: string}>>([]);
     const [currentNestedGraphData, setCurrentNestedGraphData] = useState<GameFlowGraph | null>(null);
     const [currentExecutingGameFlowName, setCurrentExecutingGameFlowName] = useState<string>(gameFlowAssetName);
@@ -431,6 +454,70 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const gridHeightTiles = currentScreenMap?.height ?? screenModeMetrics.heightTiles;
     const PREVIEW_WIDTH = gridWidthTiles * TILE_SIZE;
     const PREVIEW_HEIGHT = gridHeightTiles * TILE_SIZE;
+
+    const refreshVisibleEntityCount = useCallback((currentScreenId?: string | null) => {
+        if (!showEntityCountRef.current) return;
+
+        if (!currentScreenId) {
+            if (visibleEntityCountRef.current !== 0) {
+                visibleEntityCountRef.current = 0;
+                setVisibleEntityCount(0);
+            }
+            return;
+        }
+
+        const entityLookup = new Map<string, AnimatedEntity>();
+        for (const entity of entitiesRef.current) {
+            entityLookup.set(entity.instance.id, entity);
+        }
+
+        let count = 0;
+        for (const entity of entitiesRef.current) {
+            if ((entity as any).markedForDestruction) continue;
+
+            const childLinkConfig = entity.childLink;
+            const parent = childLinkConfig && entity.parentEntityId
+                ? entityLookup.get(entity.parentEntityId)
+                : undefined;
+            const isChildOfVisibleParent =
+                !!childLinkConfig &&
+                !!parent &&
+                parent.ownerScreenId === currentScreenId;
+
+            if (
+                entity.ownerScreenId &&
+                entity.ownerScreenId !== currentScreenId &&
+                !isChildOfVisibleParent
+            ) {
+                continue;
+            }
+
+            const isBox = entity.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entity.template.name);
+            if (isBox) {
+                const shouldCountBox = entity.ownerScreenId === null ||
+                    entity.ownerScreenId === currentScreenId ||
+                    isChildOfVisibleParent;
+
+                if (!shouldCountBox) continue;
+            }
+
+            const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
+            if (isCollectible) {
+                const shouldCountCollectible =
+                    entity.ownerScreenId === currentScreenId ||
+                    isChildOfVisibleParent;
+
+                if (!shouldCountCollectible) continue;
+            }
+
+            count += 1;
+        }
+
+        if (visibleEntityCountRef.current !== count) {
+            visibleEntityCountRef.current = count;
+            setVisibleEntityCount(count);
+        }
+    }, []);
 
     const isGamepadAllowed = useCallback(() => {
         const t = (gameGlobalVariables?.CONTROL_TYPE || '').toString().toUpperCase();
@@ -1140,6 +1227,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     const templateId = action.params.templateId || action.params.entityTemplateId;
                                     const spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
                                     const spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
+                                    const actionLifetimeMs = action.params.lifetimeMs !== undefined ? Number(action.params.lifetimeMs) : undefined;
 
                                     if (!templateId) break;
 
@@ -1215,6 +1303,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     };
 
                                     const childLink = parseChildLinkConfig(template, newInstance);
+                                    const lifetimeMs = resolveLifetimeMs(template, newInstance, actionLifetimeMs);
+                                    const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
 
                                     // Create animated entity
                                     const newEntity: AnimatedEntity = {
@@ -1235,7 +1325,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         spawnTime: performance.now(),
                                         parentEntityId: null,
                                         platformGraceFramesLeft: 0,
-                                        childLink
+                                        childLink,
+                                        lifetimeMs,
+                                        expiresAt
                                     };
 
                                     if (stateMachine && initialStateDef) {
@@ -2367,6 +2459,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
 
             const childLink = parseChildLinkConfig(template, instance);
+            const lifetimeMs = resolveLifetimeMs(template, instance);
+            const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
 
             const newEntity = {
                 instance, template, sprite, x: startX, y: startY, vx, vy,
@@ -2374,7 +2468,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
                 globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
                 ownerScreenId,
-                childLink
+                childLink,
+                lifetimeMs,
+                expiresAt
             };
 
             if (stateMachine && initialStateDef) {
@@ -3809,6 +3905,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
 
             const now = performance.now();
+            // Lifetime expiration: mark entities whose time is over
+            entitiesRef.current.forEach(e => {
+                if (e.expiresAt !== undefined && now >= e.expiresAt) {
+                    (e as any).markedForDestruction = true;
+                }
+            });
 
             // Debug: Log entities with collision component (only once per second to avoid spam)
             // if (now % 1000 < 16) { // Aproximadamente cada segundo
@@ -5196,6 +5298,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // --- Remove destroyed entities ---
             entitiesRef.current = entitiesRef.current.filter(e => !e.markedForDestruction);
 
+            refreshVisibleEntityCount(currentScreenMapRef.current?.id);
+
             // --- Check for pending node transitions (from CHANGE_GAME_FLOW_NODE action) ---
             const entityWithPendingTransition = entitiesRef.current.find(e => (e as any).pendingNodeTransition);
             if (entityWithPendingTransition) {
@@ -5324,9 +5428,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
                     }
                 });
+
+                refreshVisibleEntityCount(currentScreenMapRef.current?.id);
             }
         } else {
             renderTextNodes();
+            refreshVisibleEntityCount(null);
         }
 
         return () => {
@@ -5337,7 +5444,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
         msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
         // Asegurarse de que dependencias de las funciones internas estAn aquA si cambian
-        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, showTileHitboxes, isFullscreen
+        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, showTileHitboxes, isFullscreen,
+        refreshVisibleEntityCount, showEntityCount
     ]);
 
     if (!isOpen) return null;
@@ -5426,6 +5534,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             {`Ammo: ${(() => { const v = (gameGlobalVariables as any).Ammo; const n = Number(v); return (!Number.isNaN(n) && n < 0) ? '8' : String(v); })()}`}
                         </div>
                     )}
+                    {showEntityCount && currentNode?.type === 'WorldLink' && (
+                        <div
+                            className="absolute text-white bg-black bg-opacity-50 px-2 py-1 rounded pixel-font"
+                            style={{ top: 8, right: 8, fontSize: 16 }}
+                        >
+                            {`Entities: ${visibleEntityCount}`}
+                        </div>
+                    )}
                     {cursorAsset && subMenuNode && (() => {
                         const expandedOpts = expandMenuOptions(subMenuNode);
                         const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
@@ -5476,6 +5592,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 style={{ top: 4, left: 4, fontSize: 12 }}
                             >
                                 {`Ammo: ${(() => { const v = (gameGlobalVariables as any).Ammo; const n = Number(v); return (!Number.isNaN(n) && n < 0) ? '8' : String(v); })()}`}
+                            </div>
+                        )}
+                        {showEntityCount && currentNode?.type === 'WorldLink' && (
+                            <div
+                                className="absolute text-white bg-black bg-opacity-50 px-2 py-0.5 rounded pixel-font"
+                                style={{ top: 4, right: 4, fontSize: 12 }}
+                            >
+                                {`Entities: ${visibleEntityCount}`}
                             </div>
                         )}
                         {cursorAsset && subMenuNode && (() => {
@@ -5533,6 +5657,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     </Button>
                                     <Button onClick={() => setShowTileHitboxes(!showTileHitboxes)} variant={showTileHitboxes ? 'secondary' : 'ghost'} size="md" className="mr-4">
                                         Hitbox Tiles: {showTileHitboxes ? 'On' : 'Off'}
+                                    </Button>
+                                    <Button onClick={() => setShowEntityCount(!showEntityCount)} variant={showEntityCount ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        Entities: {showEntityCount ? visibleEntityCount : 'Off'}
                                     </Button>
                                     <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
                                         Position Player: {isPositioningMode ? 'On' : 'Off'}

@@ -70,6 +70,13 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Manages health points for an entity."
   },
   {
+    id: "comp_lifetime", name: "Lifetime",
+    description: "Auto-destruye la entidad tras un tiempo determinado desde su creación.",
+    properties: [
+      { name: "lifetimeMs", type: "word", defaultValue: "1000", description: "Tiempo de vida en milisegundos. Si es 0 o vacío, no expira." }
+    ],
+  },
+  {
     id: "comp_jump", name: "Jump",
     description: "Manages jumping behavior for an entity.",
     properties: [
