@@ -2,25 +2,44 @@ import { getFrequencyForNoteString } from './noteFrequencies';
 import { SCCInstrument, TrackerSongData } from '../../types';
 
 const SCC_CLOCK_FREQUENCY = 3579545; // 3.58 MHz
+const SCC_WAVE_SIZE = 32;
+
+// Approximate SCC (K051649) 4-bit volume curve, normalized to 1.0 peak.
+const SCC_VOLUME_TABLE = [
+    0.0, 0.0079, 0.0112, 0.0158,
+    0.0224, 0.0316, 0.0447, 0.0631,
+    0.0891, 0.1258, 0.1778, 0.2512,
+    0.3548, 0.5012, 0.7079, 1.0
+] as const;
 
 export class SCCSynthesizer {
     private audioContext: AudioContext | null = null;
     private masterGain: GainNode | null = null;
+    private compressor: DynamicsCompressorNode | null = null;
     private channelGains: (GainNode | null)[] = [null, null, null, null, null];
+    private channelPanners: (StereoPannerNode | null)[] = [null, null, null, null, null];
     private channelSources: (AudioBufferSourceNode | null)[] = [null, null, null, null, null];
 
     private isInitialized = false;
-    private currentMasterVolume = 0.5;
+    private currentMasterVolume = 0.3;
     private songDataRef: TrackerSongData | null = null;
+
+    // Scale down the master volume to prevent clipping when multiple channels are active
+    private readonly MASTER_VOLUME_SCALE = 0.25;
 
     private channelSoftwareVolumeEnvelopeState: ({ envelope: number[], loopPosition?: number, currentStep: number } | null)[] = [null, null, null, null, null];
     private effectsUpdateIntervalId: number | null = null;
     private channelBaseVolumeForEffects: number[] = [15, 15, 15, 15, 15];
     private channelActiveInstrument: (SCCInstrument | null)[] = [null, null, null, null, null];
     private channelCurrentPeriod: (number | null)[] = [null, null, null, null, null];
+    private channelSilentTickCounter: number[] = [0, 0, 0, 0, 0];
 
-    constructor(initialMasterVolume: number = 0.5) {
-        this.currentMasterVolume = Math.max(0, Math.min(initialMasterVolume, 1.0));
+    // Default stereo panning positions for the 5 channels to create a wide field
+    // Ch 1: Left-Mid (-0.5), Ch 2: Right-Mid (0.5), Ch 3: Center (0), Ch 4: Left (-0.8), Ch 5: Right (0.8)
+    private readonly CHANNEL_PANNING = [-0.5, 0.5, 0, -0.8, 0.8];
+
+    constructor(initialMasterVolume: number = 0.3) {
+        this.currentMasterVolume = Math.max(0, Math.min(initialMasterVolume, 1.0)) * this.MASTER_VOLUME_SCALE;
         this.startEffectsLoop();
     }
 
@@ -32,9 +51,20 @@ export class SCCSynthesizer {
         if (!this.isInitialized) {
             try {
                 this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+                // Create Compressor to prevent clipping
+                this.compressor = this.audioContext.createDynamicsCompressor();
+                this.compressor.threshold.setValueAtTime(-10, this.audioContext.currentTime);
+                this.compressor.knee.setValueAtTime(40, this.audioContext.currentTime);
+                this.compressor.ratio.setValueAtTime(12, this.audioContext.currentTime);
+                this.compressor.attack.setValueAtTime(0, this.audioContext.currentTime);
+                this.compressor.release.setValueAtTime(0.25, this.audioContext.currentTime);
+                this.compressor.connect(this.audioContext.destination);
+
                 this.masterGain = this.audioContext.createGain();
                 this.masterGain.gain.setValueAtTime(this.currentMasterVolume, this.audioContext.currentTime);
-                this.masterGain.connect(this.audioContext.destination);
+                this.masterGain.connect(this.compressor);
+
                 this.isInitialized = true;
                 this.startEffectsLoop();
             } catch (e) {
@@ -92,17 +122,32 @@ export class SCCSynthesizer {
                 currentVolume = Math.max(0, Math.min(15, currentVolume));
 
                 try {
-                    this.channelGains[channel]!.gain.cancelScheduledValues(this.audioContext.currentTime);
-                    this.channelGains[channel]!.gain.setValueAtTime(currentVolume / 15.0, this.audioContext.currentTime);
+                    // Use setTargetAtTime for smoother volume transitions (avoids clicks)
+                    this.channelGains[channel]!.gain.setTargetAtTime(this.getVolumeFactor(currentVolume), this.audioContext.currentTime, 0.005);
                 } catch (e) {
                     // Ignore errors if context is closed/invalid
                 }
             }
 
-            if (shouldStop) {
+            if (!envState) {
+                if (currentVolume <= 0) {
+                    this.channelSilentTickCounter[channel] = Math.min(this.channelSilentTickCounter[channel] + 1, 10);
+                } else {
+                    this.channelSilentTickCounter[channel] = 0;
+                }
+            } else {
+                this.channelSilentTickCounter[channel] = 0;
+            }
+
+            if (shouldStop || (this.channelSilentTickCounter[channel] >= 2 && this.channelSources[channel])) {
                 this.stopChannel(channel);
             }
         }
+    }
+
+    private getVolumeFactor(volume: number): number {
+        const clamped = Math.max(0, Math.min(15, Math.round(volume)));
+        return SCC_VOLUME_TABLE[clamped] ?? 0;
     }
 
     private getFrequencyFromPeriod(period: number | null): number | null {
@@ -118,15 +163,28 @@ export class SCCSynthesizer {
         return Math.round((SCC_CLOCK_FREQUENCY / (32 * freq)) - 1);
     }
 
+    private sanitizeWaveform(waveform: number[]): number[] {
+        const padded = [...waveform, ...Array(SCC_WAVE_SIZE - waveform.length).fill(0)].slice(0, SCC_WAVE_SIZE);
+        const clamped = padded.map(v => {
+            if (!Number.isFinite(v)) return 0;
+            return Math.max(-128, Math.min(127, Math.round(v)));
+        });
+        const dcOffset = clamped.reduce((acc, val) => acc + val, 0) / SCC_WAVE_SIZE;
+        const centered = clamped.map(v => Math.max(-128, Math.min(127, Math.round(v - dcOffset))));
+        return centered;
+    }
+
     private createWaveformBuffer(waveform: number[]): AudioBuffer | null {
         if (!this.audioContext) return null;
 
-        const buffer = this.audioContext.createBuffer(1, 32, this.audioContext.sampleRate);
+        const sanitized = this.sanitizeWaveform(waveform);
+        const buffer = this.audioContext.createBuffer(1, SCC_WAVE_SIZE, this.audioContext.sampleRate);
         const data = buffer.getChannelData(0);
 
-        for (let i = 0; i < 32; i++) {
-            const val = waveform[i] !== undefined ? waveform[i] : 0;
-            data[i] = val / 8.0;
+        for (let i = 0; i < SCC_WAVE_SIZE; i++) {
+            const val = sanitized[i] !== undefined ? sanitized[i] : 0;
+            // Divide by 128.0 for 8-bit range (-128 to 127)
+            data[i] = val / 128.0;
         }
 
         return buffer;
@@ -139,10 +197,18 @@ export class SCCSynthesizer {
             this.channelSources[channel] = null;
         }
         if (this.channelGains[channel]) {
+            try { this.channelGains[channel]!.gain.cancelScheduledValues(0); } catch (e) { }
             this.channelGains[channel]!.disconnect();
             this.channelGains[channel] = null;
         }
+        if (this.channelPanners[channel]) {
+            this.channelPanners[channel]!.disconnect();
+            this.channelPanners[channel] = null;
+        }
         this.channelSoftwareVolumeEnvelopeState[channel] = null;
+        this.channelCurrentPeriod[channel] = null;
+        this.channelBaseVolumeForEffects[channel] = 0;
+        this.channelSilentTickCounter[channel] = 0;
     }
 
     public async playNote(
@@ -208,16 +274,21 @@ export class SCCSynthesizer {
         // Apply volume (initial)
         if (!this.channelGains[channel]) {
             this.channelGains[channel] = this.audioContext.createGain();
-            this.channelGains[channel]!.connect(this.masterGain);
+            // Connect Gain -> Panner -> Master
+            if (!this.channelPanners[channel]) {
+                this.channelPanners[channel] = this.audioContext.createStereoPanner();
+                this.channelPanners[channel]!.pan.setValueAtTime(this.CHANNEL_PANNING[channel], this.audioContext.currentTime);
+                this.channelPanners[channel]!.connect(this.masterGain);
+            }
+            this.channelGains[channel]!.connect(this.channelPanners[channel]!);
         }
-        // Immediate volume set is handled by updateEffects loop, but we can set initial here to avoid lag
-        // Actually, let's let the loop handle it or set it once here.
-        // If we have an envelope, the first value should be applied.
+
         let initialVol = volume;
         if (this.channelSoftwareVolumeEnvelopeState[channel]) {
             initialVol = this.channelSoftwareVolumeEnvelopeState[channel]!.envelope[0];
         }
-        this.channelGains[channel]!.gain.setValueAtTime(initialVol / 15.0, this.audioContext.currentTime);
+        // Use setTargetAtTime for initial volume as well to be consistent, though setValueAtTime is ok here for immediate start
+        this.channelGains[channel]!.gain.setValueAtTime(this.getVolumeFactor(initialVol), this.audioContext.currentTime);
 
 
         // Play Note
@@ -235,11 +306,16 @@ export class SCCSynthesizer {
                         this.channelSources[channel] = null;
                     }
 
-                    // Recreate Gain if needed (it shouldn't be null here but safe check)
+                    // Recreate Gain/Panner if needed
                     if (!this.channelGains[channel]) {
                         this.channelGains[channel] = this.audioContext.createGain();
-                        this.channelGains[channel]!.connect(this.masterGain);
-                        this.channelGains[channel]!.gain.setValueAtTime(initialVol / 15.0, this.audioContext.currentTime);
+                        if (!this.channelPanners[channel]) {
+                            this.channelPanners[channel] = this.audioContext.createStereoPanner();
+                            this.channelPanners[channel]!.pan.setValueAtTime(this.CHANNEL_PANNING[channel], this.audioContext.currentTime);
+                            this.channelPanners[channel]!.connect(this.masterGain);
+                        }
+                        this.channelGains[channel]!.connect(this.channelPanners[channel]!);
+                        this.channelGains[channel]!.gain.setValueAtTime(this.getVolumeFactor(initialVol), this.audioContext.currentTime);
                     }
 
                     const buffer = this.createWaveformBuffer(instrument.waveform);
@@ -250,7 +326,7 @@ export class SCCSynthesizer {
 
                         const freq = this.getFrequencyFromPeriod(period);
                         if (freq) {
-                            const baseFreq = this.audioContext.sampleRate / 32;
+                            const baseFreq = this.audioContext.sampleRate / SCC_WAVE_SIZE;
                             source.playbackRate.value = freq / baseFreq;
                         }
 
@@ -275,10 +351,23 @@ export class SCCSynthesizer {
         }
     }
 
+    public async previewInstrument(instrument: SCCInstrument, noteString: string = 'C-4'): Promise<void> {
+        if (!instrument) return;
+        if (!await this.ensureAudioContext()) return;
+
+        // Ensure we only keep one preview voice active
+        this.stopChannel(0);
+
+        this.channelActiveInstrument[0] = instrument;
+        this.channelBaseVolumeForEffects[0] = instrument.volume ?? 15;
+
+        await this.playNote(0, noteString, instrument.id ?? null, null, instrument.volume ?? null);
+    }
+
     public setMasterVolume(volume: number): void {
-        this.currentMasterVolume = volume;
+        this.currentMasterVolume = Math.max(0, Math.min(volume, 1.0)) * this.MASTER_VOLUME_SCALE;
         if (this.masterGain && this.audioContext) {
-            this.masterGain.gain.setValueAtTime(volume, this.audioContext.currentTime);
+            this.masterGain.gain.setValueAtTime(this.currentMasterVolume, this.audioContext.currentTime);
         }
     }
 
@@ -287,6 +376,8 @@ export class SCCSynthesizer {
         if (this.audioContext) {
             this.audioContext.close();
             this.audioContext = null;
+            this.masterGain = null;
+            this.compressor = null;
         }
     }
 }

@@ -605,7 +605,7 @@ export interface SCCInstrument {
   id: number;
   /** The name of the instrument. */
   name: string;
-  /** 32-byte wavetable data. Each value should be between -8 and 7. */
+  /** 32-byte wavetable data. Each value should be between -128 and 127. */
   waveform: number[];
   /** Optional volume for the instrument (0-15). */
   volume?: number;

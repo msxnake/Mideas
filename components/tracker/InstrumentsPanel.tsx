@@ -41,6 +41,16 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
   onOpenWaveformModal
 }) => {
 
+  const formatSubtitle = (instr: PT3Instrument | SCCInstrument) => {
+    if (soundChip === 'SCC') {
+      const vol = (instr as SCCInstrument).volume ?? 15;
+      const wave = (instr as SCCInstrument).waveform || [];
+      const dc = wave.length ? (wave.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) / Math.max(1, wave.length)) : 0;
+      return `vol ${vol} | dc ${dc >= 0 ? '+' : ''}${dc.toFixed(1)}`;
+    }
+    return '';
+  };
+
   const handleAddNew = () => {
     if (soundChip === 'SCC') {
       onOpenWaveformModal(null);
@@ -73,7 +83,10 @@ export const InstrumentsPanel: React.FC<InstrumentsPanelProps> = ({
                      onDoubleClick={() => handleEdit(instr)}
                      title={`Select: ${instr.name}. Double-click to edit.`}
                 >
-                    <span>{String(instr.id).padStart(2, '0')}: {instr.name}</span>
+                    <span>
+                      {String(instr.id).padStart(2, '0')}: {instr.name}
+                      {soundChip === 'SCC' && <span className="text-msx-textsecondary ml-1">({formatSubtitle(instr)})</span>}
+                    </span>
                     <Button onClick={(e) => { e.stopPropagation(); handleEdit(instr);}} size="sm" variant="ghost" className="!p-0">Edit</Button>
                 </div>
              ))}

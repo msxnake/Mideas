@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '../modals/Modal';
 import { Button } from '../common/Button';
 import { SCCInstrument } from '../../types';
+import { SCCSynthesizer } from '../utils/sccSynthesizer';
 
 // Waveform presets
 const PRESETS = {
-  "Sine": (i: number) => Math.round(7 * Math.sin(i * 2 * Math.PI / 32)),
-  "Triangle": (i: number) => Math.round(7 * (2 * Math.abs(2 * (i / 32) - 1) - 1)),
-  "Sawtooth": (i: number) => Math.round(7 * (2 * (i / 32) - 1)),
-  "Square": (i: number) => i < 16 ? 7 : -8,
-  "Pulse 25%": (i: number) => i < 8 ? 7 : -8,
-  "Noise": () => Math.floor(Math.random() * 16) - 8
+  "Sine": (i: number) => Math.round(127 * Math.sin(i * 2 * Math.PI / 32)),
+  "Triangle": (i: number) => Math.round(127 * (2 * Math.abs(2 * (i / 32) - 1) - 1)),
+  "Sawtooth": (i: number) => Math.round(127 * (2 * (i / 32) - 1)),
+  "Square": (i: number) => i < 16 ? 127 : -128,
+  "Pulse 25%": (i: number) => i < 8 ? 127 : -128,
+  "Noise": () => Math.floor(Math.random() * 256) - 128
 };
 
 const WaveformGraphEditor = ({ waveform, onWaveformChange }: { waveform: number[], onWaveformChange: (newWaveform: number[]) => void }) => {
@@ -37,14 +38,14 @@ const WaveformGraphEditor = ({ waveform, onWaveformChange }: { waveform: number[
     // Map x to index 0-31
     const index = Math.max(0, Math.min(31, Math.floor((x / rect.width) * 32)));
 
-    // Map y to value -8 to 7
-    // Top (0) -> 7
-    // Bottom (height) -> -8
+    // Map y to value -128 to 127
+    // Top (0) -> 127
+    // Bottom (height) -> -128
     const relativeY = Math.max(0, Math.min(1, y / rect.height));
-    // 0 -> 7, 1 -> -8. Range is 15.
-    // value = 7 - (relativeY * 15)
-    const value = Math.round(7 - (relativeY * 15));
-    const clampedValue = Math.max(-8, Math.min(7, value));
+    // 0 -> 127, 1 -> -128. Range is 255.
+    // value = 127 - (relativeY * 255)
+    const value = Math.round(127 - (relativeY * 255));
+    const clampedValue = Math.max(-128, Math.min(127, value));
 
     const newWaveform = [...waveform];
     newWaveform[index] = clampedValue;
@@ -103,7 +104,7 @@ const WaveformGraphEditor = ({ waveform, onWaveformChange }: { waveform: number[
                 position: 'absolute',
                 bottom: value >= 0 ? '50%' : undefined,
                 top: value < 0 ? '50%' : undefined,
-                height: `${(Math.abs(value) / 16) * 100}%`
+                height: `${(Math.abs(value) / 256) * 100}%`
               }}
             ></div>
             {/* Tooltip value on hover */}
@@ -133,8 +134,24 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [waveform, setWaveform] = useState<number[]>([]);
+  const [volume, setVolume] = useState<number>(15);
   const [volumeEnvelope, setVolumeEnvelope] = useState('');
   const [volumeLoop, setVolumeLoop] = useState<number | ''>('');
+  const [envelopeValues, setEnvelopeValues] = useState<number[]>([]);
+  const synthRef = useRef<SCCSynthesizer | null>(null);
+
+  const clampWaveValue = (value: number) => Math.max(-128, Math.min(127, Math.round(value)));
+  const clampBaseVolume = (value: number) => Math.max(0, Math.min(15, Math.round(value)));
+  const clampEnvelopeValue = (value: number) => Math.max(0, Math.min(127, Math.round(value)));
+
+  const parseVolumeEnvelopeString = (raw: string): number[] => {
+    return raw.trim()
+      .split(/\s+/)
+      .map(v => parseInt(v, 10))
+      .filter(n => !isNaN(n))
+      .map(clampEnvelopeValue)
+      .slice(0, 32);
+  };
 
   useEffect(() => {
     if (instrument) {
@@ -143,39 +160,143 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
       const validWaveform = Array.isArray(instrument.waveform) ? instrument.waveform : [];
       const paddedWaveform = [...validWaveform, ...Array(32 - validWaveform.length).fill(0)].slice(0, 32);
       setWaveform(paddedWaveform);
-      setVolumeEnvelope(instrument.volumeEnvelope ? instrument.volumeEnvelope.join(' ') : '');
+      setVolume(clampBaseVolume(instrument.volume ?? 15));
+      const envStr = instrument.volumeEnvelope ? instrument.volumeEnvelope.join(' ') : '';
+      setVolumeEnvelope(envStr);
+      setEnvelopeValues(instrument.volumeEnvelope ? instrument.volumeEnvelope.map(clampEnvelopeValue).slice(0, 32) : []);
       setVolumeLoop(instrument.volumeLoop !== undefined ? instrument.volumeLoop : '');
     } else {
       // Default for new instrument
       setName('New Waveform');
       setWaveform(Array(32).fill(0));
+      setVolume(15);
       setVolumeEnvelope('');
+      setEnvelopeValues([]);
       setVolumeLoop('');
     }
   }, [instrument]);
 
-  const handleSave = () => {
-    // If creating new, generate a random ID (in real app, parent should handle ID generation)
+  useEffect(() => {
+    return () => {
+      synthRef.current?.stopAllNotes();
+      synthRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      synthRef.current?.stopAllNotes();
+    }
+  }, [isOpen]);
+
+  const waveformStats = useMemo(() => {
+    const padded = [...waveform, ...Array(32 - waveform.length).fill(0)].slice(0, 32).map(clampWaveValue);
+    const min = Math.min(...padded);
+    const max = Math.max(...padded);
+    const dcOffset = padded.reduce((acc, v) => acc + v, 0) / padded.length;
+    const peak = Math.max(Math.abs(min), Math.abs(max));
+    const rms = Math.sqrt(padded.reduce((acc, v) => acc + v * v, 0) / padded.length) / 127;
+    return {
+      min,
+      max,
+      dcOffset: Number(dcOffset.toFixed(2)),
+      peak,
+      rms: Number(rms.toFixed(3)),
+      asString: padded.join(' ')
+    };
+  }, [waveform]);
+
+  const handleCenterDc = () => {
+    setWaveform(prev => {
+      const offset = waveformStats.dcOffset || 0;
+      return prev.map(v => clampWaveValue(v - offset));
+    });
+  };
+
+  const handleNormalize = () => {
+    const peak = waveformStats.peak || 0;
+    if (peak <= 0) return;
+    const factor = 127 / peak;
+    setWaveform(prev => prev.map(v => clampWaveValue(v * factor)));
+  };
+
+  const handleFadeEdges = () => {
+    const fade = 2;
+    setWaveform(prev => prev.map((val, idx) => {
+      if (idx < fade) {
+        const scale = (idx + 1) / (fade + 1);
+        return clampWaveValue(val * scale);
+      }
+      if (idx >= 32 - fade) {
+        const scale = (32 - idx) / (fade + 1);
+        return clampWaveValue(val * scale);
+      }
+      return clampWaveValue(val);
+    }));
+  };
+
+  const getSanitizedInstrument = (): SCCInstrument => {
     const id = instrument ? instrument.id : Math.floor(Math.random() * 1000) + 100;
-
-    const parsedEnvelope = volumeEnvelope.trim().split(/\s+/).map(v => parseInt(v, 10)).filter(n => !isNaN(n));
     const parsedLoop = volumeLoop === '' ? undefined : Number(volumeLoop);
+    const sanitizedWave = Array(32).fill(0).map((_, idx) => clampWaveValue(waveform[idx] ?? 0));
+    const sanitizedEnvelope = envelopeValues.length > 0 ? envelopeValues.map(clampEnvelopeValue) : undefined;
 
-    onSave({
+    return {
       id,
       name,
-      waveform,
-      volume: instrument?.volume ?? 15,
-      volumeEnvelope: parsedEnvelope.length > 0 ? parsedEnvelope : undefined,
+      waveform: sanitizedWave,
+      volume: clampBaseVolume(volume),
+      volumeEnvelope: sanitizedEnvelope,
       volumeLoop: parsedLoop
-    });
+    };
+  };
+
+  const handleSave = () => {
+    const payload = getSanitizedInstrument();
+    onSave(payload);
     onClose();
+  };
+
+  const handlePreview = async () => {
+    const payload = getSanitizedInstrument();
+    const synth = synthRef.current ?? new SCCSynthesizer(0.3);
+    synthRef.current = synth;
+    await synth.previewInstrument(payload, 'C-4');
   };
 
   const applyPreset = (presetName: keyof typeof PRESETS) => {
     const generator = PRESETS[presetName];
     const newWaveform = Array(32).fill(0).map((_, i) => generator(i));
     setWaveform(newWaveform);
+  };
+
+  const handleEnvValueChange = (idx: number, newVal: number) => {
+    setEnvelopeValues(prev => {
+      const next = [...(prev.length ? prev : Array(16).fill(15))];
+      next[idx] = clampEnvelopeValue(newVal);
+      setVolumeEnvelope(next.join(' '));
+      return next;
+    });
+  };
+
+  const handleEnvBarClick = (idx: number, e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const rel = 1 - (e.clientY - rect.top) / rect.height;
+    const newVal = clampEnvelopeValue(Math.round(rel * 127));
+    handleEnvValueChange(idx, newVal);
+  };
+
+  const handleAddEnvStep = () => {
+    setEnvelopeValues(prev => {
+      const next = [...prev, 15].slice(0, 32);
+      setVolumeEnvelope(next.join(' '));
+      return next;
+    });
+  };
+
+  const handleClearEnv = () => {
+    setEnvelopeValues([]);
+    setVolumeEnvelope('');
   };
 
   if (!isOpen) {
@@ -209,7 +330,7 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
         <div>
           <div className="flex justify-between items-center mb-2">
             <label className="block text-sm font-medium text-msx-textprimary">Waveform (32 bytes)</label>
-            <div className="space-x-1">
+            <div className="flex flex-wrap items-center gap-1">
               {Object.keys(PRESETS).map(preset => (
                 <button
                   key={preset}
@@ -224,23 +345,115 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
 
           <WaveformGraphEditor waveform={waveform} onWaveformChange={setWaveform} />
 
-          <div className="flex justify-between mt-1 text-xs text-msx-textsecondary">
-            <span>Click and drag to draw. Range: -8 to 7.</span>
+          <div className="flex flex-wrap justify-between gap-2 mt-2 text-xs text-msx-textsecondary">
+            <span>Click and drag to draw. Range: -128 to 127.</span>
             <span>Length: 32 samples</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+            <Button size="sm" variant="secondary" onClick={handleCenterDc}>Centrar DC</Button>
+            <Button size="sm" variant="secondary" onClick={handleNormalize}>Normalizar a 127</Button>
+            <Button size="sm" variant="secondary" onClick={handleFadeEdges}>Atenuar bordes</Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mt-3 text-xs">
+            <div>
+              <label className="block text-[11px] font-semibold text-msx-textprimary mb-1">Valores (pega lista)</label>
+              <textarea
+                className="w-full h-16 p-2 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary text-[11px]"
+                value={waveformStats.asString}
+                onChange={(e) => {
+                  const parts = e.target.value.split(/[\s,]+/).filter(Boolean).map(v => parseInt(v, 10));
+                  const next = Array(32).fill(0).map((_, idx) => clampWaveValue(parts[idx] ?? 0));
+                  setWaveform(next);
+                }}
+              />
+              <p className="text-[10px] text-msx-textsecondary mt-1">Acepta espacios o comas. Solo primeros 32 valores.</p>
+            </div>
+            <div className="bg-msx-bgcolor border border-msx-border rounded p-2 flex flex-col justify-center space-y-1">
+              <div className="flex justify-between"><span className="text-msx-textsecondary">DC offset</span><span className="font-mono">{waveformStats.dcOffset}</span></div>
+              <div className="flex justify-between"><span className="text-msx-textsecondary">Pico</span><span className="font-mono">{waveformStats.peak}</span></div>
+              <div className="flex justify-between"><span className="text-msx-textsecondary">Min/Max</span><span className="font-mono">{waveformStats.min} / {waveformStats.max}</span></div>
+              <div className="flex justify-between"><span className="text-msx-textsecondary">RMS (norm.)</span><span className="font-mono">{waveformStats.rms}</span></div>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-msx-textprimary mb-1">Volume Envelope (0-15)</label>
-            <input
-              type="text"
-              placeholder="e.g. 15 12 8 4 0"
-              value={volumeEnvelope}
-              onChange={(e) => setVolumeEnvelope(e.target.value)}
-              className="w-full p-2 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent text-sm"
-            />
-            <p className="text-[10px] text-msx-textsecondary mt-1">Space-separated values.</p>
+            <label className="block text-sm font-medium text-msx-textprimary mb-1">Volumen base (0-15)</label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="range"
+                min={0}
+                max={15}
+                value={volume}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  setVolume(Number.isNaN(val) ? 0 : val);
+                }}
+                className="flex-1"
+              />
+              <input
+                type="number"
+                min={0}
+                max={15}
+                value={volume}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value || '0', 10);
+                  setVolume(Number.isNaN(val) ? 0 : val);
+                }}
+                className="w-16 p-1 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary text-sm"
+              />
+            </div>
+            <p className="text-[10px] text-msx-textsecondary mt-1">Curva logaritmica SCC real.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-msx-textprimary mb-1">Volume Envelope (0-127)</label>
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-end space-x-1 h-24 bg-msx-bgcolor border border-msx-border rounded p-2 overflow-x-auto">
+                {(envelopeValues.length ? envelopeValues : Array(16).fill(15)).map((val, idx) => (
+                  <div key={idx} className="flex flex-col items-center" style={{ minWidth: '38px' }}>
+                    <div
+                      className="w-full bg-msx-border relative cursor-crosshair rounded-sm overflow-hidden"
+                      style={{ height: '100%' }}
+                      onClick={(e) => handleEnvBarClick(idx, e)}
+                      title={`Paso ${idx + 1}: ${val}`}
+                    >
+                      <div
+                        className="absolute bottom-0 left-0 right-0 bg-msx-highlight/80"
+                        style={{ height: `${(clampEnvelopeValue(val) / 127) * 100}%` }}
+                      />
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={127}
+                      value={val}
+                      onChange={(e) => handleEnvValueChange(idx, parseInt(e.target.value || '0', 10))}
+                      className="w-12 mt-1 p-1 bg-msx-bgcolor border border-msx-border rounded text-center text-[10px]"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center space-x-2 text-[11px] text-msx-textsecondary">
+                <Button size="sm" variant="secondary" onClick={handleAddEnvStep}>Anadir paso</Button>
+                <Button size="sm" variant="secondary" onClick={handleClearEnv}>Limpiar</Button>
+                <span className="ml-auto">Click en barra para ajustar (0-127).</span>
+              </div>
+              <input
+                type="text"
+                placeholder="e.g. 15 12 8 4 0"
+                value={volumeEnvelope}
+                onChange={(e) => {
+                  setVolumeEnvelope(e.target.value);
+                  const parsed = parseVolumeEnvelopeString(e.target.value);
+                  setEnvelopeValues(parsed);
+                }}
+                className="w-full p-2 bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent text-sm"
+              />
+              <p className="text-[10px] text-msx-textsecondary">Puedes editar visualmente o pegar valores separados por espacios.</p>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-msx-textprimary mb-1">Envelope Loop Point</label>
@@ -257,6 +470,9 @@ export const WaveformEditorModal: React.FC<WaveformEditorModalProps> = ({
         <div className="flex justify-end space-x-2 pt-2 border-t border-msx-border">
           <Button onClick={onClose} variant="secondary">
             Cancel
+          </Button>
+          <Button onClick={handlePreview} variant="secondary">
+            Play
           </Button>
           <Button onClick={handleSave}>
             Save

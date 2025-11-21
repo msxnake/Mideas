@@ -578,6 +578,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
         playbackIntervalRef.current = null;
         setPlaybackRow(0);
+        channelPendingNoteCutRef.current = Array(channels.length).fill(false);
+        clearPreviewNoteTimeout();
       } else {
         synthesizer.stopAllNotes();
         await synthesizer.ensureAudioContext();
@@ -642,6 +644,25 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       let rowDurationMs = (2500 * songData.speed) / songData.bpm;
       if (songData.bpm === 0 || songData.speed === 0) rowDurationMs = 200;
 
+      // Program a note cut for next tick unless the next row explicitly keeps the note with '---'
+      const nextPatternIndexInOrder = (rowToProcess + 1) >= patternToProcess.numRows
+        ? ((patternIndexInOrderToProcess + 1) >= songData.lengthInPatterns ? songData.restartPosition : (patternIndexInOrderToProcess + 1))
+        : patternIndexInOrderToProcess;
+      const nextPatternStorageIndex = songData.order?.[nextPatternIndexInOrder];
+      const nextPatternObj = songData.patterns[nextPatternStorageIndex ?? patternIndexInOrderToProcess];
+      const nextRowIndex = (rowToProcess + 1) >= patternToProcess.numRows ? 0 : (rowToProcess + 1);
+      const nextRowData = nextPatternObj?.rows?.[nextRowIndex];
+
+      channels.forEach((chId, chIndex) => {
+        const currentCell = rowData[chId] || { note: "---" };
+        const nextCell = nextRowData ? (nextRowData[chId] || { note: null }) : { note: null };
+        const isActualNote = currentCell.note && currentCell.note !== '---' && currentCell.note !== '===';
+        const nextKeeps = nextCell.note === '---';
+        if (isActualNote && !nextKeeps) {
+          channelPendingNoteCutRef.current[chIndex] = true;
+        }
+      });
+
       if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current);
       playbackIntervalRef.current = window.setTimeout(() => {
         setPlaybackRow(prevRow => {
@@ -670,6 +691,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       playbackIntervalRef.current = null;
       if (!isPlaying && synthesizer) {
         synthesizer.stopAllNotes();
+        channelPendingNoteCutRef.current = Array(channels.length).fill(false);
+        clearPreviewNoteTimeout();
       }
     }
     return () => { if (playbackIntervalRef.current) clearTimeout(playbackIntervalRef.current); };
@@ -1000,6 +1023,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         id: newId,
         name: `Wave ${newId}`,
         waveform: Array(32).fill(0),
+        volume: 15,
       });
     }
     setIsWaveformModalOpen(true);
