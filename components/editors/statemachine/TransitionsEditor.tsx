@@ -131,6 +131,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
                         actions={transition.actions || []}
                         onUpdateActions={(newActions) => onUpdateTransition(transition.id, { actions: newActions })}
                         allAssets={allAssets}
+                        entityTemplates={entityTemplates}
                       />
                     </div>
                   </td>
@@ -177,7 +178,12 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
             </div>
             <div>
               <h5 className="text-xs font-bold mb-1">Actions</h5>
-              <ActionSequenceEditor actions={actions} onUpdateActions={setActions} allAssets={allAssets} />
+              <ActionSequenceEditor
+                actions={actions}
+                onUpdateActions={setActions}
+                allAssets={allAssets}
+                entityTemplates={entityTemplates}
+              />
             </div>
             <Button onClick={handleAddClick} variant="secondary" size="sm" className="mt-2">Add Transition</Button>
           </>

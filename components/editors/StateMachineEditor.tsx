@@ -100,7 +100,7 @@ const StateDetailView = ({
               onDeleteTransition={onDeleteTransition}
               onUpdateTransition={onUpdateTransition}
               allAssets={allAssets}
-              entityTemplates={allAssets.filter(a=>a.type==='entitytemplate').map(a=>a.data as any).filter(Boolean) as any}
+              entityTemplates={entityTemplates}
             />
         </div>
       </Panel>
