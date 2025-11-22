@@ -1,0 +1,26 @@
+{
+    "id": "ent_slash_effect",
+    "name": "Slash Effect",
+    "objectType": "entity",
+    "components": [
+        {
+            "definitionId": "comp_sprite",
+            "defaultValues": {
+                "spriteAssetId": "spr_slash_effect"
+            }
+        },
+        {
+            "definitionId": "comp_lifetime",
+            "defaultValues": {
+                "lifetimeMs": 200
+            }
+        },
+        {
+            "definitionId": "comp_damage",
+            "defaultValues": {
+                "damageAmount": 1,
+                "knockbackForce": 2
+            }
+        }
+    ]
+}

@@ -58,7 +58,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
       case ActionTypes.APPLY_FORCE:
         return (
           <div className="space-y-2">
-            <ParamInput 
+            <ParamInput
               label="X"
               type="number"
               value={action.params.x}
@@ -68,7 +68,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 handleParamChange('x', isNaN(parsedVal) ? 0 : parsedVal);
               }}
             />
-            <ParamInput 
+            <ParamInput
               label="Y"
               type="number"
               value={action.params.y}
@@ -103,7 +103,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
 
       case ActionTypes.PLAY_ANIMATION:
         return (
-          <ParamInput 
+          <ParamInput
             label="Animation Name"
             value={action.params.animation}
             onChange={(e) => handleParamChange('animation', e.target.value)}
@@ -455,12 +455,36 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 No entity templates found. Create or import one in the Assets panel first.
               </div>
             )}
+            <div className="flex items-center space-x-4">
+              <label className="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={action.params.isRelative === true}
+                  onChange={(e) => handleParamChange('isRelative', e.target.checked)}
+                  className="form-checkbox h-3 w-3 text-msx-primary bg-msx-bgcolor border-msx-border rounded focus:ring-0 focus:ring-offset-0"
+                />
+                <span>Relative to Entity</span>
+              </label>
+              {action.params.isRelative && (
+                <label className="flex items-center space-x-2 text-xs text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={action.params.matchFacing === true}
+                    onChange={(e) => handleParamChange('matchFacing', e.target.checked)}
+                    className="form-checkbox h-3 w-3 text-msx-primary bg-msx-bgcolor border-msx-border rounded focus:ring-0 focus:ring-offset-0"
+                  />
+                  <span>Match Facing</span>
+                </label>
+              )}
+            </div>
             <div className="text-xs text-msx-textsecondary">
-              Leave X and Y empty to spawn at the current entity position.
+              {action.params.isRelative
+                ? 'Offset from entity position (mirrored if facing left/mirrored).'
+                : 'Leave X and Y empty to spawn at the current entity position.'}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <ParamInput
-                label="X"
+                label={action.params.isRelative ? "Offset X" : "X"}
                 type="number"
                 value={action.params.x ?? ''}
                 onChange={(e) => {
@@ -470,7 +494,7 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 }}
               />
               <ParamInput
-                label="Y"
+                label={action.params.isRelative ? "Offset Y" : "Y"}
                 type="number"
                 value={action.params.y ?? ''}
                 onChange={(e) => {

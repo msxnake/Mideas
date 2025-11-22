@@ -356,10 +356,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Track previous menu button states for edge detection (SubMenu navigation)
     const menuPadPrevRef = useRef<{ up: boolean; down: boolean; a: boolean; b: boolean }>({ up: false, down: false, a: false, b: false });
     // Refs to invoke actions without TDZ issues
-    const handleActionRef = useRef<() => void>(() => {});
-    const handleGoBackRef = useRef<() => void>(() => {});
+    const handleActionRef = useRef<() => void>(() => { });
+    const handleGoBackRef = useRef<() => void>(() => { });
     const checkKeyTransitionsRef = useRef<((entityId: string, key: string, isDown: boolean) => void) | null>(null);
-    const expandMenuOptionsRef = useRef<((sub: GameFlowSubMenuNode) => Array<{text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string}>) | null>(null);
+    const expandMenuOptionsRef = useRef<((sub: GameFlowSubMenuNode) => Array<{ text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string }>) | null>(null);
     const jumpKeyProcessed = useRef<boolean>(false);
     const actionKeyProcessed = useRef<boolean>(false); // For pickup/drop action debouncing (e.g., KeyZ)
     const pendingEvents = useRef<Map<string, Set<string>>>(new Map()); // entityId -> Set of event names
@@ -373,7 +373,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Key: "${screenId}_${x}_${y}", Value: true if revealed (should stay hidden)
     const revealedSecretTiles = useRef<Set<string>>(new Set());
     // Visual effects for secret discovery (sparkles/particles)
-    const secretDiscoveryEffects = useRef<Array<{x: number, y: number, lifetime: number, maxLifetime: number}>>([]);
+    const secretDiscoveryEffects = useRef<Array<{ x: number, y: number, lifetime: number, maxLifetime: number }>>([]);
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
@@ -414,10 +414,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             setVisibleEntityCount(0);
         }
     }, [showEntityCount]);
-    const [gameFlowStack, setGameFlowStack] = useState<Array<{parentGraphData: GameFlowGraph, returnNodeId: string, parentGameFlowName: string}>>([]);
+    const [gameFlowStack, setGameFlowStack] = useState<Array<{ parentGraphData: GameFlowGraph, returnNodeId: string, parentGameFlowName: string }>>([]);
     const [currentNestedGraphData, setCurrentNestedGraphData] = useState<GameFlowGraph | null>(null);
     const [currentExecutingGameFlowName, setCurrentExecutingGameFlowName] = useState<string>(gameFlowAssetName);
-    const [playerEntryPoint, setPlayerEntryPoint] = useState<{x: number, y: number} | null>(null);
+    const [playerEntryPoint, setPlayerEntryPoint] = useState<{ x: number, y: number } | null>(null);
     const [isPositioningMode, setIsPositioningMode] = useState(false);
     const [runtimeCollisionLayer, setRuntimeCollisionLayer] = useState<ScreenTile[][]>([]);
     const tileBufferNeedsUpdate = useRef<boolean>(false);
@@ -438,8 +438,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Refs to share state between callbacks and effects
     const currentScreenMapRef = useRef<ScreenMap | null>(null);
     const currentWorldMapGraphRef = useRef<WorldMapGraph | null>(null);
-    const setPlayerEntryPointRef = useRef<(entry: { x: number; y: number } | null) => void>(() => {});
-    const handleScreenTransitionRef = useRef<(toNodeId: string) => void>(() => {});
+    const setPlayerEntryPointRef = useRef<(entry: { x: number; y: number } | null) => void>(() => { });
+    const handleScreenTransitionRef = useRef<(toNodeId: string) => void>(() => { });
     const runtimeCollisionLayerRef = useRef<ScreenTile[][]>([]);
     // Cooldown to avoid immediate re-trigger of screen exits after a transition
     const lastScreenTransitionTimeRef = useRef<number>(0);
@@ -575,8 +575,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     pressedKeys.current.add(key);
                 }
                 // Emit state machine key transitions for arrows
-                if (heroRef.current && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) {
-                    try { checkKeyTransitionsRef.current?.(heroRef.current.instance.id, key, true); } catch {}
+                if (heroRef.current && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+                    try { checkKeyTransitionsRef.current?.(heroRef.current.instance.id, key, true); } catch { }
                 }
             }
         }
@@ -586,8 +586,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (pressedKeys.current.has(key)) {
                     pressedKeys.current.delete(key);
                 }
-                if (heroRef.current && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(key)) {
-                    try { checkKeyTransitionsRef.current?.(heroRef.current.instance.id, key, false); } catch {}
+                if (heroRef.current && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+                    try { checkKeyTransitionsRef.current?.(heroRef.current.instance.id, key, false); } catch { }
                 }
             }
         }
@@ -699,14 +699,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const isPressed = pressedKeys.current.has(key);
                 return isPressed;
 
-                                    case 'HAS_COLLISION':
+            case 'HAS_COLLISION':
                 // Verificar tipo especfico de colisin (enemy, item, wall, any)
                 const collisionType = condition.params?.collisionType || 'any';
-                
+
                 switch (collisionType) {
                     case 'enemy':
                         return entityEvents.has('collision_enemy');
-                    
+
                     case 'item': {
                         // Permite filtrar por tipo de item o plantilla concreta
                         // Params opcionales: itemType, templateId, templateName
@@ -796,8 +796,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     case 'any':
                     default:
                         return entityEvents.has('collision_enemy') ||
-                               entityEvents.has('collision_item') ||
-                               entityEvents.has('collision_wall');
+                            entityEvents.has('collision_item') ||
+                            entityEvents.has('collision_wall');
                 }
 
             case 'ON_WALL_COLLISION': {
@@ -920,867 +920,889 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         if (!actions?.length) {
             return;
         }
-                        for (const action of actions) {
-                            switch (action.type) {
-                                case 'SET_VELOCITY':
-                                    entity.vx = action.params.x || 0;
-                                    entity.vy = action.params.y || 0;
-                                    break;
+        for (const action of actions) {
+            switch (action.type) {
+                case 'SET_VELOCITY':
+                    entity.vx = action.params.x || 0;
+                    entity.vy = action.params.y || 0;
+                    break;
 
-                                case 'APPLY_FORCE':
-                                    // Add force to current velocity (additive, unlike SET_VELOCITY)
-                                    const forceX = Number(action.params.x || 0);
-                                    const forceY = Number(action.params.y || 0);
-                                    entity.vx = (entity.vx || 0) + forceX;
-                                    entity.vy = (entity.vy || 0) + forceY;
-                                    break;
+                case 'APPLY_FORCE':
+                    // Add force to current velocity (additive, unlike SET_VELOCITY)
+                    const forceX = Number(action.params.x || 0);
+                    const forceY = Number(action.params.y || 0);
+                    entity.vx = (entity.vx || 0) + forceX;
+                    entity.vy = (entity.vy || 0) + forceY;
+                    break;
 
-                                case 'CHANGE_SPRITE':
-                                    const spriteName = action.params.sprite || action.params.spriteName || action.params.sprite_name;
-                                    if (spriteName) {
-                                        // Find sprite in allAssets
-                                        const spriteAssetData = allAssets.find(a =>
-                                            a.type === 'sprite' &&
-                                            (a.data.name === spriteName || a.data.id === spriteName || a.name === spriteName)
-                                        );
+                case 'CHANGE_SPRITE':
+                    const spriteName = action.params.sprite || action.params.spriteName || action.params.sprite_name;
+                    if (spriteName) {
+                        // Find sprite in allAssets
+                        const spriteAssetData = allAssets.find(a =>
+                            a.type === 'sprite' &&
+                            (a.data.name === spriteName || a.data.id === spriteName || a.name === spriteName)
+                        );
 
-                                        if (spriteAssetData) {
-                                            const spriteData = spriteAssetData.data as Sprite;
-                                            entity.sprite = spriteData;
-                                            entity.currentFrame = 0; // Reset to first frame
+                        if (spriteAssetData) {
+                            const spriteData = spriteAssetData.data as Sprite;
+                            entity.sprite = spriteData;
+                            entity.currentFrame = 0; // Reset to first frame
 
-                                            // Regenerate frame images for the new sprite
-                                            // Use Promise.all to wait for all images to load
-                                            const imageLoadPromises = spriteData.frames.map((frame, idx) => {
-                                                return new Promise<HTMLImageElement>((resolve, reject) => {
-                                                    const img = new Image();
-                                                    img.onload = () => resolve(img);
-                                                    img.onerror = (error) => {
-                                                        reject(error);
-                                                    };
-                                                    try {
-                                                        img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
-                                                    } catch (err) {
-                                                        reject(err);
-                                                    }
-                                                });
-                                            });
-
-                                            // Load images asynchronously
-                                            Promise.all(imageLoadPromises).then((loadedImages) => {
-                                                entity.frameImages = loadedImages;
-                                            }).catch(() => {
-                                                // Silently fail
-                                            });
-
-                                            // Regenerate mirrored frame images if sprite has facing direction
-                                            if (['right', 'left'].includes(spriteData.facingDirection)) {
-                                                const mirroredImageLoadPromises = spriteData.frames.map((frame, idx) => {
-                                                    return new Promise<HTMLImageElement>((resolve, reject) => {
-                                                        const img = new Image();
-                                                        img.onload = () => resolve(img);
-                                                        img.onerror = (error) => {
-                                                            reject(error);
-                                                        };
-                                                        try {
-                                                            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
-                                                            img.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
-                                                        } catch (err) {
-                                                            reject(err);
-                                                        }
-                                                    });
-                                                });
-
-                                                // Load mirrored images asynchronously
-                                                Promise.all(mirroredImageLoadPromises).then((loadedMirroredImages) => {
-                                                    entity.mirroredFrameImages = loadedMirroredImages;
-                                                }).catch(() => {
-                                                    // Silently fail
-                                                });
-                                            } else {
-                                                // Clear mirrored frames if new sprite doesn't support mirroring
-                                                entity.mirroredFrameImages = undefined;
-                                            }
-
-                                        }
+                            // Regenerate frame images for the new sprite
+                            // Use Promise.all to wait for all images to load
+                            const imageLoadPromises = spriteData.frames.map((frame, idx) => {
+                                return new Promise<HTMLImageElement>((resolve, reject) => {
+                                    const img = new Image();
+                                    img.onload = () => resolve(img);
+                                    img.onerror = (error) => {
+                                        reject(error);
+                                    };
+                                    try {
+                                        img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                    } catch (err) {
+                                        reject(err);
                                     }
-                                    break;
+                                });
+                            });
 
-                                case 'PLAY_ANIMATION': {
-                                    const animName = action.params.animationName || action.params.animation;
-                                    const loop = action.params.loop !== undefined ? action.params.loop : true;
+                            // Load images asynchronously
+                            Promise.all(imageLoadPromises).then((loadedImages) => {
+                                entity.frameImages = loadedImages;
+                            }).catch(() => {
+                                // Silently fail
+                            });
 
-                                    // Reset animation to first frame
-                                    entity.currentFrame = 0;
-                                    entity.lastFrameUpdateTime = performance.now();
-
-                                    // Clear animation completion flag
-                                    entity.animationHasCompleted = false;
-
-                                    // If animation name is specified, try to find corresponding sprite
-                                    if (animName) {
-                                        // Find sprite with matching name or animation property
-                                        const spriteAsset = allAssets.find(a =>
-                                            a.type === 'sprite' &&
-                                            (a.name === animName || a.data.name === animName || a.data.animationName === animName)
-                                        );
-
-                                        if (spriteAsset) {
-                                            const spriteData = spriteAsset.data as Sprite;
-                                            entity.sprite = spriteData;
-
-                                            // Regenerate frame images
-                                            const imageLoadPromises = spriteData.frames.map(frame => {
-                                                return new Promise<HTMLImageElement>((resolve, reject) => {
-                                                    const img = new Image();
-                                                    img.onload = () => resolve(img);
-                                                    img.onerror = reject;
-                                                    try {
-                                                        img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
-                                                    } catch (err) {
-                                                        reject(err);
-                                                    }
-                                                });
-                                            });
-
-                                            Promise.all(imageLoadPromises).then(loadedImages => {
-                                                entity.frameImages = loadedImages;
-                                            }).catch(() => {
-                                                // Silently fail
-                                            });
-
-                                            // Regenerate mirrored frames if needed
-                                            if (['right', 'left'].includes(spriteData.facingDirection)) {
-                                                const mirroredPromises = spriteData.frames.map(frame => {
-                                                    return new Promise<HTMLImageElement>((resolve, reject) => {
-                                                        const img = new Image();
-                                                        img.onload = () => resolve(img);
-                                                        img.onerror = reject;
-                                                        try {
-                                                            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
-                                                            img.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
-                                                        } catch (err) {
-                                                            reject(err);
-                                                        }
-                                                    });
-                                                });
-
-                                                Promise.all(mirroredPromises).then(loadedMirroredImages => {
-                                                    entity.mirroredFrameImages = loadedMirroredImages;
-                                                }).catch(() => {
-                                                    // Silently fail
-                                                });
-                                            }
-                                        }
-                                    }
-
-                                    // Store loop setting (could be used in animation update logic)
-                                    (entity as any).animationLoop = loop;
-                                    break;
-                                }
-
-                                case 'DESTROY_ENTITY': {
-                                    const target = action.params?.target || 'self';
-                                    if (target === 'other') {
-                                        // Destroy the entity we last collided with
-                                        const otherEntity = (entity as any).lastCollidedEntity;
-                                        if (otherEntity) {
-                                            otherEntity.markedForDestruction = true;
-
-                                            // If it's a collectible item, register it as collected to prevent respawning
-                                            const isCollectible = otherEntity.template.components?.some(c => c.definitionId === 'comp_collectible');
-                                            if (isCollectible && otherEntity.ownerScreenId) {
-                                                const registryKey = `${otherEntity.ownerScreenId}_${otherEntity.instance.id}`;
-                                                collectedItemsRegistry.current.add(registryKey);
-                                            }
-                                        }
-                                    } else {
-                                        // Default: destroy self
-                                        entity.markedForDestruction = true;
-
-                                        // If destroying self and it's a collectible item, register it
-                                        const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
-                                        if (isCollectible && entity.ownerScreenId) {
-                                            const registryKey = `${entity.ownerScreenId}_${entity.instance.id}`;
-                                            collectedItemsRegistry.current.add(registryKey);
-                                        }
-                                    }
-                                    break;
-                                }
-
-                                case 'SET_POSITION':
-                                    if (action.params.x !== undefined) entity.x = Number(action.params.x);
-                                    if (action.params.y !== undefined) entity.y = Number(action.params.y);
-                                    break;
-
-                                case 'MOVE_BY':
-                                    entity.x += Number(action.params.x || 0);
-                                    entity.y += Number(action.params.y || 0);
-                                    break;
-
-                                case 'SET_VARIABLE': {
-                                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
-                                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
-                                    const varValue = action.params.value === undefined ? true : action.params.value;
-
-                                    if (resolvedVarName) {
-                                        const parsed = coerceGlobalVariableValue(varValue);
-                                        updateGameGlobalVariables(prev => {
-                                            if (resolvedVarName.toLowerCase() === 'ammo') {
-                                                const prevRaw = (prev as any)[resolvedVarName];
-                                                const prevNum = Number(typeof prevRaw === 'string' ? prevRaw.trim() : prevRaw);
-                                                const nextNum = Number(typeof parsed === 'string' ? (parsed as any).trim?.() ?? parsed : parsed as any);
-                                                if (!Number.isNaN(prevNum) && !Number.isNaN(nextNum) && nextNum < prevNum) {
-                                                    try { console.log(`[Ammo] ${prevNum} -> ${nextNum} (SET_VARIABLE)`); } catch {}
-                                                }
-                                            }
-                                            return {
-                                                ...prev,
-                                                [resolvedVarName]: parsed
-                                            };
-                                        });
-                                    }
-                                    break;
-                                }
-
-                                case 'INCREMENT_VARIABLE': {
-                                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
-                                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
-                                    // Coerce amount to number (supports numeric strings)
-                                    const incrementAmount = (() => {
-                                        const raw = action.params.amount ?? 1;
-                                        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
-                                        return Number.isNaN(n) ? 1 : n;
-                                    })();
-                                    if (resolvedVarName) {
-                                        updateGameGlobalVariables(prev => {
-                                            const raw = (prev as any)[resolvedVarName];
-                                            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
-                                            const currentValue = Number.isNaN(curr) ? 0 : curr;
-                                            const newValue = currentValue + incrementAmount;
-                                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
-                                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (INCREMENT_VARIABLE)`); } catch {}
-                                            }
-                                            return {
-                                                ...prev,
-                                                [resolvedVarName]: newValue
-                                            };
-                                        });
-                                    }
-                                    break;
-                                }
-
-                                case 'DECREMENT_VARIABLE': {
-                                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
-                                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
-                                    // Coerce amount to number (supports numeric strings)
-                                    const decrementAmount = (() => {
-                                        const raw = action.params.amount ?? 1;
-                                        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
-                                        return Number.isNaN(n) ? 1 : n;
-                                    })();
-                                    if (resolvedVarName) {
-                                        updateGameGlobalVariables(prev => {
-                                            const raw = (prev as any)[resolvedVarName];
-                                            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
-                                            const currentValue = Number.isNaN(curr) ? 0 : curr;
-                                            const newValue = currentValue - decrementAmount;
-                                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
-                                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch {}
-                                            }
-                                            return {
-                                                ...prev,
-                                                [resolvedVarName]: newValue
-                                            };
-                                        });
-                                    }
-                                    break;
-                                }
-
-                                case 'SET_COMPONENT_PROPERTY': {
-                                    const compId = action.params.componentId || action.params.component || action.params.compId;
-                                    const propName = action.params.propertyName || action.params.prop || action.params.name;
-                                    const value = action.params.value;
-                                    if (compId && propName !== undefined) {
-                                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {} as any;
-                                        if (!entity.instance.componentOverrides[compId]) entity.instance.componentOverrides[compId] = {} as any;
-                                        entity.instance.componentOverrides[compId][propName] = value;
-                                    }
-                                    break;
-                                }
-
-                                case 'GOTO_STATE': {
-                                    const targetStateName = action.params.stateName || action.params.state;
-                                    if (targetStateName && entity.stateMachine) {
-                                        // Find state by name in the state machine
-                                        const targetState = entity.stateMachine.states.find(
-                                            s => s.name === targetStateName || s.id === targetStateName
-                                        );
-                                        if (targetState) {
-                                            changeEntityState(entity, targetState);
-                                        }
-                                    }
-                                    break;
-                                }
-
-                                case 'SPAWN_ENTITY': {
-                                    const templateId = action.params.templateId || action.params.entityTemplateId;
-                                    const spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
-                                    const spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
-                                    const actionLifetimeMs = action.params.lifetimeMs !== undefined ? Number(action.params.lifetimeMs) : undefined;
-
-                                    if (!templateId) break;
-
-                                    // Find entity template
-                                    const template = entityTemplates.find(t => t.id === templateId || t.name === templateId);
-                                    if (!template) break;
-
-                                    // Find sprite for this entity
-                                    let spriteAssetId: string | undefined;
-                                    for (const comp of template.components) {
-                                        const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
-                                        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
-                                        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
-                                            spriteAssetId = comp.defaultValues[spriteProp.name];
-                                            break;
-                                        }
-                                    }
-
-                                    const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
-                                    const sprite = spriteAsset?.data as Sprite;
-                                    if (!sprite?.frames?.length) break;
-
-                                    // Create frame images
-                                    const frameImages = sprite.frames.map(frame => {
+                            // Regenerate mirrored frame images if sprite has facing direction
+                            if (['right', 'left'].includes(spriteData.facingDirection)) {
+                                const mirroredImageLoadPromises = spriteData.frames.map((frame, idx) => {
+                                    return new Promise<HTMLImageElement>((resolve, reject) => {
                                         const img = new Image();
-                                        img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
-                                        return img;
-                                    });
-
-                                    // Create mirrored frames if needed
-                                    let mirroredFrameImages: HTMLImageElement[] | undefined;
-                                    if (['right', 'left'].includes(sprite.facingDirection)) {
-                                        mirroredFrameImages = sprite.frames.map(frame => {
+                                        img.onload = () => resolve(img);
+                                        img.onerror = (error) => {
+                                            reject(error);
+                                        };
+                                        try {
                                             const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
-                                            const img = new Image();
-                                            img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
-                                            return img;
-                                        });
-                                    }
+                                            img.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
+                                        } catch (err) {
+                                            reject(err);
+                                        }
+                                    });
+                                });
 
-                                    // Find state machine if entity has one
-                                    let stateMachine: StateMachine | undefined;
-                                    let currentState: string | undefined;
-                                    let initialStateDef: StateMachineState | undefined;
-                                    const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
-                                    const stateMachineAssetId = smc?.defaultValues?.stateMachineAssetId;
-                                    if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
-                                        const stateMachineAsset = allAssets.find(a =>
-                                            a.id === stateMachineAssetId && a.type === 'statemachine'
-                                        );
-                                        stateMachine = stateMachineAsset?.data as StateMachine | undefined;
-                                        if (stateMachine) {
-                                            const startStateId = smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
-                                            let initialState = stateMachine.states.find(s => s.id === startStateId);
-                                            if (!initialState && startStateId) {
-                                                initialState = stateMachine.states.find(s => s.name === startStateId);
-                                            }
-                                            if (!initialState) {
-                                                initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle')
-                                                    || stateMachine.states[0];
-                                            }
-                                            initialStateDef = initialState;
-                                            currentState = initialState?.name;
+                                // Load mirrored images asynchronously
+                                Promise.all(mirroredImageLoadPromises).then((loadedMirroredImages) => {
+                                    entity.mirroredFrameImages = loadedMirroredImages;
+                                }).catch(() => {
+                                    // Silently fail
+                                });
+                            } else {
+                                // Clear mirrored frames if new sprite doesn't support mirroring
+                                entity.mirroredFrameImages = undefined;
+                            }
+
+                        }
+                    }
+                    break;
+
+                case 'PLAY_ANIMATION': {
+                    const animName = action.params.animationName || action.params.animation;
+                    const loop = action.params.loop !== undefined ? action.params.loop : true;
+
+                    // Reset animation to first frame
+                    entity.currentFrame = 0;
+                    entity.lastFrameUpdateTime = performance.now();
+
+                    // Clear animation completion flag
+                    entity.animationHasCompleted = false;
+
+                    // If animation name is specified, try to find corresponding sprite
+                    if (animName) {
+                        // Find sprite with matching name or animation property
+                        const spriteAsset = allAssets.find(a =>
+                            a.type === 'sprite' &&
+                            (a.name === animName || a.data.name === animName || a.data.animationName === animName)
+                        );
+
+                        if (spriteAsset) {
+                            const spriteData = spriteAsset.data as Sprite;
+                            entity.sprite = spriteData;
+
+                            // Regenerate frame images
+                            const imageLoadPromises = spriteData.frames.map(frame => {
+                                return new Promise<HTMLImageElement>((resolve, reject) => {
+                                    const img = new Image();
+                                    img.onload = () => resolve(img);
+                                    img.onerror = reject;
+                                    try {
+                                        img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                    } catch (err) {
+                                        reject(err);
+                                    }
+                                });
+                            });
+
+                            Promise.all(imageLoadPromises).then(loadedImages => {
+                                entity.frameImages = loadedImages;
+                            }).catch(() => {
+                                // Silently fail
+                            });
+
+                            // Regenerate mirrored frames if needed
+                            if (['right', 'left'].includes(spriteData.facingDirection)) {
+                                const mirroredPromises = spriteData.frames.map(frame => {
+                                    return new Promise<HTMLImageElement>((resolve, reject) => {
+                                        const img = new Image();
+                                        img.onload = () => resolve(img);
+                                        img.onerror = reject;
+                                        try {
+                                            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                                            img.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
+                                        } catch (err) {
+                                            reject(err);
+                                        }
+                                    });
+                                });
+
+                                Promise.all(mirroredPromises).then(loadedMirroredImages => {
+                                    entity.mirroredFrameImages = loadedMirroredImages;
+                                }).catch(() => {
+                                    // Silently fail
+                                });
+                            }
+                        }
+                    }
+
+                    // Store loop setting (could be used in animation update logic)
+                    (entity as any).animationLoop = loop;
+                    break;
+                }
+
+                case 'DESTROY_ENTITY': {
+                    const target = action.params?.target || 'self';
+                    if (target === 'other') {
+                        // Destroy the entity we last collided with
+                        const otherEntity = (entity as any).lastCollidedEntity;
+                        if (otherEntity) {
+                            otherEntity.markedForDestruction = true;
+
+                            // If it's a collectible item, register it as collected to prevent respawning
+                            const isCollectible = otherEntity.template.components?.some(c => c.definitionId === 'comp_collectible');
+                            if (isCollectible && otherEntity.ownerScreenId) {
+                                const registryKey = `${otherEntity.ownerScreenId}_${otherEntity.instance.id}`;
+                                collectedItemsRegistry.current.add(registryKey);
+                            }
+                        }
+                    } else {
+                        // Default: destroy self
+                        entity.markedForDestruction = true;
+
+                        // If destroying self and it's a collectible item, register it
+                        const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
+                        if (isCollectible && entity.ownerScreenId) {
+                            const registryKey = `${entity.ownerScreenId}_${entity.instance.id}`;
+                            collectedItemsRegistry.current.add(registryKey);
+                        }
+                    }
+                    break;
+                }
+
+                case 'SET_POSITION':
+                    if (action.params.x !== undefined) entity.x = Number(action.params.x);
+                    if (action.params.y !== undefined) entity.y = Number(action.params.y);
+                    break;
+
+                case 'MOVE_BY':
+                    entity.x += Number(action.params.x || 0);
+                    entity.y += Number(action.params.y || 0);
+                    break;
+
+                case 'SET_VARIABLE': {
+                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
+                    const varValue = action.params.value === undefined ? true : action.params.value;
+
+                    if (resolvedVarName) {
+                        const parsed = coerceGlobalVariableValue(varValue);
+                        updateGameGlobalVariables(prev => {
+                            if (resolvedVarName.toLowerCase() === 'ammo') {
+                                const prevRaw = (prev as any)[resolvedVarName];
+                                const prevNum = Number(typeof prevRaw === 'string' ? prevRaw.trim() : prevRaw);
+                                const nextNum = Number(typeof parsed === 'string' ? (parsed as any).trim?.() ?? parsed : parsed as any);
+                                if (!Number.isNaN(prevNum) && !Number.isNaN(nextNum) && nextNum < prevNum) {
+                                    try { console.log(`[Ammo] ${prevNum} -> ${nextNum} (SET_VARIABLE)`); } catch { }
+                                }
+                            }
+                            return {
+                                ...prev,
+                                [resolvedVarName]: parsed
+                            };
+                        });
+                    }
+                    break;
+                }
+
+                case 'INCREMENT_VARIABLE': {
+                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
+                    // Coerce amount to number (supports numeric strings)
+                    const incrementAmount = (() => {
+                        const raw = action.params.amount ?? 1;
+                        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
+                        return Number.isNaN(n) ? 1 : n;
+                    })();
+                    if (resolvedVarName) {
+                        updateGameGlobalVariables(prev => {
+                            const raw = (prev as any)[resolvedVarName];
+                            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
+                            const currentValue = Number.isNaN(curr) ? 0 : curr;
+                            const newValue = currentValue + incrementAmount;
+                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
+                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (INCREMENT_VARIABLE)`); } catch { }
+                            }
+                            return {
+                                ...prev,
+                                [resolvedVarName]: newValue
+                            };
+                        });
+                    }
+                    break;
+                }
+
+                case 'DECREMENT_VARIABLE': {
+                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
+                    // Coerce amount to number (supports numeric strings)
+                    const decrementAmount = (() => {
+                        const raw = action.params.amount ?? 1;
+                        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
+                        return Number.isNaN(n) ? 1 : n;
+                    })();
+                    if (resolvedVarName) {
+                        updateGameGlobalVariables(prev => {
+                            const raw = (prev as any)[resolvedVarName];
+                            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
+                            const currentValue = Number.isNaN(curr) ? 0 : curr;
+                            const newValue = currentValue - decrementAmount;
+                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
+                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch { }
+                            }
+                            return {
+                                ...prev,
+                                [resolvedVarName]: newValue
+                            };
+                        });
+                    }
+                    break;
+                }
+
+                case 'SET_COMPONENT_PROPERTY': {
+                    const compId = action.params.componentId || action.params.component || action.params.compId;
+                    const propName = action.params.propertyName || action.params.prop || action.params.name;
+                    const value = action.params.value;
+                    if (compId && propName !== undefined) {
+                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {} as any;
+                        if (!entity.instance.componentOverrides[compId]) entity.instance.componentOverrides[compId] = {} as any;
+                        entity.instance.componentOverrides[compId][propName] = value;
+                    }
+                    break;
+                }
+
+                case 'GOTO_STATE': {
+                    const targetStateName = action.params.stateName || action.params.state;
+                    if (targetStateName && entity.stateMachine) {
+                        // Find state by name in the state machine
+                        const targetState = entity.stateMachine.states.find(
+                            s => s.name === targetStateName || s.id === targetStateName
+                        );
+                        if (targetState) {
+                            changeEntityState(entity, targetState);
+                        }
+                    }
+                    break;
+                }
+
+                case 'SPAWN_ENTITY': {
+                    const templateId = action.params.templateId || action.params.entityTemplateId;
+                    const isRelative = action.params.isRelative === true;
+                    const matchFacing = action.params.matchFacing === true;
+
+                    let spawnX = 0;
+                    let spawnY = 0;
+
+                    if (isRelative) {
+                        const offsetX = Number(action.params.x || 0);
+                        const offsetY = Number(action.params.y || 0);
+
+                        // Check facing direction for mirroring
+                        const isParentMirrored = entity.isFacingMirrored;
+                        const finalOffsetX = (matchFacing && isParentMirrored) ? -offsetX : offsetX;
+
+                        spawnX = entity.x + finalOffsetX;
+                        spawnY = entity.y + offsetY;
+                    } else {
+                        spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
+                        spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
+                    }
+
+                    const actionLifetimeMs = action.params.lifetimeMs !== undefined ? Number(action.params.lifetimeMs) : undefined;
+
+                    if (!templateId) break;
+
+                    // Find entity template
+                    const template = entityTemplates.find(t => t.id === templateId || t.name === templateId);
+                    if (!template) break;
+
+                    // Find sprite for this entity
+                    let spriteAssetId: string | undefined;
+                    for (const comp of template.components) {
+                        const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                            spriteAssetId = comp.defaultValues[spriteProp.name];
+                            break;
+                        }
+                    }
+
+                    const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+                    const sprite = spriteAsset?.data as Sprite;
+                    if (!sprite?.frames?.length) break;
+
+                    // Create frame images
+                    const frameImages = sprite.frames.map(frame => {
+                        const img = new Image();
+                        img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
+                        return img;
+                    });
+
+                    // Create mirrored frames if needed
+                    let mirroredFrameImages: HTMLImageElement[] | undefined;
+                    if (['right', 'left'].includes(sprite.facingDirection)) {
+                        mirroredFrameImages = sprite.frames.map(frame => {
+                            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                            const img = new Image();
+                            img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+                            return img;
+                        });
+                    }
+
+                    // Find state machine if entity has one
+                    let stateMachine: StateMachine | undefined;
+                    let currentState: string | undefined;
+                    let initialStateDef: StateMachineState | undefined;
+                    const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+                    const stateMachineAssetId = smc?.defaultValues?.stateMachineAssetId;
+                    if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
+                        const stateMachineAsset = allAssets.find(a =>
+                            a.id === stateMachineAssetId && a.type === 'statemachine'
+                        );
+                        stateMachine = stateMachineAsset?.data as StateMachine | undefined;
+                        if (stateMachine) {
+                            const startStateId = smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
+                            let initialState = stateMachine.states.find(s => s.id === startStateId);
+                            if (!initialState && startStateId) {
+                                initialState = stateMachine.states.find(s => s.name === startStateId);
+                            }
+                            if (!initialState) {
+                                initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle')
+                                    || stateMachine.states[0];
+                            }
+                            initialStateDef = initialState;
+                            currentState = initialState?.name;
+                        }
+                    }
+
+                    // Create new entity instance
+                    const newInstance: EntityInstance = {
+                        id: `spawned_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        name: template.name,
+                        entityTemplateId: template.id,
+                        position: { x: Math.floor(spawnX / 8), y: Math.floor(spawnY / 8) },
+                        componentOverrides: {}
+                    };
+
+                    const childLink = parseChildLinkConfig(template, newInstance);
+                    const lifetimeMs = resolveLifetimeMs(template, newInstance, actionLifetimeMs);
+                    const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
+
+                    // Create animated entity
+                    const newEntity: AnimatedEntity = {
+                        instance: newInstance,
+                        template,
+                        sprite,
+                        x: spawnX,
+                        y: spawnY,
+                        vx: 0,
+                        vy: 0,
+                        frameImages,
+                        mirroredFrameImages,
+                        currentFrame: 0,
+                        lastFrameUpdateTime: performance.now(),
+                        stateMachine,
+                        currentState,
+                        isOnGround: false,
+                        spawnTime: performance.now(),
+                        parentEntityId: null,
+                        platformGraceFramesLeft: 0,
+                        childLink,
+                        lifetimeMs,
+                        expiresAt,
+                        isFacingMirrored: matchFacing ? entity.isFacingMirrored : false,
+                        desiredFacingDirection: matchFacing ? entity.desiredFacingDirection : undefined
+                    };
+
+                    if (stateMachine && initialStateDef) {
+                        changeEntityState(newEntity, initialStateDef, { runExitActions: false });
+                    }
+
+                    // Add to entities list
+                    entitiesRef.current.push(newEntity);
+                    break;
+                }
+
+                case 'WAIT': {
+                    const durationMs = Number(action.params.duration || action.params.time || 1000);
+                    // Set wait timer - this will block state machine transitions until time expires
+                    entity.waitUntilTime = performance.now() + durationMs;
+                    break;
+                }
+
+                case 'PLAY_SOUND': {
+                    const soundId = action.params.soundId || action.params.sound || action.params.soundAssetId;
+                    if (soundId) {
+                        // Find sound asset
+                        const soundAsset = allAssets.find(a =>
+                            a.type === 'sound' && (a.id === soundId || a.name === soundId)
+                        );
+
+                        if (soundAsset) {
+                            const soundData = soundAsset.data as any; // PSGSoundData
+
+                            // Create Web Audio context if not exists
+                            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+                            // PSG constants
+                            const PSG_INPUT_CLOCK = 3579545 / 2; // ~1.79 MHz
+                            const REFERENCE_BPM = 120;
+
+                            const calculateFrequencyFromTonePeriod = (tonePeriod: number): number => {
+                                if (tonePeriod === 0 || tonePeriod > 4095) return 0;
+                                return PSG_INPUT_CLOCK / (16 * tonePeriod);
+                            };
+
+                            const calculateFrequencyFromNoisePeriod = (noisePeriod: number): number => {
+                                const effectiveNP = (noisePeriod === 0) ? 1 : noisePeriod & 0x1F;
+                                return PSG_INPUT_CLOCK / (32 * effectiveNP);
+                            };
+
+                            // Master gain
+                            const masterGain = audioCtx.createGain();
+                            masterGain.gain.value = soundData.masterVolume || 1.0;
+                            masterGain.connect(audioCtx.destination);
+
+                            // Create global noise source
+                            const noiseFilterNode = audioCtx.createBiquadFilter();
+                            noiseFilterNode.type = 'bandpass';
+                            noiseFilterNode.Q.value = 1.0;
+                            const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod || 16);
+                            const maxFilterFreq = audioCtx.sampleRate / 2;
+                            const frequency = Math.min(Math.max(20, noiseFreq), maxFilterFreq);
+                            if (isFinite(frequency)) {
+                                noiseFilterNode.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                            }
+
+                            const bufferSize = audioCtx.sampleRate * 0.5;
+                            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                            const output = buffer.getChannelData(0);
+                            for (let i = 0; i < bufferSize; i++) {
+                                output[i] = Math.random() * 2 - 1;
+                            }
+                            const globalNoiseSource = audioCtx.createBufferSource();
+                            globalNoiseSource.buffer = buffer;
+                            globalNoiseSource.loop = true;
+                            try {
+                                globalNoiseSource.start();
+                                globalNoiseSource.connect(noiseFilterNode);
+                            } catch (e) {
+                                console.error("Failed to start global noise source:", e);
+                            }
+
+                            // Function to play a single step for a channel
+                            const playStepForChannel = (channel: any, stepIndex: number, startTime: number): number => {
+                                if (stepIndex >= channel.steps.length) {
+                                    if (channel.loop && channel.steps.length > 0) {
+                                        return playStepForChannel(channel, 0, startTime);
+                                    }
+                                    return startTime;
+                                }
+
+                                const step = channel.steps[stepIndex];
+
+                                // Create channel gain node
+                                const channelGain = audioCtx.createGain();
+                                channelGain.gain.value = step.useEnvelope ? 0 : step.volume / 15;
+                                channelGain.connect(masterGain);
+
+                                // Tone oscillator
+                                if (step.toneEnabled) {
+                                    const osc = audioCtx.createOscillator();
+                                    osc.type = 'square';
+                                    const freq = calculateFrequencyFromTonePeriod(step.tonePeriod || 257);
+                                    if (freq > 0 && isFinite(freq)) {
+                                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                                        osc.connect(channelGain);
+                                        try {
+                                            osc.start(startTime);
+                                        } catch (e) {
+                                            console.warn("Error starting oscillator", e);
                                         }
                                     }
+                                }
 
-                                    // Create new entity instance
-                                    const newInstance: EntityInstance = {
-                                        id: `spawned_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                                        entityTemplateId: template.id,
-                                        position: { x: Math.floor(spawnX / 8), y: Math.floor(spawnY / 8) },
-                                        componentOverrides: {}
-                                    };
+                                // Noise
+                                if (step.noiseEnabled && noiseFilterNode) {
+                                    noiseFilterNode.connect(channelGain);
+                                }
 
-                                    const childLink = parseChildLinkConfig(template, newInstance);
-                                    const lifetimeMs = resolveLifetimeMs(template, newInstance, actionLifetimeMs);
-                                    const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
+                                // Calculate effective duration (with tempo scaling)
+                                const tempo = soundData.tempoBPM > 0 ? soundData.tempoBPM : REFERENCE_BPM;
+                                const durationScaleFactor = REFERENCE_BPM / tempo;
+                                const effectiveDurationMs = step.durationMs * durationScaleFactor;
+                                const effectiveDurationSec = effectiveDurationMs / 1000;
 
-                                    // Create animated entity
-                                    const newEntity: AnimatedEntity = {
-                                        instance: newInstance,
-                                        template,
-                                        sprite,
-                                        x: spawnX,
-                                        y: spawnY,
-                                        vx: 0,
-                                        vy: 0,
-                                        frameImages,
-                                        mirroredFrameImages,
-                                        currentFrame: 0,
-                                        lastFrameUpdateTime: performance.now(),
-                                        stateMachine,
-                                        currentState,
-                                        isOnGround: false,
-                                        spawnTime: performance.now(),
-                                        parentEntityId: null,
-                                        platformGraceFramesLeft: 0,
-                                        childLink,
-                                        lifetimeMs,
-                                        expiresAt
-                                    };
+                                // Apply envelope if enabled
+                                if (step.useEnvelope) {
+                                    const now = startTime;
+                                    const peakVolume = Math.max(0, Math.min(1, (step.volume || 0) / 15));
 
-                                    if (stateMachine && initialStateDef) {
-                                        changeEntityState(newEntity, initialStateDef, { runExitActions: false });
+                                    channelGain.gain.cancelScheduledValues(now);
+                                    if (isFinite(peakVolume)) {
+                                        channelGain.gain.setValueAtTime(0, now);
                                     }
 
-                                    // Add to entities list
-                                    entitiesRef.current.push(newEntity);
-                                    break;
-                                }
+                                    // Use step-specific envelope shape if defined, otherwise use global
+                                    const shape = step.envelopeShape ?? soundData.envelopeShape;
+                                    const isAttack = (shape & 0b0100) !== 0;
+                                    const isAlternate = (shape & 0b0010) !== 0;
 
-                                case 'WAIT': {
-                                    const durationMs = Number(action.params.duration || action.params.time || 1000);
-                                    // Set wait timer - this will block state machine transitions until time expires
-                                    entity.waitUntilTime = performance.now() + durationMs;
-                                    break;
-                                }
-
-                                case 'PLAY_SOUND': {
-                                    const soundId = action.params.soundId || action.params.sound || action.params.soundAssetId;
-                                    if (soundId) {
-                                        // Find sound asset
-                                        const soundAsset = allAssets.find(a =>
-                                            a.type === 'sound' && (a.id === soundId || a.name === soundId)
-                                        );
-
-                                        if (soundAsset) {
-                                            const soundData = soundAsset.data as any; // PSGSoundData
-
-                                            // Create Web Audio context if not exists
-                                            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-                                            // PSG constants
-                                            const PSG_INPUT_CLOCK = 3579545 / 2; // ~1.79 MHz
-                                            const REFERENCE_BPM = 120;
-
-                                            const calculateFrequencyFromTonePeriod = (tonePeriod: number): number => {
-                                                if (tonePeriod === 0 || tonePeriod > 4095) return 0;
-                                                return PSG_INPUT_CLOCK / (16 * tonePeriod);
-                                            };
-
-                                            const calculateFrequencyFromNoisePeriod = (noisePeriod: number): number => {
-                                                const effectiveNP = (noisePeriod === 0) ? 1 : noisePeriod & 0x1F;
-                                                return PSG_INPUT_CLOCK / (32 * effectiveNP);
-                                            };
-
-                                            // Master gain
-                                            const masterGain = audioCtx.createGain();
-                                            masterGain.gain.value = soundData.masterVolume || 1.0;
-                                            masterGain.connect(audioCtx.destination);
-
-                                            // Create global noise source
-                                            const noiseFilterNode = audioCtx.createBiquadFilter();
-                                            noiseFilterNode.type = 'bandpass';
-                                            noiseFilterNode.Q.value = 1.0;
-                                            const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod || 16);
-                                            const maxFilterFreq = audioCtx.sampleRate / 2;
-                                            const frequency = Math.min(Math.max(20, noiseFreq), maxFilterFreq);
-                                            if (isFinite(frequency)) {
-                                                noiseFilterNode.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-                                            }
-
-                                            const bufferSize = audioCtx.sampleRate * 0.5;
-                                            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                                            const output = buffer.getChannelData(0);
-                                            for (let i = 0; i < bufferSize; i++) {
-                                                output[i] = Math.random() * 2 - 1;
-                                            }
-                                            const globalNoiseSource = audioCtx.createBufferSource();
-                                            globalNoiseSource.buffer = buffer;
-                                            globalNoiseSource.loop = true;
-                                            try {
-                                                globalNoiseSource.start();
-                                                globalNoiseSource.connect(noiseFilterNode);
-                                            } catch (e) {
-                                                console.error("Failed to start global noise source:", e);
-                                            }
-
-                                            // Function to play a single step for a channel
-                                            const playStepForChannel = (channel: any, stepIndex: number, startTime: number): number => {
-                                                if (stepIndex >= channel.steps.length) {
-                                                    if (channel.loop && channel.steps.length > 0) {
-                                                        return playStepForChannel(channel, 0, startTime);
-                                                    }
-                                                    return startTime;
-                                                }
-
-                                                const step = channel.steps[stepIndex];
-
-                                                // Create channel gain node
-                                                const channelGain = audioCtx.createGain();
-                                                channelGain.gain.value = step.useEnvelope ? 0 : step.volume / 15;
-                                                channelGain.connect(masterGain);
-
-                                                // Tone oscillator
-                                                if (step.toneEnabled) {
-                                                    const osc = audioCtx.createOscillator();
-                                                    osc.type = 'square';
-                                                    const freq = calculateFrequencyFromTonePeriod(step.tonePeriod || 257);
-                                                    if (freq > 0 && isFinite(freq)) {
-                                                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                                                        osc.connect(channelGain);
-                                                        try {
-                                                            osc.start(startTime);
-                                                        } catch (e) {
-                                                            console.warn("Error starting oscillator", e);
-                                                        }
-                                                    }
-                                                }
-
-                                                // Noise
-                                                if (step.noiseEnabled && noiseFilterNode) {
-                                                    noiseFilterNode.connect(channelGain);
-                                                }
-
-                                                // Calculate effective duration (with tempo scaling)
-                                                const tempo = soundData.tempoBPM > 0 ? soundData.tempoBPM : REFERENCE_BPM;
-                                                const durationScaleFactor = REFERENCE_BPM / tempo;
-                                                const effectiveDurationMs = step.durationMs * durationScaleFactor;
-                                                const effectiveDurationSec = effectiveDurationMs / 1000;
-
-                                                // Apply envelope if enabled
-                                                if (step.useEnvelope) {
-                                                    const now = startTime;
-                                                    const peakVolume = Math.max(0, Math.min(1, (step.volume || 0) / 15));
-
-                                                    channelGain.gain.cancelScheduledValues(now);
-                                                    if (isFinite(peakVolume)) {
-                                                        channelGain.gain.setValueAtTime(0, now);
-                                                    }
-
-                                                    // Use step-specific envelope shape if defined, otherwise use global
-                                                    const shape = step.envelopeShape ?? soundData.envelopeShape;
-                                                    const isAttack = (shape & 0b0100) !== 0;
-                                                    const isAlternate = (shape & 0b0010) !== 0;
-
-                                                    if (isAttack) {
-                                                        channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
-                                                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec);
-                                                    } else { // Fall
-                                                        if (isFinite(peakVolume)) {
-                                                            channelGain.gain.setValueAtTime(peakVolume, now);
-                                                        }
-                                                        channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
-                                                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec);
-                                                    }
-                                                }
-
-                                                // Schedule disconnect after step duration
-                                                const nextStartTime = startTime + effectiveDurationSec;
-                                                setTimeout(() => {
-                                                    if (step.noiseEnabled && noiseFilterNode) {
-                                                        try {
-                                                            noiseFilterNode.disconnect(channelGain);
-                                                        } catch (e) {}
-                                                    }
-                                                    try {
-                                                        channelGain.disconnect();
-                                                    } catch (e) {}
-                                                }, effectiveDurationMs);
-
-                                                // Play next step recursively
-                                                return playStepForChannel(channel, stepIndex + 1, nextStartTime);
-                                            };
-
-                                            // Play all channels starting from step 0
-                                            soundData.channels?.forEach((channel: any) => {
-                                                if (channel.steps && channel.steps.length > 0) {
-                                                    playStepForChannel(channel, 0, audioCtx.currentTime);
-                                                }
-                                            });
-
-                                            console.log(`[PLAY_SOUND] Playing sound: ${soundAsset.name}`);
+                                    if (isAttack) {
+                                        channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
+                                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec);
+                                    } else { // Fall
+                                        if (isFinite(peakVolume)) {
+                                            channelGain.gain.setValueAtTime(peakVolume, now);
                                         }
+                                        channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
+                                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec);
                                     }
-                                    break;
                                 }
 
-                                case 'PLAY_MUSIC': {
-                                    const trackId = action.params.trackId;
-                                    const loop = action.params.loop ?? true;
-
-                                    if (trackId) {
-                                        // Find track asset
-                                        const trackAsset = allAssets.find(a =>
-                                            a.type === 'track' && (a.id === trackId || a.name === trackId)
-                                        );
-
-                                        if (trackAsset) {
-                                            const trackData = trackAsset.data as any; // TrackerSongData
-
-                                            // Stop current music if playing
-                                            if (musicSynthesizerRef.current) {
-                                                musicSynthesizerRef.current.stopAllNotes();
-                                                if (musicPlaybackIntervalRef.current) {
-                                                    clearInterval(musicPlaybackIntervalRef.current);
-                                                    musicPlaybackIntervalRef.current = null;
-                                                }
-                                            }
-
-                                            // Create new synthesizer
-                                            const synth = new AYSynthesizer(trackData.globalVolume / 15);
-                                            synth.setSongData(trackData);
-                                            musicSynthesizerRef.current = synth;
-                                            currentMusicTrackIdRef.current = trackId;
-                                            musicIsMutedRef.current = false;
-
-                                            // Start playback
-                                            synth.ensureAudioContext().then(() => {
-                                                let currentPatternIndexInOrder = 0;
-                                                let currentRow = 0;
-
-                                                const playNextRow = () => {
-                                                    if (musicIsMutedRef.current || !musicSynthesizerRef.current) return;
-
-                                                    const orderIndex = currentPatternIndexInOrder;
-                                                    if (orderIndex >= trackData.order.length) {
-                                                        if (loop) {
-                                                            currentPatternIndexInOrder = trackData.restartPosition || 0;
-                                                            currentRow = 0;
-                                                            return;
-                                                        } else {
-                                                            // Stop playback
-                                                            if (musicPlaybackIntervalRef.current) {
-                                                                clearInterval(musicPlaybackIntervalRef.current);
-                                                                musicPlaybackIntervalRef.current = null;
-                                                            }
-                                                            return;
-                                                        }
-                                                    }
-
-                                                    const patternIndex = trackData.order[orderIndex];
-                                                    const pattern = trackData.patterns[patternIndex];
-                                                    if (!pattern) return;
-
-                                                    const rowData = pattern.rows[currentRow];
-                                                    if (rowData) {
-                                                        // Play notes for each channel
-                                                        ['A', 'B', 'C'].forEach((chId, chIndex) => {
-                                                            const cell = rowData[chId as 'A' | 'B' | 'C'];
-                                                            synth.playNote(
-                                                                chIndex as 0 | 1 | 2,
-                                                                cell.note,
-                                                                cell.instrument,
-                                                                cell.ornament,
-                                                                cell.volume
-                                                            );
-                                                        });
-                                                    }
-
-                                                    currentRow++;
-                                                    if (currentRow >= pattern.numRows) {
-                                                        currentRow = 0;
-                                                        currentPatternIndexInOrder++;
-                                                    }
-                                                };
-
-                                                // Calculate row duration
-                                                const rowDurationMs = (2500 * trackData.speed) / trackData.bpm;
-
-                                                musicPlaybackIntervalRef.current = window.setInterval(playNextRow, Math.max(20, rowDurationMs));
-                                                playNextRow(); // Play first row immediately
-                                            });
-
-                                            console.log(`[PLAY_MUSIC] Playing track: ${trackAsset.name}`);
-                                        }
+                                // Schedule disconnect after step duration
+                                const nextStartTime = startTime + effectiveDurationSec;
+                                setTimeout(() => {
+                                    if (step.noiseEnabled && noiseFilterNode) {
+                                        try {
+                                            noiseFilterNode.disconnect(channelGain);
+                                        } catch (e) { }
                                     }
-                                    break;
+                                    try {
+                                        channelGain.disconnect();
+                                    } catch (e) { }
+                                }, effectiveDurationMs);
+
+                                // Play next step recursively
+                                return playStepForChannel(channel, stepIndex + 1, nextStartTime);
+                            };
+
+                            // Play all channels starting from step 0
+                            soundData.channels?.forEach((channel: any) => {
+                                if (channel.steps && channel.steps.length > 0) {
+                                    playStepForChannel(channel, 0, audioCtx.currentTime);
                                 }
+                            });
 
-                                case 'MUTE_MUSIC': {
-                                    if (musicSynthesizerRef.current) {
-                                        musicSynthesizerRef.current.stopAllNotes();
-                                        musicIsMutedRef.current = true;
-                                        console.log(`[MUTE_MUSIC] Music muted`);
-                                    }
-                                    break;
+                            console.log(`[PLAY_SOUND] Playing sound: ${soundAsset.name}`);
+                        }
+                    }
+                    break;
+                }
+
+                case 'PLAY_MUSIC': {
+                    const trackId = action.params.trackId;
+                    const loop = action.params.loop ?? true;
+
+                    if (trackId) {
+                        // Find track asset
+                        const trackAsset = allAssets.find(a =>
+                            a.type === 'track' && (a.id === trackId || a.name === trackId)
+                        );
+
+                        if (trackAsset) {
+                            const trackData = trackAsset.data as any; // TrackerSongData
+
+                            // Stop current music if playing
+                            if (musicSynthesizerRef.current) {
+                                musicSynthesizerRef.current.stopAllNotes();
+                                if (musicPlaybackIntervalRef.current) {
+                                    clearInterval(musicPlaybackIntervalRef.current);
+                                    musicPlaybackIntervalRef.current = null;
                                 }
+                            }
 
-                                case 'STOP_MUSIC': {
-                                    if (musicSynthesizerRef.current) {
-                                        musicSynthesizerRef.current.stopAllNotes();
-                                        if (musicPlaybackIntervalRef.current) {
-                                            clearInterval(musicPlaybackIntervalRef.current);
-                                            musicPlaybackIntervalRef.current = null;
-                                        }
-                                        musicSynthesizerRef.current = null;
-                                        currentMusicTrackIdRef.current = null;
-                                        musicIsMutedRef.current = false;
-                                        console.log(`[STOP_MUSIC] Music stopped`);
-                                    }
-                                    break;
-                                }
+                            // Create new synthesizer
+                            const synth = new AYSynthesizer(trackData.globalVolume / 15);
+                            synth.setSongData(trackData);
+                            musicSynthesizerRef.current = synth;
+                            currentMusicTrackIdRef.current = trackId;
+                            musicIsMutedRef.current = false;
 
-                                case 'CHANGE_GAME_FLOW_NODE':
-                                    let targetNodeId = action.params.nodeId || action.params.targetNodeId;
+                            // Start playback
+                            synth.ensureAudioContext().then(() => {
+                                let currentPatternIndexInOrder = 0;
+                                let currentRow = 0;
 
-                                    // Special case: "START" navigates to the Start node
-                                    if (targetNodeId === 'START') {
-                                        const startNode = nodes.find(n => n.type === 'Start');
-                                        if (startNode) {
-                                            targetNodeId = startNode.id;
+                                const playNextRow = () => {
+                                    if (musicIsMutedRef.current || !musicSynthesizerRef.current) return;
+
+                                    const orderIndex = currentPatternIndexInOrder;
+                                    if (orderIndex >= trackData.order.length) {
+                                        if (loop) {
+                                            currentPatternIndexInOrder = trackData.restartPosition || 0;
+                                            currentRow = 0;
+                                            return;
                                         } else {
-                                            break;
-                                        }
-                                    }
-
-                                    if (targetNodeId) {
-                                        // Store the target node for deferred navigation (after frame completes)
-                                        (entity as any).pendingNodeTransition = targetNodeId;
-                                    }
-                                    break;
-
-                                case 'DECREASE_LIVES':
-                                    const decreaseAmount = Number(action.params.amount || 1);
-                                    // Find comp_health
-                                    const healthCompForDecrease = entity.template.components.find(c => c.definitionId === 'comp_health');
-                                    if (healthCompForDecrease) {
-                                        const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
-                                        const currentLives = Number(healthOverride.current || healthCompForDecrease.defaultValues?.current || 3);
-                                        const newLives = Math.max(0, currentLives - decreaseAmount);
-
-                                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
-                                        if (!entity.instance.componentOverrides['comp_health']) {
-                                            entity.instance.componentOverrides['comp_health'] = {};
-                                        }
-                                        entity.instance.componentOverrides['comp_health'].current = newLives;
-
-                                    }
-                                    break;
-
-                                case 'INCREASE_LIVES':
-                                    const increaseAmount = Number(action.params.amount || 1);
-                                    const healthCompForIncrease = entity.template.components.find(c => c.definitionId === 'comp_health');
-                                    if (healthCompForIncrease) {
-                                        const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
-                                        const currentLives = Number(healthOverride.current || healthCompForIncrease.defaultValues?.current || 3);
-                                        const maxLives = Number(healthOverride.max || healthCompForIncrease.defaultValues?.max || 3);
-                                        const newLives = Math.min(maxLives, currentLives + increaseAmount);
-
-                                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
-                                        if (!entity.instance.componentOverrides['comp_health']) {
-                                            entity.instance.componentOverrides['comp_health'] = {};
-                                        }
-                                        entity.instance.componentOverrides['comp_health'].current = newLives;
-
-                                    }
-                                    break;
-
-                                case 'RESPAWN_PLAYER': {
-                                let spawnX: number;
-                                let spawnY: number;
-                                let targetScreenId: string | undefined;
-
-                                if (gameGlobalVariables.playerCheckpointX !== undefined && gameGlobalVariables.playerCheckpointY !== undefined && gameGlobalVariables.playerCheckpointScreen) {
-                                    spawnX = Number(gameGlobalVariables.playerCheckpointX);
-                                    spawnY = Number(gameGlobalVariables.playerCheckpointY);
-                                    targetScreenId = gameGlobalVariables.playerCheckpointScreen;
-                                } else if (action.params.x !== undefined || action.params.y !== undefined) {
-                                    spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
-                                    spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
-                                } else {
-                                    spawnX = entity.instance.position.x * 8;
-                                    spawnY = entity.instance.position.y * 8;
-                                }
-
-                                const currentScreenMap = currentScreenMapRef.current;
-                                const currentWorldMapGraph = currentWorldMapGraphRef.current;
-
-                                // If the checkpoint belongs to another screen, switch to it
-                                if (targetScreenId && currentScreenMap?.id !== targetScreenId) {
-                                    const setPlayerEntryPoint = setPlayerEntryPointRef.current;
-                                    const handleScreenTransition = handleScreenTransitionRef.current;
-
-                                    setPlayerEntryPoint({ x: spawnX, y: spawnY });
-
-                                    if (currentWorldMapGraph) {
-                                        const targetScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === targetScreenId);
-                                        if (targetScreenNode) {
-                                            handleScreenTransition(targetScreenNode.id);
-                                            // Leave entity.x/y untouched here; useEffect will update them after transition
+                                            // Stop playback
+                                            if (musicPlaybackIntervalRef.current) {
+                                                clearInterval(musicPlaybackIntervalRef.current);
+                                                musicPlaybackIntervalRef.current = null;
+                                            }
                                             return;
                                         }
                                     }
-                                }
 
-                                // Already on the right screen, so respawn locally
-                                entity.x = spawnX;
-                                entity.y = spawnY;
-                                entity.vx = 0;
-                                entity.vy = 0;
-                                break;
-                            }
+                                    const patternIndex = trackData.order[orderIndex];
+                                    const pattern = trackData.patterns[patternIndex];
+                                    if (!pattern) return;
 
-                                case 'BREAK_TILE':
-                                case 'REPLACE_TILE': {
-                                    const params = action.params;
-                                    const dir = params.direction || 'up';
-
-                                    // Compute the tile position based on player's facing direction
-                                    const offsets: Record<string, { x: number; y: number }> = {
-                                        up: { x: 0, y: -1 },
-                                        down: { x: 0, y: 1 },
-                                        left: { x: -1, y: 0 },
-                                        right: { x: 1, y: 0 },
-                                        // Diagonales
-                                        'up-right': { x: 1, y: -1 },
-                                        'up-left': { x: -1, y: -1 },
-                                        'down-right': { x: 1, y: 1 },
-                                        'down-left': { x: -1, y: 1 }
-                                    };
-
-                                    // Player position expressed in tiles (8x8)
-                                    const playerTileX = Math.floor((entity.x + entity.sprite.size.width / 2) / 8);
-                                    const playerTileY = Math.floor((entity.y + entity.sprite.size.height / 2) / 8);
-
-                                    // Target tile position
-                                    const targetTileX = playerTileX + offsets[dir].x;
-                                    const targetTileY = playerTileY + offsets[dir].y;
-
-                                    // Ensure the target tile exists (using the ref for synchronous access)
-                                    const targetTile = runtimeCollisionLayerRef.current[targetTileY]?.[targetTileX];
-
-                                    if (targetTile?.tileId) {
-                                        const tileAsset = allAssets.find(a => a.id === targetTile.tileId && a.type === 'tile');
-                                        const tileData = tileAsset?.data as Tile | undefined;
-
-                                        if (action.type === 'BREAK_TILE') {
-                                            // Solo romper si el tile es breakable
-                                            if (tileData?.logicalProperties?.isBreakable) {
-                                                modifyTileInLayer(targetTileX, targetTileY, null);
-                                            } else {
-                                            }
-                                        } else if (action.type === 'REPLACE_TILE') {
-                                            // Reemplazar con nuevo tile
-                                            const newTileId = params.replacementTileId || null;
-                                            modifyTileInLayer(targetTileX, targetTileY, newTileId);
-                                        }
-                                    } else if (!targetTile?.tileId && action.type === 'REPLACE_TILE') {
-                                        // Allow placing a tile in empty space
-                                        const newTileId = params.replacementTileId || null;
-                                        if (newTileId) {
-                                            modifyTileInLayer(targetTileX, targetTileY, newTileId);
-                                        }
-                                    } else {
+                                    const rowData = pattern.rows[currentRow];
+                                    if (rowData) {
+                                        // Play notes for each channel
+                                        ['A', 'B', 'C'].forEach((chId, chIndex) => {
+                                            const cell = rowData[chId as 'A' | 'B' | 'C'];
+                                            synth.playNote(
+                                                chIndex as 0 | 1 | 2,
+                                                cell.note,
+                                                cell.instrument,
+                                                cell.ornament,
+                                                cell.volume
+                                            );
+                                        });
                                     }
-                                    break;
-                                }
 
-                                default:
-                                    break;
+                                    currentRow++;
+                                    if (currentRow >= pattern.numRows) {
+                                        currentRow = 0;
+                                        currentPatternIndexInOrder++;
+                                    }
+                                };
+
+                                // Calculate row duration
+                                const rowDurationMs = (2500 * trackData.speed) / trackData.bpm;
+
+                                musicPlaybackIntervalRef.current = window.setInterval(playNextRow, Math.max(20, rowDurationMs));
+                                playNextRow(); // Play first row immediately
+                            });
+
+                            console.log(`[PLAY_MUSIC] Playing track: ${trackAsset.name}`);
+                        }
+                    }
+                    break;
+                }
+
+                case 'MUTE_MUSIC': {
+                    if (musicSynthesizerRef.current) {
+                        musicSynthesizerRef.current.stopAllNotes();
+                        musicIsMutedRef.current = true;
+                        console.log(`[MUTE_MUSIC] Music muted`);
+                    }
+                    break;
+                }
+
+                case 'STOP_MUSIC': {
+                    if (musicSynthesizerRef.current) {
+                        musicSynthesizerRef.current.stopAllNotes();
+                        if (musicPlaybackIntervalRef.current) {
+                            clearInterval(musicPlaybackIntervalRef.current);
+                            musicPlaybackIntervalRef.current = null;
+                        }
+                        musicSynthesizerRef.current = null;
+                        currentMusicTrackIdRef.current = null;
+                        musicIsMutedRef.current = false;
+                        console.log(`[STOP_MUSIC] Music stopped`);
+                    }
+                    break;
+                }
+
+                case 'CHANGE_GAME_FLOW_NODE':
+                    let targetNodeId = action.params.nodeId || action.params.targetNodeId;
+
+                    // Special case: "START" navigates to the Start node
+                    if (targetNodeId === 'START') {
+                        const startNode = nodes.find(n => n.type === 'Start');
+                        if (startNode) {
+                            targetNodeId = startNode.id;
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if (targetNodeId) {
+                        // Store the target node for deferred navigation (after frame completes)
+                        (entity as any).pendingNodeTransition = targetNodeId;
+                    }
+                    break;
+
+                case 'DECREASE_LIVES':
+                    const decreaseAmount = Number(action.params.amount || 1);
+                    // Find comp_health
+                    const healthCompForDecrease = entity.template.components.find(c => c.definitionId === 'comp_health');
+                    if (healthCompForDecrease) {
+                        const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
+                        const currentLives = Number(healthOverride.current || healthCompForDecrease.defaultValues?.current || 3);
+                        const newLives = Math.max(0, currentLives - decreaseAmount);
+
+                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
+                        if (!entity.instance.componentOverrides['comp_health']) {
+                            entity.instance.componentOverrides['comp_health'] = {};
+                        }
+                        entity.instance.componentOverrides['comp_health'].current = newLives;
+
+                    }
+                    break;
+
+                case 'INCREASE_LIVES':
+                    const increaseAmount = Number(action.params.amount || 1);
+                    const healthCompForIncrease = entity.template.components.find(c => c.definitionId === 'comp_health');
+                    if (healthCompForIncrease) {
+                        const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
+                        const currentLives = Number(healthOverride.current || healthCompForIncrease.defaultValues?.current || 3);
+                        const maxLives = Number(healthOverride.max || healthCompForIncrease.defaultValues?.max || 3);
+                        const newLives = Math.min(maxLives, currentLives + increaseAmount);
+
+                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
+                        if (!entity.instance.componentOverrides['comp_health']) {
+                            entity.instance.componentOverrides['comp_health'] = {};
+                        }
+                        entity.instance.componentOverrides['comp_health'].current = newLives;
+
+                    }
+                    break;
+
+                case 'RESPAWN_PLAYER': {
+                    let spawnX: number;
+                    let spawnY: number;
+                    let targetScreenId: string | undefined;
+
+                    if (gameGlobalVariables.playerCheckpointX !== undefined && gameGlobalVariables.playerCheckpointY !== undefined && gameGlobalVariables.playerCheckpointScreen) {
+                        spawnX = Number(gameGlobalVariables.playerCheckpointX);
+                        spawnY = Number(gameGlobalVariables.playerCheckpointY);
+                        targetScreenId = gameGlobalVariables.playerCheckpointScreen;
+                    } else if (action.params.x !== undefined || action.params.y !== undefined) {
+                        spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
+                        spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
+                    } else {
+                        spawnX = entity.instance.position.x * 8;
+                        spawnY = entity.instance.position.y * 8;
+                    }
+
+                    const currentScreenMap = currentScreenMapRef.current;
+                    const currentWorldMapGraph = currentWorldMapGraphRef.current;
+
+                    // If the checkpoint belongs to another screen, switch to it
+                    if (targetScreenId && currentScreenMap?.id !== targetScreenId) {
+                        const setPlayerEntryPoint = setPlayerEntryPointRef.current;
+                        const handleScreenTransition = handleScreenTransitionRef.current;
+
+                        setPlayerEntryPoint({ x: spawnX, y: spawnY });
+
+                        if (currentWorldMapGraph) {
+                            const targetScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === targetScreenId);
+                            if (targetScreenNode) {
+                                handleScreenTransition(targetScreenNode.id);
+                                // Leave entity.x/y untouched here; useEffect will update them after transition
+                                return;
                             }
                         }
+                    }
+
+                    // Already on the right screen, so respawn locally
+                    entity.x = spawnX;
+                    entity.y = spawnY;
+                    entity.vx = 0;
+                    entity.vy = 0;
+                    break;
+                }
+
+                case 'BREAK_TILE':
+                case 'REPLACE_TILE': {
+                    const params = action.params;
+                    const dir = params.direction || 'up';
+
+                    // Compute the tile position based on player's facing direction
+                    const offsets: Record<string, { x: number; y: number }> = {
+                        up: { x: 0, y: -1 },
+                        down: { x: 0, y: 1 },
+                        left: { x: -1, y: 0 },
+                        right: { x: 1, y: 0 },
+                        // Diagonales
+                        'up-right': { x: 1, y: -1 },
+                        'up-left': { x: -1, y: -1 },
+                        'down-right': { x: 1, y: 1 },
+                        'down-left': { x: -1, y: 1 }
+                    };
+
+                    // Player position expressed in tiles (8x8)
+                    const playerTileX = Math.floor((entity.x + entity.sprite.size.width / 2) / 8);
+                    const playerTileY = Math.floor((entity.y + entity.sprite.size.height / 2) / 8);
+
+                    // Target tile position
+                    const targetTileX = playerTileX + offsets[dir].x;
+                    const targetTileY = playerTileY + offsets[dir].y;
+
+                    // Ensure the target tile exists (using the ref for synchronous access)
+                    const targetTile = runtimeCollisionLayerRef.current[targetTileY]?.[targetTileX];
+
+                    if (targetTile?.tileId) {
+                        const tileAsset = allAssets.find(a => a.id === targetTile.tileId && a.type === 'tile');
+                        const tileData = tileAsset?.data as Tile | undefined;
+
+                        if (action.type === 'BREAK_TILE') {
+                            // Solo romper si el tile es breakable
+                            if (tileData?.logicalProperties?.isBreakable) {
+                                modifyTileInLayer(targetTileX, targetTileY, null);
+                            } else {
+                            }
+                        } else if (action.type === 'REPLACE_TILE') {
+                            // Reemplazar con nuevo tile
+                            const newTileId = params.replacementTileId || null;
+                            modifyTileInLayer(targetTileX, targetTileY, newTileId);
+                        }
+                    } else if (!targetTile?.tileId && action.type === 'REPLACE_TILE') {
+                        // Allow placing a tile in empty space
+                        const newTileId = params.replacementTileId || null;
+                        if (newTileId) {
+                            modifyTileInLayer(targetTileX, targetTileY, newTileId);
+                        }
+                    } else {
+                    }
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
     };
 
     const applyStatePropertiesFromState = (entity: AnimatedEntity, state?: StateMachineState) => {
@@ -1942,9 +1964,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             // Reset transient session state to avoid stale values between plays
             // - Clear collected item registries
-            try { boxPickedUpRegistry.current.clear(); } catch {}
-            try { collectedItemsRegistry.current.clear(); } catch {}
-            try { revealedSecretTiles.current.clear(); } catch {}
+            try { boxPickedUpRegistry.current.clear(); } catch { }
+            try { collectedItemsRegistry.current.clear(); } catch { }
+            try { revealedSecretTiles.current.clear(); } catch { }
             // - Reset global variables (will be re-initialized by Globals node if present)
             updateGameGlobalVariables(() => ({}));
             // - Reset internal refs related to globals and timers
@@ -1962,9 +1984,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 musicSynthesizerRef.current = null;
                 currentMusicTrackIdRef.current = null;
                 musicIsMutedRef.current = false;
-            } catch {}
+            } catch { }
             // - Reset HUD version so overlays refresh deterministically
-            try { setHudVersion(0); } catch {}
+            try { setHudVersion(0); } catch { }
         } else {
             document.body.style.overflow = '';
             document.body.style.position = '';
@@ -1984,14 +2006,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     }, [isOpen, graphData, gameFlowAssetName]);
 
     const expandMenuOptions = useCallback((subMenuNode: GameFlowSubMenuNode) => {
-        const expandedOptions: Array<{text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string}> = [];
+        const expandedOptions: Array<{ text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string }> = [];
         subMenuNode.options.forEach((option, idx) => {
             if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
                 option.controlOptions.forEach(ctrl => {
-                    expandedOptions.push({text: ctrl, originalIndex: idx, isControlOption: true, controlValue: ctrl});
+                    expandedOptions.push({ text: ctrl, originalIndex: idx, isControlOption: true, controlValue: ctrl });
                 });
             } else {
-                expandedOptions.push({text: option.text, originalIndex: idx});
+                expandedOptions.push({ text: option.text, originalIndex: idx });
             }
         });
         return expandedOptions;
@@ -2140,12 +2162,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 case ' ': case 'Enter':
                     if (currentNode.type === 'Restart') {
                         // Hard reset transient gameplay/session state to avoid stale entities (e.g., carried boxes)
-                        try { boxPickedUpRegistry.current.clear(); } catch {}
-                        try { collectedItemsRegistry.current.clear(); } catch {}
-                        try { revealedSecretTiles.current.clear(); } catch {}
+                        try { boxPickedUpRegistry.current.clear(); } catch { }
+                        try { collectedItemsRegistry.current.clear(); } catch { }
+                        try { revealedSecretTiles.current.clear(); } catch { }
                         updateGameGlobalVariables(() => ({}));
-                        try { gameGlobalVariablesRef.current = {}; } catch {}
-                        try { lastScreenTransitionTimeRef.current = 0; } catch {}
+                        try { gameGlobalVariablesRef.current = {}; } catch { }
+                        try { lastScreenTransitionTimeRef.current = 0; } catch { }
 
                         // Stop any playing music and clear playback state
                         try {
@@ -2159,14 +2181,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             musicSynthesizerRef.current = null;
                             currentMusicTrackIdRef.current = null;
                             musicIsMutedRef.current = false;
-                        } catch {}
+                        } catch { }
+
+                        // CRITICAL: Clear carried box reference before clearing entities
+                        // This prevents Box ghosts when restarting while carrying a Box
+                        if (heroRef.current?.carriedBox) {
+                            heroRef.current.carriedBox = null;
+                        }
 
                         // Clear runtime entities and input state
                         entitiesRef.current = [];
                         heroRef.current = null;
                         pressedKeys.current.clear();
                         jumpKeyProcessed.current = false;
-                        try { setPlayerEntryPoint(null); } catch {}
+                        try { setPlayerEntryPoint(null); } catch { }
 
                         // Reset screen/world so next Start reinitializes cleanly
                         setCurrentScreenMap(null);
@@ -2174,7 +2202,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         setGameFlowStack([]);
                         setCurrentNestedGraphData(null);
                         setCurrentExecutingGameFlowName(gameFlowAssetName);
-                        try { setHudVersion(0); } catch {}
+                        try { setHudVersion(0); } catch { }
 
                         const startNode = nodes.find(n => n.type === 'Start');
                         if (startNode) {
@@ -2349,7 +2377,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 for (const comp of template.components) {
                     const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
                     const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
-                     if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                    if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
                         spriteAssetId = comp.defaultValues[spriteProp.name];
                         break;
                     }
@@ -2956,7 +2984,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             const proj: AnimatedEntity = {
                 instance: {
-                    id: `proj_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+                    id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
                     entityTemplateId: 'tpl_projectile_runtime',
                     name: 'Projectile',
                     position: { x: Math.floor(spawnX / TILE_SIZE), y: Math.floor(spawnY / TILE_SIZE) },
@@ -3152,34 +3180,34 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         };
 
         const renderTextNodes = async () => {
-             if (currentNode.type !== 'Transition') {
-                 let bgColor = '#000000';
-                 if (currentNode.type === 'SubMenu') {
-                     bgColor = (currentNode as GameFlowSubMenuNode).appearance?.colors?.background || '#000000';
-                 } else if (currentNode.type === 'Text') {
-                     bgColor = (currentNode as GameFlowTextNode).appearance?.colors?.background || '#000000';
-                 }
-                 ctx.fillStyle = bgColor;
-                 ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                 if (tileBufferRef.current) {
-                     ctx.drawImage(tileBufferRef.current, 0, 0); // Dibujar buffer pre-renderizado
+            if (currentNode.type !== 'Transition') {
+                let bgColor = '#000000';
+                if (currentNode.type === 'SubMenu') {
+                    bgColor = (currentNode as GameFlowSubMenuNode).appearance?.colors?.background || '#000000';
+                } else if (currentNode.type === 'Text') {
+                    bgColor = (currentNode as GameFlowTextNode).appearance?.colors?.background || '#000000';
+                }
+                ctx.fillStyle = bgColor;
+                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                if (tileBufferRef.current) {
+                    ctx.drawImage(tileBufferRef.current, 0, 0); // Dibujar buffer pre-renderizado
 
-                     // Hide revealed secret tiles
-                     if (currentScreenMapRef.current) {
-                         ctx.fillStyle = '#000000';
-                         revealedSecretTiles.current.forEach((key) => {
-                             const parts = key.split('_');
-                             const screenId = parts.slice(0, -2).join('_');
-                             const tx = parseInt(parts[parts.length - 2], 10);
-                             const ty = parseInt(parts[parts.length - 1], 10);
+                    // Hide revealed secret tiles
+                    if (currentScreenMapRef.current) {
+                        ctx.fillStyle = '#000000';
+                        revealedSecretTiles.current.forEach((key) => {
+                            const parts = key.split('_');
+                            const screenId = parts.slice(0, -2).join('_');
+                            const tx = parseInt(parts[parts.length - 2], 10);
+                            const ty = parseInt(parts[parts.length - 1], 10);
 
-                             if (screenId === currentScreenMapRef.current?.id) {
-                                 ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                             }
-                         });
-                     }
-                 }
-             }
+                            if (screenId === currentScreenMapRef.current?.id) {
+                                ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                            }
+                        });
+                    }
+                }
+            }
             switch (currentNode.type) {
                 case 'Start':
                     if (currentExecutingGameFlowName === 'Main') {
@@ -3201,28 +3229,28 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const subMenuFontColorAttrs = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
                     const titleDims = getTextDimensionsMSX1(subMenu.title, 1);
                     await drawTextAsync(subMenu.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes, subMenuFont, subMenuFontColorAttrs);
-                    const expandedOptions: Array<{text: string, originalIndex: number, isControlOption?: boolean}> = [];
+                    const expandedOptions: Array<{ text: string, originalIndex: number, isControlOption?: boolean }> = [];
                     subMenu.options.forEach((option, idx) => {
                         if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
                             option.controlOptions.forEach(ctrl => {
-                                expandedOptions.push({text: ctrl, originalIndex: idx, isControlOption: true});
+                                expandedOptions.push({ text: ctrl, originalIndex: idx, isControlOption: true });
                             });
                         } else {
-                            expandedOptions.push({text: option.text, originalIndex: idx});
+                            expandedOptions.push({ text: option.text, originalIndex: idx });
                         }
                     });
                     for (const [displayIndex, expandedOption] of expandedOptions.entries()) {
-                         const optionText = expandedOption.text;
-                         const optionDims = getTextDimensionsMSX1(optionText, 1);
-                         const isSelected = displayIndex === selectedOptionIndex;
-                         let colorAttrs = subMenuFontColorAttrs || msxFontColorAttributes;
-                         if (isSelected) {
-                             const highlightedColorAttrs = JSON.parse(JSON.stringify(colorAttrs));
-                             for(let i=0; i<optionText.length; i++){
-                                 highlightedColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
-                             }
-                             colorAttrs = highlightedColorAttrs;
-                         }
+                        const optionText = expandedOption.text;
+                        const optionDims = getTextDimensionsMSX1(optionText, 1);
+                        const isSelected = displayIndex === selectedOptionIndex;
+                        let colorAttrs = subMenuFontColorAttrs || msxFontColorAttributes;
+                        if (isSelected) {
+                            const highlightedColorAttrs = JSON.parse(JSON.stringify(colorAttrs));
+                            for (let i = 0; i < optionText.length; i++) {
+                                highlightedColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
+                            }
+                            colorAttrs = highlightedColorAttrs;
+                        }
                         await drawTextAsync(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + displayIndex * 12, colorAttrs, subMenuFont, colorAttrs);
                     }
                     break;
@@ -3262,7 +3290,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const promptDims = getTextDimensionsMSX1(promptText, 1);
                     const baseColorAttrs = textNodeFontColorAttrs || msxFontColorAttributes;
                     const promptColorAttrs = JSON.parse(JSON.stringify(baseColorAttrs));
-                    for(let i=0; i<promptText.length; i++){
+                    for (let i = 0; i < promptText.length; i++) {
                         promptColorAttrs[promptText.charCodeAt(i)] = Array(8).fill({
                             fg: textNode.appearance?.colors?.promptText || '#F3F3F3',
                             bg: textNode.appearance?.colors?.background || '#000000'
@@ -3289,7 +3317,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             }
                             return next;
                         });
-                    } catch {}
+                    } catch { }
                     // Auto-navigate to next node
                     {
                         const conn = connections.find(c => c.from.nodeId === currentNode.id);
@@ -3502,139 +3530,139 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
         };
 
-       
+
 
         const handleTilemapCollision = (entity: AnimatedEntity, screenMap: ScreenMap, tileset: Tile[], collisionCompDef: ComponentDefinition) => {
-        if (!screenMap || !tileset || !collisionCompDef) return;
-        const entityCollisionProps = {
-            ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
-            ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
-            ...(entity.instance.componentOverrides?.['comp_collision'] || {})
-        };
-        const registerWallCollisionEvent = (direction: 'left' | 'right' | 'up' | 'down') => {
-            triggerEvent(entity.instance.id, 'collision_wall');
-            triggerEvent(entity.instance.id, `collision_wall_${direction}`);
-        };
-        const getHitboxFor = (x: number, y: number) => {
-            // Respect sprite-defined hitbox when comp values are not provided
-            const sHit = entity.sprite.hitbox;
-            const offsetX = (entityCollisionProps.offsetX !== undefined && entityCollisionProps.offsetX !== '')
-                ? Number(entityCollisionProps.offsetX)
-                : (sHit?.offsetX ?? 0);
-            const offsetY = (entityCollisionProps.offsetY !== undefined && entityCollisionProps.offsetY !== '')
-                ? Number(entityCollisionProps.offsetY)
-                : (sHit?.offsetY ?? 0);
-            const width = (entityCollisionProps.hitboxWidth !== undefined && entityCollisionProps.hitboxWidth !== '')
-                ? Number(entityCollisionProps.hitboxWidth)
-                : (sHit?.width ?? entity.sprite.size.width);
-            const height = (entityCollisionProps.hitboxHeight !== undefined && entityCollisionProps.hitboxHeight !== '')
-                ? Number(entityCollisionProps.hitboxHeight)
-                : (sHit?.height ?? entity.sprite.size.height);
-            return { x: x + offsetX, y: y + offsetY, width, height };
-        };
-        let tentativeX = entity.x + entity.vx;
-        let tentativeY = entity.y + entity.vy;
-        let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+            if (!screenMap || !tileset || !collisionCompDef) return;
+            const entityCollisionProps = {
+                ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
+                ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
+                ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+            };
+            const registerWallCollisionEvent = (direction: 'left' | 'right' | 'up' | 'down') => {
+                triggerEvent(entity.instance.id, 'collision_wall');
+                triggerEvent(entity.instance.id, `collision_wall_${direction}`);
+            };
+            const getHitboxFor = (x: number, y: number) => {
+                // Respect sprite-defined hitbox when comp values are not provided
+                const sHit = entity.sprite.hitbox;
+                const offsetX = (entityCollisionProps.offsetX !== undefined && entityCollisionProps.offsetX !== '')
+                    ? Number(entityCollisionProps.offsetX)
+                    : (sHit?.offsetX ?? 0);
+                const offsetY = (entityCollisionProps.offsetY !== undefined && entityCollisionProps.offsetY !== '')
+                    ? Number(entityCollisionProps.offsetY)
+                    : (sHit?.offsetY ?? 0);
+                const width = (entityCollisionProps.hitboxWidth !== undefined && entityCollisionProps.hitboxWidth !== '')
+                    ? Number(entityCollisionProps.hitboxWidth)
+                    : (sHit?.width ?? entity.sprite.size.width);
+                const height = (entityCollisionProps.hitboxHeight !== undefined && entityCollisionProps.hitboxHeight !== '')
+                    ? Number(entityCollisionProps.hitboxHeight)
+                    : (sHit?.height ?? entity.sprite.size.height);
+                return { x: x + offsetX, y: y + offsetY, width, height };
+            };
+            let tentativeX = entity.x + entity.vx;
+            let tentativeY = entity.y + entity.vy;
+            let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
 
-        // --- X-axis collision: use centered vertical probes to avoid top/bottom corner glitches ---
-        if (entity.vx !== 0) {
-            let collisionX = false;
-            const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
-            const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
+            // --- X-axis collision: use centered vertical probes to avoid top/bottom corner glitches ---
+            if (entity.vx !== 0) {
+                let collisionX = false;
+                const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
+                const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
 
-            if (entity.vx > 0) { // Derecha
-            if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1, screenMap) ||
-                checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2, screenMap)) {
-                collisionX = true;
-                const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
-                tentativeX = tileLeftEdge - Number(entityCollisionProps.offsetX ?? 0) - tentativeHitbox.width;
-                entity.vx = 0;
-                registerWallCollisionEvent('right');
-            }
-            } else if (entity.vx < 0) { // Izquierda
-            if (checkCollisionAt(tentativeHitbox.x, centerY1, screenMap) ||
-                checkCollisionAt(tentativeHitbox.x, centerY2, screenMap)) {
-                collisionX = true;
-                const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
-                tentativeX = tileRightEdge - Number(entityCollisionProps.offsetX ?? 0);
-                entity.vx = 0;
-                registerWallCollisionEvent('left');
-            }
-            }
-            if (collisionX) {
-            tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
-            }
-        }
-
-        // --- Y-axis collision: use centered horizontal probes ---
-        if (entity.vy !== 0) {
-            let collisionY = false;
-            const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
-            const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
-
-            if (entity.vy > 0) { // Cayendo
-                const onPlatform = entity.platformUnderneath != null;
-                if (!onPlatform && (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap) ||
-                    checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap))) {
-                    collisionY = true;
-                    const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
-                    tentativeY = tileTopEdge - Number(entityCollisionProps.offsetY ?? 0) - tentativeHitbox.height;
-                    entity.vy = 0;
-                    registerWallCollisionEvent('down');
+                if (entity.vx > 0) { // Derecha
+                    if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1, screenMap) ||
+                        checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2, screenMap)) {
+                        collisionX = true;
+                        const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
+                        tentativeX = tileLeftEdge - Number(entityCollisionProps.offsetX ?? 0) - tentativeHitbox.width;
+                        entity.vx = 0;
+                        registerWallCollisionEvent('right');
+                    }
+                } else if (entity.vx < 0) { // Izquierda
+                    if (checkCollisionAt(tentativeHitbox.x, centerY1, screenMap) ||
+                        checkCollisionAt(tentativeHitbox.x, centerY2, screenMap)) {
+                        collisionX = true;
+                        const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
+                        tentativeX = tileRightEdge - Number(entityCollisionProps.offsetX ?? 0);
+                        entity.vx = 0;
+                        registerWallCollisionEvent('left');
+                    }
                 }
-            } else if (entity.vy < 0) { // Saltando (hacia arriba)
-            if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap) ||
-                checkCollisionAt(centerX2, tentativeHitbox.y, screenMap)) {
-                collisionY = true;
-                const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
-                const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
-                tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
-                entity.vy = 0; // Stop vertical velocity after touching the ceiling
-                registerWallCollisionEvent('up');
-
-          
+                if (collisionX) {
+                    tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+                }
             }
+
+            // --- Y-axis collision: use centered horizontal probes ---
+            if (entity.vy !== 0) {
+                let collisionY = false;
+                const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
+                const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
+
+                if (entity.vy > 0) { // Cayendo
+                    const onPlatform = entity.platformUnderneath != null;
+                    if (!onPlatform && (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap) ||
+                        checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap))) {
+                        collisionY = true;
+                        const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
+                        tentativeY = tileTopEdge - Number(entityCollisionProps.offsetY ?? 0) - tentativeHitbox.height;
+                        entity.vy = 0;
+                        registerWallCollisionEvent('down');
+                    }
+                } else if (entity.vy < 0) { // Saltando (hacia arriba)
+                    if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap) ||
+                        checkCollisionAt(centerX2, tentativeHitbox.y, screenMap)) {
+                        collisionY = true;
+                        const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
+                        const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
+                        tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
+                        entity.vy = 0; // Stop vertical velocity after touching the ceiling
+                        registerWallCollisionEvent('up');
+
+
+                    }
+                }
+                if (collisionY) {
+                    // No es estrictamente necesario, pero mantiene consistencia
+                    // tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+                }
             }
-            if (collisionY) {
-            // No es estrictamente necesario, pero mantiene consistencia
-            // tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
-            }
-        }
 
-        // Apply the final position after collision resolution
-        entity.x = tentativeX;
-        entity.y = tentativeY;
+            // Apply the final position after collision resolution
+            entity.x = tentativeX;
+            entity.y = tentativeY;
 
-        // Check whether the player is overlapping a dangerous tile (causesDamage)
-        const finalHitbox = getHitboxFor(entity.x, entity.y);
-        const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
-        const centerY = finalHitbox.y + Math.floor(finalHitbox.height / 2);
-        const bottomY = finalHitbox.y + finalHitbox.height;
+            // Check whether the player is overlapping a dangerous tile (causesDamage)
+            const finalHitbox = getHitboxFor(entity.x, entity.y);
+            const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
+            const centerY = finalHitbox.y + Math.floor(finalHitbox.height / 2);
+            const bottomY = finalHitbox.y + finalHitbox.height;
 
-        // Sample multiple hitbox points for better detection accuracy
-        const isDangerous =
-            checkDangerousTileAt(centerX, centerY, screenMap) ||  // Centro
-            checkDangerousTileAt(finalHitbox.x, centerY, screenMap) ||  // Izquierda
-            checkDangerousTileAt(finalHitbox.x + finalHitbox.width, centerY, screenMap) ||  // Derecha
-            checkDangerousTileAt(centerX, bottomY, screenMap);  // Abajo (pies)
+            // Sample multiple hitbox points for better detection accuracy
+            const isDangerous =
+                checkDangerousTileAt(centerX, centerY, screenMap) ||  // Centro
+                checkDangerousTileAt(finalHitbox.x, centerY, screenMap) ||  // Izquierda
+                checkDangerousTileAt(finalHitbox.x + finalHitbox.width, centerY, screenMap) ||  // Derecha
+                checkDangerousTileAt(centerX, bottomY, screenMap);  // Abajo (pies)
 
-        // Actualizar flag para state machine
-        entity.hasDangerousTileCollision = isDangerous;
+            // Actualizar flag para state machine
+            entity.hasDangerousTileCollision = isDangerous;
 
-        // NOTE: damage/death is not applied automatically here
-        // The state machine can look at HAS_DEADLY_TILE_COLLISION and decide what to do
-        // (e.g. transition to a "Taking Damage" or "Dead" animation state)
+            // NOTE: damage/death is not applied automatically here
+            // The state machine can look at HAS_DEADLY_TILE_COLLISION and decide what to do
+            // (e.g. transition to a "Taking Damage" or "Dead" animation state)
         };
 
         const entityCollisionProps = (entity: AnimatedEntity) => {
-             const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-             if (!collisionCompDef) {
-                 return null;
-             }
+            const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
+            if (!collisionCompDef) {
+                return null;
+            }
 
-             const templateCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision');
-             const templateValues = templateCollisionComp?.defaultValues || {};
-             const instanceValues = entity.instance.componentOverrides?.['comp_collision'] || {};
+            const templateCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision');
+            const templateValues = templateCollisionComp?.defaultValues || {};
+            const instanceValues = entity.instance.componentOverrides?.['comp_collision'] || {};
 
             // Priority: instanceValues > templateValues > sprite.hitbox > defaults > sprite.size
             const spriteHitbox = entity.sprite.hitbox;
@@ -3642,43 +3670,43 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             // Helper that resolves a value following the priority rules above
             const getPriorityValue = (propName: string, spriteFallback?: number) => {
-                 // 1. Instance override (highest priority)
-                 if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') {
-                     return Number(instanceValues[propName]);
-                 }
-                 // 2. Template default value
-                 if (templateValues[propName] !== undefined && templateValues[propName] !== '') {
-                     return Number(templateValues[propName]);
-                 }
-                 // 3. Sprite hitbox fallback when available
-                 if (spriteFallback !== undefined) {
-                     return spriteFallback;
-                 }
-                 // 4. Component default
-                 if (defaults[propName] !== undefined && defaults[propName] !== '') {
-                     return Number(defaults[propName]);
-                 }
-                 // 5. Final fallback
-                 return 0;
-             };
+                // 1. Instance override (highest priority)
+                if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') {
+                    return Number(instanceValues[propName]);
+                }
+                // 2. Template default value
+                if (templateValues[propName] !== undefined && templateValues[propName] !== '') {
+                    return Number(templateValues[propName]);
+                }
+                // 3. Sprite hitbox fallback when available
+                if (spriteFallback !== undefined) {
+                    return spriteFallback;
+                }
+                // 4. Component default
+                if (defaults[propName] !== undefined && defaults[propName] !== '') {
+                    return Number(defaults[propName]);
+                }
+                // 5. Final fallback
+                return 0;
+            };
 
-             const hitboxWidth = getPriorityValue('hitboxWidth', spriteHitbox?.width ?? entity.sprite.size.width);
-             const hitboxHeight = getPriorityValue('hitboxHeight', spriteHitbox?.height ?? entity.sprite.size.height);
-             const offsetX = getPriorityValue('offsetX', spriteHitbox?.offsetX ?? 0);
-             const offsetY = getPriorityValue('offsetY', spriteHitbox?.offsetY ?? 0);
+            const hitboxWidth = getPriorityValue('hitboxWidth', spriteHitbox?.width ?? entity.sprite.size.width);
+            const hitboxHeight = getPriorityValue('hitboxHeight', spriteHitbox?.height ?? entity.sprite.size.height);
+            const offsetX = getPriorityValue('offsetX', spriteHitbox?.offsetX ?? 0);
+            const offsetY = getPriorityValue('offsetY', spriteHitbox?.offsetY ?? 0);
 
-             // Para otras propiedades sin sprite fallback: instance > template > defaults
-             const getValueNoSpriteFallback = (propName: string, defaultFallback: any) => {
-                 if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') return instanceValues[propName];
-                 if (templateValues[propName] !== undefined && templateValues[propName] !== '') return templateValues[propName];
-                 if (defaults[propName] !== undefined && defaults[propName] !== '') return defaults[propName];
-                 return defaultFallback;
-             };
+            // Para otras propiedades sin sprite fallback: instance > template > defaults
+            const getValueNoSpriteFallback = (propName: string, defaultFallback: any) => {
+                if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') return instanceValues[propName];
+                if (templateValues[propName] !== undefined && templateValues[propName] !== '') return templateValues[propName];
+                if (defaults[propName] !== undefined && defaults[propName] !== '') return defaults[propName];
+                return defaultFallback;
+            };
 
-             const collisionLayer = Number(getValueNoSpriteFallback('collisionLayer', 1)) || 1;
-             const collidesWith = Number(getValueNoSpriteFallback('collidesWith', 255)) || 255;
-             const isStatic = getValueNoSpriteFallback('isStatic', false) === true || getValueNoSpriteFallback('isStatic', false) === 'true';
-             const isTrigger = getValueNoSpriteFallback('isTrigger', false) === true || getValueNoSpriteFallback('isTrigger', false) === 'true';
+            const collisionLayer = Number(getValueNoSpriteFallback('collisionLayer', 1)) || 1;
+            const collidesWith = Number(getValueNoSpriteFallback('collidesWith', 255)) || 255;
+            const isStatic = getValueNoSpriteFallback('isStatic', false) === true || getValueNoSpriteFallback('isStatic', false) === 'true';
+            const isTrigger = getValueNoSpriteFallback('isTrigger', false) === true || getValueNoSpriteFallback('isTrigger', false) === 'true';
 
             const result = {
                 hitboxWidth,
@@ -3845,9 +3873,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         let lastTime = 0;
         const animate = (currentTime: number) => {
             // Sync gamepad state into pressedKeys before processing input/physics
-            try { syncGamepadToPressedKeys(); } catch {}
+            try { syncGamepadToPressedKeys(); } catch { }
             // Allow gamepad to navigate SubMenu
-            try { syncGamepadForMenu(); } catch {}
+            try { syncGamepadForMenu(); } catch { }
             // --- Calcular deltaTime (opcional) ---
             // const deltaTime = currentTime - lastTime;
             // lastTime = currentTime;
@@ -3862,7 +3890,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             // === RESOLVE PARENTS FOR CHILD-LINKED ENTITIES ===
             const entityLookup = new Map<string, AnimatedEntity>();
             for (const entity of entitiesRef.current) {
-            entityLookup.set(entity.instance.id, entity);
+                entityLookup.set(entity.instance.id, entity);
             }
             resolveChildLinkParents(entitiesRef.current, entityLookup);
             // ================================================
@@ -3896,10 +3924,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Si no hay buffer (por ejemplo, en nodos de texto), limpiar y dibujar fondo
                 ctx.fillStyle = '#000000'; // Color por defecto
                 if (subMenuNode?.appearance?.colors?.background) {
-                     ctx.fillStyle = subMenuNode.appearance.colors.background;
+                    ctx.fillStyle = subMenuNode.appearance.colors.background;
                 } else if (currentNode.type === 'Text') {
-                     const textNode = currentNode as GameFlowTextNode;
-                     ctx.fillStyle = textNode.appearance?.colors?.background || '#000000';
+                    const textNode = currentNode as GameFlowTextNode;
+                    ctx.fillStyle = textNode.appearance?.colors?.background || '#000000';
                 }
                 ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
             }
@@ -3937,15 +3965,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Salvo que sean hijas y su padre est visible aqu
                 const currentScreenId = currentScreenMapRef.current?.id;
                 const isChildOfVisibleParent = childLinkConfig &&
-                                                childLinkParent &&
-                                                childLinkParent.ownerScreenId === currentScreenId;
+                    childLinkParent &&
+                    childLinkParent.ownerScreenId === currentScreenId;
 
                 if (
-                entityA.ownerScreenId &&
-                entityA.ownerScreenId !== currentScreenId &&
-                !isChildOfVisibleParent
+                    entityA.ownerScreenId &&
+                    entityA.ownerScreenId !== currentScreenId &&
+                    !isChildOfVisibleParent
                 ) {
-                return; // No se dibuja ni se procesa ms
+                    return; // No se dibuja ni se procesa ms
                 }
 
                 // Filter Box entities: only process if they belong to current screen or are being carried
@@ -4062,7 +4090,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         }
                     }
 
-                                        // Animate projectile frames if enabled
+                    // Animate projectile frames if enabled
                     if ((entityA.isExploding || entityA.animateProjectile !== false) && entityA.frameImages.length > 1) {
                         const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
                         if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
@@ -4110,7 +4138,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                         // Check tiles OR platform from PREVIOUS frame (before it gets cleared)
                         const onTiles = checkCollisionAt(centerX1, bottomY, screenMapToRender) ||
-                                       checkCollisionAt(centerX2, bottomY, screenMapToRender);
+                            checkCollisionAt(centerX2, bottomY, screenMapToRender);
                         // Be robust: consider we were on a platform last frame if the reference exists
                         const onPlatformPreviousFrame = !!entityA.platformUnderneath;
 
@@ -4128,6 +4156,47 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                 } else {
                     entityA.isOnGround = false;
+                }
+
+                // --- Handle Landing (Revert Jump Sprite) ---
+                const wasJumping = entityA.instance.componentOverrides?.['comp_jump']?.isJumping;
+                if (entityA.isOnGround && wasJumping) {
+                    // Reset jumping flag
+                    if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {};
+                    if (!entityA.instance.componentOverrides['comp_jump']) entityA.instance.componentOverrides['comp_jump'] = {};
+                    entityA.instance.componentOverrides['comp_jump'].isJumping = false;
+
+                    // Revert to default sprite (from comp_render)
+                    const renderProps = getMergedComponentValues(entityA, 'comp_render');
+                    const defaultSpriteId = renderProps?.spriteAssetId;
+                    if (defaultSpriteId) {
+                        const spriteAsset = allAssets.find(a => a.id === defaultSpriteId && a.type === 'sprite');
+                        if (spriteAsset) {
+                            const spriteData = spriteAsset.data as Sprite;
+                            entityA.sprite = spriteData;
+
+                            // Regenerate frames
+                            const frames = spriteData.frames.map(frame => {
+                                const img = new Image();
+                                img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                return img;
+                            });
+                            entityA.frameImages = frames;
+
+                            // Regenerate mirrored frames
+                            if (['right', 'left'].includes(spriteData.facingDirection)) {
+                                const mirrored = spriteData.frames.map(frame => {
+                                    const img = new Image();
+                                    img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
+                                    return img;
+                                });
+                                entityA.mirroredFrameImages = mirrored;
+                            }
+
+                            entityA.currentFrame = 0;
+                            entityA.lastFrameUpdateTime = performance.now();
+                        }
+                    }
                 }
 
                 // --- 0.5. Detect Secret Passages ---
@@ -4196,7 +4265,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     if (canProcessInput) {
                         const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity') || !!(entityA.instance.componentOverrides?.['comp_gravity']);
                         const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
-                        
+
                         // Horizontal Movement
                         if (cursorsComp) {
                             const cursorsProps = {
@@ -4272,6 +4341,43 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                     entityA.vy = -jumpPower / 40;
                                     jumpKeyProcessed.current = true;
+
+                                    // Handle Jump Sprite
+                                    const jumpSpriteId = jumpProps.jumpSprite;
+                                    if (jumpSpriteId) {
+                                        const spriteAsset = allAssets.find(a => a.id === jumpSpriteId && a.type === 'sprite');
+                                        if (spriteAsset) {
+                                            // Set isJumping flag
+                                            if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {};
+                                            if (!entityA.instance.componentOverrides['comp_jump']) entityA.instance.componentOverrides['comp_jump'] = {};
+                                            entityA.instance.componentOverrides['comp_jump'].isJumping = true;
+
+                                            const spriteData = spriteAsset.data as Sprite;
+                                            entityA.sprite = spriteData;
+
+                                            // Regenerate frames
+                                            const frames = spriteData.frames.map(frame => {
+                                                const img = new Image();
+                                                img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                                return img;
+                                            });
+                                            entityA.frameImages = frames;
+
+                                            // Regenerate mirrored frames
+                                            if (['right', 'left'].includes(spriteData.facingDirection)) {
+                                                const mirrored = spriteData.frames.map(frame => {
+                                                    const img = new Image();
+                                                    img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
+                                                    return img;
+                                                });
+                                                entityA.mirroredFrameImages = mirrored;
+                                            }
+
+                                            entityA.currentFrame = 0;
+                                            entityA.lastFrameUpdateTime = performance.now();
+                                        }
+                                    }
+
                                     // Clear platform reference when jumping to prevent infinite jumps
                                     entityA.platformUnderneath = null;
                                     entityA.isOnGround = false;
@@ -4401,51 +4507,51 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         // Shooting: if entity has comp_shoot and fire key pressed
                         const shootComp = entityA.template.components.find(c => c.definitionId === 'comp_shoot');
                         if (shootComp) {
-                        const shootProps = getMergedComponentValues(entityA, 'comp_shoot') || {};
-                        const fireKey = shootProps.fireKey || 'KeyX';
-                        const firePressed = pressedKeys.current.has(fireKey) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
-                        const cooldownMs = Number(shootProps.cooldownMs || shootProps.fireRateMs || 250);
-                        const nowTs = performance.now();
-                        const canFire = !entityA.lastShotTime || (nowTs - entityA.lastShotTime >= cooldownMs);
-                        
-                        // Ammo gating: si hasAmmo es explcitamente falso, bloquear disparo
-                        const hasAmmo = !(shootProps.hasAmmo === false || shootProps.hasAmmo === 'false');
-                        
-                        // Global Ammo variable gating
-                        const ammoRaw = (gameGlobalVariablesRef.current as any)?.Ammo;
-                        let allowByAmmoVar = true;
-                        if (ammoRaw !== undefined) {
-                            const ammoVal = Number(ammoRaw);
-                            if (!Number.isNaN(ammoVal)) {
-                            allowByAmmoVar = (ammoVal > 0) || (ammoVal < 0); // -1 => infinite
+                            const shootProps = getMergedComponentValues(entityA, 'comp_shoot') || {};
+                            const fireKey = shootProps.fireKey || 'KeyX';
+                            const firePressed = pressedKeys.current.has(fireKey) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
+                            const cooldownMs = Number(shootProps.cooldownMs || shootProps.fireRateMs || 250);
+                            const nowTs = performance.now();
+                            const canFire = !entityA.lastShotTime || (nowTs - entityA.lastShotTime >= cooldownMs);
+
+                            // Ammo gating: si hasAmmo es explcitamente falso, bloquear disparo
+                            const hasAmmo = !(shootProps.hasAmmo === false || shootProps.hasAmmo === 'false');
+
+                            // Global Ammo variable gating
+                            const ammoRaw = (gameGlobalVariablesRef.current as any)?.Ammo;
+                            let allowByAmmoVar = true;
+                            if (ammoRaw !== undefined) {
+                                const ammoVal = Number(ammoRaw);
+                                if (!Number.isNaN(ammoVal)) {
+                                    allowByAmmoVar = (ammoVal > 0) || (ammoVal < 0); // -1 => infinite
+                                }
+                            }
+
+                            if (firePressed && canFire && hasAmmo && allowByAmmoVar) {
+                                spawnProjectile(entityA);
+
+                                // Decrementar Ammo si es finito (>= 0)
+                                if (ammoRaw !== undefined) {
+                                    const currentAmmo = Number(ammoRaw);
+                                    if (!Number.isNaN(currentAmmo) && currentAmmo >= 0) {
+                                        const newAmmo = Math.max(0, currentAmmo - 1);
+                                        console.log(`[Ammo] ${currentAmmo} -> ${newAmmo} (SHOOT)`);
+                                        updateGameGlobalVariables(prev => ({
+                                            ...prev,
+                                            Ammo: newAmmo
+                                        }));
+
+                                        // Si se queda sin municin, tambin desactivar hasAmmo
+                                        if (newAmmo === 0) {
+                                            if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {} as any;
+                                            if (!entityA.instance.componentOverrides['comp_shoot']) entityA.instance.componentOverrides['comp_shoot'] = {} as any;
+                                            entityA.instance.componentOverrides['comp_shoot'].hasAmmo = false;
+                                        }
+                                    }
+                                }
                             }
                         }
 
-                        if (firePressed && canFire && hasAmmo && allowByAmmoVar) {
-                            spawnProjectile(entityA);
-                            
-                            // Decrementar Ammo si es finito (>= 0)
-                            if (ammoRaw !== undefined) {
-                            const currentAmmo = Number(ammoRaw);
-                            if (!Number.isNaN(currentAmmo) && currentAmmo >= 0) {
-                                const newAmmo = Math.max(0, currentAmmo - 1);
-                                console.log(`[Ammo] ${currentAmmo} -> ${newAmmo} (SHOOT)`);
-                                updateGameGlobalVariables(prev => ({
-                                ...prev,
-                                Ammo: newAmmo
-                                }));
-                                
-                                // Si se queda sin municin, tambin desactivar hasAmmo
-                                if (newAmmo === 0) {
-                                if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {} as any;
-                                if (!entityA.instance.componentOverrides['comp_shoot']) entityA.instance.componentOverrides['comp_shoot'] = {} as any;
-                                entityA.instance.componentOverrides['comp_shoot'].hasAmmo = false;
-                                }
-                            }
-                            }
-                        }
-                        }
-                        
                     } // End of canProcessInput check
                 }
 
@@ -4460,11 +4566,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     const gravityOverride = entityA.instance.componentOverrides?.['comp_gravity'];
                     const gravityEnabled = !!gravityComp || !!gravityOverride; // allow instance-level activation
                     if (!skipPhysics && gravityEnabled && !entityA.isOnGround) {
-                      const gravityProps = { ...(gravityComp?.defaultValues || {}), ...(gravityOverride || {}) } as any;
-                      const strength = Number(gravityProps.strength ?? 0) / 60;
-                      const terminalVelocity = Number(gravityProps.terminalVelocity ?? 2);
-                      entityA.vy += strength;
-                      if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
+                        const gravityProps = { ...(gravityComp?.defaultValues || {}), ...(gravityOverride || {}) } as any;
+                        const strength = Number(gravityProps.strength ?? 0) / 60;
+                        const terminalVelocity = Number(gravityProps.terminalVelocity ?? 2);
+                        entityA.vy += strength;
+                        if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
                     }
 
                     // --- Friction (for boxes on ground) ---
@@ -4500,7 +4606,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             entityA.x += entityA.vx;
                             entityA.y += entityA.vy;
                         }
-                
+
                         // --- Screen border restrictions for non-multiscreen entities ---
                         if (entityA !== heroRef.current) {
                             const spriteWidth = entityA.sprite.size.width;
@@ -4604,10 +4710,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     // SPECIAL CASE: For multi-screen platforms, verify if still on platform using global coords
                     const isMultiScreenPlatform = entityA.platformUnderneath &&
-                                                  entityA.platformUnderneath.globalX !== undefined &&
-                                                  entityA.platformUnderneath.globalY !== undefined &&
-                                                  entityA.globalX !== undefined &&
-                                                  entityA.globalY !== undefined;
+                        entityA.platformUnderneath.globalX !== undefined &&
+                        entityA.platformUnderneath.globalY !== undefined &&
+                        entityA.globalX !== undefined &&
+                        entityA.globalY !== undefined;
 
                     if (isMultiScreenPlatform) {
                         // Verify if player is still on platform using global coordinates
@@ -5003,7 +5109,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                                 // Debounce platform-driven transitions to avoid oscillation at borders
                                                 const nowTs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
                                                 const recentlyTransitioned = (nowTs - lastScreenTransitionTimeRef.current) < 300;
-                                if (!recentlyTransitioned) {
+                                                if (!recentlyTransitioned) {
                                                     // Trigger screen transition
                                                     const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
                                                     if (targetScreenNode) {
@@ -5070,53 +5176,53 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (animComp && entityA.frameImages.length > 1) {
                     const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
                     if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
-                    // Check if animation should only play when moving
-                    const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
-                    const isMoving = entityA.vx !== 0 || entityA.vy !== 0;
+                        // Check if animation should only play when moving
+                        const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
+                        const isMoving = entityA.vx !== 0 || entityA.vy !== 0;
 
-                    // Priority states that should always animate (death, hurt, attack, etc.)
-                    const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable', 'Landing'];
-                    const isInPriorityState = entityA.currentState ? priorityStates.some(state =>
-                        entityA.currentState.toLowerCase().includes(state.toLowerCase())
-                    ) : false;
+                        // Priority states that should always animate (death, hurt, attack, etc.)
+                        const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable', 'Landing'];
+                        const isInPriorityState = entityA.currentState ? priorityStates.some(state =>
+                            entityA.currentState.toLowerCase().includes(state.toLowerCase())
+                        ) : false;
 
-                    // Check if animation loops (from sprite metadata, fallback to component)
-                    const loops = entityA.sprite.loops !== undefined
-                        ? entityA.sprite.loops
-                        : (animComp.defaultValues?.loops !== false); // Default true
+                        // Check if animation loops (from sprite metadata, fallback to component)
+                        const loops = entityA.sprite.loops !== undefined
+                            ? entityA.sprite.loops
+                            : (animComp.defaultValues?.loops !== false); // Default true
 
-                    // Reset completion flag if state changed
-                    if (entityA.lastAnimationState !== entityA.currentState) {
-                        entityA.animationHasCompleted = false;
-                        entityA.lastAnimationState = entityA.currentState;
-                    }
-
-                    // Animate if: not restricted to movement, OR is moving, OR in priority state
-                    // AND (animation hasn't completed OR animation loops)
-                    if ((!animateOnlyWhenMoving || isMoving || isInPriorityState) && (!entityA.animationHasCompleted || loops)) {
-                        const previousFrame = entityA.currentFrame;
-
-                        if (loops) {
-                            // Looping animation: cycle through frames
-                            entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
-                        } else {
-                            // Non-looping animation: stop at last frame
-                            if (entityA.currentFrame < entityA.frameImages.length - 1) {
-                                entityA.currentFrame++;
-                            } else {
-                                // Animation completed!
-                                if (!entityA.animationHasCompleted) {
-                                    entityA.animationHasCompleted = true;
-                                }
-                            }
+                        // Reset completion flag if state changed
+                        if (entityA.lastAnimationState !== entityA.currentState) {
+                            entityA.animationHasCompleted = false;
+                            entityA.lastAnimationState = entityA.currentState;
                         }
 
-                        entityA.lastFrameUpdateTime = now;
-                    } else if (!isInPriorityState) {
-                        // Reset to first frame when stopped (and not in priority state)
-                        entityA.currentFrame = 0;
+                        // Animate if: not restricted to movement, OR is moving, OR in priority state
+                        // AND (animation hasn't completed OR animation loops)
+                        if ((!animateOnlyWhenMoving || isMoving || isInPriorityState) && (!entityA.animationHasCompleted || loops)) {
+                            const previousFrame = entityA.currentFrame;
+
+                            if (loops) {
+                                // Looping animation: cycle through frames
+                                entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
+                            } else {
+                                // Non-looping animation: stop at last frame
+                                if (entityA.currentFrame < entityA.frameImages.length - 1) {
+                                    entityA.currentFrame++;
+                                } else {
+                                    // Animation completed!
+                                    if (!entityA.animationHasCompleted) {
+                                        entityA.animationHasCompleted = true;
+                                    }
+                                }
+                            }
+
+                            entityA.lastFrameUpdateTime = now;
+                        } else if (!isInPriorityState) {
+                            // Reset to first frame when stopped (and not in priority state)
+                            entityA.currentFrame = 0;
+                        }
                     }
-                }
 
                 }
 
@@ -5210,10 +5316,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     let imageToDraw = shouldUseMirrored ? entityA.mirroredFrameImages![entityA.currentFrame] : entityA.frameImages[entityA.currentFrame];
                     // Asegurarse de que la imagen estA cargada antes de dibujar es crucial para el rendimiento
                     if (imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
-                         if (heroRef.current?.carriedBox !== entityA) { ctx.drawImage(imageToDraw, entityA.x, entityA.y); }
+                        if (heroRef.current?.carriedBox !== entityA) { ctx.drawImage(imageToDraw, entityA.x, entityA.y); }
                     } else if (imageToDraw) {
-                         // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
-                         // console.warn("Imagen no cargada aAon:", entityA.instance.name);
+                        // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
+                        // console.warn("Imagen no cargada aAon:", entityA.instance.name);
                     }
                 }
                 // If frameImages is empty, simply skip drawing but continue processing
@@ -5253,7 +5359,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                         // Draw the center point
                         ctx.fillStyle = props.isTrigger ? '#FFAA00' : '#00FF00';
-                        ctx.fillRect(hitbox.x + hitbox.width/2 - 2, hitbox.y + hitbox.height/2 - 2, 4, 4);
+                        ctx.fillRect(hitbox.x + hitbox.width / 2 - 2, hitbox.y + hitbox.height / 2 - 2, 4, 4);
 
                         // Draw the entity name
                         ctx.fillStyle = '#FFFF00';
@@ -5352,14 +5458,14 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     }
                 } else {
                     // Si no hay buffer, dibujar fondo por defecto
-                     ctx.fillStyle = '#000000';
-                     ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
                 }
 
                 // === RESOLVE CHILD-LINK PARENTS EVERY FRAME ===
                 const entityLookup = new Map<string, AnimatedEntity>();
                 for (const entity of entitiesRef.current) {
-                entityLookup.set(entity.instance.id, entity);
+                    entityLookup.set(entity.instance.id, entity);
                 }
                 resolveChildLinkParents(entitiesRef.current, entityLookup);
                 // ==============================================
@@ -5587,7 +5693,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             />
                         </CRTShaderOverlay>
                         {(gameGlobalVariables as any)?.Ammo !== undefined && (
-                        <div key={hudVersion}
+                            <div key={hudVersion}
                                 className="absolute text-white bg-black bg-opacity-50 px-2 py-0.5 rounded pixel-font"
                                 style={{ top: 4, left: 4, fontSize: 12 }}
                             >
@@ -5646,76 +5752,76 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             </>
                         )}
                     </div>
-                <div className="flex items-center mt-4">
-                    {!isPlayMode && (
-                        <>
-                            <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
-                            {isDynamic && currentNode?.type === 'WorldLink' && (
-                                <>
-                                    <Button onClick={() => setShowHitboxDebug(!showHitboxDebug)} variant={showHitboxDebug ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                        Hitbox Debug: {showHitboxDebug ? 'On' : 'Off'}
-                                    </Button>
-                                    <Button onClick={() => setShowTileHitboxes(!showTileHitboxes)} variant={showTileHitboxes ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                        Hitbox Tiles: {showTileHitboxes ? 'On' : 'Off'}
-                                    </Button>
-                                    <Button onClick={() => setShowEntityCount(!showEntityCount)} variant={showEntityCount ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                        Entities: {showEntityCount ? visibleEntityCount : 'Off'}
-                                    </Button>
-                                    <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                        Position Player: {isPositioningMode ? 'On' : 'Off'}
-                                    </Button>
-                                    {/* Carry offset is now configured via comp_carry on the Player entity */}
-                                </>
-                            )}
-                            {currentNode?.type === 'WorldLink' && (() => {
-                                const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                                return conn ? (
-                                    <Button onClick={() => {
-                                        let targetNodeId = conn.to.nodeId;
-                                        let targetNode = nodes.find(n => n.id === targetNodeId);
-                                        while (targetNode && targetNode.type === 'Waypoint') {
-                                            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
-                                            if (nextConn) {
-                                                targetNodeId = nextConn.to.nodeId;
-                                                targetNode = nodes.find(n => n.id === targetNodeId);
-                                            } else {
-                                                break;
+                    <div className="flex items-center mt-4">
+                        {!isPlayMode && (
+                            <>
+                                <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
+                                {isDynamic && currentNode?.type === 'WorldLink' && (
+                                    <>
+                                        <Button onClick={() => setShowHitboxDebug(!showHitboxDebug)} variant={showHitboxDebug ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                            Hitbox Debug: {showHitboxDebug ? 'On' : 'Off'}
+                                        </Button>
+                                        <Button onClick={() => setShowTileHitboxes(!showTileHitboxes)} variant={showTileHitboxes ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                            Hitbox Tiles: {showTileHitboxes ? 'On' : 'Off'}
+                                        </Button>
+                                        <Button onClick={() => setShowEntityCount(!showEntityCount)} variant={showEntityCount ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                            Entities: {showEntityCount ? visibleEntityCount : 'Off'}
+                                        </Button>
+                                        <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                            Position Player: {isPositioningMode ? 'On' : 'Off'}
+                                        </Button>
+                                        {/* Carry offset is now configured via comp_carry on the Player entity */}
+                                    </>
+                                )}
+                                {currentNode?.type === 'WorldLink' && (() => {
+                                    const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                                    return conn ? (
+                                        <Button onClick={() => {
+                                            let targetNodeId = conn.to.nodeId;
+                                            let targetNode = nodes.find(n => n.id === targetNodeId);
+                                            while (targetNode && targetNode.type === 'Waypoint') {
+                                                const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                                                if (nextConn) {
+                                                    targetNodeId = nextConn.to.nodeId;
+                                                    targetNode = nodes.find(n => n.id === targetNodeId);
+                                                } else {
+                                                    break;
+                                                }
                                             }
-                                        }
-                                        setNavigationStack(prev => [...prev, currentNode.id]);
-                                        setCurrentNodeId(targetNodeId);
-                                        setSelectedOptionIndex(0);
-                                        setCurrentScreenMap(null);
-                                        setCurrentWorldMapGraph(null);
-                                    }} variant="secondary" size="md" className="mr-4">Exit World</Button>
-                                ) : null;
-                            })()}
-                        </>
-                    )}
-                    {isPlayMode && (
-                        <>
-                            <Button
-                                onClick={() => setIsFullscreen(!isFullscreen)}
-                                variant="secondary"
-                                size="md"
-                                icon={<ArrowsPointingOutIcon />}
-                                className="mr-4"
-                            >
-                                {isFullscreen ? 'Normal Size' : 'Full Size'}
-                            </Button>
-                            <Button
-                                onClick={() => setIsCrtConfigOpen(true)}
-                                variant="ghost"
-                                size="md"
-                                className="mr-4"
-                            >
-                                CRT Config
-                            </Button>
-                            {/* Carry offset is now configured via comp_carry on the Player entity */}
-                        </>
-                    )}
-                    <Button onClick={onClose} variant="primary" size="md">Close</Button>
-                </div>
+                                            setNavigationStack(prev => [...prev, currentNode.id]);
+                                            setCurrentNodeId(targetNodeId);
+                                            setSelectedOptionIndex(0);
+                                            setCurrentScreenMap(null);
+                                            setCurrentWorldMapGraph(null);
+                                        }} variant="secondary" size="md" className="mr-4">Exit World</Button>
+                                    ) : null;
+                                })()}
+                            </>
+                        )}
+                        {isPlayMode && (
+                            <>
+                                <Button
+                                    onClick={() => setIsFullscreen(!isFullscreen)}
+                                    variant="secondary"
+                                    size="md"
+                                    icon={<ArrowsPointingOutIcon />}
+                                    className="mr-4"
+                                >
+                                    {isFullscreen ? 'Normal Size' : 'Full Size'}
+                                </Button>
+                                <Button
+                                    onClick={() => setIsCrtConfigOpen(true)}
+                                    variant="ghost"
+                                    size="md"
+                                    className="mr-4"
+                                >
+                                    CRT Config
+                                </Button>
+                                {/* Carry offset is now configured via comp_carry on the Player entity */}
+                            </>
+                        )}
+                        <Button onClick={onClose} variant="primary" size="md">Close</Button>
+                    </div>
                 </div>
             )}
         </div>

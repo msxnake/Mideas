@@ -137,7 +137,7 @@ export const useProjectHandlers = ({
           const fileContent = filename === "main.asm"
             ? generateMainAsmContent(projectNameFromModal, formattedDate)
             : generateAsmFileHeader(projectNameFromModal, formattedDate, filename);
-          const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\//g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2,7)}`;
+          const assetId = `code_new_${projectNameFromModal.replace(/\s+/g, '_')}_${filename.replace('.asm', '').replace(/\//g, '_')}_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
           const newAsset: ProjectAsset = {
             id: assetId,
             name: filename,
@@ -175,7 +175,25 @@ export const useProjectHandlers = ({
     let effectiveFilename = filenameToSave;
     if (!effectiveFilename) {
       if (currentProjectName) {
-        effectiveFilename = `${currentProjectName}.json`;
+        // Auto-increment project name logic
+        // Regex to find trailing numbers
+        const match = currentProjectName.match(/^(.*?)(\d+)$/);
+        let newProjectName = currentProjectName;
+
+        if (match) {
+          // If it has a number at the end, increment it
+          const namePart = match[1];
+          const numberPart = match[2];
+          const nextNumber = parseInt(numberPart, 10) + 1;
+          newProjectName = `${namePart}${nextNumber}`;
+        } else {
+          // If no number at the end, append "1"
+          newProjectName = `${currentProjectName}1`;
+        }
+
+        // Update the project name state
+        setCurrentProjectName(newProjectName);
+        effectiveFilename = `${newProjectName}.json`;
       } else {
         handleOpenSaveAsModal();
         return;
@@ -432,8 +450,8 @@ export const useProjectHandlers = ({
                 // Use mergedComponents (includes defaults) instead of project componentDefinitions
                 const allComponents = projectData.componentDefinitions
                   ? [...projectData.componentDefinitions, ...DEFAULT_COMPONENT_DEFINITIONS.filter(dc =>
-                      !projectData.componentDefinitions.find((pc: ComponentDefinition) => pc.id === dc.id)
-                    )]
+                    !projectData.componentDefinitions.find((pc: ComponentDefinition) => pc.id === dc.id)
+                  )]
                   : DEFAULT_COMPONENT_DEFINITIONS;
 
                 const componentDef = allComponents.find((cd: ComponentDefinition) => cd.id === comp.definitionId);

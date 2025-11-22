@@ -7,10 +7,10 @@ export const DEFAULT_MAP_ASM_CONTENT = `
 export const DEFAULT_CONSTANTS_ASM_CONTENT = ``;
 
 export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
-  { 
-    id: "comp_pos", name: "Position", 
+  {
+    id: "comp_pos", name: "Position",
     properties: [
-      { name: "x", type: "byte", defaultValue: "0", description: "Horizontal position (pixel units or grid units depending on context)" }, 
+      { name: "x", type: "byte", defaultValue: "0", description: "Horizontal position (pixel units or grid units depending on context)" },
       { name: "y", type: "byte", defaultValue: "0", description: "Vertical position" }
     ],
     description: "Defines an entity's 2D coordinates."
@@ -45,12 +45,12 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "mirrorParent", type: "boolean", defaultValue: "false", description: "If true, mirror this child when the parent flips horizontally (also inverts offsetX)." }
     ],
   },
-  { 
-    id: "comp_render", name: "Renderable", 
+  {
+    id: "comp_render", name: "Renderable",
     properties: [
       { name: "spriteAssetId", type: "sprite_ref", defaultValue: "", description: "ID of the sprite asset to render" },
       { name: "isVisible", type: "boolean", defaultValue: "true", description: "Whether the entity is currently visible" },
-      { name: "layer", type: "byte", defaultValue: "1", description: "Render layer (0=bg, 1=main, 2=fg)"}
+      { name: "layer", type: "byte", defaultValue: "1", description: "Render layer (0=bg, 1=main, 2=fg)" }
     ],
     description: "Allows an entity to be drawn on screen using a sprite."
   },
@@ -81,6 +81,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Manages jumping behavior for an entity.",
     properties: [
       { name: "jumpPower", type: "word", defaultValue: "256", description: "Initial upward velocity or force." },
+      { name: "jumpSprite", type: "sprite_ref", defaultValue: "", description: "Sprite to use while jumping." },
       { name: "maxJumps", type: "byte", defaultValue: "1", description: "Number of jumps allowed before landing." },
       { name: "currentJumpCount", type: "byte", defaultValue: "0", description: "Current jump count." },
       { name: "isJumping", type: "boolean", defaultValue: "false", description: "Is the entity currently jumping?" },
@@ -121,8 +122,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     description: "Defines the physical shape and interaction rules for entity-to-entity collisions. Supports both solid (pushback) and trigger (overlap-only) collision modes."
   },
-  { 
-    id: "comp_wall_collision", name: "Wall Collision", 
+  {
+    id: "comp_wall_collision", name: "Wall Collision",
     properties: [
       { name: "hitboxWidth", type: "byte", defaultValue: "16", description: "Width of the collision bounding box for wall detection." },
       { name: "hitboxHeight", type: "byte", defaultValue: "16", description: "Height of the collision bounding box for wall detection." },
@@ -133,8 +134,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     description: "Defines collision detection with solid tiles in the collision layer (walls, obstacles)."
   },
-  { 
-    id: "comp_physics", name: "Physics", 
+  {
+    id: "comp_physics", name: "Physics",
     properties: [
       { name: "velocityX", type: "word", defaultValue: "0", description: "Horizontal speed (fixed-point 8.8 or integer)." },
       { name: "velocityY", type: "word", defaultValue: "0", description: "Vertical speed (fixed-point 8.8 or integer)." },
@@ -143,16 +144,16 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     description: "Governs basic physical properties like velocity. Works with Gravity and Jump."
   },
-  { 
-    id: "comp_player_input", name: "PlayerInput", 
+  {
+    id: "comp_player_input", name: "PlayerInput",
     properties: [
       { name: "controllerId", type: "byte", defaultValue: "0", description: "Controller ID (0 for player 1, 1 for player 2, etc.)." },
       { name: "inputEnabled", type: "boolean", defaultValue: "true", description: "Is input processing active for this entity." }
     ],
     description: "A marker component indicating the entity responds to player controls."
   },
-  { 
-    id: "comp_ai_behavior", name: "AIBehavior", 
+  {
+    id: "comp_ai_behavior", name: "AIBehavior",
     properties: [
       { name: "aiState", type: "string", defaultValue: "idle", description: "Current AI state (e.g., 'idle', 'patrol', 'chase')." },
       { name: "stateTimer", type: "word", defaultValue: "0", description: "Timer for current AI state duration or cooldown." },
@@ -162,8 +163,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     description: "Manages autonomous behavior for non-player entities."
   },
-  { 
-    id: "comp_damage", name: "Damage", 
+  {
+    id: "comp_damage", name: "Damage",
     properties: [
       { name: "damageAmount", type: "byte", defaultValue: "1", description: "Amount of damage dealt." },
       { name: "damageType", type: "string", defaultValue: "contact", description: "Type of damage (e.g., 'contact', 'bullet', 'explosion')." },
@@ -171,8 +172,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     ],
     description: "Defines how much damage an entity inflicts upon collision or attack."
   },
-  { 
-    id: "comp_collectible", name: "Collectible", 
+  {
+    id: "comp_collectible", name: "Collectible",
     properties: [
       { name: "itemType", type: "string", defaultValue: "coin", description: "Type of collectible (e.g., 'coin', 'key', 'powerup_health')." },
       { name: "itemValue", type: "word", defaultValue: "1", description: "Value associated with the item (e.g., score, health restored)." },
@@ -355,176 +356,184 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
 ];
 
 export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
-  { 
-    id: "tpl_player", name: "Player", icon: "👤", 
-    components: [ 
-      { definitionId: "comp_pos", defaultValues: {x: 32, y: 100}}, 
-      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } }, 
-      { definitionId: "comp_behavior", defaultValues: { scriptAssetId: "placeholder_behavior_player_control"} },
+  {
+    id: "tpl_player", name: "Player", icon: "👤",
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 100 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
+      { definitionId: "comp_behavior", defaultValues: { scriptAssetId: "placeholder_behavior_player_control" } },
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
-      { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "2" } }, 
+      { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "2" } },
       { definitionId: "comp_gravity", defaultValues: { strength: "80" } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },
-      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 10 }}, // Player collision: layer 1, collides with 2 (enemies) + 8 (platforms) = 10
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 14, hitboxHeight: 15, offsetX: 1, offsetY: 1, collisionLayer: 1, collidesWith: 10 } }, // Player collision: layer 1, collides with 2 (enemies) + 8 (platforms) = 10
       { definitionId: "comp_carry", defaultValues: { offset: 0 } },
-      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
-      { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", isEnabled: true }},
-      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 }}
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_statemachine", defaultValues: { stateMachineAssetId: "", isEnabled: true } },
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 } }
     ],
     description: "The main player character."
   },
-  { 
-    id: "tpl_enemy_basic", name: "Basic Enemy", icon: "👻", 
-    components: [ 
-      { definitionId: "comp_pos", defaultValues: {x: 100, y: 100}}, 
-      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_enemy", isVisible: true, layer: 1 } }, 
+  {
+    id: "tpl_enemy_basic", name: "Basic Enemy", icon: "👻",
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 100, y: 100 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_enemy", isVisible: true, layer: 1 } },
       { definitionId: "comp_ai_behavior", defaultValues: { scriptAssetId: "placeholder_behavior_patrol", patrolRangeX: 32, aggroRadius: 64 } },
       { definitionId: "comp_health", defaultValues: { current: 1, max: 1 } },
-      { definitionId: "comp_gravity", defaultValues: {} }, 
+      { definitionId: "comp_gravity", defaultValues: {} },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "enemy_walk", animationSpeed: "10" } },
-      { definitionId: "comp_collision", defaultValues: { collisionLayer: 2, collidesWith: 1 }}, // Example enemy collision
-      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "contact"}}
+      { definitionId: "comp_collision", defaultValues: { collisionLayer: 2, collidesWith: 1 } }, // Example enemy collision
+      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "contact" } }
     ],
     description: "A simple enemy that patrols and deals contact damage."
   },
-  { 
-    id: "tpl_item_key", name: "Key Item", icon: "🔑", 
-    components: [ 
-      { definitionId: "comp_pos", defaultValues: {x: 50,y: 50}}, 
+  {
+    id: "tpl_item_key", name: "Key Item", icon: "🔑",
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 50, y: 50 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_key", isVisible: true, layer: 0 } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "key_shine", loops: true, animationSpeed: "15" } },
-      { definitionId: "comp_collectible", defaultValues: { itemType: "key", itemValue: 1, autoCollectRadius: 12, collectionSoundRef: "sfx_collect_key" }}
+      { definitionId: "comp_collectible", defaultValues: { itemType: "key", itemValue: 1, autoCollectRadius: 12, collectionSoundRef: "sfx_collect_key" } }
     ],
     description: "A key item to be collected."
   },
-  { 
-    id: "tpl_enemy_spawner", name: "Enemy Spawner", icon: "⚡", 
-    components: [ 
-      { definitionId: "comp_pos", defaultValues: {x: 128, y: 64}}, 
+  {
+    id: "tpl_enemy_spawner", name: "Enemy Spawner", icon: "⚡",
+    components: [
+      { definitionId: "comp_pos", defaultValues: { x: 128, y: 64 } },
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_spawner", isVisible: false, layer: 0 } },
-      { definitionId: "comp_spawner", defaultValues: { 
-        spawnRate: 2000, 
-        maxEntities: 3, 
-        spawnZoneX: 0, 
-        spawnZoneY: 0, 
-        spawnZoneWidth: 0, 
-        spawnZoneHeight: 0,
-        entityTemplateId: "tpl_enemy_basic",
-        isActive: true,
-        spawnOnStart: false
-      }}
+      {
+        definitionId: "comp_spawner", defaultValues: {
+          spawnRate: 2000,
+          maxEntities: 3,
+          spawnZoneX: 0,
+          spawnZoneY: 0,
+          spawnZoneWidth: 0,
+          spawnZoneHeight: 0,
+          entityTemplateId: "tpl_enemy_basic",
+          isActive: true,
+          spawnOnStart: false
+        }
+      }
     ],
     description: "Spawns enemies randomly across the screen."
   },
   {
     id: "tpl_player_ship", name: "Player Ship", icon: "🚀",
     components: [
-      { definitionId: "comp_pos", defaultValues: {x: 120, y: 150}}, 
-      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player_ship", isVisible: true, layer: 1 }},
-      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 50, mass: 1 }},
-      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
-      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 14, offsetX: 2, offsetY: 1, collisionLayer: 1, collidesWith: 6 }}, // Collides with enemies (2) and enemy bullets (4)
-      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
-      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 3 }},
-      { definitionId: "comp_aiming", defaultValues: { targetEntityTemplateId: "tpl_enemy_basic", aimingRange: 200, rotationSpeed: 0, fieldOfView: 255 }},
-      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "laser", knockbackForce: 2 }}
+      { definitionId: "comp_pos", defaultValues: { x: 120, y: 150 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player_ship", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 50, mass: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 14, offsetX: 2, offsetY: 1, collisionLayer: 1, collidesWith: 6 } }, // Collides with enemies (2) and enemy bullets (4)
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 3 } },
+      { definitionId: "comp_aiming", defaultValues: { targetEntityTemplateId: "tpl_enemy_basic", aimingRange: 200, rotationSpeed: 0, fieldOfView: 255 } },
+      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "laser", knockbackForce: 2 } }
     ],
     description: "A fast-moving player spaceship with shooting capabilities. Create your own ship sprite and assign it to this entity."
   },
   {
     id: "tpl_player_bullet", name: "Player Bullet", icon: "•",
     components: [
-      { definitionId: "comp_pos", defaultValues: {x: 0, y: 0}},
-      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_bullet", isVisible: true, layer: 1 }},
-      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: -4, friction: 0, mass: 0 }},
-      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "laser", knockbackForce: 1 }},
-      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 4, hitboxHeight: 6, offsetX: 2, offsetY: 1, collisionLayer: 4, collidesWith: 2 }} // Bullet layer, collides with enemies
+      { definitionId: "comp_pos", defaultValues: { x: 0, y: 0 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_bullet", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: -4, friction: 0, mass: 0 } },
+      { definitionId: "comp_damage", defaultValues: { damageAmount: 1, damageType: "laser", knockbackForce: 1 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 4, hitboxHeight: 6, offsetX: 2, offsetY: 1, collisionLayer: 4, collidesWith: 2 } } // Bullet layer, collides with enemies
     ],
     description: "A fast-moving laser projectile fired by the player ship. Create your own bullet sprite and assign it to this entity."
   },
   {
     id: "tpl_collector_player", name: "Collector Player", icon: "🔵",
     components: [
-      { definitionId: "comp_pos", defaultValues: {x: 32, y: 32}}, 
-      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_collector", isVisible: true, layer: 1 }},
-      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 0, mass: 1 }},
-      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
-      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, collisionLayer: 1, collidesWith: 2 }},
-      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true }},
-      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
-      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 }},
-      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", isEnabled: true }},
-      { definitionId: "comp_inventory", defaultValues: { maxItems: 255, currentItemCount: 0, showCountOnScreen: true, countDisplayX: 1, countDisplayY: 1, scorePerItem: 10, totalScore: 0 }}
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_collector", isVisible: true, layer: 1 } },
+      { definitionId: "comp_physics", defaultValues: { velocityX: 0, velocityY: 0, friction: 0, mass: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, collisionLayer: 1, collidesWith: 2 } },
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true } },
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 } },
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", isEnabled: true } },
+      { definitionId: "comp_inventory", defaultValues: { maxItems: 255, currentItemCount: 0, showCountOnScreen: true, countDisplayX: 1, countDisplayY: 1, scorePerItem: 10, totalScore: 0 } }
     ],
     description: "A Pac-Man style player that collects items by walking over tiles. Perfect for maze-based collection games."
   },
   {
     id: "tpl_pacman_player", name: "Pac-Man Player", icon: "🟡",
     components: [
-      { definitionId: "comp_pos", defaultValues: {x: 32, y: 32}}, 
-      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_pacman", isVisible: true, layer: 1 }},
-      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
-      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 16, hitboxHeight: 16, offsetX: 0, offsetY: 0, tileSize: 8, stopOnCollision: true }},
-      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
-      { definitionId: "comp_pacMovement", defaultValues: { 
-        speed: 1, 
-        currentDirection: "NONE", 
-        desiredDirection: "NONE", 
-        pixelCounter: 0,
-        velocityX: 0,
-        velocityY: 0,
-        canTurnOnPixel: true,
-        stopOnWall: true,
-        allowReverse: true,
-        tileSize: 8,
-        isEnabled: true 
-      }},
-      { definitionId: "comp_rotate", defaultValues: { rotation: 0, facingDirection: 0 }},
-      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "pacman_idle", animationSpeed: "6", loops: true, isPlaying: true }}
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_pacman", isVisible: true, layer: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 16, hitboxHeight: 16, offsetX: 0, offsetY: 0, tileSize: 8, stopOnCollision: true } },
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      {
+        definitionId: "comp_pacMovement", defaultValues: {
+          speed: 1,
+          currentDirection: "NONE",
+          desiredDirection: "NONE",
+          pixelCounter: 0,
+          velocityX: 0,
+          velocityY: 0,
+          canTurnOnPixel: true,
+          stopOnWall: true,
+          allowReverse: true,
+          tileSize: 8,
+          isEnabled: true
+        }
+      },
+      { definitionId: "comp_rotate", defaultValues: { rotation: 0, facingDirection: 0 } },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "pacman_idle", animationSpeed: "6", loops: true, isPlaying: true } }
     ],
     description: "Advanced Pac-Man player with pixel-perfect movement, 8-pixel collision checks, direction intention system, and 60fps smooth movement. Sprite size should be 16x16 pixels."
   },
   {
     id: "tpl_PacmanPlayerV2", name: "PacmanPlayerV2", icon: "🟡",
     components: [
-      { definitionId: "comp_pos", defaultValues: {x: 32, y: 32}}, 
-      { definitionId: "comp_render", defaultValues: { spriteAssetId: "pacman_sprite_16x16", isVisible: true, layer: 1 }},
-      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 }},
-      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 16, hitboxHeight: 16, offsetX: 0, offsetY: 0, tileSize: 8, stopOnCollision: true }},
-      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true }},
-      { definitionId: "comp_PacmanMovementV2", defaultValues: { 
-        speed: 1, 
-        currentDirection: "NONE", 
-        desiredDirection: "NONE", 
-        pixelCounter: 0,
-        velocityX: 0,
-        velocityY: 0,
-        canTurnOnPixel: true,
-        stopOnWall: true,
-        allowReverse: true,
-        tileSize: 8,
-        isEnabled: true 
-      }},
-      { definitionId: "comp_PacmanRotationV2", defaultValues: { rotation: 0, facingDirection: 0, autoRotate: true }},
-      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "pacman_idle", animationSpeed: "6", loops: true, isPlaying: true }}
+      { definitionId: "comp_pos", defaultValues: { x: 32, y: 32 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "pacman_sprite_16x16", isVisible: true, layer: 1 } },
+      { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 16, hitboxHeight: 16, offsetX: 0, offsetY: 0, tileSize: 8, stopOnCollision: true } },
+      { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
+      {
+        definitionId: "comp_PacmanMovementV2", defaultValues: {
+          speed: 1,
+          currentDirection: "NONE",
+          desiredDirection: "NONE",
+          pixelCounter: 0,
+          velocityX: 0,
+          velocityY: 0,
+          canTurnOnPixel: true,
+          stopOnWall: true,
+          allowReverse: true,
+          tileSize: 8,
+          isEnabled: true
+        }
+      },
+      { definitionId: "comp_PacmanRotationV2", defaultValues: { rotation: 0, facingDirection: 0, autoRotate: true } },
+      { definitionId: "comp_animation", defaultValues: { currentAnimationName: "pacman_idle", animationSpeed: "6", loops: true, isPlaying: true } }
     ],
     description: "Advanced Pac-Man player with pixel-perfect movement, 8-pixel collision checks, direction intention system, and 60fps smooth movement. Optimized for MSX Screen 2 mode with 16x16 sprites."
   },
   {
     id: "tpl_box", name: "Box", icon: "📦",
     components: [
-      { definitionId: "comp_pos", defaultValues: {x: 64, y: 64}},
-      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_box", isVisible: true, layer: 1 }},
-      { definitionId: "comp_box", defaultValues: { isCarriable: true }},
-      { definitionId: "comp_collision", defaultValues: {
-        hitboxWidth: 16,
-        hitboxHeight: 16,
-        offsetX: 0,
-        offsetY: 0,
-        collisionLayer: 8,  // Layer 8 = platform/wall (bit 3: 0000 1000) - entities can stand on top
-        collidesWith: 255   // Collides with all layers
-      }},
-      { definitionId: "comp_gravity", defaultValues: { strength: "80", terminalVelocity: "2" }}
+      { definitionId: "comp_pos", defaultValues: { x: 64, y: 64 } },
+      { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_box", isVisible: true, layer: 1 } },
+      { definitionId: "comp_box", defaultValues: { isCarriable: true } },
+      {
+        definitionId: "comp_collision", defaultValues: {
+          hitboxWidth: 16,
+          hitboxHeight: 16,
+          offsetX: 0,
+          offsetY: 0,
+          collisionLayer: 8,  // Layer 8 = platform/wall (bit 3: 0000 1000) - entities can stand on top
+          collidesWith: 255   // Collides with all layers
+        }
+      },
+      { definitionId: "comp_gravity", defaultValues: { strength: "80", terminalVelocity: "2" } }
     ],
     description: "A movable box that acts as a solid platform. Can be picked up and carried with action key (Z)."
   },

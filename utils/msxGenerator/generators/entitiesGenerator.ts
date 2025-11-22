@@ -83,6 +83,16 @@ ENTITY_${entityName}_Y EQU ${entity.position.y}
 
 init_entities:
     ; Initialize all active game entities (${activeEntities.length} entities)
+    
+    ; CRITICAL: Clear entity screen IDs to prevent ghost entities on restart
+    ; This ensures all entities start with screen ID 0, even if they were
+    ; moved to different screens in a previous game session
+    ld hl, entity_screen_id
+    ld de, entity_screen_id+1
+    ld bc, 31                  ; Clear 32 entities (32-1 for LDIR)
+    ld (hl), 0                 ; Set first byte to 0
+    ldir                       ; Copy to rest of array
+    
 `;
 
     if (activeEntities.length > 0) {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Condition, ConditionType, ConditionTypes } from '../../../statemachine.types';
-import { ProjectAsset, EntityTemplate, ScreenMap, EntityInstance } from '../../../types';
+import { ProjectAsset, EntityTemplate, ScreenMap, EntityInstance, ComponentDefinition } from '../../../types';
 import { Button } from '../../common/Button';
 
 interface ConditionBuilderProps {
@@ -146,25 +146,41 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
         );
       case ConditionTypes.HAS_COLLISION:
         // Build dropdown options for collectibles (no memo to avoid stale caches)
+        // First, identify all collectible component definitions by checking for 'itemType' property
+        const componentDefinitions = (allAssets || [])
+          .filter(a => a.type === 'componentdefinition')
+          .map(a => a.data as ComponentDefinition);
+
+        // Find all component definition IDs that have an 'itemType' property (these are collectible components)
+        const collectibleComponentIds = new Set<string>();
+        componentDefinitions.forEach(compDef => {
+          if (compDef?.properties?.some(prop => prop.name === 'itemType')) {
+            collectibleComponentIds.add(compDef.id);
+          }
+        });
+
         // Merge templates from assets and from explicit entityTemplates prop
         const templateMapById = new Map<string, EntityTemplate>();
         // From allAssets (if some templates are registered as assets)
         (allAssets || []).forEach(a => {
           if (a.type === 'entitytemplate' && a.data) {
             const t = a.data as EntityTemplate;
-            if (t?.components?.some(c => c.definitionId === 'comp_collectible')) templateMapById.set(t.id, t);
+            // Check if template has ANY collectible component (not just comp_collectible)
+            if (t?.components?.some(c => collectibleComponentIds.has(c.definitionId))) templateMapById.set(t.id, t);
           }
         });
         // From prop entityTemplates (global project templates)
         (entityTemplates || []).forEach(t => {
-          if (t?.components?.some(c => c.definitionId === 'comp_collectible')) templateMapById.set(t.id, t);
+          // Check if template has ANY collectible component (not just comp_collectible)
+          if (t?.components?.some(c => collectibleComponentIds.has(c.definitionId))) templateMapById.set(t.id, t);
         });
         const collectibleTemplates: EntityTemplate[] = Array.from(templateMapById.values());
 
         const itemTypeSet = new Set<string>();
         // From collectible templates defaultValues
         collectibleTemplates.forEach(t => {
-          const comp = t.components?.find(c => c.definitionId === 'comp_collectible');
+          // Find ANY collectible component (not just comp_collectible)
+          const comp = t.components?.find(c => collectibleComponentIds.has(c.definitionId));
           const it = (comp?.defaultValues as any)?.itemType;
           if (it) itemTypeSet.add(String(it));
         });
@@ -172,14 +188,17 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
         (allAssets || []).filter(a => a.type === 'screenmap').forEach(a => {
           const sm = a.data as ScreenMap;
           sm?.layers?.entities?.forEach((inst: EntityInstance) => {
-            const over = inst?.componentOverrides?.['comp_collectible'] as any;
-            const it = over?.itemType;
-            if (it) itemTypeSet.add(String(it));
+            // Check overrides for ANY collectible component
+            collectibleComponentIds.forEach(compId => {
+              const over = inst?.componentOverrides?.[compId] as any;
+              const it = over?.itemType;
+              if (it) itemTypeSet.add(String(it));
+            });
           });
         });
         const itemTypeOptions = Array.from(itemTypeSet.values()).sort();
 
-        const templateMap = new Map<string, {id:string; name:string}>();
+        const templateMap = new Map<string, { id: string; name: string }>();
         collectibleTemplates.forEach(t => { templateMap.set(t.id, { id: t.id, name: t.name }); });
         // From screenmaps instances (resolve to template asset when possible)
         (allAssets || []).filter(a => a.type === 'screenmap').forEach(a => {
@@ -195,7 +214,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             }
           });
         });
-        const templateOptions = Array.from(templateMap.values()).sort((a,b) => a.name.localeCompare(b.name));
+        const templateOptions = Array.from(templateMap.values()).sort((a, b) => a.name.localeCompare(b.name));
         return (
           <div className="space-y-2">
             <select
@@ -210,7 +229,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             </select>
             <div className="text-xs text-msx-textsecondary">
               {condition.params?.collisionType === 'enemy' && '💥 Triggers when colliding with enemies (entities with comp_damage or comp_ai_behavior)'}
-              {condition.params?.collisionType === 'item' && '✨ Triggers when colliding with collectibles (entities with comp_collectible)'}
+              {condition.params?.collisionType === 'item' && '✨ Triggers when colliding with collectibles (entities with collectible components)'}
               {condition.params?.collisionType === 'wall' && '🧱 Triggers when colliding with solid walls'}
               {(!condition.params?.collisionType || condition.params?.collisionType === 'any') && 'Triggers on any type of collision'}
             </div>
@@ -238,8 +257,8 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                   )}
                 </div>
                 {/* Removed templateId/templateName filters intentionally */}
-                  <div className="text-xs text-msx-textsecondary">Use filters to restrict which item triggers the transition.</div>
-                </div>
+                <div className="text-xs text-msx-textsecondary">Use filters to restrict which item triggers the transition.</div>
+              </div>
             )}
           </div>
         );
@@ -310,7 +329,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
       'ml-3 border-l-2 border-red-400', // Level 4 - red
       'ml-3 border-l-2 border-purple-400', // Level 5+ - purple
     ];
-    
+
     const borderClass = level < borderColors.length ? borderColors[level] : borderColors[borderColors.length - 1];
     return `${baseClasses} ${borderClass}`;
   };
@@ -330,21 +349,21 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
         </select>
         <Button onClick={() => onUpdate(null)} variant="danger" size="sm" title="Remove Condition">X</Button>
       </div>
-      
+
       {isComposite ? (
         <div className="space-y-2">
           {condition.conditions?.map((sub, index) => (
             <div key={index} className="space-y-1">
-              <ConditionBuilder 
-                condition={sub} 
-                onUpdate={(sc) => handleSubConditionUpdate(index, sc)} 
-                level={level + 1} 
+              <ConditionBuilder
+                condition={sub}
+                onUpdate={(sc) => handleSubConditionUpdate(index, sc)}
+                level={level + 1}
                 allAssets={allAssets}
               />
               {/* Logical Operators for sub-conditions - Only show for simple conditions and within nesting limits */}
               {canAddLogicalOperators && sub.type !== 'AND' && sub.type !== 'OR' && sub.type !== 'XOR' && sub.type !== 'NOT' && (
                 <div className={`flex gap-1 ${level > 0 ? 'ml-4' : ''}`}>
-                  <Button 
+                  <Button
                     onClick={() => {
                       const newSubCondition = { type: 'AND' as const, conditions: [sub, { type: ConditionTypes.KEY_PRESSED, params: { key: '' } }] };
                       handleSubConditionUpdate(index, newSubCondition);
@@ -355,7 +374,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                   >
                     + AND
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       const newSubCondition = { type: 'OR' as const, conditions: [sub, { type: ConditionTypes.KEY_PRESSED, params: { key: '' } }] };
                       handleSubConditionUpdate(index, newSubCondition);
@@ -366,7 +385,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                   >
                     + OR
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       const newSubCondition = { type: 'XOR' as const, conditions: [sub, { type: ConditionTypes.KEY_PRESSED, params: { key: '' } }] };
                       handleSubConditionUpdate(index, newSubCondition);
@@ -377,7 +396,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
                   >
                     + XOR
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       const newSubCondition = { type: 'NOT' as const, conditions: [sub] };
                       handleSubConditionUpdate(index, newSubCondition);
@@ -408,7 +427,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
           {/* Logical Operators - Show at root level or when within nesting limits */}
           {(level === 0 || canAddLogicalOperators) && (
             <div className="flex gap-1">
-              <Button 
+              <Button
                 onClick={() => convertToComposite('AND')}
                 size="sm"
                 variant="ghost"
@@ -416,7 +435,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
               >
                 + AND
               </Button>
-              <Button 
+              <Button
                 onClick={() => convertToComposite('OR')}
                 size="sm"
                 variant="ghost"
@@ -424,7 +443,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
               >
                 + OR
               </Button>
-              <Button 
+              <Button
                 onClick={() => convertToComposite('XOR')}
                 size="sm"
                 variant="ghost"
@@ -432,7 +451,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
               >
                 + XOR
               </Button>
-              <Button 
+              <Button
                 onClick={() => convertToComposite('NOT')}
                 size="sm"
                 variant="ghost"
