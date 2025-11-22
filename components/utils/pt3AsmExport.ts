@@ -49,7 +49,7 @@ export const generateTrackerSongASM = (songData: TrackerSongData): string => {
     asm += `${safeLabelPrefix}_GLOBAL_VOL DB ${songData.globalVolume}\n`;
     asm += `${safeLabelPrefix}_LEN_PATTERNS DB ${songData.lengthInPatterns}\n`;
     asm += `${safeLabelPrefix}_RESTART_POS DB ${songData.restartPosition}\n\n`;
-    
+
     if (songData.ayHardwareEnvelopePeriod !== undefined) {
         asm += `${safeLabelPrefix}_AY_ENV_PERIOD DEFW ${songData.ayHardwareEnvelopePeriod}\n\n`;
     }
@@ -58,11 +58,15 @@ export const generateTrackerSongASM = (songData: TrackerSongData): string => {
     // Instruments (basic info as comments)
     asm += `;; --- INSTRUMENTS (${songData.instruments.length}) ---\n`;
     if (songData.instruments.length > 0) {
-        songData.instruments.forEach(instr => {
+        songData.instruments.forEach(i => {
+            const instr = i as PT3Instrument;
             asm += `;; Instrument ${String(instr.id).padStart(2, '0')}: ${instr.name}\n`;
             if (instr.volumeEnvelope && instr.volumeEnvelope.length > 0) asm += `;;   Vol Env: ${instr.volumeEnvelope.join(',')}${instr.volumeLoop !== undefined ? ` Loop: ${instr.volumeLoop}` : ''}\n`;
-            if (instr.toneEnvelope && instr.toneEnvelope.length > 0) asm += `;;   Tone Env: ${instr.toneEnvelope.join(',')}${instr.toneLoop !== undefined ? ` Loop: ${instr.toneLoop}`: ''}\n`;
+            if (instr.toneEnvelope && instr.toneEnvelope.length > 0) asm += `;;   Tone Env: ${instr.toneEnvelope.join(',')}${instr.toneLoop !== undefined ? ` Loop: ${instr.toneLoop}` : ''}\n`;
             if (instr.ayEnvelopeShape !== undefined) asm += `;;   AY Env Shape: ${instr.ayEnvelopeShape} (#${instr.ayEnvelopeShape.toString(16).toUpperCase()})\n`;
+            if (instr.noiseBaseFrequency !== undefined) asm += `;;   Noise Freq: ${instr.noiseBaseFrequency}\n`;
+            if (instr.hardwareEnvelopePeriod !== undefined) asm += `;;   HW Env Period: ${instr.hardwareEnvelopePeriod}\n`;
+            if (instr.hardwareEnvelopeRatio !== undefined) asm += `;;   HW Env Ratio: ${instr.hardwareEnvelopeRatio}\n`;
             asm += `;;   AY Tone: ${instr.ayToneEnabled === undefined ? true : instr.ayToneEnabled}, AY Noise: ${!!instr.ayNoiseEnabled}\n`;
         });
     } else {
@@ -81,7 +85,7 @@ export const generateTrackerSongASM = (songData: TrackerSongData): string => {
         asm += `;; No ornaments defined.\n`;
     }
     asm += '\n';
-    
+
     // Order List
     asm += `${safeLabelPrefix}_ORDER_LIST:\n`;
     for (let i = 0; i < songData.order.length; i += 16) {
@@ -102,7 +106,7 @@ export const generateTrackerSongASM = (songData: TrackerSongData): string => {
                 const instrByte = cell.instrument !== null ? cell.instrument : 0; // 0 for no instrument
                 const ornByte = cell.ornament !== null ? cell.ornament : 0; // 0 for no ornament
                 const volByte = cell.volume !== null ? cell.volume : 0xFF; // FF for no volume change
-                
+
                 // Removed effectCmdByte and effectValByte
                 asm += `    DB ${noteByte}, ${instrByte}, ${ornByte}, ${volByte} ; Chan ${chId}\n`;
             });

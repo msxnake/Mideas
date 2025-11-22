@@ -655,9 +655,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
       channels.forEach((chId, chIndex) => {
         const currentCell = rowData[chId] || { note: "---" };
-        const nextCell = nextRowData ? (nextRowData[chId] || { note: null }) : { note: null };
+        const nextCell = nextRowData ? (nextRowData[chId] || { note: "---" }) : { note: "---" };
         const isActualNote = currentCell.note && currentCell.note !== '---' && currentCell.note !== '===';
-        const nextKeeps = nextCell.note === '---';
+        // Empty cells (null/undefined) or "---" should keep the note playing
+        const nextKeeps = !nextCell.note || nextCell.note === '---';
         if (isActualNote && !nextKeeps) {
           channelPendingNoteCutRef.current[chIndex] = true;
         }
@@ -1201,6 +1202,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         isOpen={isInstrumentModalOpen} onClose={() => { setIsInstrumentModalOpen(false); setEditingInstrument(null); }}
         editingInstrument={editingInstrument} instrumentModalBuffer={instrumentModalBuffer}
         onInstrumentModalBufferChange={handleInstrumentModalFieldChange} onSubmit={handleInstrumentModalSubmit}
+        synthesizer={synthesizer}
       />
 
       <WaveformEditorModal

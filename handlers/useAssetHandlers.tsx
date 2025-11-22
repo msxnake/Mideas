@@ -2,13 +2,13 @@ import { useCallback } from 'react';
 import {
   ProjectAsset, EditorType, Tile, Sprite, ScreenMap, ScreenLayerData, ScreenTile, SpriteFrame,
   TileLogicalProperties, Point, PixelData, TileBank, GameFlowNode, GameFlowGraph,
-  PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset
+  PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset, PT3Instrument, TrackerSongData, TrackerPattern
 } from '../types';
 import {
   DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE,
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN_WIDTH_TILES,
   DEFAULT_SCREEN_HEIGHT_TILES, DEFAULT_SPRITE_SIZE, EDITOR_BASE_TILE_DIM_S2,
-  DEFAULT_TILE_BANK_DEFINITIONS
+  DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_PSG_INSTRUMENTS, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, DEFAULT_PT3_ROWS_PER_PATTERN
 } from '../constants';
 import { createDefaultLineAttributes } from '../components/utils/tileUtils';
 import { DEFAULT_MSX_FONT } from '../components/utils/msxFontRenderer';
@@ -63,7 +63,7 @@ export const useAssetHandlers = ({
         setStatusBarMessage(message);
       }
 
-      const isDataUpdateNeeded = updatedData && (! (typeof updatedData === 'object' && Object.keys(updatedData).length === 0));
+      const isDataUpdateNeeded = updatedData && (!(typeof updatedData === 'object' && Object.keys(updatedData).length === 0));
 
       if (!isDataUpdateNeeded) {
         return intermediateAssets;
@@ -130,11 +130,11 @@ export const useAssetHandlers = ({
         const tileH = DEFAULT_TILE_HEIGHT;
         const initialColor = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : MSX_SCREEN5_PALETTE[1].hex;
         newAssetData = {
-            id, name: defaultName, width: tileW, height: tileH,
-            data: Array(tileH).fill(null).map(() => Array(tileW).fill(initialColor)),
-            ...(currentScreenMode === "SCREEN 2 (Graphics I)" && { lineAttributes: createDefaultLineAttributes(tileW, tileH, DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR) }),
-            logicalProperties: defaultLogicalProps,
-            ...(currentScreenMode !== "SCREEN 2 (Graphics I)" && { screen5Palette: createDefaultScreen5PaletteSlots() })
+          id, name: defaultName, width: tileW, height: tileH,
+          data: Array(tileH).fill(null).map(() => Array(tileW).fill(initialColor)),
+          ...(currentScreenMode === "SCREEN 2 (Graphics I)" && { lineAttributes: createDefaultLineAttributes(tileW, tileH, DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR) }),
+          logicalProperties: defaultLogicalProps,
+          ...(currentScreenMode !== "SCREEN 2 (Graphics I)" && { screen5Palette: createDefaultScreen5PaletteSlots() })
         };
         newEditorType = EditorType.Tile;
         break;
@@ -143,14 +143,14 @@ export const useAssetHandlers = ({
         const spriteInitialColor = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : MSX_SCREEN5_PALETTE[1].hex;
         const spriteData: PixelData = Array(spriteSize).fill(null).map(() => Array(spriteSize).fill(spriteInitialColor));
         newAssetData = {
-            id, name: defaultName,
-            size: { width: spriteSize, height: spriteSize },
-            spritePalette: currentScreenMode === "SCREEN 2 (Graphics I)"
-                ? [DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN2_FG_COLOR, '#FF0000', '#00FF00']
-                : [MSX_SCREEN5_PALETTE[0].hex, MSX_SCREEN5_PALETTE[1].hex, MSX_SCREEN5_PALETTE[2].hex, MSX_SCREEN5_PALETTE[3].hex],
-            backgroundColor: currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_BG_COLOR : MSX_SCREEN5_PALETTE[0].hex,
-            frames: [{ id: `frame_${Date.now()}`, data: spriteData }],
-            currentFrameIndex: 0
+          id, name: defaultName,
+          size: { width: spriteSize, height: spriteSize },
+          spritePalette: currentScreenMode === "SCREEN 2 (Graphics I)"
+            ? [DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN2_FG_COLOR, '#FF0000', '#00FF00']
+            : [MSX_SCREEN5_PALETTE[0].hex, MSX_SCREEN5_PALETTE[1].hex, MSX_SCREEN5_PALETTE[2].hex, MSX_SCREEN5_PALETTE[3].hex],
+          backgroundColor: currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_BG_COLOR : MSX_SCREEN5_PALETTE[0].hex,
+          frames: [{ id: `frame_${Date.now()}`, data: spriteData }],
+          currentFrameIndex: 0
         };
         newEditorType = EditorType.Sprite;
         break;
@@ -162,21 +162,21 @@ export const useAssetHandlers = ({
           );
         const emptyLayer = createEmptyLayer();
         newAssetData = {
-            id, name: defaultName,
-            width: mapW,
-            height: mapH,
-            layers: {
-                background: emptyLayer,
-                collision: createEmptyLayer(),
-                effects: createEmptyLayer(),
-                entities: []
-            },
-            effectZones: [],
-            activeAreaX: 0,
-            activeAreaY: 0,
-            activeAreaWidth: mapW,
-            activeAreaHeight: mapH,
-            hudConfiguration: { elements: [] }
+          id, name: defaultName,
+          width: mapW,
+          height: mapH,
+          layers: {
+            background: emptyLayer,
+            collision: createEmptyLayer(),
+            effects: createEmptyLayer(),
+            entities: []
+          },
+          effectZones: [],
+          activeAreaX: 0,
+          activeAreaY: 0,
+          activeAreaWidth: mapW,
+          activeAreaHeight: mapH,
+          hudConfiguration: { elements: [] }
         };
         newEditorType = EditorType.Screen;
         break;
@@ -229,16 +229,36 @@ export const useAssetHandlers = ({
         newEditorType = EditorType.WorldMap;
         break;
       case 'track':
+        // Create initial empty pattern
+        const initialPattern: TrackerPattern = {
+          id: `pattern_${Date.now()}`,
+          name: 'Pattern 00',
+          numRows: DEFAULT_PT3_ROWS_PER_PATTERN,
+          rows: Array(DEFAULT_PT3_ROWS_PER_PATTERN).fill(null).map(() => ({
+            A: { note: null, instrument: null, ornament: null, volume: null },
+            B: { note: null, instrument: null, ornament: null, volume: null },
+            C: { note: null, instrument: null, ornament: null, volume: null },
+          }))
+        };
+
         newAssetData = {
+          id,
           name: defaultName,
+          soundChip: 'PSG',
           author: "Unknown",
           title: defaultName,
-          patterns: [],
-          orderList: [0],
-          bpm: 120,
-          speed: 6,
-          globalVolume: 15
-        };
+          bpm: DEFAULT_PT3_BPM,
+          speed: DEFAULT_PT3_SPEED,
+          globalVolume: 15,
+          patterns: [initialPattern],
+          order: [0],
+          lengthInPatterns: 1,
+          restartPosition: 0,
+          instruments: DEFAULT_PSG_INSTRUMENTS.map(inst => ({ ...inst })), // Clone default instruments
+          ornaments: [],
+          currentPatternIndexInOrder: 0,
+          currentPatternId: initialPattern.id,
+        } as TrackerSongData;
         newEditorType = EditorType.Track;
         break;
       case 'behavior':
@@ -265,7 +285,7 @@ export const useAssetHandlers = ({
           nodes: [startNode],
           connections: [],
           startNodeId: startNodeId,
-          panOffset: {x:0, y:0},
+          panOffset: { x: 0, y: 0 },
           zoomLevel: 1
         } as GameFlowGraph;
         newEditorType = EditorType.GameFlow;

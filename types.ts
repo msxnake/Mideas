@@ -595,6 +595,12 @@ export interface PT3Instrument {
   ayNoiseEnabled?: boolean;
   /** Whether the AY tone channel is enabled for this instrument. */
   ayToneEnabled?: boolean;
+  /** The base noise frequency (0-31) for this instrument. Overrides global setting if present. */
+  noiseBaseFrequency?: number;
+  /** The fixed hardware envelope period (0-65535) for this instrument. Overrides global setting if present. */
+  hardwareEnvelopePeriod?: number;
+  /** If set, the hardware envelope period tracks the note pitch with this ratio (e.g., 1.0, 2.0). */
+  hardwareEnvelopeRatio?: number;
 }
 
 /**

@@ -8,7 +8,7 @@ export const APP_VERSION = "0.266";
  * Used for sprite colors and general UI.
  */
 export const MSX_SCREEN5_PALETTE: MSXColor[] = [
-  { name: 'Transparent', hex: 'rgba(0,0,0,0)' }, 
+  { name: 'Transparent', hex: 'rgba(0,0,0,0)' },
   { name: 'Black', hex: '#000000' },
   { name: 'Medium Green', hex: '#3EB847' },
   { name: 'Light Green', hex: '#74D07D' },
@@ -31,19 +31,19 @@ export const MSX_SCREEN5_PALETTE: MSXColor[] = [
  * Each color has an associated index from 0 to 15.
  */
 export const MSX1_PALETTE: MSX1Color[] = [
-  { name: 'Transparent (Backdrop)', hex: 'rgba(0,0,0,0)', index: 0 }, 
+  { name: 'Transparent (Backdrop)', hex: 'rgba(0,0,0,0)', index: 0 },
   { name: 'Black', hex: '#000000', index: 1 },
-  { name: 'Medium Green', hex: '#21C842', index: 2 }, 
-  { name: 'Light Green', hex: '#5EDC78', index: 3 }, 
-  { name: 'Dark Blue', hex: '#5455ED', index: 4 },  
-  { name: 'Light Blue', hex: '#7D76FC', index: 5 }, 
-  { name: 'Dark Red', hex: '#D4524D', index: 6 },   
+  { name: 'Medium Green', hex: '#21C842', index: 2 },
+  { name: 'Light Green', hex: '#5EDC78', index: 3 },
+  { name: 'Dark Blue', hex: '#5455ED', index: 4 },
+  { name: 'Light Blue', hex: '#7D76FC', index: 5 },
+  { name: 'Dark Red', hex: '#D4524D', index: 6 },
   { name: 'Cyan', hex: '#42EBF5', index: 7 },
-  { name: 'Medium Red', hex: '#FC5554', index: 8 },  
-  { name: 'Light Red', hex: '#FF7978', index: 9 }, 
+  { name: 'Medium Red', hex: '#FC5554', index: 8 },
+  { name: 'Light Red', hex: '#FF7978', index: 9 },
   { name: 'Dark Yellow', hex: '#D4C154', index: 10 }, // Matched user description
   { name: 'Light Yellow', hex: '#E6CE80', index: 11 },
-  { name: 'Dark Green', hex: '#21B03B', index: 12 }, 
+  { name: 'Dark Green', hex: '#21B03B', index: 12 },
   { name: 'Magenta', hex: '#C95BBA', index: 13 },
   { name: 'Gray', hex: '#CCCCCC', index: 14 },
   { name: 'White', hex: '#FFFFFF', index: 15 },
@@ -132,16 +132,16 @@ export const DEFAULT_SCREEN5_CUSTOM_PALETTE: Screen5PaletteSlot[] = MSX_SCREEN5_
 
 
 /** An array of allowed tile dimensions (width/height) in the tile editor. */
-export const EDITABLE_TILE_DIMENSIONS: number[] = [8, 16, 24, 32]; 
+export const EDITABLE_TILE_DIMENSIONS: number[] = [8, 16, 24, 32];
 /** The default width of a new tile. */
 export const DEFAULT_TILE_WIDTH = 16;
 /** The default height of a new tile. */
 export const DEFAULT_TILE_HEIGHT = 16;
 
 /** The default size (width and height) of a new sprite. */
-export const DEFAULT_SPRITE_SIZE = 16; 
+export const DEFAULT_SPRITE_SIZE = 16;
 /** The default width of a new screen map, in tiles. */
-export const DEFAULT_SCREEN_WIDTH_TILES = 32; 
+export const DEFAULT_SCREEN_WIDTH_TILES = 32;
 /** The default height of a new screen map, in tiles. */
 export const DEFAULT_SCREEN_HEIGHT_TILES = 24;
 /** The base dimension (8x8) of a character block in SCREEN 2 mode. */
@@ -152,7 +152,7 @@ export const EMPTY_CELL_CHAR_CODE = 255;
 /** A list of available MSX screen modes. */
 export const SCREEN_MODES = ["SCREEN 0 (Text 40)", "SCREEN 1 (Text 32)", "SCREEN 2 (Graphics I)", "SCREEN 3 (Multicolor)", "SCREEN 4 (Graphics II)", "SCREEN 5 (Graphics III)", "SCREEN 6 (Graphics IV)", "SCREEN 7 (Graphics V)", "SCREEN 8 (Graphics VI)"];
 /** The default screen mode for a new project. */
-export const DEFAULT_SCREEN_MODE = "SCREEN 2 (Graphics I)"; 
+export const DEFAULT_SCREEN_MODE = "SCREEN 2 (Graphics I)";
 
 /** A list of Z80 assembly mnemonics for syntax highlighting. */
 export const Z80_MNEMONICS = [
@@ -175,14 +175,14 @@ export const Z80_CONDITIONS = [
 /** A list of Z80 assembler directives for syntax highlighting. */
 export const Z80_DIRECTIVES = [
   ".ORG", "ORG", "END", ".END", // Added variations for directives
-  ".EQU", "EQU", 
-  ".DB", "DB", ".BYTE", "BYTE", "DEFB", 
+  ".EQU", "EQU",
+  ".DB", "DB", ".BYTE", "BYTE", "DEFB",
   ".DW", "DW", ".WORD", "WORD", "DEFW",
   ".DS", "DS", ".BLOCK", "BLOCK", "DEFS",
-  ".DEFINE", "DEFINE", 
-  ".MACRO", "MACRO", ".ENDM", "ENDM", 
-  ".IF", "IF", ".ENDIF", "ENDIF", ".ELSE", "ELSE", 
-  ".INCLUDE", "INCLUDE", 
+  ".DEFINE", "DEFINE",
+  ".MACRO", "MACRO", ".ENDM", "ENDM",
+  ".IF", "IF", ".ENDIF", "ENDIF", ".ELSE", "ELSE",
+  ".INCLUDE", "INCLUDE",
   ".DEFM", "DEFM",
   ".ZILOG", // Added asMSX specific directive
   ".PHASE", ".REPT", ".ENDR", ".SEARCH", ".RANDOM", // Added more asMSX directives
@@ -391,7 +391,7 @@ export const SCC_CHANNELS = ['1', '2', '3', '4', '5'] as const;
 export const PT3_NOTE_NAMES = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
 /** A default vibrato table for instruments. */
 export const PT3_DEFAULT_VIBRATO_TABLE: number[] = [
-  0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 
+  0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7,
   7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0
 ];
 /** The fixed length of an ornament's data array. */
@@ -404,30 +404,30 @@ export const PT3_INSTRUMENT_DATA_SIZE = 68;
  */
 export const PT3_PIANO_KEY_LAYOUT: Record<string, PianoKeyLayoutEntry> = {
   // Octave 5 (Q to P, then [, ])
-  'q': { noteNameIndex: 0, baseOctave: 5}, 'w': {noteNameIndex: 1, baseOctave: 5}, 
-  'e': { noteNameIndex: 2, baseOctave: 5}, 'r': {noteNameIndex: 3, baseOctave: 5},
-  't': { noteNameIndex: 4, baseOctave: 5}, 'y': {noteNameIndex: 5, baseOctave: 5},
-  'u': { noteNameIndex: 6, baseOctave: 5}, 'i': {noteNameIndex: 7, baseOctave: 5},
-  'o': { noteNameIndex: 8, baseOctave: 5}, 'p': {noteNameIndex: 9, baseOctave: 5},
-  '[': { noteNameIndex: 10, baseOctave: 5}, ']': {noteNameIndex: 11, baseOctave: 5},
+  'q': { noteNameIndex: 0, baseOctave: 5 }, 'w': { noteNameIndex: 1, baseOctave: 5 },
+  'e': { noteNameIndex: 2, baseOctave: 5 }, 'r': { noteNameIndex: 3, baseOctave: 5 },
+  't': { noteNameIndex: 4, baseOctave: 5 }, 'y': { noteNameIndex: 5, baseOctave: 5 },
+  'u': { noteNameIndex: 6, baseOctave: 5 }, 'i': { noteNameIndex: 7, baseOctave: 5 },
+  'o': { noteNameIndex: 8, baseOctave: 5 }, 'p': { noteNameIndex: 9, baseOctave: 5 },
+  '[': { noteNameIndex: 10, baseOctave: 5 }, ']': { noteNameIndex: 11, baseOctave: 5 },
 
   // Octave 4 (A to Ñ/;, then ')
-  'a': { noteNameIndex: 0, baseOctave: 4}, 's': {noteNameIndex: 1, baseOctave: 4},
-  'd': { noteNameIndex: 2, baseOctave: 4}, 'f': {noteNameIndex: 3, baseOctave: 4},
-  'g': { noteNameIndex: 4, baseOctave: 4}, 'h': {noteNameIndex: 5, baseOctave: 4},
-  'j': { noteNameIndex: 6, baseOctave: 4}, 'k': {noteNameIndex: 7, baseOctave: 4},
-  'l': { noteNameIndex: 8, baseOctave: 4}, 
-  'ñ': { noteNameIndex: 9, baseOctave: 4}, // For Spanish keyboard
-  ';': { noteNameIndex: 9, baseOctave: 4}, // For US layout (A4). If 'ñ' is typed, 'ñ' mapping takes precedence if key event differs.
-  "'": { noteNameIndex: 10, baseOctave: 4}, // US layout (A#4)
+  'a': { noteNameIndex: 0, baseOctave: 4 }, 's': { noteNameIndex: 1, baseOctave: 4 },
+  'd': { noteNameIndex: 2, baseOctave: 4 }, 'f': { noteNameIndex: 3, baseOctave: 4 },
+  'g': { noteNameIndex: 4, baseOctave: 4 }, 'h': { noteNameIndex: 5, baseOctave: 4 },
+  'j': { noteNameIndex: 6, baseOctave: 4 }, 'k': { noteNameIndex: 7, baseOctave: 4 },
+  'l': { noteNameIndex: 8, baseOctave: 4 },
+  'ñ': { noteNameIndex: 9, baseOctave: 4 }, // For Spanish keyboard
+  ';': { noteNameIndex: 9, baseOctave: 4 }, // For US layout (A4). If 'ñ' is typed, 'ñ' mapping takes precedence if key event differs.
+  "'": { noteNameIndex: 10, baseOctave: 4 }, // US layout (A#4)
 
   // Octave 3 (Z to .)
-  'z': { noteNameIndex: 0, baseOctave: 3}, 'x': {noteNameIndex: 1, baseOctave: 3},
-  'c': { noteNameIndex: 2, baseOctave: 3}, 'v': {noteNameIndex: 3, baseOctave: 3},
-  'b': { noteNameIndex: 4, baseOctave: 3}, 'n': {noteNameIndex: 5, baseOctave: 3},
-  'm': { noteNameIndex: 6, baseOctave: 3}, 
-  ',': { noteNameIndex: 7, baseOctave: 3}, 
-  '.': { noteNameIndex: 8, baseOctave: 3},
+  'z': { noteNameIndex: 0, baseOctave: 3 }, 'x': { noteNameIndex: 1, baseOctave: 3 },
+  'c': { noteNameIndex: 2, baseOctave: 3 }, 'v': { noteNameIndex: 3, baseOctave: 3 },
+  'b': { noteNameIndex: 4, baseOctave: 3 }, 'n': { noteNameIndex: 5, baseOctave: 3 },
+  'm': { noteNameIndex: 6, baseOctave: 3 },
+  ',': { noteNameIndex: 7, baseOctave: 3 },
+  '.': { noteNameIndex: 8, baseOctave: 3 },
   // Keys from earlier definitions that don't conflict with the above final block
   '2': { noteNameIndex: 1, baseOctave: 5 }, // C#5 (from num row)
   '3': { noteNameIndex: 3, baseOctave: 5 }, // D#5 (from num row)
@@ -439,6 +439,124 @@ export const PT3_PIANO_KEY_LAYOUT: Record<string, PianoKeyLayoutEntry> = {
 
 /** The minimum and maximum allowed octave offset for the tracker keyboard. */
 export const PT3_KEYBOARD_OCTAVE_MIN_MAX = { min: -2, max: 2 };
+
+/**
+ * Default PSG instruments for new tracker songs.
+ * Based on MSX1 Yamaha AY-3-8910 chip capabilities.
+ * Each instrument includes volume/tone envelopes, loop positions, and AY envelope shapes.
+ */
+export const DEFAULT_PSG_INSTRUMENTS = [
+  {
+    id: 1,
+    name: "Piano",
+    volumeEnvelope: [15, 14, 13, 11, 9, 7, 5, 3, 2, 1, 0],
+    toneEnvelope: [0],
+    volumeLoop: 255, // No loop (one-shot)
+    toneLoop: 255,
+    ayToneEnabled: true,
+    ayNoiseEnabled: false,
+    ayEnvelopeShape: 0, // Decay
+  },
+  {
+    id: 2,
+    name: "Electric Bass",
+    volumeEnvelope: [15, 14, 13, 12, 11, 10, 9, 8],
+    toneEnvelope: [0],
+    volumeLoop: 3, // Sustain at mid-level
+    toneLoop: 255,
+    ayToneEnabled: true,
+    ayNoiseEnabled: false,
+    ayEnvelopeShape: 12, // Sawtooth ascending
+  },
+  {
+    id: 3,
+    name: "Lead Vibrato",
+    volumeEnvelope: [0, 5, 10, 15, 15, 15, 14, 13, 12],
+    toneEnvelope: [0, 1, 2, 1, 0, -1, -2, -1], // Vibrato effect
+    volumeLoop: 4, // Sustain at max volume
+    toneLoop: 0, // Loop vibrato
+    ayToneEnabled: true,
+    ayNoiseEnabled: false,
+    ayEnvelopeShape: 13, // Attack-hold
+  },
+  {
+    id: 4,
+    name: "Strings Pad",
+    volumeEnvelope: [0, 2, 4, 6, 8, 10, 12, 14, 15, 15, 15],
+    toneEnvelope: [0, 0, 1, 1, 0, 0, -1, -1],
+    volumeLoop: 8, // Sustain
+    toneLoop: 0, // Soft modulation
+    ayToneEnabled: true,
+    ayNoiseEnabled: false,
+    ayEnvelopeShape: 13, // Attack-hold
+  },
+  {
+    id: 5,
+    name: "Kick Drum",
+    volumeEnvelope: [15, 13, 10, 7, 4, 2, 0],
+    toneEnvelope: [12, 10, 8, 6, 4, 2, 0], // Pitch sweep down
+    volumeLoop: 255, // One-shot
+    toneLoop: 255,
+    ayToneEnabled: true,
+    ayNoiseEnabled: false,
+    ayEnvelopeShape: 0, // Decay
+  },
+  {
+    id: 6,
+    name: "Snare Drum",
+    volumeEnvelope: [15, 12, 9, 6, 3, 1, 0],
+    toneEnvelope: [0],
+    volumeLoop: 255, // One-shot
+    toneLoop: 255,
+    ayToneEnabled: false,
+    ayNoiseEnabled: true,
+    ayEnvelopeShape: 0, // Decay
+  },
+  {
+    id: 7,
+    name: "Hi-Hat",
+    volumeEnvelope: [12, 10, 8, 6, 4, 2, 0],
+    toneEnvelope: [0],
+    volumeLoop: 255, // One-shot
+    toneLoop: 255,
+    ayToneEnabled: false,
+    ayNoiseEnabled: true,
+    ayEnvelopeShape: 0, // Decay
+  },
+  {
+    id: 8,
+    name: "Arpeggio",
+    volumeEnvelope: [15, 15, 14, 14, 13, 13, 12, 12],
+    toneEnvelope: [0, 4, 7, 12, 7, 4, 0], // Major chord arpeggio
+    volumeLoop: 0, // Loop entire envelope
+    toneLoop: 0, // Loop arpeggio
+    ayToneEnabled: true,
+    ayNoiseEnabled: false,
+    ayEnvelopeShape: 10, // Triangle alternating
+  },
+  {
+    id: 9,
+    name: "Organ",
+    volumeEnvelope: [15, 15, 15, 15, 15],
+    toneEnvelope: [0],
+    volumeLoop: 0, // Constant sustain
+    toneLoop: 255,
+    ayToneEnabled: true,
+    ayNoiseEnabled: false,
+    ayEnvelopeShape: 13, // Attack-hold
+  },
+  {
+    id: 10,
+    name: "Bell",
+    volumeEnvelope: [15, 14, 12, 10, 8, 6, 4, 3, 2, 1, 0],
+    toneEnvelope: [0, 12, 0], // Harmonic
+    volumeLoop: 255, // One-shot
+    toneLoop: 255,
+    ayToneEnabled: true,
+    ayNoiseEnabled: false,
+    ayEnvelopeShape: 0, // Decay
+  },
+];
 // --- End PT3 Tracker Constants ---
 
 

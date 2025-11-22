@@ -35,16 +35,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
   const [editingTransitionId, setEditingTransitionId] = useState<string | null>(null);
 
   const stateMap = new Map(states.map(s => [s.id, s.name]));
-
-  useEffect(() => {
-    if (!states.find(s => s.id === fromState)) {
-      setFromState(states[0]?.id || '');
-    }
-    if (!states.find(s => s.id === toState)) {
-      setToState(states[0]?.id || '');
-    }
-  }, [states, fromState, toState]);
-
+  stateMap.set('__ANY_STATE__', 'Any State (*)' as any);
   const handleAddClick = () => {
     if (fromState && toState && condition) {
       onAddTransition(fromState, toState, condition, actions, guard);
@@ -83,7 +74,11 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
           {transitions.map(transition => (
             <React.Fragment key={transition.id}>
               <tr className="border-b border-msx-border group cursor-pointer" onClick={() => setEditingTransitionId(editingTransitionId === transition.id ? null : transition.id)}>
-                <td className="py-2 px-4">{stateMap.get(transition.fromStateId) || 'Unknown'}</td>
+                <td className="py-2 px-4">
+                  {transition.fromStateId === '__ANY_STATE__'
+                    ? <span className="font-bold text-msx-primary">Any State (*)</span>
+                    : (stateMap.get(transition.fromStateId) || 'Unknown')}
+                </td>
                 <td className="py-2 px-4">{stateMap.get(transition.toStateId) || 'Unknown'}</td>
                 <td className="py-2 px-4 text-xs">{renderCondition(transition.conditions)}</td>
                 <td className="py-2 px-4 text-xs">
@@ -151,6 +146,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
         <div className="grid grid-cols-2 gap-2">
           <select value={fromState} onChange={e => setFromState(e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
             <option value="">From State</option>
+            <option value="__ANY_STATE__" className="font-bold text-msx-primary">Any State (*)</option>
             {states.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <select value={toState} onChange={e => setToState(e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
