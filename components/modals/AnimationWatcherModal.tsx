@@ -4,6 +4,7 @@ import { Sprite, ScreenMap, Tile, ProjectAsset } from '../../types';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
 import { createSpriteDataURL } from '../utils/screenUtils';
+import { mirrorPixelDataHorizontally } from '../utils/spriteUtils';
 import { MSX_SCREEN5_PALETTE, EDITOR_BASE_TILE_DIM_S2, MSX1_PALETTE, SCREEN2_PIXELS_PER_COLOR_SEGMENT } from '../../constants';
 
 /**
@@ -24,6 +25,9 @@ interface AnimationWatcherModalProps {
 
 const PREVIEW_WIDTH = 256;
 const PREVIEW_HEIGHT = 192;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.25;
 
 /**
  * Renders a screen map to a data URL, suitable for use as a background image.
@@ -150,6 +154,22 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
 
   const screenMaps = useMemo(() => allAssets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap), [allAssets]);
   const tileset = useMemo(() => allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile), [allAssets]);
+  const baseFrameDataUrls = useMemo(
+    () => sprite.frames.map(frame => createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height)),
+    [sprite.frames, sprite.size.height, sprite.size.width]
+  );
+  const mirroredFrameDataUrls = useMemo(() => {
+    const facing = sprite.facingDirection ?? 'neutral';
+    if (!['left', 'right', 'neutral'].includes(facing)) return null;
+    return sprite.frames.map(frame => {
+        const mirrored = mirrorPixelDataHorizontally(frame.data);
+        return createSpriteDataURL(mirrored, sprite.size.width, sprite.size.height);
+    });
+  }, [sprite.facingDirection, sprite.frames, sprite.size.height, sprite.size.width]);
+  const clampZoom = useCallback((value: number) => {
+    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+    return Math.round(clamped * 100) / 100;
+  }, []);
   
   // Reset position when initial position changes
   useEffect(() => {
@@ -281,9 +301,19 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
     };
   }, [isOpen, animate, initialX, initialY]);
 
-  if (!isOpen) return null;
+  const baseFacing = sprite.facingDirection ?? 'neutral';
+  const movingLeft = patrolH && directionRef.current.dx < 0;
+  const movingRight = patrolH && directionRef.current.dx > 0;
+  const shouldMirrorForFacing = useMemo(() => {
+    if (!['left', 'right', 'neutral'].includes(baseFacing)) return false;
+    if (baseFacing === 'right') return movingLeft;
+    if (baseFacing === 'left') return movingRight;
+    return movingLeft; // Neutral art assumed to face right; mirror when moving left
+  }, [baseFacing, movingLeft, movingRight]);
+  const frameSources = shouldMirrorForFacing && mirroredFrameDataUrls ? mirroredFrameDataUrls : baseFrameDataUrls;
+  const currentFrameDataUrl = frameSources[currentFrameIndex] || '';
 
-  const currentFrameDataUrl = sprite.frames[currentFrameIndex] ? createSpriteDataURL(sprite.frames[currentFrameIndex].data, sprite.size.width, sprite.size.height) : '';
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn p-4">
@@ -295,7 +325,7 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
             
             <div className="flex flex-grow overflow-hidden gap-4">
                 {/* Preview Area */}
-                <div ref={previewContainerRef} className="flex-grow flex items-center justify-center bg-msx-bgcolor p-2 border border-msx-border rounded">
+                <div ref={previewContainerRef} className="flex-grow flex items-center justify-center bg-msx-bgcolor p-2 border border-msx-border rounded overflow-hidden">
                     <div 
                         className="relative overflow-hidden bg-black" 
                         style={{
@@ -330,9 +360,9 @@ export const AnimationWatcherModal: React.FC<AnimationWatcherModalProps> = ({
                 <div className="w-64 flex-shrink-0 space-y-3 overflow-y-auto pr-1 text-xs">
                      <Panel title="View Controls">
                         <div className="flex items-center justify-center space-x-2">
-                            <Button onClick={() => setZoom(z => Math.max(1, z - 1))} size="sm" disabled={zoom <= 1}>-</Button>
+                            <Button onClick={() => setZoom(z => clampZoom(z - ZOOM_STEP))} size="sm" disabled={zoom <= MIN_ZOOM}>-</Button>
                             <span className="text-msx-textsecondary w-12 text-center">{Math.round(zoom * 100)}%</span>
-                            <Button onClick={() => setZoom(z => Math.min(4, z + 1))} size="sm" disabled={zoom >= 4}>+</Button>
+                            <Button onClick={() => setZoom(z => clampZoom(z + ZOOM_STEP))} size="sm" disabled={zoom >= MAX_ZOOM}>+</Button>
                         </div>
                     </Panel>
                     <Panel title="Sprite Placement">
