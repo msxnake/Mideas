@@ -10,15 +10,15 @@ import { ConnectionManagerModal } from '../modals/ConnectionManagerModal';
 
 const NODE_WIDTH = 120;
 const NODE_HEIGHT = 90;
-const PORT_SIZE = 10; 
-const PORT_OFFSET = 5; 
+const PORT_SIZE = 10;
+const PORT_OFFSET = 5;
 const CONNECTION_PROXIMITY_THRESHOLD_DEFAULT_FACTOR = 1.5; // Multiplier for gridSize
 
 interface WorldMapEditorProps {
   worldMapGraph: WorldMapGraph;
   onUpdate: (data: Partial<WorldMapGraph>, newAssetsToCreate?: ProjectAsset[]) => void;
   availableScreenMaps: ScreenMap[];
-  tileset: Tile[]; 
+  tileset: Tile[];
   currentScreenMode: string;
   dataOutputFormat: DataFormat;
   onNavigateToAsset: (assetId: string) => void;
@@ -28,16 +28,16 @@ interface WorldMapEditorProps {
 
 // Simplified preview for world map nodes
 const createScreenMiniPreviewDataURL = (
-    screenMap: ScreenMap | undefined,
-    tileset: Tile[],
-    worldNodeWidth: number,
-    worldNodeHeight: number,
-    currentScreenMode: string
-  ): string => {
+  screenMap: ScreenMap | undefined,
+  tileset: Tile[],
+  worldNodeWidth: number,
+  worldNodeHeight: number,
+  currentScreenMode: string
+): string => {
   if (!screenMap) return "";
-  
+
   const canvas = document.createElement('canvas');
-  const previewWidth = 64; 
+  const previewWidth = 64;
   const previewHeight = Math.floor(previewWidth * (worldNodeHeight / worldNodeWidth));
   canvas.width = previewWidth;
   canvas.height = previewHeight;
@@ -45,7 +45,7 @@ const createScreenMiniPreviewDataURL = (
   const ctx = canvas.getContext('2d');
   if (!ctx) return "";
 
-  ctx.fillStyle = currentScreenMode === "SCREEN 2 (Graphics I)" ? '#000080' : '#2F2FC1'; 
+  ctx.fillStyle = currentScreenMode === "SCREEN 2 (Graphics I)" ? '#000080' : '#2F2FC1';
   ctx.fillRect(0, 0, previewWidth, previewHeight);
 
   const layer = screenMap.layers.background;
@@ -53,7 +53,7 @@ const createScreenMiniPreviewDataURL = (
 
   const mapTileRows = layer.length;
   const mapTileCols = layer[0].length;
-  
+
   const cellWidth = previewWidth / mapTileCols;
   const cellHeight = previewHeight / mapTileRows;
 
@@ -105,9 +105,9 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [linkingState, setLinkingState] = useState<{ fromNodeId: string; fromDirection: ConnectionDirection } | null>(null);
   const [pendingAutoConnectionProposal, setPendingAutoConnectionProposal] = useState<AutoConnectionProposal | null>(null);
-  
+
   const svgRef = useRef<SVGSVGElement>(null);
-  const [viewBox, setViewBox] = useState(`0 0 1000 700`); 
+  const [viewBox, setViewBox] = useState(`0 0 1000 700`);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
@@ -118,7 +118,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const [isRandomMapModalOpen, setIsRandomMapModalOpen] = useState<boolean>(false);
   const [editingConnectionsForNode, setEditingConnectionsForNode] = useState<WorldMapScreenNode | null>(null);
   const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
-  const [mousePosition, setMousePosition] = useState<{x: number, y: number} | null>(null);
+  const [mousePosition, setMousePosition] = useState<{ x: number, y: number } | null>(null);
 
 
   useEffect(() => {
@@ -131,26 +131,26 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     const screenMap = availableScreenMaps.find(sm => sm.id === screenAssetId);
     if (!screenMap) return;
 
-    const newX = panOffset.x + ((svgRef.current?.clientWidth || 1000) / zoomLevel) / 10; 
+    const newX = panOffset.x + ((svgRef.current?.clientWidth || 1000) / zoomLevel) / 10;
     const newY = panOffset.y + ((svgRef.current?.clientHeight || 700) / zoomLevel) / 10;
 
     const newNode: WorldMapScreenNode = {
       id: `wmnode_${Date.now()}`,
       screenAssetId,
       name: screenMap.name,
-      position: { x: snapToGrid(newX), y: snapToGrid(newY) }, 
+      position: { x: snapToGrid(newX), y: snapToGrid(newY) },
     };
     onUpdate({ nodes: [...nodes, newNode] });
   };
-  
+
   const snapToGrid = (value: number): number => Math.round(value / gridSize) * gridSize;
 
   const getPortPosition = (node: WorldMapScreenNode, dir: ConnectionDirection): { x: number; y: number } => {
     switch (dir) {
       case 'north': return { x: node.position.x + NODE_WIDTH / 2, y: node.position.y };
       case 'south': return { x: node.position.x + NODE_WIDTH / 2, y: node.position.y + NODE_HEIGHT };
-      case 'west':  return { x: node.position.x, y: node.position.y + NODE_HEIGHT / 2 };
-      case 'east':  return { x: node.position.x + NODE_WIDTH, y: node.position.y + NODE_HEIGHT / 2 };
+      case 'west': return { x: node.position.x, y: node.position.y + NODE_HEIGHT / 2 };
+      case 'east': return { x: node.position.x + NODE_WIDTH, y: node.position.y + NODE_HEIGHT / 2 };
     }
   };
 
@@ -202,7 +202,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       setPendingAutoConnectionProposal(bestProposal);
     }
   }, [worldMapGraph.nodes, worldMapGraph.connections, worldMapGraph.gridSize, setPendingAutoConnectionProposal]);
-  
+
   const handlePortClick = (nodeId: string, direction: ConnectionDirection) => {
     if (!linkingState) {
       setLinkingState({ fromNodeId: nodeId, fromDirection: direction });
@@ -213,8 +213,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         setLinkingState(null); return;
       }
       if (linkingState.fromNodeId === nodeId) {
-         alert("Cannot connect a node to itself via manual port linking.");
-         setLinkingState(null); return;
+        alert("Cannot connect a node to itself via manual port linking.");
+        setLinkingState(null); return;
       }
 
       const existing = worldMapGraph.connections.find(c =>
@@ -252,7 +252,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       setSelectedConnectionId(null);
     }
   };
-  
+
   const handleSetStartScreen = () => {
     if (selectedNodeId) {
       onUpdate({ startScreenNodeId: selectedNodeId });
@@ -263,23 +263,23 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     e.preventDefault();
     const currentZoom = worldMapGraph.zoomLevel;
     const currentPan = worldMapGraph.panOffset;
-    const newZoomLevel = Math.max(0.1, Math.min(5, currentZoom - e.deltaY * 0.001 * currentZoom)); 
-    
+    const newZoomLevel = Math.max(0.1, Math.min(5, currentZoom - e.deltaY * 0.001 * currentZoom));
+
     const svgPoint = svgRef.current?.createSVGPoint();
-    if(svgPoint && svgRef.current){
-        svgPoint.x = e.clientX;
-        svgPoint.y = e.clientY;
-        const CTM = svgRef.current.getScreenCTM()?.inverse();
-        if(CTM){
-            const { x:pointerX, y:pointerY } = svgPoint.matrixTransform(CTM);
-            const newPanX = pointerX - (pointerX - currentPan.x) * (newZoomLevel / currentZoom);
-            const newPanY = pointerY - (pointerY - currentPan.y) * (newZoomLevel / currentZoom);
-            onUpdate({ zoomLevel: newZoomLevel, panOffset: {x: newPanX, y: newPanY}});
-        } else {
-             onUpdate({ zoomLevel: newZoomLevel });
-        }
+    if (svgPoint && svgRef.current) {
+      svgPoint.x = e.clientX;
+      svgPoint.y = e.clientY;
+      const CTM = svgRef.current.getScreenCTM()?.inverse();
+      if (CTM) {
+        const { x: pointerX, y: pointerY } = svgPoint.matrixTransform(CTM);
+        const newPanX = pointerX - (pointerX - currentPan.x) * (newZoomLevel / currentZoom);
+        const newPanY = pointerY - (pointerY - currentPan.y) * (newZoomLevel / currentZoom);
+        onUpdate({ zoomLevel: newZoomLevel, panOffset: { x: newPanX, y: newPanY } });
+      } else {
+        onUpdate({ zoomLevel: newZoomLevel });
+      }
     } else {
-         onUpdate({ zoomLevel: newZoomLevel });
+      onUpdate({ zoomLevel: newZoomLevel });
     }
   };
 
@@ -309,19 +309,19 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
       if (e.currentTarget) e.currentTarget.style.cursor = 'grabbing';
-    } else if (e.button === 0 && e.target === svgRef.current) { 
-        setSelectedNodeId(null);
-        setSelectedConnectionId(null);
-        setLinkingState(null);
-        setMovingNodeId(null);
-        if (svgRef.current) svgRef.current.focus(); // Focus for keyboard events
+    } else if (e.button === 0 && e.target === svgRef.current) {
+      setSelectedNodeId(null);
+      setSelectedConnectionId(null);
+      setLinkingState(null);
+      setMovingNodeId(null);
+      if (svgRef.current) svgRef.current.focus(); // Focus for keyboard events
     }
   };
   const handleSvgMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isPanning) {
-      const dx = (e.clientX - panStart.x); 
+      const dx = (e.clientX - panStart.x);
       const dy = (e.clientY - panStart.y);
-      onUpdate({ panOffset: { x: worldMapGraph.panOffset.x - dx / worldMapGraph.zoomLevel, y: worldMapGraph.panOffset.y - dy / worldMapGraph.zoomLevel }});
+      onUpdate({ panOffset: { x: worldMapGraph.panOffset.x - dx / worldMapGraph.zoomLevel, y: worldMapGraph.panOffset.y - dy / worldMapGraph.zoomLevel } });
       setPanStart({ x: e.clientX, y: e.clientY });
     } else if (movingNodeId && svgRef.current) {
       const svgPoint = svgRef.current.createSVGPoint();
@@ -385,10 +385,10 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         y: nodeToMove.position.y + dy,
       };
       const updatedNode = { ...nodeToMove, position: newPosition };
-      
+
       const newNodes = worldMapGraph.nodes.map(n => (n.id === selectedNodeId ? updatedNode : n));
       onUpdate({ nodes: newNodes });
-      
+
       checkForAutoConnections(updatedNode);
     };
 
@@ -396,7 +396,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedNodeId, worldMapGraph, onUpdate, checkForAutoConnections]); 
+  }, [selectedNodeId, worldMapGraph, onUpdate, checkForAutoConnections]);
 
 
   const handleSaveWorldJson = () => {
@@ -544,7 +544,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         nodeGrid[`${x},${y}`] = node;
       });
 
-      const getDirection = (from: {x: number, y: number}, to: {x: number, y: number}): { from: ConnectionDirection, to: ConnectionDirection } | null => {
+      const getDirection = (from: { x: number, y: number }, to: { x: number, y: number }): { from: ConnectionDirection, to: ConnectionDirection } | null => {
         if (to.y < from.y) return { from: 'north', to: 'south' };
         if (to.y > from.y) return { from: 'south', to: 'north' };
         if (to.x < from.x) return { from: 'west', to: 'east' };
@@ -574,7 +574,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
 
         if (unvisitedNeighbors.length > 0) {
           const neighbor = unvisitedNeighbors[Math.floor(Math.random() * unvisitedNeighbors.length)];
-          const directions = getDirection({x: currentX, y: currentY}, {x: Math.round(neighbor.position.x / (NODE_WIDTH + 40)), y: Math.round(neighbor.position.y / (NODE_HEIGHT + 40))});
+          const directions = getDirection({ x: currentX, y: currentY }, { x: Math.round(neighbor.position.x / (NODE_WIDTH + 40)), y: Math.round(neighbor.position.y / (NODE_HEIGHT + 40)) });
           if (directions) {
             connections.push({
               id: `wmconn_random_${connections.length}`,
@@ -610,7 +610,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
               (c.fromNodeId === node2.id && c.toNodeId === node1.id)
             );
             if (!connectionExists) {
-              const directions = getDirection({x: x1, y: y1}, {x: Math.round(node2.position.x / (NODE_WIDTH + 40)), y: Math.round(node2.position.y / (NODE_HEIGHT + 40))});
+              const directions = getDirection({ x: x1, y: y1 }, { x: Math.round(node2.position.x / (NODE_WIDTH + 40)), y: Math.round(node2.position.y / (NODE_HEIGHT + 40)) });
               if (directions) {
                 connections.push({
                   id: `wmconn_extra_${i}`,
@@ -647,29 +647,29 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setStatusBarMessage(`Generated and placed ${newNodes.length} screens and ${connections.length} connections on the map.`);
   };
 
-interface NodeComponentProps {
-  node: WorldMapScreenNode;
-  setSelectedNodeId: (id: string | null) => void;
-  setSelectedConnectionId: (id: string | null) => void;
-  setLinkingState: (state: { fromNodeId: string; fromDirection: ConnectionDirection } | null) => void;
-  onNavigateToAsset: (assetId: string) => void;
-  onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
-  svgGlobalRef?: React.RefObject<SVGSVGElement>; 
-  isLinking: boolean;
-  isNodeSelected: boolean;
-  isStartNode: boolean;
-  isMoving: boolean;
-}
+  interface NodeComponentProps {
+    node: WorldMapScreenNode;
+    setSelectedNodeId: (id: string | null) => void;
+    setSelectedConnectionId: (id: string | null) => void;
+    setLinkingState: (state: { fromNodeId: string; fromDirection: ConnectionDirection } | null) => void;
+    onNavigateToAsset: (assetId: string) => void;
+    onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
+    svgGlobalRef?: React.RefObject<SVGSVGElement>;
+    isLinking: boolean;
+    isNodeSelected: boolean;
+    isStartNode: boolean;
+    isMoving: boolean;
+  }
 
-const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
-    node, 
+  const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
+    node,
     setSelectedNodeId,
     setSelectedConnectionId,
     setLinkingState,
     onNavigateToAsset,
     onShowContextMenu,
     svgGlobalRef,
-    isLinking, 
+    isLinking,
     isNodeSelected,
     isStartNode,
     isMoving
@@ -677,17 +677,17 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
     const screenMapAsset = availableScreenMaps.find(sm => sm.id === node.screenAssetId);
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        if (e.button !== 0) return;
+      if (e.button !== 0) return;
 
-        setMovingNodeId(prev => prev === node.id ? null : node.id);
-        setSelectedNodeId(node.id);
-        setSelectedConnectionId(null);
-        setLinkingState(null);
-        e.stopPropagation();
+      setMovingNodeId(prev => prev === node.id ? null : node.id);
+      setSelectedNodeId(node.id);
+      setSelectedConnectionId(null);
+      setLinkingState(null);
+      e.stopPropagation();
 
-        if (svgGlobalRef?.current) {
-            svgGlobalRef.current.focus(); // Focus SVG for keyboard events
-        }
+      if (svgGlobalRef?.current) {
+        svgGlobalRef.current.focus(); // Focus SVG for keyboard events
+      }
 
     }, [node.id, setSelectedNodeId, setSelectedConnectionId, setLinkingState, svgGlobalRef]);
 
@@ -705,14 +705,14 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
     };
 
     return (
-      <g transform={`translate(${node.position.x}, ${node.position.y})`} 
-         onMouseDown={handleMouseDown}
-         onContextMenu={handleContextMenu}
-         onDoubleClick={() => setEditingConnectionsForNode(node)}
-         style={{ cursor: 'pointer' }}
-         role="button"
-         aria-label={`Screen node ${node.name}`}
-         tabIndex={-1}
+      <g transform={`translate(${node.position.x}, ${node.position.y})`}
+        onMouseDown={handleMouseDown}
+        onContextMenu={handleContextMenu}
+        onDoubleClick={() => setEditingConnectionsForNode(node)}
+        style={{ cursor: 'pointer' }}
+        role="button"
+        aria-label={`Screen node ${node.name}`}
+        tabIndex={-1}
       >
         <rect
           width={NODE_WIDTH}
@@ -723,11 +723,11 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
           rx={5}
           ry={5}
         />
-        <image 
-            href={createScreenMiniPreviewDataURL(screenMapAsset, tileset, NODE_WIDTH, NODE_HEIGHT * 0.6, currentScreenMode)}
-            x={PORT_OFFSET} y={PORT_OFFSET} 
-            width={NODE_WIDTH - 2 * PORT_OFFSET} height={NODE_HEIGHT * 0.6 - 2 * PORT_OFFSET} 
-            preserveAspectRatio="xMidYMid slice"
+        <image
+          href={createScreenMiniPreviewDataURL(screenMapAsset, tileset, NODE_WIDTH, NODE_HEIGHT * 0.6, currentScreenMode)}
+          x={PORT_OFFSET} y={PORT_OFFSET}
+          width={NODE_WIDTH - 2 * PORT_OFFSET} height={NODE_HEIGHT * 0.6 - 2 * PORT_OFFSET}
+          preserveAspectRatio="xMidYMid slice"
         />
         <text x={PORT_OFFSET + 5} y={PORT_OFFSET + 15} fill="white" fontSize="14px" className="pixel-font select-none pointer-events-none" style={{ textShadow: '1px 1px 2px black' }}>
           {node.name.split('_')[1]}
@@ -735,11 +735,11 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
         <text x={NODE_WIDTH / 2} y={NODE_HEIGHT - 15} textAnchor="middle" fill="white" fontSize="12px" className="pixel-font select-none pointer-events-none">
           {node.name}
         </text>
-        {isStartNode && 
+        {isStartNode &&
           <text x={NODE_WIDTH / 2} y={NODE_HEIGHT - 3} textAnchor="middle" fill="hsl(100, 70%, 60%)" fontSize="10px" className="pixel-font select-none pointer-events-none">START</text>
         }
         {ALL_DIRECTIONS.map(dir => {
-          const portPos = getPortPosition({ ...node, position: {x:0, y:0} }, dir); 
+          const portPos = getPortPosition({ ...node, position: { x: 0, y: 0 } }, dir);
           return (
             <rect
               key={dir}
@@ -760,41 +760,41 @@ const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
       </g>
     );
   });
-NodeComponent.displayName = 'NodeComponent';
+  NodeComponent.displayName = 'NodeComponent';
 
 
   return (
-    <Panel title={`World Map Editor: ${worldMapGraph.name}`} className="flex-grow flex flex-col bg-msx-bgcolor select-none">
+    <Panel title={`World Map Editor: ${worldMapGraph.name}`} className="flex-grow flex flex-col bg-msx-bgcolor select-none" bodyClassName="flex flex-col flex-grow overflow-hidden p-0">
       <div className="p-2 border-b border-msx-border flex space-x-2 items-center flex-wrap shrink-0 z-10 relative bg-msx-bgcolor">
         <div className="flex items-center space-x-1">
-            <label className="text-xs pixel-font text-msx-textsecondary">Add Screen:</label>
-            <select
-                onChange={(e) => { if(e.target.value) handleAddNode(e.target.value); e.target.value = "";}}
-                className="p-1 text-xs bg-msx-panelbg border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-                value=""
-                aria-label="Add screen to world map"
-            >
-                <option value="">Select ScreenMap...</option>
-                {availableScreenMaps.map(sm => <option key={sm.id} value={sm.id}>{sm.name}</option>)}
-            </select>
+          <label className="text-xs pixel-font text-msx-textsecondary">Add Screen:</label>
+          <select
+            onChange={(e) => { if (e.target.value) handleAddNode(e.target.value); e.target.value = ""; }}
+            className="p-1 text-xs bg-msx-panelbg border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+            value=""
+            aria-label="Add screen to world map"
+          >
+            <option value="">Select ScreenMap...</option>
+            {availableScreenMaps.map(sm => <option key={sm.id} value={sm.id}>{sm.name}</option>)}
+          </select>
         </div>
         <Button onClick={handleSetStartScreen} size="sm" disabled={!selectedNodeId} variant="secondary">Set Start</Button>
-        <Button onClick={handleDeleteSelected} size="sm" disabled={!selectedNodeId && !selectedConnectionId} variant="danger" icon={<TrashIcon className="w-3 h-3"/>}>Delete Sel.</Button>
+        <Button onClick={handleDeleteSelected} size="sm" disabled={!selectedNodeId && !selectedConnectionId} variant="danger" icon={<TrashIcon className="w-3 h-3" />}>Delete Sel.</Button>
         <div className="flex items-center space-x-1">
           <label htmlFor="worldMapZoom" className="text-xs pixel-font text-msx-textsecondary">Zoom:</label>
-          <input id="worldMapZoom" type="range" min="0.2" max="3" step="0.05" value={zoomLevel} onChange={e => onUpdate({zoomLevel: parseFloat(e.target.value)})} className="w-20 accent-msx-accent" />
+          <input id="worldMapZoom" type="range" min="0.2" max="3" step="0.05" value={zoomLevel} onChange={e => onUpdate({ zoomLevel: parseFloat(e.target.value) })} className="w-20 accent-msx-accent" />
           <span className="text-xs text-msx-textsecondary">({zoomLevel.toFixed(2)}x)</span>
         </div>
-         <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1">
           <label htmlFor="worldMapGridSize" className="text-xs pixel-font text-msx-textsecondary">Grid:</label>
-          <input id="worldMapGridSize" type="number" min="5" max="50" step="5" value={gridSize} onChange={e => onUpdate({gridSize: parseInt(e.target.value)})} className="w-12 p-0.5 text-xs bg-msx-panelbg border border-msx-border rounded" />
+          <input id="worldMapGridSize" type="number" min="5" max="50" step="5" value={gridSize} onChange={e => onUpdate({ gridSize: parseInt(e.target.value) })} className="w-12 p-0.5 text-xs bg-msx-panelbg border border-msx-border rounded" />
         </div>
-         <Button onClick={() => onUpdate({panOffset: {x:0, y:0}, zoomLevel: 1})} size="sm" variant="ghost">Reset View</Button>
-         <Button onClick={handleCenterGrid} size="sm" variant="ghost">Center Grid</Button>
-         <Button onClick={handleAlign} size="sm" variant="ghost">Align</Button>
-         <Button onClick={handleSaveWorldJson} size="sm" variant="secondary" icon={<SaveFloppyIcon className="w-3.5 h-3.5"/>} title="Save World Map as JSON">Save JSON</Button>
-         <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon className="w-3.5 h-3.5"/>} title="Export World Map as ASM">Export ASM</Button>
-         <Button onClick={() => setIsRandomMapModalOpen(true)} size="sm" variant="secondary" title="Generar Mapa Aleatorio">Generar Mapa Aleatorio</Button>
+        <Button onClick={() => onUpdate({ panOffset: { x: 0, y: 0 }, zoomLevel: 1 })} size="sm" variant="ghost">Reset View</Button>
+        <Button onClick={handleCenterGrid} size="sm" variant="ghost">Center Grid</Button>
+        <Button onClick={handleAlign} size="sm" variant="ghost">Align</Button>
+        <Button onClick={handleSaveWorldJson} size="sm" variant="secondary" icon={<SaveFloppyIcon className="w-3.5 h-3.5" />} title="Save World Map as JSON">Save JSON</Button>
+        <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon className="w-3.5 h-3.5" />} title="Export World Map as ASM">Export ASM</Button>
+        <Button onClick={() => setIsRandomMapModalOpen(true)} size="sm" variant="secondary" title="Generar Mapa Aleatorio">Generar Mapa Aleatorio</Button>
       </div>
 
       <div className="flex-grow relative overflow-hidden" style={{ background: '#10101A' }} role="application" aria-roledescription="World map canvas">
@@ -809,7 +809,7 @@ NodeComponent.displayName = 'NodeComponent';
           onMouseUp={handleSvgMouseUp}
           onContextMenu={(e) => {
             if (e.target === svgRef.current) {
-                e.preventDefault();
+              e.preventDefault();
             }
           }}
           style={{ cursor: isPanning ? 'grabbing' : (linkingState ? 'crosshair' : 'grab'), outline: 'none' }}
@@ -818,17 +818,17 @@ NodeComponent.displayName = 'NodeComponent';
         >
           <defs>
             <pattern id="gridPattern" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
-              <path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/>
+              <path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />
             </pattern>
             <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-                <polygon points="0 0, 6 2, 0 4" fill="hsl(150, 50%, 60%)" />
+              <polygon points="0 0, 6 2, 0 4" fill="hsl(150, 50%, 60%)" />
             </marker>
-             <marker id="arrowheadLinking" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
-                <polygon points="0 0, 6 2, 0 4" fill="hsl(50, 80%, 60%)" />
+            <marker id="arrowheadLinking" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+              <polygon points="0 0, 6 2, 0 4" fill="hsl(50, 80%, 60%)" />
             </marker>
           </defs>
           <rect width="100%" height="100%" fill="url(#gridPattern)" />
-          
+
           {connections.map(conn => {
             const fromNode = nodes.find(n => n.id === conn.fromNodeId);
             const toNode = nodes.find(n => n.id === conn.toNodeId);
@@ -836,7 +836,7 @@ NodeComponent.displayName = 'NodeComponent';
 
             const p1 = getPortPosition(fromNode, conn.fromDirection);
             const p2 = getPortPosition(toNode, conn.toDirection);
-            
+
             return (
               <path
                 key={conn.id}
@@ -846,54 +846,54 @@ NodeComponent.displayName = 'NodeComponent';
                 fill="none"
                 markerEnd="url(#arrowhead)"
                 onClick={(e) => { e.stopPropagation(); setSelectedConnectionId(conn.id); setSelectedNodeId(null); setLinkingState(null); if (svgRef.current) svgRef.current.focus(); }}
-                style={{cursor: 'pointer'}}
+                style={{ cursor: 'pointer' }}
                 aria-label={`Connection from ${fromNode.name} ${conn.fromDirection} to ${toNode.name} ${conn.toDirection}`}
               />
             );
           })}
 
           {nodes.map(node => (
-            <NodeComponent 
-                key={node.id} 
-                node={node} 
-                setSelectedNodeId={setSelectedNodeId}
-                setSelectedConnectionId={setSelectedConnectionId}
-                setLinkingState={setLinkingState}
-                onNavigateToAsset={onNavigateToAsset}
-                onShowContextMenu={onShowContextMenu}
-                svgGlobalRef={svgRef}
-                isLinking={linkingState?.fromNodeId === node.id}
-                isNodeSelected={selectedNodeId === node.id}
-                isStartNode={worldMapGraph.startScreenNodeId === node.id}
-                isMoving={movingNodeId === node.id}
+            <NodeComponent
+              key={node.id}
+              node={node}
+              setSelectedNodeId={setSelectedNodeId}
+              setSelectedConnectionId={setSelectedConnectionId}
+              setLinkingState={setLinkingState}
+              onNavigateToAsset={onNavigateToAsset}
+              onShowContextMenu={onShowContextMenu}
+              svgGlobalRef={svgRef}
+              isLinking={linkingState?.fromNodeId === node.id}
+              isNodeSelected={selectedNodeId === node.id}
+              isStartNode={worldMapGraph.startScreenNodeId === node.id}
+              isMoving={movingNodeId === node.id}
             />
           ))}
-          
+
           {linkingState && svgRef.current && (() => {
             const fromNode = nodes.find(n => n.id === linkingState.fromNodeId);
             if (!fromNode) return null;
             const p1 = getPortPosition(fromNode, linkingState.fromDirection);
-            
+
             let p2x = p1.x;
             let p2y = p1.y;
-            switch(linkingState.fromDirection){
-                case 'north': p2y -= 20; break;
-                case 'south': p2y += 20; break;
-                case 'west': p2x -= 20; break;
-                case 'east': p2x += 20; break;
+            switch (linkingState.fromDirection) {
+              case 'north': p2y -= 20; break;
+              case 'south': p2y += 20; break;
+              case 'west': p2x -= 20; break;
+              case 'east': p2x += 20; break;
             }
 
             return (
-                 <line 
-                    x1={p1.x} y1={p1.y} 
-                    x2={p2x} 
-                    y2={p2y}
-                    stroke="hsl(50, 80%, 60%)" 
-                    strokeWidth="2" 
-                    strokeDasharray="4 2"
-                    markerEnd="url(#arrowheadLinking)" 
-                    style={{pointerEvents: 'none'}}
-                />
+              <line
+                x1={p1.x} y1={p1.y}
+                x2={p2x}
+                y2={p2y}
+                stroke="hsl(50, 80%, 60%)"
+                strokeWidth="2"
+                strokeDasharray="4 2"
+                markerEnd="url(#arrowheadLinking)"
+                style={{ pointerEvents: 'none' }}
+              />
             );
 
           })()}
@@ -910,7 +910,7 @@ NodeComponent.displayName = 'NodeComponent';
                 stroke="hsl(30, 100%, 70%)"
                 strokeWidth="2"
                 strokeDasharray="4 2"
-                style={{pointerEvents: 'none'}}
+                style={{ pointerEvents: 'none' }}
               />
             );
           })()}
@@ -919,11 +919,11 @@ NodeComponent.displayName = 'NodeComponent';
       </div>
 
       {pendingAutoConnectionProposal && (
-        <div 
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="autoConnectModalTitle"
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="autoConnectModalTitle"
         >
           <div className="bg-msx-panelbg p-6 rounded-lg shadow-xl max-w-md w-full animate-slideIn pixel-font" onClick={e => e.stopPropagation()}>
             <h2 id="autoConnectModalTitle" className="text-lg text-msx-highlight mb-4">Auto-Connect Screens?</h2>

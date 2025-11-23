@@ -19,7 +19,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     id: "comp_carry", name: "Carry",
     description: "Configures how the entity carries objects (e.g., vertical offset above head).",
     properties: [
-      { name: "offset", type: "byte", defaultValue: "0", description: "Vertical pixels between hero head and carried object (0 = pegado)." }
+      { name: "offset", type: "byte", defaultValue: "0", description: "Vertical pixels between hero head and carried object (0 = pegado)." },
+      { name: "carrySpriteAssetId", type: "sprite_ref", defaultValue: "", description: "Optional sprite to display while the entity is carrying another object." }
     ],
   },
   {

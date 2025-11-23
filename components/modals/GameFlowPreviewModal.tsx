@@ -68,10 +68,19 @@ interface ChildLinkConfig {
     mirrorParent?: boolean;
 }
 
+interface CarrySpriteSnapshot {
+    sprite: Sprite;
+    spriteAssetId?: string;
+    frameImages: HTMLImageElement[];
+    mirroredFrameImages?: HTMLImageElement[];
+    currentFrame: number;
+}
+
 interface AnimatedEntity {
     instance: EntityInstance;
     template: EntityTemplate;
     sprite: Sprite;
+    spriteAssetId?: string;
     x: number;
     y: number;
     vx: number;
@@ -80,6 +89,7 @@ interface AnimatedEntity {
     mirroredFrameImages?: HTMLImageElement[];
     currentFrame: number;
     lastFrameUpdateTime: number;
+    carrySpriteBackup?: CarrySpriteSnapshot;
     stateMachine?: StateMachine;
     currentState?: string;
     isOnGround: boolean;
@@ -454,6 +464,74 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const gridHeightTiles = currentScreenMap?.height ?? screenModeMetrics.heightTiles;
     const PREVIEW_WIDTH = gridWidthTiles * TILE_SIZE;
     const PREVIEW_HEIGHT = gridHeightTiles * TILE_SIZE;
+    const buildFramesForSprite = (spriteData: Sprite) => {
+        const frames = spriteData.frames.map(frame => {
+            const img = new Image();
+            img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+            return img;
+        });
+        let mirroredFrames: HTMLImageElement[] | undefined;
+        if (['right', 'left'].includes(spriteData.facingDirection)) {
+            mirroredFrames = spriteData.frames.map(frame => {
+                const img = new Image();
+                img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
+                return img;
+            });
+        }
+        return { frames, mirroredFrames };
+    };
+    const applySpriteToEntity = (entity: AnimatedEntity, spriteData: Sprite, spriteAssetId?: string) => {
+        const built = buildFramesForSprite(spriteData);
+        entity.sprite = spriteData;
+        entity.frameImages = built.frames;
+        entity.mirroredFrameImages = built.mirroredFrames;
+        entity.currentFrame = 0;
+        entity.lastFrameUpdateTime = performance.now();
+        if (spriteAssetId) {
+            entity.spriteAssetId = spriteAssetId;
+        }
+    };
+    const restoreSpriteAfterCarry = (entity: AnimatedEntity) => {
+        const backup = entity.carrySpriteBackup;
+        if (!backup) return;
+        entity.sprite = backup.sprite;
+        entity.frameImages = backup.frameImages;
+        entity.mirroredFrameImages = backup.mirroredFrameImages;
+        entity.currentFrame = backup.currentFrame ?? 0;
+        entity.spriteAssetId = backup.spriteAssetId;
+        entity.lastFrameUpdateTime = performance.now();
+        entity.carrySpriteBackup = undefined;
+    };
+    const switchToCarrySpriteIfConfigured = (entity: AnimatedEntity) => {
+        const carryTemplateComp = entity.template.components.find(c => c.definitionId === 'comp_carry');
+        if (!carryTemplateComp) return;
+        const carryProps = {
+            ...(carryTemplateComp.defaultValues || {}),
+            ...(entity.instance.componentOverrides?.comp_carry || {})
+        } as any;
+        const carrySpriteId = carryProps.carrySpriteAssetId || carryProps.carrySprite || carryProps.carrySpriteId || carryProps.spriteAssetId;
+        if (!carrySpriteId) return;
+        if (!entity.carrySpriteBackup) {
+            entity.carrySpriteBackup = {
+                sprite: entity.sprite,
+                frameImages: entity.frameImages,
+                mirroredFrameImages: entity.mirroredFrameImages,
+                currentFrame: entity.currentFrame,
+                spriteAssetId: entity.spriteAssetId
+            };
+        }
+        const carrySpriteAsset = allAssets.find(a =>
+            a.type === 'sprite' && (
+                a.id === carrySpriteId ||
+                a.name === carrySpriteId ||
+                (a.data as any)?.id === carrySpriteId ||
+                (a.data as any)?.name === carrySpriteId
+            )
+        );
+        const carrySpriteData = carrySpriteAsset?.data as Sprite | undefined;
+        if (!carrySpriteData) return;
+        applySpriteToEntity(entity, carrySpriteData, carrySpriteAsset.id);
+    };
 
     const refreshVisibleEntityCount = useCallback((currentScreenId?: string | null) => {
         if (!showEntityCountRef.current) return;
@@ -947,6 +1025,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         if (spriteAssetData) {
                             const spriteData = spriteAssetData.data as Sprite;
                             entity.sprite = spriteData;
+                            entity.spriteAssetId = spriteAssetData.id;
                             entity.currentFrame = 0; // Reset to first frame
 
                             // Regenerate frame images for the new sprite
@@ -1331,6 +1410,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         instance: newInstance,
                         template,
                         sprite,
+                        spriteAssetId: spriteAsset?.id,
                         x: spawnX,
                         y: spawnY,
                         vx: 0,
@@ -2491,7 +2571,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
 
             const newEntity = {
-                instance, template, sprite, x: startX, y: startY, vx, vy,
+                instance, template, sprite, spriteAssetId, x: startX, y: startY, vx, vy,
                 frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
                 stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
                 globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
@@ -2739,7 +2819,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
         const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
 
-        const checkCollisionAt = (x: number, y: number, screenMap: ScreenMap) => {
+        type CollisionCheckOptions = {
+            ignoreTopSolid?: boolean;
+            platformContext?: { hitboxBottom: number; velocityY: number };
+        };
+
+        const checkCollisionAt = (x: number, y: number, screenMap: ScreenMap, options?: CollisionCheckOptions) => {
             const tileX = Math.floor(x / TILE_SIZE);
             const tileY = Math.floor(y / TILE_SIZE);
             if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
@@ -2751,7 +2836,26 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
             if (!tileOnLayer || !tileOnLayer.tileId) return false;
             const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-            return tile?.logicalProperties?.isSolid ?? false;
+            const logical = tile?.logicalProperties;
+            if (!logical?.isSolid) return false;
+
+            // Treat familyId 2 as "top-solid/platform": only solid when approached from above
+            const isTopSolid = logical.familyId === 2;
+            if (isTopSolid) {
+                if (options?.ignoreTopSolid) return false;
+
+                // If we have motion context, only collide when falling/standing above the tile
+                if (options?.platformContext) {
+                    const tileTop = tileY * TILE_SIZE;
+                    const wasAbove = options.platformContext.hitboxBottom <= tileTop + 2; // Small tolerance
+                    const descendingOrIdle = options.platformContext.velocityY >= 0;
+                    if (!(wasAbove && descendingOrIdle)) {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
         };
 
         const checkDangerousTileAt = (x: number, y: number, screenMap: ScreenMap) => {
@@ -3560,6 +3664,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     : (sHit?.height ?? entity.sprite.size.height);
                 return { x: x + offsetX, y: y + offsetY, width, height };
             };
+            const currentHitbox = getHitboxFor(entity.x, entity.y);
+            const platformContext = { hitboxBottom: currentHitbox.y + currentHitbox.height, velocityY: entity.vy };
             let tentativeX = entity.x + entity.vx;
             let tentativeY = entity.y + entity.vy;
             let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
@@ -3571,8 +3677,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
 
                 if (entity.vx > 0) { // Derecha
-                    if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1, screenMap) ||
-                        checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2, screenMap)) {
+                    if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1, screenMap, { ignoreTopSolid: true }) ||
+                        checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2, screenMap, { ignoreTopSolid: true })) {
                         collisionX = true;
                         const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
                         tentativeX = tileLeftEdge - Number(entityCollisionProps.offsetX ?? 0) - tentativeHitbox.width;
@@ -3580,8 +3686,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         registerWallCollisionEvent('right');
                     }
                 } else if (entity.vx < 0) { // Izquierda
-                    if (checkCollisionAt(tentativeHitbox.x, centerY1, screenMap) ||
-                        checkCollisionAt(tentativeHitbox.x, centerY2, screenMap)) {
+                    if (checkCollisionAt(tentativeHitbox.x, centerY1, screenMap, { ignoreTopSolid: true }) ||
+                        checkCollisionAt(tentativeHitbox.x, centerY2, screenMap, { ignoreTopSolid: true })) {
                         collisionX = true;
                         const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
                         tentativeX = tileRightEdge - Number(entityCollisionProps.offsetX ?? 0);
@@ -3602,8 +3708,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 if (entity.vy > 0) { // Cayendo
                     const onPlatform = entity.platformUnderneath != null;
-                    if (!onPlatform && (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap) ||
-                        checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap))) {
+                    if (!onPlatform && (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap, { platformContext }) ||
+                        checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap, { platformContext }))) {
                         collisionY = true;
                         const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
                         tentativeY = tileTopEdge - Number(entityCollisionProps.offsetY ?? 0) - tentativeHitbox.height;
@@ -3611,8 +3717,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         registerWallCollisionEvent('down');
                     }
                 } else if (entity.vy < 0) { // Saltando (hacia arriba)
-                    if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap) ||
-                        checkCollisionAt(centerX2, tentativeHitbox.y, screenMap)) {
+                    if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap, { ignoreTopSolid: true }) ||
+                        checkCollisionAt(centerX2, tentativeHitbox.y, screenMap, { ignoreTopSolid: true })) {
                         collisionY = true;
                         const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
                         const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
@@ -3960,6 +4066,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const childLinkParent = childLinkConfig && entityA.parentEntityId
                     ? entityLookup.get(entityA.parentEntityId)
                     : undefined;
+                if (entityA.carriedBox && !entityA.carrySpriteBackup) {
+                    switchToCarrySpriteIfConfigured(entityA);
+                } else if (!entityA.carriedBox && entityA.carrySpriteBackup) {
+                    restoreSpriteAfterCarry(entityA);
+                }
 
                 // --- Early-out para entidades que no pertenecen a esta pantalla ---
                 // Salvo que sean hijas y su padre est visible aqu
@@ -4135,10 +4246,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const centerX1 = hitbox.x + Math.floor(hitbox.width / 3);
                         const centerX2 = hitbox.x + Math.floor((2 * hitbox.width) / 3);
                         const bottomY = hitbox.y + hitbox.height;
+                        const platformContext = { hitboxBottom: bottomY, velocityY: entityA.vy };
 
                         // Check tiles OR platform from PREVIOUS frame (before it gets cleared)
-                        const onTiles = checkCollisionAt(centerX1, bottomY, screenMapToRender) ||
-                            checkCollisionAt(centerX2, bottomY, screenMapToRender);
+                        const onTiles = checkCollisionAt(centerX1, bottomY, screenMapToRender, { platformContext }) ||
+                            checkCollisionAt(centerX2, bottomY, screenMapToRender, { platformContext });
                         // Be robust: consider we were on a platform last frame if the reference exists
                         const onPlatformPreviousFrame = !!entityA.platformUnderneath;
 
@@ -4354,6 +4466,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                             const spriteData = spriteAsset.data as Sprite;
                                             entityA.sprite = spriteData;
+                                            entityA.spriteAssetId = spriteAsset.id;
 
                                             // Regenerate frames
                                             const frames = spriteData.frames.map(frame => {
@@ -4444,6 +4557,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                                     // Remove box from its current screen (it's now being carried)
                                     candidate.ownerScreenId = null;
+
+                                    // Swap to carry-specific sprite if configured
+                                    switchToCarrySpriteIfConfigured(entityA);
                                 }
                             } else {
                                 // Drop currently carried box in front of the hero if space is free
@@ -4496,6 +4612,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                         // Assign box to current screen
                                         box.ownerScreenId = currentScreenMap?.id || null;
                                         entityA.carriedBox = null;
+                                        restoreSpriteAfterCarry(entityA);
                                     } else {
                                     }
                                 }
