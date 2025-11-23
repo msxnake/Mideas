@@ -1448,6 +1448,52 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     break;
                 }
 
+                case 'SET_ANIMATION_SPEED': {
+                    const speedMs = Number(action.params.speedMs || 200);
+                    if (entity.sprite) {
+                        entity.sprite.animationSpeedMs = speedMs;
+                    }
+                    break;
+                }
+
+                case 'TOGGLE_ANIMATION': {
+                    const mode = action.params.mode || 'toggle'; // 'start', 'stop', 'toggle'
+
+                    // Get the current animation state from comp_animation component
+                    const animComp = entity.template.components.find(c => c.definitionId === 'comp_animation');
+                    if (animComp) {
+                        // Initialize componentOverrides if needed
+                        if (!entity.instance.componentOverrides) {
+                            entity.instance.componentOverrides = {};
+                        }
+                        if (!entity.instance.componentOverrides['comp_animation']) {
+                            entity.instance.componentOverrides['comp_animation'] = {};
+                        }
+
+                        // Get current playing state
+                        const currentPlaying = entity.instance.componentOverrides['comp_animation'].isPlaying
+                            ?? animComp.defaultValues?.isPlaying
+                            ?? true;
+
+                        // Determine new state based on mode
+                        let newPlaying = currentPlaying;
+                        if (mode === 'start') {
+                            newPlaying = true;
+                        } else if (mode === 'stop') {
+                            newPlaying = false;
+                        } else { // toggle
+                            newPlaying = !currentPlaying;
+                        }
+
+                        // Update the override
+                        entity.instance.componentOverrides['comp_animation'].isPlaying = newPlaying;
+
+                        // Store on entity for runtime use
+                        (entity as any).isAnimationPlaying = newPlaying;
+                    }
+                    break;
+                }
+
                 case 'PLAY_SOUND': {
                     const soundId = action.params.soundId || action.params.sound || action.params.soundAssetId;
                     if (soundId) {
