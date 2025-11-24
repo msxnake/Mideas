@@ -5,7 +5,7 @@ import {
   PSGSoundChannelState, PSGSoundChannelStep, PaletteAsset, PT3Instrument, TrackerSongData, TrackerPattern
 } from '../types';
 import {
-  DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE,
+  DEFAULT_TILE_WIDTH, DEFAULT_TILE_HEIGHT, MSX_SCREEN5_PALETTE, MSX1_PALETTE,
   DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN_WIDTH_TILES,
   DEFAULT_SCREEN_HEIGHT_TILES, DEFAULT_SPRITE_SIZE, EDITOR_BASE_TILE_DIM_S2,
   DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_PSG_INSTRUMENTS, DEFAULT_PT3_BPM, DEFAULT_PT3_SPEED, DEFAULT_PT3_ROWS_PER_PATTERN
@@ -128,7 +128,7 @@ export const useAssetHandlers = ({
       case 'tile':
         const tileW = DEFAULT_TILE_WIDTH;
         const tileH = DEFAULT_TILE_HEIGHT;
-        const initialColor = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : MSX_SCREEN5_PALETTE[1].hex;
+        const initialColor = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_BG_COLOR : MSX_SCREEN5_PALETTE[1].hex;
         newAssetData = {
           id, name: defaultName, width: tileW, height: tileH,
           data: Array(tileH).fill(null).map(() => Array(tileW).fill(initialColor)),
@@ -140,15 +140,16 @@ export const useAssetHandlers = ({
         break;
       case 'sprite':
         const spriteSize = DEFAULT_SPRITE_SIZE;
-        const spriteInitialColor = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : MSX_SCREEN5_PALETTE[1].hex;
-        const spriteData: PixelData = Array(spriteSize).fill(null).map(() => Array(spriteSize).fill(spriteInitialColor));
+        const screen2Transparent = MSX1_PALETTE.find(c => c.index === 0)?.hex ?? 'rgba(0,0,0,0)';
+        const initialBackgroundColor = currentScreenMode === "SCREEN 2 (Graphics I)" ? screen2Transparent : MSX_SCREEN5_PALETTE[0].hex;
+        const spriteData: PixelData = Array(spriteSize).fill(null).map(() => Array(spriteSize).fill(initialBackgroundColor));
         newAssetData = {
           id, name: defaultName,
           size: { width: spriteSize, height: spriteSize },
           spritePalette: currentScreenMode === "SCREEN 2 (Graphics I)"
-            ? [DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN2_FG_COLOR, '#FF0000', '#00FF00']
+            ? [screen2Transparent, DEFAULT_SCREEN2_FG_COLOR, '#FF0000', '#00FF00']
             : [MSX_SCREEN5_PALETTE[0].hex, MSX_SCREEN5_PALETTE[1].hex, MSX_SCREEN5_PALETTE[2].hex, MSX_SCREEN5_PALETTE[3].hex],
-          backgroundColor: currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_BG_COLOR : MSX_SCREEN5_PALETTE[0].hex,
+          backgroundColor: initialBackgroundColor,
           frames: [{ id: `frame_${Date.now()}`, data: spriteData }],
           currentFrameIndex: 0
         };

@@ -1436,7 +1436,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       const defaultBg = tile.lineAttributes?.[0]?.[0]?.bg || DEFAULT_SCREEN2_BG_COLOR;
 
       newLineAttributes = resizeLineAttributes(tile.lineAttributes, tile.width, tile.height, newWidth, newHeight, defaultFg, defaultBg);
-      const initialColorForResize = newLineAttributes[0]?.[0]?.fg || defaultFg;
+      const initialColorForResize = newLineAttributes[0]?.[0]?.bg || defaultBg;
       newPixelData = resizePixelPatternData(tile.data, tile.width, tile.height, newWidth, newHeight, initialColorForResize);
 
       for (let y = 0; y < newHeight; y++) {
@@ -1445,11 +1445,11 @@ export const TileEditor: React.FC<TileEditorProps> = ({
           const attr = newLineAttributes[y]?.[segmentIndex];
           if (attr) {
             if (x >= tile.width || y >= tile.height) {
-              newPixelData[y][x] = attr.fg;
+              newPixelData[y][x] = attr.bg;
             } else {
               const currentResizedPixel = newPixelData[y][x];
               if (currentResizedPixel !== attr.fg && currentResizedPixel !== attr.bg) {
-                newPixelData[y][x] = attr.fg;
+                newPixelData[y][x] = attr.bg;
               }
             }
           }
@@ -1694,11 +1694,11 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       clearedData = tile.lineAttributes.map(rowAttrs =>
         Array(tile.width).fill(null).map((_, x) => {
           const segmentIndex = Math.floor(x / SCREEN2_PIXELS_PER_COLOR_SEGMENT);
-          return rowAttrs[segmentIndex]?.fg || DEFAULT_SCREEN2_FG_COLOR;
+          return rowAttrs[segmentIndex]?.bg || DEFAULT_SCREEN2_BG_COLOR;
         })
       );
     } else {
-      const colorToClearWith = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_FG_COLOR : getEffectiveSelectedColor(selectedColor);
+      const colorToClearWith = currentScreenMode === "SCREEN 2 (Graphics I)" ? DEFAULT_SCREEN2_BG_COLOR : getEffectiveSelectedColor(selectedColor);
       clearedData = Array(tile.height).fill(null).map(() => Array(tile.width).fill(colorToClearWith));
     }
     onUpdate({ data: clearedData });
