@@ -9,17 +9,17 @@ import { PixelData, Sprite, MSXColorValue, DataFormat } from '../../types';
  */
 export const generateSpriteBinaryData = (sprite: Sprite): Uint8Array => {
   const allFramesBytes: number[][] = [];
-  
+
   sprite.frames.forEach(frame => {
     // Iterate through the 4 sprite palette colors.
     // Skip if the palette color is the same as the sprite's general background color,
     // as that color isn't typically part of the drawable sprite pattern for VDP.
     for (let layerIndex = 0; layerIndex < sprite.spritePalette.length; layerIndex++) {
       const layerColor = sprite.spritePalette[layerIndex];
-      
+
       // Skip if the layer color is the same as the sprite's designated background/transparent color
       if (layerColor === sprite.backgroundColor) {
-        continue; 
+        continue;
       }
 
       let colorUsedInFrameLayer = false; // Check if this specific palette color is used in this frame
@@ -30,11 +30,11 @@ export const generateSpriteBinaryData = (sprite: Sprite): Uint8Array => {
           let byteValue = 0;
           for (let bit = 0; bit < 8; bit++) {
             const px = xByte * 8 + bit;
-            if (px < sprite.size.width) { 
+            if (px < sprite.size.width) {
               const pixelColorValue = frame.data[y]?.[px];
               if (pixelColorValue === layerColor) {
                 byteValue |= (1 << (7 - bit));
-                colorUsedInFrameLayer = true; 
+                colorUsedInFrameLayer = true;
               }
             }
           }
@@ -134,7 +134,7 @@ export const generateSingleFrameASMCode = (
 
     const layerBytes: number[] = [];
     if (spriteWidth % 8 !== 0) {
-        asmString += `;; WARNING: Sprite width ${spriteWidth} is not a multiple of 8. Bitmask generation might be problematic for standard VDP.\n`;
+      asmString += `;; WARNING: Sprite width ${spriteWidth} is not a multiple of 8. Bitmask generation might be problematic for standard VDP.\n`;
     }
 
     for (let y = 0; y < spriteHeight; y++) {
@@ -179,7 +179,8 @@ export const generateSingleFrameASMCode = (
  */
 export const generateSpriteASMCode = (
   sprite: Sprite,
-  dataFormat: DataFormat = 'hex'
+  dataFormat: DataFormat = 'hex',
+  uniqueIndex?: number
 ): string => {
   let fullAsmCode = `;; Sprite: ${sprite.name}\n`;
   fullAsmCode += `;; Total Frames: ${sprite.frames.length}\n`;
@@ -188,14 +189,17 @@ export const generateSpriteASMCode = (
   fullAsmCode += `;; Drawable Palette (Hex): C0=${sprite.spritePalette[0]}, C1=${sprite.spritePalette[1]}, C2=${sprite.spritePalette[2]}, C3=${sprite.spritePalette[3]}\n\n`;
 
   // Constants for MSX Main Generator
-  const safeSpriteName = sprite.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+  const suffix = uniqueIndex !== undefined ? `_${uniqueIndex}` : '';
+  const uniqueName = sprite.name + suffix;
+  const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+
   fullAsmCode += `SPRITE_${safeSpriteName}_WIDTH     EQU ${sprite.size.width}\n`;
   fullAsmCode += `SPRITE_${safeSpriteName}_HEIGHT    EQU ${sprite.size.height}\n`;
   fullAsmCode += `SPRITE_${safeSpriteName}_FRAMES    EQU ${sprite.frames.length}\n\n`;
 
   sprite.frames.forEach((frame, index) => {
     fullAsmCode += generateSingleFrameASMCode(
-      `${sprite.name}_F${index}`,
+      `${uniqueName}_F${index}`,
       frame.data,
       sprite.spritePalette,
       sprite.backgroundColor,

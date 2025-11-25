@@ -66,8 +66,13 @@ update_sprites_to_vram:
 
   // Generate sprite patterns
   sprites.forEach((sprite, index) => {
-    const safeSpriteName = sprite.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-    const spriteASM = generateSpriteASMCode(sprite, DEFAULT_DATA_FORMAT);
+    // Generate unique name matching spriteUtils logic
+    const suffix = `_${index}`;
+    const uniqueName = sprite.name + suffix;
+    const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+
+    // Pass index to ensure unique labels in generated ASM
+    const spriteASM = generateSpriteASMCode(sprite, DEFAULT_DATA_FORMAT, index);
 
     // Find first valid layer in the generated ASM to expose a unified label
     let firstLayerFound = -1;
@@ -190,7 +195,8 @@ SPRITE_INVISIBLE    EQU ${SPRITE_INVISIBLE_VALUE}
 
   // Sprite ID constants
   sprites.forEach((sprite, index) => {
-    const idName = sprite.name.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    // Ensure unique ID by appending index
+    const idName = sprite.name.toUpperCase().replace(/[^A-Z0-9_]/g, '_') + `_${index}`;
     code += `SPRITE_ID_${idName}    EQU ${index}      ; ${sprite.name}\n`;
   });
 

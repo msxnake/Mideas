@@ -71,33 +71,60 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
   currentAddress += 2;
 
-  // Sprite system variables (only if sprites exist)
-  if (analysis.sprites.length > 0) {
-    code += `
+  // Entity system variables (MAX_ENTITIES = 32)
+  code += `
 ; ==================================================================
-; SPRITE SYSTEM VARIABLES (${analysis.sprites.length} sprites detected)
+; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
+; ==================================================================
+MAX_ENTITIES        EQU 32
+`;
+  code += `entity_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X positions (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_y_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity Y positions (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_vel_x        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X velocity (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_vel_y        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity Y velocity (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_comp_masks   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity component masks (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_screen_id    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity screen ID (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_dir_mask     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity direction mask (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_health       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity health (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_anim_frame   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity animation frame (32 bytes)\n`;
+  currentAddress += 32;
+
+  // Sprite system variables (mapped to entities for now, or separate)
+  // For Mideas, we'll map sprite indices 1:1 with entity indices for simplicity
+  code += `
+; ==================================================================
+; SPRITE SYSTEM VARIABLES
 ; ==================================================================
 `;
-    code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
-    currentAddress++;
+  code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
+  currentAddress++;
 
-    const spriteCount = analysis.sprites?.length || 1;
-    code += `sprite_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite X positions (${spriteCount} bytes)\n`;
-    currentAddress += spriteCount;
+  code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (32 bytes)\n`;
+  currentAddress += 32;
 
-    code += `sprite_y_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite Y positions (${spriteCount} bytes)\n`;
-    currentAddress += spriteCount;
+  code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (32 bytes)\n`;
+  currentAddress += 32;
 
-    code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (${spriteCount} bytes)\n`;
-    currentAddress += spriteCount;
+  // Interleaved sprite attribute buffer (Y, X, Pattern, Color per sprite)
+  code += `sprite_attributes   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interleaved sprite attributes (32 * 4 bytes)\n`;
+  currentAddress += 32 * 4;
 
-    code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (${spriteCount} bytes)\n`;
-    currentAddress += spriteCount;
-
-    // Interleaved sprite attribute buffer (Y, X, Pattern, Color per sprite)
-    code += `sprite_attributes   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interleaved sprite attributes (${spriteCount * 4} bytes)\n`;
-    currentAddress += spriteCount * 4;
-  }
 
   // Screen system variables (only if screens exist)
   if (analysis.screenMaps.length > 0) {

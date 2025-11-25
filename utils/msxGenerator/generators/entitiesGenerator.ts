@@ -219,7 +219,18 @@ update_entities:
     ; Set entity screen ID (for multi-screen support)
     ld hl, entity_screen_id
     add hl, de
-    ld (hl), 0                 ; Screen ID 0 (default to first screen)
+    ld (hl), ${(() => {
+          // Find which screen this entity belongs to
+          let screenIndex = 0;
+          if (analysis.screenMaps) {
+            analysis.screenMaps.forEach((screen, sIndex) => {
+              if (screen.layers.entities.some(e => e.id === entity.id)) {
+                screenIndex = sIndex;
+              }
+            });
+          }
+          return screenIndex;
+        })()}                 ; Screen ID (calculated from project data)
 
     ; Set sprite pattern and color
     ld hl, sprite_pattern
@@ -235,13 +246,31 @@ update_entities:
     add hl, de
     ld (hl), #${directionMask.toString(16).toUpperCase().padStart(2, '0')}            ; Direction restrictions: ${directionDesc}
 
-    ; Make sprite visible immediately
+    ; Make sprite visible immediately (only if on screen 0 or current screen)
+    ; For safety, we'll let the update loop handle visibility based on screen ID
+    ; but we can initialize it here if it's on screen 0
+    ld a, ${(() => {
+          let screenIndex = 0;
+          if (analysis.screenMaps) {
+            analysis.screenMaps.forEach((screen, sIndex) => {
+              if (screen.layers.entities.some(e => e.id === entity.id)) {
+                screenIndex = sIndex;
+              }
+            });
+          }
+          return screenIndex;
+        })()}
+    or a                       ; Check if screen 0
+    jr nz, .skip_show_${index} ; Skip if not screen 0
+
     ld a, ${index}             ; Sprite number
     ld b, ${pixelX}            ; X position
     ld c, ${pixelY}            ; Y position
     ld d, ${index}             ; Pattern
     ld e, 15                   ; Color
     call show_sprite
+
+.skip_show_${index}:
     ret
 
 update_${entityName.toLowerCase()}:

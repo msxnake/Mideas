@@ -15,7 +15,7 @@ import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componen
  * Generate Position Component System
  */
 function generatePositionSystem(): string {
-  return `
+    return `
 ; ==================================================================
 ; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
 ; ==================================================================
@@ -37,9 +37,10 @@ init_position_system:
     ret
 
 update_position_component:
-    ; Update positions based on velocities (Movement → Position)
+    ; Update positions based on velocities (Movement -> Position)
     ld b, 32                   ; Loop through all entities
     ld hl, entity_comp_masks   ; Check component masks
+    ld c, 0                    ; Entity index
 
 position_update_loop:
     ld a, (hl)                 ; Get entity component mask
@@ -51,12 +52,43 @@ position_update_loop:
     and COMP_MASK_MOVEMENT
     jr z, position_next_entity ; Skip velocity if no movement
 
-    ; TODO: Add velocity to position logic here
-    ; entity_x_pos[entity] += entity_vel_x[entity]
-    ; entity_y_pos[entity] += entity_vel_y[entity]
+    push bc
+    push hl
+
+    ; Update X Position
+    ; X = X + VelX
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                 ; A = VelX
+    ld b, a                    ; B = VelX
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)                 ; A = X
+    add a, b                   ; A = X + VelX
+    ld (hl), a                 ; Store new X
+
+    ; Update Y Position
+    ; Y = Y + VelY
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)                 ; A = VelY
+    ld b, a                    ; B = VelY
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)                 ; A = Y
+    add a, b                   ; A = Y + VelY
+    ld (hl), a                 ; Store new Y
+
+    pop hl
+    pop bc
 
 position_next_entity:
-    inc hl                     ; Next entity
+    inc hl                     ; Next entity mask
+    inc c                      ; Next entity index
     djnz position_update_loop
     ret
 `;
@@ -66,7 +98,7 @@ position_next_entity:
  * Generate Sprite Component System
  */
 function generateSpriteSystem(analysis: ProjectAnalysis): string {
-  return `
+    return `
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
 ; ==================================================================
@@ -151,7 +183,7 @@ sprite_next_entity:
  * Generate Movement Component System
  */
 function generateMovementSystem(): string {
-  return `
+    return `
 ; ==================================================================
 ; MOVEMENT COMPONENT SYSTEM (Based on movement physics)
 ; ==================================================================
@@ -168,6 +200,7 @@ update_movement_component:
     ; Update movement/physics for entities
     ld b, 32                   ; Loop through all entities
     ld hl, entity_comp_masks   ; Check component masks
+    ld c, 0                    ; Entity index
 
 movement_update_loop:
     ld a, (hl)                 ; Get entity component mask
@@ -175,10 +208,55 @@ movement_update_loop:
     jr z, movement_next_entity ; Skip if no movement component
 
     ; Apply physics/movement logic here
-    ; TODO: Apply gravity, friction, collision response, etc.
+    push bc
+    push hl
+
+    ; 1. Apply Gravity (if applicable - TODO: check Gravity component)
+    ; For now, just simple friction/damping if no input
+
+    ; 2. Friction / Damping
+    ; If velocity is non-zero, reduce it slightly (simple approach)
+    ; This prevents infinite sliding
+    
+    ; X Velocity Damping
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, movement_check_y_vel
+    
+    ; If positive, dec; if negative, inc (move towards 0)
+    bit 7, a                   ; Check sign
+    jr nz, movement_vel_x_neg
+    dec (hl)                   ; Positive -> decrease
+    jr movement_check_y_vel
+movement_vel_x_neg:
+    inc (hl)                   ; Negative -> increase
+
+movement_check_y_vel:
+    ; Y Velocity Damping
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, movement_physics_done
+
+    bit 7, a
+    jr nz, movement_vel_y_neg
+    dec (hl)
+    jr movement_physics_done
+movement_vel_y_neg:
+    inc (hl)
+
+movement_physics_done:
+    pop hl
+    pop bc
 
 movement_next_entity:
-    inc hl                     ; Next entity
+    inc hl                     ; Next entity mask
+    inc c                      ; Next entity index
     djnz movement_update_loop
     ret
 `;
@@ -188,30 +266,30 @@ movement_next_entity:
  * Generate Collision Component System
  */
 function generateCollisionSystem(analysis: ProjectAnalysis): string {
-  // Detect tile size from analysis
-  const tileWidth = analysis.tiles && analysis.tiles.length > 0 ? analysis.tiles[0].width : 16;
-  const tileHeight = analysis.tiles && analysis.tiles.length > 0 ? analysis.tiles[0].height : 16;
-  const tilesPerRow = Math.floor(256 / tileWidth);
-  const tilesPerColumn = Math.floor(192 / tileHeight);
+    // Detect tile size from analysis
+    const tileWidth = analysis.tiles && analysis.tiles.length > 0 ? analysis.tiles[0].width : 16;
+    const tileHeight = analysis.tiles && analysis.tiles.length > 0 ? analysis.tiles[0].height : 16;
+    const tilesPerRow = Math.floor(256 / tileWidth);
+    const tilesPerColumn = Math.floor(192 / tileHeight);
 
-  // Calculate shift amount for division (only if power of 2)
-  const xShiftAmount = Number.isInteger(Math.log2(tileWidth)) ? Math.log2(tileWidth) : 4;
-  const yShiftAmount = Number.isInteger(Math.log2(tileHeight)) ? Math.log2(tileHeight) : 4;
+    // Calculate shift amount for division (only if power of 2)
+    const xShiftAmount = Number.isInteger(Math.log2(tileWidth)) ? Math.log2(tileWidth) : 4;
+    const yShiftAmount = Number.isInteger(Math.log2(tileHeight)) ? Math.log2(tileHeight) : 4;
 
-  const xDivisionCode = Array.from({length: xShiftAmount},
-    (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i+1)}`).join('\n');
+    const xDivisionCode = Array.from({ length: xShiftAmount },
+        (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i + 1)}`).join('\n');
 
-  const yDivisionCode = Array.from({length: yShiftAmount},
-    (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i+1)}`).join('\n');
+    const yDivisionCode = Array.from({ length: yShiftAmount },
+        (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i + 1)}`).join('\n');
 
-  const tileInfo = analysis.tiles && analysis.tiles.length > 0
-    ? `; Project tile analysis: ${analysis.tiles.map(t => `${t.width}x${t.height}`).join(', ')}
+    const tileInfo = analysis.tiles && analysis.tiles.length > 0
+        ? `; Project tile analysis: ${analysis.tiles.map(t => `${t.width}x${t.height}`).join(', ')}
     ; Using first tile as reference: ${tileWidth}x${tileHeight}
     ; Convert X to tile column (divide by ${tileWidth})`
-    : `; No tiles detected - using default 16x16
+        : `; No tiles detected - using default 16x16
     ; Convert X to tile column (divide by 16)`;
 
-  return `
+    return `
 ; ==================================================================
 ; COLLISION COMPONENT SYSTEM (Based on ScreenEditor collision detection)
 ; ==================================================================
@@ -442,7 +520,7 @@ get_behavior_tile:
  * Generate Input Component System with direction restrictions (Cursors component)
  */
 function generateInputSystem(): string {
-  return `
+    return `
 ; ==================================================================
 ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
 ; ==================================================================
@@ -675,7 +753,7 @@ input_next_entity:
  * Generate Behavior Component System
  */
 function generateBehaviorSystem(): string {
-  return `
+    return `
 ; ==================================================================
 ; BEHAVIOR COMPONENT SYSTEM (Based on BehaviorEditor logic)
 ; ==================================================================
@@ -708,7 +786,7 @@ behavior_next_entity:
  * Generate Health Component System
  */
 function generateHealthSystem(): string {
-  return `
+    return `
 ; ==================================================================
 ; HEALTH COMPONENT SYSTEM
 ; ==================================================================
@@ -758,7 +836,7 @@ health_next_entity:
  * Generate Animation Component System
  */
 function generateAnimationSystem(): string {
-  return `
+    return `
 ; ==================================================================
 ; ANIMATION COMPONENT SYSTEM
 ; ==================================================================
@@ -806,7 +884,7 @@ anim_next_entity:
  * Generate Jump Component System
  */
 function generateJumpSystem(): string {
-  return `
+    return `
 ; ==================================================================
 ; JUMP COMPONENT SYSTEM (Platform physics with multi-jump support)
 ; ==================================================================
@@ -943,7 +1021,7 @@ jump_next_entity:
  * Generate Gravity Component System
  */
 function generateGravitySystem(): string {
-  return `
+    return `
 ; ==================================================================
 ; GRAVITY COMPONENT SYSTEM (Constant downward acceleration)
 ; ==================================================================
@@ -1057,7 +1135,7 @@ gravity_next_entity:
  * Generate entity management helper functions
  */
 function generateEntityManagement(): string {
-  return `
+    return `
 ; ==================================================================
 ; ENTITY MANAGEMENT FUNCTIONS (Based on EntityTemplate system)
 ; ==================================================================
@@ -1115,9 +1193,9 @@ init_entity_sprite:
  * Generate init_components function with conditional initialization
  */
 function generateInitComponents(usage: ComponentUsageAnalysis): string {
-  const usedComponents = usage.usedComponents;
+    const usedComponents = usage.usedComponents;
 
-  let code = `init_components:
+    let code = `init_components:
     ; Initialize component systems (OPTIMIZED - only used components)
     ; Used: ${Array.from(usedComponents).join(', ')}
 
@@ -1134,71 +1212,71 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
 
 `;
 
-  if (usedComponents.has('Position')) {
-    code += `    ; Initialize position system
+    if (usedComponents.has('Position')) {
+        code += `    ; Initialize position system
     call init_position_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Sprite')) {
-    code += `    ; Initialize sprite system
+    if (usedComponents.has('Sprite')) {
+        code += `    ; Initialize sprite system
     call init_sprite_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Movement')) {
-    code += `    ; Initialize movement system
+    if (usedComponents.has('Movement')) {
+        code += `    ; Initialize movement system
     call init_movement_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Collision')) {
-    code += `    ; Initialize collision system
+    if (usedComponents.has('Collision')) {
+        code += `    ; Initialize collision system
     call init_collision_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Input')) {
-    code += `    ; Initialize input system
+    if (usedComponents.has('Input')) {
+        code += `    ; Initialize input system
     call init_input_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Behavior')) {
-    code += `    ; Initialize behavior system
+    if (usedComponents.has('Behavior')) {
+        code += `    ; Initialize behavior system
     call init_behavior_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Health')) {
-    code += `    ; Initialize health system
+    if (usedComponents.has('Health')) {
+        code += `    ; Initialize health system
     call init_health_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Animation')) {
-    code += `    ; Initialize animation system
+    if (usedComponents.has('Animation')) {
+        code += `    ; Initialize animation system
     call init_animation_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Jump')) {
-    code += `    ; Initialize jump system
+    if (usedComponents.has('Jump')) {
+        code += `    ; Initialize jump system
     call init_jump_system
 `;
-  }
+    }
 
-  if (usedComponents.has('Gravity')) {
-    code += `    ; Initialize gravity system
+    if (usedComponents.has('Gravity')) {
+        code += `    ; Initialize gravity system
     call init_gravity_system
 `;
-  }
+    }
 
-  code += `
+    code += `
     ret
 `;
 
-  return code;
+    return code;
 }
 
 // ============================================================================
@@ -1215,9 +1293,9 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
  * @returns ASM code string with ECS component systems
  */
 export function generateComponentsFile(analysis: ProjectAnalysis): string {
-  // Skip ECS system if no entities in project
-  if (!analysis.entities || analysis.entities.length === 0) {
-    return `; ==================================================================
+    // Skip ECS system if no entities in project
+    if (!analysis.entities || analysis.entities.length === 0) {
+        return `; ==================================================================
 ; GAME COMPONENT SYSTEMS (SKIPPED - NO ENTITIES DETECTED)
 ; File: components.asm
 ; ==================================================================
@@ -1248,19 +1326,19 @@ update_sprite_component:
 ; END OF COMPONENTS (MINIMAL VERSION)
 ; ==================================================================
 `;
-  }
+    }
 
-  // INTELLIGENT FILTERING: Analyze which components are actually used
-  const componentUsage: ComponentUsageAnalysis = analyzeComponentUsage(analysis);
-  const usedComponents = componentUsage.usedComponents;
+    // INTELLIGENT FILTERING: Analyze which components are actually used
+    const componentUsage: ComponentUsageAnalysis = analyzeComponentUsage(analysis);
+    const usedComponents = componentUsage.usedComponents;
 
-  console.log('🎯 Generating optimized components.asm...');
-  console.log(`  - Active entities: ${componentUsage.activeEntities.length}`);
-  console.log(`  - Used components: ${Array.from(usedComponents).join(', ')}`);
-  console.log(`  - Filtered out: ${8 - usedComponents.size} unused components`);
+    console.log('🎯 Generating optimized components.asm...');
+    console.log(`  - Active entities: ${componentUsage.activeEntities.length}`);
+    console.log(`  - Used components: ${Array.from(usedComponents).join(', ')}`);
+    console.log(`  - Filtered out: ${8 - usedComponents.size} unused components`);
 
-  // Build the complete ASM file
-  let code = `; ==================================================================
+    // Build the complete ASM file
+    let code = `; ==================================================================
 ; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
 ; File: components.asm
 ; Description: Component systems based on Mideas React.js architecture
@@ -1306,24 +1384,11 @@ COMP_MASK_GRAVITY    EQU #0200  ; Binary: 0000001000000000
 ; COMPONENT DATA STRUCTURES (Entity-Component arrays)
 ; ==================================================================
 
-; Position Component Data (32 entities max)
-entity_x_pos        EQU sprite_x_pos      ; Reuse sprite positions
-entity_y_pos        EQU sprite_y_pos      ; (32 bytes each)
-
-; Movement Component Data
-entity_vel_x        EQU temp_word_1       ; X velocity storage (signed 8-bit)
-entity_vel_y        EQU temp_word_2       ; Y velocity storage (signed 8-bit)
-
-; Component masks for each entity (which components are active) - 16-bit for 10+ components
-entity_comp_masks   EQU temp_byte_1       ; Component flags per entity (32 words = 64 bytes)
-
-; Animation Component Data
-entity_anim_frame   EQU temp_byte_2       ; Current animation frame (32 bytes)
-
-; Health Component Data
-entity_health       EQU temp_byte_3       ; Health value per entity (32 bytes)
+; NOTE: Core entity variables are now defined in variables.asm
+; (entity_x_pos, entity_y_pos, entity_vel_x, entity_vel_y, entity_comp_masks, etc.)
 
 ; Jump Component Data (Fixed-Point 8.8 for smooth physics)
+; Using temporary storage for optional components to save RAM
 entity_jump_vel_y   EQU temp_word_3       ; Y velocity for jumping (signed word, 32 words = 64 bytes)
 entity_jump_count   EQU temp_byte_4       ; Current jump count (0=grounded, 1=first jump, etc.) (32 bytes)
 entity_on_ground    EQU temp_byte_5       ; Ground contact flag (bit 0 = on ground) (32 bytes)
@@ -1331,12 +1396,6 @@ entity_on_ground    EQU temp_byte_5       ; Ground contact flag (bit 0 = on grou
 ; Gravity Component Data
 entity_gravity_vel  EQU temp_word_4       ; Accumulated gravity velocity (signed word, 64 bytes)
 
-; Input/Cursors Component Data (Direction restrictions)
-entity_dir_mask     EQU temp_byte_6       ; Direction allowed mask per entity (32 bytes)
-                                          ; Bit 0=UP, Bit 1=DOWN, Bit 2=LEFT, Bit 3=RIGHT
-
-; Multi-Screen Component Data (Screen tracking for entities)
-entity_screen_id    EQU temp_byte_7       ; Screen ID where entity is located (32 bytes)
 
 ; ==================================================================
 ; CORE ECS SYSTEM FUNCTIONS
@@ -1345,11 +1404,11 @@ entity_screen_id    EQU temp_byte_7       ; Screen ID where entity is located (3
 ${generateInitComponents(componentUsage)}
 `;
 
-  // Generate Position System (if used)
-  if (usedComponents.has('Position')) {
-    code += generatePositionSystem();
-  } else {
-    code += `
+    // Generate Position System (if used)
+    if (usedComponents.has('Position')) {
+        code += generatePositionSystem();
+    } else {
+        code += `
 ; Position system filtered out (not used)
 init_position_system:
     ret
@@ -1357,13 +1416,13 @@ init_position_system:
 update_position_component:
     ret
 `;
-  }
+    }
 
-  // Generate Sprite System (if used)
-  if (usedComponents.has('Sprite')) {
-    code += generateSpriteSystem(analysis);
-  } else {
-    code += `
+    // Generate Sprite System (if used)
+    if (usedComponents.has('Sprite')) {
+        code += generateSpriteSystem(analysis);
+    } else {
+        code += `
 ; Sprite system filtered out (not used)
 init_sprite_system:
     ret
@@ -1371,13 +1430,13 @@ init_sprite_system:
 update_sprite_component:
     ret
 `;
-  }
+    }
 
-  // Generate Movement System (if used)
-  if (usedComponents.has('Movement')) {
-    code += generateMovementSystem();
-  } else {
-    code += `
+    // Generate Movement System (if used)
+    if (usedComponents.has('Movement')) {
+        code += generateMovementSystem();
+    } else {
+        code += `
 ; Movement system filtered out (not used)
 init_movement_system:
     ret
@@ -1385,13 +1444,13 @@ init_movement_system:
 update_movement_component:
     ret
 `;
-  }
+    }
 
-  // Generate Collision System (if used)
-  if (usedComponents.has('Collision')) {
-    code += generateCollisionSystem(analysis);
-  } else {
-    code += `
+    // Generate Collision System (if used)
+    if (usedComponents.has('Collision')) {
+        code += generateCollisionSystem(analysis);
+    } else {
+        code += `
 ; Collision system filtered out (not used)
 init_collision_system:
     ret
@@ -1399,13 +1458,13 @@ init_collision_system:
 update_collision_component:
     ret
 `;
-  }
+    }
 
-  // Generate Input System (if used)
-  if (usedComponents.has('Input')) {
-    code += generateInputSystem();
-  } else {
-    code += `
+    // Generate Input System (if used)
+    if (usedComponents.has('Input')) {
+        code += generateInputSystem();
+    } else {
+        code += `
 ; Input system filtered out (not used)
 init_input_system:
     ret
@@ -1413,13 +1472,13 @@ init_input_system:
 update_input_component:
     ret
 `;
-  }
+    }
 
-  // Generate Behavior System (if used)
-  if (usedComponents.has('Behavior')) {
-    code += generateBehaviorSystem();
-  } else {
-    code += `
+    // Generate Behavior System (if used)
+    if (usedComponents.has('Behavior')) {
+        code += generateBehaviorSystem();
+    } else {
+        code += `
 ; Behavior system filtered out (not used)
 init_behavior_system:
     ret
@@ -1427,13 +1486,13 @@ init_behavior_system:
 update_behavior_component:
     ret
 `;
-  }
+    }
 
-  // Generate Health System (if used)
-  if (usedComponents.has('Health')) {
-    code += generateHealthSystem();
-  } else {
-    code += `
+    // Generate Health System (if used)
+    if (usedComponents.has('Health')) {
+        code += generateHealthSystem();
+    } else {
+        code += `
 ; Health system filtered out (not used)
 init_health_system:
     ret
@@ -1441,13 +1500,13 @@ init_health_system:
 update_health_component:
     ret
 `;
-  }
+    }
 
-  // Generate Animation System (if used)
-  if (usedComponents.has('Animation')) {
-    code += generateAnimationSystem();
-  } else {
-    code += `
+    // Generate Animation System (if used)
+    if (usedComponents.has('Animation')) {
+        code += generateAnimationSystem();
+    } else {
+        code += `
 ; Animation system filtered out (not used)
 init_animation_system:
     ret
@@ -1455,13 +1514,13 @@ init_animation_system:
 update_animation_component:
     ret
 `;
-  }
+    }
 
-  // Generate Jump System (if used)
-  if (usedComponents.has('Jump')) {
-    code += generateJumpSystem();
-  } else {
-    code += `
+    // Generate Jump System (if used)
+    if (usedComponents.has('Jump')) {
+        code += generateJumpSystem();
+    } else {
+        code += `
 ; Jump system filtered out (not used)
 init_jump_system:
     ret
@@ -1469,13 +1528,13 @@ init_jump_system:
 update_jump_component:
     ret
 `;
-  }
+    }
 
-  // Generate Gravity System (if used)
-  if (usedComponents.has('Gravity')) {
-    code += generateGravitySystem();
-  } else {
-    code += `
+    // Generate Gravity System (if used)
+    if (usedComponents.has('Gravity')) {
+        code += generateGravitySystem();
+    } else {
+        code += `
 ; Gravity system filtered out (not used)
 init_gravity_system:
     ret
@@ -1483,17 +1542,17 @@ init_gravity_system:
 update_gravity_component:
     ret
 `;
-  }
+    }
 
-  // Always include entity management helpers
-  code += generateEntityManagement();
+    // Always include entity management helpers
+    code += generateEntityManagement();
 
-  // End of file
-  code += `
+    // End of file
+    code += `
 ; ==================================================================
 ; END OF COMPONENT SYSTEMS
 ; ==================================================================
 `;
 
-  return code;
+    return code;
 }

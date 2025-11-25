@@ -10,7 +10,7 @@ import { generateGameFlowStateMachine } from './gameFlowGenerator';
  * Convert routine name to lowercase (for labels, CALL, JP, JR targets)
  */
 function toRoutineLabel(name: string): string {
-  return name.toLowerCase();
+    return name.toLowerCase();
 }
 
 /**
@@ -21,7 +21,7 @@ function toRoutineLabel(name: string): string {
  * @returns ASM code string with main program structure
  */
 export function generateMainFile(projectName: string, analysis: ProjectAnalysis): string {
-  return `; ==================================================================
+    return `; ==================================================================
 ; ${projectName.toUpperCase()} - MAIN ASSEMBLY FILE
 ; File: main.asm
 ; Description: Main file with ordered imports for MSX cartridge
@@ -107,21 +107,21 @@ main_loop:
 ; ==================================================================
 init_game_systems:
     ; Initialize all game systems
-    ; This function is implemented in the unified assembly
-    ; and calls component initialization functions
     call init_components
+    call init_entities       ; Initialize entities (positions, screens, etc.)
     call init_sprites
     ret
 
 update_current_state:
     ; Update game logic based on current state
-    ; This function is implemented in the unified assembly
-    ; and updates all component systems
     call update_input_component
-    call update_position_component
+    call update_behavior_component  ; AI/Logic
     call update_movement_component
+    call update_position_component
     call update_collision_component
-    call update_sprite_component
+    call update_health_component    ; Health/Death checks
+    call update_animation_component ; Sprite animations
+    call update_sprite_component    ; Render sprites
     ret
 
 render_frame:
@@ -142,13 +142,13 @@ ${analysis.gameFlow ? `
     ; Start node: ${analysis.gameFlow.startNodeId || 'unknown'}
     ; Nodes: ${analysis.gameFlow.nodes?.length || 0} total
 ${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ?
-    analysis.gameFlow.nodes.map((node, i) =>
-        `    ; Node ${i}: ${node.id} (${node.type || 'unknown'}) ${(node as any).data?.worldMapId ? `-> World: ${(node as any).data.worldMapId}` : ''}`
-    ).join('\n') : '    ; No nodes in GameFlow'}
+                analysis.gameFlow.nodes.map((node, i) =>
+                    `    ; Node ${i}: ${node.id} (${node.type || 'unknown'}) ${(node as any).data?.worldMapId ? `-> World: ${(node as any).data.worldMapId}` : ''}`
+                ).join('\n') : '    ; No nodes in GameFlow'}
 
     ; Execute first GameFlow transition (matches Play mode behavior)
     call execute_gameflow_start` :
-`    ; No GameFlow detected - load first available screen
+            `    ; No GameFlow detected - load first available screen
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load first screen: ${analysis.screenMaps[0]?.name || 'default'}
     call ${toRoutineLabel('load_screen_' + (analysis.screenMaps[0]?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'DEFAULT'))}` : `    ; No screens detected - load default pattern`}`}
     ret

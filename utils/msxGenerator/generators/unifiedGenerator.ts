@@ -10,27 +10,27 @@ import { generateGameFlowStateMachine } from './gameFlowGenerator';
  * Convert routine name to lowercase (for labels, CALL, JP, JR targets)
  */
 function toRoutineLabel(name: string): string {
-  return name.toLowerCase();
+    return name.toLowerCase();
 }
 
 /**
  * Interface for generated ASM files
  */
 export interface GeneratedASMFiles {
-  'bios.asm': string;
-  'constants.asm': string;
-  'variables.asm': string;
-  'header.asm': string;
-  'components.asm': string;
-  'entities.asm': string;
-  'screens.asm': string;
-  'patterns.asm': string;
-  'colors.asm': string;
-  'sprites.asm': string;
-  'font.asm': string;
-  'menus.asm': string;
-  'main.asm': string;
-  'unitedFiles.asm'?: string;
+    'bios.asm': string;
+    'constants.asm': string;
+    'variables.asm': string;
+    'header.asm': string;
+    'components.asm': string;
+    'entities.asm': string;
+    'screens.asm': string;
+    'patterns.asm': string;
+    'colors.asm': string;
+    'sprites.asm': string;
+    'font.asm': string;
+    'menus.asm': string;
+    'main.asm': string;
+    'unitedFiles.asm'?: string;
 }
 
 /**
@@ -42,14 +42,14 @@ export interface GeneratedASMFiles {
  * @returns ASM code string with all files combined
  */
 export function generateUnifiedFile(files: GeneratedASMFiles, projectName: string, analysis: ProjectAnalysis): string {
-  // Check what features are needed
-  const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
-  const hasText = analysis.screenMaps?.some(screen =>
-    (screen.layers as any)?.text || (screen as any).textElements?.length > 0
-  );
-  const needsFont = hasMenus || hasText;
+    // Check what features are needed
+    const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
+    const hasText = analysis.screenMaps?.some(screen =>
+        (screen.layers as any)?.text || (screen as any).textElements?.length > 0
+    );
+    const needsFont = hasMenus || hasText;
 
-  return `; ==================================================================
+    return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
 ; File: unitedFiles.asm
 ; Description: All-in-one file combining all modular files
@@ -383,13 +383,13 @@ ${analysis.gameFlow ? `
     ; Start node: ${analysis.gameFlow.startNodeId || 'unknown'}
     ; Nodes: ${analysis.gameFlow.nodes?.length || 0} total
 ${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ?
-    analysis.gameFlow.nodes.map((node, i) =>
-        `    ; Node ${i}: ${node.id} (${node.type || 'unknown'}) ${(node as any).data?.worldMapId ? `-> World: ${(node as any).data.worldMapId}` : ''}`
-    ).join('\n') : '    ; No nodes in GameFlow'}
+                analysis.gameFlow.nodes.map((node, i) =>
+                    `    ; Node ${i}: ${node.id} (${node.type || 'unknown'}) ${(node as any).data?.worldMapId ? `-> World: ${(node as any).data.worldMapId}` : ''}`
+                ).join('\n') : '    ; No nodes in GameFlow'}
 
     ; Execute first GameFlow transition (matches Play mode behavior)
     call execute_gameflow_start` :
-`    ; No GameFlow detected - load first available screen
+            `    ; No GameFlow detected - load first available screen
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load first screen: ${analysis.screenMaps[0]?.name || 'default'}
     call ${toRoutineLabel('load_screen_' + (analysis.screenMaps[0]?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'DEFAULT'))}` : `    ; No screens detected - load default pattern`}`}
     ret
@@ -540,12 +540,15 @@ render_frame:
     ret
 
 render_main_menu:
-    ; Pure game - no menu, go directly to game
+    ; Render main menu
+${hasMenus ? `    ; Menu system detected - render menu
+    call render_menu_system
+` : `    ; No menu system - auto-start game
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
     call init_game_entities
     call load_game_screen
-    ret
+`}    ret
 
 render_game:
     ; Render game frame with optimized sprite updates
@@ -555,19 +558,29 @@ render_game:
     ; This is much more efficient than reloading entire screen
     call update_sprites_to_vram
 
-    ; Pure game rendering - no UI text needed
-    ; Game state is entirely visual through sprites and background
-    ret
+${needsFont ? `    ; Render HUD / Text
+    ; call render_hud  ; TODO: Implement HUD rendering
+` : `    ; No text needed
+`}    ret
 
 render_pause:
-    ; Pure game - no pause text needed
-    ; Game is paused but visually identical
-    ret
+    ; Render pause screen
+${needsFont ? `    ; Show PAUSE text
+    ld hl, 12 + (10 * 32)      ; Center of screen (approx)
+    ld de, string_pause
+    call OUTDO
+` : `    ; No text - just freeze
+`}    ret
 
 render_game_over:
-    ; Pure game - return to game after brief pause
-    ; No text needed - just restart game
-    call return_to_menu
+    ; Render game over screen
+${needsFont ? `    ; Show GAME OVER text
+    ld hl, 10 + (10 * 32)      ; Center of screen (approx)
+    ld de, string_game_over
+    call OUTDO
+` : `    ; No text - just wait
+`}    
+    ; Return to menu after delay (handled in update)
     ret
 
 render_credits:
@@ -575,8 +588,13 @@ render_credits:
     call return_to_menu
     ret
 
-; Pure game - no text strings needed for ${projectName.toUpperCase()}
-; All communication is through visual gameplay elements
+; ==================================================================
+; STRINGS
+; ==================================================================
+${needsFont ? `
+string_pause:     db "PAUSED", 0
+string_game_over: db "GAME OVER", 0
+` : `; No strings needed`}
 
     end                 ; End of assembly
 `;
