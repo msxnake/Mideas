@@ -3,31 +3,12 @@
  * Generates sprites.asm with sprite definitions and management functions
  */
 
-// Estas importaciones son supuestas y necesarias para que el código sea completo.
-// Debes asegurarte de que las rutas sean correctas en tu proyecto.
-interface Sprite {
-  name: string;
-  // ... otras propiedades del sprite
-}
+import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { generateSpriteASMCode } from '../../../components/utils/spriteUtils';
 
-interface ProjectAnalysis {
-  sprites?: Sprite[];
-}
-
-// Esta es una función de utilidad supuesta. El código original la utiliza.
-function generateSpriteASMCode(sprite: Sprite, format: 'hex'): string {
-  // Implementación de ejemplo para que el archivo sea autónomo.
-  // En un proyecto real, esta función contendría la lógica para convertir
-  // los datos del sprite a código ensamblador.
-  const safeSpriteName = sprite.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-  let asm = `${safeSpriteName}_F0_LAYER0:\n`;
-  asm += '    db 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n';
-  asm += '    db 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n';
-  asm += '    db 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n';
-  asm += '    db 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00\n';
-  return asm;
-}
-
+// Constants
+const SPRITE_INVISIBLE_VALUE = 209; // MSX: Y >= 209 hides sprite
+const DEFAULT_DATA_FORMAT = 'hex';
 
 /**
  * Generate sprite data file (sprites.asm)
@@ -36,10 +17,8 @@ function generateSpriteASMCode(sprite: Sprite, format: 'hex'): string {
  * @returns ASM code string with sprite data and functions
  */
 export function generateSpritesFile(analysis: ProjectAnalysis): string {
-  const spriteCount = analysis.sprites?.length ?? 0;
-
-  // Constants
-  const SPRITE_INVISIBLE_VALUE = 209; // MSX: Y >= 209 hides sprite
+  const sprites = analysis.sprites || [];
+  const spriteCount = sprites.length;
 
   if (spriteCount === 0) {
     return `; ==================================================================
@@ -86,11 +65,11 @@ update_sprites_to_vram:
 `;
 
   // Generate sprite patterns
-  analysis.sprites!.forEach((sprite, index) => {
+  sprites.forEach((sprite, index) => {
     const safeSpriteName = sprite.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-    const spriteASM = generateSpriteASMCode(sprite, 'hex');
+    const spriteASM = generateSpriteASMCode(sprite, DEFAULT_DATA_FORMAT);
 
-    // Find first valid layer
+    // Find first valid layer in the generated ASM to expose a unified label
     let firstLayerFound = -1;
     for (let layerIndex = 0; layerIndex < 4; layerIndex++) {
       if (spriteASM.includes(`${safeSpriteName}_F0_LAYER${layerIndex}:`)) {
@@ -131,7 +110,7 @@ load_sprite_patterns:
 
   // Load each sprite pattern to VRAM
   for (let i = 0; i < spriteCount; i++) {
-    const name = analysis.sprites![i].name;
+    const name = sprites[i].name;
     code += `    ; Load sprite ${i}: ${name}
     ld hl, SPRITE_${i}_PATTERN
     ld de, SPRPAT + (${i} * 32)
@@ -210,7 +189,7 @@ SPRITE_INVISIBLE    EQU ${SPRITE_INVISIBLE_VALUE}
 `;
 
   // Sprite ID constants
-  analysis.sprites!.forEach((sprite, index) => {
+  sprites.forEach((sprite, index) => {
     const idName = sprite.name.toUpperCase().replace(/[^A-Z0-9_]/g, '_');
     code += `SPRITE_ID_${idName}    EQU ${index}      ; ${sprite.name}\n`;
   });
