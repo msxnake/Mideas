@@ -429,6 +429,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [currentExecutingGameFlowName, setCurrentExecutingGameFlowName] = useState<string>(gameFlowAssetName);
     const [playerEntryPoint, setPlayerEntryPoint] = useState<{ x: number, y: number } | null>(null);
     const [isPositioningMode, setIsPositioningMode] = useState(false);
+    const [hoverExitDirection, setHoverExitDirection] = useState<'north' | 'south' | 'east' | 'west' | null>(null);
+    const [cursorBlinkOn, setCursorBlinkOn] = useState(true);
     const [runtimeCollisionLayer, setRuntimeCollisionLayer] = useState<ScreenTile[][]>([]);
     const tileBufferNeedsUpdate = useRef<boolean>(false);
     const screenWorldMapRef = useRef<Map<string, ScreenWorldPosition>>(new Map()); // Multi-screen coordinate system
@@ -464,6 +466,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const gridHeightTiles = currentScreenMap?.height ?? screenModeMetrics.heightTiles;
     const PREVIEW_WIDTH = gridWidthTiles * TILE_SIZE;
     const PREVIEW_HEIGHT = gridHeightTiles * TILE_SIZE;
+    const getArrowCursor = useCallback((direction: 'north' | 'south' | 'east' | 'west') => {
+        const rotation = direction === 'east' ? 0 : direction === 'south' ? 90 : direction === 'west' ? 180 : -90;
+        const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'><polygon points='8,4 26,16 8,28 8,20 2,20 2,12 8,12' fill='red' transform='rotate(${rotation} 16 16)'/></svg>`;
+        const encoded = encodeURIComponent(svg);
+        return `url(\"data:image/svg+xml,${encoded}\") 16 16, auto`;
+    }, []);
+    useEffect(() => {
+        if (!hoverExitDirection) {
+            setCursorBlinkOn(true);
+            return;
+        }
+        const id = window.setInterval(() => setCursorBlinkOn(prev => !prev), 450);
+        return () => window.clearInterval(id);
+    }, [hoverExitDirection]);
     const buildFramesForSprite = (spriteData: Sprite) => {
         const frames = spriteData.frames.map(frame => {
             const img = new Image();
@@ -733,6 +749,43 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             playerEntity.y = y - playerEntity.sprite.size.height / 2;
         }
     }, [isPositioningMode, isDynamic, currentNode, isFullscreen]);
+
+    const handleCanvasMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (currentNode?.type !== 'WorldLink' || !currentWorldMapGraph || !currentScreenMap) {
+            if (hoverExitDirection) setHoverExitDirection(null);
+            return;
+        }
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scale = isFullscreen ? 4 : 2;
+        const x = (e.clientX - rect.left) / scale;
+        const y = (e.clientY - rect.top) / scale;
+        const margin = 10;
+
+        let direction: 'north' | 'south' | 'east' | 'west' | null = null;
+        if (x <= margin) direction = 'west';
+        else if (x >= PREVIEW_WIDTH - margin) direction = 'east';
+        else if (y <= margin) direction = 'north';
+        else if (y >= PREVIEW_HEIGHT - margin) direction = 'south';
+
+        if (!direction) {
+            if (hoverExitDirection) setHoverExitDirection(null);
+            return;
+        }
+
+        const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
+        const hasExit = currentScreenNode
+            ? currentWorldMapGraph.connections.some(conn =>
+                (conn.fromNodeId === currentScreenNode.id && conn.fromDirection === direction) ||
+                (conn.toNodeId === currentScreenNode.id && conn.toDirection === direction)
+            )
+            : false;
+
+        setHoverExitDirection(hasExit ? direction : null);
+    }, [currentNode, currentWorldMapGraph, currentScreenMap, isFullscreen, PREVIEW_WIDTH, PREVIEW_HEIGHT, hoverExitDirection]);
 
     // Modify a tile inside the runtime collision layer
     const modifyTileInLayer = useCallback((tileX: number, tileY: number, newTileId: string | null) => {
@@ -5767,6 +5820,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
     const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
     const canvasBackgroundColor = subMenuNode?.appearance?.colors?.background || '#000000';
+    const computedCanvasCursor = useMemo(() => {
+        if (hoverExitDirection && cursorBlinkOn) {
+            return getArrowCursor(hoverExitDirection);
+        }
+        return isPositioningMode ? 'crosshair' : undefined;
+    }, [hoverExitDirection, cursorBlinkOn, getArrowCursor, isPositioningMode]);
 
     const modalContent = (
         <div
@@ -5790,9 +5849,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                 width: PREVIEW_WIDTH * 4,
                                 height: PREVIEW_HEIGHT * 4,
                                 imageRendering: 'pixelated',
-                                backgroundColor: canvasBackgroundColor
+                                backgroundColor: canvasBackgroundColor,
+                                cursor: computedCanvasCursor
                             }}
                             onClick={handleCanvasClick}
+                            onMouseMove={handleCanvasMouseMove}
+                            onMouseLeave={() => setHoverExitDirection(null)}
                         />
                     </CRTShaderOverlay>
                     {(gameGlobalVariables as any)?.Ammo !== undefined && (
@@ -5850,9 +5912,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                                     width: PREVIEW_WIDTH * 2,
                                     height: PREVIEW_HEIGHT * 2,
                                     imageRendering: 'pixelated',
-                                    backgroundColor: canvasBackgroundColor
+                                    backgroundColor: canvasBackgroundColor,
+                                    cursor: computedCanvasCursor
                                 }}
                                 onClick={handleCanvasClick}
+                                onMouseMove={handleCanvasMouseMove}
+                                onMouseLeave={() => setHoverExitDirection(null)}
                             />
                         </CRTShaderOverlay>
                         {(gameGlobalVariables as any)?.Ammo !== undefined && (

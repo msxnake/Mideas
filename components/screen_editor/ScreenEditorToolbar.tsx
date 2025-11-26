@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Button } from '../common/Button';
-import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, PlayIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
+import { HudIcon, CodeIcon as ASMIcon, CopyIcon, ClipboardDocumentListIcon as PasteIcon, PlusCircleIcon, SaveIcon, LoadIcon } from '../icons/MsxIcons';
 import { ScreenMap, ProjectAsset } from '../../types';
 import { MSX1_PALETTE } from '../../constants';
 import { getBackgroundColorHex, isScreen2Mode } from '../../utils/screenModeConfig';
@@ -59,8 +59,6 @@ interface ScreenEditorToolbarProps {
   onExportLayout: () => void; 
   /** Callback function to export the behavior map. */
   onExportBehavior: () => void;
-  /** Callback function to open the screen play mode. */
-  onPlay: () => void;
   /** Callback function to export screen map as JSON. */
   onExportScreenMapJSON: () => void;
   /** Callback function to import screen map from JSON. */
@@ -107,7 +105,7 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
   activeAreaX, activeAreaY, activeAreaWidth, activeAreaHeight, onActiveAreaChange,
   maxActiveAreaX, maxActiveAreaY, maxActiveAreaWidth, maxActiveAreaHeight,
   onOpenHudEditor, isHudAreaDefined,
-  onExportLayout, onExportBehavior, onPlay,
+  onExportLayout, onExportBehavior,
   onExportScreenMapJSON, onImportScreenMapJSON,
   onCopyLayer, onPasteLayer, isCopyLayerDisabled, isPasteLayerDisabled,
   onAddNewEffectZone,
@@ -236,7 +234,6 @@ export const ScreenEditorToolbar: React.FC<ScreenEditorToolbarProps> = ({
       </div>
 
       <div className="flex items-center space-x-1 ml-auto">
-        <Button onClick={onPlay} size="sm" variant="primary" icon={<PlayIcon className="w-4 h-4" />} title="Play Screen with Controls"> Play </Button>
         <Button onClick={onOpenHudEditor} size="sm" variant="secondary" icon={<HudIcon className="w-4 h-4" />} title={!isHudAreaDefined ? "No HUD area defined (Active Area covers full screen)" : "Manage HUD elements for this screen"} disabled={!isHudAreaDefined}> HUD </Button>
         {activeLayer === 'effects' && (
             <Button onClick={onAddNewEffectZone} size="sm" variant="secondary" icon={<PlusCircleIcon className="w-3.5 h-3.5"/>} title="Add a new effect zone to the map">Add Effect Zone</Button>

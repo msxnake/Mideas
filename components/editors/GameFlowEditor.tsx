@@ -144,6 +144,8 @@ const GameFlowNodeComponent: React.FC<{
     gameFlowAssetName?: string;
 }> = ({ node, allAssets, onPortClick, isSelected, onSelect, onMouseDown, onContextMenu, onEditAppearance, onEditTextNode, onEditRestartNode, onEditTransitionNode, onEditMusicNode, onEditIfThenElseNode, onEditGlobalsNode, isLinkingMode, gameFlowAssetName }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isInPortHovered, setIsInPortHovered] = useState(false);
+  const [blinkOn, setBlinkOn] = useState(false);
   const nodeHeight = getNodeHeight(node);
   const isMainGameFlow = gameFlowAssetName === 'Main';
   const nodeColor =
@@ -247,6 +249,15 @@ const GameFlowNodeComponent: React.FC<{
   };
 
   const nodeWidth = getNodeWidth(node);
+  const shouldBlinkInPort = isLinkingMode && hasInput && isInPortHovered;
+  useEffect(() => {
+    if (!shouldBlinkInPort) {
+      setBlinkOn(false);
+      return;
+    }
+    const id = window.setInterval(() => setBlinkOn(prev => !prev), 450);
+    return () => window.clearInterval(id);
+  }, [shouldBlinkInPort]);
 
   return (
     <g
@@ -306,8 +317,19 @@ const GameFlowNodeComponent: React.FC<{
 
       {hasInput && node.type !== 'Waypoint' && (
         <g>
-          {/* Puerto de entrada - solo visual cuando estamos en linking mode, todo el nodo es clickeable */}
-          <rect x={-PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(200, 80%, 60%)" stroke="hsl(200, 80%, 70%)" style={{ pointerEvents: isLinkingMode ? 'none' : 'auto', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}/>
+          {/* Puerto de entrada - clickeable también en linking mode para terminar conexiones */}
+          <rect
+            x={-PORT_SIZE / 2}
+            y={nodeHeight / 2 - PORT_SIZE / 2}
+            width={PORT_SIZE}
+            height={PORT_SIZE}
+            fill={blinkOn ? 'hsl(120, 80%, 55%)' : 'hsl(200, 80%, 60%)'}
+            stroke={blinkOn ? 'hsl(120, 80%, 70%)' : 'hsl(200, 80%, 70%)'}
+            style={{ cursor: isLinkingMode ? 'crosshair' : 'pointer' }}
+            onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'in'); }}
+            onMouseEnter={() => setIsInPortHovered(true)}
+            onMouseLeave={() => setIsInPortHovered(false)}
+          />
         </g>
       )}
 
