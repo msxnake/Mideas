@@ -407,6 +407,29 @@ export const useAssetHandlers = ({
     setStatusBarMessage(`Sprite order updated.`);
   };
 
+  const handleReorderSpriteFrames = (spriteAssetId: string, reorderedFrames: SpriteFrame[]) => {
+    let updatedSpriteAsset: ProjectAsset | null = null;
+
+    setAssetsWithHistory(prevAssets => prevAssets.map(asset => {
+      if (asset.id !== spriteAssetId || asset.type !== 'sprite') {
+        return asset;
+      }
+
+      const spriteData = asset.data as Sprite;
+      const safeCurrentFrameIndex = Math.min(spriteData.currentFrameIndex || 0, Math.max(reorderedFrames.length - 1, 0));
+      const newData: Sprite = { ...spriteData, frames: reorderedFrames, currentFrameIndex: safeCurrentFrameIndex };
+      updatedSpriteAsset = { ...asset, data: newData };
+      return updatedSpriteAsset;
+    }));
+
+    if (updatedSpriteAsset) {
+      setStatusBarMessage(`Updated frame order for '${updatedSpriteAsset.name}'.`);
+      setSpriteForFramesModal(updatedSpriteAsset);
+    } else {
+      setStatusBarMessage("Error: Could not update frame order (sprite not found).");
+    }
+  };
+
   const handleOpenSpriteFramesModal = (spriteAsset: ProjectAsset) => {
     setSpriteForFramesModal(spriteAsset);
     setIsSpriteFramesModalOpen(true);
@@ -537,6 +560,7 @@ export const useAssetHandlers = ({
     handleNewAsset,
     handleDeleteAsset,
     handleUpdateSpriteOrder,
+    handleReorderSpriteFrames,
     handleOpenSpriteFramesModal,
     handleSplitFrames,
     handleCreateSpriteFromFrame,

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { TileBank, TileBankDefinition, Tile, ProjectAsset, MSX1Color, MSX1ColorValue, MSXFontAsset, PixelData } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
@@ -65,6 +65,9 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
   );
   const [isAssignTileModalOpen, setIsAssignTileModalOpen] = useState<boolean>(false);
   const [bankToAssignTileTo, setBankToAssignTileTo] = useState<string | null>(null);
+  const [selectedTileIdsForBatch, setSelectedTileIdsForBatch] = useState<string[]>([]);
+  const [tileSearchTerm, setTileSearchTerm] = useState<string>('');
+  const [assignToAllBanks, setAssignToAllBanks] = useState<boolean>(false);
   const [isFontAssetModalOpen, setIsFontAssetModalOpen] = useState<boolean>(false);
   const [selectedFontId, setSelectedFontId] = useState<string | null>(null);
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>([]);
@@ -78,6 +81,15 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     setSelectedBankId(initialTileBank?.banks?.length > 0 ? initialTileBank.banks[0].id : null);
     setShouldUpdateParent(false);
   }, [initialTileBank]);
+
+  // Quick lookup for tile assets by id (avoids repeated finds)
+  const tileAssetLookup = useMemo(() => {
+    const map = new Map<string, Tile>();
+    allTiles.forEach(asset => {
+      map.set(asset.id, asset.data as Tile);
+    });
+    return map;
+  }, [allTiles]);
 
   // Effect to update parent when tileBank changes (but not during initial load)
   useEffect(() => {
@@ -204,75 +216,156 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
     setShouldUpdateParent(true);
   };
 
-  const handleAssignTileToBank = (bankId: string, tileAssetId: string) => {
+  const resetAssignTileModalState = () => {
+    setIsAssignTileModalOpen(false);
+    setBankToAssignTileTo(null);
+    setSelectedTileIdsForBatch([]);
+    setTileSearchTerm('');
+    setAssignToAllBanks(false);
+  };
+
+  const collectUsedCharCodes = useCallback((bank: TileBankDefinition): Set<number> => {
+    const used = new Set<number>();
+    Object.entries(bank.assignedTiles || {}).forEach(([tileId, assignment]) => {
+      if (tileId.startsWith('font_') && (assignment as any).fontCharacters) {
+        (assignment as any).fontCharacters.forEach((fc: any) => used.add(fc.bankCharCode));
+      } else {
+        const tileAsset = tileAssetLookup.get(tileId);
+        const tileAssignment = assignment as { charCode: number };
+        if (!tileAsset || tileAssignment.charCode === undefined) return;
+        const w = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
+        const h = Math.ceil(tileAsset.height / EDITOR_BASE_TILE_DIM_S2);
+        for (let i = 0; i < w * h; i++) {
+          used.add(tileAssignment.charCode + i);
+        }
+      }
+    });
+    return used;
+  }, [tileAssetLookup]);
+
+  const findAvailableCharBlock = (bank: TileBankDefinition, numCodesNeeded: number, usedCharCodesInBank: Set<number>): number => {
+    for (let charCodeAttempt = bank.charsetRangeStart; charCodeAttempt <= bank.charsetRangeEnd - numCodesNeeded + 1; charCodeAttempt++) {
+      let blockAvailable = true;
+      for (let k = 0; k < numCodesNeeded; k++) {
+        if (usedCharCodesInBank.has(charCodeAttempt + k)) {
+          blockAvailable = false;
+          break;
+        }
+      }
+      if (blockAvailable) {
+        return charCodeAttempt;
+      }
+    }
+    return -1;
+  };
+
+  const tryAssignTilesToBanks = useCallback((targetBankIds: string[], tileIds: string[]) => {
+    if (tileIds.length === 0 || targetBankIds.length === 0) {
+      alert('Selecciona al menos un tile y un banco de destino.');
+      return { success: false, assignedCount: 0 };
+    }
+
+    let errorMessage = '';
+    let assignedCount = 0;
+    const skippedAlreadyAssigned: string[] = [];
+
     setTileBank(prevTileBank => {
-      const prevBanks = prevTileBank.banks;
-      const newBanks = prevBanks.map(bank => {
-        if (bank.id === bankId) {
+      const nextBanks = prevTileBank.banks.map(bank => ({
+        ...bank,
+        assignedTiles: { ...bank.assignedTiles }
+      }));
+
+      for (const bankId of targetBankIds) {
+        const bankIndex = nextBanks.findIndex(b => b.id === bankId);
+        if (bankIndex === -1) continue;
+
+        const bank = nextBanks[bankIndex];
+        if (bank.isLocked) {
+          errorMessage = `El banco "${bank.name}" está bloqueado.`;
+          return prevTileBank;
+        }
+
+        const usedCharCodesInBank = collectUsedCharCodes(bank);
+
+        for (const tileAssetId of tileIds) {
           if (bank.assignedTiles[tileAssetId]) {
-            alert(`Tile "${allTiles.find(t=>t.id === tileAssetId)?.name}" is already assigned to this bank.`);
-            return bank;
+            skippedAlreadyAssigned.push(tileAssetId);
+            continue;
           }
 
-          const tileAsset = allTiles.find(t => t.id === tileAssetId)?.data as Tile | undefined;
+          const tileAsset = tileAssetLookup.get(tileAssetId);
           if (!tileAsset) {
-            alert(`Tile asset with ID ${tileAssetId} not found.`);
-            return bank;
+            errorMessage = `No se encontró el tile con ID ${tileAssetId}.`;
+            return prevTileBank;
           }
 
           const widthInChars = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
           const heightInChars = Math.ceil(tileAsset.height / EDITOR_BASE_TILE_DIM_S2);
           const numCodesNeeded = widthInChars * heightInChars;
 
-          if (numCodesNeeded === 0) {
-            alert(`Tile "${tileAsset.name}" has zero dimensions in characters. Cannot assign.`);
-            return bank;
+          if (numCodesNeeded <= 0) {
+            errorMessage = `El tile "${tileAsset.name}" no tiene dimensiones válidas para SCREEN 2.`;
+            return prevTileBank;
           }
 
-          const usedCharCodesInBank = new Set<number>();
-          Object.entries(bank.assignedTiles).forEach(([assignedTileId, assignment]) => {
-            const assignedAsset = allTiles.find(t => t.id === assignedTileId)?.data as Tile | undefined;
-            const tileAssignment = assignment as { charCode: number };
-            if (assignedAsset && tileAssignment.charCode !== undefined) {
-              const w = Math.ceil(assignedAsset.width / EDITOR_BASE_TILE_DIM_S2);
-              const h = Math.ceil(assignedAsset.height / EDITOR_BASE_TILE_DIM_S2);
-              for (let i = 0; i < w * h; i++) {
-                usedCharCodesInBank.add(tileAssignment.charCode + i);
-              }
-            } else if (tileAssignment.charCode !== undefined) { // Fallback for potentially inconsistent data
-               usedCharCodesInBank.add(tileAssignment.charCode);
-            }
-          });
-
-          let foundBaseCharCode = -1;
-          for (let charCodeAttempt = bank.charsetRangeStart; charCodeAttempt <= bank.charsetRangeEnd - numCodesNeeded + 1; charCodeAttempt++) {
-            let blockAvailable = true;
-            for (let k = 0; k < numCodesNeeded; k++) {
-              if (usedCharCodesInBank.has(charCodeAttempt + k)) {
-                blockAvailable = false;
-                break;
-              }
-            }
-            if (blockAvailable) {
-              foundBaseCharCode = charCodeAttempt;
-              break;
-            }
-          }
+          const foundBaseCharCode = findAvailableCharBlock(bank, numCodesNeeded, usedCharCodesInBank);
 
           if (foundBaseCharCode === -1) {
-            alert(`Bank "${bank.name}" has no contiguous block of ${numCodesNeeded} free character codes in range [${bank.charsetRangeStart}-${bank.charsetRangeEnd}].`);
-            return bank;
+            errorMessage = `El banco "${bank.name}" no tiene un bloque contiguo de ${numCodesNeeded} códigos libres en el rango ${bank.charsetRangeStart}-${bank.charsetRangeEnd}.`;
+            return prevTileBank;
           }
 
-          const updatedBank = { ...bank, assignedTiles: { ...bank.assignedTiles, [tileAssetId]: { charCode: foundBaseCharCode } } };
-          return updatedBank;
+          bank.assignedTiles[tileAssetId] = { charCode: foundBaseCharCode };
+          for (let i = 0; i < numCodesNeeded; i++) {
+            usedCharCodesInBank.add(foundBaseCharCode + i);
+          }
+          assignedCount++;
         }
-        return bank;
-      });
-      return { ...prevTileBank, banks: newBanks };
+      }
+
+      return { ...prevTileBank, banks: nextBanks };
     });
+
+    if (errorMessage) {
+      alert(errorMessage);
+      return { success: false, assignedCount, skipped: skippedAlreadyAssigned };
+    }
+
+    if (assignedCount === 0 && skippedAlreadyAssigned.length > 0) {
+      alert('Todos los tiles seleccionados ya estaban asignados en los bancos objetivo.');
+      return { success: false, assignedCount, skipped: skippedAlreadyAssigned };
+    }
+
+    if (skippedAlreadyAssigned.length > 0) {
+      alert(`Algunos tiles ya estaban asignados y se omitieron (${skippedAlreadyAssigned.length}).`);
+    }
+
     setShouldUpdateParent(true);
-    setIsAssignTileModalOpen(false);
+    return { success: true, assignedCount, skipped: skippedAlreadyAssigned };
+  }, [collectUsedCharCodes, tileAssetLookup]);
+
+  const handleAssignTileToBank = (bankId: string, tileAssetId: string, closeAfterAssign: boolean = false) => {
+    const targetBankIds = assignToAllBanks && tileBank?.banks?.length ? tileBank.banks.map(b => b.id) : [bankId];
+    const result = tryAssignTilesToBanks(targetBankIds, [tileAssetId]);
+    if (result.success) {
+      setSelectedTileIdsForBatch(prev => prev.filter(id => id !== tileAssetId));
+      if (closeAfterAssign) {
+        resetAssignTileModalState();
+      }
+    }
+  };
+
+  const toggleTileBatchSelection = (tileId: string) => {
+    setSelectedTileIdsForBatch(prev => prev.includes(tileId) ? prev.filter(id => id !== tileId) : [...prev, tileId]);
+  };
+
+  const handleBatchAssignSelectedTiles = () => {
+    if (!bankToAssignTileTo) return;
+    const targetBankIds = assignToAllBanks && tileBank?.banks?.length ? tileBank.banks.map(b => b.id) : [bankToAssignTileTo];
+    const result = tryAssignTilesToBanks(targetBankIds, selectedTileIdsForBatch);
+    if (result.success) {
+      resetAssignTileModalState();
+    }
   };
 
   const handleRemoveTileFromBank = (bankId: string, tileAssetId: string) => {
@@ -718,7 +811,13 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         {!bank.isLocked &&
             <div className="flex gap-2 mt-2">
                 <Button
-                    onClick={() => { setBankToAssignTileTo(bank.id); setIsAssignTileModalOpen(true); }}
+                    onClick={() => {
+                      setBankToAssignTileTo(bank.id);
+                      setSelectedTileIdsForBatch([]);
+                      setTileSearchTerm('');
+                      setAssignToAllBanks(false);
+                      setIsAssignTileModalOpen(true);
+                    }}
                     size="sm" variant="secondary" icon={<PlusCircleIcon />} className="text-xs"
                     disabled={totalCharsUsedByTiles >= numCharsInBankRange}
                 >
@@ -769,33 +868,96 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
         ))}
       </div>
       
-      {isAssignTileModalOpen && bankToAssignTileTo && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={() => setIsAssignTileModalOpen(false)}>
-          <div className="bg-msx-panelbg p-4 rounded-lg shadow-xl w-full max-w-md animate-slideIn pixel-font" onClick={e => e.stopPropagation()}>
-            <h3 className="text-md text-msx-highlight mb-3">Assign Tile to Bank: {tileBank?.banks?.find(b=>b.id===bankToAssignTileTo)?.name}</h3>
-            <div className="max-h-60 overflow-y-auto space-y-1">
-                {allTiles.filter(asset => asset.type === 'tile' && !(tileBank?.banks?.find(b=>b.id===bankToAssignTileTo)?.assignedTiles[asset.id])).map(tileAssetItem => {
-                    const tileAsset = tileAssetItem.data as Tile;
-                    return (
-                        <Button
-                            key={tileAssetItem.id}
-                            onClick={() => handleAssignTileToBank(bankToAssignTileTo, tileAssetItem.id)}
-                            variant="ghost"
-                            size="sm"
-                            className="w-full justify-start text-xs"
-                        >
-                            {tileAssetItem.name} ({tileAsset.width}x{tileAsset.height})
-                        </Button>
-                    );
+      {isAssignTileModalOpen && bankToAssignTileTo && (() => {
+        const targetBankIds = assignToAllBanks && tileBank?.banks?.length ? tileBank.banks.map(b => b.id) : [bankToAssignTileTo];
+        const searchTerm = tileSearchTerm.toLowerCase();
+        const availableTiles = allTiles
+          .filter(asset => asset.type === 'tile')
+          .filter(asset => {
+            const isAssignedEverywhere = targetBankIds.length > 0 && targetBankIds.every(bankId => {
+              const bank = tileBank?.banks?.find(b => b.id === bankId);
+              return bank?.assignedTiles?.[asset.id];
+            });
+            if (isAssignedEverywhere) return false;
+            if (!searchTerm) return true;
+            return (asset.name || '').toLowerCase().includes(searchTerm);
+          });
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={resetAssignTileModalState}>
+            <div className="bg-msx-panelbg p-4 rounded-lg shadow-xl w-full max-w-md animate-slideIn pixel-font" onClick={e => e.stopPropagation()}>
+              <h3 className="text-md text-msx-highlight mb-3">Assign Tile to Bank: {tileBank?.banks?.find(b=>b.id===bankToAssignTileTo)?.name}</h3>
+
+              <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
+                <input
+                  type="text"
+                  value={tileSearchTerm}
+                  onChange={(e) => setTileSearchTerm(e.target.value)}
+                  placeholder="Buscar tile..."
+                  className="flex-1 min-w-[140px] p-1 rounded border border-msx-border bg-msx-bgcolor"
+                />
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={assignToAllBanks}
+                    onChange={(e) => setAssignToAllBanks(e.target.checked)}
+                    className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent"
+                  />
+                  <span>Asignar a los 3 bancos</span>
+                </label>
+                <span className="text-msx-textsecondary">Seleccionados: {selectedTileIdsForBatch.length}</span>
+                <Button
+                  onClick={handleBatchAssignSelectedTiles}
+                  size="sm"
+                  variant="primary"
+                  className="text-xs"
+                  disabled={selectedTileIdsForBatch.length === 0}
+                >
+                  Asignar selección
+                </Button>
+              </div>
+
+              <div className="max-h-60 overflow-y-auto space-y-1">
+                {availableTiles.map(tileAssetItem => {
+                  const tileAsset = tileAssetItem.data as Tile;
+                  const isSelected = selectedTileIdsForBatch.includes(tileAssetItem.id);
+                  return (
+                    <div
+                      key={tileAssetItem.id}
+                      className="flex items-center justify-between p-1 rounded border border-msx-border/50 hover:border-msx-accent/60"
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleTileBatchSelection(tileAssetItem.id)}
+                          className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs">{tileAssetItem.name} ({tileAsset.width}x{tileAsset.height})</span>
+                          {assignToAllBanks && <span className="text-[10px] text-msx-textsecondary">Se replicará en los 3 bancos (SCREEN 2)</span>}
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => handleAssignTileToBank(bankToAssignTileTo, tileAssetItem.id)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                      >
+                        Asignar ahora
+                      </Button>
+                    </div>
+                  );
                 })}
-                {allTiles.filter(asset => asset.type === 'tile' && !(tileBank?.banks?.find(b=>b.id===bankToAssignTileTo)?.assignedTiles[asset.id])).length === 0 &&
-                    <p className="text-xs text-msx-textsecondary p-2">All available tiles are already assigned to this bank or no suitable tiles exist.</p>
+                {availableTiles.length === 0 &&
+                  <p className="text-xs text-msx-textsecondary p-2">Todos los tiles disponibles ya están asignados en los bancos seleccionados.</p>
                 }
+              </div>
+              <Button onClick={resetAssignTileModalState} variant="primary" size="md" className="mt-4">Close</Button>
             </div>
-            <Button onClick={() => setIsAssignTileModalOpen(false)} variant="primary" size="md" className="mt-4">Close</Button>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {isFontAssetModalOpen && bankToAssignTileTo && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 animate-fadeIn" onClick={() => setIsFontAssetModalOpen(false)}>

@@ -1,5 +1,5 @@
-import React from 'react';
-import { ProjectAsset, Sprite } from '../../types';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ProjectAsset, Sprite, SpriteFrame } from '../../types';
 import { Button } from '../common/Button';
 import { createSpriteDataURL } from '../utils/screenUtils';
 
@@ -14,6 +14,8 @@ interface SpriteFramesModalProps {
     onClose: () => void;
     /** Callback function to split the sprite frames into individual sprite assets. */
     onSplit: (spriteAsset: ProjectAsset) => void;
+    /** Callback function to persist a reordered frame list. */
+    onReorderFrames: (spriteAssetId: string, reorderedFrames: SpriteFrame[]) => void;
     /** The sprite asset whose frames are to be displayed. */
     spriteAsset: ProjectAsset | null;
 }
@@ -22,14 +24,23 @@ interface SpriteFramesModalProps {
  * A component to display a preview of a single sprite frame.
  * @internal
  */
-const FramePreview: React.FC<{ sprite: Sprite; frameIndex: number }> = ({ sprite, frameIndex }) => {
-    const frame = sprite.frames[frameIndex];
-    if (!frame) return null;
+const FramePreview: React.FC<{
+    sprite: Sprite;
+    frameIndex: number;
+    frame: SpriteFrame;
+    isDragging: boolean;
+}> = ({ sprite, frameIndex, frame, isDragging }) => {
+    const dataUrl = useMemo(
+        () => createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height),
+        [frame.data, sprite.size.height, sprite.size.width]
+    );
 
-    const dataUrl = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
+    const borderClass = isDragging
+        ? 'border-msx-highlight bg-msx-accent/20 opacity-70'
+        : 'border-msx-border bg-msx-bgcolor';
 
     return (
-        <div className="p-1 border border-msx-border bg-msx-bgcolor flex flex-col items-center space-y-1">
+        <div className={`p-1 border ${borderClass} flex flex-col items-center space-y-1 rounded`}>
             <img
                 src={dataUrl}
                 alt={`Frame ${frameIndex}`}
@@ -48,13 +59,74 @@ const FramePreview: React.FC<{ sprite: Sprite; frameIndex: number }> = ({ sprite
  * @returns A React component.
  * @category Modal
  */
-export const SpriteFramesModal: React.FC<SpriteFramesModalProps> = ({ isOpen, onClose, onSplit, spriteAsset }) => {
+export const SpriteFramesModal: React.FC<SpriteFramesModalProps> = ({
+    isOpen,
+    onClose,
+    onSplit,
+    onReorderFrames,
+    spriteAsset,
+}) => {
     if (!isOpen || !spriteAsset) return null;
 
     const sprite = spriteAsset.data as Sprite;
+    const [localFrames, setLocalFrames] = useState<SpriteFrame[]>([]);
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [hasPendingOrder, setHasPendingOrder] = useState(false);
+    const framesRef = useRef<SpriteFrame[]>([]);
+
+    useEffect(() => {
+        if (isOpen && spriteAsset) {
+            const initialFrames = [...(spriteAsset.data as Sprite).frames];
+            framesRef.current = initialFrames;
+            setLocalFrames(initialFrames);
+            setDraggedIndex(null);
+            setHasPendingOrder(false);
+        }
+    }, [isOpen, spriteAsset]);
+
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        const img = new Image();
+        img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+        e.dataTransfer.setDragImage(img, 0, 0);
+    };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+        e.preventDefault();
+        if (draggedIndex === null || draggedIndex === index) {
+            return;
+        }
+
+        const reordered = [...localFrames];
+        const [movedFrame] = reordered.splice(draggedIndex, 1);
+        reordered.splice(index, 0, movedFrame);
+        framesRef.current = reordered;
+        setLocalFrames(reordered);
+        setDraggedIndex(index);
+        setHasPendingOrder(true);
+    };
+
+    const commitFrameOrder = () => {
+        if (!spriteAsset || !hasPendingOrder) return;
+        const framesToPersist = framesRef.current.length ? framesRef.current : localFrames;
+        onReorderFrames(spriteAsset.id, framesToPersist);
+        setHasPendingOrder(false);
+    };
+
+    const handleDragEnd = () => {
+        commitFrameOrder();
+        setDraggedIndex(null);
+    };
 
     const handleSplitClick = () => {
-        onSplit(spriteAsset);
+        commitFrameOrder();
+        const framesToUse = framesRef.current.length ? framesRef.current : localFrames;
+        const updatedSpriteAsset: ProjectAsset = {
+            ...spriteAsset,
+            data: { ...sprite, frames: framesToUse },
+        };
+        onSplit(updatedSpriteAsset);
     };
 
     return (
@@ -72,13 +144,30 @@ export const SpriteFramesModal: React.FC<SpriteFramesModalProps> = ({ isOpen, on
                 <h2 id="spriteFramesModalTitle" className="text-lg text-msx-highlight mb-4 pixel-font">
                     Frames for: {sprite.name}
                 </h2>
+                <p className="text-xs text-msx-textsecondary mb-4">
+                    Drag frames to reorder them. Changes save automatically after dropping.
+                </p>
                 <div className="flex-grow overflow-y-auto pr-2 border-t border-b border-msx-border py-4">
                     <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-4">
-                        {sprite.frames.map((frame, index) => (
-                            <FramePreview key={frame.id || index} sprite={sprite} frameIndex={index} />
+                        {localFrames.map((frame, index) => (
+                            <div
+                                key={frame.id || index}
+                                draggable
+                                className="cursor-move"
+                                onDragStart={e => handleDragStart(e, index)}
+                                onDragOver={e => handleDragOver(e, index)}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <FramePreview
+                                    sprite={sprite}
+                                    frameIndex={index}
+                                    frame={frame}
+                                    isDragging={draggedIndex === index}
+                                />
+                            </div>
                         ))}
                     </div>
-                    {sprite.frames.length === 0 && (
+                    {localFrames.length === 0 && (
                         <p className="text-center text-msx-textsecondary">This sprite has no frames.</p>
                     )}
                 </div>
