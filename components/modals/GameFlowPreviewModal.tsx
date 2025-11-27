@@ -23,10 +23,11 @@ import {
     FacingDirection,
     ComponentDefinition,
     PixelData,
-    AssetType
+    AssetType,
+    TileBank
 } from '../../types';
 import { Button } from '../common/Button';
-import { renderMSX1TextToDataURL, getTextDimensionsMSX1 } from '../utils/msxFontRenderer';
+import { renderMSX1TextToDataURL, getTextDimensionsMSX1, renderUnifiedTextToDataURL } from '../utils/msxFontRenderer';
 import { renderScreenToCanvas, createSpriteDataURL } from '../utils/screenUtils';
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowsPointingOutIcon } from '../icons/MsxIcons';
@@ -455,6 +456,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const runtimeCollisionLayerRef = useRef<ScreenTile[][]>([]);
     // Cooldown to avoid immediate re-trigger of screen exits after a transition
     const lastScreenTransitionTimeRef = useRef<number>(0);
+    const hudBufferRef = useRef<HTMLCanvasElement | null>(null);
 
     const previewScreenMode = useMemo(
         () => resolveScreenModeForMap(currentScreenMap, currentScreenMode),
@@ -518,6 +520,68 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         entity.lastFrameUpdateTime = performance.now();
         entity.carrySpriteBackup = undefined;
     };
+
+    // Pre-render HUD text (mirrors Screen Editor HUD renderer so text appears in GameFlow)
+    useEffect(() => {
+        const map = currentScreenMap;
+        if (!map || !map.hudConfiguration?.elements?.length) {
+            hudBufferRef.current = null;
+            return;
+        }
+
+        const canvas = hudBufferRef.current ?? document.createElement('canvas');
+        canvas.width = PREVIEW_WIDTH;
+        canvas.height = PREVIEW_HEIGHT;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+
+        const textBasedTypes = new Set([
+            'Score', 'HighScore', 'Lives', 'SceneName', 'CoinCounter',
+            'AttackAlert', 'TextBox', 'NumericField', 'CustomCounter'
+        ]);
+
+        const tileBanks: TileBank[] = allAssets
+            .filter(a => a.type === 'tilebank' || a.type === 'tilebanks')
+            .map(a => a.data as TileBank);
+
+        for (const hudEl of map.hudConfiguration.elements) {
+            if (!hudEl || (hudEl as any).visible === false) continue;
+            const isTextBased = textBasedTypes.has((hudEl as any).type);
+            const rawText = (hudEl as any).text || (hudEl as any).name;
+            if (!isTextBased || !rawText) continue;
+
+            const charSpacing = (hudEl as any).details?.charSpacing || 0;
+            const hudTextColor = (hudEl as any).details?.textColor;
+            const hudBackgroundColor = (hudEl as any).details?.textBackgroundColor;
+
+            const dataUrl = renderUnifiedTextToDataURL(
+                rawText,
+                tileBanks.length ? tileBanks : undefined,
+                allAssets,
+                msxFont,
+                msxFontColorAttributes,
+                1,
+                charSpacing,
+                hudTextColor,
+                hudBackgroundColor
+            );
+
+            if (!dataUrl) continue;
+
+            const img = new Image();
+            img.src = dataUrl;
+            const draw = () => ctx.drawImage(img, (hudEl as any).position?.x || 0, (hudEl as any).position?.y || 0);
+            if (img.complete && img.naturalWidth > 0) {
+                draw();
+            } else {
+                img.onload = draw;
+            }
+        }
+
+        hudBufferRef.current = canvas;
+    }, [currentScreenMap, allAssets, msxFont, msxFontColorAttributes, PREVIEW_WIDTH, PREVIEW_HEIGHT, hudVersion]);
     const switchToCarrySpriteIfConfigured = (entity: AnimatedEntity) => {
         const carryTemplateComp = entity.template.components.find(c => c.definitionId === 'comp_carry');
         if (!carryTemplateComp) return;
@@ -5617,6 +5681,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 return true; // Keep effect
             });
 
+            // HUD overlay (pre-rendered to avoid per-frame text building)
+            if (hudBufferRef.current) {
+                ctx.drawImage(hudBufferRef.current, 0, 0);
+            }
+
             // --- Remove destroyed entities ---
             entitiesRef.current = entitiesRef.current.filter(e => !e.markedForDestruction);
 
@@ -5750,6 +5819,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
                     }
                 });
+
+                if (hudBufferRef.current) {
+                    ctx.drawImage(hudBufferRef.current, 0, 0);
+                }
 
                 refreshVisibleEntityCount(currentScreenMapRef.current?.id);
             }
