@@ -1309,39 +1309,6 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     if (action.params.y !== undefined) entity.y = Number(action.params.y);
                     break;
 
-                case 'MOVE_BY':
-                    entity.x += Number(action.params.x || 0);
-                    entity.y += Number(action.params.y || 0);
-                    break;
-
-                case 'SET_VARIABLE': {
-                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
-                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
-                    const varValue = action.params.value === undefined ? true : action.params.value;
-
-                    if (resolvedVarName) {
-                        const parsed = coerceGlobalVariableValue(varValue);
-                        updateGameGlobalVariables(prev => {
-                            if (resolvedVarName.toLowerCase() === 'ammo') {
-                                const prevRaw = (prev as any)[resolvedVarName];
-                                const prevNum = Number(typeof prevRaw === 'string' ? prevRaw.trim() : prevRaw);
-                                const nextNum = Number(typeof parsed === 'string' ? (parsed as any).trim?.() ?? parsed : parsed as any);
-                                if (!Number.isNaN(prevNum) && !Number.isNaN(nextNum) && nextNum < prevNum) {
-                                    try { console.log(`[Ammo] ${prevNum} -> ${nextNum} (SET_VARIABLE)`); } catch { }
-                                }
-                            }
-                            return {
-                                ...prev,
-                                [resolvedVarName]: parsed
-                            };
-                        });
-                    }
-                    break;
-                }
-
-                case 'INCREMENT_VARIABLE': {
-                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
-                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
                     // Coerce amount to number (supports numeric strings)
                     const incrementAmount = (() => {
                         const raw = action.params.amount ?? 1;
@@ -1364,2237 +1331,1146 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         });
                     }
                     break;
-                }
+            }
 
                 case 'DECREMENT_VARIABLE': {
-                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
-                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
-                    // Coerce amount to number (supports numeric strings)
-                    const decrementAmount = (() => {
-                        const raw = action.params.amount ?? 1;
-                        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
-                        return Number.isNaN(n) ? 1 : n;
-                    })();
-                    if (resolvedVarName) {
-                        updateGameGlobalVariables(prev => {
-                            const raw = (prev as any)[resolvedVarName];
-                            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
-                            const currentValue = Number.isNaN(curr) ? 0 : curr;
-                            const newValue = currentValue - decrementAmount;
-                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
-                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch { }
-                            }
-                            return {
-                                ...prev,
-                                [resolvedVarName]: newValue
-                            };
-                        });
-                    }
-                    break;
-                }
+    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
+    // Coerce amount to number (supports numeric strings)
+    const decrementAmount = (() => {
+        const raw = action.params.amount ?? 1;
+        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
+        return Number.isNaN(n) ? 1 : n;
+    })();
+    if (resolvedVarName) {
+        updateGameGlobalVariables(prev => {
+            const raw = (prev as any)[resolvedVarName];
+            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
+            const currentValue = Number.isNaN(curr) ? 0 : curr;
+            const newValue = currentValue - decrementAmount;
+            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
+                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch { }
+            }
+            return {
+                ...prev,
+                [resolvedVarName]: newValue
+            };
+        });
+    }
+    break;
+}
+
+                case 'ADD_VARIABLES':
+                case 'SUBTRACT_VARIABLES':
+                case 'MULTIPLY_VARIABLES':
+                case 'DIVIDE_VARIABLES':
+                case 'MODULO_VARIABLES': {
+    const resolveOperandValue = (operandType: string, operandValue: any, operandVariable: string): number => {
+        if (operandType === 'constant') {
+            const val = Number(operandValue ?? 0);
+            return isNaN(val) ? 0 : val;
+        } else {
+            const varName = normalizeVariableName(operandVariable) ?? (operandVariable !== undefined ? `${operandVariable}`.trim() : '');
+            if (!varName) return 0;
+            const raw = gameGlobalVariablesRef.current?.[varName];
+            const val = Number(typeof raw === 'string' ? raw.trim() : raw);
+            return isNaN(val) ? 0 : val;
+        }
+    };
+    const targetVar = action.params.targetVariable;
+    const resolvedTargetVar = normalizeVariableName(targetVar) ?? (targetVar !== undefined ? `${targetVar}`.trim() : '');
+    if (!resolvedTargetVar) break;
+    const operand1Type = action.params.operand1Type || 'constant';
+    const operand2Type = action.params.operand2Type || 'constant';
+    const operand1 = resolveOperandValue(operand1Type, action.params.operand1Value, action.params.operand1Variable);
+    const operand2 = resolveOperandValue(operand2Type, action.params.operand2Value, action.params.operand2Variable);
+    let result = 0;
+    if (action.type === 'ADD_VARIABLES') result = operand1 + operand2;
+    else if (action.type === 'SUBTRACT_VARIABLES') result = operand1 - operand2;
+    else if (action.type === 'MULTIPLY_VARIABLES') result = operand1 * operand2;
+    else if (action.type === 'DIVIDE_VARIABLES') result = operand2 !== 0 ? operand1 / operand2 : 0;
+    else if (action.type === 'MODULO_VARIABLES') result = operand2 !== 0 ? operand1 % operand2 : 0;
+    updateGameGlobalVariables(prev => ({ ...prev, [resolvedTargetVar]: result }));
+    break;
+}
+
+                case 'ASSIGN_VARIABLE': {
+    const targetVar = action.params.targetVariable;
+    const resolvedTargetVar = normalizeVariableName(targetVar) ?? (targetVar !== undefined ? `${targetVar}`.trim() : '');
+    if (!resolvedTargetVar) break;
+    const sourceType = action.params.sourceType || 'constant';
+    let sourceValue = 0;
+    if (sourceType === 'constant') {
+        const val = Number(action.params.sourceValue ?? 0);
+        sourceValue = isNaN(val) ? 0 : val;
+    } else {
+        const sourceVar = action.params.sourceVariable;
+        const resolvedSourceVar = normalizeVariableName(sourceVar) ?? (sourceVar !== undefined ? `${sourceVar}`.trim() : '');
+        if (resolvedSourceVar) {
+            const raw = gameGlobalVariablesRef.current?.[resolvedSourceVar];
+            const val = Number(typeof raw === 'string' ? raw.trim() : raw);
+            sourceValue = isNaN(val) ? 0 : val;
+        }
+    }
+    updateGameGlobalVariables(prev => ({ ...prev, [resolvedTargetVar]: sourceValue }));
+    break;
+}
 
                 case 'SET_COMPONENT_PROPERTY': {
-                    const compId = action.params.componentId || action.params.component || action.params.compId;
-                    const propName = action.params.propertyName || action.params.prop || action.params.name;
-                    const value = action.params.value;
-                    if (compId && propName !== undefined) {
-                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {} as any;
-                        if (!entity.instance.componentOverrides[compId]) entity.instance.componentOverrides[compId] = {} as any;
-                        entity.instance.componentOverrides[compId][propName] = value;
-                    }
-                    break;
-                }
+    const compId = action.params.componentId || action.params.component || action.params.compId;
+    const propName = action.params.propertyName || action.params.prop || action.params.name;
+    const value = action.params.value;
+    if (compId && propName !== undefined) {
+        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {} as any;
+        if (!entity.instance.componentOverrides[compId]) entity.instance.componentOverrides[compId] = {} as any;
+        entity.instance.componentOverrides[compId][propName] = value;
+    }
+    break;
+}
 
                 case 'GOTO_STATE': {
-                    const targetStateName = action.params.stateName || action.params.state;
-                    if (targetStateName && entity.stateMachine) {
-                        // Find state by name in the state machine
-                        const targetState = entity.stateMachine.states.find(
-                            s => s.name === targetStateName || s.id === targetStateName
-                        );
-                        if (targetState) {
-                            changeEntityState(entity, targetState);
-                        }
-                    }
-                    break;
-                }
+    const targetStateName = action.params.stateName || action.params.state;
+    if (targetStateName && entity.stateMachine) {
+        // Find state by name in the state machine
+        const targetState = entity.stateMachine.states.find(
+            s => s.name === targetStateName || s.id === targetStateName
+        );
+        if (targetState) {
+            changeEntityState(entity, targetState);
+        }
+    }
+    break;
+}
 
                 case 'SPAWN_ENTITY': {
-                    const templateId = action.params.templateId || action.params.entityTemplateId;
-                    const isRelative = action.params.isRelative === true;
-                    const matchFacing = action.params.matchFacing === true;
-
-                    let spawnX = 0;
-                    let spawnY = 0;
-
-                    if (isRelative) {
-                        const offsetX = Number(action.params.x || 0);
-                        const offsetY = Number(action.params.y || 0);
-
-                        // Check facing direction for mirroring
-                        const isParentMirrored = entity.isFacingMirrored;
-                        const finalOffsetX = (matchFacing && isParentMirrored) ? -offsetX : offsetX;
-
-                        spawnX = entity.x + finalOffsetX;
-                        spawnY = entity.y + offsetY;
-                    } else {
-                        spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
-                        spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
-                    }
-
-                    const actionLifetimeMs = action.params.lifetimeMs !== undefined ? Number(action.params.lifetimeMs) : undefined;
-
-                    if (!templateId) break;
-
-                    // Find entity template
-                    const template = entityTemplates.find(t => t.id === templateId || t.name === templateId);
-                    if (!template) break;
-
-                    // Find sprite for this entity
-                    let spriteAssetId: string | undefined;
-                    for (const comp of template.components) {
-                        const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
-                        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
-                        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
-                            spriteAssetId = comp.defaultValues[spriteProp.name];
-                            break;
-                        }
-                    }
-
-                    const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
-                    const sprite = spriteAsset?.data as Sprite;
-                    if (!sprite?.frames?.length) break;
-
-                    // Create frame images
-                    const frameImages = sprite.frames.map(frame => {
-                        const img = new Image();
-                        img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
-                        return img;
-                    });
-
-                    // Create mirrored frames if needed
-                    let mirroredFrameImages: HTMLImageElement[] | undefined;
-                    if (['right', 'left'].includes(sprite.facingDirection)) {
-                        mirroredFrameImages = sprite.frames.map(frame => {
-                            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
-                            const img = new Image();
-                            img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
-                            return img;
-                        });
-                    }
-
-                    // Find state machine if entity has one
-                    let stateMachine: StateMachine | undefined;
-                    let currentState: string | undefined;
-                    let initialStateDef: StateMachineState | undefined;
-                    const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
-                    const stateMachineAssetId = smc?.defaultValues?.stateMachineAssetId;
-                    if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
-                        const stateMachineAsset = allAssets.find(a =>
-                            a.id === stateMachineAssetId && a.type === 'statemachine'
-                        );
-                        stateMachine = stateMachineAsset?.data as StateMachine | undefined;
-                        if (stateMachine) {
-                            const startStateId = smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
-                            let initialState = stateMachine.states.find(s => s.id === startStateId);
-                            if (!initialState && startStateId) {
-                                initialState = stateMachine.states.find(s => s.name === startStateId);
-                            }
-                            if (!initialState) {
-                                initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle')
-                                    || stateMachine.states[0];
-                            }
-                            initialStateDef = initialState;
-                            currentState = initialState?.name;
-                        }
-                    }
-
-                    // Create new entity instance
-                    const newInstance: EntityInstance = {
-                        id: `spawned_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        name: template.name,
-                        entityTemplateId: template.id,
-                        position: { x: Math.floor(spawnX / 8), y: Math.floor(spawnY / 8) },
-                        componentOverrides: {}
-                    };
-
-                    const childLink = parseChildLinkConfig(template, newInstance);
-                    const lifetimeMs = resolveLifetimeMs(template, newInstance, actionLifetimeMs);
-                    const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
-
-                    // Create animated entity
-                    const newEntity: AnimatedEntity = {
-                        instance: newInstance,
-                        template,
-                        sprite,
-                        spriteAssetId: spriteAsset?.id,
-                        x: spawnX,
-                        y: spawnY,
-                        vx: 0,
-                        vy: 0,
-                        frameImages,
-                        mirroredFrameImages,
-                        currentFrame: 0,
-                        lastFrameUpdateTime: performance.now(),
-                        stateMachine,
-                        currentState,
-                        isOnGround: false,
-                        spawnTime: performance.now(),
-                        parentEntityId: null,
-                        platformGraceFramesLeft: 0,
-                        childLink,
-                        lifetimeMs,
-                        expiresAt,
-                        isFacingMirrored: matchFacing ? entity.isFacingMirrored : false,
-                        desiredFacingDirection: matchFacing ? entity.desiredFacingDirection : undefined
-                    };
-
-                    if (stateMachine && initialStateDef) {
-                        changeEntityState(newEntity, initialStateDef, { runExitActions: false });
-                    }
-
-                    // Add to entities list
-                    entitiesRef.current.push(newEntity);
-                    break;
-                }
-
-                case 'WAIT': {
-                    const durationMs = Number(action.params.duration || action.params.time || 1000);
-                    // Set wait timer - this will block state machine transitions until time expires
-                    entity.waitUntilTime = performance.now() + durationMs;
-                    break;
-                }
-
-                case 'SET_ANIMATION_SPEED': {
-                    const speedMs = Number(action.params.speedMs || 200);
-                    if (entity.sprite) {
-                        entity.sprite.animationSpeedMs = speedMs;
-                    }
-                    break;
-                }
-
-                case 'TOGGLE_ANIMATION': {
-                    const mode = action.params.mode || 'toggle'; // 'start', 'stop', 'toggle'
-
-                    // Get the current animation state from comp_animation component
-                    const animComp = entity.template.components.find(c => c.definitionId === 'comp_animation');
-                    if (animComp) {
-                        // Initialize componentOverrides if needed
-                        if (!entity.instance.componentOverrides) {
-                            entity.instance.componentOverrides = {};
-                        }
-                        if (!entity.instance.componentOverrides['comp_animation']) {
-                            entity.instance.componentOverrides['comp_animation'] = {};
-                        }
-
-                        // Get current playing state
-                        const currentPlaying = entity.instance.componentOverrides['comp_animation'].isPlaying
-                            ?? animComp.defaultValues?.isPlaying
-                            ?? true;
-
-                        // Determine new state based on mode
-                        let newPlaying = currentPlaying;
-                        if (mode === 'start') {
-                            newPlaying = true;
-                        } else if (mode === 'stop') {
-                            newPlaying = false;
-                        } else { // toggle
-                            newPlaying = !currentPlaying;
-                        }
-
-                        // Update the override
-                        entity.instance.componentOverrides['comp_animation'].isPlaying = newPlaying;
-
-                        // Store on entity for runtime use
-                        (entity as any).isAnimationPlaying = newPlaying;
-                    }
-                    break;
-                }
-
-                case 'PLAY_SOUND': {
-                    const soundId = action.params.soundId || action.params.sound || action.params.soundAssetId;
-                    if (soundId) {
-                        // Find sound asset
-                        const soundAsset = allAssets.find(a =>
-                            a.type === 'sound' && (a.id === soundId || a.name === soundId)
-                        );
-
-                        if (soundAsset) {
-                            const soundData = soundAsset.data as any; // PSGSoundData
-
-                            // Create Web Audio context if not exists
-                            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-
-                            // PSG constants
-                            const PSG_INPUT_CLOCK = 3579545 / 2; // ~1.79 MHz
-                            const REFERENCE_BPM = 120;
-
-                            const calculateFrequencyFromTonePeriod = (tonePeriod: number): number => {
-                                if (tonePeriod === 0 || tonePeriod > 4095) return 0;
-                                return PSG_INPUT_CLOCK / (16 * tonePeriod);
-                            };
-
-                            const calculateFrequencyFromNoisePeriod = (noisePeriod: number): number => {
-                                const effectiveNP = (noisePeriod === 0) ? 1 : noisePeriod & 0x1F;
-                                return PSG_INPUT_CLOCK / (32 * effectiveNP);
-                            };
-
-                            // Master gain
-                            const masterGain = audioCtx.createGain();
-                            masterGain.gain.value = soundData.masterVolume || 1.0;
-                            masterGain.connect(audioCtx.destination);
-
-                            // Create global noise source
-                            const noiseFilterNode = audioCtx.createBiquadFilter();
-                            noiseFilterNode.type = 'bandpass';
-                            noiseFilterNode.Q.value = 1.0;
-                            const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod || 16);
-                            const maxFilterFreq = audioCtx.sampleRate / 2;
-                            const frequency = Math.min(Math.max(20, noiseFreq), maxFilterFreq);
-                            if (isFinite(frequency)) {
-                                noiseFilterNode.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-                            }
-
-                            const bufferSize = audioCtx.sampleRate * 0.5;
-                            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-                            const output = buffer.getChannelData(0);
-                            for (let i = 0; i < bufferSize; i++) {
-                                output[i] = Math.random() * 2 - 1;
-                            }
-                            const globalNoiseSource = audioCtx.createBufferSource();
-                            globalNoiseSource.buffer = buffer;
-                            globalNoiseSource.loop = true;
-                            try {
-                                globalNoiseSource.start();
-                                globalNoiseSource.connect(noiseFilterNode);
-                            } catch (e) {
-                                console.error("Failed to start global noise source:", e);
-                            }
-
-                            // Function to play a single step for a channel
-                            const playStepForChannel = (channel: any, stepIndex: number, startTime: number): number => {
-                                if (stepIndex >= channel.steps.length) {
-                                    if (channel.loop && channel.steps.length > 0) {
-                                        return playStepForChannel(channel, 0, startTime);
-                                    }
-                                    return startTime;
-                                }
-
-                                const step = channel.steps[stepIndex];
-
-                                // Create channel gain node
-                                const channelGain = audioCtx.createGain();
-                                channelGain.gain.value = step.useEnvelope ? 0 : step.volume / 15;
-                                channelGain.connect(masterGain);
-
-                                // Tone oscillator
-                                if (step.toneEnabled) {
-                                    const osc = audioCtx.createOscillator();
-                                    osc.type = 'square';
-                                    const freq = calculateFrequencyFromTonePeriod(step.tonePeriod || 257);
-                                    if (freq > 0 && isFinite(freq)) {
-                                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                                        osc.connect(channelGain);
-                                        try {
-                                            osc.start(startTime);
-                                        } catch (e) {
-                                            console.warn("Error starting oscillator", e);
-                                        }
-                                    }
-                                }
-
-                                // Noise
-                                if (step.noiseEnabled && noiseFilterNode) {
-                                    noiseFilterNode.connect(channelGain);
-                                }
-
-                                // Calculate effective duration (with tempo scaling)
-                                const tempo = soundData.tempoBPM > 0 ? soundData.tempoBPM : REFERENCE_BPM;
-                                const durationScaleFactor = REFERENCE_BPM / tempo;
-                                const effectiveDurationMs = step.durationMs * durationScaleFactor;
-                                const effectiveDurationSec = effectiveDurationMs / 1000;
-
-                                // Apply envelope if enabled
-                                if (step.useEnvelope) {
-                                    const now = startTime;
-                                    const peakVolume = Math.max(0, Math.min(1, (step.volume || 0) / 15));
-
-                                    channelGain.gain.cancelScheduledValues(now);
-                                    if (isFinite(peakVolume)) {
-                                        channelGain.gain.setValueAtTime(0, now);
-                                    }
-
-                                    // Use step-specific envelope shape if defined, otherwise use global
-                                    const shape = step.envelopeShape ?? soundData.envelopeShape;
-                                    const isAttack = (shape & 0b0100) !== 0;
-                                    const isAlternate = (shape & 0b0010) !== 0;
-
-                                    if (isAttack) {
-                                        channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
-                                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec);
-                                    } else { // Fall
-                                        if (isFinite(peakVolume)) {
-                                            channelGain.gain.setValueAtTime(peakVolume, now);
-                                        }
-                                        channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
-                                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec);
-                                    }
-                                }
-
-                                // Schedule disconnect after step duration
-                                const nextStartTime = startTime + effectiveDurationSec;
-                                setTimeout(() => {
-                                    if (step.noiseEnabled && noiseFilterNode) {
-                                        try {
-                                            noiseFilterNode.disconnect(channelGain);
-                                        } catch (e) { }
-                                    }
-                                    try {
-                                        channelGain.disconnect();
-                                    } catch (e) { }
-                                }, effectiveDurationMs);
-
-                                // Play next step recursively
-                                return playStepForChannel(channel, stepIndex + 1, nextStartTime);
-                            };
-
-                            // Play all channels starting from step 0
-                            soundData.channels?.forEach((channel: any) => {
-                                if (channel.steps && channel.steps.length > 0) {
-                                    playStepForChannel(channel, 0, audioCtx.currentTime);
-                                }
-                            });
-
-                            console.log(`[PLAY_SOUND] Playing sound: ${soundAsset.name}`);
-                        }
-                    }
-                    break;
-                }
-
-                case 'PLAY_MUSIC': {
-                    const trackId = action.params.trackId;
-                    const loop = action.params.loop ?? true;
-
-                    if (trackId) {
-                        // Find track asset
-                        const trackAsset = allAssets.find(a =>
-                            a.type === 'track' && (a.id === trackId || a.name === trackId)
-                        );
-
-                        if (trackAsset) {
-                            const trackData = trackAsset.data as any; // TrackerSongData
-
-                            // Stop current music if playing
-                            if (musicSynthesizerRef.current) {
-                                musicSynthesizerRef.current.stopAllNotes();
-                                if (musicPlaybackIntervalRef.current) {
-                                    clearInterval(musicPlaybackIntervalRef.current);
-                                    musicPlaybackIntervalRef.current = null;
-                                }
-                            }
-
-                            // Create new synthesizer
-                            const synth = new AYSynthesizer(trackData.globalVolume / 15);
-                            synth.setSongData(trackData);
-                            musicSynthesizerRef.current = synth;
-                            currentMusicTrackIdRef.current = trackId;
-                            musicIsMutedRef.current = false;
-
-                            // Start playback
-                            synth.ensureAudioContext().then(() => {
-                                let currentPatternIndexInOrder = 0;
-                                let currentRow = 0;
-
-                                const playNextRow = () => {
-                                    if (musicIsMutedRef.current || !musicSynthesizerRef.current) return;
-
-                                    const orderIndex = currentPatternIndexInOrder;
-                                    if (orderIndex >= trackData.order.length) {
-                                        if (loop) {
-                                            currentPatternIndexInOrder = trackData.restartPosition || 0;
-                                            currentRow = 0;
-                                            return;
-                                        } else {
-                                            // Stop playback
-                                            if (musicPlaybackIntervalRef.current) {
-                                                clearInterval(musicPlaybackIntervalRef.current);
-                                                musicPlaybackIntervalRef.current = null;
-                                            }
-                                            return;
-                                        }
-                                    }
-
-                                    const patternIndex = trackData.order[orderIndex];
-                                    const pattern = trackData.patterns[patternIndex];
-                                    if (!pattern) return;
-
-                                    const rowData = pattern.rows[currentRow];
-                                    if (rowData) {
-                                        // Play notes for each channel
-                                        ['A', 'B', 'C'].forEach((chId, chIndex) => {
-                                            const cell = rowData[chId as 'A' | 'B' | 'C'];
-                                            synth.playNote(
-                                                chIndex as 0 | 1 | 2,
-                                                cell.note,
-                                                cell.instrument,
-                                                cell.ornament,
-                                                cell.volume
-                                            );
-                                        });
-                                    }
-
-                                    currentRow++;
-                                    if (currentRow >= pattern.numRows) {
-                                        currentRow = 0;
-                                        currentPatternIndexInOrder++;
-                                    }
-                                };
-
-                                // Calculate row duration
-                                const rowDurationMs = (2500 * trackData.speed) / trackData.bpm;
-
-                                musicPlaybackIntervalRef.current = window.setInterval(playNextRow, Math.max(20, rowDurationMs));
-                                playNextRow(); // Play first row immediately
-                            });
-
-                            console.log(`[PLAY_MUSIC] Playing track: ${trackAsset.name}`);
-                        }
-                    }
-                    break;
-                }
-
-                case 'MUTE_MUSIC': {
-                    if (musicSynthesizerRef.current) {
-                        musicSynthesizerRef.current.stopAllNotes();
-                        musicIsMutedRef.current = true;
-                        console.log(`[MUTE_MUSIC] Music muted`);
-                    }
-                    break;
-                }
-
-                case 'STOP_MUSIC': {
-                    if (musicSynthesizerRef.current) {
-                        musicSynthesizerRef.current.stopAllNotes();
-                        if (musicPlaybackIntervalRef.current) {
-                            clearInterval(musicPlaybackIntervalRef.current);
-                            musicPlaybackIntervalRef.current = null;
-                        }
-                        musicSynthesizerRef.current = null;
-                        currentMusicTrackIdRef.current = null;
-                        musicIsMutedRef.current = false;
-                        console.log(`[STOP_MUSIC] Music stopped`);
-                    }
-                    break;
-                }
-
-                case 'CHANGE_GAME_FLOW_NODE':
-                    let targetNodeId = action.params.nodeId || action.params.targetNodeId;
-
-                    // Special case: "START" navigates to the Start node
-                    if (targetNodeId === 'START') {
-                        const startNode = nodes.find(n => n.type === 'Start');
-                        if (startNode) {
-                            targetNodeId = startNode.id;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    if (targetNodeId) {
-                        // Store the target node for deferred navigation (after frame completes)
-                        (entity as any).pendingNodeTransition = targetNodeId;
-                    }
-                    break;
-
-                case 'DECREASE_LIVES':
-                    const decreaseAmount = Number(action.params.amount || 1);
-                    // Find comp_health
-                    const healthCompForDecrease = entity.template.components.find(c => c.definitionId === 'comp_health');
-                    if (healthCompForDecrease) {
-                        const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
-                        const currentLives = Number(healthOverride.current || healthCompForDecrease.defaultValues?.current || 3);
-                        const newLives = Math.max(0, currentLives - decreaseAmount);
-
-                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
-                        if (!entity.instance.componentOverrides['comp_health']) {
-                            entity.instance.componentOverrides['comp_health'] = {};
-                        }
-                        entity.instance.componentOverrides['comp_health'].current = newLives;
-
-                    }
-                    break;
-
-                case 'INCREASE_LIVES':
-                    const increaseAmount = Number(action.params.amount || 1);
-                    const healthCompForIncrease = entity.template.components.find(c => c.definitionId === 'comp_health');
-                    if (healthCompForIncrease) {
-                        const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
-                        const currentLives = Number(healthOverride.current || healthCompForIncrease.defaultValues?.current || 3);
-                        const maxLives = Number(healthOverride.max || healthCompForIncrease.defaultValues?.max || 3);
-                        const newLives = Math.min(maxLives, currentLives + increaseAmount);
-
-                        if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
-                        if (!entity.instance.componentOverrides['comp_health']) {
-                            entity.instance.componentOverrides['comp_health'] = {};
-                        }
-                        entity.instance.componentOverrides['comp_health'].current = newLives;
-
-                    }
-                    break;
-
-                case 'RESPAWN_PLAYER': {
-                    let spawnX: number;
-                    let spawnY: number;
-                    let targetScreenId: string | undefined;
-
-                    if (gameGlobalVariables.playerCheckpointX !== undefined && gameGlobalVariables.playerCheckpointY !== undefined && gameGlobalVariables.playerCheckpointScreen) {
-                        spawnX = Number(gameGlobalVariables.playerCheckpointX);
-                        spawnY = Number(gameGlobalVariables.playerCheckpointY);
-                        targetScreenId = gameGlobalVariables.playerCheckpointScreen;
-                    } else if (action.params.x !== undefined || action.params.y !== undefined) {
-                        spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
-                        spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
-                    } else {
-                        spawnX = entity.instance.position.x * 8;
-                        spawnY = entity.instance.position.y * 8;
-                    }
-
-                    const currentScreenMap = currentScreenMapRef.current;
-                    const currentWorldMapGraph = currentWorldMapGraphRef.current;
-
-                    // If the checkpoint belongs to another screen, switch to it
-                    if (targetScreenId && currentScreenMap?.id !== targetScreenId) {
-                        const setPlayerEntryPoint = setPlayerEntryPointRef.current;
-                        const handleScreenTransition = handleScreenTransitionRef.current;
-
-                        setPlayerEntryPoint({ x: spawnX, y: spawnY });
-
-                        if (currentWorldMapGraph) {
-                            const targetScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === targetScreenId);
-                            if (targetScreenNode) {
-                                handleScreenTransition(targetScreenNode.id);
-                                // Leave entity.x/y untouched here; useEffect will update them after transition
-                                return;
-                            }
-                        }
-                    }
-
-                    // Already on the right screen, so respawn locally
-                    entity.x = spawnX;
-                    entity.y = spawnY;
-                    entity.vx = 0;
-                    entity.vy = 0;
-                    break;
-                }
-
-                case 'BREAK_TILE':
-                case 'REPLACE_TILE': {
-                    const params = action.params;
-                    const dir = params.direction || 'up';
-
-                    // Compute the tile position based on player's facing direction
-                    const offsets: Record<string, { x: number; y: number }> = {
-                        up: { x: 0, y: -1 },
-                        down: { x: 0, y: 1 },
-                        left: { x: -1, y: 0 },
-                        right: { x: 1, y: 0 },
-                        // Diagonales
-                        'up-right': { x: 1, y: -1 },
-                        'up-left': { x: -1, y: -1 },
-                        'down-right': { x: 1, y: 1 },
-                        'down-left': { x: -1, y: 1 }
-                    };
-
-                    // Player position expressed in tiles (8x8)
-                    const playerTileX = Math.floor((entity.x + entity.sprite.size.width / 2) / 8);
-                    const playerTileY = Math.floor((entity.y + entity.sprite.size.height / 2) / 8);
-
-                    // Target tile position
-                    const targetTileX = playerTileX + offsets[dir].x;
-                    const targetTileY = playerTileY + offsets[dir].y;
-
-                    // Ensure the target tile exists (using the ref for synchronous access)
-                    const targetTile = runtimeCollisionLayerRef.current[targetTileY]?.[targetTileX];
-
-                    if (targetTile?.tileId) {
-                        const tileAsset = allAssets.find(a => a.id === targetTile.tileId && a.type === 'tile');
-                        const tileData = tileAsset?.data as Tile | undefined;
-
-                        if (action.type === 'BREAK_TILE') {
-                            // Solo romper si el tile es breakable
-                            if (tileData?.logicalProperties?.isBreakable) {
-                                modifyTileInLayer(targetTileX, targetTileY, null);
-                            } else {
-                            }
-                        } else if (action.type === 'REPLACE_TILE') {
-                            // Reemplazar con nuevo tile
-                            const newTileId = params.replacementTileId || null;
-                            modifyTileInLayer(targetTileX, targetTileY, newTileId);
-                        }
-                    } else if (!targetTile?.tileId && action.type === 'REPLACE_TILE') {
-                        // Allow placing a tile in empty space
-                        const newTileId = params.replacementTileId || null;
-                        if (newTileId) {
-                            modifyTileInLayer(targetTileX, targetTileY, newTileId);
-                        }
-                    } else {
-                    }
-                    break;
-                }
-
-                default:
-                    break;
-            }
-        }
-    };
-
-    const applyStatePropertiesFromState = (entity: AnimatedEntity, state?: StateMachineState) => {
-        if (!state?.properties) return;
-        if (state.properties.velocityX !== undefined) {
-            entity.vx = state.properties.velocityX;
-        }
-        if (state.properties.velocityY !== undefined) {
-            entity.vy = state.properties.velocityY;
-        }
-    };
-
-    function changeEntityState(
-        entity: AnimatedEntity,
-        nextState: StateMachineState,
-        options: StateTransitionOptions = {}
-    ): { stateChanged: boolean } {
-        const previousState =
-            options.previousState ??
-            entity.stateMachine?.states.find(s => s.name === entity.currentState);
-        const stateChanged = !previousState || previousState.id !== nextState.id;
-
-        if (options.runExitActions !== false && stateChanged && previousState?.onExit?.length) {
-            executeStateActions(entity, previousState.onExit);
-        }
-
-        entity.currentState = nextState.name;
-        applyStatePropertiesFromState(entity, nextState);
-
-        const shouldRunEnter =
-            options.runEnterActions === false
-                ? false
-                : ((stateChanged || options.forceEnter) && !!nextState.onEnter?.length);
-
-        if (shouldRunEnter && nextState.onEnter) {
-            executeStateActions(entity, nextState.onEnter);
-        }
-
-        return { stateChanged };
+    const templateId = action.params.templateId || action.params.entityTemplateId;
+    const isRelative = action.params.isRelative === true;
+    const matchFacing = action.params.matchFacing === true;
+
+    let spawnX = 0;
+    let spawnY = 0;
+
+    if (isRelative) {
+        const offsetX = Number(action.params.x || 0);
+        const offsetY = Number(action.params.y || 0);
+
+        // Check facing direction for mirroring
+        const isParentMirrored = entity.isFacingMirrored;
+        const finalOffsetX = (matchFacing && isParentMirrored) ? -offsetX : offsetX;
+
+        spawnX = entity.x + finalOffsetX;
+        spawnY = entity.y + offsetY;
+    } else {
+        spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
+        spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
     }
 
-    // Procesar condiciones y verificar transiciones
-    const processEventTransitions = useCallback((entity: AnimatedEntity) => {
-        if (!entity.stateMachine || !entity.currentState) return;
+    const actionLifetimeMs = action.params.lifetimeMs !== undefined ? Number(action.params.lifetimeMs) : undefined;
 
-        // Check if entity is waiting (WAIT action blocks all state transitions)
-        if (entity.waitUntilTime !== undefined) {
-            const now = performance.now();
-            const entityLookup = new Map<string, AnimatedEntity>();
-            for (const entity of entitiesRef.current) {
-                entityLookup.set(entity.instance.id, entity);
+    if (!templateId) break;
+
+    // Find entity template
+    const template = entityTemplates.find(t => t.id === templateId || t.name === templateId);
+    if (!template) break;
+
+    // Find sprite for this entity
+    let spriteAssetId: string | undefined;
+    for (const comp of template.components) {
+        const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+            spriteAssetId = comp.defaultValues[spriteProp.name];
+            break;
+        }
+    }
+
+    const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+    const sprite = spriteAsset?.data as Sprite;
+    if (!sprite?.frames?.length) break;
+
+    // Create frame images
+    const frameImages = sprite.frames.map(frame => {
+        const img = new Image();
+        img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
+        return img;
+    });
+
+    // Create mirrored frames if needed
+    let mirroredFrameImages: HTMLImageElement[] | undefined;
+    if (['right', 'left'].includes(sprite.facingDirection)) {
+        mirroredFrameImages = sprite.frames.map(frame => {
+            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+            const img = new Image();
+            img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+            return img;
+        });
+    }
+
+    // Find state machine if entity has one
+    let stateMachine: StateMachine | undefined;
+    let currentState: string | undefined;
+    let initialStateDef: StateMachineState | undefined;
+    const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+    const stateMachineAssetId = smc?.defaultValues?.stateMachineAssetId;
+    if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
+        const stateMachineAsset = allAssets.find(a =>
+            a.id === stateMachineAssetId && a.type === 'statemachine'
+        );
+        stateMachine = stateMachineAsset?.data as StateMachine | undefined;
+        if (stateMachine) {
+            const startStateId = smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
+            let initialState = stateMachine.states.find(s => s.id === startStateId);
+            if (!initialState && startStateId) {
+                initialState = stateMachine.states.find(s => s.name === startStateId);
             }
-            resolveChildLinkParents(entitiesRef.current, entityLookup);
-            if (now < entity.waitUntilTime) {
-                // Still waiting, block all transitions
-                return;
-            } else {
-                // Wait completed, clear the timer
-                entity.waitUntilTime = undefined;
+            if (!initialState) {
+                initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle')
+                    || stateMachine.states[0];
             }
+            initialStateDef = initialState;
+            currentState = initialState?.name;
+        }
+    }
+
+    // Create new entity instance
+    const newInstance: EntityInstance = {
+        id: `spawned_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: template.name,
+        entityTemplateId: template.id,
+        position: { x: Math.floor(spawnX / 8), y: Math.floor(spawnY / 8) },
+        componentOverrides: {}
+    };
+
+    const childLink = parseChildLinkConfig(template, newInstance);
+    const lifetimeMs = resolveLifetimeMs(template, newInstance, actionLifetimeMs);
+    const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
+
+    // Create animated entity
+    const newEntity: AnimatedEntity = {
+        instance: newInstance,
+        template,
+        sprite,
+        spriteAssetId: spriteAsset?.id,
+        x: spawnX,
+        y: spawnY,
+        vx: 0,
+        vy: 0,
+        frameImages,
+        mirroredFrameImages,
+        currentFrame: 0,
+        lastFrameUpdateTime: performance.now(),
+        stateMachine,
+        currentState,
+        isOnGround: false,
+        spawnTime: performance.now(),
+        parentEntityId: null,
+        platformGraceFramesLeft: 0,
+        childLink,
+        lifetimeMs,
+        expiresAt,
+        isFacingMirrored: matchFacing ? entity.isFacingMirrored : false,
+        desiredFacingDirection: matchFacing ? entity.desiredFacingDirection : undefined
+    };
+
+    if (stateMachine && initialStateDef) {
+        changeEntityState(newEntity, initialStateDef, { runExitActions: false });
+    }
+
+    // Add to entities list
+    entitiesRef.current.push(newEntity);
+    break;
+}
+
+                case 'WAIT': {
+    const durationMs = Number(action.params.duration || action.params.time || 1000);
+    // Set wait timer - this will block state machine transitions until time expires
+    entity.waitUntilTime = performance.now() + durationMs;
+    break;
+}
+
+                case 'SET_ANIMATION_SPEED': {
+    const speedMs = Number(action.params.speedMs || 200);
+    if (entity.sprite) {
+        entity.sprite.animationSpeedMs = speedMs;
+    }
+    break;
+}
+
+                case 'TOGGLE_ANIMATION': {
+    const mode = action.params.mode || 'toggle'; // 'start', 'stop', 'toggle'
+
+    // Get the current animation state from comp_animation component
+    const animComp = entity.template.components.find(c => c.definitionId === 'comp_animation');
+    if (animComp) {
+        // Initialize componentOverrides if needed
+        if (!entity.instance.componentOverrides) {
+            entity.instance.componentOverrides = {};
+        }
+        if (!entity.instance.componentOverrides['comp_animation']) {
+            entity.instance.componentOverrides['comp_animation'] = {};
         }
 
-        const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
-        if (!currentStateDef) return;
+        // Get current playing state
+        const currentPlaying = entity.instance.componentOverrides['comp_animation'].isPlaying
+            ?? animComp.defaultValues?.isPlaying
+            ?? true;
 
-        // Look for transitions whose conditions are satisfied
-        for (const transition of entity.stateMachine.transitions) {
-            if (transition.fromStateId !== currentStateDef.id) continue;
+        // Determine new state based on mode
+        let newPlaying = currentPlaying;
+        if (mode === 'start') {
+            newPlaying = true;
+        } else if (mode === 'stop') {
+            newPlaying = false;
+        } else { // toggle
+            newPlaying = !currentPlaying;
+        }
 
-            const conditionSatisfied = transition.conditions ? evaluateCondition(transition.conditions, entity) : true;
-            if (conditionSatisfied && evaluateGuard(transition.guard)) {
-                const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
-                if (nextState) {
-                    const { stateChanged } = changeEntityState(entity, nextState, {
-                        previousState: currentStateDef,
-                        runEnterActions: false
-                    });
+        // Update the override
+        entity.instance.componentOverrides['comp_animation'].isPlaying = newPlaying;
 
-                    if (transition.actions) {
-                        executeStateActions(entity, transition.actions);
-                    }
+        // Store on entity for runtime use
+        (entity as any).isAnimationPlaying = newPlaying;
+    }
+    break;
+}
 
-                    if (stateChanged) {
-                        executeStateActions(entity, nextState.onEnter);
-                    }
+                case 'PLAY_SOUND': {
+    const soundId = action.params.soundId || action.params.sound || action.params.soundAssetId;
+    if (soundId) {
+        // Find sound asset
+        const soundAsset = allAssets.find(a =>
+            a.type === 'sound' && (a.id === soundId || a.name === soundId)
+        );
 
-                    // Clear all pending events after processing the transition
-                    const entityEvents = pendingEvents.current.get(entity.instance.id);
-                    if (entityEvents) {
-                        entityEvents.clear();
-                    }
-                    break; // Only allow a single transition per frame
-                }
+        if (soundAsset) {
+            const soundData = soundAsset.data as any; // PSGSoundData
+
+            // Create Web Audio context if not exists
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+
+            // PSG constants
+            const PSG_INPUT_CLOCK = 3579545 / 2; // ~1.79 MHz
+            const REFERENCE_BPM = 120;
+
+            const calculateFrequencyFromTonePeriod = (tonePeriod: number): number => {
+                if (tonePeriod === 0 || tonePeriod > 4095) return 0;
+                return PSG_INPUT_CLOCK / (16 * tonePeriod);
+            };
+
+            const calculateFrequencyFromNoisePeriod = (noisePeriod: number): number => {
+                const effectiveNP = (noisePeriod === 0) ? 1 : noisePeriod & 0x1F;
+                return PSG_INPUT_CLOCK / (32 * effectiveNP);
+            };
+
+            // Master gain
+            const masterGain = audioCtx.createGain();
+            masterGain.gain.value = soundData.masterVolume || 1.0;
+            masterGain.connect(audioCtx.destination);
+
+            // Create global noise source
+            const noiseFilterNode = audioCtx.createBiquadFilter();
+            noiseFilterNode.type = 'bandpass';
+            noiseFilterNode.Q.value = 1.0;
+            const noiseFreq = calculateFrequencyFromNoisePeriod(soundData.noisePeriod || 16);
+            const maxFilterFreq = audioCtx.sampleRate / 2;
+            const frequency = Math.min(Math.max(20, noiseFreq), maxFilterFreq);
+            if (isFinite(frequency)) {
+                noiseFilterNode.frequency.setValueAtTime(frequency, audioCtx.currentTime);
             }
-        }
-    }, [evaluateCondition, changeEntityState, executeStateActions, evaluateGuard]);
 
-    const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
-        const entity = entitiesRef.current.find(e => e.instance.id === entityId);
-        if (!entity) {
-            return;
-        }
-        if (!entity.stateMachine) {
-            // Input for non-statemachine entities is now handled in the animate loop.
-            return;
-        }
-        if (!entity.currentState) {
-            return;
-        }
-        const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
-        if (!currentStateDef) {
-            return;
-        }
-        for (const transition of entity.stateMachine.transitions) {
-            if (transition.fromStateId !== currentStateDef.id) continue;
-            const condition = transition.conditions;
-            if (!condition) continue;
-            let conditionMet = false;
-            if (isKeyDown && condition.type === 'KEY_PRESSED' && condition.params?.key === pressedKey) {
-                conditionMet = true;
-            } else if (!isKeyDown && condition.type === 'KEY_RELEASED' && condition.params?.key === pressedKey) {
-                conditionMet = true;
+            const bufferSize = audioCtx.sampleRate * 0.5;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
             }
-            if (conditionMet) {
-                const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
-                if (nextState) {
-                    const { stateChanged } = changeEntityState(entity, nextState, {
-                        previousState: currentStateDef,
-                        runEnterActions: false
-                    });
-                    if (transition.actions) {
-                        executeStateActions(entity, transition.actions);
-                    }
-                    if (stateChanged) {
-                        executeStateActions(entity, nextState.onEnter);
-                    }
-                    return;
-                }
-            }
-        }
-    }, []);
-
-    useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden';
-            modalRef.current?.focus();
-            const startNode = graphData.nodes.find(n => n.type === 'Start');
-            if (startNode) setCurrentNodeId(startNode.id);
-            setNavigationStack([]);
-            setSelectedOptionIndex(0);
-            setCurrentScreenMap(null);
-            setCurrentWorldMapGraph(null);
-            setGameFlowStack([]);
-            setCurrentNestedGraphData(null);
-            setCurrentExecutingGameFlowName(gameFlowAssetName);
-            heroRef.current = null;
-            pressedKeys.current.clear();
-            jumpKeyProcessed.current = false;
-
-            // Reset transient session state to avoid stale values between plays
-            // - Clear collected item registries
-            try { boxPickedUpRegistry.current.clear(); } catch { }
-            try { collectedItemsRegistry.current.clear(); } catch { }
-            try { revealedSecretTiles.current.clear(); } catch { }
-            // - Reset global variables (will be re-initialized by Globals node if present)
-            updateGameGlobalVariables(() => ({}));
-            // - Reset internal refs related to globals and timers
-            gameGlobalVariablesRef.current = {};
-            lastScreenTransitionTimeRef.current = 0;
-            // - Ensure music is fully stopped on fresh play
+            const globalNoiseSource = audioCtx.createBufferSource();
+            globalNoiseSource.buffer = buffer;
+            globalNoiseSource.loop = true;
             try {
-                if (musicSynthesizerRef.current) {
-                    musicSynthesizerRef.current.stopAllNotes();
+                globalNoiseSource.start();
+                globalNoiseSource.connect(noiseFilterNode);
+            } catch (e) {
+                console.error("Failed to start global noise source:", e);
+            }
+
+            // Function to play a single step for a channel
+            const playStepForChannel = (channel: any, stepIndex: number, startTime: number): number => {
+                if (stepIndex >= channel.steps.length) {
+                    if (channel.loop && channel.steps.length > 0) {
+                        return playStepForChannel(channel, 0, startTime);
+                    }
+                    return startTime;
                 }
+
+                const step = channel.steps[stepIndex];
+
+                // Create channel gain node
+                const channelGain = audioCtx.createGain();
+                channelGain.gain.value = step.useEnvelope ? 0 : step.volume / 15;
+                channelGain.connect(masterGain);
+
+                // Tone oscillator
+                if (step.toneEnabled) {
+                    const osc = audioCtx.createOscillator();
+                    osc.type = 'square';
+                    const freq = calculateFrequencyFromTonePeriod(step.tonePeriod || 257);
+                    if (freq > 0 && isFinite(freq)) {
+                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                        osc.connect(channelGain);
+                        try {
+                            osc.start(startTime);
+                        } catch (e) {
+                            console.warn("Error starting oscillator", e);
+                        }
+                    }
+                }
+
+                // Noise
+                if (step.noiseEnabled && noiseFilterNode) {
+                    noiseFilterNode.connect(channelGain);
+                }
+
+                // Calculate effective duration (with tempo scaling)
+                const tempo = soundData.tempoBPM > 0 ? soundData.tempoBPM : REFERENCE_BPM;
+                const durationScaleFactor = REFERENCE_BPM / tempo;
+                const effectiveDurationMs = step.durationMs * durationScaleFactor;
+                const effectiveDurationSec = effectiveDurationMs / 1000;
+
+                // Apply envelope if enabled
+                if (step.useEnvelope) {
+                    const now = startTime;
+                    const peakVolume = Math.max(0, Math.min(1, (step.volume || 0) / 15));
+
+                    channelGain.gain.cancelScheduledValues(now);
+                    if (isFinite(peakVolume)) {
+                        channelGain.gain.setValueAtTime(0, now);
+                    }
+
+                    // Use step-specific envelope shape if defined, otherwise use global
+                    const shape = step.envelopeShape ?? soundData.envelopeShape;
+                    const isAttack = (shape & 0b0100) !== 0;
+                    const isAlternate = (shape & 0b0010) !== 0;
+
+                    if (isAttack) {
+                        channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
+                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec);
+                    } else { // Fall
+                        if (isFinite(peakVolume)) {
+                            channelGain.gain.setValueAtTime(peakVolume, now);
+                        }
+                        channelGain.gain.linearRampToValueAtTime(0, now + effectiveDurationSec * (isAlternate ? 0.5 : 1));
+                        if (isAlternate) channelGain.gain.linearRampToValueAtTime(peakVolume, now + effectiveDurationSec);
+                    }
+                }
+
+                // Schedule disconnect after step duration
+                const nextStartTime = startTime + effectiveDurationSec;
+                setTimeout(() => {
+                    if (step.noiseEnabled && noiseFilterNode) {
+                        try {
+                            noiseFilterNode.disconnect(channelGain);
+                        } catch (e) { }
+                    }
+                    try {
+                        channelGain.disconnect();
+                    } catch (e) { }
+                }, effectiveDurationMs);
+
+                // Play next step recursively
+                return playStepForChannel(channel, stepIndex + 1, nextStartTime);
+            };
+
+            // Play all channels starting from step 0
+            soundData.channels?.forEach((channel: any) => {
+                if (channel.steps && channel.steps.length > 0) {
+                    playStepForChannel(channel, 0, audioCtx.currentTime);
+                }
+            });
+
+            console.log(`[PLAY_SOUND] Playing sound: ${soundAsset.name}`);
+        }
+    }
+    break;
+}
+
+                case 'PLAY_MUSIC': {
+    const trackId = action.params.trackId;
+    const loop = action.params.loop ?? true;
+
+    if (trackId) {
+        // Find track asset
+        const trackAsset = allAssets.find(a =>
+            a.type === 'track' && (a.id === trackId || a.name === trackId)
+        );
+
+        if (trackAsset) {
+            const trackData = trackAsset.data as any; // TrackerSongData
+
+            // Stop current music if playing
+            if (musicSynthesizerRef.current) {
+                musicSynthesizerRef.current.stopAllNotes();
                 if (musicPlaybackIntervalRef.current) {
                     clearInterval(musicPlaybackIntervalRef.current);
                     musicPlaybackIntervalRef.current = null;
                 }
-                musicSynthesizerRef.current = null;
-                currentMusicTrackIdRef.current = null;
-                musicIsMutedRef.current = false;
-            } catch { }
-            // - Reset HUD version so overlays refresh deterministically
-            try { setHudVersion(0); } catch { }
-        } else {
-            document.body.style.overflow = '';
-            document.body.style.position = '';
-            document.body.style.width = '';
-            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-            setTimeout(() => {
-                const mainContainer = document.querySelector('.flex-grow.flex.overflow-hidden');
-                if (mainContainer instanceof HTMLElement) {
-                    mainContainer.style.display = 'none';
-                    mainContainer.offsetHeight;
-                    mainContainer.style.display = '';
-                }
-                window.dispatchEvent(new Event('resize'));
-                document.body.offsetHeight;
-            }, 100);
-        }
-    }, [isOpen, graphData, gameFlowAssetName]);
-
-    const expandMenuOptions = useCallback((subMenuNode: GameFlowSubMenuNode) => {
-        const expandedOptions: Array<{ text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string }> = [];
-        subMenuNode.options.forEach((option, idx) => {
-            if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
-                option.controlOptions.forEach(ctrl => {
-                    expandedOptions.push({ text: ctrl, originalIndex: idx, isControlOption: true, controlValue: ctrl });
-                });
-            } else {
-                expandedOptions.push({ text: option.text, originalIndex: idx });
             }
-        });
-        return expandedOptions;
-    }, []);
 
-    const handleAction = useCallback(() => {
-        if (!currentNode || currentNode.type !== 'SubMenu') return;
-        const subMenuNode = currentNode as GameFlowSubMenuNode;
-        const expandedOptions = expandMenuOptions(subMenuNode);
-        const selectedExpanded = expandedOptions[selectedOptionIndex];
-        if (!selectedExpanded) return;
-        const selectedOption = subMenuNode.options[selectedExpanded.originalIndex];
-        if (!selectedOption) return;
-        if (selectedExpanded.isControlOption && selectedExpanded.controlValue && selectedOption.globalVariableName) {
-            const resolvedVarName = normalizeVariableName(selectedOption.globalVariableName);
-            if (resolvedVarName) {
-                updateGameGlobalVariables(prev => ({
-                    ...prev,
-                    [resolvedVarName]: selectedExpanded.controlValue
-                }));
-            }
-        }
-        const connection = connections.find(c => c.from.nodeId === currentNode.id && c.from.sourceId === selectedOption.id);
-        if (connection) {
-            let targetNodeId = connection.to.nodeId;
-            let targetNode = nodes.find(n => n.id === targetNodeId);
-            while (targetNode && targetNode.type === 'Waypoint') {
-                const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
-                if (nextConn) {
-                    targetNodeId = nextConn.to.nodeId;
-                    targetNode = nodes.find(n => n.id === targetNodeId);
-                } else {
-                    break;
-                }
-            }
-            setNavigationStack(prev => [...prev, currentNode.id]);
-            setCurrentNodeId(targetNodeId);
-            setSelectedOptionIndex(0);
-        }
-    }, [currentNode, connections, selectedOptionIndex, nodes, expandMenuOptions]);
+            // Create new synthesizer
+            const synth = new AYSynthesizer(trackData.globalVolume / 15);
+            synth.setSongData(trackData);
+            musicSynthesizerRef.current = synth;
+            currentMusicTrackIdRef.current = trackId;
+            musicIsMutedRef.current = false;
 
-    const handleGoBack = useCallback(() => {
-        if (navigationStack.length > 0) {
-            const lastNodeId = navigationStack[navigationStack.length - 1];
-            setNavigationStack(prev => prev.slice(0, -1));
-            setCurrentNodeId(lastNodeId);
-            setSelectedOptionIndex(0);
-        } else if (currentNode?.type === 'WorldLink') {
-            onClose();
-        }
-    }, [navigationStack, currentNode, onClose]);
+            // Start playback
+            synth.ensureAudioContext().then(() => {
+                let currentPatternIndexInOrder = 0;
+                let currentRow = 0;
 
-    // Keep refs in sync for gamepad handlers
-    useEffect(() => {
-        handleActionRef.current = handleAction;
-        handleGoBackRef.current = handleGoBack;
-    }, [handleAction, handleGoBack]);
-    useEffect(() => {
-        checkKeyTransitionsRef.current = checkKeyTransitions;
-    }, [checkKeyTransitions]);
-    useEffect(() => {
-        expandMenuOptionsRef.current = expandMenuOptions;
-    }, [expandMenuOptions]);
+                const playNextRow = () => {
+                    if (musicIsMutedRef.current || !musicSynthesizerRef.current) return;
 
-    const handleScreenTransition = useCallback((toNodeId: string) => {
-        if (!currentWorldMapGraph) return;
-        const nextScreenNode = currentWorldMapGraph.nodes.find(n => n.id === toNodeId);
-        if (!nextScreenNode) return;
-        const nextScreenAsset = allAssets.find(a => a.id === nextScreenNode.screenAssetId && a.type === 'screenmap');
-        if (!nextScreenAsset) return;
-
-        // Skip checkpoint persistence here because:
-        // - Border crossings set playerEntryPoint and the effect will record the safe spot
-        // - Manual transitions follow the same flow and would double-save otherwise
-        // Mark transition time to debounce immediate re-exit on arrival
-        try { lastScreenTransitionTimeRef.current = (typeof performance !== 'undefined' ? performance.now() : Date.now()); } catch { lastScreenTransitionTimeRef.current = Date.now(); }
-
-        setCurrentScreenMap(nextScreenAsset.data as ScreenMap);
-    }, [currentWorldMapGraph, allAssets]);
-
-    const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
-        // Remove both e.key and e.code for compatibility
-        if (heroRef.current) {
-            if (pressedKeys.current.has(e.key)) {
-                pressedKeys.current.delete(e.key);
-            }
-            if (e.code && pressedKeys.current.has(e.code)) {
-                pressedKeys.current.delete(e.code);
-            }
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                checkKeyTransitions(heroRef.current.instance.id, e.key, false);
-            }
-        }
-        // Reset jump key processed flag when space is released
-        if (e.key === ' ') {
-            jumpKeyProcessed.current = false;
-        }
-    }, [checkKeyTransitions]);
-
-    // Ensure keyboard is captured even if modal loses focus (e.g., fullscreen)
-    useEffect(() => {
-        if (!isOpen) return;
-        const onWindowKeyDown = (e: KeyboardEvent) => {
-            if (currentNode?.type !== 'WorldLink') return;
-            // Mirror minimal logic from handleKeyDown for gameplay
-            if (!pressedKeys.current.has(e.key)) pressedKeys.current.add(e.key);
-            if (e.code && !pressedKeys.current.has(e.code)) pressedKeys.current.add(e.code);
-            if (heroRef.current && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                checkKeyTransitions(heroRef.current.instance.id, e.key, true);
-            }
-        };
-        const onWindowKeyUp = (e: KeyboardEvent) => {
-            if (currentNode?.type !== 'WorldLink') return;
-            if (pressedKeys.current.has(e.key)) pressedKeys.current.delete(e.key);
-            if (e.code && pressedKeys.current.has(e.code)) pressedKeys.current.delete(e.code);
-            if (heroRef.current && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                checkKeyTransitions(heroRef.current.instance.id, e.key, false);
-            }
-            if (e.key === ' ') {
-                jumpKeyProcessed.current = false;
-            }
-        };
-        window.addEventListener('keydown', onWindowKeyDown);
-        window.addEventListener('keyup', onWindowKeyUp);
-        return () => {
-            window.removeEventListener('keydown', onWindowKeyDown);
-            window.removeEventListener('keyup', onWindowKeyUp);
-        };
-    }, [isOpen, currentNode?.type, checkKeyTransitions]);
-
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        e.preventDefault();
-        if (!currentNode) return;
-        if (currentNode.type === 'SubMenu') {
-            const subMenuNode = currentNode as GameFlowSubMenuNode;
-            const expandedOptions = expandMenuOptions(subMenuNode);
-            const maxIndex = expandedOptions.length - 1;
-            switch (e.key) {
-                case 'ArrowUp': setSelectedOptionIndex(prev => Math.max(0, prev - 1)); break;
-                case 'ArrowDown': setSelectedOptionIndex(prev => Math.min(maxIndex, prev + 1)); break;
-                case ' ': case 'Enter': handleAction(); break;
-                case 'Escape': handleGoBack(); break;
-            }
-        } else if (currentNode.type === 'Text' || currentNode.type === 'Restart' || currentNode.type === 'Music') {
-            switch (e.key) {
-                case ' ': case 'Enter':
-                    if (currentNode.type === 'Restart') {
-                        // Hard reset transient gameplay/session state to avoid stale entities (e.g., carried boxes)
-                        try { boxPickedUpRegistry.current.clear(); } catch { }
-                        try { collectedItemsRegistry.current.clear(); } catch { }
-                        try { revealedSecretTiles.current.clear(); } catch { }
-                        updateGameGlobalVariables(() => ({}));
-                        try { gameGlobalVariablesRef.current = {}; } catch { }
-                        try { lastScreenTransitionTimeRef.current = 0; } catch { }
-
-                        // Stop any playing music and clear playback state
-                        try {
-                            if (musicSynthesizerRef.current) {
-                                musicSynthesizerRef.current.stopAllNotes();
-                            }
+                    const orderIndex = currentPatternIndexInOrder;
+                    if (orderIndex >= trackData.order.length) {
+                        if (loop) {
+                            currentPatternIndexInOrder = trackData.restartPosition || 0;
+                            currentRow = 0;
+                            return;
+                        } else {
+                            // Stop playback
                             if (musicPlaybackIntervalRef.current) {
                                 clearInterval(musicPlaybackIntervalRef.current);
                                 musicPlaybackIntervalRef.current = null;
                             }
-                            musicSynthesizerRef.current = null;
-                            currentMusicTrackIdRef.current = null;
-                            musicIsMutedRef.current = false;
-                        } catch { }
-
-                        // CRITICAL: Clear carried box reference before clearing entities
-                        // This prevents Box ghosts when restarting while carrying a Box
-                        if (heroRef.current?.carriedBox) {
-                            heroRef.current.carriedBox = null;
+                            return;
                         }
-
-                        // Clear runtime entities and input state
-                        entitiesRef.current = [];
-                        heroRef.current = null;
-                        pressedKeys.current.clear();
-                        jumpKeyProcessed.current = false;
-                        try { setPlayerEntryPoint(null); } catch { }
-
-                        // Reset screen/world so next Start reinitializes cleanly
-                        setCurrentScreenMap(null);
-                        setCurrentWorldMapGraph(null);
-                        setGameFlowStack([]);
-                        setCurrentNestedGraphData(null);
-                        setCurrentExecutingGameFlowName(gameFlowAssetName);
-                        try { setHudVersion(0); } catch { }
-
-                        const startNode = nodes.find(n => n.type === 'Start');
-                        if (startNode) {
-                            setCurrentNodeId(startNode.id);
-                            setNavigationStack([]);
-                            setSelectedOptionIndex(0);
-                        }
-                        break;
                     }
-                    const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                    if (conn) {
-                        let targetNodeId = conn.to.nodeId;
-                        let targetNode = nodes.find(n => n.id === targetNodeId);
-                        while (targetNode && targetNode.type === 'Waypoint') {
-                            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
-                            if (nextConn) {
-                                targetNodeId = nextConn.to.nodeId;
-                                targetNode = nodes.find(n => n.id === targetNodeId);
-                            } else {
-                                break;
-                            }
-                        }
-                        setCurrentNodeId(targetNodeId);
+
+                    const patternIndex = trackData.order[orderIndex];
+                    const pattern = trackData.patterns[patternIndex];
+                    if (!pattern) return;
+
+                    const rowData = pattern.rows[currentRow];
+                    if (rowData) {
+                        // Play notes for each channel
+                        ['A', 'B', 'C'].forEach((chId, chIndex) => {
+                            const cell = rowData[chId as 'A' | 'B' | 'C'];
+                            synth.playNote(
+                                chIndex as 0 | 1 | 2,
+                                cell.note,
+                                cell.instrument,
+                                cell.ornament,
+                                cell.volume
+                            );
+                        });
                     }
-                    break;
-                case 'Escape': handleGoBack(); break;
+
+                    currentRow++;
+                    if (currentRow >= pattern.numRows) {
+                        currentRow = 0;
+                        currentPatternIndexInOrder++;
+                    }
+                };
+
+                // Calculate row duration
+                const rowDurationMs = (2500 * trackData.speed) / trackData.bpm;
+
+                musicPlaybackIntervalRef.current = window.setInterval(playNextRow, Math.max(20, rowDurationMs));
+                playNextRow(); // Play first row immediately
+            });
+
+            console.log(`[PLAY_MUSIC] Playing track: ${trackAsset.name}`);
+        }
+    }
+    break;
+}
+
+                case 'MUTE_MUSIC': {
+    if (musicSynthesizerRef.current) {
+        musicSynthesizerRef.current.stopAllNotes();
+        musicIsMutedRef.current = true;
+        console.log(`[MUTE_MUSIC] Music muted`);
+    }
+    break;
+}
+
+                case 'STOP_MUSIC': {
+    if (musicSynthesizerRef.current) {
+        musicSynthesizerRef.current.stopAllNotes();
+        if (musicPlaybackIntervalRef.current) {
+            clearInterval(musicPlaybackIntervalRef.current);
+            musicPlaybackIntervalRef.current = null;
+        }
+        musicSynthesizerRef.current = null;
+        currentMusicTrackIdRef.current = null;
+        musicIsMutedRef.current = false;
+        console.log(`[STOP_MUSIC] Music stopped`);
+    }
+    break;
+}
+
+                case 'CHANGE_GAME_FLOW_NODE':
+let targetNodeId = action.params.nodeId || action.params.targetNodeId;
+
+// Special case: "START" navigates to the Start node
+if (targetNodeId === 'START') {
+    const startNode = nodes.find(n => n.type === 'Start');
+    if (startNode) {
+        targetNodeId = startNode.id;
+    } else {
+        break;
+    }
+}
+
+if (targetNodeId) {
+    // Store the target node for deferred navigation (after frame completes)
+    (entity as any).pendingNodeTransition = targetNodeId;
+}
+break;
+
+                case 'DECREASE_LIVES':
+const decreaseAmount = Number(action.params.amount || 1);
+// Find comp_health
+const healthCompForDecrease = entity.template.components.find(c => c.definitionId === 'comp_health');
+if (healthCompForDecrease) {
+    const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
+    const currentLives = Number(healthOverride.current || healthCompForDecrease.defaultValues?.current || 3);
+    const newLives = Math.max(0, currentLives - decreaseAmount);
+
+    if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
+    if (!entity.instance.componentOverrides['comp_health']) {
+        entity.instance.componentOverrides['comp_health'] = {};
+    }
+    entity.instance.componentOverrides['comp_health'].current = newLives;
+
+}
+break;
+
+                case 'INCREASE_LIVES':
+const increaseAmount = Number(action.params.amount || 1);
+const healthCompForIncrease = entity.template.components.find(c => c.definitionId === 'comp_health');
+if (healthCompForIncrease) {
+    const healthOverride = entity.instance.componentOverrides?.['comp_health'] || {};
+    const currentLives = Number(healthOverride.current || healthCompForIncrease.defaultValues?.current || 3);
+    const maxLives = Number(healthOverride.max || healthCompForIncrease.defaultValues?.max || 3);
+    const newLives = Math.min(maxLives, currentLives + increaseAmount);
+
+    if (!entity.instance.componentOverrides) entity.instance.componentOverrides = {};
+    if (!entity.instance.componentOverrides['comp_health']) {
+        entity.instance.componentOverrides['comp_health'] = {};
+    }
+    entity.instance.componentOverrides['comp_health'].current = newLives;
+
+}
+break;
+
+                case 'RESPAWN_PLAYER': {
+    let spawnX: number;
+    let spawnY: number;
+    let targetScreenId: string | undefined;
+
+    if (gameGlobalVariables.playerCheckpointX !== undefined && gameGlobalVariables.playerCheckpointY !== undefined && gameGlobalVariables.playerCheckpointScreen) {
+        spawnX = Number(gameGlobalVariables.playerCheckpointX);
+        spawnY = Number(gameGlobalVariables.playerCheckpointY);
+        targetScreenId = gameGlobalVariables.playerCheckpointScreen;
+    } else if (action.params.x !== undefined || action.params.y !== undefined) {
+        spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
+        spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
+    } else {
+        spawnX = entity.instance.position.x * 8;
+        spawnY = entity.instance.position.y * 8;
+    }
+
+    const currentScreenMap = currentScreenMapRef.current;
+    const currentWorldMapGraph = currentWorldMapGraphRef.current;
+
+    // If the checkpoint belongs to another screen, switch to it
+    if (targetScreenId && currentScreenMap?.id !== targetScreenId) {
+        const setPlayerEntryPoint = setPlayerEntryPointRef.current;
+        const handleScreenTransition = handleScreenTransitionRef.current;
+
+        setPlayerEntryPoint({ x: spawnX, y: spawnY });
+
+        if (currentWorldMapGraph) {
+            const targetScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === targetScreenId);
+            if (targetScreenNode) {
+                handleScreenTransition(targetScreenNode.id);
+                // Leave entity.x/y untouched here; useEffect will update them after transition
+                return;
             }
-        } else if (currentNode.type === 'WorldLink') {
-            if (heroRef.current) {
-                if (e.code === 'Space') {
-                    // Jump logic is now handled in the animate loop
+        }
+    }
+
+    // Already on the right screen, so respawn locally
+    entity.x = spawnX;
+    entity.y = spawnY;
+    entity.vx = 0;
+    entity.vy = 0;
+    break;
+}
+
+                case 'BREAK_TILE':
+                case 'REPLACE_TILE': {
+    const params = action.params;
+    const dir = params.direction || 'up';
+
+    // Compute the tile position based on player's facing direction
+    const offsets: Record<string, { x: number; y: number }> = {
+        up: { x: 0, y: -1 },
+        down: { x: 0, y: 1 },
+        left: { x: -1, y: 0 },
+        right: { x: 1, y: 0 },
+        // Diagonales
+        'up-right': { x: 1, y: -1 },
+        'up-left': { x: -1, y: -1 },
+        'down-right': { x: 1, y: 1 },
+        'down-left': { x: -1, y: 1 }
+    };
+
+    // Player position expressed in tiles (8x8)
+    const playerTileX = Math.floor((entity.x + entity.sprite.size.width / 2) / 8);
+    const playerTileY = Math.floor((entity.y + entity.sprite.size.height / 2) / 8);
+
+    // Target tile position
+    const targetTileX = playerTileX + offsets[dir].x;
+    const targetTileY = playerTileY + offsets[dir].y;
+
+    // Ensure the target tile exists (using the ref for synchronous access)
+    const targetTile = runtimeCollisionLayerRef.current[targetTileY]?.[targetTileX];
+
+    if (targetTile?.tileId) {
+        const tileAsset = allAssets.find(a => a.id === targetTile.tileId && a.type === 'tile');
+        const tileData = tileAsset?.data as Tile | undefined;
+
+        if (action.type === 'BREAK_TILE') {
+            // Solo romper si el tile es breakable
+            if (tileData?.logicalProperties?.isBreakable) {
+                modifyTileInLayer(targetTileX, targetTileY, null);
+            } else {
+            }
+        } else if (action.type === 'REPLACE_TILE') {
+            // Reemplazar con nuevo tile
+            const newTileId = params.replacementTileId || null;
+            modifyTileInLayer(targetTileX, targetTileY, newTileId);
+        }
+    } else if (!targetTile?.tileId && action.type === 'REPLACE_TILE') {
+        // Allow placing a tile in empty space
+        const newTileId = params.replacementTileId || null;
+        if (newTileId) {
+            modifyTileInLayer(targetTileX, targetTileY, newTileId);
+        }
+    } else {
+    }
+    break;
+}
+
+                case 'POINT_AT': {
+    // Calculate normalized direction vector from (x1, y1) to (x2, y2)
+    const x1 = Number(action.params.x1 || 0);
+    const y1 = Number(action.params.y1 || 0);
+    const x2 = Number(action.params.x2 || 0);
+    const y2 = Number(action.params.y2 || 0);
+    const speed = Number(action.params.speed || 1);
+
+    // Calculate direction vector
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+
+    // Calculate magnitude (distance)
+    const magnitude = Math.sqrt(dx * dx + dy * dy);
+
+    // Normalize and apply speed
+    // If magnitude is 0 (same point), velocity is 0
+    let velocityX = 0;
+    let velocityY = 0;
+
+    if (magnitude > 0) {
+        // Normalized direction * speed = velocity in pixels per frame
+        velocityX = (dx / magnitude) * speed;
+        velocityY = (dy / magnitude) * speed;
+    }
+
+    // Apply the calculated velocity to the entity
+    entity.vx = velocityX;
+    entity.vy = velocityY;
+
+    console.log(`🎯 POINT_AT: from (${x1}, ${y1}) to (${x2}, ${y2}) → direction (${dx}, ${dy}), magnitude ${magnitude.toFixed(2)}, velocity (${velocityX.toFixed(2)}, ${velocityY.toFixed(2)}) at speed ${speed}`);
+    break;
+}
+
+                default:
+break;
+            }
+        }
+    };
+
+const applyStatePropertiesFromState = (entity: AnimatedEntity, state?: StateMachineState) => {
+    if (!state?.properties) return;
+    if (state.properties.velocityX !== undefined) {
+        entity.vx = state.properties.velocityX;
+    }
+    if (state.properties.velocityY !== undefined) {
+        entity.vy = state.properties.velocityY;
+    }
+};
+
+function changeEntityState(
+    entity: AnimatedEntity,
+    nextState: StateMachineState,
+    options: StateTransitionOptions = {}
+): { stateChanged: boolean } {
+    const previousState =
+        options.previousState ??
+        entity.stateMachine?.states.find(s => s.name === entity.currentState);
+    const stateChanged = !previousState || previousState.id !== nextState.id;
+
+    if (options.runExitActions !== false && stateChanged && previousState?.onExit?.length) {
+        executeStateActions(entity, previousState.onExit);
+    }
+
+    entity.currentState = nextState.name;
+    applyStatePropertiesFromState(entity, nextState);
+
+    const shouldRunEnter =
+        options.runEnterActions === false
+            ? false
+            : ((stateChanged || options.forceEnter) && !!nextState.onEnter?.length);
+
+    if (shouldRunEnter && nextState.onEnter) {
+        executeStateActions(entity, nextState.onEnter);
+    }
+
+    return { stateChanged };
+}
+
+// Procesar condiciones y verificar transiciones
+const processEventTransitions = useCallback((entity: AnimatedEntity) => {
+    if (!entity.stateMachine || !entity.currentState) return;
+
+    // Check if entity is waiting (WAIT action blocks all state transitions)
+    if (entity.waitUntilTime !== undefined) {
+        const now = performance.now();
+        const entityLookup = new Map<string, AnimatedEntity>();
+        for (const entity of entitiesRef.current) {
+            entityLookup.set(entity.instance.id, entity);
+        }
+        resolveChildLinkParents(entitiesRef.current, entityLookup);
+        if (now < entity.waitUntilTime) {
+            // Still waiting, block all transitions
+            return;
+        } else {
+            // Wait completed, clear the timer
+            entity.waitUntilTime = undefined;
+        }
+    }
+
+    const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
+    if (!currentStateDef) return;
+
+    // Look for transitions whose conditions are satisfied
+    for (const transition of entity.stateMachine.transitions) {
+        if (transition.fromStateId !== currentStateDef.id) continue;
+
+        const conditionSatisfied = transition.conditions ? evaluateCondition(transition.conditions, entity) : true;
+        if (conditionSatisfied && evaluateGuard(transition.guard)) {
+            const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
+            if (nextState) {
+                const { stateChanged } = changeEntityState(entity, nextState, {
+                    previousState: currentStateDef,
+                    runEnterActions: false
+                });
+
+                if (transition.actions) {
+                    executeStateActions(entity, transition.actions);
                 }
-                // Add both e.key and e.code for compatibility (e.g., "n" and "KeyN")
-                // e.key for legacy comp_cursors/comp_jump, e.code for State Machine conditions
-                if (!pressedKeys.current.has(e.key)) {
-                    pressedKeys.current.add(e.key);
+
+                if (stateChanged) {
+                    executeStateActions(entity, nextState.onEnter);
                 }
-                if (e.code && !pressedKeys.current.has(e.code)) {
-                    pressedKeys.current.add(e.code);
+
+                // Clear all pending events after processing the transition
+                const entityEvents = pendingEvents.current.get(entity.instance.id);
+                if (entityEvents) {
+                    entityEvents.clear();
                 }
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                    checkKeyTransitions(heroRef.current.instance.id, e.key, true);
+                break; // Only allow a single transition per frame
+            }
+        }
+    }
+}, [evaluateCondition, changeEntityState, executeStateActions, evaluateGuard]);
+
+const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
+    const entity = entitiesRef.current.find(e => e.instance.id === entityId);
+    if (!entity) {
+        return;
+    }
+    if (!entity.stateMachine) {
+        // Input for non-statemachine entities is now handled in the animate loop.
+        return;
+    }
+    if (!entity.currentState) {
+        return;
+    }
+    const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
+    if (!currentStateDef) {
+        return;
+    }
+    for (const transition of entity.stateMachine.transitions) {
+        if (transition.fromStateId !== currentStateDef.id) continue;
+        const condition = transition.conditions;
+        if (!condition) continue;
+        let conditionMet = false;
+        if (isKeyDown && condition.type === 'KEY_PRESSED' && condition.params?.key === pressedKey) {
+            conditionMet = true;
+        } else if (!isKeyDown && condition.type === 'KEY_RELEASED' && condition.params?.key === pressedKey) {
+            conditionMet = true;
+        }
+        if (conditionMet) {
+            const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
+            if (nextState) {
+                const { stateChanged } = changeEntityState(entity, nextState, {
+                    previousState: currentStateDef,
+                    runEnterActions: false
+                });
+                if (transition.actions) {
+                    executeStateActions(entity, transition.actions);
                 }
-                if (e.key === 'Escape') {
-                    // If in fullscreen, exit fullscreen first
-                    if (isFullscreen) {
-                        setIsFullscreen(false);
-                    } else {
-                        handleGoBack();
-                    }
+                if (stateChanged) {
+                    executeStateActions(entity, nextState.onEnter);
                 }
                 return;
             }
-            const currentScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === currentScreenMap?.id);
-            if (!currentScreenNode || !currentWorldMapGraph) return;
-            const findAndTransition = (direction: 'north' | 'south' | 'east' | 'west') => {
-                const outgoing = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === direction);
-                if (outgoing) { handleScreenTransition(outgoing.toNodeId); return; }
-                const incoming = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === direction);
-                if (incoming) handleScreenTransition(incoming.fromNodeId);
-            };
-            switch (e.key) {
-                case 'ArrowUp': findAndTransition('north'); break;
-                case 'ArrowDown': findAndTransition('south'); break;
-                case 'ArrowLeft': findAndTransition('west'); break;
-                case 'ArrowRight': findAndTransition('east'); break;
-                case 'Escape': handleGoBack(); break;
-            }
         }
-    }, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions, nodes, connections, isFullscreen]);
+    }
+}, []);
 
-    useEffect(() => {
-        if (!isOpen || currentNode?.type !== 'WorldLink' || currentScreenMap) return;
-        const worldMapAsset = allAssets.find(a => a.id === (currentNode as GameFlowWorldLinkNode).worldAssetId && a.type === 'worldmap');
-        if (!worldMapAsset) return;
-        const worldMapGraph = worldMapAsset.data as WorldMapGraph;
-        if (!worldMapGraph?.startScreenNodeId) return;
-        setCurrentWorldMapGraph(worldMapGraph);
-        const startScreenNode = worldMapGraph.nodes.find(n => n.id === worldMapGraph.startScreenNodeId);
-        if (!startScreenNode) return;
-        const screenMapAsset = allAssets.find(a => a.id === startScreenNode.screenAssetId && a.type === 'screenmap');
-        if (!screenMapAsset) return;
-        setCurrentScreenMap(screenMapAsset.data as ScreenMap);
-    }, [isOpen, currentNode, allAssets, currentScreenMap]);
+useEffect(() => {
+    if (isOpen) {
+        document.body.style.overflow = 'hidden';
+        modalRef.current?.focus();
+        const startNode = graphData.nodes.find(n => n.type === 'Start');
+        if (startNode) setCurrentNodeId(startNode.id);
+        setNavigationStack([]);
+        setSelectedOptionIndex(0);
+        setCurrentScreenMap(null);
+        setCurrentWorldMapGraph(null);
+        setGameFlowStack([]);
+        setCurrentNestedGraphData(null);
+        setCurrentExecutingGameFlowName(gameFlowAssetName);
+        heroRef.current = null;
+        pressedKeys.current.clear();
+        jumpKeyProcessed.current = false;
 
-    // Build screen world map when WorldMapGraph changes
-    useEffect(() => {
-        if (currentWorldMapGraph) {
+        // Reset transient session state to avoid stale values between plays
+        // - Clear collected item registries
+        try { boxPickedUpRegistry.current.clear(); } catch { }
+        try { collectedItemsRegistry.current.clear(); } catch { }
+        try { revealedSecretTiles.current.clear(); } catch { }
+        // - Reset global variables (will be re-initialized by Globals node if present)
+        updateGameGlobalVariables(() => ({}));
+        // - Reset internal refs related to globals and timers
+        gameGlobalVariablesRef.current = {};
+        lastScreenTransitionTimeRef.current = 0;
+        // - Ensure music is fully stopped on fresh play
+        try {
+            if (musicSynthesizerRef.current) {
+                musicSynthesizerRef.current.stopAllNotes();
+            }
+            if (musicPlaybackIntervalRef.current) {
+                clearInterval(musicPlaybackIntervalRef.current);
+                musicPlaybackIntervalRef.current = null;
+            }
+            musicSynthesizerRef.current = null;
+            currentMusicTrackIdRef.current = null;
+            musicIsMutedRef.current = false;
+        } catch { }
+        // - Reset HUD version so overlays refresh deterministically
+        try { setHudVersion(0); } catch { }
+    } else {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+        setTimeout(() => {
+            const mainContainer = document.querySelector('.flex-grow.flex.overflow-hidden');
+            if (mainContainer instanceof HTMLElement) {
+                mainContainer.style.display = 'none';
+                mainContainer.offsetHeight;
+                mainContainer.style.display = '';
+            }
+            window.dispatchEvent(new Event('resize'));
+            document.body.offsetHeight;
+        }, 100);
+    }
+}, [isOpen, graphData, gameFlowAssetName]);
 
-            // Log all nodes
-            currentWorldMapGraph.nodes.forEach(node => {
-            });
-
-            // Log all connections
-            currentWorldMapGraph.connections.forEach(conn => {
-            });
-
-            const screenWorldMap = buildScreenWorldMap(currentWorldMapGraph);
-            screenWorldMapRef.current = screenWorldMap;
-
-            // Log all screen positions
-            screenWorldMap.forEach((pos, screenId) => {
+const expandMenuOptions = useCallback((subMenuNode: GameFlowSubMenuNode) => {
+    const expandedOptions: Array<{ text: string, originalIndex: number, isControlOption?: boolean, controlValue?: string }> = [];
+    subMenuNode.options.forEach((option, idx) => {
+        if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
+            option.controlOptions.forEach(ctrl => {
+                expandedOptions.push({ text: ctrl, originalIndex: idx, isControlOption: true, controlValue: ctrl });
             });
         } else {
-            screenWorldMapRef.current = new Map();
+            expandedOptions.push({ text: option.text, originalIndex: idx });
         }
-    }, [currentWorldMapGraph]);
+    });
+    return expandedOptions;
+}, []);
 
-    // Update currentScreenMap when the underlying asset changes in allAssets
-    useEffect(() => {
-        if (!isOpen || !currentScreenMap) return;
-        const updatedScreenMapAsset = allAssets.find(a => a.id === currentScreenMap.id && a.type === 'screenmap');
-        if (!updatedScreenMapAsset) return;
-        const updatedScreenMap = updatedScreenMapAsset.data as ScreenMap;
-        // Only update if the reference has actually changed (indicating an update occurred)
-        if (updatedScreenMap !== currentScreenMap) {
-            setCurrentScreenMap(updatedScreenMap);
-        }
-    }, [isOpen, allAssets, currentScreenMap]);
-
-    useEffect(() => {
-        if (!isOpen) {
-            heroRef.current = null;
-            return;
-        }
-        if (!currentScreenMap) {
-            entitiesRef.current = [];
-            return;
-        };
-        // Store refs for use inside asynchronous actions
-        currentScreenMapRef.current = currentScreenMap;
-        currentWorldMapGraphRef.current = currentWorldMapGraph;
-        setPlayerEntryPointRef.current = setPlayerEntryPoint;
-        handleScreenTransitionRef.current = handleScreenTransition;
-
-
-        // Initialize runtime collision layer (cloned from screenMap for in-game modifications)
-        if (currentScreenMap.layers?.collision) {
-            const clonedLayer = JSON.parse(JSON.stringify(currentScreenMap.layers.collision));
-            runtimeCollisionLayerRef.current = clonedLayer;
-            setRuntimeCollisionLayer(clonedLayer);
-        } else {
-            const height = currentScreenMap.height ?? gridHeightTiles;
-            const width = currentScreenMap.width ?? gridWidthTiles;
-            const emptyLayer: ScreenTile[][] = Array.from({ length: height }, () =>
-                Array.from({ length: width }, () => ({ tileId: null }))
-            );
-            runtimeCollisionLayerRef.current = emptyLayer;
-            setRuntimeCollisionLayer(emptyLayer);
-        }
-
-        const getAsset = <T extends AssetType>(assetId: string | null | undefined, assetType: T): ProjectAsset | undefined => {
-            if (!assetId) return undefined;
-            return allAssets.find(a => a.id === assetId && a.type === assetType);
-        };
-
-        const nativeEntities = currentScreenMap.layers.entities.map(instance => {
-            const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
-            if (!template) return null;
-            let spriteAssetId: string | undefined;
-            if (instance.componentOverrides) {
-                for (const compId in instance.componentOverrides) {
-                    const compDef = componentDefinitions.find(c => c.id === compId);
-                    const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
-                    if (spriteProp && instance.componentOverrides[compId]?.[spriteProp.name]) {
-                        spriteAssetId = instance.componentOverrides[compId][spriteProp.name];
-                        break;
-                    }
-                }
-            }
-            if (!spriteAssetId) {
-                for (const comp of template.components) {
-                    const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
-                    const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
-                    if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
-                        spriteAssetId = comp.defaultValues[spriteProp.name];
-                        break;
-                    }
-                }
-            }
-            const spriteAsset = getAsset(spriteAssetId, 'sprite');
-            const sprite = spriteAsset?.data as Sprite;
-            if (!sprite?.frames?.length) return null;
-            const frameImages = sprite.frames.map(frame => {
-                const img = new Image();
-                img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
-                return img;
-            });
-            let mirroredFrameImages: HTMLImageElement[] | undefined;
-            if (['right', 'left'].includes(sprite.facingDirection)) {
-                mirroredFrameImages = sprite.frames.map(frame => {
-                    const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
-                    const img = new Image();
-                    img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
-                    return img;
-                });
-            }
-            let stateMachine: StateMachine | undefined;
-            let currentState: string | undefined;
-            let initialStateDef: StateMachineState | undefined;
-            const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
-            const smcOverride = instance.componentOverrides?.['comp_statemachine'];
-            const stateMachineAssetId = smcOverride?.stateMachineAssetId || smc?.defaultValues?.stateMachineAssetId;
-            if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
-                const stateMachineAsset = getAsset(stateMachineAssetId, 'statemachine');
-                stateMachine = stateMachineAsset?.data as StateMachine | undefined;
-                if (stateMachine) {
-                    const startStateId = smcOverride?.currentStateId || smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
-                    let initialState = stateMachine.states.find(s => s.id === startStateId);
-                    if (!initialState && startStateId) initialState = stateMachine.states.find(s => s.name === startStateId);
-                    if (!initialState) initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
-                    initialStateDef = initialState;
-                    currentState = initialState?.name;
-                }
-            }
-            // Merge patrol component defaultValues with componentOverrides
-            const patrolTemplateComp = template.components.find(c => c.definitionId === 'comp_patrol');
-            const patrolComp = {
-                ...(patrolTemplateComp?.defaultValues || {}),
-                ...(instance.componentOverrides?.comp_patrol || {})
-            };
-            let startX = instance.position.x * TILE_SIZE;
-            let startY = instance.position.y * TILE_SIZE;
-
-
-            let vx = 0, vy = 0;
-            if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
-                // IMPORTANT: if waypoint1 exists, prefer those coordinates as the starting point
-                startX = Number(patrolComp.waypoint1_x);
-                startY = Number(patrolComp.waypoint1_y);
-
-                // Calculate the direction vector toward waypoint2
-                const endX = Number(patrolComp.waypoint2_x ?? startX);
-                const endY = Number(patrolComp.waypoint2_y ?? startY);
-
-                const dx = endX - startX;
-                const dy = endY - startY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                // Apply the component speed to build the velocity vector
-                const speed = Number(patrolComp.speed) || 1;
-                if (dist > 0) {
-                    vx = (dx / dist) * speed;
-                    vy = (dy / dist) * speed;
-                }
-
-            }
-
-            // Initialize multi-screen properties if enabled
-            let globalX: number | undefined;
-            let globalY: number | undefined;
-            let originScreenId: string | undefined;
-
-            if (patrolComp?.multiScreen === true || patrolComp?.multiScreen === 'true') {
-                originScreenId = currentScreenMap.id;
-                const screenPos = screenWorldMapRef.current.get(currentScreenMap.id);
-                if (screenPos) {
-                    globalX = screenPos.globalX + startX;
-                    globalY = screenPos.globalY + startY;
-                }
-            }
-
-            // Initialize ownerScreenId for Box entities (screen persistence)
-            const isBoxEntity = template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(template.name);
-            const isCollectibleItem = template.components?.some(c => c.definitionId === 'comp_collectible');
-            const ownerScreenId = (isBoxEntity || isCollectibleItem) ? currentScreenMap.id : undefined;
-
-            // Skip Box entities that have already been picked up from this screen
-            if (isBoxEntity && ownerScreenId) {
-                const registryKey = `${ownerScreenId}_${instance.id}`;
-                if (boxPickedUpRegistry.current.has(registryKey)) {
-                    return null; // This box was already picked up, don't respawn it
-                }
-            }
-
-            // Skip Collectible items that have already been collected from this screen
-            if (isCollectibleItem && ownerScreenId) {
-                const registryKey = `${ownerScreenId}_${instance.id}`;
-                if (collectedItemsRegistry.current.has(registryKey)) {
-                    return null; // This item was already collected, don't respawn it
-                }
-            }
-
-            const childLink = parseChildLinkConfig(template, instance);
-            const lifetimeMs = resolveLifetimeMs(template, instance);
-            const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
-
-            const newEntity = {
-                instance, template, sprite, spriteAssetId, x: startX, y: startY, vx, vy,
-                frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
-                stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
-                globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
-                ownerScreenId,
-                childLink,
-                lifetimeMs,
-                expiresAt
-            };
-
-            if (stateMachine && initialStateDef) {
-                changeEntityState(newEntity, initialStateDef, { runExitActions: false });
-            }
-
-            // Debug log for multi-screen entities
-            if (globalX !== undefined || globalY !== undefined) {
-            }
-
-            return newEntity;
-        }).filter(Boolean) as AnimatedEntity[];
-
-        let entitiesToAnimate = nativeEntities;
-        let heroForThisScreen: AnimatedEntity | undefined;
-
-        // Si hay playerEntryPoint (cruce de borde), SIEMPRE usar el hero actual (carry over)
-        if (playerEntryPoint && heroRef.current) {
-
-            // IMPORTANTE: Remover el player nativo si existe, para evitar duplicados
-            entitiesToAnimate = entitiesToAnimate.filter(e =>
-                !e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') &&
-                e.template.name !== 'Player'
-            );
-
-            entitiesToAnimate.push(heroRef.current);
-            // Also carry over any carried box
-            if (heroRef.current.carriedBox) {
-                const carried = heroRef.current.carriedBox;
-                if (!entitiesToAnimate.some(e => e.instance.id === carried.instance.id)) {
-                    entitiesToAnimate.push(carried);
-                }
-            }
-            heroForThisScreen = heroRef.current;
-        } else {
-            // Si NO hay playerEntryPoint, buscar hero nativo o usar carry over
-            heroForThisScreen = entitiesToAnimate.find(e => e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') || e.template.name === 'Player');
-            if (heroRef.current && !heroForThisScreen) {
-                entitiesToAnimate.push(heroRef.current);
-                // Also carry over any carried box
-                if (heroRef.current.carriedBox) {
-                    const carried = heroRef.current.carriedBox;
-                    if (!entitiesToAnimate.some(e => e.instance.id === carried.instance.id)) {
-                        entitiesToAnimate.push(carried);
-                    }
-                }
-                heroForThisScreen = heroRef.current;
-            }
-        }
-
-        // === CARRY-OVER DE ENTIDADES MULTI-PANTALLA Y SUS HIJOS ===
-        // Mantener entidades multi-pantalla (como plataformas) y cualquier child-link atado a ellas o al player
-        if (entitiesRef.current.length > 0) {
-            const carryOverParents = new Set<string>();
-            if (heroForThisScreen) {
-                carryOverParents.add(heroForThisScreen.instance.id);
-            }
-
-            const carryOverEntities: AnimatedEntity[] = [];
-            const carryOverInstanceIds = new Set<string>();
-            const enqueueCarryOver = (entity: AnimatedEntity) => {
-                if (entity === heroRef.current) return;
-                if (carryOverInstanceIds.has(entity.instance.id)) return;
-                carryOverInstanceIds.add(entity.instance.id);
-                carryOverEntities.push(entity);
-            };
-
-            const previousMultiScreenEntities = entitiesRef.current.filter(e => {
-                if (e === heroRef.current) return false; // Hero ya se maneja por separado
-
-                // Check if entity has multi-screen patrol
-                const patrolTemplateComp = e.template.components.find(c => c.definitionId === 'comp_patrol');
-                const patrolComp = {
-                    ...(patrolTemplateComp?.defaultValues || {}),
-                    ...(e.instance.componentOverrides?.comp_patrol || {})
-                };
-                const isMultiScreenPatrol = patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
-
-                // Also keep Box entities that have ownerScreenId (belong to a specific screen)
-                const isBox = e.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(e.template.name);
-                const boxHasOwner = isBox && e.ownerScreenId !== undefined;
-
-                return isMultiScreenPatrol || boxHasOwner;
-            });
-
-            previousMultiScreenEntities.forEach(entity => {
-                enqueueCarryOver(entity);
-                carryOverParents.add(entity.instance.id);
-            });
-
-            // Propagar child-links que dependen de un parent que persiste (player o multi-screen)
-            if (carryOverParents.size > 0) {
-                let foundFollower = true;
-                while (foundFollower) {
-                    foundFollower = false;
-                    for (const candidate of entitiesRef.current) {
-                        if (candidate === heroRef.current) continue;
-                        if (!candidate.childLink || !candidate.parentEntityId) continue;
-                        if (carryOverInstanceIds.has(candidate.instance.id)) continue;
-                        if (carryOverParents.has(candidate.parentEntityId)) {
-                            enqueueCarryOver(candidate);
-                            carryOverParents.add(candidate.instance.id);
-                            foundFollower = true;
-                        }
-                    }
-                }
-            }
-
-            if (carryOverEntities.length > 0) {
-
-                // IMPORTANT: Remove native entities that have same instance.id as carry-over entities
-                // to avoid duplicates when returning a screen
-                const carryOverIds = new Set(carryOverEntities.map(e => e.instance.id));
-                const originalCount = entitiesToAnimate.length;
-                entitiesToAnimate = entitiesToAnimate.filter(e => {
-                    const isDuplicate = carryOverIds.has(e.instance.id);
-                    if (isDuplicate) {
-                    }
-                    return !isDuplicate;
-                });
-
-                carryOverEntities.forEach(entity => {
-
-                    // Update local coordinates from global coordinates for new screen
-                    if (entity.globalX !== undefined && entity.globalY !== undefined) {
-                        const localCoord = globalToLocal(
-                            { x: entity.globalX, y: entity.globalY },
-                            screenWorldMapRef.current
-                        );
-
-                        if (localCoord && localCoord.screenId === currentScreenMap.id) {
-                            // Entity is visible in current screen
-                            entity.x = localCoord.x;
-                            entity.y = localCoord.y;
-                        } else {
-                            // Entity is in another screen - position off-screen but keep in memory
-                            entity.x = -1000;
-                            entity.y = -1000;
-                        }
-                    }
-
-                    // Ensure frame images are loaded (in case of context reset or missing images)
-                    try {
-                        const spriteData = entity.sprite;
-                        if (!entity.frameImages || entity.frameImages.length === 0 || !entity.frameImages[0] || !entity.frameImages[0].complete) {
-                            const rebuilt = spriteData.frames.map(frame => {
-                                const img = new Image();
-                                img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
-                                return img;
-                            });
-                            entity.frameImages = rebuilt;
-                            if (spriteData.facingDirection === 'left' || spriteData.facingDirection === 'right') {
-                                const mirrored = spriteData.frames.map(frame => {
-                                    const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
-                                    const mimg = new Image();
-                                    mimg.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
-                                    return mimg;
-                                });
-                                entity.mirroredFrameImages = mirrored;
-                            }
-                            entity.currentFrame = 0;
-                            entity.lastFrameUpdateTime = 0;
-                        }
-                    } catch (err) {
-                        // Silently fail
-                    }
-
-                    // Always add carry-over entity (it's already filtered from duplicates)
-                    entitiesToAnimate.push(entity);
-                });
-            }
-        }
-
-        // Save the hero checkpoint every time we enter the screen
-        if (heroForThisScreen) {
-            let checkpointX: number;
-            let checkpointY: number;
-
-            if (playerEntryPoint) {
-                // Edge transition: honor the supplied playerEntryPoint coordinates
-                heroForThisScreen.x = playerEntryPoint.x;
-                heroForThisScreen.y = playerEntryPoint.y;
-                heroForThisScreen.vx = 0;
-                heroForThisScreen.vy = 0;
-                checkpointX = Math.round(playerEntryPoint.x);
-                checkpointY = Math.round(playerEntryPoint.y);
-            } else {
-                // Initial load: use the hero position from the entity itself
-                checkpointX = Math.round(heroForThisScreen.x);
-                checkpointY = Math.round(heroForThisScreen.y);
-            }
-
-            // Always persist checkpoints, even if one already existed for this screen
-            // Entry point is only for positioning the player visually
-            if (playerEntryPoint) {
-                heroForThisScreen.x = playerEntryPoint.x;
-                heroForThisScreen.y = playerEntryPoint.y;
-                heroForThisScreen.vx = 0;
-                heroForThisScreen.vy = 0;
-                setPlayerEntryPoint(null); // Entry point was consumed
-            }
-
-            // Checkpoint: clamp to a safe area within the screen bounds
-            const safeX = Math.max(8, Math.min(PREVIEW_WIDTH - heroForThisScreen.sprite.size.width - 8, Math.round(heroForThisScreen.x)));
-            const safeY = Math.max(8, Math.min(PREVIEW_HEIGHT - heroForThisScreen.sprite.size.height - 8, Math.round(heroForThisScreen.y)));
-
+const handleAction = useCallback(() => {
+    if (!currentNode || currentNode.type !== 'SubMenu') return;
+    const subMenuNode = currentNode as GameFlowSubMenuNode;
+    const expandedOptions = expandMenuOptions(subMenuNode);
+    const selectedExpanded = expandedOptions[selectedOptionIndex];
+    if (!selectedExpanded) return;
+    const selectedOption = subMenuNode.options[selectedExpanded.originalIndex];
+    if (!selectedOption) return;
+    if (selectedExpanded.isControlOption && selectedExpanded.controlValue && selectedOption.globalVariableName) {
+        const resolvedVarName = normalizeVariableName(selectedOption.globalVariableName);
+        if (resolvedVarName) {
             updateGameGlobalVariables(prev => ({
                 ...prev,
-                playerCheckpointX: safeX,
-                playerCheckpointY: safeY,
-                playerCheckpointScreen: currentScreenMap.id
+                [resolvedVarName]: selectedExpanded.controlValue
             }));
         }
-        setPlayerEntryPoint(null);
-        entitiesRef.current = entitiesToAnimate;
-        heroRef.current = heroForThisScreen || null;
-
-        if (heroForThisScreen && playerEntryPoint) {
-            pressedKeys.current.forEach(key => {
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
-                    checkKeyTransitions(heroForThisScreen!.instance.id, key, true);
-                }
-            });
-            setPlayerEntryPoint(null);
+    }
+    const connection = connections.find(c => c.from.nodeId === currentNode.id && c.from.sourceId === selectedOption.id);
+    if (connection) {
+        let targetNodeId = connection.to.nodeId;
+        let targetNode = nodes.find(n => n.id === targetNodeId);
+        while (targetNode && targetNode.type === 'Waypoint') {
+            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+            if (nextConn) {
+                targetNodeId = nextConn.to.nodeId;
+                targetNode = nodes.find(n => n.id === targetNodeId);
+            } else {
+                break;
+            }
         }
-    }, [isOpen, currentScreenMap, allAssets, entityTemplates, componentDefinitions, checkKeyTransitions]);
+        setNavigationStack(prev => [...prev, currentNode.id]);
+        setCurrentNodeId(targetNodeId);
+        setSelectedOptionIndex(0);
+    }
+}, [currentNode, connections, selectedOptionIndex, nodes, expandMenuOptions]);
 
-    useEffect(() => {
-        if (!isOpen || !currentNode) return;
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) return;
-        ctx.imageSmoothingEnabled = false;
+const handleGoBack = useCallback(() => {
+    if (navigationStack.length > 0) {
+        const lastNodeId = navigationStack[navigationStack.length - 1];
+        setNavigationStack(prev => prev.slice(0, -1));
+        setCurrentNodeId(lastNodeId);
+        setSelectedOptionIndex(0);
+    } else if (currentNode?.type === 'WorldLink') {
+        onClose();
+    }
+}, [navigationStack, currentNode, onClose]);
 
-        // --- Nuevo: Pre-renderizado de Tiles ---
-        const subMenuNode = currentNode.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
-        const bgAsset = subMenuNode?.appearance?.backgroundScreenAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.backgroundScreenAssetId) : null;
-        const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
-        const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+// Keep refs in sync for gamepad handlers
+useEffect(() => {
+    handleActionRef.current = handleAction;
+    handleGoBackRef.current = handleGoBack;
+}, [handleAction, handleGoBack]);
+useEffect(() => {
+    checkKeyTransitionsRef.current = checkKeyTransitions;
+}, [checkKeyTransitions]);
+useEffect(() => {
+    expandMenuOptionsRef.current = expandMenuOptions;
+}, [expandMenuOptions]);
 
-        type CollisionCheckOptions = {
-            ignoreTopSolid?: boolean;
-            platformContext?: { hitboxBottom: number; velocityY: number };
-        };
+const handleScreenTransition = useCallback((toNodeId: string) => {
+    if (!currentWorldMapGraph) return;
+    const nextScreenNode = currentWorldMapGraph.nodes.find(n => n.id === toNodeId);
+    if (!nextScreenNode) return;
+    const nextScreenAsset = allAssets.find(a => a.id === nextScreenNode.screenAssetId && a.type === 'screenmap');
+    if (!nextScreenAsset) return;
 
-        const checkCollisionAt = (x: number, y: number, screenMap: ScreenMap, options?: CollisionCheckOptions) => {
-            const tileX = Math.floor(x / TILE_SIZE);
-            const tileY = Math.floor(y / TILE_SIZE);
-            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
+    // Skip checkpoint persistence here because:
+    // - Border crossings set playerEntryPoint and the effect will record the safe spot
+    // - Manual transitions follow the same flow and would double-save otherwise
+    // Mark transition time to debounce immediate re-exit on arrival
+    try { lastScreenTransitionTimeRef.current = (typeof performance !== 'undefined' ? performance.now() : Date.now()); } catch { lastScreenTransitionTimeRef.current = Date.now(); }
 
-            // Use runtimeCollisionLayerRef when rendering the active screen so tile edits are respected
-            const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
-            const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
-            const tileOnLayer = collisionLayer[tileY]?.[tileX];
+    setCurrentScreenMap(nextScreenAsset.data as ScreenMap);
+}, [currentWorldMapGraph, allAssets]);
 
-            if (!tileOnLayer || !tileOnLayer.tileId) return false;
-            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-            const logical = tile?.logicalProperties;
-            if (!logical?.isSolid) return false;
-
-            // Treat familyId 2 as "top-solid/platform": only solid when approached from above
-            const isTopSolid = logical.familyId === 2;
-            if (isTopSolid) {
-                if (options?.ignoreTopSolid) return false;
-
-                // If we have motion context, only collide when falling/standing above the tile
-                if (options?.platformContext) {
-                    const tileTop = tileY * TILE_SIZE;
-                    const wasAbove = options.platformContext.hitboxBottom <= tileTop + 2; // Small tolerance
-                    const descendingOrIdle = options.platformContext.velocityY >= 0;
-                    if (!(wasAbove && descendingOrIdle)) {
-                        return false;
-                    }
-                }
-            }
-
-            return true;
-        };
-
-        const checkDangerousTileAt = (x: number, y: number, screenMap: ScreenMap) => {
-            const tileX = Math.floor(x / TILE_SIZE);
-            const tileY = Math.floor(y / TILE_SIZE);
-            if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
-
-            const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
-            const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
-            const tileOnLayer = collisionLayer[tileY]?.[tileX];
-
-            if (!tileOnLayer || !tileOnLayer.tileId) return false;
-            const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-            return tile?.logicalProperties?.causesDamage ?? false;
-        };
-
-        const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string, runtimeLayer?: ScreenTile[][]) => {
-            if (!map) return null; // No hay mapa para renderizar
-            const canvas = tileBufferRef.current ?? document.createElement('canvas');
-            canvas.width = PREVIEW_WIDTH;
-            canvas.height = PREVIEW_HEIGHT;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return null;
-            ctx.imageSmoothingEnabled = false;
-
-            // Si hay runtime layer, crear copia temporal del screenMap con ese layer solo para collision
-            // El background se mantiene original para el renderizado visual
-            const mapToRender = runtimeLayer ? {
-                ...map,
-                layers: {
-                    ...map.layers,
-                    background: map.layers.background,  // Mantener background original para renderizado
-                    collision: runtimeLayer              // Solo usar runtime para deteccin de colisiones
-                }
-            } : map;
-
-            renderScreenToCanvas(canvas, mapToRender, tset, mode, TILE_SIZE);
-            tileBufferRef.current = canvas;
-            return canvas;
-        };
-
-        // Debug helper: draw outlines for solid tiles from the Collision layer
-        const drawCollisionTileOutlines = (ctx: CanvasRenderingContext2D) => {
-            if (!showTileHitboxes) return;
-            const map = currentScreenMapRef.current;
-            if (!map) return;
-
-            // Prefer runtime collision layer when available (reflects tile changes during play)
-            const collisionLayer: ScreenTile[][] = (runtimeCollisionLayerRef.current && runtimeCollisionLayerRef.current.length > 0)
-                ? runtimeCollisionLayerRef.current
-                : map.layers.collision;
-
-            if (!collisionLayer) return;
-
-            // Precompute solid tile ids
-            const solidIds = new Set<string>();
-            for (const t of tileset) {
-                if (t?.logicalProperties?.isSolid) solidIds.add(t.id);
-            }
-
-            ctx.save();
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = '#00FFFF';
-            ctx.setLineDash([3, 2]);
-            for (let ty = 0; ty < map.height; ty++) {
-                const row = collisionLayer[ty];
-                if (!row) continue;
-                for (let tx = 0; tx < map.width; tx++) {
-                    const cell = row[tx];
-                    const id = cell?.tileId || null;
-                    if (!id || !solidIds.has(id)) continue;
-                    ctx.strokeRect(tx * TILE_SIZE + 0.5, ty * TILE_SIZE + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-                }
-            }
-            ctx.setLineDash([]);
-            ctx.restore();
-        };
-
-        // Pre-renderizar el mapa actual si existe, usando runtimeCollisionLayer si estA disponible
-        if (screenMapToRender) {
-            const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
-            tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
-            tileBufferNeedsUpdate.current = false; // Reset flag
+const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
+    // Remove both e.key and e.code for compatibility
+    if (heroRef.current) {
+        if (pressedKeys.current.has(e.key)) {
+            pressedKeys.current.delete(e.key);
         }
-        // --- Fin Nuevo ---
+        if (e.code && pressedKeys.current.has(e.code)) {
+            pressedKeys.current.delete(e.code);
+        }
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            checkKeyTransitions(heroRef.current.instance.id, e.key, false);
+        }
+    }
+    // Reset jump key processed flag when space is released
+    if (e.key === ' ') {
+        jumpKeyProcessed.current = false;
+    }
+}, [checkKeyTransitions]);
 
-        // --- Shooting helpers ---
-        const getMergedComponentValues = (entity: AnimatedEntity, compId: string): Record<string, any> | null => {
-            const templateComp = entity.template.components.find(c => c.definitionId === compId);
-            if (!templateComp) return null;
-            return {
-                ...(templateComp.defaultValues || {}),
-                ...(entity.instance.componentOverrides?.[compId] || {})
-            } as Record<string, any>;
-        };
+// Ensure keyboard is captured even if modal loses focus (e.g., fullscreen)
+useEffect(() => {
+    if (!isOpen) return;
+    const onWindowKeyDown = (e: KeyboardEvent) => {
+        if (currentNode?.type !== 'WorldLink') return;
+        // Mirror minimal logic from handleKeyDown for gameplay
+        if (!pressedKeys.current.has(e.key)) pressedKeys.current.add(e.key);
+        if (e.code && !pressedKeys.current.has(e.code)) pressedKeys.current.add(e.code);
+        if (heroRef.current && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            checkKeyTransitions(heroRef.current.instance.id, e.key, true);
+        }
+    };
+    const onWindowKeyUp = (e: KeyboardEvent) => {
+        if (currentNode?.type !== 'WorldLink') return;
+        if (pressedKeys.current.has(e.key)) pressedKeys.current.delete(e.key);
+        if (e.code && pressedKeys.current.has(e.code)) pressedKeys.current.delete(e.code);
+        if (heroRef.current && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            checkKeyTransitions(heroRef.current.instance.id, e.key, false);
+        }
+        if (e.key === ' ') {
+            jumpKeyProcessed.current = false;
+        }
+    };
+    window.addEventListener('keydown', onWindowKeyDown);
+    window.addEventListener('keyup', onWindowKeyUp);
+    return () => {
+        window.removeEventListener('keydown', onWindowKeyDown);
+        window.removeEventListener('keyup', onWindowKeyUp);
+    };
+}, [isOpen, currentNode?.type, checkKeyTransitions]);
 
-        const spawnProjectile = (shooter: AnimatedEntity) => {
-            const shootProps = getMergedComponentValues(shooter, 'comp_shoot');
-            if (!shootProps) return;
+const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    e.preventDefault();
+    if (!currentNode) return;
+    if (currentNode.type === 'SubMenu') {
+        const subMenuNode = currentNode as GameFlowSubMenuNode;
+        const expandedOptions = expandMenuOptions(subMenuNode);
+        const maxIndex = expandedOptions.length - 1;
+        switch (e.key) {
+            case 'ArrowUp': setSelectedOptionIndex(prev => Math.max(0, prev - 1)); break;
+            case 'ArrowDown': setSelectedOptionIndex(prev => Math.min(maxIndex, prev + 1)); break;
+            case ' ': case 'Enter': handleAction(); break;
+            case 'Escape': handleGoBack(); break;
+        }
+    } else if (currentNode.type === 'Text' || currentNode.type === 'Restart' || currentNode.type === 'Music') {
+        switch (e.key) {
+            case ' ': case 'Enter':
+                if (currentNode.type === 'Restart') {
+                    // Hard reset transient gameplay/session state to avoid stale entities (e.g., carried boxes)
+                    try { boxPickedUpRegistry.current.clear(); } catch { }
+                    try { collectedItemsRegistry.current.clear(); } catch { }
+                    try { revealedSecretTiles.current.clear(); } catch { }
+                    updateGameGlobalVariables(() => ({}));
+                    try { gameGlobalVariablesRef.current = {}; } catch { }
+                    try { lastScreenTransitionTimeRef.current = 0; } catch { }
 
-            const spriteAssetId = shootProps.spriteAssetId || shootProps.renderSpriteAssetId || shootProps.render;
-            // Allow lookup by asset id or asset name (or inner data name/id)
-            const projectileSpriteAsset = allAssets.find(a => (
-                a.type === 'sprite' && (
-                    a.id === spriteAssetId ||
-                    a.name === spriteAssetId ||
-                    (a.data && (a.data as any).id === spriteAssetId) ||
-                    (a.data && (a.data as any).name === spriteAssetId)
-                )
-            ));
-            const projectileSprite = projectileSpriteAsset?.data as Sprite | undefined;
-            if (!projectileSprite || !projectileSprite.frames?.length) return;
-
-            // --- Determine aim and velocity (supports 4-direction shooting) ---
-            const aimMode = String(shootProps.aimMode || 'facing').toLowerCase();
-            const allowDiagonals = (shootProps.allowDiagonals === true) || (shootProps.allowDiagonals === 'true');
-            const speedProp = Number(shootProps.speed);
-            const vxProp = Number(shootProps.velocityX);
-            const vyProp = Number(shootProps.velocityY);
-
-            // Determine facing sign for horizontal
-            let dirX = 1;
-            if (shooter.sprite.facingDirection === 'right') {
-                dirX = shooter.isFacingMirrored ? -1 : 1;
-            } else if (shooter.sprite.facingDirection === 'left') {
-                dirX = shooter.isFacingMirrored ? 1 : -1;
-            }
-
-            // Read input for aiming
-            const upPressed = pressedKeys.current.has('ArrowUp') || pressedKeys.current.has('w') || pressedKeys.current.has('W');
-            const downPressed = pressedKeys.current.has('ArrowDown') || pressedKeys.current.has('s') || pressedKeys.current.has('S');
-            const leftPressed = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('a') || pressedKeys.current.has('A');
-            const rightPressed = pressedKeys.current.has('ArrowRight') || pressedKeys.current.has('d') || pressedKeys.current.has('D');
-
-            let dx = 0, dy = 0;
-            if (aimMode === '4dir' || aimMode === 'four' || aimMode === 'fourdir' || aimMode === '4-dir') {
-                const anyVertical = (upPressed && !downPressed) || (downPressed && !upPressed);
-                const anyHorizontal = (leftPressed && !rightPressed) || (rightPressed && !leftPressed);
-                if (allowDiagonals && anyVertical && anyHorizontal) {
-                    dx = leftPressed ? -1 : (rightPressed ? 1 : 0);
-                    dy = upPressed ? -1 : (downPressed ? 1 : 0);
-                } else {
-                    if (upPressed && !downPressed) { dy = -1; }
-                    else if (downPressed && !upPressed) { dy = 1; }
-                    else if (leftPressed && !rightPressed) { dx = -1; }
-                    else if (rightPressed && !leftPressed) { dx = 1; }
-                    else { dx = dirX; dy = 0; }
-                }
-            } else {
-                // Default: facing-based horizontal
-                dx = dirX; dy = 0;
-            }
-
-            // Determine speed magnitude
-            let speed = (!isNaN(speedProp) && speedProp > 0) ? speedProp : NaN;
-            let vx = 0, vy = 0;
-            if (aimMode === '4dir' || aimMode === 'four' || aimMode === 'fourdir' || aimMode === '4-dir') {
-                if (isNaN(speed)) {
-                    const candX = isNaN(vxProp) ? 0 : Math.abs(vxProp);
-                    const candY = isNaN(vyProp) ? 0 : Math.abs(vyProp);
-                    speed = Math.max(candX, candY, 0);
-                    if (!speed || speed <= 0) speed = 3;
-                }
-                vx = dx * speed;
-                vy = dy * speed;
-            } else {
-                // Facing-based: keep semantics where positive vx means magnitude auto-flipped; negative is explicit
-                if (!isNaN(vxProp)) {
-                    vx = (vxProp >= 0) ? (Math.abs(vxProp) * dirX) : vxProp;
-                } else {
-                    vx = (isNaN(speed) ? 3 : speed) * dirX;
-                }
-                vy = isNaN(vyProp) ? 0 : vyProp;
-            }
-
-            // Compute offsets, flipping horizontally only if actually shooting horizontally
-            let offsetX = Number(shootProps.offsetX || 0);
-            let offsetY = Number(shootProps.offsetY || 0);
-            const isHorizontalShot = Math.abs(dx) > 0 && Math.abs(dy) === 0;
-            if (isHorizontalShot && shooter.isFacingMirrored && (shooter.sprite.facingDirection === 'right' || shooter.sprite.facingDirection === 'left')) {
-                offsetX = -offsetX;
-            }
-
-            const spawnX = Math.round(shooter.x + (shooter.sprite.size.width / 2) - (projectileSprite.size.width / 2) + offsetX);
-            const spawnY = Math.round(shooter.y + (shooter.sprite.size.height / 2) - (projectileSprite.size.height / 2) + offsetY);
-
-            const maxRange = Number(shootProps.range || shootProps.maxRange || 128);
-            const damage = Number(shootProps.damage || 1);
-            const expireOnHit = (shootProps.expireOnHit === undefined) ? true : (shootProps.expireOnHit === true || shootProps.expireOnHit === 'true');
-            // Optional: allow comp_shoot to control if projectile animates
-            const playAnimation = (shootProps.playAnimation === undefined)
-                ? true
-                : (shootProps.playAnimation === true || shootProps.playAnimation === 'true');
-
-            // Build projectile frame images (and optional mirrored set)
-            const buildFrames = (spr: Sprite) => {
-                const frames = spr.frames.map(frame => {
-                    const img = new Image();
-                    img.src = createSpriteDataURL(frame.data, spr.size.width, spr.size.height);
-                    return img;
-                });
-                const mirrored = spr.frames.map(frame => {
-                    const img = new Image();
-                    img.src = createSpriteDataURL(
-                        mirrorPixelDataHorizontally(frame.data),
-                        spr.size.width,
-                        spr.size.height
-                    );
-                    return img;
-                });
-                return { frames, mirrored };
-            };
-
-            const projFrames = buildFrames(projectileSprite);
-
-            // Optional: explosion sprite (Render2)
-            const explosionSpriteId = shootProps.spriteAssetId2 || shootProps.renderSpriteAssetId2 || shootProps.render2;
-            const explosionSprite = explosionSpriteId
-                ? (allAssets.find(a => a.id === explosionSpriteId && a.type === 'sprite')?.data as Sprite | undefined)
-                : undefined;
-            const explosionFrames = explosionSprite ? buildFrames(explosionSprite) : null;
-
-            // Determine desired facing (world) based on shot direction or shooter mirroring
-            const isHoriz = Math.abs(vx) > Math.abs(vy);
-            const desiredFacing: FacingDirection = isHoriz
-                ? (vx < 0 ? 'left' : 'right')
-                : (shooter.isFacingMirrored ? 'left' : 'right');
-            // Decide if projectile needs mirroring comparing its sprite facing with desired world facing
-            const projMirrored = computeMirrorForSprite(projectileSprite, desiredFacing);
-
-            const proj: AnimatedEntity = {
-                instance: {
-                    id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                    entityTemplateId: 'tpl_projectile_runtime',
-                    name: 'Projectile',
-                    position: { x: Math.floor(spawnX / TILE_SIZE), y: Math.floor(spawnY / TILE_SIZE) },
-                    componentOverrides: {}
-                },
-                template: { id: 'tpl_projectile_runtime', name: 'Projectile', components: [], description: 'Runtime projectile' },
-                sprite: projectileSprite,
-                x: spawnX,
-                y: spawnY,
-                vx,
-                vy,
-                frameImages: projFrames.frames,
-                mirroredFrameImages: projFrames.mirrored,
-                currentFrame: 0,
-                lastFrameUpdateTime: performance.now(),
-                isOnGround: false,
-                spawnTime: performance.now(),
-                parentEntityId: shooter.instance.id,
-                platformGraceFramesLeft: 0,
-                isFacingMirrored: projMirrored,
-                isProjectile: true,
-                projectileOwnerId: shooter.instance.id,
-                projectileStartX: spawnX,
-                projectileStartY: spawnY,
-                projectileMaxRange: maxRange,
-                projectileDamage: damage,
-                projectileExpireOnHit: expireOnHit,
-                animateProjectile: playAnimation,
-                // Explosion (Render2)
-                isExploding: false,
-                explosionSprite: explosionSprite,
-                explosionFrameImages: explosionFrames?.frames,
-                explosionMirroredFrameImages: explosionFrames?.mirrored,
-                desiredFacingDirection: desiredFacing,
-            };
-
-            entitiesRef.current.push(proj);
-            shooter.lastShotTime = performance.now();
-        };
-
-        const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes, customFont?: MSXFont, customColorAttrs?: MSXFontColorAttributes) => {
-            return new Promise<void>((resolve) => {
-                const textImg = new Image();
-                textImg.onload = () => { ctx.drawImage(textImg, x, y); resolve(); };
-                const fontToUse = customFont || msxFont;
-                const colorAttrsToUse = customColorAttrs || colorAttrs;
-                textImg.src = renderMSX1TextToDataURL(text, fontToUse, colorAttrsToUse, 1, 1);
-            });
-        };
-
-        // Given a sprite's default facing and a desired world facing, decide if we must mirror horizontally
-        const computeMirrorForSprite = (sprite: Sprite, desired: FacingDirection | undefined): boolean => {
-            if (!sprite) return false;
-            const desiredDir = desired === 'left' || desired === 'right' ? desired : 'right';
-            const baseDir = sprite.facingDirection === 'left' || sprite.facingDirection === 'right' ? sprite.facingDirection : 'right';
-            if (sprite.facingDirection === 'neutral' || sprite.facingDirection === 'up' || sprite.facingDirection === 'down') {
-                return false; // Neutral or vertical-facing sprites don't need mirroring decisions
-            }
-            // Mirror when desired world direction differs from sprite's default facing
-            return (baseDir === 'right' && desiredDir === 'left') || (baseDir === 'left' && desiredDir === 'right');
-        };
-
-        // Trigger projectile explosion (Render2). If no Render2 defined, destroy immediately.
-        const startProjectileExplosion = (proj: AnimatedEntity) => {
-            if (!proj.isProjectile) return;
-            if (proj.isExploding) return;
-
-            // If we have explosion frames, switch to them and stop movement
-            if (proj.explosionSprite && proj.explosionFrameImages && proj.explosionFrameImages.length > 0) {
-                proj.isExploding = true;
-                proj.vx = 0; proj.vy = 0;
-                // Swap sprite and frames to Render2
-                proj.sprite = proj.explosionSprite;
-                proj.frameImages = proj.explosionFrameImages;
-                // Keep mirrored frames if available so direction can be respected
-                proj.mirroredFrameImages = proj.explosionMirroredFrameImages;
-                // Re-evaluate mirroring using the explosion sprite facing parameter and desired world direction
-                const desired = proj.desiredFacingDirection;
-                proj.isFacingMirrored = computeMirrorForSprite(proj.sprite, desired);
-                proj.currentFrame = 0;
-                proj.lastFrameUpdateTime = performance.now();
-            } else {
-                // Fallback: no explosion configured
-                (proj as any).markedForDestruction = true;
-            }
-        };
-
-        const applyTransitionEffect = async (effect: string, duration: number) => {
-            const steps = Math.max(10, Math.floor(duration / 50));
-            switch (effect) {
-                case 'cls':
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    break;
-                case 'dissolve_pixels':
-                    for (let i = 0; i < steps; i++) {
-                        const pixelsPerStep = Math.floor((PREVIEW_WIDTH * PREVIEW_HEIGHT) / steps);
-                        for (let j = 0; j < pixelsPerStep; j++) {
-                            const x = Math.floor(Math.random() * PREVIEW_WIDTH);
-                            const y = Math.floor(Math.random() * PREVIEW_HEIGHT);
-                            ctx.fillStyle = '#000000';
-                            ctx.fillRect(x, y, 1, 1);
-                        }
-                        await new Promise(resolve => setTimeout(resolve, duration / steps));
-                    }
-                    break;
-                case 'dissolve_chars':
-                    const charWidth = 8;
-                    const charHeight = 8;
-                    const charsX = Math.floor(PREVIEW_WIDTH / charWidth);
-                    const charsY = Math.floor(PREVIEW_HEIGHT / charHeight);
-                    const totalChars = charsX * charsY;
-                    const charsPerStep = Math.max(1, Math.floor(totalChars / steps));
-                    const positions = Array.from({ length: totalChars }, (_, i) => i);
-                    for (let i = positions.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [positions[i], positions[j]] = [positions[j], positions[i]];
-                    }
-                    for (let i = 0; i < steps && positions.length > 0; i++) {
-                        for (let j = 0; j < charsPerStep && positions.length > 0; j++) {
-                            const pos = positions.pop()!;
-                            const cx = (pos % charsX) * charWidth;
-                            const cy = Math.floor(pos / charsX) * charHeight;
-                            ctx.fillStyle = '#000000';
-                            ctx.fillRect(cx, cy, charWidth, charHeight);
-                        }
-                        await new Promise(resolve => setTimeout(resolve, duration / steps));
-                    }
-                    break;
-                case 'vertical_lines':
-                    for (let x = 0; x < PREVIEW_WIDTH; x += Math.max(1, Math.floor(PREVIEW_WIDTH / steps))) {
-                        ctx.fillStyle = '#000000';
-                        ctx.fillRect(x, 0, Math.max(1, Math.floor(PREVIEW_WIDTH / steps)), PREVIEW_HEIGHT);
-                        await new Promise(resolve => setTimeout(resolve, duration / steps));
-                    }
-                    break;
-                case 'horizontal_lines':
-                    for (let y = 0; y < PREVIEW_HEIGHT; y += Math.max(1, Math.floor(PREVIEW_HEIGHT / steps))) {
-                        ctx.fillStyle = '#000000';
-                        ctx.fillRect(0, y, PREVIEW_WIDTH, Math.max(1, Math.floor(PREVIEW_HEIGHT / steps)));
-                        await new Promise(resolve => setTimeout(resolve, duration / steps));
-                    }
-                    break;
-                case 'spiral':
-                    let left = 0, right = PREVIEW_WIDTH - 1, top = 0, bottom = PREVIEW_HEIGHT - 1;
-                    const spiralStep = Math.max(1, Math.floor(Math.min(PREVIEW_WIDTH, PREVIEW_HEIGHT) / (steps * 2)));
-                    while (left <= right && top <= bottom) {
-                        ctx.fillStyle = '#000000';
-                        ctx.fillRect(left, top, right - left + 1, spiralStep);
-                        top += spiralStep;
-                        if (left <= right && top <= bottom) {
-                            ctx.fillRect(right - spiralStep + 1, top, spiralStep, bottom - top + 1);
-                            right -= spiralStep;
-                        }
-                        if (left <= right && top <= bottom) {
-                            ctx.fillRect(left, bottom - spiralStep + 1, right - left + 1, spiralStep);
-                            bottom -= spiralStep;
-                        }
-                        if (left <= right && top <= bottom) {
-                            ctx.fillRect(left, top, spiralStep, bottom - top + 1);
-                            left += spiralStep;
-                        }
-                        await new Promise(resolve => setTimeout(resolve, duration / Math.ceil(steps / 4)));
-                    }
-                    break;
-                case 'fill_white_squares':
-                    const squareSize = 16;
-                    const squaresX = Math.ceil(PREVIEW_WIDTH / squareSize);
-                    const squaresY = Math.ceil(PREVIEW_HEIGHT / squareSize);
-                    const totalSquares = squaresX * squaresY;
-                    const squarePositions = Array.from({ length: totalSquares }, (_, i) => i);
-                    for (let i = squarePositions.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [squarePositions[i], squarePositions[j]] = [squarePositions[j], squarePositions[i]];
-                    }
-                    const squaresPerStep = Math.max(1, Math.floor(totalSquares / steps));
-                    for (let i = 0; i < steps && squarePositions.length > 0; i++) {
-                        for (let j = 0; j < squaresPerStep && squarePositions.length > 0; j++) {
-                            const pos = squarePositions.pop()!;
-                            const sx = (pos % squaresX) * squareSize;
-                            const sy = Math.floor(pos / squaresX) * squareSize;
-                            ctx.fillStyle = '#FFFFFF';
-                            ctx.fillRect(sx, sy, squareSize, squareSize);
-                        }
-                        await new Promise(resolve => setTimeout(resolve, duration / steps));
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                    break;
-            }
-        };
-
-        const renderTextNodes = async () => {
-            if (currentNode.type !== 'Transition') {
-                let bgColor = '#000000';
-                if (currentNode.type === 'SubMenu') {
-                    bgColor = (currentNode as GameFlowSubMenuNode).appearance?.colors?.background || '#000000';
-                } else if (currentNode.type === 'Text') {
-                    bgColor = (currentNode as GameFlowTextNode).appearance?.colors?.background || '#000000';
-                }
-                ctx.fillStyle = bgColor;
-                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                if (tileBufferRef.current) {
-                    ctx.drawImage(tileBufferRef.current, 0, 0); // Dibujar buffer pre-renderizado
-
-                    // Hide revealed secret tiles
-                    if (currentScreenMapRef.current) {
-                        ctx.fillStyle = '#000000';
-                        revealedSecretTiles.current.forEach((key) => {
-                            const parts = key.split('_');
-                            const screenId = parts.slice(0, -2).join('_');
-                            const tx = parseInt(parts[parts.length - 2], 10);
-                            const ty = parseInt(parts[parts.length - 1], 10);
-
-                            if (screenId === currentScreenMapRef.current?.id) {
-                                ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                            }
-                        });
-                    }
-                }
-            }
-            switch (currentNode.type) {
-                case 'Start':
-                    if (currentExecutingGameFlowName === 'Main') {
-                        const startText = 'Build with Mideas';
-                        const startDims = getTextDimensionsMSX1(startText, 1);
-                        await drawTextAsync(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
-                    }
-                    setTimeout(() => {
-                        const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                        if (conn) setCurrentNodeId(conn.to.nodeId);
-                    }, 1000);
-                    break;
-                case 'SubMenu':
-                    const subMenu = currentNode as GameFlowSubMenuNode;
-                    const subMenuFontAsset = (subMenu.appearance as any)?.fontAssetId
-                        ? allAssets.find(a => a.id === (subMenu.appearance as any).fontAssetId)
-                        : null;
-                    const subMenuFont = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
-                    const subMenuFontColorAttrs = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
-                    const titleDims = getTextDimensionsMSX1(subMenu.title, 1);
-                    await drawTextAsync(subMenu.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes, subMenuFont, subMenuFontColorAttrs);
-                    const expandedOptions: Array<{ text: string, originalIndex: number, isControlOption?: boolean }> = [];
-                    subMenu.options.forEach((option, idx) => {
-                        if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
-                            option.controlOptions.forEach(ctrl => {
-                                expandedOptions.push({ text: ctrl, originalIndex: idx, isControlOption: true });
-                            });
-                        } else {
-                            expandedOptions.push({ text: option.text, originalIndex: idx });
-                        }
-                    });
-                    for (const [displayIndex, expandedOption] of expandedOptions.entries()) {
-                        const optionText = expandedOption.text;
-                        const optionDims = getTextDimensionsMSX1(optionText, 1);
-                        const isSelected = displayIndex === selectedOptionIndex;
-                        let colorAttrs = subMenuFontColorAttrs || msxFontColorAttributes;
-                        if (isSelected) {
-                            const highlightedColorAttrs = JSON.parse(JSON.stringify(colorAttrs));
-                            for (let i = 0; i < optionText.length; i++) {
-                                highlightedColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
-                            }
-                            colorAttrs = highlightedColorAttrs;
-                        }
-                        await drawTextAsync(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + displayIndex * 12, colorAttrs, subMenuFont, colorAttrs);
-                    }
-                    break;
-                case 'Text':
-                    const textNode = currentNode as GameFlowTextNode;
-                    const textNodeFontAsset = textNode.appearance?.fontAssetId
-                        ? allAssets.find(a => a.id === textNode.appearance.fontAssetId)
-                        : null;
-                    const textNodeFont = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
-                    const textNodeFontColorAttrs = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
-                    const textNodeTitle = textNode.title;
-                    const textNodeMessage = textNode.message || '';
-                    const textNodeTitleDims = getTextDimensionsMSX1(textNodeTitle, 1);
-                    await drawTextAsync(textNodeTitle, (PREVIEW_WIDTH - textNodeTitleDims.width) / 2, 30, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
-                    const words = textNodeMessage.split(' ');
-                    let lines: string[] = [];
-                    let currentLine = '';
-                    const maxLineWidth = PREVIEW_WIDTH - 20;
-                    for (const word of words) {
-                        const testLine = currentLine ? currentLine + ' ' + word : word;
-                        const testDims = getTextDimensionsMSX1(testLine, 1);
-                        if (testDims.width > maxLineWidth && currentLine) {
-                            lines.push(currentLine);
-                            currentLine = word;
-                        } else {
-                            currentLine = testLine;
-                        }
-                    }
-                    if (currentLine) lines.push(currentLine);
-                    const lineHeight = 10;
-                    const startY = 60;
-                    for (let i = 0; i < lines.length; i++) {
-                        const lineDims = getTextDimensionsMSX1(lines[i], 1);
-                        await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
-                    }
-                    const promptText = 'PRESS FIRE TO CONTINUE';
-                    const promptDims = getTextDimensionsMSX1(promptText, 1);
-                    const baseColorAttrs = textNodeFontColorAttrs || msxFontColorAttributes;
-                    const promptColorAttrs = JSON.parse(JSON.stringify(baseColorAttrs));
-                    for (let i = 0; i < promptText.length; i++) {
-                        promptColorAttrs[promptText.charCodeAt(i)] = Array(8).fill({
-                            fg: textNode.appearance?.colors?.promptText || '#F3F3F3',
-                            bg: textNode.appearance?.colors?.background || '#000000'
-                        });
-                    }
-                    await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, promptColorAttrs, textNodeFont, promptColorAttrs);
-                    break;
-                case 'Globals':
+                    // Stop any playing music and clear playback state
                     try {
-                        const globalsNode: any = currentNode;
-                        const vars: Array<{ name: string; value: string }> = globalsNode?.variables || [];
-                        updateGameGlobalVariables(prev => {
-                            const next: Record<string, any> = { ...prev };
-                            for (const entry of vars) {
-                                const baseName = (entry?.name || '').trim();
-                                const key = normalizeVariableName(entry?.name) ?? baseName;
-                                if (!key) continue;
-                                const raw = String(entry?.value ?? '');
-                                const lower = raw.trim().toLowerCase();
-                                let parsed: any = raw;
-                                if (lower === 'true' || lower === 'false') parsed = (lower === 'true');
-                                else if (!Number.isNaN(Number(raw)) && raw !== '') parsed = Number(raw);
-                                next[key] = parsed;
-                            }
-                            return next;
-                        });
-                    } catch { }
-                    // Auto-navigate to next node
-                    {
-                        const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                        if (conn) setCurrentNodeId(conn.to.nodeId);
-                    }
-                    break;
-                case 'Music':
-                    const musicNode = currentNode as any;
-                    // If node is configured to stop music, stop any current playback and move on
-                    if (musicNode.stop === true) {
                         if (musicSynthesizerRef.current) {
                             musicSynthesizerRef.current.stopAllNotes();
                         }
@@ -3605,575 +2481,1044 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         musicSynthesizerRef.current = null;
                         currentMusicTrackIdRef.current = null;
                         musicIsMutedRef.current = false;
-                        // Auto-navigate to next node quickly
-                        setTimeout(() => {
-                            const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                            if (conn) setCurrentNodeId(conn.to.nodeId);
-                        }, 100);
-                        break;
+                    } catch { }
+
+                    // CRITICAL: Clear carried box reference before clearing entities
+                    // This prevents Box ghosts when restarting while carrying a Box
+                    if (heroRef.current?.carriedBox) {
+                        heroRef.current.carriedBox = null;
                     }
-                    if (musicNode.trackAssetId && musicNode.autoPlay !== false) {
-                        // Find track asset
-                        const trackAsset = allAssets.find(a =>
-                            a.type === 'track' && a.id === musicNode.trackAssetId
-                        );
 
-                        if (trackAsset) {
-                            const trackData = trackAsset.data as any; // TrackerSongData
+                    // Clear runtime entities and input state
+                    entitiesRef.current = [];
+                    heroRef.current = null;
+                    pressedKeys.current.clear();
+                    jumpKeyProcessed.current = false;
+                    try { setPlayerEntryPoint(null); } catch { }
 
-                            // Stop current music if playing
-                            if (musicSynthesizerRef.current) {
-                                musicSynthesizerRef.current.stopAllNotes();
-                                if (musicPlaybackIntervalRef.current) {
-                                    clearInterval(musicPlaybackIntervalRef.current);
-                                    musicPlaybackIntervalRef.current = null;
-                                }
-                            }
+                    // Reset screen/world so next Start reinitializes cleanly
+                    setCurrentScreenMap(null);
+                    setCurrentWorldMapGraph(null);
+                    setGameFlowStack([]);
+                    setCurrentNestedGraphData(null);
+                    setCurrentExecutingGameFlowName(gameFlowAssetName);
+                    try { setHudVersion(0); } catch { }
 
-                            // Create new synthesizer
-                            const synth = new AYSynthesizer(trackData.globalVolume / 15);
-                            synth.setSongData(trackData);
-                            musicSynthesizerRef.current = synth;
-                            currentMusicTrackIdRef.current = musicNode.trackAssetId;
-                            musicIsMutedRef.current = false;
-
-                            // Start playback
-                            synth.ensureAudioContext().then(() => {
-                                let currentPatternIndexInOrder = 0;
-                                let currentRow = 0;
-
-                                const playNextRow = () => {
-                                    if (musicIsMutedRef.current || !musicSynthesizerRef.current) return;
-
-                                    const orderIndex = currentPatternIndexInOrder;
-                                    if (orderIndex >= trackData.order.length) {
-                                        if (musicNode.loop !== false) {
-                                            currentPatternIndexInOrder = trackData.restartPosition || 0;
-                                            currentRow = 0;
-                                            return;
-                                        } else {
-                                            // Stop playback
-                                            if (musicPlaybackIntervalRef.current) {
-                                                clearInterval(musicPlaybackIntervalRef.current);
-                                                musicPlaybackIntervalRef.current = null;
-                                            }
-                                            return;
-                                        }
-                                    }
-
-                                    const patternIndex = trackData.order[orderIndex];
-                                    const pattern = trackData.patterns[patternIndex];
-                                    if (!pattern) return;
-
-                                    const rowData = pattern.rows[currentRow];
-                                    if (rowData) {
-                                        // Play notes for each channel
-                                        ['A', 'B', 'C'].forEach((chId, chIndex) => {
-                                            const cell = rowData[chId as 'A' | 'B' | 'C'];
-                                            synth.playNote(
-                                                chIndex as 0 | 1 | 2,
-                                                cell.note,
-                                                cell.instrument,
-                                                cell.ornament,
-                                                cell.volume
-                                            );
-                                        });
-                                    }
-
-                                    currentRow++;
-                                    if (currentRow >= pattern.numRows) {
-                                        currentRow = 0;
-                                        currentPatternIndexInOrder++;
-                                    }
-                                };
-
-                                // Calculate row duration
-                                const rowDurationMs = (2500 * trackData.speed) / trackData.bpm;
-
-                                musicPlaybackIntervalRef.current = window.setInterval(playNextRow, Math.max(20, rowDurationMs));
-                                playNextRow(); // Play first row immediately
-                            });
-
-                            console.log(`[Music Node] Playing track: ${trackAsset.name}`);
-                        }
-                    }
-                    // Auto-navigate to next node after music starts
-                    setTimeout(() => {
-                        const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                        if (conn) setCurrentNodeId(conn.to.nodeId);
-                    }, 500);
-                    break;
-                case 'End':
-                    if (gameFlowStack.length > 0) {
-                        const { parentGraphData, returnNodeId, parentGameFlowName } = gameFlowStack[gameFlowStack.length - 1];
-                        setGameFlowStack(prev => prev.slice(0, -1));
-                        const restoredGraphData = gameFlowStack.length > 1
-                            ? gameFlowStack[gameFlowStack.length - 2].parentGraphData
-                            : graphData;
-                        if (gameFlowStack.length > 1) {
-                            setCurrentNestedGraphData(gameFlowStack[gameFlowStack.length - 2].parentGraphData);
-                        } else {
-                            setCurrentNestedGraphData(null);
-                        }
-                        setCurrentExecutingGameFlowName(parentGameFlowName);
-                        let finalNodeId = returnNodeId;
-                        let finalNode = restoredGraphData.nodes.find(n => n.id === finalNodeId);
-                        while (finalNode && finalNode.type === 'Waypoint') {
-                            const nextConn = restoredGraphData.connections.find(c => c.from.nodeId === finalNodeId);
-                            if (nextConn) {
-                                finalNodeId = nextConn.to.nodeId;
-                                finalNode = restoredGraphData.nodes.find(n => n.id === finalNodeId);
-                            } else {
-                                break;
-                            }
-                        }
-                        setCurrentNodeId(finalNodeId);
+                    const startNode = nodes.find(n => n.type === 'Start');
+                    if (startNode) {
+                        setCurrentNodeId(startNode.id);
                         setNavigationStack([]);
                         setSelectedOptionIndex(0);
                     }
                     break;
-                case 'Restart':
-                    const restartNode = currentNode as any;
-                    const restartTitle = restartNode.title || 'Restart';
-                    const restartMessage = restartNode.message || 'Press Fire to restart';
-                    const restartTitleDims = getTextDimensionsMSX1(restartTitle, 1);
-                    await drawTextAsync(restartTitle, (PREVIEW_WIDTH - restartTitleDims.width) / 2, 60, msxFontColorAttributes);
-                    const restartMsgDims = getTextDimensionsMSX1(restartMessage, 1);
-                    await drawTextAsync(restartMessage, (PREVIEW_WIDTH - restartMsgDims.width) / 2, 90, msxFontColorAttributes);
-                    const restartPrompt = 'Press Fire to restart';
-                    const restartPromptDims = getTextDimensionsMSX1(restartPrompt, 1);
-                    await drawTextAsync(restartPrompt, (PREVIEW_WIDTH - restartPromptDims.width) / 2, PREVIEW_HEIGHT - 30, msxFontColorAttributes);
-                    break;
-                case 'Transition':
-                    const transitionNode = currentNode as any;
-                    const effect = transitionNode.effect || 'cls';
-                    const duration = transitionNode.duration || 1000;
-                    await applyTransitionEffect(effect, duration);
-                    const transitionConn = connections.find(c => c.from.nodeId === currentNode.id);
-                    if (transitionConn) {
-                        let targetNodeId = transitionConn.to.nodeId;
-                        let targetNode = nodes.find(n => n.id === targetNodeId);
-                        while (targetNode && targetNode.type === 'Waypoint') {
-                            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
-                            if (nextConn) {
-                                targetNodeId = nextConn.to.nodeId;
-                                targetNode = nodes.find(n => n.id === targetNodeId);
-                            } else {
-                                break;
-                            }
-                        }
-                        setCurrentNodeId(targetNodeId);
-                    }
-                    break;
-                case 'Group':
-                    const groupNode = currentNode as any;
-                    const groupGameFlowAsset = allAssets.find(a => a.id === groupNode.gameFlowAssetId && a.type === 'gameflow');
-                    if (!groupNode.gameFlowAssetId || !groupGameFlowAsset) {
-                        const groupTitle = groupNode.name || 'Group';
-                        const groupTitleDims = getTextDimensionsMSX1(groupTitle, 1);
-                        await drawTextAsync(groupTitle, (PREVIEW_WIDTH - groupTitleDims.width) / 2, 60, msxFontColorAttributes);
-                        const noFlowText = groupNode.gameFlowAssetId ? 'GameFlow not found' : 'No GameFlow assigned';
-                        const noFlowDims = getTextDimensionsMSX1(noFlowText, 1);
-                        await drawTextAsync(noFlowText, (PREVIEW_WIDTH - noFlowDims.width) / 2, 90, msxFontColorAttributes);
-                    } else {
-                        const nestedGraphData = groupGameFlowAsset.data as GameFlowGraph;
-                        const exitConnection = connections.find(c => c.from.nodeId === currentNode.id);
-                        const returnNodeId = exitConnection ? exitConnection.to.nodeId : currentNode.id;
-                        setGameFlowStack(prev => [...prev, {
-                            parentGraphData: currentGraphData,
-                            returnNodeId,
-                            parentGameFlowName: currentExecutingGameFlowName
-                        }]);
-                        setCurrentNestedGraphData(nestedGraphData);
-                        setCurrentExecutingGameFlowName(groupGameFlowAsset.name);
-                        const nestedStartNode = nestedGraphData.nodes.find(n => n.type === 'Start');
-                        if (nestedStartNode) {
-                            setCurrentNodeId(nestedStartNode.id);
-                            setNavigationStack([]);
-                            setSelectedOptionIndex(0);
-                        }
-                    }
-                    break;
-            }
-        };
-
-
-
-        const handleTilemapCollision = (entity: AnimatedEntity, screenMap: ScreenMap, tileset: Tile[], collisionCompDef: ComponentDefinition) => {
-            if (!screenMap || !tileset || !collisionCompDef) return;
-            const entityCollisionProps = {
-                ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
-                ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
-                ...(entity.instance.componentOverrides?.['comp_collision'] || {})
-            };
-            const registerWallCollisionEvent = (direction: 'left' | 'right' | 'up' | 'down') => {
-                triggerEvent(entity.instance.id, 'collision_wall');
-                triggerEvent(entity.instance.id, `collision_wall_${direction}`);
-            };
-            const getHitboxFor = (x: number, y: number) => {
-                // Respect sprite-defined hitbox when comp values are not provided
-                const sHit = entity.sprite.hitbox;
-                const offsetX = (entityCollisionProps.offsetX !== undefined && entityCollisionProps.offsetX !== '')
-                    ? Number(entityCollisionProps.offsetX)
-                    : (sHit?.offsetX ?? 0);
-                const offsetY = (entityCollisionProps.offsetY !== undefined && entityCollisionProps.offsetY !== '')
-                    ? Number(entityCollisionProps.offsetY)
-                    : (sHit?.offsetY ?? 0);
-                const width = (entityCollisionProps.hitboxWidth !== undefined && entityCollisionProps.hitboxWidth !== '')
-                    ? Number(entityCollisionProps.hitboxWidth)
-                    : (sHit?.width ?? entity.sprite.size.width);
-                const height = (entityCollisionProps.hitboxHeight !== undefined && entityCollisionProps.hitboxHeight !== '')
-                    ? Number(entityCollisionProps.hitboxHeight)
-                    : (sHit?.height ?? entity.sprite.size.height);
-                return { x: x + offsetX, y: y + offsetY, width, height };
-            };
-            const currentHitbox = getHitboxFor(entity.x, entity.y);
-            const platformContext = { hitboxBottom: currentHitbox.y + currentHitbox.height, velocityY: entity.vy };
-            let tentativeX = entity.x + entity.vx;
-            let tentativeY = entity.y + entity.vy;
-            let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
-
-            // --- X-axis collision: use centered vertical probes to avoid top/bottom corner glitches ---
-            if (entity.vx !== 0) {
-                let collisionX = false;
-                const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
-                const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
-
-                if (entity.vx > 0) { // Derecha
-                    if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1, screenMap, { ignoreTopSolid: true }) ||
-                        checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2, screenMap, { ignoreTopSolid: true })) {
-                        collisionX = true;
-                        const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
-                        tentativeX = tileLeftEdge - Number(entityCollisionProps.offsetX ?? 0) - tentativeHitbox.width;
-                        entity.vx = 0;
-                        registerWallCollisionEvent('right');
-                    }
-                } else if (entity.vx < 0) { // Izquierda
-                    if (checkCollisionAt(tentativeHitbox.x, centerY1, screenMap, { ignoreTopSolid: true }) ||
-                        checkCollisionAt(tentativeHitbox.x, centerY2, screenMap, { ignoreTopSolid: true })) {
-                        collisionX = true;
-                        const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
-                        tentativeX = tileRightEdge - Number(entityCollisionProps.offsetX ?? 0);
-                        entity.vx = 0;
-                        registerWallCollisionEvent('left');
-                    }
                 }
-                if (collisionX) {
-                    tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
-                }
-            }
-
-            // --- Y-axis collision: use centered horizontal probes ---
-            if (entity.vy !== 0) {
-                let collisionY = false;
-                const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
-                const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
-
-                if (entity.vy > 0) { // Cayendo
-                    const onPlatform = entity.platformUnderneath != null;
-                    if (!onPlatform && (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap, { platformContext }) ||
-                        checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap, { platformContext }))) {
-                        collisionY = true;
-                        const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
-                        tentativeY = tileTopEdge - Number(entityCollisionProps.offsetY ?? 0) - tentativeHitbox.height;
-                        entity.vy = 0;
-                        registerWallCollisionEvent('down');
-                    }
-                } else if (entity.vy < 0) { // Saltando (hacia arriba)
-                    if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap, { ignoreTopSolid: true }) ||
-                        checkCollisionAt(centerX2, tentativeHitbox.y, screenMap, { ignoreTopSolid: true })) {
-                        collisionY = true;
-                        const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
-                        const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
-                        tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
-                        entity.vy = 0; // Stop vertical velocity after touching the ceiling
-                        registerWallCollisionEvent('up');
-
-
-                    }
-                }
-                if (collisionY) {
-                    // No es estrictamente necesario, pero mantiene consistencia
-                    // tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
-                }
-            }
-
-            // Apply the final position after collision resolution
-            entity.x = tentativeX;
-            entity.y = tentativeY;
-
-            // Check whether the player is overlapping a dangerous tile (causesDamage)
-            const finalHitbox = getHitboxFor(entity.x, entity.y);
-            const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
-            const centerY = finalHitbox.y + Math.floor(finalHitbox.height / 2);
-            const bottomY = finalHitbox.y + finalHitbox.height;
-
-            // Sample multiple hitbox points for better detection accuracy
-            const isDangerous =
-                checkDangerousTileAt(centerX, centerY, screenMap) ||  // Centro
-                checkDangerousTileAt(finalHitbox.x, centerY, screenMap) ||  // Izquierda
-                checkDangerousTileAt(finalHitbox.x + finalHitbox.width, centerY, screenMap) ||  // Derecha
-                checkDangerousTileAt(centerX, bottomY, screenMap);  // Abajo (pies)
-
-            // Actualizar flag para state machine
-            entity.hasDangerousTileCollision = isDangerous;
-
-            // NOTE: damage/death is not applied automatically here
-            // The state machine can look at HAS_DEADLY_TILE_COLLISION and decide what to do
-            // (e.g. transition to a "Taking Damage" or "Dead" animation state)
-        };
-
-        const entityCollisionProps = (entity: AnimatedEntity) => {
-            const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-            if (!collisionCompDef) {
-                return null;
-            }
-
-            const templateCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision');
-            const templateValues = templateCollisionComp?.defaultValues || {};
-            const instanceValues = entity.instance.componentOverrides?.['comp_collision'] || {};
-
-            // Priority: instanceValues > templateValues > sprite.hitbox > defaults > sprite.size
-            const spriteHitbox = entity.sprite.hitbox;
-            const defaults = collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>);
-
-            // Helper that resolves a value following the priority rules above
-            const getPriorityValue = (propName: string, spriteFallback?: number) => {
-                // 1. Instance override (highest priority)
-                if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') {
-                    return Number(instanceValues[propName]);
-                }
-                // 2. Template default value
-                if (templateValues[propName] !== undefined && templateValues[propName] !== '') {
-                    return Number(templateValues[propName]);
-                }
-                // 3. Sprite hitbox fallback when available
-                if (spriteFallback !== undefined) {
-                    return spriteFallback;
-                }
-                // 4. Component default
-                if (defaults[propName] !== undefined && defaults[propName] !== '') {
-                    return Number(defaults[propName]);
-                }
-                // 5. Final fallback
-                return 0;
-            };
-
-            const hitboxWidth = getPriorityValue('hitboxWidth', spriteHitbox?.width ?? entity.sprite.size.width);
-            const hitboxHeight = getPriorityValue('hitboxHeight', spriteHitbox?.height ?? entity.sprite.size.height);
-            const offsetX = getPriorityValue('offsetX', spriteHitbox?.offsetX ?? 0);
-            const offsetY = getPriorityValue('offsetY', spriteHitbox?.offsetY ?? 0);
-
-            // Para otras propiedades sin sprite fallback: instance > template > defaults
-            const getValueNoSpriteFallback = (propName: string, defaultFallback: any) => {
-                if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') return instanceValues[propName];
-                if (templateValues[propName] !== undefined && templateValues[propName] !== '') return templateValues[propName];
-                if (defaults[propName] !== undefined && defaults[propName] !== '') return defaults[propName];
-                return defaultFallback;
-            };
-
-            const collisionLayer = Number(getValueNoSpriteFallback('collisionLayer', 1)) || 1;
-            const collidesWith = Number(getValueNoSpriteFallback('collidesWith', 255)) || 255;
-            const isStatic = getValueNoSpriteFallback('isStatic', false) === true || getValueNoSpriteFallback('isStatic', false) === 'true';
-            const isTrigger = getValueNoSpriteFallback('isTrigger', false) === true || getValueNoSpriteFallback('isTrigger', false) === 'true';
-
-            const result = {
-                hitboxWidth,
-                hitboxHeight,
-                offsetX,
-                offsetY,
-                collisionLayer,
-                collidesWith,
-                isStatic,
-                isTrigger
-            };
-
-            return result;
-        };
-
-        const getHitboxFor = (entity: AnimatedEntity, props: any) => ({
-            x: entity.x + (props.offsetX || 0), y: entity.y + (props.offsetY || 0),
-            width: props.hitboxWidth || entity.sprite.size.width, height: props.hitboxHeight || entity.sprite.size.height,
-        });
-
-        const getHitboxForPosition = (entity: AnimatedEntity, x: number, y: number, props: any) => ({
-            x: x + (props.offsetX || 0), y: y + (props.offsetY || 0),
-            width: props.hitboxWidth || entity.sprite.size.width, height: props.hitboxHeight || entity.sprite.size.height,
-        });
-
-        // --- Entity Collision Resolution (Physical Response) ---
-        const resolveEntityCollision = (entityA: AnimatedEntity, entityB: AnimatedEntity, propsA: any, propsB: any) => {
-            const hitboxA = getHitboxFor(entityA, propsA);
-            const hitboxB = getHitboxFor(entityB, propsB);
-
-            // Calculate overlap in both axes
-            const overlapX = Math.min(
-                hitboxA.x + hitboxA.width - hitboxB.x,
-                hitboxB.x + hitboxB.width - hitboxA.x
-            );
-            const overlapY = Math.min(
-                hitboxA.y + hitboxA.height - hitboxB.y,
-                hitboxB.y + hitboxB.height - hitboxA.y
-            );
-
-            // Determine if entities are static (immovable) or dynamic
-            const isAStatic = propsA.isStatic === true || propsA.isStatic === 'true';
-            const isBStatic = propsB.isStatic === true || propsB.isStatic === 'true';
-
-            // If both are static, no resolution needed
-            if (isAStatic && isBStatic) return;
-
-            // DEBUG: Log collision details for platform detection
-            const isPlatformInvolved = (propsA.collisionLayer & 8) !== 0 || (propsB.collisionLayer & 8) !== 0;
-            if (isPlatformInvolved) {
-            }
-
-            // Detect platform riding BEFORE axis separation (works regardless of separation axis)
-            // Check if A is standing on top of B (platform detection based on relative positions)
-            const isAAboveB = (hitboxA.y + hitboxA.height / 2) < (hitboxB.y + hitboxB.height / 2);
-            const isBAboveA = (hitboxB.y + hitboxB.height / 2) < (hitboxA.y + hitboxA.height / 2);
-
-            // DEBUG: Log platform detection conditions
-            if (isPlatformInvolved) {
-            }
-
-            if (isAAboveB && entityA.vy >= 0) {
-
-                // A is above B and falling/stationary - check if B is a platform OR a box
-                const isPlatformLayer = (propsB.collisionLayer & 8) !== 0;
-                const isBoxEntity = entityB.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityB.template.name);
-                if (isPlatformLayer || isBoxEntity) {
-                    entityA.platformUnderneath = entityB;
-                } else {
-                }
-            } else if (isAAboveB) {
-            }
-
-            if (isBAboveA && entityB.vy >= 0) {
-                // B is above A and falling/stationary - check if A is a platform OR a box
-                const isPlatformLayer = (propsA.collisionLayer & 8) !== 0;
-                const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
-                if (isPlatformLayer || isBoxEntity) {
-                    entityB.platformUnderneath = entityA;
-                }
-            }
-
-            const isPlatformCase = entityA.platformUnderneath === entityB || entityB.platformUnderneath === entityA;
-
-            // Find minimum translation vector (MTV) - separate on axis with less overlap
-            if (overlapX < overlapY && !isPlatformCase) {
-                // Separate on X axis
-                const direction = (hitboxA.x + hitboxA.width / 2) < (hitboxB.x + hitboxB.width / 2) ? -1 : 1;
-                const separation = overlapX * direction;
-
-                if (isAStatic) {
-                    // Only B moves
-                    entityB.x -= separation;
-                    entityB.vx = 0;
-                } else if (isBStatic) {
-                    // Only A moves
-                    entityA.x += separation;
-                    entityA.vx = 0;
-                } else {
-                    // Both move (split separation)
-                    const halfSep = separation / 2;
-                    entityA.x += halfSep;
-                    entityB.x -= halfSep;
-
-                    // Exchange velocities (simple elastic collision)
-                    const isBPlatformX = (propsB.collisionLayer & 8) !== 0;
-                    const isAPlatformX = (propsA.collisionLayer & 8) !== 0;
-
-                    if (isAPlatformX || isBPlatformX) {
-                        // For platforms, don't exchange velocity. Just stop the dynamic entity.
-                        if (isBPlatformX && !isAPlatformX) entityA.vx = 0;
-                        if (isAPlatformX && !isBPlatformX) entityB.vx = 0;
-                    } else {
-                        const tempVx = entityA.vx;
-                        entityA.vx = entityB.vx;
-                        entityB.vx = tempVx;
-                    }
-                }
-            } else {
-                // Separate on Y axis
-                const direction = (hitboxA.y + hitboxA.height / 2) < (hitboxB.y + hitboxB.height / 2) ? -1 : 1;
-                const separation = overlapY * direction;
-
-                if (isAStatic) {
-                    // Only B moves
-                    entityB.y -= separation;
-                    entityB.vy = 0;
-                } else if (isBStatic) {
-                    // Only A moves
-                    entityA.y += separation;
-                    entityA.vy = 0;
-                } else {
-                    // Both move (split separation)
-                    const halfSep = separation / 2;
-                    entityA.y += halfSep;
-                    entityB.y -= halfSep;
-
-                    // Exchange velocities (simple elastic collision)
-                    const isBPlatformY = (propsB.collisionLayer & 8) !== 0;
-                    const isAPlatformY = (propsA.collisionLayer & 8) !== 0;
-
-                    if (isAPlatformY || isBPlatformY) {
-                        // When on a platform, stop the entity's vertical velocity.
-                        // The platform will move the entity directly in the platform update section.
-                        if (isBPlatformY && !isAPlatformY && isAAboveB) {
-                            entityA.vy = 0; // Stop player velocity, platform will move it
-                        } else if (isAPlatformY && !isBPlatformY && isBAboveA) {
-                            entityB.vy = 0; // Stop entity velocity, platform will move it
+                const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                if (conn) {
+                    let targetNodeId = conn.to.nodeId;
+                    let targetNode = nodes.find(n => n.id === targetNodeId);
+                    while (targetNode && targetNode.type === 'Waypoint') {
+                        const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                        if (nextConn) {
+                            targetNodeId = nextConn.to.nodeId;
+                            targetNode = nodes.find(n => n.id === targetNodeId);
                         } else {
-                            // Side or bottom collision, just stop.
-                            if (isBPlatformY && !isAPlatformY) entityA.vy = 0;
-                            if (isAPlatformY && !isBPlatformY) entityB.vy = 0;
+                            break;
                         }
-                    } else {
-                        const tempVy = entityA.vy;
-                        entityA.vy = entityB.vy;
-                        entityB.vy = tempVy;
+                    }
+                    setCurrentNodeId(targetNodeId);
+                }
+                break;
+            case 'Escape': handleGoBack(); break;
+        }
+    } else if (currentNode.type === 'WorldLink') {
+        if (heroRef.current) {
+            if (e.code === 'Space') {
+                // Jump logic is now handled in the animate loop
+            }
+            // Add both e.key and e.code for compatibility (e.g., "n" and "KeyN")
+            // e.key for legacy comp_cursors/comp_jump, e.code for State Machine conditions
+            if (!pressedKeys.current.has(e.key)) {
+                pressedKeys.current.add(e.key);
+            }
+            if (e.code && !pressedKeys.current.has(e.code)) {
+                pressedKeys.current.add(e.code);
+            }
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                checkKeyTransitions(heroRef.current.instance.id, e.key, true);
+            }
+            if (e.key === 'Escape') {
+                // If in fullscreen, exit fullscreen first
+                if (isFullscreen) {
+                    setIsFullscreen(false);
+                } else {
+                    handleGoBack();
+                }
+            }
+            return;
+        }
+        const currentScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === currentScreenMap?.id);
+        if (!currentScreenNode || !currentWorldMapGraph) return;
+        const findAndTransition = (direction: 'north' | 'south' | 'east' | 'west') => {
+            const outgoing = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === direction);
+            if (outgoing) { handleScreenTransition(outgoing.toNodeId); return; }
+            const incoming = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === direction);
+            if (incoming) handleScreenTransition(incoming.fromNodeId);
+        };
+        switch (e.key) {
+            case 'ArrowUp': findAndTransition('north'); break;
+            case 'ArrowDown': findAndTransition('south'); break;
+            case 'ArrowLeft': findAndTransition('west'); break;
+            case 'ArrowRight': findAndTransition('east'); break;
+            case 'Escape': handleGoBack(); break;
+        }
+    }
+}, [currentNode, currentScreenMap, currentWorldMapGraph, handleScreenTransition, handleAction, handleGoBack, checkKeyTransitions, expandMenuOptions, nodes, connections, isFullscreen]);
+
+useEffect(() => {
+    if (!isOpen || currentNode?.type !== 'WorldLink' || currentScreenMap) return;
+    const worldMapAsset = allAssets.find(a => a.id === (currentNode as GameFlowWorldLinkNode).worldAssetId && a.type === 'worldmap');
+    if (!worldMapAsset) return;
+    const worldMapGraph = worldMapAsset.data as WorldMapGraph;
+    if (!worldMapGraph?.startScreenNodeId) return;
+    setCurrentWorldMapGraph(worldMapGraph);
+    const startScreenNode = worldMapGraph.nodes.find(n => n.id === worldMapGraph.startScreenNodeId);
+    if (!startScreenNode) return;
+    const screenMapAsset = allAssets.find(a => a.id === startScreenNode.screenAssetId && a.type === 'screenmap');
+    if (!screenMapAsset) return;
+    setCurrentScreenMap(screenMapAsset.data as ScreenMap);
+}, [isOpen, currentNode, allAssets, currentScreenMap]);
+
+// Build screen world map when WorldMapGraph changes
+useEffect(() => {
+    if (currentWorldMapGraph) {
+
+        // Log all nodes
+        currentWorldMapGraph.nodes.forEach(node => {
+        });
+
+        // Log all connections
+        currentWorldMapGraph.connections.forEach(conn => {
+        });
+
+        const screenWorldMap = buildScreenWorldMap(currentWorldMapGraph);
+        screenWorldMapRef.current = screenWorldMap;
+
+        // Log all screen positions
+        screenWorldMap.forEach((pos, screenId) => {
+        });
+    } else {
+        screenWorldMapRef.current = new Map();
+    }
+}, [currentWorldMapGraph]);
+
+// Update currentScreenMap when the underlying asset changes in allAssets
+useEffect(() => {
+    if (!isOpen || !currentScreenMap) return;
+    const updatedScreenMapAsset = allAssets.find(a => a.id === currentScreenMap.id && a.type === 'screenmap');
+    if (!updatedScreenMapAsset) return;
+    const updatedScreenMap = updatedScreenMapAsset.data as ScreenMap;
+    // Only update if the reference has actually changed (indicating an update occurred)
+    if (updatedScreenMap !== currentScreenMap) {
+        setCurrentScreenMap(updatedScreenMap);
+    }
+}, [isOpen, allAssets, currentScreenMap]);
+
+useEffect(() => {
+    if (!isOpen) {
+        heroRef.current = null;
+        return;
+    }
+    if (!currentScreenMap) {
+        entitiesRef.current = [];
+        return;
+    };
+    // Store refs for use inside asynchronous actions
+    currentScreenMapRef.current = currentScreenMap;
+    currentWorldMapGraphRef.current = currentWorldMapGraph;
+    setPlayerEntryPointRef.current = setPlayerEntryPoint;
+    handleScreenTransitionRef.current = handleScreenTransition;
+
+
+    // Initialize runtime collision layer (cloned from screenMap for in-game modifications)
+    if (currentScreenMap.layers?.collision) {
+        const clonedLayer = JSON.parse(JSON.stringify(currentScreenMap.layers.collision));
+        runtimeCollisionLayerRef.current = clonedLayer;
+        setRuntimeCollisionLayer(clonedLayer);
+    } else {
+        const height = currentScreenMap.height ?? gridHeightTiles;
+        const width = currentScreenMap.width ?? gridWidthTiles;
+        const emptyLayer: ScreenTile[][] = Array.from({ length: height }, () =>
+            Array.from({ length: width }, () => ({ tileId: null }))
+        );
+        runtimeCollisionLayerRef.current = emptyLayer;
+        setRuntimeCollisionLayer(emptyLayer);
+    }
+
+    const getAsset = <T extends AssetType>(assetId: string | null | undefined, assetType: T): ProjectAsset | undefined => {
+        if (!assetId) return undefined;
+        return allAssets.find(a => a.id === assetId && a.type === assetType);
+    };
+
+    const nativeEntities = currentScreenMap.layers.entities.map(instance => {
+        const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
+        if (!template) return null;
+        let spriteAssetId: string | undefined;
+        if (instance.componentOverrides) {
+            for (const compId in instance.componentOverrides) {
+                const compDef = componentDefinitions.find(c => c.id === compId);
+                const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                if (spriteProp && instance.componentOverrides[compId]?.[spriteProp.name]) {
+                    spriteAssetId = instance.componentOverrides[compId][spriteProp.name];
+                    break;
+                }
+            }
+        }
+        if (!spriteAssetId) {
+            for (const comp of template.components) {
+                const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                    spriteAssetId = comp.defaultValues[spriteProp.name];
+                    break;
+                }
+            }
+        }
+        const spriteAsset = getAsset(spriteAssetId, 'sprite');
+        const sprite = spriteAsset?.data as Sprite;
+        if (!sprite?.frames?.length) return null;
+        const frameImages = sprite.frames.map(frame => {
+            const img = new Image();
+            img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
+            return img;
+        });
+        let mirroredFrameImages: HTMLImageElement[] | undefined;
+        if (['right', 'left'].includes(sprite.facingDirection)) {
+            mirroredFrameImages = sprite.frames.map(frame => {
+                const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                const img = new Image();
+                img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+                return img;
+            });
+        }
+        let stateMachine: StateMachine | undefined;
+        let currentState: string | undefined;
+        let initialStateDef: StateMachineState | undefined;
+        const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+        const smcOverride = instance.componentOverrides?.['comp_statemachine'];
+        const stateMachineAssetId = smcOverride?.stateMachineAssetId || smc?.defaultValues?.stateMachineAssetId;
+        if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
+            const stateMachineAsset = getAsset(stateMachineAssetId, 'statemachine');
+            stateMachine = stateMachineAsset?.data as StateMachine | undefined;
+            if (stateMachine) {
+                const startStateId = smcOverride?.currentStateId || smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
+                let initialState = stateMachine.states.find(s => s.id === startStateId);
+                if (!initialState && startStateId) initialState = stateMachine.states.find(s => s.name === startStateId);
+                if (!initialState) initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
+                initialStateDef = initialState;
+                currentState = initialState?.name;
+            }
+        }
+        // Merge patrol component defaultValues with componentOverrides
+        const patrolTemplateComp = template.components.find(c => c.definitionId === 'comp_patrol');
+        const patrolComp = {
+            ...(patrolTemplateComp?.defaultValues || {}),
+            ...(instance.componentOverrides?.comp_patrol || {})
+        };
+        let startX = instance.position.x * TILE_SIZE;
+        let startY = instance.position.y * TILE_SIZE;
+
+
+        let vx = 0, vy = 0;
+        if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
+            // IMPORTANT: if waypoint1 exists, prefer those coordinates as the starting point
+            startX = Number(patrolComp.waypoint1_x);
+            startY = Number(patrolComp.waypoint1_y);
+
+            // Calculate the direction vector toward waypoint2
+            const endX = Number(patrolComp.waypoint2_x ?? startX);
+            const endY = Number(patrolComp.waypoint2_y ?? startY);
+
+            const dx = endX - startX;
+            const dy = endY - startY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // Apply the component speed to build the velocity vector
+            const speed = Number(patrolComp.speed) || 1;
+            if (dist > 0) {
+                vx = (dx / dist) * speed;
+                vy = (dy / dist) * speed;
+            }
+
+        }
+
+        // Initialize multi-screen properties if enabled
+        let globalX: number | undefined;
+        let globalY: number | undefined;
+        let originScreenId: string | undefined;
+
+        if (patrolComp?.multiScreen === true || patrolComp?.multiScreen === 'true') {
+            originScreenId = currentScreenMap.id;
+            const screenPos = screenWorldMapRef.current.get(currentScreenMap.id);
+            if (screenPos) {
+                globalX = screenPos.globalX + startX;
+                globalY = screenPos.globalY + startY;
+            }
+        }
+
+        // Initialize ownerScreenId for Box entities (screen persistence)
+        const isBoxEntity = template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(template.name);
+        const isCollectibleItem = template.components?.some(c => c.definitionId === 'comp_collectible');
+        const ownerScreenId = (isBoxEntity || isCollectibleItem) ? currentScreenMap.id : undefined;
+
+        // Skip Box entities that have already been picked up from this screen
+        if (isBoxEntity && ownerScreenId) {
+            const registryKey = `${ownerScreenId}_${instance.id}`;
+            if (boxPickedUpRegistry.current.has(registryKey)) {
+                return null; // This box was already picked up, don't respawn it
+            }
+        }
+
+        // Skip Collectible items that have already been collected from this screen
+        if (isCollectibleItem && ownerScreenId) {
+            const registryKey = `${ownerScreenId}_${instance.id}`;
+            if (collectedItemsRegistry.current.has(registryKey)) {
+                return null; // This item was already collected, don't respawn it
+            }
+        }
+
+        const childLink = parseChildLinkConfig(template, instance);
+        const lifetimeMs = resolveLifetimeMs(template, instance);
+        const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
+
+        const newEntity = {
+            instance, template, sprite, spriteAssetId, x: startX, y: startY, vx, vy,
+            frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
+            stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
+            globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
+            ownerScreenId,
+            childLink,
+            lifetimeMs,
+            expiresAt
+        };
+
+        if (stateMachine && initialStateDef) {
+            changeEntityState(newEntity, initialStateDef, { runExitActions: false });
+        }
+
+        // Debug log for multi-screen entities
+        if (globalX !== undefined || globalY !== undefined) {
+        }
+
+        return newEntity;
+    }).filter(Boolean) as AnimatedEntity[];
+
+    let entitiesToAnimate = nativeEntities;
+    let heroForThisScreen: AnimatedEntity | undefined;
+
+    // Si hay playerEntryPoint (cruce de borde), SIEMPRE usar el hero actual (carry over)
+    if (playerEntryPoint && heroRef.current) {
+
+        // IMPORTANTE: Remover el player nativo si existe, para evitar duplicados
+        entitiesToAnimate = entitiesToAnimate.filter(e =>
+            !e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') &&
+            e.template.name !== 'Player'
+        );
+
+        entitiesToAnimate.push(heroRef.current);
+        // Also carry over any carried box
+        if (heroRef.current.carriedBox) {
+            const carried = heroRef.current.carriedBox;
+            if (!entitiesToAnimate.some(e => e.instance.id === carried.instance.id)) {
+                entitiesToAnimate.push(carried);
+            }
+        }
+        heroForThisScreen = heroRef.current;
+    } else {
+        // Si NO hay playerEntryPoint, buscar hero nativo o usar carry over
+        heroForThisScreen = entitiesToAnimate.find(e => e.template.components.some(c => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_player_input') || e.template.name === 'Player');
+        if (heroRef.current && !heroForThisScreen) {
+            entitiesToAnimate.push(heroRef.current);
+            // Also carry over any carried box
+            if (heroRef.current.carriedBox) {
+                const carried = heroRef.current.carriedBox;
+                if (!entitiesToAnimate.some(e => e.instance.id === carried.instance.id)) {
+                    entitiesToAnimate.push(carried);
+                }
+            }
+            heroForThisScreen = heroRef.current;
+        }
+    }
+
+    // === CARRY-OVER DE ENTIDADES MULTI-PANTALLA Y SUS HIJOS ===
+    // Mantener entidades multi-pantalla (como plataformas) y cualquier child-link atado a ellas o al player
+    if (entitiesRef.current.length > 0) {
+        const carryOverParents = new Set<string>();
+        if (heroForThisScreen) {
+            carryOverParents.add(heroForThisScreen.instance.id);
+        }
+
+        const carryOverEntities: AnimatedEntity[] = [];
+        const carryOverInstanceIds = new Set<string>();
+        const enqueueCarryOver = (entity: AnimatedEntity) => {
+            if (entity === heroRef.current) return;
+            if (carryOverInstanceIds.has(entity.instance.id)) return;
+            carryOverInstanceIds.add(entity.instance.id);
+            carryOverEntities.push(entity);
+        };
+
+        const previousMultiScreenEntities = entitiesRef.current.filter(e => {
+            if (e === heroRef.current) return false; // Hero ya se maneja por separado
+
+            // Check if entity has multi-screen patrol
+            const patrolTemplateComp = e.template.components.find(c => c.definitionId === 'comp_patrol');
+            const patrolComp = {
+                ...(patrolTemplateComp?.defaultValues || {}),
+                ...(e.instance.componentOverrides?.comp_patrol || {})
+            };
+            const isMultiScreenPatrol = patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
+
+            // Also keep Box entities that have ownerScreenId (belong to a specific screen)
+            const isBox = e.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(e.template.name);
+            const boxHasOwner = isBox && e.ownerScreenId !== undefined;
+
+            return isMultiScreenPatrol || boxHasOwner;
+        });
+
+        previousMultiScreenEntities.forEach(entity => {
+            enqueueCarryOver(entity);
+            carryOverParents.add(entity.instance.id);
+        });
+
+        // Propagar child-links que dependen de un parent que persiste (player o multi-screen)
+        if (carryOverParents.size > 0) {
+            let foundFollower = true;
+            while (foundFollower) {
+                foundFollower = false;
+                for (const candidate of entitiesRef.current) {
+                    if (candidate === heroRef.current) continue;
+                    if (!candidate.childLink || !candidate.parentEntityId) continue;
+                    if (carryOverInstanceIds.has(candidate.instance.id)) continue;
+                    if (carryOverParents.has(candidate.parentEntityId)) {
+                        enqueueCarryOver(candidate);
+                        carryOverParents.add(candidate.instance.id);
+                        foundFollower = true;
                     }
                 }
             }
+        }
+
+        if (carryOverEntities.length > 0) {
+
+            // IMPORTANT: Remove native entities that have same instance.id as carry-over entities
+            // to avoid duplicates when returning a screen
+            const carryOverIds = new Set(carryOverEntities.map(e => e.instance.id));
+            const originalCount = entitiesToAnimate.length;
+            entitiesToAnimate = entitiesToAnimate.filter(e => {
+                const isDuplicate = carryOverIds.has(e.instance.id);
+                if (isDuplicate) {
+                }
+                return !isDuplicate;
+            });
+
+            carryOverEntities.forEach(entity => {
+
+                // Update local coordinates from global coordinates for new screen
+                if (entity.globalX !== undefined && entity.globalY !== undefined) {
+                    const localCoord = globalToLocal(
+                        { x: entity.globalX, y: entity.globalY },
+                        screenWorldMapRef.current
+                    );
+
+                    if (localCoord && localCoord.screenId === currentScreenMap.id) {
+                        // Entity is visible in current screen
+                        entity.x = localCoord.x;
+                        entity.y = localCoord.y;
+                    } else {
+                        // Entity is in another screen - position off-screen but keep in memory
+                        entity.x = -1000;
+                        entity.y = -1000;
+                    }
+                }
+
+                // Ensure frame images are loaded (in case of context reset or missing images)
+                try {
+                    const spriteData = entity.sprite;
+                    if (!entity.frameImages || entity.frameImages.length === 0 || !entity.frameImages[0] || !entity.frameImages[0].complete) {
+                        const rebuilt = spriteData.frames.map(frame => {
+                            const img = new Image();
+                            img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                            return img;
+                        });
+                        entity.frameImages = rebuilt;
+                        if (spriteData.facingDirection === 'left' || spriteData.facingDirection === 'right') {
+                            const mirrored = spriteData.frames.map(frame => {
+                                const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                                const mimg = new Image();
+                                mimg.src = createSpriteDataURL(mirroredData, spriteData.size.width, spriteData.size.height);
+                                return mimg;
+                            });
+                            entity.mirroredFrameImages = mirrored;
+                        }
+                        entity.currentFrame = 0;
+                        entity.lastFrameUpdateTime = 0;
+                    }
+                } catch (err) {
+                    // Silently fail
+                }
+
+                // Always add carry-over entity (it's already filtered from duplicates)
+                entitiesToAnimate.push(entity);
+            });
+        }
+    }
+
+    // Save the hero checkpoint every time we enter the screen
+    if (heroForThisScreen) {
+        let checkpointX: number;
+        let checkpointY: number;
+
+        if (playerEntryPoint) {
+            // Edge transition: honor the supplied playerEntryPoint coordinates
+            heroForThisScreen.x = playerEntryPoint.x;
+            heroForThisScreen.y = playerEntryPoint.y;
+            heroForThisScreen.vx = 0;
+            heroForThisScreen.vy = 0;
+            checkpointX = Math.round(playerEntryPoint.x);
+            checkpointY = Math.round(playerEntryPoint.y);
+        } else {
+            // Initial load: use the hero position from the entity itself
+            checkpointX = Math.round(heroForThisScreen.x);
+            checkpointY = Math.round(heroForThisScreen.y);
+        }
+
+        // Always persist checkpoints, even if one already existed for this screen
+        // Entry point is only for positioning the player visually
+        if (playerEntryPoint) {
+            heroForThisScreen.x = playerEntryPoint.x;
+            heroForThisScreen.y = playerEntryPoint.y;
+            heroForThisScreen.vx = 0;
+            heroForThisScreen.vy = 0;
+            setPlayerEntryPoint(null); // Entry point was consumed
+        }
+
+        // Checkpoint: clamp to a safe area within the screen bounds
+        const safeX = Math.max(8, Math.min(PREVIEW_WIDTH - heroForThisScreen.sprite.size.width - 8, Math.round(heroForThisScreen.x)));
+        const safeY = Math.max(8, Math.min(PREVIEW_HEIGHT - heroForThisScreen.sprite.size.height - 8, Math.round(heroForThisScreen.y)));
+
+        updateGameGlobalVariables(prev => ({
+            ...prev,
+            playerCheckpointX: safeX,
+            playerCheckpointY: safeY,
+            playerCheckpointScreen: currentScreenMap.id
+        }));
+    }
+    setPlayerEntryPoint(null);
+    entitiesRef.current = entitiesToAnimate;
+    heroRef.current = heroForThisScreen || null;
+
+    if (heroForThisScreen && playerEntryPoint) {
+        pressedKeys.current.forEach(key => {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) {
+                checkKeyTransitions(heroForThisScreen!.instance.id, key, true);
+            }
+        });
+        setPlayerEntryPoint(null);
+    }
+}, [isOpen, currentScreenMap, allAssets, entityTemplates, componentDefinitions, checkKeyTransitions]);
+
+useEffect(() => {
+    if (!isOpen || !currentNode) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    ctx.imageSmoothingEnabled = false;
+
+    // --- Nuevo: Pre-renderizado de Tiles ---
+    const subMenuNode = currentNode.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
+    const bgAsset = subMenuNode?.appearance?.backgroundScreenAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.backgroundScreenAssetId) : null;
+    const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
+    const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
+
+    type CollisionCheckOptions = {
+        ignoreTopSolid?: boolean;
+        platformContext?: { hitboxBottom: number; velocityY: number };
+    };
+
+    const checkCollisionAt = (x: number, y: number, screenMap: ScreenMap, options?: CollisionCheckOptions) => {
+        const tileX = Math.floor(x / TILE_SIZE);
+        const tileY = Math.floor(y / TILE_SIZE);
+        if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
+
+        // Use runtimeCollisionLayerRef when rendering the active screen so tile edits are respected
+        const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
+        const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
+        const tileOnLayer = collisionLayer[tileY]?.[tileX];
+
+        if (!tileOnLayer || !tileOnLayer.tileId) return false;
+        const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+        const logical = tile?.logicalProperties;
+        if (!logical?.isSolid) return false;
+
+        // Treat familyId 2 as "top-solid/platform": only solid when approached from above
+        const isTopSolid = logical.familyId === 2;
+        if (isTopSolid) {
+            if (options?.ignoreTopSolid) return false;
+
+            // If we have motion context, only collide when falling/standing above the tile
+            if (options?.platformContext) {
+                const tileTop = tileY * TILE_SIZE;
+                const wasAbove = options.platformContext.hitboxBottom <= tileTop + 2; // Small tolerance
+                const descendingOrIdle = options.platformContext.velocityY >= 0;
+                if (!(wasAbove && descendingOrIdle)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    };
+
+    const checkDangerousTileAt = (x: number, y: number, screenMap: ScreenMap) => {
+        const tileX = Math.floor(x / TILE_SIZE);
+        const tileY = Math.floor(y / TILE_SIZE);
+        if (tileX < 0 || tileX >= screenMap.width || tileY < 0 || tileY >= screenMap.height) return false;
+
+        const useRuntimeLayer = screenMap === currentScreenMap && runtimeCollisionLayerRef.current.length > 0;
+        const collisionLayer = useRuntimeLayer ? runtimeCollisionLayerRef.current : screenMap.layers.collision;
+        const tileOnLayer = collisionLayer[tileY]?.[tileX];
+
+        if (!tileOnLayer || !tileOnLayer.tileId) return false;
+        const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+        return tile?.logicalProperties?.causesDamage ?? false;
+    };
+
+    const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string, runtimeLayer?: ScreenTile[][]) => {
+        if (!map) return null; // No hay mapa para renderizar
+        const canvas = tileBufferRef.current ?? document.createElement('canvas');
+        canvas.width = PREVIEW_WIDTH;
+        canvas.height = PREVIEW_HEIGHT;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+        ctx.imageSmoothingEnabled = false;
+
+        // Si hay runtime layer, crear copia temporal del screenMap con ese layer solo para collision
+        // El background se mantiene original para el renderizado visual
+        const mapToRender = runtimeLayer ? {
+            ...map,
+            layers: {
+                ...map.layers,
+                background: map.layers.background,  // Mantener background original para renderizado
+                collision: runtimeLayer              // Solo usar runtime para deteccin de colisiones
+            }
+        } : map;
+
+        renderScreenToCanvas(canvas, mapToRender, tset, mode, TILE_SIZE);
+        tileBufferRef.current = canvas;
+        return canvas;
+    };
+
+    // Debug helper: draw outlines for solid tiles from the Collision layer
+    const drawCollisionTileOutlines = (ctx: CanvasRenderingContext2D) => {
+        if (!showTileHitboxes) return;
+        const map = currentScreenMapRef.current;
+        if (!map) return;
+
+        // Prefer runtime collision layer when available (reflects tile changes during play)
+        const collisionLayer: ScreenTile[][] = (runtimeCollisionLayerRef.current && runtimeCollisionLayerRef.current.length > 0)
+            ? runtimeCollisionLayerRef.current
+            : map.layers.collision;
+
+        if (!collisionLayer) return;
+
+        // Precompute solid tile ids
+        const solidIds = new Set<string>();
+        for (const t of tileset) {
+            if (t?.logicalProperties?.isSolid) solidIds.add(t.id);
+        }
+
+        ctx.save();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#00FFFF';
+        ctx.setLineDash([3, 2]);
+        for (let ty = 0; ty < map.height; ty++) {
+            const row = collisionLayer[ty];
+            if (!row) continue;
+            for (let tx = 0; tx < map.width; tx++) {
+                const cell = row[tx];
+                const id = cell?.tileId || null;
+                if (!id || !solidIds.has(id)) continue;
+                ctx.strokeRect(tx * TILE_SIZE + 0.5, ty * TILE_SIZE + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+            }
+        }
+        ctx.setLineDash([]);
+        ctx.restore();
+    };
+
+    // Pre-renderizar el mapa actual si existe, usando runtimeCollisionLayer si estA disponible
+    if (screenMapToRender) {
+        const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
+        tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
+        tileBufferNeedsUpdate.current = false; // Reset flag
+    }
+    // --- Fin Nuevo ---
+
+    // --- Shooting helpers ---
+    const getMergedComponentValues = (entity: AnimatedEntity, compId: string): Record<string, any> | null => {
+        const templateComp = entity.template.components.find(c => c.definitionId === compId);
+        if (!templateComp) return null;
+        return {
+            ...(templateComp.defaultValues || {}),
+            ...(entity.instance.componentOverrides?.[compId] || {})
+        } as Record<string, any>;
+    };
+
+    const spawnProjectile = (shooter: AnimatedEntity) => {
+        const shootProps = getMergedComponentValues(shooter, 'comp_shoot');
+        if (!shootProps) return;
+
+        const spriteAssetId = shootProps.spriteAssetId || shootProps.renderSpriteAssetId || shootProps.render;
+        // Allow lookup by asset id or asset name (or inner data name/id)
+        const projectileSpriteAsset = allAssets.find(a => (
+            a.type === 'sprite' && (
+                a.id === spriteAssetId ||
+                a.name === spriteAssetId ||
+                (a.data && (a.data as any).id === spriteAssetId) ||
+                (a.data && (a.data as any).name === spriteAssetId)
+            )
+        ));
+        const projectileSprite = projectileSpriteAsset?.data as Sprite | undefined;
+        if (!projectileSprite || !projectileSprite.frames?.length) return;
+
+        // --- Determine aim and velocity (supports 4-direction shooting) ---
+        const aimMode = String(shootProps.aimMode || 'facing').toLowerCase();
+        const allowDiagonals = (shootProps.allowDiagonals === true) || (shootProps.allowDiagonals === 'true');
+        const speedProp = Number(shootProps.speed);
+        const vxProp = Number(shootProps.velocityX);
+        const vyProp = Number(shootProps.velocityY);
+
+        // Determine facing sign for horizontal
+        let dirX = 1;
+        if (shooter.sprite.facingDirection === 'right') {
+            dirX = shooter.isFacingMirrored ? -1 : 1;
+        } else if (shooter.sprite.facingDirection === 'left') {
+            dirX = shooter.isFacingMirrored ? 1 : -1;
+        }
+
+        // Read input for aiming
+        const upPressed = pressedKeys.current.has('ArrowUp') || pressedKeys.current.has('w') || pressedKeys.current.has('W');
+        const downPressed = pressedKeys.current.has('ArrowDown') || pressedKeys.current.has('s') || pressedKeys.current.has('S');
+        const leftPressed = pressedKeys.current.has('ArrowLeft') || pressedKeys.current.has('a') || pressedKeys.current.has('A');
+        const rightPressed = pressedKeys.current.has('ArrowRight') || pressedKeys.current.has('d') || pressedKeys.current.has('D');
+
+        let dx = 0, dy = 0;
+        if (aimMode === '4dir' || aimMode === 'four' || aimMode === 'fourdir' || aimMode === '4-dir') {
+            const anyVertical = (upPressed && !downPressed) || (downPressed && !upPressed);
+            const anyHorizontal = (leftPressed && !rightPressed) || (rightPressed && !leftPressed);
+            if (allowDiagonals && anyVertical && anyHorizontal) {
+                dx = leftPressed ? -1 : (rightPressed ? 1 : 0);
+                dy = upPressed ? -1 : (downPressed ? 1 : 0);
+            } else {
+                if (upPressed && !downPressed) { dy = -1; }
+                else if (downPressed && !upPressed) { dy = 1; }
+                else if (leftPressed && !rightPressed) { dx = -1; }
+                else if (rightPressed && !leftPressed) { dx = 1; }
+                else { dx = dirX; dy = 0; }
+            }
+        } else {
+            // Default: facing-based horizontal
+            dx = dirX; dy = 0;
+        }
+
+        // Determine speed magnitude
+        let speed = (!isNaN(speedProp) && speedProp > 0) ? speedProp : NaN;
+        let vx = 0, vy = 0;
+        if (aimMode === '4dir' || aimMode === 'four' || aimMode === 'fourdir' || aimMode === '4-dir') {
+            if (isNaN(speed)) {
+                const candX = isNaN(vxProp) ? 0 : Math.abs(vxProp);
+                const candY = isNaN(vyProp) ? 0 : Math.abs(vyProp);
+                speed = Math.max(candX, candY, 0);
+                if (!speed || speed <= 0) speed = 3;
+            }
+            vx = dx * speed;
+            vy = dy * speed;
+        } else {
+            // Facing-based: keep semantics where positive vx means magnitude auto-flipped; negative is explicit
+            if (!isNaN(vxProp)) {
+                vx = (vxProp >= 0) ? (Math.abs(vxProp) * dirX) : vxProp;
+            } else {
+                vx = (isNaN(speed) ? 3 : speed) * dirX;
+            }
+            vy = isNaN(vyProp) ? 0 : vyProp;
+        }
+
+        // Compute offsets, flipping horizontally only if actually shooting horizontally
+        let offsetX = Number(shootProps.offsetX || 0);
+        let offsetY = Number(shootProps.offsetY || 0);
+        const isHorizontalShot = Math.abs(dx) > 0 && Math.abs(dy) === 0;
+        if (isHorizontalShot && shooter.isFacingMirrored && (shooter.sprite.facingDirection === 'right' || shooter.sprite.facingDirection === 'left')) {
+            offsetX = -offsetX;
+        }
+
+        const spawnX = Math.round(shooter.x + (shooter.sprite.size.width / 2) - (projectileSprite.size.width / 2) + offsetX);
+        const spawnY = Math.round(shooter.y + (shooter.sprite.size.height / 2) - (projectileSprite.size.height / 2) + offsetY);
+
+        const maxRange = Number(shootProps.range || shootProps.maxRange || 128);
+        const damage = Number(shootProps.damage || 1);
+        const expireOnHit = (shootProps.expireOnHit === undefined) ? true : (shootProps.expireOnHit === true || shootProps.expireOnHit === 'true');
+        // Optional: allow comp_shoot to control if projectile animates
+        const playAnimation = (shootProps.playAnimation === undefined)
+            ? true
+            : (shootProps.playAnimation === true || shootProps.playAnimation === 'true');
+
+        // Build projectile frame images (and optional mirrored set)
+        const buildFrames = (spr: Sprite) => {
+            const frames = spr.frames.map(frame => {
+                const img = new Image();
+                img.src = createSpriteDataURL(frame.data, spr.size.width, spr.size.height);
+                return img;
+            });
+            const mirrored = spr.frames.map(frame => {
+                const img = new Image();
+                img.src = createSpriteDataURL(
+                    mirrorPixelDataHorizontally(frame.data),
+                    spr.size.width,
+                    spr.size.height
+                );
+                return img;
+            });
+            return { frames, mirrored };
         };
 
-        // --- New animation function ---
-        let lastTime = 0;
-        const animate = (currentTime: number) => {
-            // Sync gamepad state into pressedKeys before processing input/physics
-            try { syncGamepadToPressedKeys(); } catch { }
-            // Allow gamepad to navigate SubMenu
-            try { syncGamepadForMenu(); } catch { }
-            // --- Calcular deltaTime (opcional) ---
-            // const deltaTime = currentTime - lastTime;
-            // lastTime = currentTime;
-            // --- Fin deltaTime ---
+        const projFrames = buildFrames(projectileSprite);
 
-            // Regenerar buffer si es necesario (tiles modificados por BREAK_TILE/REPLACE_TILE)
-            if (tileBufferNeedsUpdate.current && screenMapToRender) {
-                const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
-                tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
-                tileBufferNeedsUpdate.current = false;
+        // Optional: explosion sprite (Render2)
+        const explosionSpriteId = shootProps.spriteAssetId2 || shootProps.renderSpriteAssetId2 || shootProps.render2;
+        const explosionSprite = explosionSpriteId
+            ? (allAssets.find(a => a.id === explosionSpriteId && a.type === 'sprite')?.data as Sprite | undefined)
+            : undefined;
+        const explosionFrames = explosionSprite ? buildFrames(explosionSprite) : null;
+
+        // Determine desired facing (world) based on shot direction or shooter mirroring
+        const isHoriz = Math.abs(vx) > Math.abs(vy);
+        const desiredFacing: FacingDirection = isHoriz
+            ? (vx < 0 ? 'left' : 'right')
+            : (shooter.isFacingMirrored ? 'left' : 'right');
+        // Decide if projectile needs mirroring comparing its sprite facing with desired world facing
+        const projMirrored = computeMirrorForSprite(projectileSprite, desiredFacing);
+
+        const proj: AnimatedEntity = {
+            instance: {
+                id: `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                entityTemplateId: 'tpl_projectile_runtime',
+                name: 'Projectile',
+                position: { x: Math.floor(spawnX / TILE_SIZE), y: Math.floor(spawnY / TILE_SIZE) },
+                componentOverrides: {}
+            },
+            template: { id: 'tpl_projectile_runtime', name: 'Projectile', components: [], description: 'Runtime projectile' },
+            sprite: projectileSprite,
+            x: spawnX,
+            y: spawnY,
+            vx,
+            vy,
+            frameImages: projFrames.frames,
+            mirroredFrameImages: projFrames.mirrored,
+            currentFrame: 0,
+            lastFrameUpdateTime: performance.now(),
+            isOnGround: false,
+            spawnTime: performance.now(),
+            parentEntityId: shooter.instance.id,
+            platformGraceFramesLeft: 0,
+            isFacingMirrored: projMirrored,
+            isProjectile: true,
+            projectileOwnerId: shooter.instance.id,
+            projectileStartX: spawnX,
+            projectileStartY: spawnY,
+            projectileMaxRange: maxRange,
+            projectileDamage: damage,
+            projectileExpireOnHit: expireOnHit,
+            animateProjectile: playAnimation,
+            // Explosion (Render2)
+            isExploding: false,
+            explosionSprite: explosionSprite,
+            explosionFrameImages: explosionFrames?.frames,
+            explosionMirroredFrameImages: explosionFrames?.mirrored,
+            desiredFacingDirection: desiredFacing,
+        };
+
+        entitiesRef.current.push(proj);
+        shooter.lastShotTime = performance.now();
+    };
+
+    const drawTextAsync = (text: string, x: number, y: number, colorAttrs: MSXFontColorAttributes, customFont?: MSXFont, customColorAttrs?: MSXFontColorAttributes) => {
+        return new Promise<void>((resolve) => {
+            const textImg = new Image();
+            textImg.onload = () => { ctx.drawImage(textImg, x, y); resolve(); };
+            const fontToUse = customFont || msxFont;
+            const colorAttrsToUse = customColorAttrs || colorAttrs;
+            textImg.src = renderMSX1TextToDataURL(text, fontToUse, colorAttrsToUse, 1, 1);
+        });
+    };
+
+    // Given a sprite's default facing and a desired world facing, decide if we must mirror horizontally
+    const computeMirrorForSprite = (sprite: Sprite, desired: FacingDirection | undefined): boolean => {
+        if (!sprite) return false;
+        const desiredDir = desired === 'left' || desired === 'right' ? desired : 'right';
+        const baseDir = sprite.facingDirection === 'left' || sprite.facingDirection === 'right' ? sprite.facingDirection : 'right';
+        if (sprite.facingDirection === 'neutral' || sprite.facingDirection === 'up' || sprite.facingDirection === 'down') {
+            return false; // Neutral or vertical-facing sprites don't need mirroring decisions
+        }
+        // Mirror when desired world direction differs from sprite's default facing
+        return (baseDir === 'right' && desiredDir === 'left') || (baseDir === 'left' && desiredDir === 'right');
+    };
+
+    // Trigger projectile explosion (Render2). If no Render2 defined, destroy immediately.
+    const startProjectileExplosion = (proj: AnimatedEntity) => {
+        if (!proj.isProjectile) return;
+        if (proj.isExploding) return;
+
+        // If we have explosion frames, switch to them and stop movement
+        if (proj.explosionSprite && proj.explosionFrameImages && proj.explosionFrameImages.length > 0) {
+            proj.isExploding = true;
+            proj.vx = 0; proj.vy = 0;
+            // Swap sprite and frames to Render2
+            proj.sprite = proj.explosionSprite;
+            proj.frameImages = proj.explosionFrameImages;
+            // Keep mirrored frames if available so direction can be respected
+            proj.mirroredFrameImages = proj.explosionMirroredFrameImages;
+            // Re-evaluate mirroring using the explosion sprite facing parameter and desired world direction
+            const desired = proj.desiredFacingDirection;
+            proj.isFacingMirrored = computeMirrorForSprite(proj.sprite, desired);
+            proj.currentFrame = 0;
+            proj.lastFrameUpdateTime = performance.now();
+        } else {
+            // Fallback: no explosion configured
+            (proj as any).markedForDestruction = true;
+        }
+    };
+
+    const applyTransitionEffect = async (effect: string, duration: number) => {
+        const steps = Math.max(10, Math.floor(duration / 50));
+        switch (effect) {
+            case 'cls':
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                await new Promise(resolve => setTimeout(resolve, 100));
+                break;
+            case 'dissolve_pixels':
+                for (let i = 0; i < steps; i++) {
+                    const pixelsPerStep = Math.floor((PREVIEW_WIDTH * PREVIEW_HEIGHT) / steps);
+                    for (let j = 0; j < pixelsPerStep; j++) {
+                        const x = Math.floor(Math.random() * PREVIEW_WIDTH);
+                        const y = Math.floor(Math.random() * PREVIEW_HEIGHT);
+                        ctx.fillStyle = '#000000';
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                }
+                break;
+            case 'dissolve_chars':
+                const charWidth = 8;
+                const charHeight = 8;
+                const charsX = Math.floor(PREVIEW_WIDTH / charWidth);
+                const charsY = Math.floor(PREVIEW_HEIGHT / charHeight);
+                const totalChars = charsX * charsY;
+                const charsPerStep = Math.max(1, Math.floor(totalChars / steps));
+                const positions = Array.from({ length: totalChars }, (_, i) => i);
+                for (let i = positions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [positions[i], positions[j]] = [positions[j], positions[i]];
+                }
+                for (let i = 0; i < steps && positions.length > 0; i++) {
+                    for (let j = 0; j < charsPerStep && positions.length > 0; j++) {
+                        const pos = positions.pop()!;
+                        const cx = (pos % charsX) * charWidth;
+                        const cy = Math.floor(pos / charsX) * charHeight;
+                        ctx.fillStyle = '#000000';
+                        ctx.fillRect(cx, cy, charWidth, charHeight);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                }
+                break;
+            case 'vertical_lines':
+                for (let x = 0; x < PREVIEW_WIDTH; x += Math.max(1, Math.floor(PREVIEW_WIDTH / steps))) {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(x, 0, Math.max(1, Math.floor(PREVIEW_WIDTH / steps)), PREVIEW_HEIGHT);
+                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                }
+                break;
+            case 'horizontal_lines':
+                for (let y = 0; y < PREVIEW_HEIGHT; y += Math.max(1, Math.floor(PREVIEW_HEIGHT / steps))) {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, y, PREVIEW_WIDTH, Math.max(1, Math.floor(PREVIEW_HEIGHT / steps)));
+                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                }
+                break;
+            case 'spiral':
+                let left = 0, right = PREVIEW_WIDTH - 1, top = 0, bottom = PREVIEW_HEIGHT - 1;
+                const spiralStep = Math.max(1, Math.floor(Math.min(PREVIEW_WIDTH, PREVIEW_HEIGHT) / (steps * 2)));
+                while (left <= right && top <= bottom) {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(left, top, right - left + 1, spiralStep);
+                    top += spiralStep;
+                    if (left <= right && top <= bottom) {
+                        ctx.fillRect(right - spiralStep + 1, top, spiralStep, bottom - top + 1);
+                        right -= spiralStep;
+                    }
+                    if (left <= right && top <= bottom) {
+                        ctx.fillRect(left, bottom - spiralStep + 1, right - left + 1, spiralStep);
+                        bottom -= spiralStep;
+                    }
+                    if (left <= right && top <= bottom) {
+                        ctx.fillRect(left, top, spiralStep, bottom - top + 1);
+                        left += spiralStep;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, duration / Math.ceil(steps / 4)));
+                }
+                break;
+            case 'fill_white_squares':
+                const squareSize = 16;
+                const squaresX = Math.ceil(PREVIEW_WIDTH / squareSize);
+                const squaresY = Math.ceil(PREVIEW_HEIGHT / squareSize);
+                const totalSquares = squaresX * squaresY;
+                const squarePositions = Array.from({ length: totalSquares }, (_, i) => i);
+                for (let i = squarePositions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [squarePositions[i], squarePositions[j]] = [squarePositions[j], squarePositions[i]];
+                }
+                const squaresPerStep = Math.max(1, Math.floor(totalSquares / steps));
+                for (let i = 0; i < steps && squarePositions.length > 0; i++) {
+                    for (let j = 0; j < squaresPerStep && squarePositions.length > 0; j++) {
+                        const pos = squarePositions.pop()!;
+                        const sx = (pos % squaresX) * squareSize;
+                        const sy = Math.floor(pos / squaresX) * squareSize;
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(sx, sy, squareSize, squareSize);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, duration / steps));
+                }
+                await new Promise(resolve => setTimeout(resolve, 200));
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                break;
+        }
+    };
+
+    const renderTextNodes = async () => {
+        if (currentNode.type !== 'Transition') {
+            let bgColor = '#000000';
+            if (currentNode.type === 'SubMenu') {
+                bgColor = (currentNode as GameFlowSubMenuNode).appearance?.colors?.background || '#000000';
+            } else if (currentNode.type === 'Text') {
+                bgColor = (currentNode as GameFlowTextNode).appearance?.colors?.background || '#000000';
             }
-            // === RESOLVE PARENTS FOR CHILD-LINKED ENTITIES ===
-            const entityLookup = new Map<string, AnimatedEntity>();
-            for (const entity of entitiesRef.current) {
-                entityLookup.set(entity.instance.id, entity);
-            }
-            resolveChildLinkParents(entitiesRef.current, entityLookup);
-            // ================================================
-
-            // Limpiar solo el Area principal
-            ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-
-            // Dibujar el fondo pre-renderizado (tiles)
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
             if (tileBufferRef.current) {
-                ctx.drawImage(tileBufferRef.current, 0, 0);
+                ctx.drawImage(tileBufferRef.current, 0, 0); // Dibujar buffer pre-renderizado
 
-                // Hide revealed secret tiles by drawing black rectangles over them
+                // Hide revealed secret tiles
                 if (currentScreenMapRef.current) {
-                    ctx.fillStyle = '#000000'; // Background color
+                    ctx.fillStyle = '#000000';
                     revealedSecretTiles.current.forEach((key) => {
                         const parts = key.split('_');
                         const screenId = parts.slice(0, -2).join('_');
@@ -4181,1746 +3526,2521 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         const ty = parseInt(parts[parts.length - 1], 10);
 
                         if (screenId === currentScreenMapRef.current?.id) {
-                            // Draw black rectangle to hide this tile
                             ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
                         }
                     });
                 }
-
-                // Debug overlay: outlines for solid tiles in Collision layer
-                drawCollisionTileOutlines(ctx);
-            } else {
-                // Si no hay buffer (por ejemplo, en nodos de texto), limpiar y dibujar fondo
-                ctx.fillStyle = '#000000'; // Color por defecto
-                if (subMenuNode?.appearance?.colors?.background) {
-                    ctx.fillStyle = subMenuNode.appearance.colors.background;
-                } else if (currentNode.type === 'Text') {
-                    const textNode = currentNode as GameFlowTextNode;
-                    ctx.fillStyle = textNode.appearance?.colors?.background || '#000000';
+            }
+        }
+        switch (currentNode.type) {
+            case 'Start':
+                if (currentExecutingGameFlowName === 'Main') {
+                    const startText = 'Build with Mideas';
+                    const startDims = getTextDimensionsMSX1(startText, 1);
+                    await drawTextAsync(startText, (PREVIEW_WIDTH - startDims.width) / 2, (PREVIEW_HEIGHT - startDims.height) / 2, msxFontColorAttributes);
                 }
-                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                setTimeout(() => {
+                    const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                    if (conn) setCurrentNodeId(conn.to.nodeId);
+                }, 1000);
+                break;
+            case 'SubMenu':
+                const subMenu = currentNode as GameFlowSubMenuNode;
+                const subMenuFontAsset = (subMenu.appearance as any)?.fontAssetId
+                    ? allAssets.find(a => a.id === (subMenu.appearance as any).fontAssetId)
+                    : null;
+                const subMenuFont = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
+                const subMenuFontColorAttrs = subMenuFontAsset ? (subMenuFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
+                const titleDims = getTextDimensionsMSX1(subMenu.title, 1);
+                await drawTextAsync(subMenu.title, (PREVIEW_WIDTH - titleDims.width) / 2, 40, msxFontColorAttributes, subMenuFont, subMenuFontColorAttrs);
+                const expandedOptions: Array<{ text: string, originalIndex: number, isControlOption?: boolean }> = [];
+                subMenu.options.forEach((option, idx) => {
+                    if (option.type === 'controls' && option.controlOptions && option.controlOptions.length > 0) {
+                        option.controlOptions.forEach(ctrl => {
+                            expandedOptions.push({ text: ctrl, originalIndex: idx, isControlOption: true });
+                        });
+                    } else {
+                        expandedOptions.push({ text: option.text, originalIndex: idx });
+                    }
+                });
+                for (const [displayIndex, expandedOption] of expandedOptions.entries()) {
+                    const optionText = expandedOption.text;
+                    const optionDims = getTextDimensionsMSX1(optionText, 1);
+                    const isSelected = displayIndex === selectedOptionIndex;
+                    let colorAttrs = subMenuFontColorAttrs || msxFontColorAttributes;
+                    if (isSelected) {
+                        const highlightedColorAttrs = JSON.parse(JSON.stringify(colorAttrs));
+                        for (let i = 0; i < optionText.length; i++) {
+                            highlightedColorAttrs[optionText.charCodeAt(i)] = Array(8).fill({ fg: '#FFFF00', bg: '#000000' });
+                        }
+                        colorAttrs = highlightedColorAttrs;
+                    }
+                    await drawTextAsync(optionText, (PREVIEW_WIDTH - optionDims.width) / 2, 80 + displayIndex * 12, colorAttrs, subMenuFont, colorAttrs);
+                }
+                break;
+            case 'Text':
+                const textNode = currentNode as GameFlowTextNode;
+                const textNodeFontAsset = textNode.appearance?.fontAssetId
+                    ? allAssets.find(a => a.id === textNode.appearance.fontAssetId)
+                    : null;
+                const textNodeFont = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontData as MSXFont | undefined : undefined;
+                const textNodeFontColorAttrs = textNodeFontAsset ? (textNodeFontAsset.data as any)?.fontColorAttributes as MSXFontColorAttributes | undefined : undefined;
+                const textNodeTitle = textNode.title;
+                const textNodeMessage = textNode.message || '';
+                const textNodeTitleDims = getTextDimensionsMSX1(textNodeTitle, 1);
+                await drawTextAsync(textNodeTitle, (PREVIEW_WIDTH - textNodeTitleDims.width) / 2, 30, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
+                const words = textNodeMessage.split(' ');
+                let lines: string[] = [];
+                let currentLine = '';
+                const maxLineWidth = PREVIEW_WIDTH - 20;
+                for (const word of words) {
+                    const testLine = currentLine ? currentLine + ' ' + word : word;
+                    const testDims = getTextDimensionsMSX1(testLine, 1);
+                    if (testDims.width > maxLineWidth && currentLine) {
+                        lines.push(currentLine);
+                        currentLine = word;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                if (currentLine) lines.push(currentLine);
+                const lineHeight = 10;
+                const startY = 60;
+                for (let i = 0; i < lines.length; i++) {
+                    const lineDims = getTextDimensionsMSX1(lines[i], 1);
+                    await drawTextAsync(lines[i], (PREVIEW_WIDTH - lineDims.width) / 2, startY + i * lineHeight, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
+                }
+                const promptText = 'PRESS FIRE TO CONTINUE';
+                const promptDims = getTextDimensionsMSX1(promptText, 1);
+                const baseColorAttrs = textNodeFontColorAttrs || msxFontColorAttributes;
+                const promptColorAttrs = JSON.parse(JSON.stringify(baseColorAttrs));
+                for (let i = 0; i < promptText.length; i++) {
+                    promptColorAttrs[promptText.charCodeAt(i)] = Array(8).fill({
+                        fg: textNode.appearance?.colors?.promptText || '#F3F3F3',
+                        bg: textNode.appearance?.colors?.background || '#000000'
+                    });
+                }
+                await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, promptColorAttrs, textNodeFont, promptColorAttrs);
+                break;
+            case 'Globals':
+                try {
+                    const globalsNode: any = currentNode;
+                    const vars: Array<{ name: string; value: string }> = globalsNode?.variables || [];
+                    updateGameGlobalVariables(prev => {
+                        const next: Record<string, any> = { ...prev };
+                        for (const entry of vars) {
+                            const baseName = (entry?.name || '').trim();
+                            const key = normalizeVariableName(entry?.name) ?? baseName;
+                            if (!key) continue;
+                            const raw = String(entry?.value ?? '');
+                            const lower = raw.trim().toLowerCase();
+                            let parsed: any = raw;
+                            if (lower === 'true' || lower === 'false') parsed = (lower === 'true');
+                            else if (!Number.isNaN(Number(raw)) && raw !== '') parsed = Number(raw);
+                            next[key] = parsed;
+                        }
+                        return next;
+                    });
+                } catch { }
+                // Auto-navigate to next node
+                {
+                    const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                    if (conn) setCurrentNodeId(conn.to.nodeId);
+                }
+                break;
+            case 'Music':
+                const musicNode = currentNode as any;
+                // If node is configured to stop music, stop any current playback and move on
+                if (musicNode.stop === true) {
+                    if (musicSynthesizerRef.current) {
+                        musicSynthesizerRef.current.stopAllNotes();
+                    }
+                    if (musicPlaybackIntervalRef.current) {
+                        clearInterval(musicPlaybackIntervalRef.current);
+                        musicPlaybackIntervalRef.current = null;
+                    }
+                    musicSynthesizerRef.current = null;
+                    currentMusicTrackIdRef.current = null;
+                    musicIsMutedRef.current = false;
+                    // Auto-navigate to next node quickly
+                    setTimeout(() => {
+                        const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                        if (conn) setCurrentNodeId(conn.to.nodeId);
+                    }, 100);
+                    break;
+                }
+                if (musicNode.trackAssetId && musicNode.autoPlay !== false) {
+                    // Find track asset
+                    const trackAsset = allAssets.find(a =>
+                        a.type === 'track' && a.id === musicNode.trackAssetId
+                    );
+
+                    if (trackAsset) {
+                        const trackData = trackAsset.data as any; // TrackerSongData
+
+                        // Stop current music if playing
+                        if (musicSynthesizerRef.current) {
+                            musicSynthesizerRef.current.stopAllNotes();
+                            if (musicPlaybackIntervalRef.current) {
+                                clearInterval(musicPlaybackIntervalRef.current);
+                                musicPlaybackIntervalRef.current = null;
+                            }
+                        }
+
+                        // Create new synthesizer
+                        const synth = new AYSynthesizer(trackData.globalVolume / 15);
+                        synth.setSongData(trackData);
+                        musicSynthesizerRef.current = synth;
+                        currentMusicTrackIdRef.current = musicNode.trackAssetId;
+                        musicIsMutedRef.current = false;
+
+                        // Start playback
+                        synth.ensureAudioContext().then(() => {
+                            let currentPatternIndexInOrder = 0;
+                            let currentRow = 0;
+
+                            const playNextRow = () => {
+                                if (musicIsMutedRef.current || !musicSynthesizerRef.current) return;
+
+                                const orderIndex = currentPatternIndexInOrder;
+                                if (orderIndex >= trackData.order.length) {
+                                    if (musicNode.loop !== false) {
+                                        currentPatternIndexInOrder = trackData.restartPosition || 0;
+                                        currentRow = 0;
+                                        return;
+                                    } else {
+                                        // Stop playback
+                                        if (musicPlaybackIntervalRef.current) {
+                                            clearInterval(musicPlaybackIntervalRef.current);
+                                            musicPlaybackIntervalRef.current = null;
+                                        }
+                                        return;
+                                    }
+                                }
+
+                                const patternIndex = trackData.order[orderIndex];
+                                const pattern = trackData.patterns[patternIndex];
+                                if (!pattern) return;
+
+                                const rowData = pattern.rows[currentRow];
+                                if (rowData) {
+                                    // Play notes for each channel
+                                    ['A', 'B', 'C'].forEach((chId, chIndex) => {
+                                        const cell = rowData[chId as 'A' | 'B' | 'C'];
+                                        synth.playNote(
+                                            chIndex as 0 | 1 | 2,
+                                            cell.note,
+                                            cell.instrument,
+                                            cell.ornament,
+                                            cell.volume
+                                        );
+                                    });
+                                }
+
+                                currentRow++;
+                                if (currentRow >= pattern.numRows) {
+                                    currentRow = 0;
+                                    currentPatternIndexInOrder++;
+                                }
+                            };
+
+                            // Calculate row duration
+                            const rowDurationMs = (2500 * trackData.speed) / trackData.bpm;
+
+                            musicPlaybackIntervalRef.current = window.setInterval(playNextRow, Math.max(20, rowDurationMs));
+                            playNextRow(); // Play first row immediately
+                        });
+
+                        console.log(`[Music Node] Playing track: ${trackAsset.name}`);
+                    }
+                }
+                // Auto-navigate to next node after music starts
+                setTimeout(() => {
+                    const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                    if (conn) setCurrentNodeId(conn.to.nodeId);
+                }, 500);
+                break;
+            case 'End':
+                if (gameFlowStack.length > 0) {
+                    const { parentGraphData, returnNodeId, parentGameFlowName } = gameFlowStack[gameFlowStack.length - 1];
+                    setGameFlowStack(prev => prev.slice(0, -1));
+                    const restoredGraphData = gameFlowStack.length > 1
+                        ? gameFlowStack[gameFlowStack.length - 2].parentGraphData
+                        : graphData;
+                    if (gameFlowStack.length > 1) {
+                        setCurrentNestedGraphData(gameFlowStack[gameFlowStack.length - 2].parentGraphData);
+                    } else {
+                        setCurrentNestedGraphData(null);
+                    }
+                    setCurrentExecutingGameFlowName(parentGameFlowName);
+                    let finalNodeId = returnNodeId;
+                    let finalNode = restoredGraphData.nodes.find(n => n.id === finalNodeId);
+                    while (finalNode && finalNode.type === 'Waypoint') {
+                        const nextConn = restoredGraphData.connections.find(c => c.from.nodeId === finalNodeId);
+                        if (nextConn) {
+                            finalNodeId = nextConn.to.nodeId;
+                            finalNode = restoredGraphData.nodes.find(n => n.id === finalNodeId);
+                        } else {
+                            break;
+                        }
+                    }
+                    setCurrentNodeId(finalNodeId);
+                    setNavigationStack([]);
+                    setSelectedOptionIndex(0);
+                }
+                break;
+            case 'Restart':
+                const restartNode = currentNode as any;
+                const restartTitle = restartNode.title || 'Restart';
+                const restartMessage = restartNode.message || 'Press Fire to restart';
+                const restartTitleDims = getTextDimensionsMSX1(restartTitle, 1);
+                await drawTextAsync(restartTitle, (PREVIEW_WIDTH - restartTitleDims.width) / 2, 60, msxFontColorAttributes);
+                const restartMsgDims = getTextDimensionsMSX1(restartMessage, 1);
+                await drawTextAsync(restartMessage, (PREVIEW_WIDTH - restartMsgDims.width) / 2, 90, msxFontColorAttributes);
+                const restartPrompt = 'Press Fire to restart';
+                const restartPromptDims = getTextDimensionsMSX1(restartPrompt, 1);
+                await drawTextAsync(restartPrompt, (PREVIEW_WIDTH - restartPromptDims.width) / 2, PREVIEW_HEIGHT - 30, msxFontColorAttributes);
+                break;
+            case 'Transition':
+                const transitionNode = currentNode as any;
+                const effect = transitionNode.effect || 'cls';
+                const duration = transitionNode.duration || 1000;
+                await applyTransitionEffect(effect, duration);
+                const transitionConn = connections.find(c => c.from.nodeId === currentNode.id);
+                if (transitionConn) {
+                    let targetNodeId = transitionConn.to.nodeId;
+                    let targetNode = nodes.find(n => n.id === targetNodeId);
+                    while (targetNode && targetNode.type === 'Waypoint') {
+                        const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                        if (nextConn) {
+                            targetNodeId = nextConn.to.nodeId;
+                            targetNode = nodes.find(n => n.id === targetNodeId);
+                        } else {
+                            break;
+                        }
+                    }
+                    setCurrentNodeId(targetNodeId);
+                }
+                break;
+            case 'Group':
+                const groupNode = currentNode as any;
+                const groupGameFlowAsset = allAssets.find(a => a.id === groupNode.gameFlowAssetId && a.type === 'gameflow');
+                if (!groupNode.gameFlowAssetId || !groupGameFlowAsset) {
+                    const groupTitle = groupNode.name || 'Group';
+                    const groupTitleDims = getTextDimensionsMSX1(groupTitle, 1);
+                    await drawTextAsync(groupTitle, (PREVIEW_WIDTH - groupTitleDims.width) / 2, 60, msxFontColorAttributes);
+                    const noFlowText = groupNode.gameFlowAssetId ? 'GameFlow not found' : 'No GameFlow assigned';
+                    const noFlowDims = getTextDimensionsMSX1(noFlowText, 1);
+                    await drawTextAsync(noFlowText, (PREVIEW_WIDTH - noFlowDims.width) / 2, 90, msxFontColorAttributes);
+                } else {
+                    const nestedGraphData = groupGameFlowAsset.data as GameFlowGraph;
+                    const exitConnection = connections.find(c => c.from.nodeId === currentNode.id);
+                    const returnNodeId = exitConnection ? exitConnection.to.nodeId : currentNode.id;
+                    setGameFlowStack(prev => [...prev, {
+                        parentGraphData: currentGraphData,
+                        returnNodeId,
+                        parentGameFlowName: currentExecutingGameFlowName
+                    }]);
+                    setCurrentNestedGraphData(nestedGraphData);
+                    setCurrentExecutingGameFlowName(groupGameFlowAsset.name);
+                    const nestedStartNode = nestedGraphData.nodes.find(n => n.type === 'Start');
+                    if (nestedStartNode) {
+                        setCurrentNodeId(nestedStartNode.id);
+                        setNavigationStack([]);
+                        setSelectedOptionIndex(0);
+                    }
+                }
+                break;
+        }
+    };
+
+
+
+    const handleTilemapCollision = (entity: AnimatedEntity, screenMap: ScreenMap, tileset: Tile[], collisionCompDef: ComponentDefinition) => {
+        if (!screenMap || !tileset || !collisionCompDef) return;
+        const entityCollisionProps = {
+            ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {}),
+            ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
+            ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+        };
+        const registerWallCollisionEvent = (direction: 'left' | 'right' | 'up' | 'down') => {
+            triggerEvent(entity.instance.id, 'collision_wall');
+            triggerEvent(entity.instance.id, `collision_wall_${direction}`);
+        };
+        const getHitboxFor = (x: number, y: number) => {
+            // Respect sprite-defined hitbox when comp values are not provided
+            const sHit = entity.sprite.hitbox;
+            const offsetX = (entityCollisionProps.offsetX !== undefined && entityCollisionProps.offsetX !== '')
+                ? Number(entityCollisionProps.offsetX)
+                : (sHit?.offsetX ?? 0);
+            const offsetY = (entityCollisionProps.offsetY !== undefined && entityCollisionProps.offsetY !== '')
+                ? Number(entityCollisionProps.offsetY)
+                : (sHit?.offsetY ?? 0);
+            const width = (entityCollisionProps.hitboxWidth !== undefined && entityCollisionProps.hitboxWidth !== '')
+                ? Number(entityCollisionProps.hitboxWidth)
+                : (sHit?.width ?? entity.sprite.size.width);
+            const height = (entityCollisionProps.hitboxHeight !== undefined && entityCollisionProps.hitboxHeight !== '')
+                ? Number(entityCollisionProps.hitboxHeight)
+                : (sHit?.height ?? entity.sprite.size.height);
+            return { x: x + offsetX, y: y + offsetY, width, height };
+        };
+        const currentHitbox = getHitboxFor(entity.x, entity.y);
+        const platformContext = { hitboxBottom: currentHitbox.y + currentHitbox.height, velocityY: entity.vy };
+        let tentativeX = entity.x + entity.vx;
+        let tentativeY = entity.y + entity.vy;
+        let tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+
+        // --- X-axis collision: use centered vertical probes to avoid top/bottom corner glitches ---
+        if (entity.vx !== 0) {
+            let collisionX = false;
+            const centerY1 = tentativeHitbox.y + Math.floor(tentativeHitbox.height / 3);
+            const centerY2 = tentativeHitbox.y + Math.floor((2 * tentativeHitbox.height) / 3);
+
+            if (entity.vx > 0) { // Derecha
+                if (checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY1, screenMap, { ignoreTopSolid: true }) ||
+                    checkCollisionAt(tentativeHitbox.x + tentativeHitbox.width, centerY2, screenMap, { ignoreTopSolid: true })) {
+                    collisionX = true;
+                    const tileLeftEdge = Math.floor((tentativeHitbox.x + tentativeHitbox.width) / TILE_SIZE) * TILE_SIZE;
+                    tentativeX = tileLeftEdge - Number(entityCollisionProps.offsetX ?? 0) - tentativeHitbox.width;
+                    entity.vx = 0;
+                    registerWallCollisionEvent('right');
+                }
+            } else if (entity.vx < 0) { // Izquierda
+                if (checkCollisionAt(tentativeHitbox.x, centerY1, screenMap, { ignoreTopSolid: true }) ||
+                    checkCollisionAt(tentativeHitbox.x, centerY2, screenMap, { ignoreTopSolid: true })) {
+                    collisionX = true;
+                    const tileRightEdge = Math.ceil(tentativeHitbox.x / TILE_SIZE) * TILE_SIZE;
+                    tentativeX = tileRightEdge - Number(entityCollisionProps.offsetX ?? 0);
+                    entity.vx = 0;
+                    registerWallCollisionEvent('left');
+                }
+            }
+            if (collisionX) {
+                tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+            }
+        }
+
+        // --- Y-axis collision: use centered horizontal probes ---
+        if (entity.vy !== 0) {
+            let collisionY = false;
+            const centerX1 = tentativeHitbox.x + Math.floor(tentativeHitbox.width / 3);
+            const centerX2 = tentativeHitbox.x + Math.floor((2 * tentativeHitbox.width) / 3);
+
+            if (entity.vy > 0) { // Cayendo
+                const onPlatform = entity.platformUnderneath != null;
+                if (!onPlatform && (checkCollisionAt(centerX1, tentativeHitbox.y + tentativeHitbox.height, screenMap, { platformContext }) ||
+                    checkCollisionAt(centerX2, tentativeHitbox.y + tentativeHitbox.height, screenMap, { platformContext }))) {
+                    collisionY = true;
+                    const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
+                    tentativeY = tileTopEdge - Number(entityCollisionProps.offsetY ?? 0) - tentativeHitbox.height;
+                    entity.vy = 0;
+                    registerWallCollisionEvent('down');
+                }
+            } else if (entity.vy < 0) { // Saltando (hacia arriba)
+                if (checkCollisionAt(centerX1, tentativeHitbox.y, screenMap, { ignoreTopSolid: true }) ||
+                    checkCollisionAt(centerX2, tentativeHitbox.y, screenMap, { ignoreTopSolid: true })) {
+                    collisionY = true;
+                    const tileRow = Math.floor(tentativeHitbox.y / TILE_SIZE);
+                    const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
+                    tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
+                    entity.vy = 0; // Stop vertical velocity after touching the ceiling
+                    registerWallCollisionEvent('up');
+
+
+                }
+            }
+            if (collisionY) {
+                // No es estrictamente necesario, pero mantiene consistencia
+                // tentativeHitbox = getHitboxFor(tentativeX, tentativeY);
+            }
+        }
+
+        // Apply the final position after collision resolution
+        entity.x = tentativeX;
+        entity.y = tentativeY;
+
+        // Check whether the player is overlapping a dangerous tile (causesDamage)
+        const finalHitbox = getHitboxFor(entity.x, entity.y);
+        const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
+        const centerY = finalHitbox.y + Math.floor(finalHitbox.height / 2);
+        const bottomY = finalHitbox.y + finalHitbox.height;
+
+        // Sample multiple hitbox points for better detection accuracy
+        const isDangerous =
+            checkDangerousTileAt(centerX, centerY, screenMap) ||  // Centro
+            checkDangerousTileAt(finalHitbox.x, centerY, screenMap) ||  // Izquierda
+            checkDangerousTileAt(finalHitbox.x + finalHitbox.width, centerY, screenMap) ||  // Derecha
+            checkDangerousTileAt(centerX, bottomY, screenMap);  // Abajo (pies)
+
+        // Actualizar flag para state machine
+        entity.hasDangerousTileCollision = isDangerous;
+
+        // NOTE: damage/death is not applied automatically here
+        // The state machine can look at HAS_DEADLY_TILE_COLLISION and decide what to do
+        // (e.g. transition to a "Taking Damage" or "Dead" animation state)
+    };
+
+    const entityCollisionProps = (entity: AnimatedEntity) => {
+        const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
+        if (!collisionCompDef) {
+            return null;
+        }
+
+        const templateCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_collision');
+        const templateValues = templateCollisionComp?.defaultValues || {};
+        const instanceValues = entity.instance.componentOverrides?.['comp_collision'] || {};
+
+        // Priority: instanceValues > templateValues > sprite.hitbox > defaults > sprite.size
+        const spriteHitbox = entity.sprite.hitbox;
+        const defaults = collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>);
+
+        // Helper that resolves a value following the priority rules above
+        const getPriorityValue = (propName: string, spriteFallback?: number) => {
+            // 1. Instance override (highest priority)
+            if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') {
+                return Number(instanceValues[propName]);
+            }
+            // 2. Template default value
+            if (templateValues[propName] !== undefined && templateValues[propName] !== '') {
+                return Number(templateValues[propName]);
+            }
+            // 3. Sprite hitbox fallback when available
+            if (spriteFallback !== undefined) {
+                return spriteFallback;
+            }
+            // 4. Component default
+            if (defaults[propName] !== undefined && defaults[propName] !== '') {
+                return Number(defaults[propName]);
+            }
+            // 5. Final fallback
+            return 0;
+        };
+
+        const hitboxWidth = getPriorityValue('hitboxWidth', spriteHitbox?.width ?? entity.sprite.size.width);
+        const hitboxHeight = getPriorityValue('hitboxHeight', spriteHitbox?.height ?? entity.sprite.size.height);
+        const offsetX = getPriorityValue('offsetX', spriteHitbox?.offsetX ?? 0);
+        const offsetY = getPriorityValue('offsetY', spriteHitbox?.offsetY ?? 0);
+
+        // Para otras propiedades sin sprite fallback: instance > template > defaults
+        const getValueNoSpriteFallback = (propName: string, defaultFallback: any) => {
+            if (instanceValues[propName] !== undefined && instanceValues[propName] !== '') return instanceValues[propName];
+            if (templateValues[propName] !== undefined && templateValues[propName] !== '') return templateValues[propName];
+            if (defaults[propName] !== undefined && defaults[propName] !== '') return defaults[propName];
+            return defaultFallback;
+        };
+
+        const collisionLayer = Number(getValueNoSpriteFallback('collisionLayer', 1)) || 1;
+        const collidesWith = Number(getValueNoSpriteFallback('collidesWith', 255)) || 255;
+        const isStatic = getValueNoSpriteFallback('isStatic', false) === true || getValueNoSpriteFallback('isStatic', false) === 'true';
+        const isTrigger = getValueNoSpriteFallback('isTrigger', false) === true || getValueNoSpriteFallback('isTrigger', false) === 'true';
+
+        const result = {
+            hitboxWidth,
+            hitboxHeight,
+            offsetX,
+            offsetY,
+            collisionLayer,
+            collidesWith,
+            isStatic,
+            isTrigger
+        };
+
+        return result;
+    };
+
+    const getHitboxFor = (entity: AnimatedEntity, props: any) => ({
+        x: entity.x + (props.offsetX || 0), y: entity.y + (props.offsetY || 0),
+        width: props.hitboxWidth || entity.sprite.size.width, height: props.hitboxHeight || entity.sprite.size.height,
+    });
+
+    const getHitboxForPosition = (entity: AnimatedEntity, x: number, y: number, props: any) => ({
+        x: x + (props.offsetX || 0), y: y + (props.offsetY || 0),
+        width: props.hitboxWidth || entity.sprite.size.width, height: props.hitboxHeight || entity.sprite.size.height,
+    });
+
+    // --- Entity Collision Resolution (Physical Response) ---
+    const resolveEntityCollision = (entityA: AnimatedEntity, entityB: AnimatedEntity, propsA: any, propsB: any) => {
+        const hitboxA = getHitboxFor(entityA, propsA);
+        const hitboxB = getHitboxFor(entityB, propsB);
+
+        // Calculate overlap in both axes
+        const overlapX = Math.min(
+            hitboxA.x + hitboxA.width - hitboxB.x,
+            hitboxB.x + hitboxB.width - hitboxA.x
+        );
+        const overlapY = Math.min(
+            hitboxA.y + hitboxA.height - hitboxB.y,
+            hitboxB.y + hitboxB.height - hitboxA.y
+        );
+
+        // Determine if entities are static (immovable) or dynamic
+        const isAStatic = propsA.isStatic === true || propsA.isStatic === 'true';
+        const isBStatic = propsB.isStatic === true || propsB.isStatic === 'true';
+
+        // If both are static, no resolution needed
+        if (isAStatic && isBStatic) return;
+
+        // DEBUG: Log collision details for platform detection
+        const isPlatformInvolved = (propsA.collisionLayer & 8) !== 0 || (propsB.collisionLayer & 8) !== 0;
+        if (isPlatformInvolved) {
+        }
+
+        // Detect platform riding BEFORE axis separation (works regardless of separation axis)
+        // Check if A is standing on top of B (platform detection based on relative positions)
+        const isAAboveB = (hitboxA.y + hitboxA.height / 2) < (hitboxB.y + hitboxB.height / 2);
+        const isBAboveA = (hitboxB.y + hitboxB.height / 2) < (hitboxA.y + hitboxA.height / 2);
+
+        // DEBUG: Log platform detection conditions
+        if (isPlatformInvolved) {
+        }
+
+        if (isAAboveB && entityA.vy >= 0) {
+
+            // A is above B and falling/stationary - check if B is a platform OR a box
+            const isPlatformLayer = (propsB.collisionLayer & 8) !== 0;
+            const isBoxEntity = entityB.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityB.template.name);
+            if (isPlatformLayer || isBoxEntity) {
+                entityA.platformUnderneath = entityB;
+            } else {
+            }
+        } else if (isAAboveB) {
+        }
+
+        if (isBAboveA && entityB.vy >= 0) {
+            // B is above A and falling/stationary - check if A is a platform OR a box
+            const isPlatformLayer = (propsA.collisionLayer & 8) !== 0;
+            const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
+            if (isPlatformLayer || isBoxEntity) {
+                entityB.platformUnderneath = entityA;
+            }
+        }
+
+        const isPlatformCase = entityA.platformUnderneath === entityB || entityB.platformUnderneath === entityA;
+
+        // Find minimum translation vector (MTV) - separate on axis with less overlap
+        if (overlapX < overlapY && !isPlatformCase) {
+            // Separate on X axis
+            const direction = (hitboxA.x + hitboxA.width / 2) < (hitboxB.x + hitboxB.width / 2) ? -1 : 1;
+            const separation = overlapX * direction;
+
+            if (isAStatic) {
+                // Only B moves
+                entityB.x -= separation;
+                entityB.vx = 0;
+            } else if (isBStatic) {
+                // Only A moves
+                entityA.x += separation;
+                entityA.vx = 0;
+            } else {
+                // Both move (split separation)
+                const halfSep = separation / 2;
+                entityA.x += halfSep;
+                entityB.x -= halfSep;
+
+                // Exchange velocities (simple elastic collision)
+                const isBPlatformX = (propsB.collisionLayer & 8) !== 0;
+                const isAPlatformX = (propsA.collisionLayer & 8) !== 0;
+
+                if (isAPlatformX || isBPlatformX) {
+                    // For platforms, don't exchange velocity. Just stop the dynamic entity.
+                    if (isBPlatformX && !isAPlatformX) entityA.vx = 0;
+                    if (isAPlatformX && !isBPlatformX) entityB.vx = 0;
+                } else {
+                    const tempVx = entityA.vx;
+                    entityA.vx = entityB.vx;
+                    entityB.vx = tempVx;
+                }
+            }
+        } else {
+            // Separate on Y axis
+            const direction = (hitboxA.y + hitboxA.height / 2) < (hitboxB.y + hitboxB.height / 2) ? -1 : 1;
+            const separation = overlapY * direction;
+
+            if (isAStatic) {
+                // Only B moves
+                entityB.y -= separation;
+                entityB.vy = 0;
+            } else if (isBStatic) {
+                // Only A moves
+                entityA.y += separation;
+                entityA.vy = 0;
+            } else {
+                // Both move (split separation)
+                const halfSep = separation / 2;
+                entityA.y += halfSep;
+                entityB.y -= halfSep;
+
+                // Exchange velocities (simple elastic collision)
+                const isBPlatformY = (propsB.collisionLayer & 8) !== 0;
+                const isAPlatformY = (propsA.collisionLayer & 8) !== 0;
+
+                if (isAPlatformY || isBPlatformY) {
+                    // When on a platform, stop the entity's vertical velocity.
+                    // The platform will move the entity directly in the platform update section.
+                    if (isBPlatformY && !isAPlatformY && isAAboveB) {
+                        entityA.vy = 0; // Stop player velocity, platform will move it
+                    } else if (isAPlatformY && !isBPlatformY && isBAboveA) {
+                        entityB.vy = 0; // Stop entity velocity, platform will move it
+                    } else {
+                        // Side or bottom collision, just stop.
+                        if (isBPlatformY && !isAPlatformY) entityA.vy = 0;
+                        if (isAPlatformY && !isBPlatformY) entityB.vy = 0;
+                    }
+                } else {
+                    const tempVy = entityA.vy;
+                    entityA.vy = entityB.vy;
+                    entityB.vy = tempVy;
+                }
+            }
+        }
+    };
+
+    // --- New animation function ---
+    let lastTime = 0;
+    const animate = (currentTime: number) => {
+        // Sync gamepad state into pressedKeys before processing input/physics
+        try { syncGamepadToPressedKeys(); } catch { }
+        // Allow gamepad to navigate SubMenu
+        try { syncGamepadForMenu(); } catch { }
+        // --- Calcular deltaTime (opcional) ---
+        // const deltaTime = currentTime - lastTime;
+        // lastTime = currentTime;
+        // --- Fin deltaTime ---
+
+        // Regenerar buffer si es necesario (tiles modificados por BREAK_TILE/REPLACE_TILE)
+        if (tileBufferNeedsUpdate.current && screenMapToRender) {
+            const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
+            tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
+            tileBufferNeedsUpdate.current = false;
+        }
+        // === RESOLVE PARENTS FOR CHILD-LINKED ENTITIES ===
+        const entityLookup = new Map<string, AnimatedEntity>();
+        for (const entity of entitiesRef.current) {
+            entityLookup.set(entity.instance.id, entity);
+        }
+        resolveChildLinkParents(entitiesRef.current, entityLookup);
+        // ================================================
+
+        // Limpiar solo el Area principal
+        ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+
+        // Dibujar el fondo pre-renderizado (tiles)
+        if (tileBufferRef.current) {
+            ctx.drawImage(tileBufferRef.current, 0, 0);
+
+            // Hide revealed secret tiles by drawing black rectangles over them
+            if (currentScreenMapRef.current) {
+                ctx.fillStyle = '#000000'; // Background color
+                revealedSecretTiles.current.forEach((key) => {
+                    const parts = key.split('_');
+                    const screenId = parts.slice(0, -2).join('_');
+                    const tx = parseInt(parts[parts.length - 2], 10);
+                    const ty = parseInt(parts[parts.length - 1], 10);
+
+                    if (screenId === currentScreenMapRef.current?.id) {
+                        // Draw black rectangle to hide this tile
+                        ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                    }
+                });
             }
 
-            const now = performance.now();
-            // Lifetime expiration: mark entities whose time is over
-            entitiesRef.current.forEach(e => {
-                if (e.expiresAt !== undefined && now >= e.expiresAt) {
-                    (e as any).markedForDestruction = true;
+            // Debug overlay: outlines for solid tiles in Collision layer
+            drawCollisionTileOutlines(ctx);
+        } else {
+            // Si no hay buffer (por ejemplo, en nodos de texto), limpiar y dibujar fondo
+            ctx.fillStyle = '#000000'; // Color por defecto
+            if (subMenuNode?.appearance?.colors?.background) {
+                ctx.fillStyle = subMenuNode.appearance.colors.background;
+            } else if (currentNode.type === 'Text') {
+                const textNode = currentNode as GameFlowTextNode;
+                ctx.fillStyle = textNode.appearance?.colors?.background || '#000000';
+            }
+            ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+        }
+
+        const now = performance.now();
+        // Lifetime expiration: mark entities whose time is over
+        entitiesRef.current.forEach(e => {
+            if (e.expiresAt !== undefined && now >= e.expiresAt) {
+                (e as any).markedForDestruction = true;
+            }
+        });
+
+        // Debug: Log entities with collision component (only once per second to avoid spam)
+        // if (now % 1000 < 16) { // Aproximadamente cada segundo
+        ////     entitiesRef.current.forEach((e, idx) => {
+        //         const hasComp = e.template.components.some(c => c.definitionId === 'comp_collision');
+        //         const props = entityCollisionProps(e);
+        //         if (hasComp && props) {
+        //         } else if (hasComp && !props) {
+        //         }
+        //     });
+        // }
+
+        entitiesRef.current.forEach((entityA, indexA) => {
+            const isCarriedBox = heroRef.current?.carriedBox === entityA;
+            // Treat entities tagged as box as collidable with tiles even if they don't explicitly have comp_collision
+            const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
+            const isCollectibleItem = entityA.template.components?.some(c => c.definitionId === 'comp_collectible');
+            const childLinkConfig = entityA.childLink;
+            const childLinkParent = childLinkConfig && entityA.parentEntityId
+                ? entityLookup.get(entityA.parentEntityId)
+                : undefined;
+            if (entityA.carriedBox && !entityA.carrySpriteBackup) {
+                switchToCarrySpriteIfConfigured(entityA);
+            } else if (!entityA.carriedBox && entityA.carrySpriteBackup) {
+                restoreSpriteAfterCarry(entityA);
+            }
+
+            // --- Early-out para entidades que no pertenecen a esta pantalla ---
+            // Salvo que sean hijas y su padre est visible aqu
+            const currentScreenId = currentScreenMapRef.current?.id;
+            const isChildOfVisibleParent = childLinkConfig &&
+                childLinkParent &&
+                childLinkParent.ownerScreenId === currentScreenId;
+
+            if (
+                entityA.ownerScreenId &&
+                entityA.ownerScreenId !== currentScreenId &&
+                !isChildOfVisibleParent
+            ) {
+                return; // No se dibuja ni se procesa ms
+            }
+
+            // Filter Box entities: only process if they belong to current screen or are being carried
+            if (isBoxEntity) {
+                const shouldProcessBox = entityA.ownerScreenId === null || // Being carried
+                    entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
+                    isChildOfVisibleParent; // Child rendered with its parent
+
+                if (!shouldProcessBox) {
+                    return; // Skip processing this Box (it belongs to another screen)
                 }
-            });
+            }
 
-            // Debug: Log entities with collision component (only once per second to avoid spam)
-            // if (now % 1000 < 16) { // Aproximadamente cada segundo
-            ////     entitiesRef.current.forEach((e, idx) => {
-            //         const hasComp = e.template.components.some(c => c.definitionId === 'comp_collision');
-            //         const props = entityCollisionProps(e);
-            //         if (hasComp && props) {
-            //         } else if (hasComp && !props) {
-            //         }
-            //     });
-            // }
+            // Filter Collectible items: only process if they belong to current screen
+            if (isCollectibleItem) {
+                const shouldProcessCollectible = entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
+                    isChildOfVisibleParent;
 
-            entitiesRef.current.forEach((entityA, indexA) => {
-                const isCarriedBox = heroRef.current?.carriedBox === entityA;
-                // Treat entities tagged as box as collidable with tiles even if they don't explicitly have comp_collision
-                const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
-                const isCollectibleItem = entityA.template.components?.some(c => c.definitionId === 'comp_collectible');
-                const childLinkConfig = entityA.childLink;
-                const childLinkParent = childLinkConfig && entityA.parentEntityId
-                    ? entityLookup.get(entityA.parentEntityId)
-                    : undefined;
-                if (entityA.carriedBox && !entityA.carrySpriteBackup) {
-                    switchToCarrySpriteIfConfigured(entityA);
-                } else if (!entityA.carriedBox && entityA.carrySpriteBackup) {
-                    restoreSpriteAfterCarry(entityA);
+                if (!shouldProcessCollectible) {
+                    return; // Skip processing this item (it belongs to another screen)
+                }
+            }
+
+            // --- PROJECTILES: movement, range and collisions ---
+            if (entityA.isProjectile) {
+                // Move projectile
+                entityA.x += entityA.vx || 0;
+                entityA.y += entityA.vy || 0;
+
+                // Out-of-bounds quick cull
+                if (entityA.x < -32 || entityA.x > PREVIEW_WIDTH + 32 || entityA.y < -32 || entityA.y > PREVIEW_HEIGHT + 32) {
+                    entityA.markedForDestruction = true as any;
                 }
 
-                // --- Early-out para entidades que no pertenecen a esta pantalla ---
-                // Salvo que sean hijas y su padre est visible aqu
-                const currentScreenId = currentScreenMapRef.current?.id;
-                const isChildOfVisibleParent = childLinkConfig &&
-                    childLinkParent &&
-                    childLinkParent.ownerScreenId === currentScreenId;
-
-                if (
-                    entityA.ownerScreenId &&
-                    entityA.ownerScreenId !== currentScreenId &&
-                    !isChildOfVisibleParent
-                ) {
-                    return; // No se dibuja ni se procesa ms
+                // Range check
+                const sx = entityA.projectileStartX ?? entityA.x;
+                const sy = entityA.projectileStartY ?? entityA.y;
+                const dxr = (entityA.x - sx);
+                const dyr = (entityA.y - sy);
+                const dist = Math.sqrt(dxr * dxr + dyr * dyr);
+                if (entityA.projectileMaxRange !== undefined && dist >= entityA.projectileMaxRange) {
+                    entityA.markedForDestruction = true as any;
                 }
 
-                // Filter Box entities: only process if they belong to current screen or are being carried
-                if (isBoxEntity) {
-                    const shouldProcessBox = entityA.ownerScreenId === null || // Being carried
-                        entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
-                        isChildOfVisibleParent; // Child rendered with its parent
+                // Tile collision (respect sprite hitbox if present)
+                if (screenMapToRender) {
+                    const sHit = entityA.sprite.hitbox;
+                    const hbX = entityA.x + (sHit?.offsetX ?? 0);
+                    const hbY = entityA.y + (sHit?.offsetY ?? 0);
+                    const hbW = sHit?.width ?? entityA.sprite.size.width;
+                    const hbH = sHit?.height ?? entityA.sprite.size.height;
 
-                    if (!shouldProcessBox) {
-                        return; // Skip processing this Box (it belongs to another screen)
+                    const cx = hbX + Math.floor(hbW / 2);
+                    const cy = hbY + Math.floor(hbH / 2);
+                    const hitTile =
+                        checkCollisionAt(cx, cy, screenMapToRender) ||
+                        checkCollisionAt(hbX, cy, screenMapToRender) ||
+                        checkCollisionAt(hbX + hbW - 1, cy, screenMapToRender) ||
+                        checkCollisionAt(cx, hbY, screenMapToRender) ||
+                        checkCollisionAt(cx, hbY + hbH - 1, screenMapToRender);
+                    if (hitTile) {
+                        // On solid tile, trigger explosion (Render2) if present; otherwise destroy
+                        startProjectileExplosion(entityA);
                     }
                 }
 
-                // Filter Collectible items: only process if they belong to current screen
-                if (isCollectibleItem) {
-                    const shouldProcessCollectible = entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
-                        isChildOfVisibleParent;
+                // Entity collisions (respect both projectile and target hitboxes)
+                for (let j = 0; j < entitiesRef.current.length && !entityA.markedForDestruction; j++) {
+                    if (j === indexA) continue;
+                    const target = entitiesRef.current[j];
+                    if (target.instance.id === entityA.projectileOwnerId) continue;
+                    if (target.isProjectile) continue;
 
-                    if (!shouldProcessCollectible) {
-                        return; // Skip processing this item (it belongs to another screen)
-                    }
-                }
+                    // Projectile hitbox from sprite or sprite size
+                    const pHB = entityA.sprite.hitbox;
+                    const ax1 = entityA.x + (pHB?.offsetX ?? 0);
+                    const ay1 = entityA.y + (pHB?.offsetY ?? 0);
+                    const ax2 = ax1 + (pHB?.width ?? entityA.sprite.size.width);
+                    const ay2 = ay1 + (pHB?.height ?? entityA.sprite.size.height);
 
-                // --- PROJECTILES: movement, range and collisions ---
-                if (entityA.isProjectile) {
-                    // Move projectile
-                    entityA.x += entityA.vx || 0;
-                    entityA.y += entityA.vy || 0;
-
-                    // Out-of-bounds quick cull
-                    if (entityA.x < -32 || entityA.x > PREVIEW_WIDTH + 32 || entityA.y < -32 || entityA.y > PREVIEW_HEIGHT + 32) {
-                        entityA.markedForDestruction = true as any;
-                    }
-
-                    // Range check
-                    const sx = entityA.projectileStartX ?? entityA.x;
-                    const sy = entityA.projectileStartY ?? entityA.y;
-                    const dxr = (entityA.x - sx);
-                    const dyr = (entityA.y - sy);
-                    const dist = Math.sqrt(dxr * dxr + dyr * dyr);
-                    if (entityA.projectileMaxRange !== undefined && dist >= entityA.projectileMaxRange) {
-                        entityA.markedForDestruction = true as any;
+                    // Target hitbox from comp_collision (with sprite fallback) or sprite.hitbox/size
+                    let bx1 = target.x, by1 = target.y, bx2 = bx1 + target.sprite.size.width, by2 = by1 + target.sprite.size.height;
+                    const tProps = entityCollisionProps(target);
+                    if (tProps) {
+                        const thb = getHitboxFor(target, tProps);
+                        bx1 = thb.x; by1 = thb.y; bx2 = thb.x + thb.width; by2 = thb.y + thb.height;
+                    } else if (target.sprite.hitbox) {
+                        const sh = target.sprite.hitbox;
+                        bx1 = target.x + (sh.offsetX ?? 0);
+                        by1 = target.y + (sh.offsetY ?? 0);
+                        bx2 = bx1 + (sh.width ?? target.sprite.size.width);
+                        by2 = by1 + (sh.height ?? target.sprite.size.height);
                     }
 
-                    // Tile collision (respect sprite hitbox if present)
-                    if (screenMapToRender) {
-                        const sHit = entityA.sprite.hitbox;
-                        const hbX = entityA.x + (sHit?.offsetX ?? 0);
-                        const hbY = entityA.y + (sHit?.offsetY ?? 0);
-                        const hbW = sHit?.width ?? entityA.sprite.size.width;
-                        const hbH = sHit?.height ?? entityA.sprite.size.height;
+                    const overlap = (ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1);
+                    if (!overlap) continue;
 
-                        const cx = hbX + Math.floor(hbW / 2);
-                        const cy = hbY + Math.floor(hbH / 2);
-                        const hitTile =
-                            checkCollisionAt(cx, cy, screenMapToRender) ||
-                            checkCollisionAt(hbX, cy, screenMapToRender) ||
-                            checkCollisionAt(hbX + hbW - 1, cy, screenMapToRender) ||
-                            checkCollisionAt(cx, hbY, screenMapToRender) ||
-                            checkCollisionAt(cx, hbY + hbH - 1, screenMapToRender);
-                        if (hitTile) {
-                            // On solid tile, trigger explosion (Render2) if present; otherwise destroy
-                            startProjectileExplosion(entityA);
+                    const healthComp = target.template.components.find(c => c.definitionId === 'comp_health');
+                    if (healthComp) {
+                        if (!target.instance.componentOverrides) target.instance.componentOverrides = {} as any;
+                        if (!target.instance.componentOverrides['comp_health']) target.instance.componentOverrides['comp_health'] = {};
+                        const overrides = target.instance.componentOverrides['comp_health'];
+                        const current = Number(overrides.current ?? healthComp.defaultValues?.current ?? 1);
+                        const newVal = Math.max(0, current - (entityA.projectileDamage || 1));
+                        overrides.current = newVal;
+                        if (newVal <= 0) {
+                            target.markedForDestruction = true as any;
                         }
                     }
 
-                    // Entity collisions (respect both projectile and target hitboxes)
-                    for (let j = 0; j < entitiesRef.current.length && !entityA.markedForDestruction; j++) {
-                        if (j === indexA) continue;
-                        const target = entitiesRef.current[j];
-                        if (target.instance.id === entityA.projectileOwnerId) continue;
-                        if (target.isProjectile) continue;
-
-                        // Projectile hitbox from sprite or sprite size
-                        const pHB = entityA.sprite.hitbox;
-                        const ax1 = entityA.x + (pHB?.offsetX ?? 0);
-                        const ay1 = entityA.y + (pHB?.offsetY ?? 0);
-                        const ax2 = ax1 + (pHB?.width ?? entityA.sprite.size.width);
-                        const ay2 = ay1 + (pHB?.height ?? entityA.sprite.size.height);
-
-                        // Target hitbox from comp_collision (with sprite fallback) or sprite.hitbox/size
-                        let bx1 = target.x, by1 = target.y, bx2 = bx1 + target.sprite.size.width, by2 = by1 + target.sprite.size.height;
-                        const tProps = entityCollisionProps(target);
-                        if (tProps) {
-                            const thb = getHitboxFor(target, tProps);
-                            bx1 = thb.x; by1 = thb.y; bx2 = thb.x + thb.width; by2 = thb.y + thb.height;
-                        } else if (target.sprite.hitbox) {
-                            const sh = target.sprite.hitbox;
-                            bx1 = target.x + (sh.offsetX ?? 0);
-                            by1 = target.y + (sh.offsetY ?? 0);
-                            bx2 = bx1 + (sh.width ?? target.sprite.size.width);
-                            by2 = by1 + (sh.height ?? target.sprite.size.height);
-                        }
-
-                        const overlap = (ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1);
-                        if (!overlap) continue;
-
-                        const healthComp = target.template.components.find(c => c.definitionId === 'comp_health');
-                        if (healthComp) {
-                            if (!target.instance.componentOverrides) target.instance.componentOverrides = {} as any;
-                            if (!target.instance.componentOverrides['comp_health']) target.instance.componentOverrides['comp_health'] = {};
-                            const overrides = target.instance.componentOverrides['comp_health'];
-                            const current = Number(overrides.current ?? healthComp.defaultValues?.current ?? 1);
-                            const newVal = Math.max(0, current - (entityA.projectileDamage || 1));
-                            overrides.current = newVal;
-                            if (newVal <= 0) {
-                                target.markedForDestruction = true as any;
-                            }
-                        }
-
-                        if (entityA.projectileExpireOnHit !== false) {
-                            // On entity impact, explode if configured, else destroy
-                            startProjectileExplosion(entityA);
-                        }
+                    if (entityA.projectileExpireOnHit !== false) {
+                        // On entity impact, explode if configured, else destroy
+                        startProjectileExplosion(entityA);
                     }
+                }
 
-                    // Animate projectile frames if enabled
-                    if ((entityA.isExploding || entityA.animateProjectile !== false) && entityA.frameImages.length > 1) {
-                        const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
-                        if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
-                            if (entityA.isExploding) {
-                                // Explosion should not loop; end when finished
-                                if (entityA.currentFrame < entityA.frameImages.length - 1) {
-                                    entityA.currentFrame++;
-                                } else {
-                                    (entityA as any).markedForDestruction = true;
-                                }
+                // Animate projectile frames if enabled
+                if ((entityA.isExploding || entityA.animateProjectile !== false) && entityA.frameImages.length > 1) {
+                    const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
+                    if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
+                        if (entityA.isExploding) {
+                            // Explosion should not loop; end when finished
+                            if (entityA.currentFrame < entityA.frameImages.length - 1) {
+                                entityA.currentFrame++;
                             } else {
-                                const loops = (entityA.sprite.loops !== undefined) ? entityA.sprite.loops : true;
-                                if (loops) {
-                                    entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
-                                } else if (entityA.currentFrame < entityA.frameImages.length - 1) {
-                                    entityA.currentFrame++;
-                                }
+                                (entityA as any).markedForDestruction = true;
                             }
-                            entityA.lastFrameUpdateTime = now;
+                        } else {
+                            const loops = (entityA.sprite.loops !== undefined) ? entityA.sprite.loops : true;
+                            if (loops) {
+                                entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
+                            } else if (entityA.currentFrame < entityA.frameImages.length - 1) {
+                                entityA.currentFrame++;
+                            }
                         }
+                        entityA.lastFrameUpdateTime = now;
                     }
-
-                    // Render projectile immediately and skip rest
-                    if (entityA.frameImages.length > 0) {
-                        const useMirrored = !!(entityA.isFacingMirrored && entityA.mirroredFrameImages && entityA.mirroredFrameImages.length > 0);
-                        const framesToUse = useMirrored ? (entityA.mirroredFrameImages as HTMLImageElement[]) : entityA.frameImages;
-                        const img = framesToUse[entityA.currentFrame] || framesToUse[0];
-                        if (img && img.complete && img.naturalWidth > 0) {
-                            ctx.drawImage(img, entityA.x, entityA.y);
-                        }
-                    }
-                    return;
                 }
-                // --- 0. Compute isOnGround based on current position ---
-                const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
-                const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-                // Boxes should also interact with tile collisions even without comp_collision
-                if ((hasCollisionComp || isBoxEntity) && collisionCompDef && screenMapToRender && !isCarriedBox) {
-                    const props = entityCollisionProps(entityA);
-                    if (props) {
-                        const hitbox = getHitboxForPosition(entityA, entityA.x, entityA.y + 1, props); // Check 1px below
-                        const centerX1 = hitbox.x + Math.floor(hitbox.width / 3);
-                        const centerX2 = hitbox.x + Math.floor((2 * hitbox.width) / 3);
-                        const bottomY = hitbox.y + hitbox.height;
-                        const platformContext = { hitboxBottom: bottomY, velocityY: entityA.vy };
 
-                        // Check tiles OR platform from PREVIOUS frame (before it gets cleared)
-                        const onTiles = checkCollisionAt(centerX1, bottomY, screenMapToRender, { platformContext }) ||
-                            checkCollisionAt(centerX2, bottomY, screenMapToRender, { platformContext });
-                        // Be robust: consider we were on a platform last frame if the reference exists
-                        const onPlatformPreviousFrame = !!entityA.platformUnderneath;
-
-                        // Coyote-time: keep grounded for a few frames after leaving a platform
-                        if (onPlatformPreviousFrame) {
-                            entityA.platformGraceFramesLeft = 6; // ~6 frames of tolerance
-                        } else if ((entityA.platformGraceFramesLeft || 0) > 0) {
-                            entityA.platformGraceFramesLeft = (entityA.platformGraceFramesLeft || 0) - 1;
-                        }
-
-                        const hasPlatformGrace = (entityA.platformGraceFramesLeft || 0) > 0;
-                        entityA.isOnGround = onTiles || onPlatformPreviousFrame || hasPlatformGrace;
-                    } else {
-                        entityA.isOnGround = false;
+                // Render projectile immediately and skip rest
+                if (entityA.frameImages.length > 0) {
+                    const useMirrored = !!(entityA.isFacingMirrored && entityA.mirroredFrameImages && entityA.mirroredFrameImages.length > 0);
+                    const framesToUse = useMirrored ? (entityA.mirroredFrameImages as HTMLImageElement[]) : entityA.frameImages;
+                    const img = framesToUse[entityA.currentFrame] || framesToUse[0];
+                    if (img && img.complete && img.naturalWidth > 0) {
+                        ctx.drawImage(img, entityA.x, entityA.y);
                     }
+                }
+                return;
+            }
+            // --- 0. Compute isOnGround based on current position ---
+            const hasCollisionComp = entityA.template.components.some(c => c.definitionId === 'comp_collision');
+            const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
+            // Boxes should also interact with tile collisions even without comp_collision
+            if ((hasCollisionComp || isBoxEntity) && collisionCompDef && screenMapToRender && !isCarriedBox) {
+                const props = entityCollisionProps(entityA);
+                if (props) {
+                    const hitbox = getHitboxForPosition(entityA, entityA.x, entityA.y + 1, props); // Check 1px below
+                    const centerX1 = hitbox.x + Math.floor(hitbox.width / 3);
+                    const centerX2 = hitbox.x + Math.floor((2 * hitbox.width) / 3);
+                    const bottomY = hitbox.y + hitbox.height;
+                    const platformContext = { hitboxBottom: bottomY, velocityY: entityA.vy };
+
+                    // Check tiles OR platform from PREVIOUS frame (before it gets cleared)
+                    const onTiles = checkCollisionAt(centerX1, bottomY, screenMapToRender, { platformContext }) ||
+                        checkCollisionAt(centerX2, bottomY, screenMapToRender, { platformContext });
+                    // Be robust: consider we were on a platform last frame if the reference exists
+                    const onPlatformPreviousFrame = !!entityA.platformUnderneath;
+
+                    // Coyote-time: keep grounded for a few frames after leaving a platform
+                    if (onPlatformPreviousFrame) {
+                        entityA.platformGraceFramesLeft = 6; // ~6 frames of tolerance
+                    } else if ((entityA.platformGraceFramesLeft || 0) > 0) {
+                        entityA.platformGraceFramesLeft = (entityA.platformGraceFramesLeft || 0) - 1;
+                    }
+
+                    const hasPlatformGrace = (entityA.platformGraceFramesLeft || 0) > 0;
+                    entityA.isOnGround = onTiles || onPlatformPreviousFrame || hasPlatformGrace;
                 } else {
                     entityA.isOnGround = false;
                 }
+            } else {
+                entityA.isOnGround = false;
+            }
 
-                // --- Handle Landing (Revert Jump Sprite) ---
-                const wasJumping = entityA.instance.componentOverrides?.['comp_jump']?.isJumping;
-                if (entityA.isOnGround && wasJumping) {
-                    // Reset jumping flag
-                    if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {};
-                    if (!entityA.instance.componentOverrides['comp_jump']) entityA.instance.componentOverrides['comp_jump'] = {};
-                    entityA.instance.componentOverrides['comp_jump'].isJumping = false;
+            // --- Handle Landing (Revert Jump Sprite) ---
+            const wasJumping = entityA.instance.componentOverrides?.['comp_jump']?.isJumping;
+            if (entityA.isOnGround && wasJumping) {
+                // Reset jumping flag
+                if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {};
+                if (!entityA.instance.componentOverrides['comp_jump']) entityA.instance.componentOverrides['comp_jump'] = {};
+                entityA.instance.componentOverrides['comp_jump'].isJumping = false;
 
-                    // Revert to default sprite (from comp_render)
-                    const renderProps = getMergedComponentValues(entityA, 'comp_render');
-                    const defaultSpriteId = renderProps?.spriteAssetId;
-                    if (defaultSpriteId) {
-                        const spriteAsset = allAssets.find(a => a.id === defaultSpriteId && a.type === 'sprite');
-                        if (spriteAsset) {
-                            const spriteData = spriteAsset.data as Sprite;
-                            entityA.sprite = spriteData;
+                // Revert to default sprite (from comp_render)
+                const renderProps = getMergedComponentValues(entityA, 'comp_render');
+                const defaultSpriteId = renderProps?.spriteAssetId;
+                if (defaultSpriteId) {
+                    const spriteAsset = allAssets.find(a => a.id === defaultSpriteId && a.type === 'sprite');
+                    if (spriteAsset) {
+                        const spriteData = spriteAsset.data as Sprite;
+                        entityA.sprite = spriteData;
 
-                            // Regenerate frames
-                            const frames = spriteData.frames.map(frame => {
+                        // Regenerate frames
+                        const frames = spriteData.frames.map(frame => {
+                            const img = new Image();
+                            img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                            return img;
+                        });
+                        entityA.frameImages = frames;
+
+                        // Regenerate mirrored frames
+                        if (['right', 'left'].includes(spriteData.facingDirection)) {
+                            const mirrored = spriteData.frames.map(frame => {
                                 const img = new Image();
-                                img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
                                 return img;
                             });
-                            entityA.frameImages = frames;
-
-                            // Regenerate mirrored frames
-                            if (['right', 'left'].includes(spriteData.facingDirection)) {
-                                const mirrored = spriteData.frames.map(frame => {
-                                    const img = new Image();
-                                    img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
-                                    return img;
-                                });
-                                entityA.mirroredFrameImages = mirrored;
-                            }
-
-                            entityA.currentFrame = 0;
-                            entityA.lastFrameUpdateTime = performance.now();
+                            entityA.mirroredFrameImages = mirrored;
                         }
+
+                        entityA.currentFrame = 0;
+                        entityA.lastFrameUpdateTime = performance.now();
                     }
                 }
+            }
 
-                // --- 0.5. Detect Secret Passages ---
-                // When player overlaps a background tile that has no collision, reveal it
-                if (entityA === heroRef.current && screenMapToRender && currentScreenMapRef.current) {
-                    const playerTileX = Math.floor(entityA.x / TILE_SIZE);
-                    const playerTileY = Math.floor(entityA.y / TILE_SIZE);
+            // --- 0.5. Detect Secret Passages ---
+            // When player overlaps a background tile that has no collision, reveal it
+            if (entityA === heroRef.current && screenMapToRender && currentScreenMapRef.current) {
+                const playerTileX = Math.floor(entityA.x / TILE_SIZE);
+                const playerTileY = Math.floor(entityA.y / TILE_SIZE);
 
-                    // Check if there's a background tile but no collision tile
-                    const bgTile = screenMapToRender.layers.background[playerTileY]?.[playerTileX];
-                    const collTile = screenMapToRender.layers.collision[playerTileY]?.[playerTileX];
+                // Check if there's a background tile but no collision tile
+                const bgTile = screenMapToRender.layers.background[playerTileY]?.[playerTileX];
+                const collTile = screenMapToRender.layers.collision[playerTileY]?.[playerTileX];
 
-                    if (bgTile?.tileId && (!collTile?.tileId || !checkCollisionAt(entityA.x + 4, entityA.y + 4, screenMapToRender))) {
-                        // Player is in a secret passage! Reveal nearby background tiles
-                        const revealRadius = 2; // Reveal 2 tiles around player
-                        for (let dy = -revealRadius; dy <= revealRadius; dy++) {
-                            for (let dx = -revealRadius; dx <= revealRadius; dx++) {
-                                const tx = playerTileX + dx;
-                                const ty = playerTileY + dy;
+                if (bgTile?.tileId && (!collTile?.tileId || !checkCollisionAt(entityA.x + 4, entityA.y + 4, screenMapToRender))) {
+                    // Player is in a secret passage! Reveal nearby background tiles
+                    const revealRadius = 2; // Reveal 2 tiles around player
+                    for (let dy = -revealRadius; dy <= revealRadius; dy++) {
+                        for (let dx = -revealRadius; dx <= revealRadius; dx++) {
+                            const tx = playerTileX + dx;
+                            const ty = playerTileY + dy;
 
-                                if (ty >= 0 && ty < screenMapToRender.height && tx >= 0 && tx < screenMapToRender.width) {
-                                    const bgTileCheck = screenMapToRender.layers.background[ty]?.[tx];
-                                    const collTileCheck = screenMapToRender.layers.collision[ty]?.[tx];
+                            if (ty >= 0 && ty < screenMapToRender.height && tx >= 0 && tx < screenMapToRender.width) {
+                                const bgTileCheck = screenMapToRender.layers.background[ty]?.[tx];
+                                const collTileCheck = screenMapToRender.layers.collision[ty]?.[tx];
 
-                                    // Only reveal if there's background but no solid collision
-                                    if (bgTileCheck?.tileId && !collTileCheck?.tileId) {
-                                        const key = `${currentScreenMapRef.current.id}_${tx}_${ty}`;
-                                        if (!revealedSecretTiles.current.has(key)) {
-                                            revealedSecretTiles.current.add(key);
-                                            tileBufferNeedsUpdate.current = false; // Don't force re-render, just hide tiles
+                                // Only reveal if there's background but no solid collision
+                                if (bgTileCheck?.tileId && !collTileCheck?.tileId) {
+                                    const key = `${currentScreenMapRef.current.id}_${tx}_${ty}`;
+                                    if (!revealedSecretTiles.current.has(key)) {
+                                        revealedSecretTiles.current.add(key);
+                                        tileBufferNeedsUpdate.current = false; // Don't force re-render, just hide tiles
 
-                                            // Add sparkle effect for discovered secret tile
-                                            secretDiscoveryEffects.current.push({
-                                                x: tx * TILE_SIZE + TILE_SIZE / 2,
-                                                y: ty * TILE_SIZE + TILE_SIZE / 2,
-                                                lifetime: 0,
-                                                maxLifetime: 1000 // 1 second
-                                            });
-                                        }
+                                        // Add sparkle effect for discovered secret tile
+                                        secretDiscoveryEffects.current.push({
+                                            x: tx * TILE_SIZE + TILE_SIZE / 2,
+                                            y: ty * TILE_SIZE + TILE_SIZE / 2,
+                                            lifetime: 0,
+                                            maxLifetime: 1000 // 1 second
+                                        });
                                     }
                                 }
                             }
                         }
                     }
                 }
+            }
 
-                // --- 0.6. Process collision events (state machine transitions) ---
-                processEventTransitions(entityA);
+            // --- 0.6. Process collision events (state machine transitions) ---
+            processEventTransitions(entityA);
 
-                // --- 1. Actualizar Velocidad ---
-                if (entityA === heroRef.current) {
-                    // Apply state machine velocity properties if present
-                    if (entityA.stateMachine && entityA.currentState) {
-                        const stateDef = entityA.stateMachine.states.find(s => s.name === entityA.currentState);
-                        if (stateDef?.properties) {
-                            if (stateDef.properties.velocityX !== undefined) entityA.vx = stateDef.properties.velocityX;
-                            if (stateDef.properties.velocityY !== undefined) entityA.vy = stateDef.properties.velocityY;
-                        }
+            // --- 1. Actualizar Velocidad ---
+            if (entityA === heroRef.current) {
+                // Apply state machine velocity properties if present
+                if (entityA.stateMachine && entityA.currentState) {
+                    const stateDef = entityA.stateMachine.states.find(s => s.name === entityA.currentState);
+                    if (stateDef?.properties) {
+                        if (stateDef.properties.velocityX !== undefined) entityA.vx = stateDef.properties.velocityX;
+                        if (stateDef.properties.velocityY !== undefined) entityA.vy = stateDef.properties.velocityY;
                     }
-
-                    // Check if current state allows input
-                    const statesWithoutInput = ['Dead', 'GameOver', 'Stunned', 'Frozen']; // States that disable controls
-                    const canProcessInput = !entityA.currentState || !statesWithoutInput.includes(entityA.currentState);
-
-                    // Process input (cursors, jump, actions) - Only if state allows it
-                    if (canProcessInput) {
-                        const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity') || !!(entityA.instance.componentOverrides?.['comp_gravity']);
-                        const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
-
-                        // Horizontal Movement
-                        if (cursorsComp) {
-                            const cursorsProps = {
-                                ...cursorsComp.defaultValues,
-                                ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
-                            };
-                            let speed = Number(cursorsProps.speed) || 2;
-
-                            // Reduce speed by half when carrying a box
-                            if (entityA.carriedBox) {
-                                speed = speed * 0.5;
-                            }
-
-                            const allowLeft = cursorsProps.allowLeft !== false;
-                            const allowRight = cursorsProps.allowRight !== false;
-                            const leftPressed = pressedKeys.current.has('ArrowLeft');
-                            const rightPressed = pressedKeys.current.has('ArrowRight');
-
-                            if (leftPressed && allowLeft) {
-                                entityA.vx = -speed;
-                            } else if (rightPressed && allowRight) {
-                                entityA.vx = speed;
-                            } else {
-                                entityA.vx = 0;
-                            }
-                        }
-
-                        // Vertical Movement (only for non-gravity entities)
-                        if (!hasGravity && cursorsComp) {
-                            const cursorsProps = {
-                                ...cursorsComp.defaultValues,
-                                ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
-                            };
-                            let speed = Number(cursorsProps.speed) || 2;
-
-                            // Reduce speed by half when carrying a box
-                            if (entityA.carriedBox) {
-                                speed = speed * 0.5;
-                            }
-
-                            const allowUp = cursorsProps.allowUp !== false;
-                            const allowDown = cursorsProps.allowDown !== false;
-                            const upPressed = pressedKeys.current.has('ArrowUp');
-                            const downPressed = pressedKeys.current.has('ArrowDown');
-
-                            if (upPressed && allowUp) {
-                                entityA.vy = -speed;
-                            } else if (downPressed && allowDown) {
-                                entityA.vy = speed;
-                            } else {
-                                entityA.vy = 0;
-                            }
-                        }
-
-                        // Jump (only for gravity entities)
-                        const jumpComp = entityA.template.components.find(c => c.definitionId === 'comp_jump');
-                        if (jumpComp) {
-                            const jumpProps = { ...jumpComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_jump'] || {}) };
-                            const requireKeyRelease = jumpProps.requireKeyRelease !== 'false' && jumpProps.requireKeyRelease !== false;
-                            const spacePressed = pressedKeys.current.has(' ');
-
-                            if (hasGravity && entityA.isOnGround && spacePressed) {
-                                // Check if we can jump based on requireKeyRelease setting
-                                const canJump = !requireKeyRelease || !jumpKeyProcessed.current;
-
-                                if (canJump) {
-                                    let jumpPower = Number(jumpProps.jumpPower || 256);
-
-                                    // Reduce jump power by 25% when carrying a box
-                                    if (entityA.carriedBox) {
-                                        jumpPower = jumpPower * 0.75;
-                                    }
-
-                                    entityA.vy = -jumpPower / 40;
-                                    jumpKeyProcessed.current = true;
-
-                                    // Handle Jump Sprite
-                                    const jumpSpriteId = jumpProps.jumpSprite;
-                                    if (jumpSpriteId) {
-                                        const spriteAsset = allAssets.find(a => a.id === jumpSpriteId && a.type === 'sprite');
-                                        if (spriteAsset) {
-                                            // Set isJumping flag
-                                            if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {};
-                                            if (!entityA.instance.componentOverrides['comp_jump']) entityA.instance.componentOverrides['comp_jump'] = {};
-                                            entityA.instance.componentOverrides['comp_jump'].isJumping = true;
-
-                                            const spriteData = spriteAsset.data as Sprite;
-                                            entityA.sprite = spriteData;
-                                            entityA.spriteAssetId = spriteAsset.id;
-
-                                            // Regenerate frames
-                                            const frames = spriteData.frames.map(frame => {
-                                                const img = new Image();
-                                                img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
-                                                return img;
-                                            });
-                                            entityA.frameImages = frames;
-
-                                            // Regenerate mirrored frames
-                                            if (['right', 'left'].includes(spriteData.facingDirection)) {
-                                                const mirrored = spriteData.frames.map(frame => {
-                                                    const img = new Image();
-                                                    img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
-                                                    return img;
-                                                });
-                                                entityA.mirroredFrameImages = mirrored;
-                                            }
-
-                                            entityA.currentFrame = 0;
-                                            entityA.lastFrameUpdateTime = performance.now();
-                                        }
-                                    }
-
-                                    // Clear platform reference when jumping to prevent infinite jumps
-                                    entityA.platformUnderneath = null;
-                                    entityA.isOnGround = false;
-                                }
-                            }
-
-                            // Reset jump key processed when not pressing space and on ground
-                            if (!spacePressed && entityA.isOnGround) {
-                                jumpKeyProcessed.current = false;
-                            }
-                        }
-
-                        // --- Action: Pick up / Drop box ---
-                        // Allow: KeyZ (legacy) OR (Down + Fire button)
-                        // Determine fire key from comp_shoot (defaults to 'KeyX')
-                        const shootCompForAction = entityA.template.components.find(c => c.definitionId === 'comp_shoot');
-                        const shootPropsForAction = shootCompForAction ? getMergedComponentValues(entityA, 'comp_shoot') || {} : {} as any;
-                        const fireKeyForAction = shootPropsForAction.fireKey || 'KeyX';
-                        const downPressedForAction = pressedKeys.current.has('ArrowDown') || pressedKeys.current.has('s') || pressedKeys.current.has('S');
-                        const firePressedForAction = pressedKeys.current.has(fireKeyForAction) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
-                        const actionPressed = (
-                            pressedKeys.current.has('KeyZ') || pressedKeys.current.has('z') || pressedKeys.current.has('Z') ||
-                            (downPressedForAction && firePressedForAction)
-                        );
-                        const isBoxEntity = (e: AnimatedEntity) => e.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(e.template.name);
-
-                        if (actionPressed && !actionKeyProcessed.current) {
-                            if (!entityA.carriedBox) {
-                                // Try to pick up a nearby box (expanded detection area)
-                                const heroProps = entityCollisionProps(entityA);
-                                const heroHitbox = heroProps ? getHitboxFor(entityA, heroProps) : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
-                                const heroCenterX = heroHitbox.x + heroHitbox.width / 2;
-                                const heroCenterY = heroHitbox.y + heroHitbox.height / 2;
-                                const proximityPxHorizontal = TILE_SIZE * 2.5; // 20px horizontal (allows side pickup)
-                                const proximityPxDown = TILE_SIZE * 3; // 24px down (can pick box underneath)
-                                const proximityPxUp = TILE_SIZE; // 8px up
-
-                                const candidate = entitiesRef.current.find(e => (
-                                    e !== entityA && isBoxEntity(e) && e !== heroRef.current?.carriedBox
-                                ) && (() => {
-                                    const boxProps = entityCollisionProps(e);
-                                    const boxHitbox = boxProps ? getHitboxFor(e, boxProps) : { x: e.x, y: e.y, width: e.sprite.size.width, height: e.sprite.size.height };
-                                    const boxCenterX = boxHitbox.x + boxHitbox.width / 2;
-                                    const boxCenterY = boxHitbox.y + boxHitbox.height / 2;
-                                    const deltaX = Math.abs(boxCenterX - heroCenterX);
-                                    const deltaY = boxCenterY - heroCenterY; // positive if box is below hero
-
-                                    // Extended pickup zone: normal range horizontally, but larger range downward
-                                    const inRangeX = deltaX <= proximityPxHorizontal;
-                                    const inRangeY = (deltaY >= -proximityPxUp && deltaY <= proximityPxDown);
-                                    return inRangeX && inRangeY;
-                                })());
-
-                                if (candidate) {
-                                    entityA.carriedBox = candidate;
-                                    // Freeze box motion immediately
-                                    candidate.vx = 0; candidate.vy = 0;
-
-                                    // Register this box as picked up from its original screen
-                                    if (candidate.ownerScreenId) {
-                                        const registryKey = `${candidate.ownerScreenId}_${candidate.instance.id}`;
-                                        boxPickedUpRegistry.current.add(registryKey);
-                                    }
-
-                                    // Remove box from its current screen (it's now being carried)
-                                    candidate.ownerScreenId = null;
-
-                                    // Swap to carry-specific sprite if configured
-                                    switchToCarrySpriteIfConfigured(entityA);
-                                }
-                            } else {
-                                // Drop currently carried box in front of the hero if space is free
-                                const box = entityA.carriedBox;
-                                if (box && screenMapToRender) {
-                                    const boxProps = entityCollisionProps(box);
-                                    const boxW = boxProps?.hitboxWidth || box.sprite.size.width;
-                                    const boxH = boxProps?.hitboxHeight || box.sprite.size.height;
-                                    const offX = boxProps?.offsetX || 0;
-                                    const offY = boxProps?.offsetY || 0;
-
-                                    // Use hero hitbox for accurate drop anchor
-                                    const heroPropsDrop = entityCollisionProps(entityA);
-                                    const heroHitboxDrop = heroPropsDrop
-                                        ? getHitboxFor(entityA, heroPropsDrop)
-                                        : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
-
-                                    const facingDefaultRight = entityA.sprite.facingDirection === 'right';
-                                    const facingDefaultLeft = entityA.sprite.facingDirection === 'left';
-                                    const facingLeft = (facingDefaultRight && entityA.isFacingMirrored) || (facingDefaultLeft && !entityA.isFacingMirrored);
-
-                                    // Desired hitbox top-left for the box (hx, hy)
-                                    let hx = heroHitboxDrop.x + heroHitboxDrop.width; // right side by default
-                                    if (facingLeft) {
-                                        hx = heroHitboxDrop.x - boxW; // left side
-                                    }
-                                    const hy = heroHitboxDrop.y + heroHitboxDrop.height - boxH; // at hero's feet
-
-                                    // Convert desired hitbox position to sprite (visual) top-left
-                                    const dropX = hx - offX;
-                                    const dropY = hy - offY;
-                                    const clear = !(
-                                        checkCollisionAt(hx, hy, screenMapToRender) ||
-                                        checkCollisionAt(hx + boxW - 1, hy, screenMapToRender) ||
-                                        checkCollisionAt(hx, hy + boxH - 1, screenMapToRender) ||
-                                        checkCollisionAt(hx + boxW - 1, hy + boxH - 1, screenMapToRender)
-                                    );
-
-                                    if (clear) {
-                                        box.x = dropX;
-                                        box.y = dropY;
-                                        // Apply impulse in facing direction and vertical
-                                        const impulseH = 2;   // px/frame
-                                        const impulseV = -2;  // upward kick
-                                        box.vx = facingLeft ? -impulseH : impulseH;
-                                        box.vy = impulseV;
-                                        // Ensure physics re-engages after being carried
-                                        box.isOnGround = false;
-                                        box.platformUnderneath = null;
-                                        // Assign box to current screen
-                                        box.ownerScreenId = currentScreenMap?.id || null;
-                                        entityA.carriedBox = null;
-                                        restoreSpriteAfterCarry(entityA);
-                                    } else {
-                                    }
-                                }
-                            }
-                            actionKeyProcessed.current = true;
-                        }
-                        if (!actionPressed) actionKeyProcessed.current = false;
-
-                        // Shooting: if entity has comp_shoot and fire key pressed
-                        const shootComp = entityA.template.components.find(c => c.definitionId === 'comp_shoot');
-                        if (shootComp) {
-                            const shootProps = getMergedComponentValues(entityA, 'comp_shoot') || {};
-                            const fireKey = shootProps.fireKey || 'KeyX';
-                            const firePressed = pressedKeys.current.has(fireKey) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
-                            const cooldownMs = Number(shootProps.cooldownMs || shootProps.fireRateMs || 250);
-                            const nowTs = performance.now();
-                            const canFire = !entityA.lastShotTime || (nowTs - entityA.lastShotTime >= cooldownMs);
-
-                            // Ammo gating: si hasAmmo es explcitamente falso, bloquear disparo
-                            const hasAmmo = !(shootProps.hasAmmo === false || shootProps.hasAmmo === 'false');
-
-                            // Global Ammo variable gating
-                            const ammoRaw = (gameGlobalVariablesRef.current as any)?.Ammo;
-                            let allowByAmmoVar = true;
-                            if (ammoRaw !== undefined) {
-                                const ammoVal = Number(ammoRaw);
-                                if (!Number.isNaN(ammoVal)) {
-                                    allowByAmmoVar = (ammoVal > 0) || (ammoVal < 0); // -1 => infinite
-                                }
-                            }
-
-                            if (firePressed && canFire && hasAmmo && allowByAmmoVar) {
-                                spawnProjectile(entityA);
-
-                                // Decrementar Ammo si es finito (>= 0)
-                                if (ammoRaw !== undefined) {
-                                    const currentAmmo = Number(ammoRaw);
-                                    if (!Number.isNaN(currentAmmo) && currentAmmo >= 0) {
-                                        const newAmmo = Math.max(0, currentAmmo - 1);
-                                        console.log(`[Ammo] ${currentAmmo} -> ${newAmmo} (SHOOT)`);
-                                        updateGameGlobalVariables(prev => ({
-                                            ...prev,
-                                            Ammo: newAmmo
-                                        }));
-
-                                        // Si se queda sin municin, tambin desactivar hasAmmo
-                                        if (newAmmo === 0) {
-                                            if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {} as any;
-                                            if (!entityA.instance.componentOverrides['comp_shoot']) entityA.instance.componentOverrides['comp_shoot'] = {} as any;
-                                            entityA.instance.componentOverrides['comp_shoot'].hasAmmo = false;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                    } // End of canProcessInput check
                 }
 
-                // Check if physics should be disabled (same states as input)
-                const statesWithoutPhysics = ['Dead', 'GameOver', 'Stunned', 'Frozen'];
-                const canProcessPhysics = !entityA.currentState || !statesWithoutPhysics.includes(entityA.currentState);
+                // Check if current state allows input
+                const statesWithoutInput = ['Dead', 'GameOver', 'Stunned', 'Frozen']; // States that disable controls
+                const canProcessInput = !entityA.currentState || !statesWithoutInput.includes(entityA.currentState);
 
-                if (canProcessPhysics) {
-                    const skipPhysics = heroRef.current?.carriedBox === entityA; // Skip physics for carried box
-                    // --- Gravity ---
-                    const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
-                    const gravityOverride = entityA.instance.componentOverrides?.['comp_gravity'];
-                    const gravityEnabled = !!gravityComp || !!gravityOverride; // allow instance-level activation
-                    if (!skipPhysics && gravityEnabled && !entityA.isOnGround) {
-                        const gravityProps = { ...(gravityComp?.defaultValues || {}), ...(gravityOverride || {}) } as any;
-                        const strength = Number(gravityProps.strength ?? 0) / 60;
-                        const terminalVelocity = Number(gravityProps.terminalVelocity ?? 2);
-                        entityA.vy += strength;
-                        if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
-                    }
+                // Process input (cursors, jump, actions) - Only if state allows it
+                if (canProcessInput) {
+                    const hasGravity = entityA.template.components.some(c => c.definitionId === 'comp_gravity') || !!(entityA.instance.componentOverrides?.['comp_gravity']);
+                    const cursorsComp = entityA.template.components.find(c => c.definitionId === 'comp_cursors');
 
-                    // --- Friction (for boxes on ground) ---
-                    const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
-                    if (!skipPhysics && isBoxEntity && entityA.isOnGround) {
-                        const frictionCoeff = 0.85; // Friction coefficient (lower = more friction, 1 = no friction)
-                        entityA.vx *= frictionCoeff;
-                        // Stop completely when velocity is very small (avoid infinite sliding)
-                        if (Math.abs(entityA.vx) < 0.1) {
+                    // Horizontal Movement
+                    if (cursorsComp) {
+                        const cursorsProps = {
+                            ...cursorsComp.defaultValues,
+                            ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
+                        };
+                        let speed = Number(cursorsProps.speed) || 2;
+
+                        // Reduce speed by half when carrying a box
+                        if (entityA.carriedBox) {
+                            speed = speed * 0.5;
+                        }
+
+                        const allowLeft = cursorsProps.allowLeft !== false;
+                        const allowRight = cursorsProps.allowRight !== false;
+                        const leftPressed = pressedKeys.current.has('ArrowLeft');
+                        const rightPressed = pressedKeys.current.has('ArrowRight');
+
+                        if (leftPressed && allowLeft) {
+                            entityA.vx = -speed;
+                        } else if (rightPressed && allowRight) {
+                            entityA.vx = speed;
+                        } else {
                             entityA.vx = 0;
                         }
                     }
 
-                    // --- 2. Resolve collisions and apply the new position ---
-                    // Check if entity is multi-screen - if so, position is calculated from global coords in patrol logic
-                    // Merge defaultValues from template with componentOverrides
-                    const patrolTemplateComp2 = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
-                    const patrolCompProps2 = {
-                        ...(patrolTemplateComp2?.defaultValues || {}),
-                        ...(entityA.instance.componentOverrides?.comp_patrol || {})
-                    };
-                    const isMultiScreenEntity =
-                        (patrolCompProps2.multiScreen === true || patrolCompProps2.multiScreen === 'true') &&
-                        entityA.globalX !== undefined && entityA.globalY !== undefined;
-                    const hasPatrolComponent = !!patrolTemplateComp2;
+                    // Vertical Movement (only for non-gravity entities)
+                    if (!hasGravity && cursorsComp) {
+                        const cursorsProps = {
+                            ...cursorsComp.defaultValues,
+                            ...(entityA.instance.componentOverrides?.['comp_cursors'] || {})
+                        };
+                        let speed = Number(cursorsProps.speed) || 2;
 
-                    // Multi-screen entities don't use tilemap collision - their position is controlled by global coordinates
-                    if (!skipPhysics && !isMultiScreenEntity) {
-                        // Apply tilemap collision or standard position update for single-screen entities
-                        if ((hasCollisionComp || isBoxEntity) && collisionCompDef && screenMapToRender) {
-                            handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
-                        } else {
-                            entityA.x += entityA.vx;
-                            entityA.y += entityA.vy;
+                        // Reduce speed by half when carrying a box
+                        if (entityA.carriedBox) {
+                            speed = speed * 0.5;
                         }
 
-                        // --- Screen border restrictions for non-multiscreen entities ---
-                        if (entityA !== heroRef.current) {
-                            const spriteWidth = entityA.sprite.size.width;
-                            const spriteHeight = entityA.sprite.size.height;
-                            if (entityA.x < 0) {
-                                entityA.x = 0;
-                                if (entityA.vx < 0) entityA.vx = 0;
-                            } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
-                                entityA.x = PREVIEW_WIDTH - spriteWidth;
-                                if (entityA.vx > 0) entityA.vx = 0;
+                        const allowUp = cursorsProps.allowUp !== false;
+                        const allowDown = cursorsProps.allowDown !== false;
+                        const upPressed = pressedKeys.current.has('ArrowUp');
+                        const downPressed = pressedKeys.current.has('ArrowDown');
+
+                        if (upPressed && allowUp) {
+                            entityA.vy = -speed;
+                        } else if (downPressed && allowDown) {
+                            entityA.vy = speed;
+                        } else {
+                            entityA.vy = 0;
+                        }
+                    }
+
+                    // Jump (only for gravity entities)
+                    const jumpComp = entityA.template.components.find(c => c.definitionId === 'comp_jump');
+                    if (jumpComp) {
+                        const jumpProps = { ...jumpComp.defaultValues, ...(entityA.instance.componentOverrides?.['comp_jump'] || {}) };
+                        const requireKeyRelease = jumpProps.requireKeyRelease !== 'false' && jumpProps.requireKeyRelease !== false;
+                        const spacePressed = pressedKeys.current.has(' ');
+
+                        if (hasGravity && entityA.isOnGround && spacePressed) {
+                            // Check if we can jump based on requireKeyRelease setting
+                            const canJump = !requireKeyRelease || !jumpKeyProcessed.current;
+
+                            if (canJump) {
+                                let jumpPower = Number(jumpProps.jumpPower || 256);
+
+                                // Reduce jump power by 25% when carrying a box
+                                if (entityA.carriedBox) {
+                                    jumpPower = jumpPower * 0.75;
+                                }
+
+                                entityA.vy = -jumpPower / 40;
+                                jumpKeyProcessed.current = true;
+
+                                // Handle Jump Sprite
+                                const jumpSpriteId = jumpProps.jumpSprite;
+                                if (jumpSpriteId) {
+                                    const spriteAsset = allAssets.find(a => a.id === jumpSpriteId && a.type === 'sprite');
+                                    if (spriteAsset) {
+                                        // Set isJumping flag
+                                        if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {};
+                                        if (!entityA.instance.componentOverrides['comp_jump']) entityA.instance.componentOverrides['comp_jump'] = {};
+                                        entityA.instance.componentOverrides['comp_jump'].isJumping = true;
+
+                                        const spriteData = spriteAsset.data as Sprite;
+                                        entityA.sprite = spriteData;
+                                        entityA.spriteAssetId = spriteAsset.id;
+
+                                        // Regenerate frames
+                                        const frames = spriteData.frames.map(frame => {
+                                            const img = new Image();
+                                            img.src = createSpriteDataURL(frame.data, spriteData.size.width, spriteData.size.height);
+                                            return img;
+                                        });
+                                        entityA.frameImages = frames;
+
+                                        // Regenerate mirrored frames
+                                        if (['right', 'left'].includes(spriteData.facingDirection)) {
+                                            const mirrored = spriteData.frames.map(frame => {
+                                                const img = new Image();
+                                                img.src = createSpriteDataURL(mirrorPixelDataHorizontally(frame.data), spriteData.size.width, spriteData.size.height);
+                                                return img;
+                                            });
+                                            entityA.mirroredFrameImages = mirrored;
+                                        }
+
+                                        entityA.currentFrame = 0;
+                                        entityA.lastFrameUpdateTime = performance.now();
+                                    }
+                                }
+
+                                // Clear platform reference when jumping to prevent infinite jumps
+                                entityA.platformUnderneath = null;
+                                entityA.isOnGround = false;
                             }
-                            // Allow platforms/patrolling entities to exit vertically (avoid getting stuck at top/bottom)
-                            if (!hasPatrolComponent) {
-                                if (entityA.y < 0) {
-                                    entityA.y = 0;
-                                    if (entityA.vy < 0) entityA.vy = 0;
-                                } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
-                                    entityA.y = PREVIEW_HEIGHT - spriteHeight;
-                                    if (entityA.vy > 0) entityA.vy = 0;
+                        }
+
+                        // Reset jump key processed when not pressing space and on ground
+                        if (!spacePressed && entityA.isOnGround) {
+                            jumpKeyProcessed.current = false;
+                        }
+                    }
+
+                    // --- Action: Pick up / Drop box ---
+                    // Allow: KeyZ (legacy) OR (Down + Fire button)
+                    // Determine fire key from comp_shoot (defaults to 'KeyX')
+                    const shootCompForAction = entityA.template.components.find(c => c.definitionId === 'comp_shoot');
+                    const shootPropsForAction = shootCompForAction ? getMergedComponentValues(entityA, 'comp_shoot') || {} : {} as any;
+                    const fireKeyForAction = shootPropsForAction.fireKey || 'KeyX';
+                    const downPressedForAction = pressedKeys.current.has('ArrowDown') || pressedKeys.current.has('s') || pressedKeys.current.has('S');
+                    const firePressedForAction = pressedKeys.current.has(fireKeyForAction) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
+                    const actionPressed = (
+                        pressedKeys.current.has('KeyZ') || pressedKeys.current.has('z') || pressedKeys.current.has('Z') ||
+                        (downPressedForAction && firePressedForAction)
+                    );
+                    const isBoxEntity = (e: AnimatedEntity) => e.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(e.template.name);
+
+                    if (actionPressed && !actionKeyProcessed.current) {
+                        if (!entityA.carriedBox) {
+                            // Try to pick up a nearby box (expanded detection area)
+                            const heroProps = entityCollisionProps(entityA);
+                            const heroHitbox = heroProps ? getHitboxFor(entityA, heroProps) : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
+                            const heroCenterX = heroHitbox.x + heroHitbox.width / 2;
+                            const heroCenterY = heroHitbox.y + heroHitbox.height / 2;
+                            const proximityPxHorizontal = TILE_SIZE * 2.5; // 20px horizontal (allows side pickup)
+                            const proximityPxDown = TILE_SIZE * 3; // 24px down (can pick box underneath)
+                            const proximityPxUp = TILE_SIZE; // 8px up
+
+                            const candidate = entitiesRef.current.find(e => (
+                                e !== entityA && isBoxEntity(e) && e !== heroRef.current?.carriedBox
+                            ) && (() => {
+                                const boxProps = entityCollisionProps(e);
+                                const boxHitbox = boxProps ? getHitboxFor(e, boxProps) : { x: e.x, y: e.y, width: e.sprite.size.width, height: e.sprite.size.height };
+                                const boxCenterX = boxHitbox.x + boxHitbox.width / 2;
+                                const boxCenterY = boxHitbox.y + boxHitbox.height / 2;
+                                const deltaX = Math.abs(boxCenterX - heroCenterX);
+                                const deltaY = boxCenterY - heroCenterY; // positive if box is below hero
+
+                                // Extended pickup zone: normal range horizontally, but larger range downward
+                                const inRangeX = deltaX <= proximityPxHorizontal;
+                                const inRangeY = (deltaY >= -proximityPxUp && deltaY <= proximityPxDown);
+                                return inRangeX && inRangeY;
+                            })());
+
+                            if (candidate) {
+                                entityA.carriedBox = candidate;
+                                // Freeze box motion immediately
+                                candidate.vx = 0; candidate.vy = 0;
+
+                                // Register this box as picked up from its original screen
+                                if (candidate.ownerScreenId) {
+                                    const registryKey = `${candidate.ownerScreenId}_${candidate.instance.id}`;
+                                    boxPickedUpRegistry.current.add(registryKey);
+                                }
+
+                                // Remove box from its current screen (it's now being carried)
+                                candidate.ownerScreenId = null;
+
+                                // Swap to carry-specific sprite if configured
+                                switchToCarrySpriteIfConfigured(entityA);
+                            }
+                        } else {
+                            // Drop currently carried box in front of the hero if space is free
+                            const box = entityA.carriedBox;
+                            if (box && screenMapToRender) {
+                                const boxProps = entityCollisionProps(box);
+                                const boxW = boxProps?.hitboxWidth || box.sprite.size.width;
+                                const boxH = boxProps?.hitboxHeight || box.sprite.size.height;
+                                const offX = boxProps?.offsetX || 0;
+                                const offY = boxProps?.offsetY || 0;
+
+                                // Use hero hitbox for accurate drop anchor
+                                const heroPropsDrop = entityCollisionProps(entityA);
+                                const heroHitboxDrop = heroPropsDrop
+                                    ? getHitboxFor(entityA, heroPropsDrop)
+                                    : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
+
+                                const facingDefaultRight = entityA.sprite.facingDirection === 'right';
+                                const facingDefaultLeft = entityA.sprite.facingDirection === 'left';
+                                const facingLeft = (facingDefaultRight && entityA.isFacingMirrored) || (facingDefaultLeft && !entityA.isFacingMirrored);
+
+                                // Desired hitbox top-left for the box (hx, hy)
+                                let hx = heroHitboxDrop.x + heroHitboxDrop.width; // right side by default
+                                if (facingLeft) {
+                                    hx = heroHitboxDrop.x - boxW; // left side
+                                }
+                                const hy = heroHitboxDrop.y + heroHitboxDrop.height - boxH; // at hero's feet
+
+                                // Convert desired hitbox position to sprite (visual) top-left
+                                const dropX = hx - offX;
+                                const dropY = hy - offY;
+                                const clear = !(
+                                    checkCollisionAt(hx, hy, screenMapToRender) ||
+                                    checkCollisionAt(hx + boxW - 1, hy, screenMapToRender) ||
+                                    checkCollisionAt(hx, hy + boxH - 1, screenMapToRender) ||
+                                    checkCollisionAt(hx + boxW - 1, hy + boxH - 1, screenMapToRender)
+                                );
+
+                                if (clear) {
+                                    box.x = dropX;
+                                    box.y = dropY;
+                                    // Apply impulse in facing direction and vertical
+                                    const impulseH = 2;   // px/frame
+                                    const impulseV = -2;  // upward kick
+                                    box.vx = facingLeft ? -impulseH : impulseH;
+                                    box.vy = impulseV;
+                                    // Ensure physics re-engages after being carried
+                                    box.isOnGround = false;
+                                    box.platformUnderneath = null;
+                                    // Assign box to current screen
+                                    box.ownerScreenId = currentScreenMap?.id || null;
+                                    entityA.carriedBox = null;
+                                    restoreSpriteAfterCarry(entityA);
+                                } else {
+                                }
+                            }
+                        }
+                        actionKeyProcessed.current = true;
+                    }
+                    if (!actionPressed) actionKeyProcessed.current = false;
+
+                    // Shooting: if entity has comp_shoot and fire key pressed
+                    const shootComp = entityA.template.components.find(c => c.definitionId === 'comp_shoot');
+                    if (shootComp) {
+                        const shootProps = getMergedComponentValues(entityA, 'comp_shoot') || {};
+                        const fireKey = shootProps.fireKey || 'KeyX';
+                        const firePressed = pressedKeys.current.has(fireKey) || pressedKeys.current.has('x') || pressedKeys.current.has('X');
+                        const cooldownMs = Number(shootProps.cooldownMs || shootProps.fireRateMs || 250);
+                        const nowTs = performance.now();
+                        const canFire = !entityA.lastShotTime || (nowTs - entityA.lastShotTime >= cooldownMs);
+
+                        // Ammo gating: si hasAmmo es explcitamente falso, bloquear disparo
+                        const hasAmmo = !(shootProps.hasAmmo === false || shootProps.hasAmmo === 'false');
+
+                        // Global Ammo variable gating
+                        const ammoRaw = (gameGlobalVariablesRef.current as any)?.Ammo;
+                        let allowByAmmoVar = true;
+                        if (ammoRaw !== undefined) {
+                            const ammoVal = Number(ammoRaw);
+                            if (!Number.isNaN(ammoVal)) {
+                                allowByAmmoVar = (ammoVal > 0) || (ammoVal < 0); // -1 => infinite
+                            }
+                        }
+
+                        if (firePressed && canFire && hasAmmo && allowByAmmoVar) {
+                            spawnProjectile(entityA);
+
+                            // Decrementar Ammo si es finito (>= 0)
+                            if (ammoRaw !== undefined) {
+                                const currentAmmo = Number(ammoRaw);
+                                if (!Number.isNaN(currentAmmo) && currentAmmo >= 0) {
+                                    const newAmmo = Math.max(0, currentAmmo - 1);
+                                    console.log(`[Ammo] ${currentAmmo} -> ${newAmmo} (SHOOT)`);
+                                    updateGameGlobalVariables(prev => ({
+                                        ...prev,
+                                        Ammo: newAmmo
+                                    }));
+
+                                    // Si se queda sin municin, tambin desactivar hasAmmo
+                                    if (newAmmo === 0) {
+                                        if (!entityA.instance.componentOverrides) entityA.instance.componentOverrides = {} as any;
+                                        if (!entityA.instance.componentOverrides['comp_shoot']) entityA.instance.componentOverrides['comp_shoot'] = {} as any;
+                                        entityA.instance.componentOverrides['comp_shoot'].hasAmmo = false;
+                                    }
                                 }
                             }
                         }
                     }
-                    // Multi-screen entities: position will be calculated from globalX/globalY in patrol logic below
-                } else {
-                    // Physics disabled - freeze entity in place
-                    entityA.vx = 0;
-                    entityA.vy = 0;
+
+                } // End of canProcessInput check
+            }
+
+            // Check if physics should be disabled (same states as input)
+            const statesWithoutPhysics = ['Dead', 'GameOver', 'Stunned', 'Frozen'];
+            const canProcessPhysics = !entityA.currentState || !statesWithoutPhysics.includes(entityA.currentState);
+
+            if (canProcessPhysics) {
+                const skipPhysics = heroRef.current?.carriedBox === entityA; // Skip physics for carried box
+                // --- Gravity ---
+                const gravityComp = entityA.template.components.find(c => c.definitionId === 'comp_gravity');
+                const gravityOverride = entityA.instance.componentOverrides?.['comp_gravity'];
+                const gravityEnabled = !!gravityComp || !!gravityOverride; // allow instance-level activation
+                if (!skipPhysics && gravityEnabled && !entityA.isOnGround) {
+                    const gravityProps = { ...(gravityComp?.defaultValues || {}), ...(gravityOverride || {}) } as any;
+                    const strength = Number(gravityProps.strength ?? 0) / 60;
+                    const terminalVelocity = Number(gravityProps.terminalVelocity ?? 2);
+                    entityA.vy += strength;
+                    if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
                 }
 
-                // --- 3. Screen transition logic (hero only) ---
-                if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap && canProcessPhysics) {
-                    // States that temporarily disable border exits (prevents respawn/despawn loops)
-                    const statesThatDisableScreenExit = ['Dead', 'Death', 'Respawn', 'Spawning', 'Hurt', 'Hit', 'GameOver', 'Invulnerable'];
-                    const isExitingDisabled = entityA.currentState && statesThatDisableScreenExit.some(state =>
-                        entityA.currentState?.toLowerCase().includes(state.toLowerCase())
-                    );
+                // --- Friction (for boxes on ground) ---
+                const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
+                if (!skipPhysics && isBoxEntity && entityA.isOnGround) {
+                    const frictionCoeff = 0.85; // Friction coefficient (lower = more friction, 1 = no friction)
+                    entityA.vx *= frictionCoeff;
+                    // Stop completely when velocity is very small (avoid infinite sliding)
+                    if (Math.abs(entityA.vx) < 0.1) {
+                        entityA.vx = 0;
+                    }
+                }
 
-                    // Prevent immediate re-trigger right after a screen change
-                    const nowTs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-                    const recentlyTransitioned = (nowTs - lastScreenTransitionTimeRef.current) < 300;
-                    if (!isExitingDisabled && !recentlyTransitioned) {
+                // --- 2. Resolve collisions and apply the new position ---
+                // Check if entity is multi-screen - if so, position is calculated from global coords in patrol logic
+                // Merge defaultValues from template with componentOverrides
+                const patrolTemplateComp2 = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
+                const patrolCompProps2 = {
+                    ...(patrolTemplateComp2?.defaultValues || {}),
+                    ...(entityA.instance.componentOverrides?.comp_patrol || {})
+                };
+                const isMultiScreenEntity =
+                    (patrolCompProps2.multiScreen === true || patrolCompProps2.multiScreen === 'true') &&
+                    entityA.globalX !== undefined && entityA.globalY !== undefined;
+                const hasPatrolComponent = !!patrolTemplateComp2;
+
+                // Multi-screen entities don't use tilemap collision - their position is controlled by global coordinates
+                if (!skipPhysics && !isMultiScreenEntity) {
+                    // Apply tilemap collision or standard position update for single-screen entities
+                    if ((hasCollisionComp || isBoxEntity) && collisionCompDef && screenMapToRender) {
+                        handleTilemapCollision(entityA, screenMapToRender, tileset, collisionCompDef);
+                    } else {
+                        entityA.x += entityA.vx;
+                        entityA.y += entityA.vy;
+                    }
+
+                    // --- Screen border restrictions for non-multiscreen entities ---
+                    if (entityA !== heroRef.current) {
                         const spriteWidth = entityA.sprite.size.width;
                         const spriteHeight = entityA.sprite.size.height;
-                        let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
-
-                        // Use platform velocity when riding to infer movement direction
-                        const platformVx = entityA.platformUnderneath ? entityA.platformUnderneath.vx : 0;
-                        const platformVy = entityA.platformUnderneath ? entityA.platformUnderneath.vy : 0;
-                        const effectiveVx = (Math.abs(platformVx) > Math.abs(entityA.vx)) ? platformVx : entityA.vx;
-                        const effectiveVy = (Math.abs(platformVy) > Math.abs(entityA.vy)) ? platformVy : entityA.vy;
-
-                        const centerX = entityA.x + spriteWidth / 2;
-                        const centerY = entityA.y + spriteHeight / 2;
-
-                        if (centerX < 0 && (effectiveVx < 0)) exitDirection = 'west';
-                        else if (centerX > PREVIEW_WIDTH && (effectiveVx > 0)) exitDirection = 'east';
-                        else if (centerY < 0 && (effectiveVy < 0)) exitDirection = 'north';
-                        else if (centerY > PREVIEW_HEIGHT && (effectiveVy > 0)) exitDirection = 'south';
-
-                        if (exitDirection) {
-                            const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
-                            if (currentScreenNode) {
-                                let connection = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === exitDirection);
-                                let targetNodeId = connection?.toNodeId;
-                                if (!connection) {
-                                    connection = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === exitDirection);
-                                    targetNodeId = connection?.fromNodeId;
-                                }
-                                if (targetNodeId) {
-                                    let newPlayerPos = { x: entityA.x, y: entityA.y };
-
-                                    // Reverted: always use margin-based entry
-                                    const entryMargin = 2;
-                                    switch (exitDirection) {
-                                        case 'east': newPlayerPos.x = 0 + entryMargin; break;
-                                        case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth - entryMargin; break;
-                                        case 'south': newPlayerPos.y = 0 + entryMargin; break;
-                                        case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight - entryMargin; break;
-                                    }
-                                    setPlayerEntryPoint(newPlayerPos);
-                                    handleScreenTransition(targetNodeId);
-                                    return; // Stop processing this frame so the transition can run cleanly
-                                }
+                        if (entityA.x < 0) {
+                            entityA.x = 0;
+                            if (entityA.vx < 0) entityA.vx = 0;
+                        } else if (entityA.x + spriteWidth > PREVIEW_WIDTH) {
+                            entityA.x = PREVIEW_WIDTH - spriteWidth;
+                            if (entityA.vx > 0) entityA.vx = 0;
+                        }
+                        // Allow platforms/patrolling entities to exit vertically (avoid getting stuck at top/bottom)
+                        if (!hasPatrolComponent) {
+                            if (entityA.y < 0) {
+                                entityA.y = 0;
+                                if (entityA.vy < 0) entityA.vy = 0;
+                            } else if (entityA.y + spriteHeight > PREVIEW_HEIGHT) {
+                                entityA.y = PREVIEW_HEIGHT - spriteHeight;
+                                if (entityA.vy > 0) entityA.vy = 0;
                             }
                         }
                     }
                 }
+                // Multi-screen entities: position will be calculated from globalX/globalY in patrol logic below
+            } else {
+                // Physics disabled - freeze entity in place
+                entityA.vx = 0;
+                entityA.vy = 0;
+            }
 
-                // --- 5. Entity collision logic ---
-                // Store previous platform to detect when we fall off (declare outside if block)
-                let previousPlatform: AnimatedEntity | null = null;
+            // --- 3. Screen transition logic (hero only) ---
+            if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap && canProcessPhysics) {
+                // States that temporarily disable border exits (prevents respawn/despawn loops)
+                const statesThatDisableScreenExit = ['Dead', 'Death', 'Respawn', 'Spawning', 'Hurt', 'Hit', 'GameOver', 'Invulnerable'];
+                const isExitingDisabled = entityA.currentState && statesThatDisableScreenExit.some(state =>
+                    entityA.currentState?.toLowerCase().includes(state.toLowerCase())
+                );
 
-                if (hasCollisionComp) {
-                    // Clear platform reference at start of frame - will be re-established if still colliding
-                    if (entityA.platformUnderneath && !entitiesRef.current.includes(entityA.platformUnderneath)) {
+                // Prevent immediate re-trigger right after a screen change
+                const nowTs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                const recentlyTransitioned = (nowTs - lastScreenTransitionTimeRef.current) < 300;
+                if (!isExitingDisabled && !recentlyTransitioned) {
+                    const spriteWidth = entityA.sprite.size.width;
+                    const spriteHeight = entityA.sprite.size.height;
+                    let exitDirection: 'north' | 'south' | 'east' | 'west' | null = null;
+
+                    // Use platform velocity when riding to infer movement direction
+                    const platformVx = entityA.platformUnderneath ? entityA.platformUnderneath.vx : 0;
+                    const platformVy = entityA.platformUnderneath ? entityA.platformUnderneath.vy : 0;
+                    const effectiveVx = (Math.abs(platformVx) > Math.abs(entityA.vx)) ? platformVx : entityA.vx;
+                    const effectiveVy = (Math.abs(platformVy) > Math.abs(entityA.vy)) ? platformVy : entityA.vy;
+
+                    const centerX = entityA.x + spriteWidth / 2;
+                    const centerY = entityA.y + spriteHeight / 2;
+
+                    if (centerX < 0 && (effectiveVx < 0)) exitDirection = 'west';
+                    else if (centerX > PREVIEW_WIDTH && (effectiveVx > 0)) exitDirection = 'east';
+                    else if (centerY < 0 && (effectiveVy < 0)) exitDirection = 'north';
+                    else if (centerY > PREVIEW_HEIGHT && (effectiveVy > 0)) exitDirection = 'south';
+
+                    if (exitDirection) {
+                        const currentScreenNode = currentWorldMapGraph.nodes.find(n => n.screenAssetId === currentScreenMap.id);
+                        if (currentScreenNode) {
+                            let connection = currentWorldMapGraph.connections.find(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === exitDirection);
+                            let targetNodeId = connection?.toNodeId;
+                            if (!connection) {
+                                connection = currentWorldMapGraph.connections.find(c => c.toNodeId === currentScreenNode.id && c.toDirection === exitDirection);
+                                targetNodeId = connection?.fromNodeId;
+                            }
+                            if (targetNodeId) {
+                                let newPlayerPos = { x: entityA.x, y: entityA.y };
+
+                                // Reverted: always use margin-based entry
+                                const entryMargin = 2;
+                                switch (exitDirection) {
+                                    case 'east': newPlayerPos.x = 0 + entryMargin; break;
+                                    case 'west': newPlayerPos.x = PREVIEW_WIDTH - spriteWidth - entryMargin; break;
+                                    case 'south': newPlayerPos.y = 0 + entryMargin; break;
+                                    case 'north': newPlayerPos.y = PREVIEW_HEIGHT - spriteHeight - entryMargin; break;
+                                }
+                                setPlayerEntryPoint(newPlayerPos);
+                                handleScreenTransition(targetNodeId);
+                                return; // Stop processing this frame so the transition can run cleanly
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- 5. Entity collision logic ---
+            // Store previous platform to detect when we fall off (declare outside if block)
+            let previousPlatform: AnimatedEntity | null = null;
+
+            if (hasCollisionComp) {
+                // Clear platform reference at start of frame - will be re-established if still colliding
+                if (entityA.platformUnderneath && !entitiesRef.current.includes(entityA.platformUnderneath)) {
+                    entityA.platformUnderneath = null;
+                }
+                // Store previous platform to detect when we fall off
+                previousPlatform = entityA.platformUnderneath;
+
+                // SPECIAL CASE: For multi-screen platforms, verify if still on platform using global coords
+                const isMultiScreenPlatform = entityA.platformUnderneath &&
+                    entityA.platformUnderneath.globalX !== undefined &&
+                    entityA.platformUnderneath.globalY !== undefined &&
+                    entityA.globalX !== undefined &&
+                    entityA.globalY !== undefined;
+
+                if (isMultiScreenPlatform) {
+                    // Verify if player is still on platform using global coordinates
+                    const platform = entityA.platformUnderneath!;
+                    const propsA = entityCollisionProps(entityA);
+                    const propsB = entityCollisionProps(platform);
+
+                    if (propsA && propsB) {
+                        // Get hitboxes in global space
+                        const playerGlobalHitbox = {
+                            x: entityA.globalX! + (propsA.offsetX || 0),
+                            y: entityA.globalY! + (propsA.offsetY || 0),
+                            width: propsA.hitboxWidth || 16,
+                            height: propsA.hitboxHeight || 16
+                        };
+
+                        const platformGlobalHitbox = {
+                            x: platform.globalX! + (propsB.offsetX || 0),
+                            y: platform.globalY! + (propsB.offsetY || 0),
+                            width: propsB.hitboxWidth || 16,
+                            height: propsB.hitboxHeight || 16
+                        };
+
+                        // Check if player is above platform (with some tolerance)
+                        const isAbovePlatform = (playerGlobalHitbox.y + playerGlobalHitbox.height) <= (platformGlobalHitbox.y + 4);
+
+                        // Check horizontal overlap with a dynamic tolerance based on platform speed
+                        const tolerance = Math.abs(platform.vx) + 1; // +1 for rounding/sub-pixel errors
+                        const horizontalOverlap =
+                            (playerGlobalHitbox.x - tolerance) < (platformGlobalHitbox.x + platformGlobalHitbox.width) &&
+                            (playerGlobalHitbox.x + playerGlobalHitbox.width + tolerance) > platformGlobalHitbox.x;
+
+                        // Check if player is falling or stationary (not jumping)
+                        const notJumping = entityA.vy >= -2; // Allow small upward velocity
+
+                        const stillOnPlatform = isAbovePlatform && horizontalOverlap && notJumping;
+
+                        if (stillOnPlatform) {
+                        } else {
+                            entityA.platformUnderneath = null;
+                        }
+                    } else {
+                        // Can't verify, clear the link
                         entityA.platformUnderneath = null;
                     }
-                    // Store previous platform to detect when we fall off
-                    previousPlatform = entityA.platformUnderneath;
-
-                    // SPECIAL CASE: For multi-screen platforms, verify if still on platform using global coords
-                    const isMultiScreenPlatform = entityA.platformUnderneath &&
-                        entityA.platformUnderneath.globalX !== undefined &&
-                        entityA.platformUnderneath.globalY !== undefined &&
-                        entityA.globalX !== undefined &&
-                        entityA.globalY !== undefined;
-
-                    if (isMultiScreenPlatform) {
-                        // Verify if player is still on platform using global coordinates
-                        const platform = entityA.platformUnderneath!;
+                } else {
+                    // Not a multi-screen platform: verify if still on platform
+                    // Check if player is jumping (vy < -2) - if so, clear immediately
+                    const isJumping = entityA.vy < -2;
+                    if (isJumping) {
+                        entityA.platformUnderneath = null;
+                    } else if (entityA.platformUnderneath) {
+                        // Verify if player still has horizontal support under their feet
+                        const platform = entityA.platformUnderneath;
                         const propsA = entityCollisionProps(entityA);
                         const propsB = entityCollisionProps(platform);
 
                         if (propsA && propsB) {
-                            // Get hitboxes in global space
-                            const playerGlobalHitbox = {
-                                x: entityA.globalX! + (propsA.offsetX || 0),
-                                y: entityA.globalY! + (propsA.offsetY || 0),
-                                width: propsA.hitboxWidth || 16,
-                                height: propsA.hitboxHeight || 16
-                            };
+                            // Get hitboxes in local screen space
+                            const playerHitbox = getHitboxFor(entityA, propsA);
+                            const platformHitbox = getHitboxFor(platform, propsB);
 
-                            const platformGlobalHitbox = {
-                                x: platform.globalX! + (propsB.offsetX || 0),
-                                y: platform.globalY! + (propsB.offsetY || 0),
-                                width: propsB.hitboxWidth || 16,
-                                height: propsB.hitboxHeight || 16
-                            };
+                            // Check if player's feet are above platform's top (with small tolerance)
+                            const playerBottom = playerHitbox.y + playerHitbox.height;
+                            const platformTop = platformHitbox.y;
+                            const isAbovePlatform = playerBottom <= (platformTop + 4); // 4px tolerance
 
-                            // Check if player is above platform (with some tolerance)
-                            const isAbovePlatform = (playerGlobalHitbox.y + playerGlobalHitbox.height) <= (platformGlobalHitbox.y + 4);
-
-                            // Check horizontal overlap with a dynamic tolerance based on platform speed
-                            const tolerance = Math.abs(platform.vx) + 1; // +1 for rounding/sub-pixel errors
+                            // Check horizontal overlap (player's feet must be over the platform)
                             const horizontalOverlap =
-                                (playerGlobalHitbox.x - tolerance) < (platformGlobalHitbox.x + platformGlobalHitbox.width) &&
-                                (playerGlobalHitbox.x + playerGlobalHitbox.width + tolerance) > platformGlobalHitbox.x;
+                                playerHitbox.x < (platformHitbox.x + platformHitbox.width) &&
+                                (playerHitbox.x + playerHitbox.width) > platformHitbox.x;
 
-                            // Check if player is falling or stationary (not jumping)
-                            const notJumping = entityA.vy >= -2; // Allow small upward velocity
+                            const stillOnPlatform = isAbovePlatform && horizontalOverlap;
 
-                            const stillOnPlatform = isAbovePlatform && horizontalOverlap && notJumping;
-
-                            if (stillOnPlatform) {
-                            } else {
+                            if (!stillOnPlatform) {
                                 entityA.platformUnderneath = null;
+                                entityA.platformGraceFramesLeft = 0; // Clear grace frames too
                             }
                         } else {
                             // Can't verify, clear the link
                             entityA.platformUnderneath = null;
                         }
-                    } else {
-                        // Not a multi-screen platform: verify if still on platform
-                        // Check if player is jumping (vy < -2) - if so, clear immediately
-                        const isJumping = entityA.vy < -2;
-                        if (isJumping) {
-                            entityA.platformUnderneath = null;
-                        } else if (entityA.platformUnderneath) {
-                            // Verify if player still has horizontal support under their feet
-                            const platform = entityA.platformUnderneath;
-                            const propsA = entityCollisionProps(entityA);
-                            const propsB = entityCollisionProps(platform);
-
-                            if (propsA && propsB) {
-                                // Get hitboxes in local screen space
-                                const playerHitbox = getHitboxFor(entityA, propsA);
-                                const platformHitbox = getHitboxFor(platform, propsB);
-
-                                // Check if player's feet are above platform's top (with small tolerance)
-                                const playerBottom = playerHitbox.y + playerHitbox.height;
-                                const platformTop = platformHitbox.y;
-                                const isAbovePlatform = playerBottom <= (platformTop + 4); // 4px tolerance
-
-                                // Check horizontal overlap (player's feet must be over the platform)
-                                const horizontalOverlap =
-                                    playerHitbox.x < (platformHitbox.x + platformHitbox.width) &&
-                                    (playerHitbox.x + playerHitbox.width) > platformHitbox.x;
-
-                                const stillOnPlatform = isAbovePlatform && horizontalOverlap;
-
-                                if (!stillOnPlatform) {
-                                    entityA.platformUnderneath = null;
-                                    entityA.platformGraceFramesLeft = 0; // Clear grace frames too
-                                }
-                            } else {
-                                // Can't verify, clear the link
-                                entityA.platformUnderneath = null;
-                            }
-                        }
                     }
+                }
 
-                    // Debug log para ver si entra al loop
+                // Debug log para ver si entra al loop
+                if (indexA === 0 && now % 1000 < 16) {
+                }
+
+                for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
+                    const entityB = entitiesRef.current[indexB];
+                    // Skip collisions for carried box
+                    if (heroRef.current?.carriedBox === entityA || heroRef.current?.carriedBox === entityB) {
+                        continue;
+                    }
+                    const entityBHasCollision = entityB.template.components.some(c => c.definitionId === 'comp_collision');
+
                     if (indexA === 0 && now % 1000 < 16) {
                     }
 
-                    for (let indexB = indexA + 1; indexB < entitiesRef.current.length; indexB++) {
-                        const entityB = entitiesRef.current[indexB];
-                        // Skip collisions for carried box
-                        if (heroRef.current?.carriedBox === entityA || heroRef.current?.carriedBox === entityB) {
-                            continue;
+                    if (!entityBHasCollision) continue;
+                    const propsA = entityCollisionProps(entityA);
+                    const propsB = entityCollisionProps(entityB);
+                    if (!propsA || !propsB) continue;
+                    const hitboxA = getHitboxFor(entityA, propsA);
+                    const hitboxB = getHitboxFor(entityB, propsB);
+
+                    // Check AABB collision
+                    if (hitboxA.x < hitboxB.x + hitboxB.width &&
+                        hitboxA.x + hitboxA.width > hitboxB.x &&
+                        hitboxA.y < hitboxB.y + hitboxB.height &&
+                        hitboxA.y + hitboxA.height > hitboxB.y) {
+
+                        const layerA = Number(propsA.collisionLayer) || 0;
+                        const collidesWithA = Number(propsA.collidesWith) || 0;
+                        const layerB = Number(propsB.collisionLayer) || 0;
+                        const collidesWithB = Number(propsB.collidesWith) || 0;
+
+                        // PROTECTION: Ignore collisions in the first 200ms after spawn
+                        const SPAWN_GRACE_PERIOD_MS = 200;
+                        const entityAAge = now - entityA.spawnTime;
+                        const entityBAge = now - entityB.spawnTime;
+
+                        if (entityAAge < SPAWN_GRACE_PERIOD_MS || entityBAge < SPAWN_GRACE_PERIOD_MS) {
+                            continue; // Skip this collision pair
                         }
-                        const entityBHasCollision = entityB.template.components.some(c => c.definitionId === 'comp_collision');
-
-                        if (indexA === 0 && now % 1000 < 16) {
-                        }
-
-                        if (!entityBHasCollision) continue;
-                        const propsA = entityCollisionProps(entityA);
-                        const propsB = entityCollisionProps(entityB);
-                        if (!propsA || !propsB) continue;
-                        const hitboxA = getHitboxFor(entityA, propsA);
-                        const hitboxB = getHitboxFor(entityB, propsB);
-
-                        // Check AABB collision
-                        if (hitboxA.x < hitboxB.x + hitboxB.width &&
-                            hitboxA.x + hitboxA.width > hitboxB.x &&
-                            hitboxA.y < hitboxB.y + hitboxB.height &&
-                            hitboxA.y + hitboxA.height > hitboxB.y) {
-
-                            const layerA = Number(propsA.collisionLayer) || 0;
-                            const collidesWithA = Number(propsA.collidesWith) || 0;
-                            const layerB = Number(propsB.collisionLayer) || 0;
-                            const collidesWithB = Number(propsB.collidesWith) || 0;
-
-                            // PROTECTION: Ignore collisions in the first 200ms after spawn
-                            const SPAWN_GRACE_PERIOD_MS = 200;
-                            const entityAAge = now - entityA.spawnTime;
-                            const entityBAge = now - entityB.spawnTime;
-
-                            if (entityAAge < SPAWN_GRACE_PERIOD_MS || entityBAge < SPAWN_GRACE_PERIOD_MS) {
-                                continue; // Skip this collision pair
-                            }
 
 
-                            // Check if layers allow collision
-                            const aCanCollideWithB = (collidesWithA & layerB) !== 0;
-                            const bCanCollideWithA = (collidesWithB & layerA) !== 0;
+                        // Check if layers allow collision
+                        const aCanCollideWithB = (collidesWithA & layerB) !== 0;
+                        const bCanCollideWithA = (collidesWithB & layerA) !== 0;
 
 
-                            if (aCanCollideWithB && bCanCollideWithA) {
-                                // Check if either entity is a trigger
-                                const isATrigger = propsA.isTrigger;
-                                const isBTrigger = propsB.isTrigger;
+                        if (aCanCollideWithB && bCanCollideWithA) {
+                            // Check if either entity is a trigger
+                            const isATrigger = propsA.isTrigger;
+                            const isBTrigger = propsB.isTrigger;
 
-                                if (isATrigger || isBTrigger) {
-                                    // TRIGGER COLLISION: No physical separation, only event detection
+                            if (isATrigger || isBTrigger) {
+                                // TRIGGER COLLISION: No physical separation, only event detection
 
-                                    // Helper function: Determine collision event type based on entity layer and components
-                                    const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
-                                        // Check if entity has comp_collectible
-                                        const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
-                                        if (hasCollectible) return 'collision_item';
+                                // Helper function: Determine collision event type based on entity layer and components
+                                const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
+                                    // Check if entity has comp_collectible
+                                    const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
+                                    if (hasCollectible) return 'collision_item';
 
-                                        // Check layer 8 (bit 3) for platforms/walls - MUST check before enemy detection
-                                        if ((entityLayer & 8) !== 0) return 'collision_wall';
+                                    // Check layer 8 (bit 3) for platforms/walls - MUST check before enemy detection
+                                    if ((entityLayer & 8) !== 0) return 'collision_wall';
 
-                                        // Check if entity has comp_damage or comp_ai_behavior (enemy)
-                                        const hasAI = entity.template.components.some(c => c.definitionId === 'comp_ai_behavior');
-                                        const hasDamage = entity.template.components.some(c => c.definitionId === 'comp_damage');
-                                        if (hasAI || hasDamage) return 'collision_enemy';
+                                    // Check if entity has comp_damage or comp_ai_behavior (enemy)
+                                    const hasAI = entity.template.components.some(c => c.definitionId === 'comp_ai_behavior');
+                                    const hasDamage = entity.template.components.some(c => c.definitionId === 'comp_damage');
+                                    if (hasAI || hasDamage) return 'collision_enemy';
 
-                                        // Fallback to template name detection for wall/obstacle/platform
-                                        const templateName = entity.template.name.toLowerCase();
-                                        if (templateName.includes('wall') || templateName.includes('obstacle') || templateName.includes('platform')) {
-                                            return 'collision_wall';
-                                        }
-
-                                        return 'collision_wall'; // Default changed from 'collision_enemy' to 'collision_wall' (safer)
-                                    };
-
-                                    // Check if entities are in invulnerable states (Dead, Hurt, etc.)
-                                    const invulnerableStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Respawn', 'Spawning', 'Invulnerable'];
-                                    const isAInvulnerable = entityA.currentState && invulnerableStates.some(state =>
-                                        entityA.currentState?.toLowerCase().includes(state.toLowerCase())
-                                    );
-                                    const isBInvulnerable = entityB.currentState && invulnerableStates.some(state =>
-                                        entityB.currentState?.toLowerCase().includes(state.toLowerCase())
-                                    );
-
-                                    // Only trigger collision events if not invulnerable
-                                    if (!isAInvulnerable) {
-                                        const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
-                                        triggerEvent(entityA.instance.id, eventNameA);
-                                        // Store reference to the other entity for DESTROY_ENTITY action
-                                        (entityA as any).lastCollidedEntity = entityB;
+                                    // Fallback to template name detection for wall/obstacle/platform
+                                    const templateName = entity.template.name.toLowerCase();
+                                    if (templateName.includes('wall') || templateName.includes('obstacle') || templateName.includes('platform')) {
+                                        return 'collision_wall';
                                     }
-                                    if (!isBInvulnerable) {
-                                        const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
-                                        triggerEvent(entityB.instance.id, eventNameB);
-                                        // Store reference to the other entity for DESTROY_ENTITY action
-                                        (entityB as any).lastCollidedEntity = entityA;
-                                    }
-                                } else {
-                                    // SOLID COLLISION: Apply physical separation
-                                    resolveEntityCollision(entityA, entityB, propsA, propsB);
 
-                                    // Helper function: Determine collision event type based on entity layer and components
-                                    const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
-                                        // Check if entity has comp_collectible
-                                        const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
-                                        if (hasCollectible) return 'collision_item';
+                                    return 'collision_wall'; // Default changed from 'collision_enemy' to 'collision_wall' (safer)
+                                };
 
-                                        // Check layer 8 (bit 3) for platforms/walls - MUST check before enemy detection
-                                        if ((entityLayer & 8) !== 0) return 'collision_wall';
-
-                                        // Check if entity has comp_damage or comp_ai_behavior (enemy)
-                                        const hasAI = entity.template.components.some(c => c.definitionId === 'comp_ai_behavior');
-                                        const hasDamage = entity.template.components.some(c => c.definitionId === 'comp_damage');
-                                        if (hasAI || hasDamage) return 'collision_enemy';
-
-                                        // Fallback to template name detection for wall/obstacle/platform
-                                        const templateName = entity.template.name.toLowerCase();
-                                        if (templateName.includes('wall') || templateName.includes('obstacle') || templateName.includes('platform')) {
-                                            return 'collision_wall';
-                                        }
-
-                                        return 'collision_wall'; // Default changed from 'collision_enemy' to 'collision_wall' (safer)
-                                    };
-
-                                    // Check if entities are in invulnerable states (Dead, Hurt, etc.)
-                                    const invulnerableStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Respawn', 'Spawning', 'Invulnerable'];
-                                    const isAInvulnerable = entityA.currentState && invulnerableStates.some(state =>
-                                        entityA.currentState?.toLowerCase().includes(state.toLowerCase())
-                                    );
-                                    const isBInvulnerable = entityB.currentState && invulnerableStates.some(state =>
-                                        entityB.currentState?.toLowerCase().includes(state.toLowerCase())
-                                    );
-
-                                    // Only trigger collision events if not invulnerable
-                                    if (!isAInvulnerable) {
-                                        const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
-                                        triggerEvent(entityA.instance.id, eventNameA);
-                                        // Store reference to the other entity for DESTROY_ENTITY action
-                                        (entityA as any).lastCollidedEntity = entityB;
-                                    }
-                                    if (!isBInvulnerable) {
-                                        const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
-                                        triggerEvent(entityB.instance.id, eventNameB);
-                                        // Store reference to the other entity for DESTROY_ENTITY action
-                                        (entityB as any).lastCollidedEntity = entityA;
-                                    }
-                                }
-                            } else {
-                            }
-                        }
-                    }
-                }
-
-                // --- 6. Patrol logic ---
-                // Only process patrol AI if physics is enabled
-                if (canProcessPhysics) {
-                    // Merge patrol component defaultValues with componentOverrides
-                    const patrolTemplateComp3 = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
-                    const patrolComp = {
-                        ...(patrolTemplateComp3?.defaultValues || {}),
-                        ...(entityA.instance.componentOverrides?.comp_patrol || {})
-                    };
-                    if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
-                        const isMultiScreen = patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
-
-                        if (isMultiScreen && entityA.globalX !== undefined && entityA.globalY !== undefined && entityA.originScreenId) {
-                            // Multi-screen patrol: work with global coordinates
-                            const originScreenPos = screenWorldMapRef.current.get(entityA.originScreenId);
-                            if (originScreenPos) {
-                                // Update global coordinates
-                                const oldGlobalX = entityA.globalX;
-                                const oldGlobalY = entityA.globalY;
-                                entityA.globalX += entityA.vx;
-                                entityA.globalY += entityA.vy;
-
-                                // Debug log for coordinate updates
-                                if (now % 500 < 16) { // Log every ~500ms
-                                }
-
-                                // Debug: log when crossing screen boundaries
-                                if ((entityA.x < -50 || entityA.x > PREVIEW_WIDTH + 50) && now % 500 < 16) {
-                                }
-
-                                // Waypoints are in local coordinates relative to origin screen
-                                const globalWaypoint1X = originScreenPos.globalX + Number(patrolComp.waypoint1_x);
-                                const globalWaypoint1Y = originScreenPos.globalY + Number(patrolComp.waypoint1_y);
-                                const globalWaypoint2X = originScreenPos.globalX + Number(patrolComp.waypoint2_x ?? patrolComp.waypoint1_x);
-                                const globalWaypoint2Y = originScreenPos.globalY + Number(patrolComp.waypoint2_y ?? patrolComp.waypoint1_y);
-
-                                // Bounce logic in global space
-                                if ((entityA.vx > 0 && entityA.globalX >= Math.max(globalWaypoint1X, globalWaypoint2X)) ||
-                                    (entityA.vx < 0 && entityA.globalX <= Math.min(globalWaypoint1X, globalWaypoint2X))) {
-                                    entityA.vx = -entityA.vx;
-                                }
-                                if ((entityA.vy > 0 && entityA.globalY >= Math.max(globalWaypoint1Y, globalWaypoint2Y)) ||
-                                    (entityA.vy < 0 && entityA.globalY <= Math.min(globalWaypoint1Y, globalWaypoint2Y))) {
-                                    entityA.vy = -entityA.vy;
-                                }
-
-                                // Convert global coordinates back to local for current screen
-                                const localCoord = globalToLocal(
-                                    { x: entityA.globalX, y: entityA.globalY },
-                                    screenWorldMapRef.current
+                                // Check if entities are in invulnerable states (Dead, Hurt, etc.)
+                                const invulnerableStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Respawn', 'Spawning', 'Invulnerable'];
+                                const isAInvulnerable = entityA.currentState && invulnerableStates.some(state =>
+                                    entityA.currentState?.toLowerCase().includes(state.toLowerCase())
+                                );
+                                const isBInvulnerable = entityB.currentState && invulnerableStates.some(state =>
+                                    entityB.currentState?.toLowerCase().includes(state.toLowerCase())
                                 );
 
-                                if (localCoord && localCoord.screenId === currentScreenMap.id) {
-                                    // Entity is in current screen
-                                    entityA.x = localCoord.x;
-                                    entityA.y = localCoord.y;
-                                } else {
-                                    // Entity is in another screen - position it off-screen
-                                    entityA.x = -1000;
-                                    entityA.y = -1000;
+                                // Only trigger collision events if not invulnerable
+                                if (!isAInvulnerable) {
+                                    const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
+                                    triggerEvent(entityA.instance.id, eventNameA);
+                                    // Store reference to the other entity for DESTROY_ENTITY action
+                                    (entityA as any).lastCollidedEntity = entityB;
+                                }
+                                if (!isBInvulnerable) {
+                                    const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
+                                    triggerEvent(entityB.instance.id, eventNameB);
+                                    // Store reference to the other entity for DESTROY_ENTITY action
+                                    (entityB as any).lastCollidedEntity = entityA;
+                                }
+                            } else {
+                                // SOLID COLLISION: Apply physical separation
+                                resolveEntityCollision(entityA, entityB, propsA, propsB);
+
+                                // Helper function: Determine collision event type based on entity layer and components
+                                const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
+                                    // Check if entity has comp_collectible
+                                    const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
+                                    if (hasCollectible) return 'collision_item';
+
+                                    // Check layer 8 (bit 3) for platforms/walls - MUST check before enemy detection
+                                    if ((entityLayer & 8) !== 0) return 'collision_wall';
+
+                                    // Check if entity has comp_damage or comp_ai_behavior (enemy)
+                                    const hasAI = entity.template.components.some(c => c.definitionId === 'comp_ai_behavior');
+                                    const hasDamage = entity.template.components.some(c => c.definitionId === 'comp_damage');
+                                    if (hasAI || hasDamage) return 'collision_enemy';
+
+                                    // Fallback to template name detection for wall/obstacle/platform
+                                    const templateName = entity.template.name.toLowerCase();
+                                    if (templateName.includes('wall') || templateName.includes('obstacle') || templateName.includes('platform')) {
+                                        return 'collision_wall';
+                                    }
+
+                                    return 'collision_wall'; // Default changed from 'collision_enemy' to 'collision_wall' (safer)
+                                };
+
+                                // Check if entities are in invulnerable states (Dead, Hurt, etc.)
+                                const invulnerableStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Respawn', 'Spawning', 'Invulnerable'];
+                                const isAInvulnerable = entityA.currentState && invulnerableStates.some(state =>
+                                    entityA.currentState?.toLowerCase().includes(state.toLowerCase())
+                                );
+                                const isBInvulnerable = entityB.currentState && invulnerableStates.some(state =>
+                                    entityB.currentState?.toLowerCase().includes(state.toLowerCase())
+                                );
+
+                                // Only trigger collision events if not invulnerable
+                                if (!isAInvulnerable) {
+                                    const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
+                                    triggerEvent(entityA.instance.id, eventNameA);
+                                    // Store reference to the other entity for DESTROY_ENTITY action
+                                    (entityA as any).lastCollidedEntity = entityB;
+                                }
+                                if (!isBInvulnerable) {
+                                    const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
+                                    triggerEvent(entityB.instance.id, eventNameB);
+                                    // Store reference to the other entity for DESTROY_ENTITY action
+                                    (entityB as any).lastCollidedEntity = entityA;
                                 }
                             }
-                        } else if (isMultiScreen) {
-                            // Multi-screen patrol but global coords not initialized properly
-                        } else if (!isMultiScreen) {
-                            // Traditional single-screen patrol
-                            const startPixelX = patrolComp.waypoint1_x;
-                            const startPixelY = patrolComp.waypoint1_y;
-                            const endPixelX = patrolComp.waypoint2_x ?? startPixelX;
-                            const endPixelY = patrolComp.waypoint2_y ?? startPixelY;
-
-                            if ((entityA.vx > 0 && entityA.x >= Math.max(startPixelX, endPixelX)) ||
-                                (entityA.vx < 0 && entityA.x <= Math.min(startPixelX, endPixelX))) {
-                                entityA.vx = -entityA.vx;
-                            }
-                            if ((entityA.vy > 0 && entityA.y >= Math.max(startPixelY, endPixelY)) ||
-                                (entityA.vy < 0 && entityA.y <= Math.min(startPixelY, endPixelY))) {
-                                entityA.vy = -entityA.vy;
-                            }
+                        } else {
                         }
                     }
                 }
+            }
 
-                // --- 6.5. Update isOnGround after entity collisions to include platform riding ---
-                if (hasCollisionComp) {
-                    // If we're on a platform (platformUnderneath was set during collisions), we're on ground
-                    // Also honor a short grace period to smooth descending platforms
-                    const hasPlatformGrace = (entityA.platformGraceFramesLeft || 0) > 0;
-                    // Only follow movement of a platform when actually standing on it; grace only affects grounded flag
-                    const platformToFollow = entityA.platformUnderneath;
-                    if (platformToFollow) {
-                        entityA.isOnGround = true;
+            // --- 6. Patrol logic ---
+            // Only process patrol AI if physics is enabled
+            if (canProcessPhysics) {
+                // Merge patrol component defaultValues with componentOverrides
+                const patrolTemplateComp3 = entityA.template.components.find(c => c.definitionId === 'comp_patrol');
+                const patrolComp = {
+                    ...(patrolTemplateComp3?.defaultValues || {}),
+                    ...(entityA.instance.componentOverrides?.comp_patrol || {})
+                };
+                if (patrolComp?.waypoint1_x !== undefined && patrolComp?.waypoint1_y !== undefined) {
+                    const isMultiScreen = patrolComp.multiScreen === true || patrolComp.multiScreen === 'true';
 
-                        // Transfer platform velocity if standing on a moving platform
-                        if (entityA === heroRef.current) {
-                            // Establish parent-child link for multi-screen platforms
-                            // Merge patrol component defaultValues with componentOverrides
-                            const platformPatrolTemplateComp = platformToFollow.template.components.find(c => c.definitionId === 'comp_patrol');
-                            const platformPatrolComp = {
-                                ...(platformPatrolTemplateComp?.defaultValues || {}),
-                                ...(platformToFollow.instance.componentOverrides?.comp_patrol || {})
-                            };
-                            const isMultiScreenPlatform = platformPatrolComp && (platformPatrolComp.multiScreen === true || platformPatrolComp.multiScreen === 'true');
+                    if (isMultiScreen && entityA.globalX !== undefined && entityA.globalY !== undefined && entityA.originScreenId) {
+                        // Multi-screen patrol: work with global coordinates
+                        const originScreenPos = screenWorldMapRef.current.get(entityA.originScreenId);
+                        if (originScreenPos) {
+                            // Update global coordinates
+                            const oldGlobalX = entityA.globalX;
+                            const oldGlobalY = entityA.globalY;
+                            entityA.globalX += entityA.vx;
+                            entityA.globalY += entityA.vy;
 
-                            if (isMultiScreenPlatform) {
-                                // Link player to platform
-                                entityA.parentEntityId = platformToFollow.instance.id;
+                            // Debug log for coordinate updates
+                            if (now % 500 < 16) { // Log every ~500ms
+                            }
 
-                                // Sync global coordinates if platform has them
-                                if (platformToFollow.globalX !== undefined && platformToFollow.globalY !== undefined) {
-                                    // Initialize player's global coordinates if not set
-                                    if (entityA.globalX === undefined || entityA.globalY === undefined) {
-                                        const currentScreenPos = screenWorldMapRef.current.get(currentScreenMap.id);
-                                        if (currentScreenPos) {
-                                            entityA.globalX = currentScreenPos.globalX + entityA.x;
-                                            entityA.globalY = currentScreenPos.globalY + entityA.y;
-                                            entityA.originScreenId = currentScreenMap.id;
-                                        }
+                            // Debug: log when crossing screen boundaries
+                            if ((entityA.x < -50 || entityA.x > PREVIEW_WIDTH + 50) && now % 500 < 16) {
+                            }
+
+                            // Waypoints are in local coordinates relative to origin screen
+                            const globalWaypoint1X = originScreenPos.globalX + Number(patrolComp.waypoint1_x);
+                            const globalWaypoint1Y = originScreenPos.globalY + Number(patrolComp.waypoint1_y);
+                            const globalWaypoint2X = originScreenPos.globalX + Number(patrolComp.waypoint2_x ?? patrolComp.waypoint1_x);
+                            const globalWaypoint2Y = originScreenPos.globalY + Number(patrolComp.waypoint2_y ?? patrolComp.waypoint1_y);
+
+                            // Bounce logic in global space
+                            if ((entityA.vx > 0 && entityA.globalX >= Math.max(globalWaypoint1X, globalWaypoint2X)) ||
+                                (entityA.vx < 0 && entityA.globalX <= Math.min(globalWaypoint1X, globalWaypoint2X))) {
+                                entityA.vx = -entityA.vx;
+                            }
+                            if ((entityA.vy > 0 && entityA.globalY >= Math.max(globalWaypoint1Y, globalWaypoint2Y)) ||
+                                (entityA.vy < 0 && entityA.globalY <= Math.min(globalWaypoint1Y, globalWaypoint2Y))) {
+                                entityA.vy = -entityA.vy;
+                            }
+
+                            // Convert global coordinates back to local for current screen
+                            const localCoord = globalToLocal(
+                                { x: entityA.globalX, y: entityA.globalY },
+                                screenWorldMapRef.current
+                            );
+
+                            if (localCoord && localCoord.screenId === currentScreenMap.id) {
+                                // Entity is in current screen
+                                entityA.x = localCoord.x;
+                                entityA.y = localCoord.y;
+                            } else {
+                                // Entity is in another screen - position it off-screen
+                                entityA.x = -1000;
+                                entityA.y = -1000;
+                            }
+                        }
+                    } else if (isMultiScreen) {
+                        // Multi-screen patrol but global coords not initialized properly
+                    } else if (!isMultiScreen) {
+                        // Traditional single-screen patrol
+                        const startPixelX = patrolComp.waypoint1_x;
+                        const startPixelY = patrolComp.waypoint1_y;
+                        const endPixelX = patrolComp.waypoint2_x ?? startPixelX;
+                        const endPixelY = patrolComp.waypoint2_y ?? startPixelY;
+
+                        if ((entityA.vx > 0 && entityA.x >= Math.max(startPixelX, endPixelX)) ||
+                            (entityA.vx < 0 && entityA.x <= Math.min(startPixelX, endPixelX))) {
+                            entityA.vx = -entityA.vx;
+                        }
+                        if ((entityA.vy > 0 && entityA.y >= Math.max(startPixelY, endPixelY)) ||
+                            (entityA.vy < 0 && entityA.y <= Math.min(startPixelY, endPixelY))) {
+                            entityA.vy = -entityA.vy;
+                        }
+                    }
+                }
+            }
+
+            // --- 6.5. Update isOnGround after entity collisions to include platform riding ---
+            if (hasCollisionComp) {
+                // If we're on a platform (platformUnderneath was set during collisions), we're on ground
+                // Also honor a short grace period to smooth descending platforms
+                const hasPlatformGrace = (entityA.platformGraceFramesLeft || 0) > 0;
+                // Only follow movement of a platform when actually standing on it; grace only affects grounded flag
+                const platformToFollow = entityA.platformUnderneath;
+                if (platformToFollow) {
+                    entityA.isOnGround = true;
+
+                    // Transfer platform velocity if standing on a moving platform
+                    if (entityA === heroRef.current) {
+                        // Establish parent-child link for multi-screen platforms
+                        // Merge patrol component defaultValues with componentOverrides
+                        const platformPatrolTemplateComp = platformToFollow.template.components.find(c => c.definitionId === 'comp_patrol');
+                        const platformPatrolComp = {
+                            ...(platformPatrolTemplateComp?.defaultValues || {}),
+                            ...(platformToFollow.instance.componentOverrides?.comp_patrol || {})
+                        };
+                        const isMultiScreenPlatform = platformPatrolComp && (platformPatrolComp.multiScreen === true || platformPatrolComp.multiScreen === 'true');
+
+                        if (isMultiScreenPlatform) {
+                            // Link player to platform
+                            entityA.parentEntityId = platformToFollow.instance.id;
+
+                            // Sync global coordinates if platform has them
+                            if (platformToFollow.globalX !== undefined && platformToFollow.globalY !== undefined) {
+                                // Initialize player's global coordinates if not set
+                                if (entityA.globalX === undefined || entityA.globalY === undefined) {
+                                    const currentScreenPos = screenWorldMapRef.current.get(currentScreenMap.id);
+                                    if (currentScreenPos) {
+                                        entityA.globalX = currentScreenPos.globalX + entityA.x;
+                                        entityA.globalY = currentScreenPos.globalY + entityA.y;
+                                        entityA.originScreenId = currentScreenMap.id;
                                     }
+                                }
 
-                                    // Transfer platform velocity in global space
-                                    if (entityA.globalX !== undefined && entityA.globalY !== undefined) {
-                                        const oldGlobalX = entityA.globalX;
-                                        const oldGlobalY = entityA.globalY;
+                                // Transfer platform velocity in global space
+                                if (entityA.globalX !== undefined && entityA.globalY !== undefined) {
+                                    const oldGlobalX = entityA.globalX;
+                                    const oldGlobalY = entityA.globalY;
 
-                                        // Add player's own velocity for this frame.
-                                        // vx/vy might have been zeroed by tile collision, which is correct.
-                                        entityA.globalX += entityA.vx;
-                                        entityA.globalY += entityA.vy;
+                                    // Add player's own velocity for this frame.
+                                    // vx/vy might have been zeroed by tile collision, which is correct.
+                                    entityA.globalX += entityA.vx;
+                                    entityA.globalY += entityA.vy;
 
-                                        // Add platform's velocity (both X and Y)
-                                        entityA.globalX += platformToFollow.vx;
-                                        entityA.globalY += platformToFollow.vy;
+                                    // Add platform's velocity (both X and Y)
+                                    entityA.globalX += platformToFollow.vx;
+                                    entityA.globalY += platformToFollow.vy;
 
-                                        // (Reverted) Do not enforce attach offset vertically here
+                                    // (Reverted) Do not enforce attach offset vertically here
 
 
-                                        // Convert back to local coordinates for rendering
-                                        const localCoord = globalToLocal(
-                                            { x: entityA.globalX, y: entityA.globalY },
-                                            screenWorldMapRef.current
-                                        );
+                                    // Convert back to local coordinates for rendering
+                                    const localCoord = globalToLocal(
+                                        { x: entityA.globalX, y: entityA.globalY },
+                                        screenWorldMapRef.current
+                                    );
 
-                                        if (localCoord) {
+                                    if (localCoord) {
 
-                                            entityA.x = localCoord.x;
-                                            entityA.y = localCoord.y;
+                                        entityA.x = localCoord.x;
+                                        entityA.y = localCoord.y;
 
-                                            // Check if player moved to a different screen
-                                            if (localCoord.screenId !== currentScreenMap.id) {
-                                                // Debounce platform-driven transitions to avoid oscillation at borders
-                                                const nowTs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
-                                                const recentlyTransitioned = (nowTs - lastScreenTransitionTimeRef.current) < 300;
-                                                if (!recentlyTransitioned) {
-                                                    // Trigger screen transition
-                                                    const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
-                                                    if (targetScreenNode) {
-                                                        // Revert: clamp to margin inside target screen using computed local coords
-                                                        const spriteW = entityA.sprite.size.width;
-                                                        const spriteH = entityA.sprite.size.height;
-                                                        const margin = 2;
-                                                        const entryX = Math.max(0 + margin, Math.min(PREVIEW_WIDTH - spriteW - margin, localCoord.x));
-                                                        const entryY = Math.max(0 + margin, Math.min(PREVIEW_HEIGHT - spriteH - margin, localCoord.y));
-                                                        setPlayerEntryPoint({ x: entryX, y: entryY });
+                                        // Check if player moved to a different screen
+                                        if (localCoord.screenId !== currentScreenMap.id) {
+                                            // Debounce platform-driven transitions to avoid oscillation at borders
+                                            const nowTs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+                                            const recentlyTransitioned = (nowTs - lastScreenTransitionTimeRef.current) < 300;
+                                            if (!recentlyTransitioned) {
+                                                // Trigger screen transition
+                                                const targetScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === localCoord.screenId);
+                                                if (targetScreenNode) {
+                                                    // Revert: clamp to margin inside target screen using computed local coords
+                                                    const spriteW = entityA.sprite.size.width;
+                                                    const spriteH = entityA.sprite.size.height;
+                                                    const margin = 2;
+                                                    const entryX = Math.max(0 + margin, Math.min(PREVIEW_WIDTH - spriteW - margin, localCoord.x));
+                                                    const entryY = Math.max(0 + margin, Math.min(PREVIEW_HEIGHT - spriteH - margin, localCoord.y));
+                                                    setPlayerEntryPoint({ x: entryX, y: entryY });
 
-                                                        // Mark transition timestamp
-                                                        try { lastScreenTransitionTimeRef.current = (typeof performance !== 'undefined' ? performance.now() : Date.now()); } catch { lastScreenTransitionTimeRef.current = Date.now(); }
+                                                    // Mark transition timestamp
+                                                    try { lastScreenTransitionTimeRef.current = (typeof performance !== 'undefined' ? performance.now() : Date.now()); } catch { lastScreenTransitionTimeRef.current = Date.now(); }
 
-                                                        handleScreenTransition(targetScreenNode.id);
-                                                        return; // Stop processing this frame to allow transition
-                                                    }
+                                                    handleScreenTransition(targetScreenNode.id);
+                                                    return; // Stop processing this frame to allow transition
                                                 }
                                             }
                                         }
                                     }
                                 }
-                            } else {
-                                // Traditional single-screen platform
-                                entityA.x += platformToFollow.vx;
-                                entityA.y += platformToFollow.vy;
+                            }
+                        } else {
+                            // Traditional single-screen platform
+                            entityA.x += platformToFollow.vx;
+                            entityA.y += platformToFollow.vy;
 
-                                // Snap player to platform top to avoid drift/jitter after jumps/landings
-                                const propsA = entityCollisionProps(entityA);
-                                const propsP = entityCollisionProps(platformToFollow);
-                                if (propsA && propsP) {
-                                    const platformTop = platformToFollow.y + (propsP.offsetY || 0);
-                                    const playerBottom = entityA.y + (propsA.offsetY || 0) + (propsA.hitboxHeight || entityA.sprite.size.height);
-                                    const delta = platformTop - playerBottom;
-                                    // When riding and not moving upwards, enforce alignment with platform top
-                                    if (entityA.vy >= 0) {
-                                        entityA.y += delta;
-                                        entityA.vy = 0;
-                                    }
+                            // Snap player to platform top to avoid drift/jitter after jumps/landings
+                            const propsA = entityCollisionProps(entityA);
+                            const propsP = entityCollisionProps(platformToFollow);
+                            if (propsA && propsP) {
+                                const platformTop = platformToFollow.y + (propsP.offsetY || 0);
+                                const playerBottom = entityA.y + (propsA.offsetY || 0) + (propsA.hitboxHeight || entityA.sprite.size.height);
+                                const delta = platformTop - playerBottom;
+                                // When riding and not moving upwards, enforce alignment with platform top
+                                if (entityA.vy >= 0) {
+                                    entityA.y += delta;
+                                    entityA.vy = 0;
                                 }
                             }
+                        }
 
-                        }
-                    } else {
-                        // Not on a platform - clear parent link and stale global coords
-                        if (entityA === heroRef.current) {
-                            if (entityA.parentEntityId) {
-                                entityA.parentEntityId = null;
-                            }
-                            if (entityA.globalX !== undefined || entityA.globalY !== undefined) {
-                                entityA.globalX = undefined;
-                                entityA.globalY = undefined;
-                            }
-                        }
                     }
-
-                    // Detect falling off platform
-                    if (previousPlatform && !entityA.platformUnderneath) {
+                } else {
+                    // Not on a platform - clear parent link and stale global coords
+                    if (entityA === heroRef.current) {
+                        if (entityA.parentEntityId) {
+                            entityA.parentEntityId = null;
+                        }
+                        if (entityA.globalX !== undefined || entityA.globalY !== undefined) {
+                            entityA.globalX = undefined;
+                            entityA.globalY = undefined;
+                        }
                     }
                 }
 
-                // --- 7. Sprite animation ---
-                const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
-                if (animComp && entityA.frameImages.length > 1) {
-                    const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
-                    if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
-                        // Check if animation should only play when moving
-                        const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
-                        const isMoving = entityA.vx !== 0 || entityA.vy !== 0;
+                // Detect falling off platform
+                if (previousPlatform && !entityA.platformUnderneath) {
+                }
+            }
 
-                        // Priority states that should always animate (death, hurt, attack, etc.)
-                        const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable', 'Landing'];
-                        const isInPriorityState = entityA.currentState ? priorityStates.some(state =>
-                            entityA.currentState.toLowerCase().includes(state.toLowerCase())
-                        ) : false;
+            // --- 7. Sprite animation ---
+            const animComp = entityA.template.components.find(c => c.definitionId === 'comp_animation');
+            if (animComp && entityA.frameImages.length > 1) {
+                const spriteAnimMs = (entityA.sprite && typeof entityA.sprite.animationSpeedMs === 'number') ? entityA.sprite.animationSpeedMs! : ANIMATION_SPEED_MS;
+                if (now - entityA.lastFrameUpdateTime > spriteAnimMs) {
+                    // Check if animation should only play when moving
+                    const animateOnlyWhenMoving = animComp.defaultValues?.animateOnlyWhenMoving === true;
+                    const isMoving = entityA.vx !== 0 || entityA.vy !== 0;
 
-                        // Check if animation loops (from sprite metadata, fallback to component)
-                        const loops = entityA.sprite.loops !== undefined
-                            ? entityA.sprite.loops
-                            : (animComp.defaultValues?.loops !== false); // Default true
+                    // Priority states that should always animate (death, hurt, attack, etc.)
+                    const priorityStates = ['Dead', 'Death', 'Hurt', 'Hit', 'Damage', 'Attack', 'Attacking', 'Stunned', 'GameOver', 'Invulnerable', 'Landing'];
+                    const isInPriorityState = entityA.currentState ? priorityStates.some(state =>
+                        entityA.currentState.toLowerCase().includes(state.toLowerCase())
+                    ) : false;
 
-                        // Reset completion flag if state changed
-                        if (entityA.lastAnimationState !== entityA.currentState) {
-                            entityA.animationHasCompleted = false;
-                            entityA.lastAnimationState = entityA.currentState;
-                        }
+                    // Check if animation loops (from sprite metadata, fallback to component)
+                    const loops = entityA.sprite.loops !== undefined
+                        ? entityA.sprite.loops
+                        : (animComp.defaultValues?.loops !== false); // Default true
 
-                        // Animate if: not restricted to movement, OR is moving, OR in priority state
-                        // AND (animation hasn't completed OR animation loops)
-                        if ((!animateOnlyWhenMoving || isMoving || isInPriorityState) && (!entityA.animationHasCompleted || loops)) {
-                            const previousFrame = entityA.currentFrame;
+                    // Reset completion flag if state changed
+                    if (entityA.lastAnimationState !== entityA.currentState) {
+                        entityA.animationHasCompleted = false;
+                        entityA.lastAnimationState = entityA.currentState;
+                    }
 
-                            if (loops) {
-                                // Looping animation: cycle through frames
-                                entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
+                    // Animate if: not restricted to movement, OR is moving, OR in priority state
+                    // AND (animation hasn't completed OR animation loops)
+                    if ((!animateOnlyWhenMoving || isMoving || isInPriorityState) && (!entityA.animationHasCompleted || loops)) {
+                        const previousFrame = entityA.currentFrame;
+
+                        if (loops) {
+                            // Looping animation: cycle through frames
+                            entityA.currentFrame = (entityA.currentFrame + 1) % entityA.frameImages.length;
+                        } else {
+                            // Non-looping animation: stop at last frame
+                            if (entityA.currentFrame < entityA.frameImages.length - 1) {
+                                entityA.currentFrame++;
                             } else {
-                                // Non-looping animation: stop at last frame
-                                if (entityA.currentFrame < entityA.frameImages.length - 1) {
-                                    entityA.currentFrame++;
-                                } else {
-                                    // Animation completed!
-                                    if (!entityA.animationHasCompleted) {
-                                        entityA.animationHasCompleted = true;
-                                    }
+                                // Animation completed!
+                                if (!entityA.animationHasCompleted) {
+                                    entityA.animationHasCompleted = true;
                                 }
                             }
-
-                            entityA.lastFrameUpdateTime = now;
-                        } else if (!isInPriorityState) {
-                            // Reset to first frame when stopped (and not in priority state)
-                            entityA.currentFrame = 0;
                         }
-                    }
 
-                }
-
-                if (childLinkConfig) {
-                    if (childLinkParent) {
-                        applyChildLinkTransform(entityA, childLinkParent, childLinkConfig);
-                    } else if (childLinkConfig.followParentGlobal) {
-                        entityA.globalX = undefined;
-                        entityA.globalY = undefined;
-                    }
-                }
-
-                // --- Transport carried box along with hero ---
-                if (entityA === heroRef.current && entityA.carriedBox) {
-                    const box = entityA.carriedBox;
-                    // Carry overhead: align visually using sprite bounds (ignores hitbox offsets while carried)
-                    // Read carry offset from comp_carry (template defaultValues + instance overrides)
-                    const carryTemplateComp = entityA.template.components.find(c => c.definitionId === 'comp_carry');
-                    const carryProps = {
-                        ...(carryTemplateComp?.defaultValues || {}),
-                        ...(entityA.instance.componentOverrides?.comp_carry || {})
-                    } as any;
-                    const overheadGap = Number(carryProps.offset ?? 0);
-
-                    // Visual center/top based on HERO HITBOX for better alignment
-                    const heroPropsCarry = entityCollisionProps(entityA);
-                    const heroHitboxCarry = heroPropsCarry
-                        ? getHitboxFor(entityA, heroPropsCarry)
-                        : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
-                    const heroCenterX = heroHitboxCarry.x + (heroHitboxCarry.width / 2);
-                    const boxWVis = box.sprite.size.width;
-                    const boxHVis = box.sprite.size.height;
-
-                    box.x = Math.round(heroCenterX - (boxWVis / 2));
-                    box.y = Math.round(heroHitboxCarry.y - overheadGap - boxHVis);
-
-                    // Freeze box while carried
-                    box.vx = 0;
-                    box.vy = 0;
-                }
-
-                // --- 8. Dibujar Entidad ---
-                // Filter Box entities: only render if they belong to current screen or are being carried
-                const shouldRenderBox = !isBoxEntity ||
-                    entityA.ownerScreenId === null || // Being carried
-                    entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
-                    isChildOfVisibleParent;
-
-                if (!shouldRenderBox) {
-                    return; // Skip rendering this Box (it belongs to another screen)
-                }
-
-                // Filter Collectible items: only render if they belong to current screen
-                const shouldRenderCollectible = !isCollectibleItem ||
-                    entityA.ownerScreenId === currentScreenMapRef.current?.id ||
-                    isChildOfVisibleParent;
-
-                if (!shouldRenderCollectible) {
-                    return; // Skip rendering this item (it belongs to another screen)
-                }
-
-                // Safety check: ensure frameImages array has elements and currentFrame is valid
-                if (entityA.frameImages.length > 0) {
-                    // Ensure currentFrame is within bounds
-                    if (entityA.currentFrame >= entityA.frameImages.length) {
+                        entityA.lastFrameUpdateTime = now;
+                    } else if (!isInPriorityState) {
+                        // Reset to first frame when stopped (and not in priority state)
                         entityA.currentFrame = 0;
                     }
-
-                    // Determine which image to draw based on movement direction
-                    let shouldUseMirrored = false;
-
-                    if (entityA.mirroredFrameImages && entityA.mirroredFrameImages.length > entityA.currentFrame) {
-                        // Check if currently moving
-                        if (entityA.vx !== 0) {
-                            // Moving: determine direction and update facing state
-                            if (entityA.sprite.facingDirection === 'right' && entityA.vx < 0) {
-                                shouldUseMirrored = true;
-                                entityA.isFacingMirrored = true; // Remember: facing left
-                            } else if (entityA.sprite.facingDirection === 'left' && entityA.vx > 0) {
-                                shouldUseMirrored = true;
-                                entityA.isFacingMirrored = true; // Remember: facing right
-                            } else {
-                                entityA.isFacingMirrored = false; // Remember: facing default direction
-                            }
-                        } else {
-                            // Not moving: use last known direction
-                            shouldUseMirrored = entityA.isFacingMirrored === true;
-                        }
-                    }
-
-                    let imageToDraw = shouldUseMirrored ? entityA.mirroredFrameImages![entityA.currentFrame] : entityA.frameImages[entityA.currentFrame];
-                    // Asegurarse de que la imagen estA cargada antes de dibujar es crucial para el rendimiento
-                    if (imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
-                        if (heroRef.current?.carriedBox !== entityA) { ctx.drawImage(imageToDraw, entityA.x, entityA.y); }
-                    } else if (imageToDraw) {
-                        // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
-                        // console.warn("Imagen no cargada aAon:", entityA.instance.name);
-                    }
-                }
-                // If frameImages is empty, simply skip drawing but continue processing
-
-                // Draw carried box after hero to ensure it appears on top
-                if (entityA === heroRef.current && entityA.carriedBox) {
-                    const box = entityA.carriedBox;
-                    if (box.frameImages.length > 0) {
-                        const img = box.frameImages[box.currentFrame] || box.frameImages[0];
-                        if (img && img.complete && img.naturalWidth > 0) {
-                            ctx.drawImage(img, box.x, box.y);
-                        }
-                    }
                 }
 
-                // --- 9. DEBUG: Dibujar Hitboxes (si tiene comp_collision) ---
-                if (showHitboxDebug && hasCollisionComp && heroRef.current?.carriedBox !== entityA) {
-                    const props = entityCollisionProps(entityA);
-                    if (props) {
-                        const hitbox = getHitboxFor(entityA, props);
+            }
 
-                        // Detailed debug log
-                        if (now % 1000 < 16) {
-                        }
+            if (childLinkConfig) {
+                if (childLinkParent) {
+                    applyChildLinkTransform(entityA, childLinkParent, childLinkConfig);
+                } else if (childLinkConfig.followParentGlobal) {
+                    entityA.globalX = undefined;
+                    entityA.globalY = undefined;
+                }
+            }
 
-                        // Color based on collision type
-                        if (props.isTrigger) {
-                            ctx.strokeStyle = '#FFAA00'; // Orange for triggers (no push)
-                            ctx.setLineDash([4, 2]); // Dotted line for triggers
+            // --- Transport carried box along with hero ---
+            if (entityA === heroRef.current && entityA.carriedBox) {
+                const box = entityA.carriedBox;
+                // Carry overhead: align visually using sprite bounds (ignores hitbox offsets while carried)
+                // Read carry offset from comp_carry (template defaultValues + instance overrides)
+                const carryTemplateComp = entityA.template.components.find(c => c.definitionId === 'comp_carry');
+                const carryProps = {
+                    ...(carryTemplateComp?.defaultValues || {}),
+                    ...(entityA.instance.componentOverrides?.comp_carry || {})
+                } as any;
+                const overheadGap = Number(carryProps.offset ?? 0);
+
+                // Visual center/top based on HERO HITBOX for better alignment
+                const heroPropsCarry = entityCollisionProps(entityA);
+                const heroHitboxCarry = heroPropsCarry
+                    ? getHitboxFor(entityA, heroPropsCarry)
+                    : { x: entityA.x, y: entityA.y, width: entityA.sprite.size.width, height: entityA.sprite.size.height };
+                const heroCenterX = heroHitboxCarry.x + (heroHitboxCarry.width / 2);
+                const boxWVis = box.sprite.size.width;
+                const boxHVis = box.sprite.size.height;
+
+                box.x = Math.round(heroCenterX - (boxWVis / 2));
+                box.y = Math.round(heroHitboxCarry.y - overheadGap - boxHVis);
+
+                // Freeze box while carried
+                box.vx = 0;
+                box.vy = 0;
+            }
+
+            // --- 8. Dibujar Entidad ---
+            // Filter Box entities: only render if they belong to current screen or are being carried
+            const shouldRenderBox = !isBoxEntity ||
+                entityA.ownerScreenId === null || // Being carried
+                entityA.ownerScreenId === currentScreenMapRef.current?.id || // Belongs to current screen
+                isChildOfVisibleParent;
+
+            if (!shouldRenderBox) {
+                return; // Skip rendering this Box (it belongs to another screen)
+            }
+
+            // Filter Collectible items: only render if they belong to current screen
+            const shouldRenderCollectible = !isCollectibleItem ||
+                entityA.ownerScreenId === currentScreenMapRef.current?.id ||
+                isChildOfVisibleParent;
+
+            if (!shouldRenderCollectible) {
+                return; // Skip rendering this item (it belongs to another screen)
+            }
+
+            // Safety check: ensure frameImages array has elements and currentFrame is valid
+            if (entityA.frameImages.length > 0) {
+                // Ensure currentFrame is within bounds
+                if (entityA.currentFrame >= entityA.frameImages.length) {
+                    entityA.currentFrame = 0;
+                }
+
+                // Determine which image to draw based on movement direction
+                let shouldUseMirrored = false;
+
+                if (entityA.mirroredFrameImages && entityA.mirroredFrameImages.length > entityA.currentFrame) {
+                    // Check if currently moving
+                    if (entityA.vx !== 0) {
+                        // Moving: determine direction and update facing state
+                        if (entityA.sprite.facingDirection === 'right' && entityA.vx < 0) {
+                            shouldUseMirrored = true;
+                            entityA.isFacingMirrored = true; // Remember: facing left
+                        } else if (entityA.sprite.facingDirection === 'left' && entityA.vx > 0) {
+                            shouldUseMirrored = true;
+                            entityA.isFacingMirrored = true; // Remember: facing right
                         } else {
-                            ctx.strokeStyle = '#00FF00'; // Green for solid collisions (with push)
-                            ctx.setLineDash([]); // Solid line
+                            entityA.isFacingMirrored = false; // Remember: facing default direction
                         }
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(hitbox.x, hitbox.y, hitbox.width, hitbox.height);
-                        ctx.setLineDash([]); // Reset dash
-
-                        // Draw the center point
-                        ctx.fillStyle = props.isTrigger ? '#FFAA00' : '#00FF00';
-                        ctx.fillRect(hitbox.x + hitbox.width / 2 - 2, hitbox.y + hitbox.height / 2 - 2, 4, 4);
-
-                        // Draw the entity name
-                        ctx.fillStyle = '#FFFF00';
-                        ctx.font = '8px monospace';
-                        const label = `${entityA.instance.name} L${props.collisionLayer}${props.isTrigger ? ' [T]' : ''}`;
-                        ctx.fillText(label, hitbox.x, hitbox.y - 2);
                     } else {
-                        if (now % 1000 < 16) {
-                        }
+                        // Not moving: use last known direction
+                        shouldUseMirrored = entityA.isFacingMirrored === true;
                     }
-                } else if (showHitboxDebug) {
+                }
+
+                let imageToDraw = shouldUseMirrored ? entityA.mirroredFrameImages![entityA.currentFrame] : entityA.frameImages[entityA.currentFrame];
+                // Asegurarse de que la imagen estA cargada antes de dibujar es crucial para el rendimiento
+                if (imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
+                    if (heroRef.current?.carriedBox !== entityA) { ctx.drawImage(imageToDraw, entityA.x, entityA.y); }
+                } else if (imageToDraw) {
+                    // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
+                    // console.warn("Imagen no cargada aAon:", entityA.instance.name);
+                }
+            }
+            // If frameImages is empty, simply skip drawing but continue processing
+
+            // Draw carried box after hero to ensure it appears on top
+            if (entityA === heroRef.current && entityA.carriedBox) {
+                const box = entityA.carriedBox;
+                if (box.frameImages.length > 0) {
+                    const img = box.frameImages[box.currentFrame] || box.frameImages[0];
+                    if (img && img.complete && img.naturalWidth > 0) {
+                        ctx.drawImage(img, box.x, box.y);
+                    }
+                }
+            }
+
+            // --- 9. DEBUG: Dibujar Hitboxes (si tiene comp_collision) ---
+            if (showHitboxDebug && hasCollisionComp && heroRef.current?.carriedBox !== entityA) {
+                const props = entityCollisionProps(entityA);
+                if (props) {
+                    const hitbox = getHitboxFor(entityA, props);
+
+                    // Detailed debug log
+                    if (now % 1000 < 16) {
+                    }
+
+                    // Color based on collision type
+                    if (props.isTrigger) {
+                        ctx.strokeStyle = '#FFAA00'; // Orange for triggers (no push)
+                        ctx.setLineDash([4, 2]); // Dotted line for triggers
+                    } else {
+                        ctx.strokeStyle = '#00FF00'; // Green for solid collisions (with push)
+                        ctx.setLineDash([]); // Solid line
+                    }
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(hitbox.x, hitbox.y, hitbox.width, hitbox.height);
+                    ctx.setLineDash([]); // Reset dash
+
+                    // Draw the center point
+                    ctx.fillStyle = props.isTrigger ? '#FFAA00' : '#00FF00';
+                    ctx.fillRect(hitbox.x + hitbox.width / 2 - 2, hitbox.y + hitbox.height / 2 - 2, 4, 4);
+
+                    // Draw the entity name
+                    ctx.fillStyle = '#FFFF00';
+                    ctx.font = '8px monospace';
+                    const label = `${entityA.instance.name} L${props.collisionLayer}${props.isTrigger ? ' [T]' : ''}`;
+                    ctx.fillText(label, hitbox.x, hitbox.y - 2);
+                } else {
                     if (now % 1000 < 16) {
                     }
                 }
-            });
+            } else if (showHitboxDebug) {
+                if (now % 1000 < 16) {
+                }
+            }
+        });
 
-            // --- Render Secret Discovery Effects (Sparkles) ---
-            const deltaTime = 16; // Approximate frame time
-            secretDiscoveryEffects.current = secretDiscoveryEffects.current.filter(effect => {
-                effect.lifetime += deltaTime;
-                if (effect.lifetime > effect.maxLifetime) {
-                    return false; // Remove expired effects
+        // --- Render Secret Discovery Effects (Sparkles) ---
+        const deltaTime = 16; // Approximate frame time
+        secretDiscoveryEffects.current = secretDiscoveryEffects.current.filter(effect => {
+            effect.lifetime += deltaTime;
+            if (effect.lifetime > effect.maxLifetime) {
+                return false; // Remove expired effects
+            }
+
+            // Draw sparkle effect
+            const progress = effect.lifetime / effect.maxLifetime;
+            const alpha = 1 - progress; // Fade out
+            const size = 3 + Math.sin(progress * Math.PI) * 3; // Pulse size
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = '#FFFF00'; // Yellow sparkle
+
+            // Draw cross shape
+            ctx.fillRect(effect.x - size, effect.y - 1, size * 2, 2);
+            ctx.fillRect(effect.x - 1, effect.y - size, 2, size * 2);
+
+            ctx.restore();
+            return true; // Keep effect
+        });
+
+        // HUD overlay (pre-rendered to avoid per-frame text building)
+        if (hudBufferRef.current) {
+            ctx.drawImage(hudBufferRef.current, 0, 0);
+        }
+
+        // --- Remove destroyed entities ---
+        entitiesRef.current = entitiesRef.current.filter(e => !e.markedForDestruction);
+
+        refreshVisibleEntityCount(currentScreenMapRef.current?.id);
+
+        // --- Check for pending node transitions (from CHANGE_GAME_FLOW_NODE action) ---
+        const entityWithPendingTransition = entitiesRef.current.find(e => (e as any).pendingNodeTransition);
+        if (entityWithPendingTransition) {
+            const targetNodeId = (entityWithPendingTransition as any).pendingNodeTransition;
+            delete (entityWithPendingTransition as any).pendingNodeTransition;
+
+
+            // Handle different transition types
+            if (currentNode.type === 'WorldLink') {
+                // World map transition
+                handleScreenTransition(targetNodeId);
+            } else {
+                // Game flow transition
+                setNavigationStack(prev => [...prev, currentNode.id]);
+                setCurrentNodeId(targetNodeId);
+                setSelectedOptionIndex(0);
+                setCurrentScreenMap(null);
+                setCurrentWorldMapGraph(null);
+            }
+            return; // Stop animation frame to allow transition
+        }
+
+        animationFrameId.current = requestAnimationFrame(animate);
+    };
+    // --- End of new animation function ---
+
+    if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+    if (currentNode.type === 'WorldLink') {
+        if (isDynamic) {
+            lastTime = 0; // Reiniciar deltaTime
+            animationFrameId.current = requestAnimationFrame(animate);
+        } else {
+            ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            if (tileBufferRef.current) { // Dibujar buffer estAtico
+                ctx.drawImage(tileBufferRef.current, 0, 0);
+
+                // Hide revealed secret tiles
+                if (currentScreenMapRef.current) {
+                    ctx.fillStyle = '#000000';
+                    revealedSecretTiles.current.forEach((key) => {
+                        const parts = key.split('_');
+                        const screenId = parts.slice(0, -2).join('_');
+                        const tx = parseInt(parts[parts.length - 2], 10);
+                        const ty = parseInt(parts[parts.length - 1], 10);
+
+                        if (screenId === currentScreenMapRef.current?.id) {
+                            ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                        }
+                    });
+                }
+            } else {
+                // Si no hay buffer, dibujar fondo por defecto
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+            }
+
+            // === RESOLVE CHILD-LINK PARENTS EVERY FRAME ===
+            const entityLookup = new Map<string, AnimatedEntity>();
+            for (const entity of entitiesRef.current) {
+                entityLookup.set(entity.instance.id, entity);
+            }
+            resolveChildLinkParents(entitiesRef.current, entityLookup);
+            // ==============================================
+
+            entitiesRef.current.forEach(entity => {
+                const currentScreenId = currentScreenMapRef.current?.id;
+                const childLinkConfig = entity.childLink;
+                const childLinkParent = childLinkConfig && entity.parentEntityId
+                    ? entityLookup.get(entity.parentEntityId)
+                    : undefined;
+                const isChildOfVisibleParent =
+                    !!childLinkConfig &&
+                    !!childLinkParent &&
+                    childLinkParent.ownerScreenId === currentScreenId;
+
+                // Skip entities from other screens unless they are child-linked to a visible parent
+                if (
+                    entity.ownerScreenId &&
+                    entity.ownerScreenId !== currentScreenId &&
+                    !isChildOfVisibleParent
+                ) {
+                    return;
                 }
 
-                // Draw sparkle effect
-                const progress = effect.lifetime / effect.maxLifetime;
-                const alpha = 1 - progress; // Fade out
-                const size = 3 + Math.sin(progress * Math.PI) * 3; // Pulse size
+                // Filter Box entities: only render if they belong to current screen or are being carried
+                const isBox = entity.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entity.template.name);
+                const shouldRenderBox = !isBox ||
+                    entity.ownerScreenId === null || // Being carried
+                    entity.ownerScreenId === currentScreenId || // Belongs to current screen
+                    isChildOfVisibleParent; // Child of a visible parent
 
-                ctx.save();
-                ctx.globalAlpha = alpha;
-                ctx.fillStyle = '#FFFF00'; // Yellow sparkle
+                if (!shouldRenderBox) return; // Skip this Box (belongs to another screen and not linked)
 
-                // Draw cross shape
-                ctx.fillRect(effect.x - size, effect.y - 1, size * 2, 2);
-                ctx.fillRect(effect.x - 1, effect.y - size, 2, size * 2);
+                // Filter Collectible items: only render if they belong to current screen
+                const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
+                const shouldRenderCollectible = !isCollectible ||
+                    entity.ownerScreenId === currentScreenId ||
+                    isChildOfVisibleParent;
 
-                ctx.restore();
-                return true; // Keep effect
+                if (!shouldRenderCollectible) return; // Skip this item (belongs to another screen and not linked)
+
+                // Apply relative position if this entity is child-linked
+                if (childLinkConfig && entity.parentEntityId) {
+                    const parent = entityLookup.get(entity.parentEntityId);
+                    if (parent) {
+                        const rawOffsetX = Number(childLinkConfig.offsetX) || 0;
+                        const offsetY = Number(childLinkConfig.offsetY) || 0;
+                        const shouldFlipOffsetX =
+                            childLinkConfig.mirrorParent && (parent.isFacingMirrored || parent.isMirrored);
+                        const offsetX = shouldFlipOffsetX ? -rawOffsetX : rawOffsetX;
+                        entity.x = parent.x + offsetX;
+                        entity.y = parent.y + offsetY;
+
+                        if (childLinkConfig.followParentGlobal && parent.globalX !== undefined && parent.globalY !== undefined) {
+                            entity.globalX = parent.globalX + offsetX;
+                            entity.globalY = parent.globalY + offsetY;
+                        }
+
+                        if (childLinkConfig.mirrorParent) {
+                            entity.isMirrored = parent.isMirrored;
+                        }
+                    }
+                }
+
+                if (entity.frameImages.length > 0 && entity.frameImages[0].complete) {
+                    ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
+                }
             });
 
-            // HUD overlay (pre-rendered to avoid per-frame text building)
             if (hudBufferRef.current) {
                 ctx.drawImage(hudBufferRef.current, 0, 0);
             }
 
-            // --- Remove destroyed entities ---
-            entitiesRef.current = entitiesRef.current.filter(e => !e.markedForDestruction);
-
             refreshVisibleEntityCount(currentScreenMapRef.current?.id);
+        }
+    } else {
+        renderTextNodes();
+        refreshVisibleEntityCount(null);
+    }
 
-            // --- Check for pending node transitions (from CHANGE_GAME_FLOW_NODE action) ---
-            const entityWithPendingTransition = entitiesRef.current.find(e => (e as any).pendingNodeTransition);
-            if (entityWithPendingTransition) {
-                const targetNodeId = (entityWithPendingTransition as any).pendingNodeTransition;
-                delete (entityWithPendingTransition as any).pendingNodeTransition;
-
-
-                // Handle different transition types
-                if (currentNode.type === 'WorldLink') {
-                    // World map transition
-                    handleScreenTransition(targetNodeId);
-                } else {
-                    // Game flow transition
-                    setNavigationStack(prev => [...prev, currentNode.id]);
-                    setCurrentNodeId(targetNodeId);
-                    setSelectedOptionIndex(0);
-                    setCurrentScreenMap(null);
-                    setCurrentWorldMapGraph(null);
-                }
-                return; // Stop animation frame to allow transition
-            }
-
-            animationFrameId.current = requestAnimationFrame(animate);
-        };
-        // --- End of new animation function ---
-
+    return () => {
         if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-        if (currentNode.type === 'WorldLink') {
-            if (isDynamic) {
-                lastTime = 0; // Reiniciar deltaTime
-                animationFrameId.current = requestAnimationFrame(animate);
-            } else {
-                ctx.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                if (tileBufferRef.current) { // Dibujar buffer estAtico
-                    ctx.drawImage(tileBufferRef.current, 0, 0);
-
-                    // Hide revealed secret tiles
-                    if (currentScreenMapRef.current) {
-                        ctx.fillStyle = '#000000';
-                        revealedSecretTiles.current.forEach((key) => {
-                            const parts = key.split('_');
-                            const screenId = parts.slice(0, -2).join('_');
-                            const tx = parseInt(parts[parts.length - 2], 10);
-                            const ty = parseInt(parts[parts.length - 1], 10);
-
-                            if (screenId === currentScreenMapRef.current?.id) {
-                                ctx.fillRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
-                            }
-                        });
-                    }
-                } else {
-                    // Si no hay buffer, dibujar fondo por defecto
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-                }
-
-                // === RESOLVE CHILD-LINK PARENTS EVERY FRAME ===
-                const entityLookup = new Map<string, AnimatedEntity>();
-                for (const entity of entitiesRef.current) {
-                    entityLookup.set(entity.instance.id, entity);
-                }
-                resolveChildLinkParents(entitiesRef.current, entityLookup);
-                // ==============================================
-
-                entitiesRef.current.forEach(entity => {
-                    const currentScreenId = currentScreenMapRef.current?.id;
-                    const childLinkConfig = entity.childLink;
-                    const childLinkParent = childLinkConfig && entity.parentEntityId
-                        ? entityLookup.get(entity.parentEntityId)
-                        : undefined;
-                    const isChildOfVisibleParent =
-                        !!childLinkConfig &&
-                        !!childLinkParent &&
-                        childLinkParent.ownerScreenId === currentScreenId;
-
-                    // Skip entities from other screens unless they are child-linked to a visible parent
-                    if (
-                        entity.ownerScreenId &&
-                        entity.ownerScreenId !== currentScreenId &&
-                        !isChildOfVisibleParent
-                    ) {
-                        return;
-                    }
-
-                    // Filter Box entities: only render if they belong to current screen or are being carried
-                    const isBox = entity.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entity.template.name);
-                    const shouldRenderBox = !isBox ||
-                        entity.ownerScreenId === null || // Being carried
-                        entity.ownerScreenId === currentScreenId || // Belongs to current screen
-                        isChildOfVisibleParent; // Child of a visible parent
-
-                    if (!shouldRenderBox) return; // Skip this Box (belongs to another screen and not linked)
-
-                    // Filter Collectible items: only render if they belong to current screen
-                    const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
-                    const shouldRenderCollectible = !isCollectible ||
-                        entity.ownerScreenId === currentScreenId ||
-                        isChildOfVisibleParent;
-
-                    if (!shouldRenderCollectible) return; // Skip this item (belongs to another screen and not linked)
-
-                    // Apply relative position if this entity is child-linked
-                    if (childLinkConfig && entity.parentEntityId) {
-                        const parent = entityLookup.get(entity.parentEntityId);
-                        if (parent) {
-                            const rawOffsetX = Number(childLinkConfig.offsetX) || 0;
-                            const offsetY = Number(childLinkConfig.offsetY) || 0;
-                            const shouldFlipOffsetX =
-                                childLinkConfig.mirrorParent && (parent.isFacingMirrored || parent.isMirrored);
-                            const offsetX = shouldFlipOffsetX ? -rawOffsetX : rawOffsetX;
-                            entity.x = parent.x + offsetX;
-                            entity.y = parent.y + offsetY;
-
-                            if (childLinkConfig.followParentGlobal && parent.globalX !== undefined && parent.globalY !== undefined) {
-                                entity.globalX = parent.globalX + offsetX;
-                                entity.globalY = parent.globalY + offsetY;
-                            }
-
-                            if (childLinkConfig.mirrorParent) {
-                                entity.isMirrored = parent.isMirrored;
-                            }
-                        }
-                    }
-
-                    if (entity.frameImages.length > 0 && entity.frameImages[0].complete) {
-                        ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
-                    }
-                });
-
-                if (hudBufferRef.current) {
-                    ctx.drawImage(hudBufferRef.current, 0, 0);
-                }
-
-                refreshVisibleEntityCount(currentScreenMapRef.current?.id);
-            }
-        } else {
-            renderTextNodes();
-            refreshVisibleEntityCount(null);
-        }
-
-        return () => {
-            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
-            // tileCanvas = null; tileCtx = null; // Opcional: limpiar referencias
-        };
-    }, [
-        isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
-        msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
-        // Asegurarse de que dependencias de las funciones internas estAn aquA si cambian
-        componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, showTileHitboxes, isFullscreen,
-        refreshVisibleEntityCount, showEntityCount
-    ]);
-
-    if (!isOpen) return null;
-
-    const currentScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === currentScreenMap?.id);
-    const getExitsForDirection = (direction: 'north' | 'south' | 'east' | 'west'): EnrichedConnection[] => {
-        if (!currentScreenNode || !currentWorldMapGraph) return [];
-        const outgoing = currentWorldMapGraph.connections
-            .filter(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === direction)
-            .map(c => ({ ...c, targetNodeId: c.toNodeId }));
-        const incoming = currentWorldMapGraph.connections
-            .filter(c => c.toNodeId === currentScreenNode.id && c.toDirection === direction)
-            .map(c => ({ ...c, targetNodeId: c.fromNodeId }));
-        return [...outgoing, ...incoming];
+        // tileCanvas = null; tileCtx = null; // Opcional: limpiar referencias
     };
+}, [
+    isOpen, isDynamic, currentNode, currentScreenMap, allAssets, connections, currentGraphData,
+    msxFont, msxFontColorAttributes, entityTemplates, currentScreenMode, selectedOptionIndex, checkKeyTransitions,
+    // Asegurarse de que dependencias de las funciones internas estAn aquA si cambian
+    componentDefinitions, TILE_SIZE, PREVIEW_WIDTH, PREVIEW_HEIGHT, showHitboxDebug, showTileHitboxes, isFullscreen,
+    refreshVisibleEntityCount, showEntityCount
+]);
 
-    const northExits = getExitsForDirection('north');
-    const southExits = getExitsForDirection('south');
-    const eastExits = getExitsForDirection('east');
-    const westExits = getExitsForDirection('west');
+if (!isOpen) return null;
 
-    const getButtonStyle = (direction: 'north' | 'south' | 'east' | 'west', index: number, total: number): React.CSSProperties => {
-        const offset = (index - (total - 1) / 2) * (isFullscreen ? 64 : 32);
-        switch (direction) {
-            case 'north': return { top: 0, left: `calc(50% + ${offset}px)`, transform: 'translateX(-50%)' };
-            case 'south': return { bottom: 0, left: `calc(50% + ${offset}px)`, transform: 'translateX(-50%)' };
-            case 'west': return { left: 0, top: `calc(50% + ${offset}px)`, transform: 'translateY(-50%)' };
-            case 'east': return { right: 0, top: `calc(50% + ${offset}px)`, transform: 'translateY(-50%)' };
+const currentScreenNode = currentWorldMapGraph?.nodes.find(n => n.screenAssetId === currentScreenMap?.id);
+const getExitsForDirection = (direction: 'north' | 'south' | 'east' | 'west'): EnrichedConnection[] => {
+    if (!currentScreenNode || !currentWorldMapGraph) return [];
+    const outgoing = currentWorldMapGraph.connections
+        .filter(c => c.fromNodeId === currentScreenNode.id && c.fromDirection === direction)
+        .map(c => ({ ...c, targetNodeId: c.toNodeId }));
+    const incoming = currentWorldMapGraph.connections
+        .filter(c => c.toNodeId === currentScreenNode.id && c.toDirection === direction)
+        .map(c => ({ ...c, targetNodeId: c.fromNodeId }));
+    return [...outgoing, ...incoming];
+};
+
+const northExits = getExitsForDirection('north');
+const southExits = getExitsForDirection('south');
+const eastExits = getExitsForDirection('east');
+const westExits = getExitsForDirection('west');
+
+const getButtonStyle = (direction: 'north' | 'south' | 'east' | 'west', index: number, total: number): React.CSSProperties => {
+    const offset = (index - (total - 1) / 2) * (isFullscreen ? 64 : 32);
+    switch (direction) {
+        case 'north': return { top: 0, left: `calc(50% + ${offset}px)`, transform: 'translateX(-50%)' };
+        case 'south': return { bottom: 0, left: `calc(50% + ${offset}px)`, transform: 'translateX(-50%)' };
+        case 'west': return { left: 0, top: `calc(50% + ${offset}px)`, transform: 'translateY(-50%)' };
+        case 'east': return { right: 0, top: `calc(50% + ${offset}px)`, transform: 'translateY(-50%)' };
+    }
+};
+
+const handleSaveCrtConfig = (config: CRTShaderConfig) => {
+    setCrtConfig(config);
+    localStorage.setItem('crtShaderConfig', JSON.stringify(config));
+};
+
+// Cleanup music on unmount or when modal closes
+useEffect(() => {
+    return () => {
+        if (musicSynthesizerRef.current) {
+            musicSynthesizerRef.current.stopAllNotes();
+        }
+        if (musicPlaybackIntervalRef.current) {
+            clearInterval(musicPlaybackIntervalRef.current);
+            musicPlaybackIntervalRef.current = null;
         }
     };
+}, []);
 
-    const handleSaveCrtConfig = (config: CRTShaderConfig) => {
-        setCrtConfig(config);
-        localStorage.setItem('crtShaderConfig', JSON.stringify(config));
-    };
+const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
+const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
+const canvasBackgroundColor = subMenuNode?.appearance?.colors?.background || '#000000';
+const computedCanvasCursor = useMemo(() => {
+    if (hoverExitDirection && cursorBlinkOn) {
+        return getArrowCursor(hoverExitDirection);
+    }
+    return isPositioningMode ? 'crosshair' : undefined;
+}, [hoverExitDirection, cursorBlinkOn, getArrowCursor, isPositioningMode]);
 
-    // Cleanup music on unmount or when modal closes
-    useEffect(() => {
-        return () => {
-            if (musicSynthesizerRef.current) {
-                musicSynthesizerRef.current.stopAllNotes();
-            }
-            if (musicPlaybackIntervalRef.current) {
-                clearInterval(musicPlaybackIntervalRef.current);
-                musicPlaybackIntervalRef.current = null;
-            }
-        };
-    }, []);
-
-    const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
-    const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
-    const canvasBackgroundColor = subMenuNode?.appearance?.colors?.background || '#000000';
-    const computedCanvasCursor = useMemo(() => {
-        if (hoverExitDirection && cursorBlinkOn) {
-            return getArrowCursor(hoverExitDirection);
-        }
-        return isPositioningMode ? 'crosshair' : undefined;
-    }, [hoverExitDirection, cursorBlinkOn, getArrowCursor, isPositioningMode]);
-
-    const modalContent = (
-        <div
-            ref={modalRef}
-            className={`fixed inset-0 ${isFullscreen ? 'bg-black' : 'bg-black bg-opacity-75'} flex items-center justify-center z-50 animate-fadeIn ${isFullscreen ? '' : 'p-4'} outline-none`}
-            onClick={isFullscreen ? undefined : onClose}
-            onKeyDown={handleKeyDown}
-            onKeyUp={handleKeyUp}
-            tabIndex={-1}
-        >
-            {isFullscreen ? (
-                // Fullscreen mode - only game canvas centered on black background
-                <div className="relative" style={{ width: PREVIEW_WIDTH * 4, height: PREVIEW_HEIGHT * 4 }}>
-                    <CRTShaderOverlay enabled={isFullscreen} config={crtConfig}>
+const modalContent = (
+    <div
+        ref={modalRef}
+        className={`fixed inset-0 ${isFullscreen ? 'bg-black' : 'bg-black bg-opacity-75'} flex items-center justify-center z-50 animate-fadeIn ${isFullscreen ? '' : 'p-4'} outline-none`}
+        onClick={isFullscreen ? undefined : onClose}
+        onKeyDown={handleKeyDown}
+        onKeyUp={handleKeyUp}
+        tabIndex={-1}
+    >
+        {isFullscreen ? (
+            // Fullscreen mode - only game canvas centered on black background
+            <div className="relative" style={{ width: PREVIEW_WIDTH * 4, height: PREVIEW_HEIGHT * 4 }}>
+                <CRTShaderOverlay enabled={isFullscreen} config={crtConfig}>
+                    <canvas
+                        ref={canvasRef}
+                        width={PREVIEW_WIDTH}
+                        height={PREVIEW_HEIGHT}
+                        className={`${isPositioningMode ? 'cursor-crosshair' : ''}`}
+                        style={{
+                            width: PREVIEW_WIDTH * 4,
+                            height: PREVIEW_HEIGHT * 4,
+                            imageRendering: 'pixelated',
+                            backgroundColor: canvasBackgroundColor,
+                            cursor: computedCanvasCursor
+                        }}
+                        onClick={handleCanvasClick}
+                        onMouseMove={handleCanvasMouseMove}
+                        onMouseLeave={() => setHoverExitDirection(null)}
+                    />
+                </CRTShaderOverlay>
+                {(gameGlobalVariables as any)?.Ammo !== undefined && (
+                    <div key={hudVersion}
+                        className="absolute text-white bg-black bg-opacity-50 px-2 py-1 rounded pixel-font"
+                        style={{ top: 8, left: 8, fontSize: 16 }}
+                    >
+                        {`Ammo: ${(() => { const v = (gameGlobalVariables as any).Ammo; const n = Number(v); return (!Number.isNaN(n) && n < 0) ? '8' : String(v); })()}`}
+                    </div>
+                )}
+                {showEntityCount && currentNode?.type === 'WorldLink' && (
+                    <div
+                        className="absolute text-white bg-black bg-opacity-50 px-2 py-1 rounded pixel-font"
+                        style={{ top: 8, right: 8, fontSize: 16 }}
+                    >
+                        {`Entities: ${visibleEntityCount}`}
+                    </div>
+                )}
+                {cursorAsset && subMenuNode && (() => {
+                    const expandedOpts = expandMenuOptions(subMenuNode);
+                    const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
+                    const scale = 4;
+                    return (
+                        <img
+                            src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
+                            alt="cursor"
+                            className="absolute pointer-events-none"
+                            style={{
+                                left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(selectedText, 1).width) / 2 - 16) * scale,
+                                top: ((80 + selectedOptionIndex * 12) - 4) * scale,
+                                imageRendering: 'pixelated',
+                                width: (cursorAsset.data as Sprite).size.width * scale,
+                                height: (cursorAsset.data as Sprite).size.height * scale,
+                            }}
+                        />
+                    );
+                })()}
+            </div>
+        ) : (
+            // Normal mode - full modal with controls
+            <div
+                className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
+                onClick={e => e.stopPropagation()}
+            >
+                <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Game Flow Preview</h2>
+                <p className="text-xs text-msx-textsecondary mb-2">Use Arrows, Enter/Space, and Escape to navigate.</p>
+                <div className="relative" style={{ width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}>
+                    <CRTShaderOverlay enabled={false} config={crtConfig}>
                         <canvas
                             ref={canvasRef}
                             width={PREVIEW_WIDTH}
                             height={PREVIEW_HEIGHT}
-                            className={`${isPositioningMode ? 'cursor-crosshair' : ''}`}
+                            className={`border-2 border-msx-border ${isPositioningMode ? 'cursor-crosshair' : ''}`}
                             style={{
-                                width: PREVIEW_WIDTH * 4,
-                                height: PREVIEW_HEIGHT * 4,
+                                width: PREVIEW_WIDTH * 2,
+                                height: PREVIEW_HEIGHT * 2,
                                 imageRendering: 'pixelated',
                                 backgroundColor: canvasBackgroundColor,
                                 cursor: computedCanvasCursor
@@ -5932,16 +6052,16 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     </CRTShaderOverlay>
                     {(gameGlobalVariables as any)?.Ammo !== undefined && (
                         <div key={hudVersion}
-                            className="absolute text-white bg-black bg-opacity-50 px-2 py-1 rounded pixel-font"
-                            style={{ top: 8, left: 8, fontSize: 16 }}
+                            className="absolute text-white bg-black bg-opacity-50 px-2 py-0.5 rounded pixel-font"
+                            style={{ top: 4, left: 4, fontSize: 12 }}
                         >
                             {`Ammo: ${(() => { const v = (gameGlobalVariables as any).Ammo; const n = Number(v); return (!Number.isNaN(n) && n < 0) ? '8' : String(v); })()}`}
                         </div>
                     )}
                     {showEntityCount && currentNode?.type === 'WorldLink' && (
                         <div
-                            className="absolute text-white bg-black bg-opacity-50 px-2 py-1 rounded pixel-font"
-                            style={{ top: 8, right: 8, fontSize: 16 }}
+                            className="absolute text-white bg-black bg-opacity-50 px-2 py-0.5 rounded pixel-font"
+                            style={{ top: 4, right: 4, fontSize: 12 }}
                         >
                             {`Entities: ${visibleEntityCount}`}
                         </div>
@@ -5949,7 +6069,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     {cursorAsset && subMenuNode && (() => {
                         const expandedOpts = expandMenuOptions(subMenuNode);
                         const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
-                        const scale = 4;
+                        const scale = 2;
                         return (
                             <img
                                 src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
@@ -5965,178 +6085,115 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             />
                         );
                     })()}
+                    {currentScreenMap && !isPlayMode && (
+                        <>
+                            {northExits.map((conn, index) => (
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('north', index, northExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                    <ArrowUpIcon className="w-6 h-6" />
+                                </button>
+                            ))}
+                            {southExits.map((conn, index) => (
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('south', index, southExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                    <ArrowDownIcon className="w-6 h-6" />
+                                </button>
+                            ))}
+                            {westExits.map((conn, index) => (
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('west', index, westExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                    <ArrowLeftIcon className="w-6 h-6" />
+                                </button>
+                            ))}
+                            {eastExits.map((conn, index) => (
+                                <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('east', index, eastExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
+                                    <ArrowRightIcon className="w-6 h-6" />
+                                </button>
+                            ))}
+                        </>
+                    )}
                 </div>
-            ) : (
-                // Normal mode - full modal with controls
-                <div
-                    className="bg-msx-panelbg p-4 sm:p-6 rounded-lg shadow-xl animate-slideIn font-sans flex flex-col items-center"
-                    onClick={e => e.stopPropagation()}
-                >
-                    <h2 className="text-md sm:text-lg text-msx-highlight mb-3 sm:mb-4 pixel-font">Game Flow Preview</h2>
-                    <p className="text-xs text-msx-textsecondary mb-2">Use Arrows, Enter/Space, and Escape to navigate.</p>
-                    <div className="relative" style={{ width: PREVIEW_WIDTH * 2, height: PREVIEW_HEIGHT * 2 }}>
-                        <CRTShaderOverlay enabled={false} config={crtConfig}>
-                            <canvas
-                                ref={canvasRef}
-                                width={PREVIEW_WIDTH}
-                                height={PREVIEW_HEIGHT}
-                                className={`border-2 border-msx-border ${isPositioningMode ? 'cursor-crosshair' : ''}`}
-                                style={{
-                                    width: PREVIEW_WIDTH * 2,
-                                    height: PREVIEW_HEIGHT * 2,
-                                    imageRendering: 'pixelated',
-                                    backgroundColor: canvasBackgroundColor,
-                                    cursor: computedCanvasCursor
-                                }}
-                                onClick={handleCanvasClick}
-                                onMouseMove={handleCanvasMouseMove}
-                                onMouseLeave={() => setHoverExitDirection(null)}
-                            />
-                        </CRTShaderOverlay>
-                        {(gameGlobalVariables as any)?.Ammo !== undefined && (
-                            <div key={hudVersion}
-                                className="absolute text-white bg-black bg-opacity-50 px-2 py-0.5 rounded pixel-font"
-                                style={{ top: 4, left: 4, fontSize: 12 }}
-                            >
-                                {`Ammo: ${(() => { const v = (gameGlobalVariables as any).Ammo; const n = Number(v); return (!Number.isNaN(n) && n < 0) ? '8' : String(v); })()}`}
-                            </div>
-                        )}
-                        {showEntityCount && currentNode?.type === 'WorldLink' && (
-                            <div
-                                className="absolute text-white bg-black bg-opacity-50 px-2 py-0.5 rounded pixel-font"
-                                style={{ top: 4, right: 4, fontSize: 12 }}
-                            >
-                                {`Entities: ${visibleEntityCount}`}
-                            </div>
-                        )}
-                        {cursorAsset && subMenuNode && (() => {
-                            const expandedOpts = expandMenuOptions(subMenuNode);
-                            const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
-                            const scale = 2;
-                            return (
-                                <img
-                                    src={createSpriteDataURL((cursorAsset.data as Sprite).frames[0].data, (cursorAsset.data as Sprite).size.width, (cursorAsset.data as Sprite).size.height)}
-                                    alt="cursor"
-                                    className="absolute pointer-events-none"
-                                    style={{
-                                        left: ((PREVIEW_WIDTH - getTextDimensionsMSX1(selectedText, 1).width) / 2 - 16) * scale,
-                                        top: ((80 + selectedOptionIndex * 12) - 4) * scale,
-                                        imageRendering: 'pixelated',
-                                        width: (cursorAsset.data as Sprite).size.width * scale,
-                                        height: (cursorAsset.data as Sprite).size.height * scale,
-                                    }}
-                                />
-                            );
-                        })()}
-                        {currentScreenMap && !isPlayMode && (
-                            <>
-                                {northExits.map((conn, index) => (
-                                    <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('north', index, northExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
-                                        <ArrowUpIcon className="w-6 h-6" />
-                                    </button>
-                                ))}
-                                {southExits.map((conn, index) => (
-                                    <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('south', index, southExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
-                                        <ArrowDownIcon className="w-6 h-6" />
-                                    </button>
-                                ))}
-                                {westExits.map((conn, index) => (
-                                    <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('west', index, westExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
-                                        <ArrowLeftIcon className="w-6 h-6" />
-                                    </button>
-                                ))}
-                                {eastExits.map((conn, index) => (
-                                    <button key={`${conn.id}-${index}`} onClick={() => handleScreenTransition(conn.targetNodeId)} style={getButtonStyle('east', index, eastExits.length)} className="absolute bg-black bg-opacity-50 text-white p-1 rounded-full">
-                                        <ArrowRightIcon className="w-6 h-6" />
-                                    </button>
-                                ))}
-                            </>
-                        )}
-                    </div>
-                    <div className="flex items-center mt-4">
-                        {!isPlayMode && (
-                            <>
-                                <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
-                                {isDynamic && currentNode?.type === 'WorldLink' && (
-                                    <>
-                                        <Button onClick={() => setShowHitboxDebug(!showHitboxDebug)} variant={showHitboxDebug ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                            Hitbox Debug: {showHitboxDebug ? 'On' : 'Off'}
-                                        </Button>
-                                        <Button onClick={() => setShowTileHitboxes(!showTileHitboxes)} variant={showTileHitboxes ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                            Hitbox Tiles: {showTileHitboxes ? 'On' : 'Off'}
-                                        </Button>
-                                        <Button onClick={() => setShowEntityCount(!showEntityCount)} variant={showEntityCount ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                            Entities: {showEntityCount ? visibleEntityCount : 'Off'}
-                                        </Button>
-                                        <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
-                                            Position Player: {isPositioningMode ? 'On' : 'Off'}
-                                        </Button>
-                                        {/* Carry offset is now configured via comp_carry on the Player entity */}
-                                    </>
-                                )}
-                                {currentNode?.type === 'WorldLink' && (() => {
-                                    const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                                    return conn ? (
-                                        <Button onClick={() => {
-                                            let targetNodeId = conn.to.nodeId;
-                                            let targetNode = nodes.find(n => n.id === targetNodeId);
-                                            while (targetNode && targetNode.type === 'Waypoint') {
-                                                const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
-                                                if (nextConn) {
-                                                    targetNodeId = nextConn.to.nodeId;
-                                                    targetNode = nodes.find(n => n.id === targetNodeId);
-                                                } else {
-                                                    break;
-                                                }
+                <div className="flex items-center mt-4">
+                    {!isPlayMode && (
+                        <>
+                            <Button onClick={() => setIsDynamic(!isDynamic)} variant={isDynamic ? 'secondary' : 'ghost'} size="md" className="mr-4">Dynamic: {isDynamic ? 'On' : 'Off'}</Button>
+                            {isDynamic && currentNode?.type === 'WorldLink' && (
+                                <>
+                                    <Button onClick={() => setShowHitboxDebug(!showHitboxDebug)} variant={showHitboxDebug ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        Hitbox Debug: {showHitboxDebug ? 'On' : 'Off'}
+                                    </Button>
+                                    <Button onClick={() => setShowTileHitboxes(!showTileHitboxes)} variant={showTileHitboxes ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        Hitbox Tiles: {showTileHitboxes ? 'On' : 'Off'}
+                                    </Button>
+                                    <Button onClick={() => setShowEntityCount(!showEntityCount)} variant={showEntityCount ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        Entities: {showEntityCount ? visibleEntityCount : 'Off'}
+                                    </Button>
+                                    <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        Position Player: {isPositioningMode ? 'On' : 'Off'}
+                                    </Button>
+                                    {/* Carry offset is now configured via comp_carry on the Player entity */}
+                                </>
+                            )}
+                            {currentNode?.type === 'WorldLink' && (() => {
+                                const conn = connections.find(c => c.from.nodeId === currentNode.id);
+                                return conn ? (
+                                    <Button onClick={() => {
+                                        let targetNodeId = conn.to.nodeId;
+                                        let targetNode = nodes.find(n => n.id === targetNodeId);
+                                        while (targetNode && targetNode.type === 'Waypoint') {
+                                            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+                                            if (nextConn) {
+                                                targetNodeId = nextConn.to.nodeId;
+                                                targetNode = nodes.find(n => n.id === targetNodeId);
+                                            } else {
+                                                break;
                                             }
-                                            setNavigationStack(prev => [...prev, currentNode.id]);
-                                            setCurrentNodeId(targetNodeId);
-                                            setSelectedOptionIndex(0);
-                                            setCurrentScreenMap(null);
-                                            setCurrentWorldMapGraph(null);
-                                        }} variant="secondary" size="md" className="mr-4">Exit World</Button>
-                                    ) : null;
-                                })()}
-                            </>
-                        )}
-                        {isPlayMode && (
-                            <>
-                                <Button
-                                    onClick={() => setIsFullscreen(!isFullscreen)}
-                                    variant="secondary"
-                                    size="md"
-                                    icon={<ArrowsPointingOutIcon />}
-                                    className="mr-4"
-                                >
-                                    {isFullscreen ? 'Normal Size' : 'Full Size'}
-                                </Button>
-                                <Button
-                                    onClick={() => setIsCrtConfigOpen(true)}
-                                    variant="ghost"
-                                    size="md"
-                                    className="mr-4"
-                                >
-                                    CRT Config
-                                </Button>
-                                {/* Carry offset is now configured via comp_carry on the Player entity */}
-                            </>
-                        )}
-                        <Button onClick={onClose} variant="primary" size="md">Close</Button>
-                    </div>
+                                        }
+                                        setNavigationStack(prev => [...prev, currentNode.id]);
+                                        setCurrentNodeId(targetNodeId);
+                                        setSelectedOptionIndex(0);
+                                        setCurrentScreenMap(null);
+                                        setCurrentWorldMapGraph(null);
+                                    }} variant="secondary" size="md" className="mr-4">Exit World</Button>
+                                ) : null;
+                            })()}
+                        </>
+                    )}
+                    {isPlayMode && (
+                        <>
+                            <Button
+                                onClick={() => setIsFullscreen(!isFullscreen)}
+                                variant="secondary"
+                                size="md"
+                                icon={<ArrowsPointingOutIcon />}
+                                className="mr-4"
+                            >
+                                {isFullscreen ? 'Normal Size' : 'Full Size'}
+                            </Button>
+                            <Button
+                                onClick={() => setIsCrtConfigOpen(true)}
+                                variant="ghost"
+                                size="md"
+                                className="mr-4"
+                            >
+                                CRT Config
+                            </Button>
+                            {/* Carry offset is now configured via comp_carry on the Player entity */}
+                        </>
+                    )}
+                    <Button onClick={onClose} variant="primary" size="md">Close</Button>
                 </div>
-            )}
-        </div>
-    );
+            </div>
+        )}
+    </div>
+);
 
-    return (
-        <>
-            {createPortal(modalContent, document.body)}
-            <CRTConfigModal
-                isOpen={isCrtConfigOpen}
-                onClose={() => setIsCrtConfigOpen(false)}
-                currentConfig={crtConfig}
-                onSave={handleSaveCrtConfig}
-            />
-        </>
-    );
+return (
+    <>
+        {createPortal(modalContent, document.body)}
+        <CRTConfigModal
+            isOpen={isCrtConfigOpen}
+            onClose={() => setIsCrtConfigOpen(false)}
+            currentConfig={crtConfig}
+            onSave={handleSaveCrtConfig}
+        />
+    </>
+);
 };

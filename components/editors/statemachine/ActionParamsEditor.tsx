@@ -743,6 +743,79 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         );
       }
 
+      case ActionTypes.ADD_VARIABLES:
+      case ActionTypes.SUBTRACT_VARIABLES:
+      case ActionTypes.MULTIPLY_VARIABLES:
+      case ActionTypes.DIVIDE_VARIABLES:
+      case ActionTypes.MODULO_VARIABLES: {
+        const operand1Type = action.params.operand1Type || 'constant';
+        const operand2Type = action.params.operand2Type || 'constant';
+        const getOpSymbol = () => {
+          if (action.type === ActionTypes.ADD_VARIABLES) return '+';
+          if (action.type === ActionTypes.SUBTRACT_VARIABLES) return '-';
+          if (action.type === ActionTypes.MULTIPLY_VARIABLES) return '×';
+          if (action.type === ActionTypes.DIVIDE_VARIABLES) return '÷';
+          return '%';
+        };
+        const getOpDesc = () => {
+          if (action.type === ActionTypes.ADD_VARIABLES) return '🧮 Adds: target = op1 + op2';
+          if (action.type === ActionTypes.SUBTRACT_VARIABLES) return '➖ Subtracts: target = op1 - op2';
+          if (action.type === ActionTypes.MULTIPLY_VARIABLES) return '✖️ Multiplies: target = op1 × op2';
+          if (action.type === ActionTypes.DIVIDE_VARIABLES) return '➗ Divides: target = op1 ÷ op2 (0 if divisor is 0)';
+          return '📐 Modulo: target = op1 % op2 (0 if divisor is 0)';
+        };
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Target</label>
+              <select value={action.params.targetVariable || (allVariables[0]?.name || '')} onChange={(e) => handleParamChange('targetVariable', e.target.value)} className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded">
+                {allVariables.map((v) => (<option key={v.name} value={v.name}>{`${v.category} -> ${v.name}`}</option>))}
+              </select>
+            </div>
+            <div className="border-t border-msx-border pt-2 mt-2">
+              <div className="text-xs text-gray-300 mb-1">Operand 1:</div>
+              <div className="flex items-center space-x-2 mb-2">
+                <label className="flex items-center space-x-1 cursor-pointer"><input type="radio" checked={operand1Type === 'constant'} onChange={() => handleParamChange('operand1Type', 'constant')} className="form-radio h-3 w-3 text-msx-primary" /><span className="text-xs text-gray-400">Constant</span></label>
+                <label className="flex items-center space-x-1 cursor-pointer"><input type="radio" checked={operand1Type === 'variable'} onChange={() => handleParamChange('operand1Type', 'variable')} className="form-radio h-3 w-3 text-msx-primary" /><span className="text-xs text-gray-400">Variable</span></label>
+              </div>
+              {operand1Type === 'constant' ? (<ParamInput label="Value" type="number" value={action.params.operand1Value ?? 0} onChange={(e) => { const val = e.target.value; const p = val === '' ? 0 : parseFloat(val); handleParamChange('operand1Value', isNaN(p) ? 0 : p); }} />) : (<div className="flex items-center space-x-2"><label className="text-xs text-gray-400 w-16">Variable</label><select value={action.params.operand1Variable || (allVariables[0]?.name || '')} onChange={(e) => handleParamChange('operand1Variable', e.target.value)} className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded">{allVariables.map((v) => (<option key={v.name} value={v.name}>{`${v.category} -> ${v.name}`}</option>))}</select></div>)}
+            </div>
+            <div className="border-t border-msx-border pt-2 mt-2">
+              <div className="text-xs text-gray-300 mb-1">Operand 2:</div>
+              <div className="flex items-center space-x-2 mb-2">
+                <label className="flex items-center space-x-1 cursor-pointer"><input type="radio" checked={operand2Type === 'constant'} onChange={() => handleParamChange('operand2Type', 'constant')} className="form-radio h-3 w-3 text-msx-primary" /><span className="text-xs text-gray-400">Constant</span></label>
+                <label className="flex items-center space-x-1 cursor-pointer"><input type="radio" checked={operand2Type === 'variable'} onChange={() => handleParamChange('operand2Type', 'variable')} className="form-radio h-3 w-3 text-msx-primary" /><span className="text-xs text-gray-400">Variable</span></label>
+              </div>
+              {operand2Type === 'constant' ? (<ParamInput label="Value" type="number" value={action.params.operand2Value ?? 0} onChange={(e) => { const val = e.target.value; const p = val === '' ? 0 : parseFloat(val); handleParamChange('operand2Value', isNaN(p) ? 0 : p); }} />) : (<div className="flex items-center space-x-2"><label className="text-xs text-gray-400 w-16">Variable</label><select value={action.params.operand2Variable || (allVariables[0]?.name || '')} onChange={(e) => handleParamChange('operand2Variable', e.target.value)} className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded">{allVariables.map((v) => (<option key={v.name} value={v.name}>{`${v.category} -> ${v.name}`}</option>))}</select></div>)}
+            </div>
+            <div className="text-xs text-blue-400 italic p-2 bg-black bg-opacity-30 rounded border border-blue-600 mt-3">{getOpDesc()}<br />Formula: {action.params.targetVariable || 'target'} = {operand1Type === 'constant' ? (action.params.operand1Value ?? 0) : (action.params.operand1Variable || 'var1')} {getOpSymbol()} {operand2Type === 'constant' ? (action.params.operand2Value ?? 0) : (action.params.operand2Variable || 'var2')}</div>
+          </div>
+        );
+      }
+
+      case ActionTypes.ASSIGN_VARIABLE: {
+        const sourceType = action.params.sourceType || 'constant';
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Target</label>
+              <select value={action.params.targetVariable || (allVariables[0]?.name || '')} onChange={(e) => handleParamChange('targetVariable', e.target.value)} className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded">
+                {allVariables.map((v) => (<option key={v.name} value={v.name}>{`${v.category} -> ${v.name}`}</option>))}
+              </select>
+            </div>
+            <div className="border-t border-msx-border pt-2 mt-2">
+              <div className="text-xs text-gray-300 mb-1">Source:</div>
+              <div className="flex items-center space-x-2 mb-2">
+                <label className="flex items-center space-x-1 cursor-pointer"><input type="radio" checked={sourceType === 'constant'} onChange={() => handleParamChange('sourceType', 'constant')} className="form-radio h-3 w-3 text-msx-primary" /><span className="text-xs text-gray-400">Constant</span></label>
+                <label className="flex items-center space-x-1 cursor-pointer"><input type="radio" checked={sourceType === 'variable'} onChange={() => handleParamChange('sourceType', 'variable')} className="form-radio h-3 w-3 text-msx-primary" /><span className="text-xs text-gray-400">Variable</span></label>
+              </div>
+              {sourceType === 'constant' ? (<ParamInput label="Value" type="number" value={action.params.sourceValue ?? 0} onChange={(e) => { const val = e.target.value; const p = val === '' ? 0 : parseFloat(val); handleParamChange('sourceValue', isNaN(p) ? 0 : p); }} />) : (<div className="flex items-center space-x-2"><label className="text-xs text-gray-400 w-16">Variable</label><select value={action.params.sourceVariable || (allVariables[0]?.name || '')} onChange={(e) => handleParamChange('sourceVariable', e.target.value)} className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded">{allVariables.map((v) => (<option key={v.name} value={v.name}>{`${v.category} -> ${v.name}`}</option>))}</select></div>)}
+            </div>
+            <div className="text-xs text-blue-400 italic p-2 bg-black bg-opacity-30 rounded border border-blue-600 mt-3">📝 Assigns: {action.params.targetVariable || 'target'} = {sourceType === 'constant' ? (action.params.sourceValue ?? 0) : (action.params.sourceVariable || 'source')}</div>
+          </div>
+        );
+      }
+
       default:
         return <div className="text-xs text-gray-500">No parameters for this action.</div>;
     }

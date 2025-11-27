@@ -175,6 +175,18 @@ export const ActionTypes = {
   BREAK_TILE: 'BREAK_TILE',
   REPLACE_TILE: 'REPLACE_TILE',
 
+  // Math
+  RND: 'RND',
+  POINT_AT: 'POINT_AT',
+
+  // Mathematical Operations
+  ADD_VARIABLES: 'ADD_VARIABLES',
+  SUBTRACT_VARIABLES: 'SUBTRACT_VARIABLES',
+  MULTIPLY_VARIABLES: 'MULTIPLY_VARIABLES',
+  DIVIDE_VARIABLES: 'DIVIDE_VARIABLES',
+  MODULO_VARIABLES: 'MODULO_VARIABLES',
+  ASSIGN_VARIABLE: 'ASSIGN_VARIABLE',
+
 } as const;
 
 export type ActionType = typeof ActionTypes[keyof typeof ActionTypes];
