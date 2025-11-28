@@ -1304,11 +1304,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     break;
                 }
 
-                case 'SET_POSITION':
+                case 'SET_POSITION': {
                     if (action.params.x !== undefined) entity.x = Number(action.params.x);
                     if (action.params.y !== undefined) entity.y = Number(action.params.y);
                     break;
+                }
 
+                case 'INCREMENT_VARIABLE': {
+                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
                     // Coerce amount to number (supports numeric strings)
                     const incrementAmount = (() => {
                         const raw = action.params.amount ?? 1;
@@ -1331,34 +1335,34 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         });
                     }
                     break;
-            }
+                }
 
                 case 'DECREMENT_VARIABLE': {
-    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
-    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
-    // Coerce amount to number (supports numeric strings)
-    const decrementAmount = (() => {
-        const raw = action.params.amount ?? 1;
-        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
-        return Number.isNaN(n) ? 1 : n;
-    })();
-    if (resolvedVarName) {
-        updateGameGlobalVariables(prev => {
-            const raw = (prev as any)[resolvedVarName];
-            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
-            const currentValue = Number.isNaN(curr) ? 0 : curr;
-            const newValue = currentValue - decrementAmount;
-            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
-                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch { }
-            }
-            return {
-                ...prev,
-                [resolvedVarName]: newValue
-            };
-        });
-    }
-    break;
-}
+                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
+                    // Coerce amount to number (supports numeric strings)
+                    const decrementAmount = (() => {
+                        const raw = action.params.amount ?? 1;
+                        const n = Number(typeof raw === 'string' ? raw.trim() : raw);
+                        return Number.isNaN(n) ? 1 : n;
+                    })();
+                    if (resolvedVarName) {
+                        updateGameGlobalVariables(prev => {
+                            const raw = (prev as any)[resolvedVarName];
+                            const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
+                            const currentValue = Number.isNaN(curr) ? 0 : curr;
+                            const newValue = currentValue - decrementAmount;
+                            if (resolvedVarName.toLowerCase() === 'ammo' && newValue < currentValue) {
+                                try { console.log(`[Ammo] ${currentValue} -> ${newValue} (DECREMENT_VARIABLE)`); } catch { }
+                            }
+                            return {
+                                ...prev,
+                                [resolvedVarName]: newValue
+                            };
+                        });
+                    }
+                    break;
+                }
 
                 case 'ADD_VARIABLES':
                 case 'SUBTRACT_VARIABLES':
