@@ -12,6 +12,7 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
  *                  12=DarkGreen, 13=Magenta, 14=Gray, 15=White
  */
 function hexToMSXColor(hex: string): number {
+  if (!hex) return 15; // Default white
   // Remove # if present
   hex = hex.replace('#', '');
 
@@ -59,7 +60,6 @@ export function generateMenusFile(analysis: ProjectAnalysis): string {
 ; ==================================================================
 
 ; No menus detected in project - menu system not needed
-; This saves ~620 lines of unused menu management code
 
 ; Minimal stub functions for compatibility
 init_menus:
@@ -69,6 +69,21 @@ show_main_menu:
     ret
 
 update_menu_state:
+    ret
+
+; Generic wait function (used by other systems)
+wait_for_fire:
+    call GTTRIG
+    or a
+    jr nz, .wait_release
+.wait_press:
+    call GTTRIG
+    or a
+    jr z, .wait_press
+.wait_release:
+    call GTTRIG
+    or a
+    jr nz, .wait_release
     ret
 
 ; ==================================================================
@@ -104,29 +119,53 @@ update_menu_state:
 ; MENU FUNCTIONS
 ; ==================================================================
 
+update_menu_system:
+    ; Update current active menu
+    ld a, (current_menu_id)
 `;
 
-    const menuNodes2 = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
-    menuNodes2.forEach((menu: any) => {
+    // Dispatcher for update loop
+    menuNodes.forEach((menu: any, index) => {
+      const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+      const menuId = menu.id.replace(/[^a-zA-Z0-9]/g, '_');
+      code += `    cp MENU_${menuName}_ID
+    jp z, handle_menu_${menuId}
+`;
+    });
+    code += `    ret
+
+`;
+
+    menuNodes.forEach((menu: any, index) => {
       const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
       const menuId = menu.id.replace(/[^a-zA-Z0-9]/g, '_');
 
       // Get background and border colors (MSX Screen 2 compatible)
       const bgColor = menu.appearance?.colors?.background || '#000000';
       const borderColor = menu.appearance?.colors?.border || '#FFFFFF';
+      const textColor = menu.appearance?.colors?.text || '#FFFFFF';
+      const selectedColor = menu.appearance?.colors?.highlight || '#FFFF00';
 
       // Convert hex colors to MSX color codes (0-15)
       const bgColorMSX = hexToMSXColor(bgColor);
       const borderColorMSX = hexToMSXColor(borderColor);
 
+      const options = menu.options || [];
+
       code += `show_menu_${menuId}:
     ; Display ${menu.title || menu.id} menu
+    ; Set current menu ID
+    ld a, MENU_${menuName}_ID
+    ld (current_menu_id), a
+    xor a
+    ld (current_menu_item), a
+
     ; Set background color using VDP
-    ld a, 7                     ; VDP Register 7 (text/background color)
-    ld b, ${bgColorMSX * 16}    ; Background color in high nibble
+    ld c, 7                     ; VDP Register 7 (Backdrop color in low nibble)
+    ld b, ${bgColorMSX}         ; Background color (0-15)
     call WRTVDP
 
-    ; Set border color
+    ; Set border color system vars (for consistency)
     ld a, ${borderColorMSX}
     ld (FORCLR), a
     ld (BAKCLR), a
@@ -135,25 +174,176 @@ update_menu_state:
     ; Clear screen with background color
     call cls
 
+    ; Initialize Font
+    call init_font_system
+
     ; Display menu title
     ld hl, menu_${menuId}_title
     ld de, NAMETBL + (5 * 32) + 10
     call print_string_screen2
 
     ; Display menu options
-    ; TODO: Add option rendering logic here
+    call draw_menu_${menuId}_items
 
     ret
+
+draw_menu_${menuId}_items:
+    ; Draw all items for this menu
+`;
+    options.forEach((opt: any, optIndex: number) => {
+        const yPos = 8 + (optIndex * 2); // Start at row 8, spacing 2
+        code += `    ; Option ${optIndex}: ${opt.text || 'Option'}
+    ld a, (current_menu_item)
+    cp ${optIndex}
+    jr z, .draw_sel_${optIndex}
+
+    ; Draw normal
+    ld hl, menu_${menuId}_opt_${optIndex}
+    ld de, NAMETBL + (${yPos} * 32) + 10
+    call print_string_screen2
+    jr .next_${optIndex}
+
+.draw_sel_${optIndex}:
+    ; Draw selected (with cursor)
+    ld hl, menu_cursor_str
+    ld de, NAMETBL + (${yPos} * 32) + 8
+    call print_string_screen2
+
+    ld hl, menu_${menuId}_opt_${optIndex}
+    ld de, NAMETBL + (${yPos} * 32) + 10
+    call print_string_screen2
+
+.next_${optIndex}:
+`;
+    });
+
+    code += `    ret
 
 menu_${menuId}_title:
     db "${(menu.title || 'Menu').replace(/"/g, '\\"')}", 0
 
+menu_cursor_str:
+    db ">", 0
+
+`;
+    // Define option strings
+    options.forEach((opt: any, optIndex: number) => {
+        code += `menu_${menuId}_opt_${optIndex}:
+    db "${(opt.text || 'Option').toUpperCase().replace(/"/g, '\\"')}", 0
+`;
+    });
+
+    code += `
 handle_menu_${menuId}:
     ; Handle ${menu.title || menu.id} menu input
     call GTSTCK
-    ; TODO: Implement input handling
+    ld b, a
+
+    ; Check UP
+    cp 1
+    jr z, .menu_up
+
+    ; Check DOWN
+    cp 5
+    jr z, .menu_down
+
+    ; Check Fire/Space
+    ld a, 0
+    call GTTRIG
+    or a
+    jr nz, .menu_select
+
+    ; Check Space key directly if GTTRIG fails (row 8 bit 0)
+    in a, (#AA)
+    and #F0
+    or 8
+    out (#AA), a
+    in a, (#A9)
+    bit 0, a
+    jr z, .menu_select
+
     ret
 
+.menu_up:
+    ; Debounce check needed here normally, but for now simple
+    ld a, (frame_counter)
+    and 7
+    ret nz
+
+    ld a, (current_menu_item)
+    or a
+    ret z
+    dec a
+    ld (current_menu_item), a
+    call draw_menu_${menuId}_items
+    ret
+
+.menu_down:
+    ; Debounce
+    ld a, (frame_counter)
+    and 7
+    ret nz
+
+    ld a, (current_menu_item)
+    cp ${options.length - 1}
+    ret nc
+    inc a
+    ld (current_menu_item), a
+    call draw_menu_${menuId}_items
+    ret
+
+.menu_select:
+    ; Handle selection based on current_menu_item
+    ld a, (current_menu_item)
+`;
+    options.forEach((opt: any, optIndex: number) => {
+        // Find connection for this option
+        // The GameFlow generator uses connection data to determine next node.
+        // Here we need to map option index to target node.
+        // We will assume that the gameFlow connections from this node with sourceId matching option index
+        // (or order) are what we want.
+
+        // Find connection from this node with sourceHandle/sourceId corresponding to this option
+        // In Mideas GameFlow, SubMenu outputs are dynamic based on options.
+        // Usually sourceHandle is 'option-0', 'option-1', etc.
+
+        const connection = analysis.gameFlow.connections.find((c: any) =>
+            (c.from === menu.id || c.from.nodeId === menu.id) &&
+            (c.fromPort === `option-${optIndex}` || c.sourceHandle === `option-${optIndex}`)
+        );
+
+        if (connection) {
+            const targetNodeId = connection.to.nodeId || connection.to;
+            const targetLabel = `gameflow_node_${targetNodeId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+            code += `    cp ${optIndex}
+    jp z, .go_opt_${optIndex}
+`;
+        }
+    });
+
+    code += `    ret
+
+`;
+
+    // Generate jump targets
+    options.forEach((opt: any, optIndex: number) => {
+        const connection = analysis.gameFlow.connections.find((c: any) =>
+            (c.from === menu.id || c.from.nodeId === menu.id) &&
+            (c.fromPort === `option-${optIndex}` || c.sourceHandle === `option-${optIndex}`)
+        );
+
+        if (connection) {
+            const targetNodeId = connection.to.nodeId || connection.to;
+            const targetLabel = `gameflow_node_${targetNodeId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            code += `.go_opt_${optIndex}:
+    ld hl, ${targetLabel}
+    jp execute_gameflow_node
+`;
+        }
+    });
+
+    code += `
 `;
     });
 
@@ -173,8 +363,8 @@ handle_menu_${menuId}:
       code += `show_text_${textId}:
     ; Display ${textNode.title || textNode.id} text
     ; Set background color using VDP
-    ld a, 7                     ; VDP Register 7 (text/background color)
-    ld b, ${bgColorMSX * 16}    ; Background color in high nibble
+    ld c, 7                     ; VDP Register 7
+    ld b, ${bgColorMSX}         ; Background color (0-15)
     call WRTVDP
 
     ; Set border color
@@ -185,6 +375,8 @@ handle_menu_${menuId}:
 
     ; Clear screen with background color
     call cls
+
+    call init_font_system
 
     ; Display text title
     ld hl, text_${textId}_title
@@ -208,149 +400,23 @@ text_${textId}_message:
 
 `;
     });
-  } else {
-    code += `; ==================================================================
-; DEFAULT MENU SYSTEM
-; ==================================================================
 
-; Menu constants
-MENU_MAIN_ID     EQU 0
-MENU_GAME_ID     EQU 1
-MENU_PAUSE_ID    EQU 2
-
-; Menu states
-MENU_ITEM_START  EQU 0
-MENU_ITEM_EXIT   EQU 1
-
-; Current menu variables
-current_menu     DS 1
-current_item     DS 1
-
-; ==================================================================
-; MENU FUNCTIONS
-; ==================================================================
-
-init_menus:
-    ; Initialize menu system
-    ld a, MENU_MAIN_ID
-    ld (current_menu), a
-    xor a
-    ld (current_item), a
-    ret
-
-show_main_menu:
-    ; Display main menu with custom font
-    call cls
-
-    ; Make sure custom font is loaded
-    call init_font_system
-
-    ; Print title using custom font
-    ld hl, txt_title
-    ld de, NAMETBL + (5 * 32) + 10  ; Row 5, column 10
-    call print_string_screen2        ; Use custom font print function
-
-    ; Print menu options using custom font
-    ld hl, txt_start
-    ld de, NAMETBL + (10 * 32) + 12
-    call print_string_screen2
-
-    ld hl, txt_exit
-    ld de, NAMETBL + (12 * 32) + 12
-    call print_string_screen2
-
-    ret
-
-handle_main_menu:
-    ; Handle main menu input
-    call GTSTCK     ; Get joystick input
-
-    ; Check for up/down movement
-    cp 1            ; Up
-    jp z, menu_up
-    cp 5            ; Down
-    jp z, menu_down
-
-    ; Check for selection (space or fire button)
+    // Add generic wait function (always included if hasMenus)
+    code += `wait_for_fire:
     call GTTRIG
     or a
-    jp nz, menu_select
-
-    ret
-
-menu_up:
-    ld a, (current_item)
+    jr nz, .wait_release
+.wait_press:
+    call GTTRIG
     or a
-    jp z, menu_up_end  ; Already at top
-    dec a
-    ld (current_item), a
-menu_up_end:
-    ret
-
-menu_down:
-    ld a, (current_item)
-    cp MENU_ITEM_EXIT
-    jp z, menu_down_end  ; Already at bottom
-    inc a
-    ld (current_item), a
-menu_down_end:
-    ret
-
-menu_select:
-    ld a, (current_item)
-    cp MENU_ITEM_START
-    jp z, start_game
-    cp MENU_ITEM_EXIT
-    jp z, exit_game
-    ret
-
-start_game:
-    ; Start the game
-    ld a, MENU_GAME_ID
-    ld (current_menu), a
-    ret
-
-exit_game:
-    ; Exit to BASIC
-    rst #00
-
-; ==================================================================
-; MENU TEXT DATA
-; ==================================================================
-
-txt_title:
-    db "GAME TITLE", 0
-
-txt_start:
-    db "START GAME", 0
-
-txt_exit:
-    db "EXIT", 0
-
-; ==================================================================
-; TEXT PRINTING FUNCTION
-; ==================================================================
-
-print_string:
-    ; Print null-terminated string
-    ; HL = source string, DE = VRAM destination
-print_loop:
-    ld a, (hl)
+    jr z, .wait_press
+.wait_release:
+    call GTTRIG
     or a
-    ret z           ; End of string
-
-    ; WRTVRM expects: A = data, HL = VRAM address
-    push hl         ; Save string pointer
-    push de         ; Save VRAM address
-    pop hl          ; HL = VRAM address (for WRTVRM)
-    call WRTVRM     ; Write character to VRAM
-    pop hl          ; Restore string pointer
-
-    inc hl          ; Next character in string
-    inc de          ; Next VRAM position
-    jp print_loop
-
+    jr nz, .wait_release
+    ret
 `;
+
   }
 
   code += `; ==================================================================

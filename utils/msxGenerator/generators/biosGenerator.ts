@@ -59,10 +59,11 @@ GRPPRT  EQU #0089        ; Print in graphic mode
 SETGRP  EQU #007E        ; Set graphic mode
 
 ; Memory Transfer
-LDIRVM  EQU #005C        ; Block transfer from CPU to VRAM
+LDIRVM  EQU #005C        ; Block transfer from CPU to VRAM (HL=RAM, DE=VRAM, BC=len)
 LDIRMV  EQU #0059        ; Block transfer from VRAM to CPU
 WRTVDP  EQU #0047        ; Write to VDP register
 WRTVRM  EQU #004D        ; Write data to VRAM (A=data, HL=address)
+FILVRM  EQU #0056        ; Fill VRAM with value (A=data, HL=address, BC=len)
 
 ; File I/O (Disk BIOS)
 DSKIO   EQU #004A        ; Disk I/O
@@ -92,9 +93,9 @@ VDP_R7  EQU 7            ; Text/border color
 ; System Variables
 HKEY    EQU #F3DB        ; Hook function key (system variable)
 CLIKSW  EQU #F3DC        ; Key click switch
-BAKCLR  EQU #F3E9        ; Background color
-BDRCLR  EQU #F3EA        ; Border color
-isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
+FORCLR  EQU #F3E9        ; Foreground color
+BAKCLR  EQU #F3EA        ; Background color
+BDRCLR  EQU #F3EB        ; Border color
 
 
 ; ==================================================================

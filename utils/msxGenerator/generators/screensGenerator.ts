@@ -59,6 +59,7 @@ load_screen_default:
     analysis.screenMaps.forEach((screen, index) => {
       const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
       code += `SCREEN_${screenName}_${index}_ID EQU ${index}
+SCREEN_${screenName}_${index}_SIZE EQU ${screen.width * screen.height}
 `;
     });
 

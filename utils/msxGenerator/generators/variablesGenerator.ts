@@ -39,6 +39,13 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `prev_flow_state     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous game flow state\n`;
   currentAddress++;
 
+  // Menu variables
+  code += `current_menu_id     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current menu ID\n`;
+  currentAddress++;
+
+  code += `current_menu_item   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current menu item index\n`;
+  currentAddress++;
+
   // Mideas Global Variables Dictionary (from project + defaults)
   code += `
 ; ==================================================================

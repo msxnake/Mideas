@@ -86,6 +86,10 @@ main_program:
     ld (current_flow_state), a
     ld (prev_flow_state), a
 
+    ; Start with main menu
+    ld a, FLOW_STATE_MAIN_MENU
+    ld (current_flow_state), a
+
     ; Load initial screen based on GameFlow (Critical for Paridad)
     call load_game_screen
 
@@ -122,6 +126,12 @@ update_current_state:
     call update_health_component    ; Health/Death checks
     call update_animation_component ; Sprite animations
     call update_sprite_component    ; Render sprites
+
+    ; Check flow state specific logic
+    ld a, (current_flow_state)
+    cp FLOW_STATE_MAIN_MENU
+    call z, update_menu_system
+
     ret
 
 render_frame:
@@ -178,20 +188,7 @@ ${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ? `
 execute_gameflow_node:
     ; Execute a single GameFlow node (matches Play mode execution)
     ; HL = pointer to node data structure
-
-    ; Get node type and execute appropriate handler
-    ld a, (hl)                    ; Load node type
-    cp NODE_TYPE_START
-    jp z, execute_start_node
-    cp NODE_TYPE_WORLDLINK
-    jp z, execute_world_link_node
-    cp NODE_TYPE_SCREEN
-    jp z, execute_screen_node
-    cp NODE_TYPE_MENU
-    jp z, execute_menu_node
-
-    ; Unknown node type - skip
-    ret
+    jp (hl)
 
 execute_start_node:
     ; Start node - typically just transitions to next node

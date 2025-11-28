@@ -77,12 +77,22 @@ ${nodeLabel}:
           break;
 
         case 'SubMenu':
+          const menuName = (node.title || node.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
           code += `
 ${nodeLabel}:
     ; SubMenu Node - "${node.title || 'Menu'}"
+
+    ; Set state to MENU
+    ld a, FLOW_STATE_MAIN_MENU
+    ld (current_flow_state), a
+
+    ; Initialize Font System
     call init_font_system
+
+    ; Show Menu
     call ${toRoutineLabel('show_menu_' + node.id)}
-    ; Wait for menu selection and transition to next node
+
+    ; The update loop (update_menu_system) will handle input and transitions
     ret
 `;
           break;
@@ -93,9 +103,27 @@ ${nodeLabel}:
     ; Text Node - "${node.title || 'Text'}"
     call init_font_system
     call ${toRoutineLabel('show_text_' + node.id)}
-    ; Wait for user input, then transition to next node
-    ret
+
+    ; Wait for user input (handled inside show_text for now or via state)
+    ; After text, find next node
+
 `;
+          // Find connection from Text node
+          const textConnection = gameFlow.connections?.find(
+            (c: any) => c.from?.nodeId === node.id || c.from === node.id
+          );
+
+          if (textConnection) {
+            const nextNodeId = textConnection.to?.nodeId || textConnection.to;
+            const nextNodeLabel = `gameflow_node_${nextNodeId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            code += `    ld hl, ${nextNodeLabel}
+    jp execute_gameflow_node
+`;
+          } else {
+             code += `    ret
+`;
+          }
+
           break;
 
         case 'Transition':
@@ -260,6 +288,40 @@ ${nodeLabel}:
             code += `    ret                      ; No connections, return\n`;
           }
           code += `if_then_else_skip:\n    ret\n`;
+          break;
+
+        case 'Screen':
+           // Screen node
+           // Need to transition to next node?
+           // The screen loading is synchronous. But GameFlow usually waits for input or timer.
+           // If it's a simple Screen node (like intro), maybe it waits for keypress?
+           // For now, let's assume it loads screen and transitions if there is a connection.
+
+           const screenConnection = gameFlow.connections?.find(
+            (c: any) => c.from?.nodeId === node.id || c.from === node.id
+          );
+
+          code += `
+${nodeLabel}:
+    ; Screen Node
+    call load_referenced_screen
+
+    ; If we have a connection, we probably should wait for input before proceeding
+    ; or maybe this is handled by a script or timer?
+    ; For now, if there is a connection, we wait for fire then proceed.
+`;
+          if (screenConnection) {
+              const nextNodeId = screenConnection.to?.nodeId || screenConnection.to;
+              const nextNodeLabel = `gameflow_node_${nextNodeId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+              code += `    call wait_for_fire
+    ld hl, ${nextNodeLabel}
+    jp execute_gameflow_node
+`;
+          } else {
+              code += `    ret
+`;
+          }
           break;
 
         default:
