@@ -2103,6 +2103,44 @@ break;
     break;
 }
 
+                case 'GET_RANDOM_ENTITY_POSITION': {
+    const templateId = action.params.templateId;
+    const targetVariableX = action.params.targetVariableX;
+    const targetVariableY = action.params.targetVariableY;
+
+    if (!templateId || !targetVariableX || !targetVariableY) {
+        console.warn('[GET_RANDOM_ENTITY_POSITION] Missing required parameters:', { templateId, targetVariableX, targetVariableY });
+        break;
+    }
+
+    // Filter entities by template
+    const matchingEntities = entitiesRef.current.filter(e =>
+        e.template.id === templateId && !e.markedForDestruction
+    );
+
+    if (matchingEntities.length === 0) {
+        console.warn(`[GET_RANDOM_ENTITY_POSITION] No entities found with template: ${templateId}`);
+        break;
+    }
+
+    // Select random entity
+    const randomEntity = matchingEntities[Math.floor(Math.random() * matchingEntities.length)];
+
+    // Normalize variable names
+    const resolvedVarX = normalizeVariableName(targetVariableX) ?? targetVariableX.trim();
+    const resolvedVarY = normalizeVariableName(targetVariableY) ?? targetVariableY.trim();
+
+    // Store position in global variables
+    updateGameGlobalVariables(prev => ({
+        ...prev,
+        [resolvedVarX]: Math.floor(randomEntity.x),
+        [resolvedVarY]: Math.floor(randomEntity.y)
+    }));
+
+    console.log(`🎲 GET_RANDOM_ENTITY_POSITION: Selected entity at (${Math.floor(randomEntity.x)}, ${Math.floor(randomEntity.y)}) from ${matchingEntities.length} candidates`);
+    break;
+}
+
                 default:
 break;
             }

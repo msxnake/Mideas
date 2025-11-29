@@ -816,6 +816,69 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
         );
       }
 
+      case ActionTypes.GET_RANDOM_ENTITY_POSITION: {
+        const selectedTemplateId = action.params.templateId || '';
+        const numericVars = allVariables.filter(v => isNumericType(v.type));
+
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <label className="text-xs text-gray-400 w-20">Template</label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => handleParamChange('templateId', e.target.value || undefined)}
+                className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+              >
+                <option value="">-- Select Entity Template --</option>
+                {mergedEntityTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="border-t border-msx-border pt-2 mt-2">
+              <div className="text-xs text-gray-300 mb-2">Store position in variables:</div>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-400 w-20">X Variable</label>
+                <select
+                  value={action.params.targetVariableX || (numericVars[0]?.name || '')}
+                  onChange={(e) => handleParamChange('targetVariableX', e.target.value)}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                >
+                  <option value="">-- Select Variable --</option>
+                  {numericVars.map((v) => (
+                    <option key={v.name} value={v.name}>
+                      {`${v.category} -> ${v.name}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center space-x-2 mt-2">
+                <label className="text-xs text-gray-400 w-20">Y Variable</label>
+                <select
+                  value={action.params.targetVariableY || (numericVars[0]?.name || '')}
+                  onChange={(e) => handleParamChange('targetVariableY', e.target.value)}
+                  className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                >
+                  <option value="">-- Select Variable --</option>
+                  {numericVars.map((v) => (
+                    <option key={v.name} value={v.name}>
+                      {`${v.category} -> ${v.name}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="text-xs text-blue-400 italic p-2 bg-black bg-opacity-30 rounded border border-blue-600 mt-3">
+              🎲 Selects a random entity with template "{selectedTemplateId || '(none)'}" and stores its position in X={action.params.targetVariableX || '(none)'}, Y={action.params.targetVariableY || '(none)'}
+            </div>
+          </div>
+        );
+      }
+
       default:
         return <div className="text-xs text-gray-500">No parameters for this action.</div>;
     }
