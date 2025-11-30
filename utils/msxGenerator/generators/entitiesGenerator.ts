@@ -93,6 +93,31 @@ init_entities:
     ld (hl), 0                 ; Set first byte to 0
     ldir                       ; Copy to rest of array
     
+    ; Initialize State Machine variables (Clear to 0)
+    ld hl, entity_sm_ptr_l
+    ld de, entity_sm_ptr_l+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_ptr_h
+    ld de, entity_sm_ptr_h+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_timer_l
+    ld de, entity_sm_timer_l+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_timer_h
+    ld de, entity_sm_timer_h+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    
 `;
 
     if (activeEntities.length > 0) {
@@ -235,7 +260,7 @@ update_entities:
     ; Set sprite pattern and color
     ld hl, sprite_pattern
     add hl, de
-    ld (hl), ${index}          ; Use entity index as sprite pattern
+    ld (hl), ${index * 4}          ; Use entity index * 4 for 16x16 sprites
 
     ld hl, sprite_color
     add hl, de
@@ -266,7 +291,7 @@ update_entities:
     ld a, ${index}             ; Sprite number
     ld b, ${pixelX}            ; X position
     ld c, ${pixelY}            ; Y position
-    ld d, ${index}             ; Pattern
+    ld d, ${index * 4}             ; Pattern (index * 4 for 16x16)
     ld e, 15                   ; Color
     call show_sprite
 

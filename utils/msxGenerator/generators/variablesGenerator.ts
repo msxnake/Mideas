@@ -105,6 +105,28 @@ MAX_ENTITIES        EQU 32
   code += `entity_anim_frame   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity animation frame (32 bytes)\n`;
   currentAddress += 32;
 
+  // State Machine variables (SoA layout)
+  code += `entity_sm_ptr_l     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity State Pointer Low (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_sm_ptr_h     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity State Pointer High (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_sm_timer_l   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity State Timer Low (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_sm_timer_h   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity State Timer High (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_sm_wait_timer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity State Wait Timer (32 bytes)\n`;
+  currentAddress += 32;
+
+  // State Machine Local Variables (8 vars per entity)
+  for (let i = 0; i < 8; i++) {
+    code += `entity_sm_var_${i}     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity Variable ${i} (32 bytes)\n`;
+    currentAddress += 32;
+  }
+
   // Sprite system variables (mapped to entities for now, or separate)
   // For Mideas, we'll map sprite indices 1:1 with entity indices for simplicity
   code += `

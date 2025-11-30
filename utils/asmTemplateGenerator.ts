@@ -4,6 +4,7 @@
  */
 
 import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph } from '../types';
+import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 
 /**
@@ -25,15 +26,24 @@ export interface ProjectAnalysis {
   sprites: Sprite[];
   tiles: Tile[];
   screenMaps: ScreenMap[];
+  screens: ScreenMap[];   // Added alias for compatibility
   worldmaps?: any[];  // Worldmap data for GameFlow WorldLink nodes
   entities?: EntityInstance[];
   gameFlow?: GameFlowGraph;
+  stateMachines?: StateMachine[]; // Added State Machines
   hasECS: boolean;
   hasMultipleScreens: boolean;
   hasSprites: boolean;
+  hasTiles: boolean;      // Added
+  hasScreens: boolean;    // Added
+  hasEntities: boolean;   // Added
+  hasComponents: boolean; // Added
+  hasGameFlow: boolean;   // Added
+  hasMenus: boolean;      // Added
+  hasFonts: boolean;      // Added
   hasAnimations: boolean;
   hasCollisions: boolean;
-  hasMenuSystem: boolean;
+  hasMenuSystem: boolean; // Keep for backward compatibility
   customStates: string[];
   globalVariables: any[];  // Global variables (defaults + custom from getAllGlobalVariables)
 }
@@ -57,6 +67,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
   const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
+  const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data as StateMachine);
 
   // CRITICAL: Extract entities from screenmaps
   const entities: any[] = [];
@@ -80,6 +91,11 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const hasECS = components.length > 0 || hasEntities;
   const hasMultipleScreens = screenMaps.length > 1;
   const hasSprites = sprites.length > 0;
+  const hasTiles = tiles.length > 0;
+  const hasScreens = screenMaps.length > 0;
+  const hasComponents = components.length > 0;
+  const hasGameFlowBool = !!gameFlow;
+  const hasFonts = assets.some(a => a.type === 'font');
   const hasAnimations = sprites.some(s => s.frames.length > 1);
   const hasCollisions = screenMaps.some(s => s.layers.collision.some(row => row.some(cell => cell !== null)));
   const hasMenuSystem = templates.some(t => t.name.toLowerCase().includes('menu'));
@@ -102,12 +118,21 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     sprites,
     tiles,
     screenMaps,
+    screens: screenMaps, // Added alias
     worldmaps,  // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
     entities,  // CRITICAL: Include entities extracted from screenmaps
     gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
+    stateMachines, // CRITICAL: Include State Machines
     hasECS,
     hasMultipleScreens,
     hasSprites,
+    hasTiles,
+    hasScreens,
+    hasEntities,
+    hasComponents,
+    hasGameFlow: hasGameFlowBool,
+    hasMenus: hasMenuSystem,
+    hasFonts,
     hasAnimations,
     hasCollisions,
     hasMenuSystem,
@@ -377,6 +402,10 @@ const generateMenuSystem = (data: ProjectAnalysis): string => {
     LD A, 32            ; Space character
     JR menu_draw_cursor
     
+    ; Hide cursor
+    LD A, 32            ; Space character
+    JR menu_draw_cursor
+    
 menu_cursor_visible:
     LD A, '>'           ; Cursor character
     
@@ -404,7 +433,7 @@ const generateCustomStates = (data: ProjectAnalysis): string => {
   }
 
   let code = `; Custom state handlers for project-specific logic\n`;
-  
+
   data.customStates.forEach(state => {
     code += `\nlogic_${state.toLowerCase()}:
     ; Custom logic for ${state} state
@@ -455,31 +484,31 @@ export const DEFAULT_HOT_SPOTS: HotSpot[] = [
  * Process template with hot spots
  */
 export function processTemplate(
-  template: string, 
-  projectName: string, 
-  assets: ProjectAsset[], 
+  template: string,
+  projectName: string,
+  assets: ProjectAsset[],
   hotSpots: HotSpot[] = DEFAULT_HOT_SPOTS
 ): string {
   const analysis = analyzeProject(projectName, assets);
-  
+
   let processedTemplate = template;
-  
+
   // Replace basic project info
   processedTemplate = processedTemplate.replace(/{{PROJECT_NAME}}/g, projectName.toUpperCase());
   processedTemplate = processedTemplate.replace(/{{PROJECT_NAME_LOWER}}/g, projectName.toLowerCase());
   processedTemplate = processedTemplate.replace(/{{GENERATION_DATE}}/g, new Date().toISOString());
-  
+
   // Process each hot spot
   hotSpots.forEach(hotSpot => {
     if (processedTemplate.includes(hotSpot.marker)) {
       const generatedCode = hotSpot.generator(analysis);
       processedTemplate = processedTemplate.replace(
-        new RegExp(escapeRegExp(hotSpot.marker), 'g'), 
+        new RegExp(escapeRegExp(hotSpot.marker), 'g'),
         generatedCode
       );
     }
   });
-  
+
   return processedTemplate;
 }
 
@@ -990,17 +1019,17 @@ function escapeRegExp(string: string): string {
  * Generate complete project-specific ASM file
  */
 export function generateProjectSpecificASM(
-  projectName: string, 
+  projectName: string,
   assets: ProjectAsset[]
 ): { filename: string; content: string; analysis: ProjectAnalysis } {
   const template = createDynamicStateMachineTemplate();
   const processedContent = processTemplate(template, projectName, assets);
-  
+
   const sanitizedProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
   const filename = `${sanitizedProjectName}_dynamic_system.asm`;
-  
+
   const analysis = analyzeProject(projectName, assets);
-  
+
   return {
     filename,
     content: processedContent,

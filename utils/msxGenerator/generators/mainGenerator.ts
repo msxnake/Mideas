@@ -116,6 +116,7 @@ update_current_state:
     ; Update game logic based on current state
     call update_input_component
     call update_behavior_component  ; AI/Logic
+    call update_statemachine_component  ; State Machine updates (NEW!)
     call update_movement_component
     call update_position_component
     call update_collision_component

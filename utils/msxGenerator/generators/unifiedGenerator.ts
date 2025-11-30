@@ -29,6 +29,7 @@ export interface GeneratedASMFiles {
     'sprites.asm': string;
     'font.asm': string;
     'menus.asm': string;
+    'statemachine.asm': string;
     'main.asm': string;
     'unitedFiles.asm'?: string;
 }
@@ -60,7 +61,9 @@ export function generateUnifiedFile(files: GeneratedASMFiles, projectName: strin
 ; Sprites: ${analysis.sprites?.length || 0}
 ; Screens: ${analysis.screenMaps?.length || 0}
 ; Entities: ${analysis.entities?.length || 0}
+; Entities: ${analysis.entities?.length || 0}
 ; Menus: ${hasMenus ? 'Yes' : 'No'}
+; State Machines: ${analysis.stateMachines?.length || 0}
 ; ==================================================================
 
 ${files['header.asm']}
@@ -86,6 +89,8 @@ ${analysis.entities && analysis.entities.length > 0 ? files['entities.asm'] : ';
 ${hasMenus ? files['menus.asm'] : '; [menus.asm skipped - no menus]\n'}
 
 ${needsFont ? files['font.asm'] : '; [font.asm skipped - no text/menus]\n'}
+
+${analysis.stateMachines && analysis.stateMachines.length > 0 ? files['statemachine.asm'] : '; [statemachine.asm skipped - no state machines]\n'}
 
 ; ==================================================================
 ; MAIN PROGRAM (from main.asm - excluding includes)

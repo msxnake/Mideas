@@ -104,6 +104,7 @@ export interface GeneratedASMFiles {
   'entities.asm': string;
   'gameflow.asm': string;
   'menus.asm': string;
+  'statemachine.asm': string;
   'font.asm': string;
   'main.asm': string;
   'unitedFiles.asm': string;

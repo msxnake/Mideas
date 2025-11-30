@@ -37,6 +37,12 @@ export function generateInitCodeForNode(
       return `
     ; GameFlow: Start → WorldLink (${worldMap?.name || 'World'})
     ; Initialize game world directly from GameFlow
+    
+    ; CRITICAL: Load graphics data into VRAM FIRST
+    call load_patterns_to_vram    ; Load tile graphics (Pattern Table)
+    call load_colors_to_vram      ; Load tile colors (Color Table)
+    
+    ; Then initialize game systems
     call init_sprites
     call init_components
     call init_entities
@@ -46,7 +52,7 @@ export function generateInitCodeForNode(
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
     call update_sprites_to_vram   ; Copy sprite attributes to VRAM
-
+    
     jp main_loop  ; Jump to main game loop`;
 
     case 'SubMenu':

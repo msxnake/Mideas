@@ -24,6 +24,7 @@ import { generateScreensFile } from './generators/screensGenerator';
 import { generateFontFile } from './generators/fontGenerator';
 import { generateWorldsFile } from './generators/worldGenerator';
 import { generateMenusFile } from './generators/menusGenerator';
+import { generateStateMachineSystem } from './generators/stateMachineGenerator';
 
 /**
  * MSX Modular Configuration
@@ -49,14 +50,23 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     hasGameFlow: !!summary.execution.mainGameFlow,
     hasMenus: summary.assets.menus.length > 0,
     hasFonts: summary.assets.fonts.length > 0,
+    hasECS: summary.assets.entities.length > 0, // Simplified check
+    hasMultipleScreens: summary.assets.screens.length > 1,
+    hasAnimations: summary.assets.sprites.some(s => s.frames && s.frames.length > 1),
+    hasCollisions: true, // Default to true for summary
+    hasMenuSystem: summary.assets.menus.length > 0,
     components: [],
-    entities: summary.assets.entities as any[], // Type conversion
+    templates: [], // Added missing property
+    entities: summary.assets.entities as any[],
     sprites: summary.assets.sprites as any[],
     tiles: summary.assets.tiles as any[],
-    screens: summary.assets.screens as any[],
+    screens: summary.assets.screens as any[], // Added alias
+    screenMaps: summary.assets.screens as any[], // Added missing property
     gameFlow: summary.execution.mainGameFlow as any,
     projectName: summary.projectInfo.name,
-    globalVariables: []  // Empty for summary conversion (will be populated from actual assets elsewhere)
+    customStates: [], // Added missing property
+    stateMachines: [], // Added missing property
+    globalVariables: []
   };
 
   return analysis;
@@ -107,13 +117,22 @@ export function generateModularASM(
       hasGameFlow: false,
       hasMenus: false,
       hasFonts: false,
+      hasECS: false,
+      hasMultipleScreens: false,
+      hasAnimations: false,
+      hasCollisions: false,
+      hasMenuSystem: false,
       components: [],
+      templates: [],
       entities: [],
       sprites: [],
       tiles: [],
       screens: [],
+      screenMaps: [],
       projectName: projectName,
-      globalVariables: []  // Empty globalVariables for fallback
+      customStates: [],
+      stateMachines: [],
+      globalVariables: []
     };
     console.log('🔄 Using fallback empty analysis');
   }
@@ -133,6 +152,7 @@ export function generateModularASM(
     'sprites.asm': generateSpritesFile(analysis),
     'font.asm': generateFontFile(analysis),
     'menus.asm': generateMenusFile(analysis),
+    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines) : '; No State Machines\n',
     'gameflow.asm': '', // TODO: Extract from main or header if needed
     'main.asm': generateMainFile(projectName, analysis),
     'unitedFiles.asm': ''
@@ -186,12 +206,14 @@ export function generateModularASMFromSummary(
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
+    'components.asm': generateComponentsFile(analysis),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),
     'sprites.asm': generateSpritesFile(analysis),
     'font.asm': generateFontFile(analysis),
     'menus.asm': generateMenusFile(analysis),
+    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines) : '; No State Machines\n',
     'gameflow.asm': '',
     'main.asm': generateMainFile(summary.projectInfo.name, analysis),
     'unitedFiles.asm': ''
@@ -208,4 +230,3 @@ export function generateModularASMFromSummary(
 
 // Re-export types for convenience
 export type { GeneratedASMFiles, ProjectSummary, ProjectAnalysis };
-export type { MSXModularConfig };

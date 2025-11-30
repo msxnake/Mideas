@@ -5,7 +5,7 @@
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateScreenLayoutASMCode, generateBehaviorMapASMCode, generateScreenMapLayoutBytes } from '../../../components/utils/screenUtils';
-import { DEFAULT_TILE_BANK_DEFINITIONS } from '../../../constants';
+import { DEFAULT_TILE_BANK_DEFINITIONS, EDITOR_BASE_TILE_DIM_S2, EMPTY_CELL_CHAR_CODE } from '../../../constants';
 import { TileBank } from '../../../types';
 
 /**
@@ -72,113 +72,148 @@ load_screen_default:
     analysis.screenMaps.forEach((screen) => {
       if (screen.layers && screen.layers.background) {
         // Create automatic tile banks with assigned tiles for character mapping
-        const uniqueTileIds = new Set(screen.layers.background.flat().map(tile => tile.tileId).filter(Boolean));
+        // CRITICAL: Use GLOBAL mapping based on analysis.tiles order to match patternsGenerator.ts
         const tileBanks: TileBank[] = [];
 
-        console.log(`🔍 Screen ${screen.name}: Found ${uniqueTileIds.size} unique tiles`);
-        console.log('Unique tile IDs:', Array.from(uniqueTileIds));
-        console.log('Available tiles in analysis:', analysis.tiles?.map(t => `${t.name} (${t.id})`));
+        if (analysis.tiles && analysis.tiles.length > 0) {
+          // Create a bank definition with global mapping
+          // We use 'any' cast for DEFAULT_TILE_BANK_DEFINITIONS to avoid strict type issues with the template
+          const baseDef = DEFAULT_TILE_BANK_DEFINITIONS[1] as any;
 
-        if (uniqueTileIds.size > 0) {
-          // Create a single tile bank with all tiles
-          const mainBank: TileBank = {
-            ...DEFAULT_TILE_BANK_DEFINITIONS[1], // Use main game bank as template
+          const globalBankDef: any = {
+            ...baseDef,
             assignedTiles: {},
-            charsetRangeStart: 0,
-            charsetRangeEnd: 255  // Ensure wide range
+            charsetRangeStart: 128,    // Start at 128 to leave 0-127 for FONT
+            charsetRangeEnd: 255,
+            enabled: true
           };
 
-          // Assign tiles to characters starting from charCode 0
-          let nextCharCode = 0;
-          Array.from(uniqueTileIds).forEach((tileId) => {
-            if (tileId) {
-              const tileAsset = analysis.tiles?.find(t => t.id === tileId);
-              if (tileAsset) {
-                // Calculate how many characters this tile needs (width/8 * height/8)
-                const charsWide = Math.ceil(tileAsset.width / 8);
-                const charsHigh = Math.ceil(tileAsset.height / 8);
+          // Assign tiles to characters starting from charCode 128, following analysis.tiles order
+          let nextCharCode = 128;
 
-                mainBank.assignedTiles[tileId] = {
-                  charCode: nextCharCode,
-                  assignedAt: Date.now()
-                };
+          analysis.tiles.forEach((tileAsset) => {
+            if (tileAsset && tileAsset.id) {
+              const charsWide = Math.ceil(tileAsset.width / 8);
+              const charsHigh = Math.ceil(tileAsset.height / 8);
 
-                console.log(`📌 Assigned tile ${tileAsset.name} (${tileId}) to charCode ${nextCharCode} (${charsWide}x${charsHigh} chars)`);
-                nextCharCode += charsWide * charsHigh;
-              } else {
-                console.log(`❌ Tile asset not found for ID: ${tileId}`);
-              }
+              globalBankDef.assignedTiles[tileAsset.id] = {
+                charCode: nextCharCode,
+                assignedAt: Date.now()
+              };
+
+              nextCharCode += charsWide * charsHigh;
             }
           });
 
-          tileBanks.push(mainBank);
-          console.log(`✅ Created tile bank with ${Object.keys(mainBank.assignedTiles).length} assigned tiles`);
+          // Wrap in a full TileBank object (Screen 2 has 3 banks)
+          const globalTileBank: TileBank = {
+            id: 'global_auto_bank',
+            name: 'Global Auto Bank',
+            banks: [globalBankDef, globalBankDef, globalBankDef]
+          };
+
+          tileBanks.push(globalTileBank);
+          console.log(`✅ Created GLOBAL tile bank with ${Object.keys(globalBankDef.assignedTiles).length} assigned tiles`);
         }
 
-        // Use the EXACT same function as Screen Editor "Download ASM" button
-        const layoutBytes = generateScreenMapLayoutBytes(
-          screen,
-          analysis.tiles || [],
-          tileBanks.length > 0 ? tileBanks : undefined,
-          'SCREEN 2 (Graphics I)' // Now we can use SCREEN 2 with proper tile banks
-        );
-        const mapIndices = Array.from(layoutBytes);
+        // Generate FULL 32x24 screen layout (768 bytes) to ensure correct positioning and background
+        // This replaces the previous logic that only exported the active area
+        const mapIndices: number[] = [];
+        const activeX = screen.activeAreaX ?? 0;
+        const activeY = screen.activeAreaY ?? 0;
+        const activeW = screen.activeAreaWidth ?? screen.width;
+        const activeH = screen.activeAreaHeight ?? screen.height;
 
-        // Debug the generated bytes
-        const nonFFCount = mapIndices.filter(b => b !== 255).length;
-        const uniqueBytes = new Set(mapIndices);
-        console.log(`📊 Generated ${mapIndices.length} bytes: ${nonFFCount} non-FF (${((nonFFCount/mapIndices.length)*100).toFixed(1)}%)`);
-        console.log(`🎯 Unique byte values: [${Array.from(uniqueBytes).sort((a,b) => a-b).join(', ')}]`);
 
-        if (nonFFCount === 0) {
-          console.log(`❌ All bytes are #FF - debugging tile bank assignment...`);
-          console.log('Tile bank enabled:', tileBanks[0]?.enabled);
-          console.log('Tile bank assigned tiles:', Object.keys(tileBanks[0]?.assignedTiles || {}));
-          console.log('Charset range:', tileBanks[0]?.charsetRangeStart, '-', tileBanks[0]?.charsetRangeEnd);
-        }
+        // Fixed MSX screen dimensions
+        const SCREEN_WIDTH = 32;
+        const SCREEN_HEIGHT = 24;
 
-        // Create a mapping from byte values to tile names for comments
-        const uniqueValues = new Set(mapIndices.filter(val => val !== 255 && val !== 0));
-        const uniqueTiles = new Set(screen.layers.background.flat().map(tile => tile.tileId).filter(Boolean));
+        for (let r = 0; r < SCREEN_HEIGHT; r++) {
+          for (let c = 0; c < SCREEN_WIDTH; c++) {
+            // Check if current position is within the active area
+            const isActiveArea =
+              c >= activeX &&
+              c < activeX + activeW &&
+              r >= activeY &&
+              r < activeY + activeH;
 
-        // Generate reference comments based on actual byte values from Screen Editor logic
-        const referenceComments: string[] = [];
-        referenceComments.push(`; Generated using exact Screen Editor "Download ASM" logic`);
-        referenceComments.push(`; Byte values represent actual character codes in VRAM`);
+            if (!isActiveArea) {
+              // Outside active area: use empty tile (black background)
+              mapIndices.push(0); // Use 0 for empty/black, not EMPTY_CELL_CHAR_CODE (255) which might be a valid char
+              continue;
+            }
 
-        // Create a mapping of tileIds to actual byte values used
-        const tileIdToByteValue = new Map<string, number>();
-        const backgroundLayer = screen.layers.background;
+            // Inside active area: map to screen coordinates
+            const screenTile = screen.layers.background[r]?.[c];
 
-        for (let r = 0; r < backgroundLayer.length; r++) {
-          for (let c = 0; c < backgroundLayer[r].length; c++) {
-            const tile = backgroundLayer[r][c];
-            if (tile?.tileId) {
-              const byteIndex = r * (screen.activeAreaWidth ?? screen.width) + c;
-              if (byteIndex < mapIndices.length) {
-                const byteValue = mapIndices[byteIndex];
-                if (byteValue !== 255 && byteValue !== 0) {
-                  tileIdToByteValue.set(tile.tileId, byteValue);
+            if (!screenTile || !screenTile.tileId) {
+              mapIndices.push(0); // Empty tile
+            } else {
+              let actualCharCodeForCell = 0; // Default to 0 instead of 255
+              const tileAsset = analysis.tiles?.find(t => t.id === screenTile.tileId);
+
+              // Logic copied from screenUtils.ts
+              const currentScreenMode = 'SCREEN 2 (Graphics I)'; // Hardcoded as we are in the Screen 2 block
+              const tileBanksList = tileBanks.length > 0 ? tileBanks[0].banks : undefined;
+
+              if (currentScreenMode === "SCREEN 2 (Graphics I)" && tileBanksList && tileAsset) {
+                let foundInBank = false;
+
+                for (const bank of tileBanksList) {
+                  // Only process if bank is enabled and tile is assigned
+                  if ((bank.enabled ?? true) && bank.assignedTiles[screenTile.tileId]) {
+                    const baseCharCode = bank.assignedTiles[screenTile.tileId].charCode;
+                    const widthInChars = Math.ceil(tileAsset.width / EDITOR_BASE_TILE_DIM_S2);
+                    const subX = screenTile.subTileX || 0;
+                    const subY = screenTile.subTileY || 0;
+                    actualCharCodeForCell = baseCharCode + (subY * widthInChars) + subX;
+
+                    const inRange = actualCharCodeForCell >= bank.charsetRangeStart && actualCharCodeForCell <= bank.charsetRangeEnd;
+
+                    if (inRange) {
+                      foundInBank = true;
+                      break;
+                    } else {
+                      actualCharCodeForCell = 0; // Code out of bank range
+                    }
+                  }
                 }
+                if (!foundInBank) {
+                  actualCharCodeForCell = 0;
+                }
+              } else {
+                // Fallback for non-Screen 2 (simplified)
+                actualCharCodeForCell = 0;
               }
+              mapIndices.push(actualCharCodeForCell);
             }
           }
         }
 
-        // No tile constants needed - we use the actual byte values from Screen Editor
+        // Debug the generated bytes
+        const nonFFCount = mapIndices.filter(b => b !== 255).length;
+        const uniqueBytes = new Set(mapIndices);
+        console.log(`📊 Generated ${mapIndices.length} bytes: ${nonFFCount} non-FF (${((nonFFCount / mapIndices.length) * 100).toFixed(1)}%)`);
+        console.log(`🎯 Unique byte values: [${Array.from(uniqueBytes).sort((a, b) => a - b).join(', ')}]`);
+
+        // Create a mapping from byte values to tile names for comments
+        const referenceComments: string[] = [];
+        referenceComments.push(`; Generated using exact Screen Editor "Download ASM" logic`);
+        referenceComments.push(`; Byte values represent actual character codes in VRAM`);
 
         // Use existing ASM generation logic with hex format like Screen Editor
         const screenNameWithIndex = `${screen.name}_${analysis.screenMaps.indexOf(screen)}`;
         const asmCode = generateScreenLayoutASMCode(
           screenNameWithIndex,
-          screen.width,
-          screen.height,
+          SCREEN_WIDTH,
+          SCREEN_HEIGHT,
           mapIndices,
           referenceComments,
-          'hex' // Use hex format #?? like Screen Editor "Download ASM"
+          'hex'
         );
 
-        // Add the screen layout data (no tile constants needed - using exact Screen Editor format)
+        // Add the screen layout data
         code += asmCode;
 
         // Also generate collision/behavior map if available
@@ -234,24 +269,122 @@ load_screen_default:
 set_screen_colors:
     push af
     push bc
-    ; Set background color (VDP Register 7, bits 0-3)
-    ld a, b                    ; Border color in B
+    
+    ; Set VDP Register 7: [Background Color (4-7) | Border Color (0-3)]
+    
+    ; Process Background Color (in A) -> High Nibble
     and #0F                    ; Ensure 0-15 range
     rlca                       ; Shift to bits 4-7
     rlca
     rlca
     rlca
-    ld b, a                    ; Save shifted border in B
-    pop af                     ; Get background color
+    ld c, a                    ; Save shifted background in C
+    
+    ; Process Border Color (in B) -> Low Nibble
+    ld a, b                    ; Get border color
     and #0F                    ; Ensure 0-15 range
-    or b                       ; Combine: border << 4 | background
+    
+    ; Combine
+    or c                       ; Combine: background << 4 | border
+    
     ld b, a                    ; Value for VDP R#7
     ld c, 7                    ; VDP Register 7
     call WRTVDP                ; BIOS call to write VDP register
+    
+    pop bc
+    pop af
+    ret
+
+; Helper function to initialize character 0 (empty cell) with background color
+; Input: A = background color (0-15)
+; This ensures empty cells show the correct background color instead of BIOS default (blue)
+init_char0_color:
+    push af
+    push bc
+    push de
+    push hl
+    
+    ; Calculate color byte: (bg_color << 4) | bg_color
+    ; This makes both foreground and background the same color
+    and #0F                    ; Ensure 0-15 range
+    ld b, a                    ; Save in B
+    rlca                       ; Shift to high nibble
+    rlca
+    rlca
+    rlca
+    or b                       ; Combine: bg_color in both nibbles
+    ld b, a                    ; B = color byte to write
+    
+    ; Write color to character 0 in all 3 banks (8 bytes each)
+    ; Bank 0: CLRTBL2 + (0 * 8)
+    ld hl, CLRTBL2
+    ld c, 8                    ; 8 bytes per character
+init_char0_bank0_loop:
+    ld a, b                    ; Get color byte
+    call WRTVRM                ; Write to VRAM
+    inc hl
+    dec c
+    jr nz, init_char0_bank0_loop
+    
+    ; Bank 1: CLRTBL2 + #800 + (0 * 8)
+    ld hl, CLRTBL2 + #800
+    ld c, 8
+init_char0_bank1_loop:
+    ld a, b
+    call WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_bank1_loop
+    
+    ; Bank 2: CLRTBL2 + #1000 + (0 * 8)
+    ld hl, CLRTBL2 + #1000
+    ld c, 8
+init_char0_bank2_loop:
+    ld a, b
+    call WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_bank2_loop
+    
+    ; Also clear pattern for character 0 (all zeros = blank)
+    ; Bank 0: CHRTBL2 + (0 * 8)
+    ld hl, CHRTBL2
+    ld c, 8
+    xor a                      ; A = 0 (blank pattern)
+init_char0_pattern_bank0_loop:
+    call WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_pattern_bank0_loop
+    
+    ; Bank 1: CHRTBL2 + #800 + (0 * 8)
+    ld hl, CHRTBL2 + #800
+    ld c, 8
+    xor a
+init_char0_pattern_bank1_loop:
+    call WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_pattern_bank1_loop
+    
+    ; Bank 2: CHRTBL2 + #1000 + (0 * 8)
+    ld hl, CHRTBL2 + #1000
+    ld c, 8
+    xor a
+init_char0_pattern_bank2_loop:
+    call WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_pattern_bank2_loop
+    
+    pop hl
+    pop de
+    pop bc
     pop af
     ret
 
 load_screen:
+
     ; Load screen (A = screen ID)
     ; TODO: Implement screen loading logic
     ret
@@ -265,11 +398,14 @@ load_screen:
 
       code += `load_screen_${screenName.toLowerCase()}:
     ; Load ${screen.name} screen (BIOS LDIRVM handles timing)
-    ; Set VDP colors for this screen
+    ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color
     call set_screen_colors
-    ; Load screen layout
+    ; Initialize character 0 (empty cells) with background color
+    ld a, ${bgColor}           ; Background color for char 0
+    call init_char0_color
+    ; Now load screen layout
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld de, NAMETBL
     ld bc, SCREEN_${screenName}_${index}_SIZE
@@ -349,12 +485,12 @@ load_screen_game:
     ld bc, 768
     call LDIRVM                ; BIOS handles safe VRAM access
     ret
-
 `;
   }
 
-  code += `; ==================================================================
-; END OF SCREEN MAPS
+  code += `
+; ==================================================================
+; END OF SCREENS
 ; ==================================================================
 `;
 

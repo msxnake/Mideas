@@ -12,29 +12,29 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
  *                  12=DarkGreen, 13=Magenta, 14=Gray, 15=White
  */
 function hexToMSXColor(hex: string): number {
-  // Remove # if present
-  hex = hex.replace('#', '');
+    // Remove # if present
+    hex = hex.replace('#', '');
 
-  // Convert to RGB
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
+    // Convert to RGB
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
 
-  // Check for common colors first
-  if (r < 50 && g < 50 && b < 50) return 1;  // Black
-  if (r > 200 && g > 200 && b > 200) return 15; // White
-  if (r > 200 && g < 100 && b < 100) return 8;  // Red
-  if (r < 100 && g > 200 && b < 100) return 3;  // Light Green
-  if (r < 100 && g < 100 && b > 200) return 5;  // Light Blue
-  if (r > 200 && g > 200 && b < 100) return 10; // Yellow
-  if (r > 150 && g < 100 && b > 150) return 13; // Magenta
-  if (r < 100 && g > 150 && b > 150) return 7;  // Cyan
+    // Check for common colors first
+    if (r < 50 && g < 50 && b < 50) return 1;  // Black
+    if (r > 200 && g > 200 && b > 200) return 15; // White
+    if (r > 200 && g < 100 && b < 100) return 8;  // Red
+    if (r < 100 && g > 200 && b < 100) return 3;  // Light Green
+    if (r < 100 && g < 100 && b > 200) return 5;  // Light Blue
+    if (r > 200 && g > 200 && b < 100) return 10; // Yellow
+    if (r > 150 && g < 100 && b > 150) return 13; // Magenta
+    if (r < 100 && g > 150 && b > 150) return 7;  // Cyan
 
-  // Fallback to brightness-based selection
-  const brightness = (r + g + b) / 3;
-  if (brightness < 64) return 1;   // Black
-  if (brightness < 128) return 14; // Gray
-  return 15; // White
+    // Fallback to brightness-based selection
+    const brightness = (r + g + b) / 3;
+    if (brightness < 64) return 1;   // Black
+    if (brightness < 128) return 14; // Gray
+    return 15; // White
 }
 
 /**
@@ -47,13 +47,13 @@ function hexToMSXColor(hex: string): number {
  * @returns ASM code string with menu systems and UI
  */
 export function generateMenusFile(analysis: ProjectAnalysis): string {
-  // Check if there are specific menu definitions in the analysis
-  const hasMenus = analysis.gameFlow && analysis.gameFlow.nodes &&
-    analysis.gameFlow.nodes.some(node => node.type === 'SubMenu');
+    // Check if there are specific menu definitions in the analysis
+    const hasMenus = analysis.gameFlow && analysis.gameFlow.nodes &&
+        analysis.gameFlow.nodes.some(node => node.type === 'SubMenu');
 
-  // Skip menu system if no menus in project
-  if (!hasMenus) {
-    return `; ==================================================================
+    // Skip menu system if no menus in project
+    if (!hasMenus) {
+        return `; ==================================================================
 ; GAME MENUS (SKIPPED - NO MENUS DETECTED)
 ; File: menus.asm
 ; ==================================================================
@@ -75,9 +75,9 @@ update_menu_state:
 ; END OF MENUS (MINIMAL VERSION)
 ; ==================================================================
 `;
-  }
+    }
 
-  let code = `; ==================================================================
+    let code = `; ==================================================================
 ; GAME MENUS
 ; File: menus.asm
 ; Description: Menu systems and user interface with custom font support
@@ -85,52 +85,56 @@ update_menu_state:
 
 `;
 
-  if (hasMenus) {
-    code += `; ==================================================================
+    if (hasMenus) {
+        code += `; ==================================================================
 ; MENU CONSTANTS
 ; ==================================================================
 
 `;
 
-    const menuNodes = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
-    menuNodes.forEach((menu: any, index) => {
-      const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      code += `MENU_${menuName}_ID EQU ${index}
+        const menuNodes = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
+        menuNodes.forEach((menu: any, index) => {
+            const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            code += `MENU_${menuName}_ID EQU ${index}
 `;
-    });
+        });
 
-    code += `
+        code += `
 ; ==================================================================
 ; MENU FUNCTIONS
 ; ==================================================================
 
 `;
 
-    const menuNodes2 = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
-    menuNodes2.forEach((menu: any) => {
-      const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
-      const menuId = menu.id.replace(/[^a-zA-Z0-9]/g, '_');
+        const menuNodes2 = analysis.gameFlow.nodes.filter(node => node.type === 'SubMenu');
+        menuNodes2.forEach((menu: any) => {
+            const menuName = (menu.title || menu.id).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            const menuId = menu.id.replace(/[^a-zA-Z0-9]/g, '_');
 
-      // Get background and border colors (MSX Screen 2 compatible)
-      const bgColor = menu.appearance?.colors?.background || '#000000';
-      const borderColor = menu.appearance?.colors?.border || '#FFFFFF';
+            // Get background and border colors (MSX Screen 2 compatible)
+            const bgColor = menu.appearance?.colors?.background || '#000000';
+            const borderColor = menu.appearance?.colors?.border || '#FFFFFF';
 
-      // Convert hex colors to MSX color codes (0-15)
-      const bgColorMSX = hexToMSXColor(bgColor);
-      const borderColorMSX = hexToMSXColor(borderColor);
+            // Convert hex colors to MSX color codes (0-15)
+            const bgColorMSX = hexToMSXColor(bgColor);
+            const borderColorMSX = hexToMSXColor(borderColor);
 
-      code += `show_menu_${menuId}:
+            code += `show_menu_${menuId}:
     ; Display ${menu.title || menu.id} menu
     ; Set background color using VDP
-    ld a, 7                     ; VDP Register 7 (text/background color)
-    ld b, ${bgColorMSX * 16}    ; Background color in high nibble
+    ld b, ${bgColorMSX * 16 + borderColorMSX} ; Background (high) | Border (low)
+    ld c, 7                     ; VDP Register 7
     call WRTVDP
 
-    ; Set border color
+    ; Set system color variables
     ld a, ${borderColorMSX}
-    ld (FORCLR), a
-    ld (BAKCLR), a
     ld (BDRCLR), a
+
+    ld a, ${bgColorMSX}
+    ld (BAKCLR), a
+
+    ld a, 15                    ; Default text color (White)
+    ld (FORCLR), a
 
     ; Clear screen with background color
     call cls
@@ -155,33 +159,37 @@ handle_menu_${menuId}:
     ret
 
 `;
-    });
+        });
 
-    // Generate Text node display functions
-    const textNodes = analysis.gameFlow.nodes.filter(node => node.type === 'Text');
-    textNodes.forEach((textNode: any) => {
-      const textId = textNode.id.replace(/[^a-zA-Z0-9]/g, '_');
+        // Generate Text node display functions
+        const textNodes = analysis.gameFlow.nodes.filter(node => node.type === 'Text');
+        textNodes.forEach((textNode: any) => {
+            const textId = textNode.id.replace(/[^a-zA-Z0-9]/g, '_');
 
-      // Get background and border colors (MSX Screen 2 compatible)
-      const bgColor = textNode.appearance?.colors?.background || '#000000';
-      const borderColor = textNode.appearance?.colors?.border || '#FFFFFF';
+            // Get background and border colors (MSX Screen 2 compatible)
+            const bgColor = textNode.appearance?.colors?.background || '#000000';
+            const borderColor = textNode.appearance?.colors?.border || '#FFFFFF';
 
-      // Convert hex colors to MSX color codes (0-15)
-      const bgColorMSX = hexToMSXColor(bgColor);
-      const borderColorMSX = hexToMSXColor(borderColor);
+            // Convert hex colors to MSX color codes (0-15)
+            const bgColorMSX = hexToMSXColor(bgColor);
+            const borderColorMSX = hexToMSXColor(borderColor);
 
-      code += `show_text_${textId}:
+            code += `show_text_${textId}:
     ; Display ${textNode.title || textNode.id} text
     ; Set background color using VDP
-    ld a, 7                     ; VDP Register 7 (text/background color)
-    ld b, ${bgColorMSX * 16}    ; Background color in high nibble
+    ld b, ${bgColorMSX * 16 + borderColorMSX} ; Background (high) | Border (low)
+    ld c, 7                     ; VDP Register 7
     call WRTVDP
 
-    ; Set border color
+    ; Set system color variables
     ld a, ${borderColorMSX}
-    ld (FORCLR), a
-    ld (BAKCLR), a
     ld (BDRCLR), a
+
+    ld a, ${bgColorMSX}
+    ld (BAKCLR), a
+
+    ld a, 15                    ; Default text color (White)
+    ld (FORCLR), a
 
     ; Clear screen with background color
     call cls
@@ -207,9 +215,9 @@ text_${textId}_message:
     db "${(textNode.message || '').replace(/"/g, '\\"')}", 0
 
 `;
-    });
-  } else {
-    code += `; ==================================================================
+        });
+    } else {
+        code += `; ==================================================================
 ; DEFAULT MENU SYSTEM
 ; ==================================================================
 
@@ -351,12 +359,12 @@ print_loop:
     jp print_loop
 
 `;
-  }
+    }
 
-  code += `; ==================================================================
+    code += `; ==================================================================
 ; END OF MENUS
 ; ==================================================================
 `;
 
-  return code;
+    return code;
 }
