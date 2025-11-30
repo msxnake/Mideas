@@ -61,6 +61,17 @@ const CHAR_HEIGHT = 8;
  */
 export const EDITABLE_CHAR_CODES_SUBSET: { code: number, display: string }[] = [
   { code: 32, display: 'Spc' },
+  { code: 33, display: '!' },
+  { code: 34, display: '"' },
+  { code: 39, display: "'" },
+  { code: 40, display: '(' },
+  { code: 41, display: ')' },
+  { code: 44, display: ',' },
+  { code: 45, display: '-' },
+  { code: 46, display: '.' },
+  { code: 58, display: ':' },
+  { code: 59, display: ';' },
+  { code: 63, display: '?' },
   ...Array.from({ length: 10 }, (_, i) => ({ code: 48 + i, display: String(i) })), // 0-9
   ...Array.from({ length: 26 }, (_, i) => ({ code: 65 + i, display: String.fromCharCode(65 + i) })), // A-Z
 ];
@@ -69,11 +80,11 @@ export const EDITABLE_CHAR_CODES_SUBSET: { code: number, display: string }[] = [
  * An array of all 256 character codes, suitable for use in a character selector UI.
  */
 export const ALL_CHAR_CODES_FOR_SELECTOR = Array.from({ length: 256 }, (_, i) => {
-    const editableEntry = EDITABLE_CHAR_CODES_SUBSET.find(ec => ec.code === i);
-    return {
-        code: i,
-        display: editableEntry ? editableEntry.display : `ASC ${i}`
-    };
+  const editableEntry = EDITABLE_CHAR_CODES_SUBSET.find(ec => ec.code === i);
+  return {
+    code: i,
+    display: editableEntry ? editableEntry.display : `ASC ${i}`
+  };
 });
 
 
@@ -122,7 +133,7 @@ export function renderMSX1TextToDataURL(
     if (pattern) {
       for (let y = 0; y < CHAR_HEIGHT; y++) { // For each row of the character
         const rowByte = pattern[y];
-        
+
         let fgForRow = defaultFgColor;
         let bgForRow = defaultBgColor;
 
@@ -131,11 +142,11 @@ export function renderMSX1TextToDataURL(
           fgForRow = charSpecificRowColors[y].fg || defaultFgColor;
           bgForRow = charSpecificRowColors[y].bg || defaultBgColor;
         }
-        
+
         for (let x = 0; x < CHAR_WIDTH; x++) { // For each pixel in the row
           const isPixelSet = (rowByte >> (7 - x)) & 1;
           ctx.fillStyle = isPixelSet ? fgForRow : bgForRow;
-          
+
           // Always draw to ensure consistent rendering (either foreground or background)
           // Skip drawing background if it's transparent
           if (isPixelSet || (bgForRow !== 'transparent' && customBackgroundColor !== 'transparent')) {
@@ -227,71 +238,71 @@ export function createTileBasedFont(
       fontsFound = true;
 
       bankFonts.forEach(fontAsset => {
-      const fontData = fontAsset.data;
+        const fontData = fontAsset.data;
 
-      // For each character needed, create a direct mapping
-      const charactersNeeded = 'SCORE:0123456789LIVES ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,!?-()[]{}';
-      charactersNeeded.split('').forEach(char => {
-        const charCode = char.charCodeAt(0);
+        // For each character needed, create a direct mapping
+        const charactersNeeded = 'SCORE:0123456789LIVES ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,!?-()[]{}';
+        charactersNeeded.split('').forEach(char => {
+          const charCode = char.charCodeAt(0);
 
-        // Create a canvas for this character using MSX font
-        const canvas = document.createElement('canvas');
-        canvas.width = 8;
-        canvas.height = 8;
-        const ctx = canvas.getContext('2d');
+          // Create a canvas for this character using MSX font
+          const canvas = document.createElement('canvas');
+          canvas.width = 8;
+          canvas.height = 8;
+          const ctx = canvas.getContext('2d');
 
-        // Try to get pattern from font data first, then fallback to msxFont prop
-        let pattern = null;
-        let fontColorAttrs = null;
+          // Try to get pattern from font data first, then fallback to msxFont prop
+          let pattern = null;
+          let fontColorAttrs = null;
 
-        if (fontData && fontData.fontData && fontData.fontData[charCode]) {
-          pattern = fontData.fontData[charCode];
-          fontColorAttrs = fontData.fontColorAttributes;
-        } else if (msxFont && msxFont[charCode]) {
-          pattern = msxFont[charCode];
-          fontColorAttrs = msxFontColorAttributes;
-        }
-
-        if (ctx && pattern) {
-          ctx.imageSmoothingEnabled = false;
-
-          // Get default colors
-          const defaultFgColor = customTextColor || '#FF0000'; // Use custom or red default
-          const defaultBgColor = customBackgroundColor || '#000000'; // Use custom or black default
-
-          // Render the character pattern with per-row colors (MSX Screen 2 style)
-          for (let y = 0; y < 8; y++) {
-            const rowByte = pattern[y];
-
-            // Get colors for this specific row
-            let fgColor = defaultFgColor;
-            let bgColor = defaultBgColor;
-
-            if (fontColorAttrs && fontColorAttrs[charCode] && Array.isArray(fontColorAttrs[charCode])) {
-              // MSX Screen 2 style: array of color objects, one per row
-              const rowColorAttr = fontColorAttrs[charCode][y];
-              if (rowColorAttr && rowColorAttr.fg && rowColorAttr.bg) {
-                fgColor = rowColorAttr.fg;
-                bgColor = rowColorAttr.bg;
-              }
-            }
-
-            for (let x = 0; x < 8; x++) {
-              const isPixelSet = (rowByte >> (7 - x)) & 1;
-              ctx.fillStyle = isPixelSet ? fgColor : bgColor;
-              // Skip drawing background if it's transparent
-              if (isPixelSet || (bgColor !== 'transparent' && customBackgroundColor !== 'transparent')) {
-                ctx.fillRect(x, y, 1, 1);
-              }
-            }
+          if (fontData && fontData.fontData && fontData.fontData[charCode]) {
+            pattern = fontData.fontData[charCode];
+            fontColorAttrs = fontData.fontColorAttributes;
+          } else if (msxFont && msxFont[charCode]) {
+            pattern = msxFont[charCode];
+            fontColorAttrs = msxFontColorAttributes;
           }
 
-          // Create image from canvas
-          const img = new Image();
-          img.src = canvas.toDataURL();
-          tileBasedFont[char] = img;
-        }
-      });
+          if (ctx && pattern) {
+            ctx.imageSmoothingEnabled = false;
+
+            // Get default colors
+            const defaultFgColor = customTextColor || '#FF0000'; // Use custom or red default
+            const defaultBgColor = customBackgroundColor || '#000000'; // Use custom or black default
+
+            // Render the character pattern with per-row colors (MSX Screen 2 style)
+            for (let y = 0; y < 8; y++) {
+              const rowByte = pattern[y];
+
+              // Get colors for this specific row
+              let fgColor = defaultFgColor;
+              let bgColor = defaultBgColor;
+
+              if (fontColorAttrs && fontColorAttrs[charCode] && Array.isArray(fontColorAttrs[charCode])) {
+                // MSX Screen 2 style: array of color objects, one per row
+                const rowColorAttr = fontColorAttrs[charCode][y];
+                if (rowColorAttr && rowColorAttr.fg && rowColorAttr.bg) {
+                  fgColor = rowColorAttr.fg;
+                  bgColor = rowColorAttr.bg;
+                }
+              }
+
+              for (let x = 0; x < 8; x++) {
+                const isPixelSet = (rowByte >> (7 - x)) & 1;
+                ctx.fillStyle = isPixelSet ? fgColor : bgColor;
+                // Skip drawing background if it's transparent
+                if (isPixelSet || (bgColor !== 'transparent' && customBackgroundColor !== 'transparent')) {
+                  ctx.fillRect(x, y, 1, 1);
+                }
+              }
+            }
+
+            // Create image from canvas
+            const img = new Image();
+            img.src = canvas.toDataURL();
+            tileBasedFont[char] = img;
+          }
+        });
       });
     }
   }

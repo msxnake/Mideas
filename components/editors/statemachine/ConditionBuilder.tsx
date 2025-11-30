@@ -302,6 +302,59 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             </div>
           </div>
         );
+      case ConditionTypes.VARIABLE_COMPARE:
+        return (
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-xs text-msx-textsecondary">Variable</label>
+                <select
+                  value={condition.params?.variable || 'x'}
+                  onChange={(e) => handleParamChange('variable', e.target.value)}
+                  className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                >
+                  <option value="x">x (position)</option>
+                  <option value="y">y (position)</option>
+                  <option value="vx">vx (velocity)</option>
+                  <option value="vy">vy (velocity)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-msx-textsecondary">Operator</label>
+                <select
+                  value={condition.params?.operator || '=='}
+                  onChange={(e) => handleParamChange('operator', e.target.value)}
+                  className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                >
+                  <option value="==">==</option>
+                  <option value="!=">!=</option>
+                  <option value=">">&gt;</option>
+                  <option value="<">&lt;</option>
+                  <option value=">=">&gt;=</option>
+                  <option value="<=">&lt;=</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-msx-textsecondary">Value</label>
+                <input
+                  type="number"
+                  value={condition.params?.value ?? 0}
+                  onChange={(e) => handleParamChange('value', parseInt(e.target.value) || 0)}
+                  className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                  min={condition.params?.variable === 'vx' || condition.params?.variable === 'vy' ? -128 : 0}
+                  max={condition.params?.variable === 'vx' || condition.params?.variable === 'vy' ? 127 : 255}
+                />
+              </div>
+            </div>
+            <div className="text-xs text-msx-textsecondary">
+              {(condition.params?.variable === 'x' || condition.params?.variable === 'y') && '📍 Position range: 0-255'}
+              {(condition.params?.variable === 'vx' || condition.params?.variable === 'vy') && '⚡ Velocity range: -128 to 127'}
+            </div>
+            <div className="text-xs text-yellow-400 italic">
+              💡 Example: Use "x &gt; 240" to detect when entity reaches right edge of screen
+            </div>
+          </div>
+        );
       // Note: Variable comparisons now use TransitionGuard instead
       default:
         return null;

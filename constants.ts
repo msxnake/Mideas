@@ -564,6 +564,9 @@ export const DEFAULT_PSG_INSTRUMENTS = [
 /**
  * The default configuration for tile banks in a new project.
  * Divides the screen into HUD, main game area, and status bar.
+ * Character 0 is reserved for empty cells.
+ * Bank 0 uses full range (0-255): Characters 0-127 for fonts/text, 128-255 for HUD tiles.
+ * Banks 1-2 use range 128-255 for game tiles only.
  */
 export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
   {
@@ -573,7 +576,7 @@ export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
     vramPatternStart: 0x0000,
     vramColorStart: 0x2000,
     screenZone: { x: 0, y: 0, width: DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
-    charsetRangeStart: 0,
+    charsetRangeStart: 0,    // Full range for fonts (0-127) and HUD tiles (128-255)
     charsetRangeEnd: 255,
     defaultFgColorIndex: 15,
     defaultBgColorIndex: 4,
@@ -587,7 +590,7 @@ export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
     vramPatternStart: 0x0800,
     vramColorStart: 0x2800,
     screenZone: { x: 0, y: 8, width: DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
-    charsetRangeStart: 0,
+    charsetRangeStart: 0,    // Full range for fonts (0-127) and Game tiles (128-255)
     charsetRangeEnd: 255,
     defaultFgColorIndex: 2,
     defaultBgColorIndex: 1,
@@ -601,7 +604,7 @@ export const DEFAULT_TILE_BANK_DEFINITIONS: TileBankDefinition[] = [
     vramPatternStart: 0x1000,
     vramColorStart: 0x3000,
     screenZone: { x: 0, y: 16, width: DEFAULT_SCREEN_WIDTH_TILES, height: 8 },
-    charsetRangeStart: 0,
+    charsetRangeStart: 0,    // Full range for fonts (0-127) and Background tiles (128-255)
     charsetRangeEnd: 255,
     defaultFgColorIndex: 11,
     defaultBgColorIndex: 6,

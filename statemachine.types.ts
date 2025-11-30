@@ -122,7 +122,10 @@ export const ConditionTypes = {
   ANIMATION_COMPLETE: 'ANIMATION_COMPLETE',
 
   // Composite conditions
-  KEY_AND_MOVEMENT: 'KEY_AND_MOVEMENT'
+  KEY_AND_MOVEMENT: 'KEY_AND_MOVEMENT',
+
+  // Variable conditions
+  VARIABLE_COMPARE: 'VARIABLE_COMPARE'
 } as const;
 
 // Note: VARIABLE_EQUALS and VARIABLE_GREATER have been removed

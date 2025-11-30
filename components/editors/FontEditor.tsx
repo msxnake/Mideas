@@ -4,8 +4,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { MSXFont, MSXCharacterPattern, Point, MSXFontColorAttributes, MSXFontRowColorAttributes, MSX1ColorValue, DataFormat } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
-import { PencilIcon, SaveFloppyIcon, FolderOpenIcon, CodeIcon } from '../icons/MsxIcons'; 
-import { DEFAULT_MSX_FONT, EDITABLE_CHAR_CODES_SUBSET, ALL_CHAR_CODES_FOR_SELECTOR } from '../utils/msxFontRenderer'; 
+import { PencilIcon, SaveFloppyIcon, FolderOpenIcon, CodeIcon } from '../icons/MsxIcons';
+import { DEFAULT_MSX_FONT, EDITABLE_CHAR_CODES_SUBSET, ALL_CHAR_CODES_FOR_SELECTOR } from '../utils/msxFontRenderer';
 import { ExportFontASMModal } from '../modals/ExportFontASMModal';
 import { MSX1_PALETTE_IDX_MAP, MSX1_PALETTE_MAP, DEFAULT_SCREEN2_BG_COLOR, DEFAULT_SCREEN2_FG_COLOR } from '../../constants';
 
@@ -13,10 +13,10 @@ const CHAR_WIDTH = 8;
 const CHAR_HEIGHT = 8;
 
 
-const PIXEL_ON_COLOR = '#FFFFFF'; 
-const PIXEL_OFF_COLOR = '#000000'; 
-const PREVIEW_PIXEL_ON_COLOR = '#74D07D'; 
-const PREVIEW_PIXEL_OFF_COLOR = '#1A1A2E'; 
+const PIXEL_ON_COLOR = '#FFFFFF';
+const PIXEL_OFF_COLOR = '#000000';
+const PREVIEW_PIXEL_ON_COLOR = '#74D07D';
+const PREVIEW_PIXEL_OFF_COLOR = '#1A1A2E';
 
 /**
  * Props for the FontEditor component.
@@ -41,14 +41,14 @@ interface FontEditorProps {
 /**
  * A component that displays a scaled preview of a single character pattern.
  */
-const SingleCharPreview: React.FC<{ 
-    /** The character pattern data to display. */
-    pattern: MSXCharacterPattern | undefined; 
-    /** The scaling factor for the preview. */
-    scale: number; 
-    isSelected?: boolean;
-    rowColors?: MSXFontRowColorAttributes; // Added for SCREEN 2
-    currentScreenMode: string; // Added for SCREEN 2
+const SingleCharPreview: React.FC<{
+  /** The character pattern data to display. */
+  pattern: MSXCharacterPattern | undefined;
+  /** The scaling factor for the preview. */
+  scale: number;
+  isSelected?: boolean;
+  rowColors?: MSXFontRowColorAttributes; // Added for SCREEN 2
+  currentScreenMode: string; // Added for SCREEN 2
 }> = ({ pattern, scale, isSelected, rowColors, currentScreenMode }) => {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
@@ -58,8 +58,8 @@ const SingleCharPreview: React.FC<{
       if (ctx) {
         ctx.imageSmoothingEnabled = false;
         ctx.clearRect(0, 0, CHAR_WIDTH * scale, CHAR_HEIGHT * scale);
-        const p = pattern || Array(8).fill(0); 
-        
+        const p = pattern || Array(8).fill(0);
+
         const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
 
         for (let y = 0; y < CHAR_HEIGHT; y++) {
@@ -74,9 +74,9 @@ const SingleCharPreview: React.FC<{
           }
         }
         if (isSelected) {
-            ctx.strokeStyle = '#E94560'; 
-            ctx.lineWidth = Math.max(1, scale / 8);
-            ctx.strokeRect(0, 0, CHAR_WIDTH * scale, CHAR_HEIGHT * scale);
+          ctx.strokeStyle = '#E94560';
+          ctx.lineWidth = Math.max(1, scale / 8);
+          ctx.strokeRect(0, 0, CHAR_WIDTH * scale, CHAR_HEIGHT * scale);
         }
       }
     }
@@ -112,7 +112,7 @@ const FontPixelGrid: React.FC<{
         height: CHAR_HEIGHT * pixelSize,
         imageRendering: 'pixelated',
         cursor: 'pointer',
-        backgroundColor: gridBgColor, 
+        backgroundColor: gridBgColor,
       }}
     >
       {currentPattern.flatMap((rowByte, y) =>
@@ -145,12 +145,12 @@ const FontPixelGrid: React.FC<{
 };
 
 const generateFontASMCode = (
-    fontPatterns: MSXFont, 
-    fontColors: MSXFontColorAttributes | undefined,
-    currentScreenMode: string,
-    fontName: string = "CUSTOM_FONT",
-    filterEditableCharsOnly: boolean,
-    dataFormat: DataFormat // Added parameter
+  fontPatterns: MSXFont,
+  fontColors: MSXFontColorAttributes | undefined,
+  currentScreenMode: string,
+  fontName: string = "CUSTOM_FONT",
+  filterEditableCharsOnly: boolean,
+  dataFormat: DataFormat // Added parameter
 ): string => {
   const safeFontName = fontName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
   let asmString = `;; MSX Font Data: ${fontName}\n`;
@@ -162,9 +162,9 @@ const generateFontASMCode = (
   }
   asmString += `;; Mode: ${currentScreenMode}\n`;
   asmString += `;; Data Format: ${dataFormat.toUpperCase()}\n\n`;
-  
+
   const defaultPattern = Array(8).fill(0x00);
-  const codesToExport = filterEditableCharsOnly 
+  const codesToExport = filterEditableCharsOnly
     ? EDITABLE_CHAR_CODES_SUBSET.map(ec => ec.code)
     : Array.from({ length: 256 }, (_, i) => i);
 
@@ -175,11 +175,11 @@ const generateFontASMCode = (
   asmString += `${safeFontName}_PATTERN_DATA:\n`;
   for (const charCode of codesToExport) {
     const pattern = fontPatterns[charCode] || DEFAULT_MSX_FONT[charCode] || defaultPattern;
-    const charRepresentation = 
-        (charCode >= 32 && charCode <= 126) 
-        ? String.fromCharCode(charCode) 
+    const charRepresentation =
+      (charCode >= 32 && charCode <= 126)
+        ? String.fromCharCode(charCode)
         : (ALL_CHAR_CODES_FOR_SELECTOR.find(ec => ec.code === charCode)?.display || `ASCII ${charCode}`);
-    
+
     asmString += `  ; Char ${charCode} (0x${charCode.toString(16).padStart(2, '0').toUpperCase()}) - ${charRepresentation} - PATTERN\n`;
     const patternValuesString = pattern.map(formatNumber).join(',');
     asmString += `    DB ${patternValuesString}\n`;
@@ -190,51 +190,51 @@ const generateFontASMCode = (
     const defaultRowColors = Array(8).fill({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR });
 
     for (const charCode of codesToExport) {
-      const charRepresentation = 
-        (charCode >= 32 && charCode <= 126) 
-        ? String.fromCharCode(charCode) 
-        : (ALL_CHAR_CODES_FOR_SELECTOR.find(ec => ec.code === charCode)?.display || `ASCII ${charCode}`);
+      const charRepresentation =
+        (charCode >= 32 && charCode <= 126)
+          ? String.fromCharCode(charCode)
+          : (ALL_CHAR_CODES_FOR_SELECTOR.find(ec => ec.code === charCode)?.display || `ASCII ${charCode}`);
 
       const isNumeric = charCode >= 48 && charCode <= 57; // '0' - '9'
       const isAlpha = charCode >= 65 && charCode <= 90;   // 'A' - 'Z'
-      
+
       let actualColorsToUseForByteGeneration = defaultRowColors;
       let commentSuffix = `COLOR (FG_idx << 4 | BG_idx)`;
       let shouldExportDataLine = false;
 
       if (isNumeric) {
-          actualColorsToUseForByteGeneration = fontColors[48] || defaultRowColors;
-          if (charCode === 48) { // '0'
-              commentSuffix += ` - Shared for '0'-'9'`;
-              shouldExportDataLine = true;
-          } else { // '1' - '9'
-              commentSuffix += ` - Uses '0' color data (defined by Char 48)`;
-              shouldExportDataLine = false;
-          }
-      } else if (isAlpha) {
-          actualColorsToUseForByteGeneration = fontColors[65] || defaultRowColors;
-          if (charCode === 65) { // 'A'
-              commentSuffix += ` - Shared for 'A'-'Z'`;
-              shouldExportDataLine = true;
-          } else { // 'B' - 'Z'
-              commentSuffix += ` - Uses 'A' color data (defined by Char 65)`;
-              shouldExportDataLine = false;
-          }
-      } else { // Other characters (Space, symbols, etc.)
-          actualColorsToUseForByteGeneration = fontColors[charCode] || defaultRowColors;
+        actualColorsToUseForByteGeneration = fontColors[48] || defaultRowColors;
+        if (charCode === 48) { // '0'
+          commentSuffix += ` - Shared for '0'-'9'`;
           shouldExportDataLine = true;
+        } else { // '1' - '9'
+          commentSuffix += ` - Uses '0' color data (defined by Char 48)`;
+          shouldExportDataLine = false;
+        }
+      } else if (isAlpha) {
+        actualColorsToUseForByteGeneration = fontColors[65] || defaultRowColors;
+        if (charCode === 65) { // 'A'
+          commentSuffix += ` - Shared for 'A'-'Z'`;
+          shouldExportDataLine = true;
+        } else { // 'B' - 'Z'
+          commentSuffix += ` - Uses 'A' color data (defined by Char 65)`;
+          shouldExportDataLine = false;
+        }
+      } else { // Other characters (Space, symbols, etc.)
+        actualColorsToUseForByteGeneration = fontColors[charCode] || defaultRowColors;
+        shouldExportDataLine = true;
       }
 
       asmString += `  ; Char ${charCode} (0x${charCode.toString(16).padStart(2, '0').toUpperCase()}) - ${charRepresentation} - ${commentSuffix}\n`;
 
       if (shouldExportDataLine) {
-          const colorBytes = actualColorsToUseForByteGeneration.map(attr => {
-              const fgIdx = MSX1_PALETTE_MAP.get(attr.fg)?.index ?? 15;
-              const bgIdx = MSX1_PALETTE_MAP.get(attr.bg)?.index ?? 1;
-              return (fgIdx << 4) | bgIdx;
-          });
-          const colorValuesString = colorBytes.map(formatNumber).join(',');
-          asmString += `    DB ${colorValuesString}\n`;
+        const colorBytes = actualColorsToUseForByteGeneration.map(attr => {
+          const fgIdx = MSX1_PALETTE_MAP.get(attr.fg)?.index ?? 15;
+          const bgIdx = MSX1_PALETTE_MAP.get(attr.bg)?.index ?? 1;
+          return (fgIdx << 4) | bgIdx;
+        });
+        const colorValuesString = colorBytes.map(formatNumber).join(',');
+        asmString += `    DB ${colorValuesString}\n`;
       }
     }
   }
@@ -243,9 +243,9 @@ const generateFontASMCode = (
 
 
 export const FontEditor: React.FC<FontEditorProps> = ({
-    fontData, onUpdateFont,
-    fontColorAttributes, onUpdateFontColorAttributes,
-    currentScreenMode, selectedColor, dataOutputFormat
+  fontData, onUpdateFont,
+  fontColorAttributes, onUpdateFontColorAttributes,
+  currentScreenMode, selectedColor, dataOutputFormat
 }) => {
   const [selectedCharCode, setSelectedCharCode] = useState<number | null>(EDITABLE_CHAR_CODES_SUBSET[0]?.code || 32);
   const [zoom, setZoom] = useState(20);
@@ -261,11 +261,11 @@ export const FontEditor: React.FC<FontEditorProps> = ({
 
   useEffect(() => {
     if (filterEditableCharsOnly && selectedCharCode !== null && !EDITABLE_CHAR_CODES_SUBSET.some(ec => ec.code === selectedCharCode)) {
-        setSelectedCharCode(EDITABLE_CHAR_CODES_SUBSET[0]?.code || 32);
+      setSelectedCharCode(EDITABLE_CHAR_CODES_SUBSET[0]?.code || 32);
     } else if (!filterEditableCharsOnly && selectedCharCode === null && ALL_CHAR_CODES_FOR_SELECTOR.length > 0) {
-        setSelectedCharCode(ALL_CHAR_CODES_FOR_SELECTOR[0].code);
+      setSelectedCharCode(ALL_CHAR_CODES_FOR_SELECTOR[0].code);
     } else if (selectedCharCode === null && EDITABLE_CHAR_CODES_SUBSET.length > 0) {
-        setSelectedCharCode(EDITABLE_CHAR_CODES_SUBSET[0].code || 32);
+      setSelectedCharCode(EDITABLE_CHAR_CODES_SUBSET[0].code || 32);
     }
   }, [filterEditableCharsOnly, selectedCharCode]);
 
@@ -295,14 +295,14 @@ export const FontEditor: React.FC<FontEditorProps> = ({
   const handleInvertCharacter = () => {
     if (selectedCharCode === null) return;
     const existingPattern = fontData[selectedCharCode] || Array(8).fill(0);
-    const invertedPattern = existingPattern.map(byte => ~byte & 0xFF); 
+    const invertedPattern = existingPattern.map(byte => ~byte & 0xFF);
     const newFontData = { ...fontData, [selectedCharCode]: invertedPattern };
     onUpdateFont(newFontData);
   };
 
   const handleRowColorChange = (charToEdit: number, rowIndex: number, type: 'fg' | 'bg', color: MSX1ColorValue) => {
     const newFontColors = { ...fontColorAttributes };
-    const charColors = [...(newFontColors[charToEdit] || Array(8).fill({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR }).map(c => ({...c})))]; // Deep copy row
+    const charColors = [...(newFontColors[charToEdit] || Array(8).fill({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR }).map(c => ({ ...c })))]; // Deep copy row
     charColors[rowIndex] = { ...charColors[rowIndex], [type]: color };
     newFontColors[charToEdit] = charColors;
     onUpdateFontColorAttributes(newFontColors);
@@ -357,8 +357,8 @@ export const FontEditor: React.FC<FontEditorProps> = ({
 
     const sourceCharColorAttributes = fontColorAttributes[selectedCharCode];
     if (!sourceCharColorAttributes && currentScreenMode === "SCREEN 2 (Graphics I)") {
-        alert(`Row colors for the selected source character '${String.fromCharCode(selectedCharCode)}' are not defined. Please define them first or ensure they are initialized.`);
-        return;
+      alert(`Row colors for the selected source character '${String.fromCharCode(selectedCharCode)}' are not defined. Please define them first or ensure they are initialized.`);
+      return;
     }
 
     const codesToUpdate = rangeType === 'numbers'
@@ -402,68 +402,68 @@ export const FontEditor: React.FC<FontEditorProps> = ({
 
     alert(`Row colors ${patternsModified ? 'and patterns ' : ''}applied to ${rangeType === 'numbers' ? '0-9' : 'A-Z'}.`);
   };
-  
+
   const renderTextPreview = () => {
-      if (!previewText) return null;
-      const canvas = document.createElement('canvas');
-      const scale = 2;
-      const charSpacing = 1;
-      const totalCharWidth = (CHAR_WIDTH + charSpacing) * scale;
-      canvas.width = (previewText.length * totalCharWidth - (charSpacing * scale)) ;
-      canvas.height = CHAR_HEIGHT * scale;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
+    if (!previewText) return null;
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    const charSpacing = 1;
+    const totalCharWidth = (CHAR_WIDTH + charSpacing) * scale;
+    canvas.width = (previewText.length * totalCharWidth - (charSpacing * scale));
+    canvas.height = CHAR_HEIGHT * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
 
-      ctx.imageSmoothingEnabled = false;
-      
-      // Determine global background for the preview canvas itself.
-      // If SCREEN 2, and the first character of previewText has its first row BG color defined, use that.
-      // Otherwise, use PREVIEW_PIXEL_OFF_COLOR.
-      let globalPreviewBg = PREVIEW_PIXEL_OFF_COLOR;
-      if (currentScreenMode === "SCREEN 2 (Graphics I)") {
-          const firstCharPreviewCode = previewText.charCodeAt(0);
-          const firstCharColors = fontColorAttributes[firstCharPreviewCode];
-          if (firstCharColors && firstCharColors[0]) {
-              globalPreviewBg = firstCharColors[0].bg;
-          }
+    ctx.imageSmoothingEnabled = false;
+
+    // Determine global background for the preview canvas itself.
+    // If SCREEN 2, and the first character of previewText has its first row BG color defined, use that.
+    // Otherwise, use PREVIEW_PIXEL_OFF_COLOR.
+    let globalPreviewBg = PREVIEW_PIXEL_OFF_COLOR;
+    if (currentScreenMode === "SCREEN 2 (Graphics I)") {
+      const firstCharPreviewCode = previewText.charCodeAt(0);
+      const firstCharColors = fontColorAttributes[firstCharPreviewCode];
+      if (firstCharColors && firstCharColors[0]) {
+        globalPreviewBg = firstCharColors[0].bg;
       }
-      ctx.fillStyle = globalPreviewBg;
-      ctx.fillRect(0,0, canvas.width, canvas.height);
+    }
+    ctx.fillStyle = globalPreviewBg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 
-      for (let i = 0; i < previewText.length; i++) {
-          const charCode = previewText.charCodeAt(i);
-          const pattern = fontData[charCode] || DEFAULT_MSX_FONT[63] || Array(8).fill(0); 
-          const charRowColors = (currentScreenMode === "SCREEN 2 (Graphics I)" && fontColorAttributes[charCode]) 
-                                ? fontColorAttributes[charCode] 
-                                : undefined;
+    for (let i = 0; i < previewText.length; i++) {
+      const charCode = previewText.charCodeAt(i);
+      const pattern = fontData[charCode] || DEFAULT_MSX_FONT[63] || Array(8).fill(0);
+      const charRowColors = (currentScreenMode === "SCREEN 2 (Graphics I)" && fontColorAttributes[charCode])
+        ? fontColorAttributes[charCode]
+        : undefined;
 
-          for (let y = 0; y < CHAR_HEIGHT; y++) {
-              const rowByte = pattern[y];
-              // Determine FG/BG for this specific row of this character
-              const fgForRow = (charRowColors && charRowColors[y]) ? charRowColors[y].fg : PREVIEW_PIXEL_ON_COLOR; 
-              const bgForRow = (charRowColors && charRowColors[y]) ? charRowColors[y].bg : globalPreviewBg; // Use global preview BG if char-specific not set
-              
-              for (let x = 0; x < CHAR_WIDTH; x++) {
-                  const isPixelSet = (rowByte >> (7-x)) & 1;
-                  ctx.fillStyle = isPixelSet ? fgForRow : bgForRow;
-                  
-                  // Only draw if pixel is set OR if the background color for this row/char is different from the global preview BG
-                  if (isPixelSet || bgForRow !== globalPreviewBg) {
-                     ctx.fillRect( (i * (CHAR_WIDTH + charSpacing) + x) * scale, y * scale, scale, scale);
-                  }
-              }
+      for (let y = 0; y < CHAR_HEIGHT; y++) {
+        const rowByte = pattern[y];
+        // Determine FG/BG for this specific row of this character
+        const fgForRow = (charRowColors && charRowColors[y]) ? charRowColors[y].fg : PREVIEW_PIXEL_ON_COLOR;
+        const bgForRow = (charRowColors && charRowColors[y]) ? charRowColors[y].bg : globalPreviewBg; // Use global preview BG if char-specific not set
+
+        for (let x = 0; x < CHAR_WIDTH; x++) {
+          const isPixelSet = (rowByte >> (7 - x)) & 1;
+          ctx.fillStyle = isPixelSet ? fgForRow : bgForRow;
+
+          // Only draw if pixel is set OR if the background color for this row/char is different from the global preview BG
+          if (isPixelSet || bgForRow !== globalPreviewBg) {
+            ctx.fillRect((i * (CHAR_WIDTH + charSpacing) + x) * scale, y * scale, scale, scale);
           }
+        }
       }
-      return <img src={canvas.toDataURL()} alt="Text Preview" className="border border-msx-border" style={{imageRendering: 'pixelated', backgroundColor: globalPreviewBg }}/>;
+    }
+    return <img src={canvas.toDataURL()} alt="Text Preview" className="border border-msx-border" style={{ imageRendering: 'pixelated', backgroundColor: globalPreviewBg }} />;
   };
 
   const handleSaveFont = () => {
     const charsetWithStringKeys: Record<string, MSXCharacterPattern> = {};
     for (const charCode in fontData) {
-        if (Object.prototype.hasOwnProperty.call(fontData, charCode)) {
-            charsetWithStringKeys[String(charCode)] = fontData[Number(charCode)];
-        }
+      if (Object.prototype.hasOwnProperty.call(fontData, charCode)) {
+        charsetWithStringKeys[String(charCode)] = fontData[Number(charCode)];
+      }
     }
 
     const exportData: any = { // Use 'any' temporarily for flexibility
@@ -474,14 +474,14 @@ export const FontEditor: React.FC<FontEditorProps> = ({
     };
 
     if (currentScreenMode === "SCREEN 2 (Graphics I)" && Object.keys(fontColorAttributes).length > 0) {
-        const colorAttrsWithStringKeys: Record<string, MSXFontRowColorAttributes> = {};
-        for (const charCode in fontColorAttributes) {
-            if (Object.prototype.hasOwnProperty.call(fontColorAttributes, charCode)) {
-                colorAttrsWithStringKeys[String(charCode)] = fontColorAttributes[Number(charCode)];
-            }
+      const colorAttrsWithStringKeys: Record<string, MSXFontRowColorAttributes> = {};
+      for (const charCode in fontColorAttributes) {
+        if (Object.prototype.hasOwnProperty.call(fontColorAttributes, charCode)) {
+          colorAttrsWithStringKeys[String(charCode)] = fontColorAttributes[Number(charCode)];
         }
-        exportData.colorAttributes = colorAttrsWithStringKeys;
-        exportData.description += " Includes SCREEN 2 row color attributes.";
+      }
+      exportData.colorAttributes = colorAttrsWithStringKeys;
+      exportData.description += " Includes SCREEN 2 row color attributes.";
     }
 
 
@@ -515,13 +515,13 @@ export const FontEditor: React.FC<FontEditorProps> = ({
         if (!parsedJson || typeof parsedJson.charset !== 'object' || parsedJson.charset === null) {
           throw new Error("Invalid font file format: 'charset' object missing or invalid.");
         }
-        
+
         const loadedFontPatterns: MSXFont = {};
         let fontFileBaseName = "CustomFont";
         if (typeof parsedJson.name === 'string' && parsedJson.name.trim() !== '') {
-            fontFileBaseName = parsedJson.name.trim();
+          fontFileBaseName = parsedJson.name.trim();
         } else if (file.name) {
-            fontFileBaseName = file.name.substring(0, file.name.lastIndexOf('.')) || "ImportedFont";
+          fontFileBaseName = file.name.substring(0, file.name.lastIndexOf('.')) || "ImportedFont";
         }
         setFontNameToExport(fontFileBaseName);
 
@@ -537,37 +537,37 @@ export const FontEditor: React.FC<FontEditorProps> = ({
             }
           }
         }
-        
+
         if (!loadedFontPatterns[63] && DEFAULT_MSX_FONT[63]) { // Ensure '?' exists
-            loadedFontPatterns[63] = DEFAULT_MSX_FONT[63];
+          loadedFontPatterns[63] = DEFAULT_MSX_FONT[63];
         }
         onUpdateFont(loadedFontPatterns);
 
         // Load color attributes if present and in SCREEN 2 mode
         const loadedFontColors: MSXFontColorAttributes = {};
         if (currentScreenMode === "SCREEN 2 (Graphics I)" && parsedJson.colorAttributes && typeof parsedJson.colorAttributes === 'object') {
-            for (const key in parsedJson.colorAttributes) {
-                 if (Object.prototype.hasOwnProperty.call(parsedJson.colorAttributes, key)) {
-                    const charCode = parseInt(key, 10);
-                    const rowColors = parsedJson.colorAttributes[key];
-                    if (!isNaN(charCode) && Array.isArray(rowColors) && rowColors.length === 8 &&
-                        rowColors.every(rc => typeof rc === 'object' && rc.fg && rc.bg && MSX1_PALETTE_MAP.has(rc.fg) && MSX1_PALETTE_MAP.has(rc.bg) )) {
-                         loadedFontColors[charCode] = rowColors as MSXFontRowColorAttributes;
-                    } else {
-                        console.warn(`Skipping invalid character color attribute data for key '${key}'.`);
-                    }
-                 }
+          for (const key in parsedJson.colorAttributes) {
+            if (Object.prototype.hasOwnProperty.call(parsedJson.colorAttributes, key)) {
+              const charCode = parseInt(key, 10);
+              const rowColors = parsedJson.colorAttributes[key];
+              if (!isNaN(charCode) && Array.isArray(rowColors) && rowColors.length === 8 &&
+                rowColors.every(rc => typeof rc === 'object' && rc.fg && rc.bg && MSX1_PALETTE_MAP.has(rc.fg) && MSX1_PALETTE_MAP.has(rc.bg))) {
+                loadedFontColors[charCode] = rowColors as MSXFontRowColorAttributes;
+              } else {
+                console.warn(`Skipping invalid character color attribute data for key '${key}'.`);
+              }
             }
+          }
         }
         // If no color attributes in file but in SCREEN 2, initialize with defaults
         if (currentScreenMode === "SCREEN 2 (Graphics I)" && Object.keys(loadedFontColors).length === 0) {
-             const defaultRowColorsArray = Array(8).fill(null).map(() => ({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR })); // Ensure new objects
-             for (const charCodeStr in loadedFontPatterns) {
-                 const charCodeNum = Number(charCodeStr);
-                 if (!isNaN(charCodeNum)) {
-                     loadedFontColors[charCodeNum] = JSON.parse(JSON.stringify(defaultRowColorsArray));
-                 }
-             }
+          const defaultRowColorsArray = Array(8).fill(null).map(() => ({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR })); // Ensure new objects
+          for (const charCodeStr in loadedFontPatterns) {
+            const charCodeNum = Number(charCodeStr);
+            if (!isNaN(charCodeNum)) {
+              loadedFontColors[charCodeNum] = JSON.parse(JSON.stringify(defaultRowColorsArray));
+            }
+          }
         }
         onUpdateFontColorAttributes(loadedFontColors);
 
@@ -583,8 +583,8 @@ export const FontEditor: React.FC<FontEditorProps> = ({
     };
     reader.onerror = () => {
       alert("Error reading font file.");
-       if (fileInputRef.current) {
-          fileInputRef.current.value = "";
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
       }
     };
     reader.readAsText(file);
@@ -607,70 +607,74 @@ export const FontEditor: React.FC<FontEditorProps> = ({
         <Button onClick={handleLoadFontClick} size="sm" variant="secondary" icon={<FolderOpenIcon />}>Load Font (.json)</Button>
         <Button onClick={handleOpenExportAsmModal} size="sm" variant="secondary" icon={<CodeIcon />}>Export Font ASM</Button>
         <label className="flex items-center text-xs pixel-font text-msx-textsecondary ml-2">
-            <input 
-                type="checkbox" 
-                checked={filterEditableCharsOnly} 
-                onChange={(e) => setFilterEditableCharsOnly(e.target.checked)}
-                className="mr-1 form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
-            />
-            Filter Editable (Space, 0-9, A-Z)
+          <input
+            type="checkbox"
+            checked={filterEditableCharsOnly}
+            onChange={(e) => setFilterEditableCharsOnly(e.target.checked)}
+            className="mr-1 form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
+          />
+          Filter Editable (Space, 0-9, A-Z)
         </label>
         <div className="flex items-center space-x-1 ml-auto">
-            <label htmlFor="fontExportName" className="text-xs pixel-font text-msx-textsecondary">ASM Label:</label>
-            <input 
-                type="text" 
-                id="fontExportName"
-                value={fontNameToExport} 
-                onChange={(e) => setFontNameToExport(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-                placeholder="FontLabelForASM"
-                className="p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent w-32"
-            />
+          <label htmlFor="fontExportName" className="text-xs pixel-font text-msx-textsecondary">ASM Label:</label>
+          <input
+            type="text"
+            id="fontExportName"
+            value={fontNameToExport}
+            onChange={(e) => setFontNameToExport(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+            placeholder="FontLabelForASM"
+            className="p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent w-32"
+          />
         </div>
       </div>
       <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
         {/* Left: Character Selector */}
-        <div className="w-48 p-2 border-r border-msx-border overflow-y-auto flex-shrink-0">
-          <h4 className="text-sm pixel-font text-msx-highlight mb-2">Characters {filterEditableCharsOnly ? "(Editable Subset)" : "(All 256)"}</h4>
-          <div className="flex gap-1 mb-2">
-            <Button
-              onClick={handleSelectAll}
-              size="sm"
-              variant="secondary"
-              className="text-xs flex-1"
-              disabled={selectedCharCode === null}
-              title="Copy current character pattern to all visible characters"
-            >
-              Select All
-            </Button>
-            <Button
-              onClick={handleSelectNone}
-              size="sm"
-              variant="secondary"
-              className="text-xs flex-1"
-              title="Clear all visible character patterns"
-            >
-              Select None
-            </Button>
-          </div>
-          <div className="grid grid-cols-8 gap-1">
-            {charCodesForSelector.map(({ code, display }) => (
-              <button
-                key={code}
-                onClick={() => setSelectedCharCode(code)}
-                className={`p-0.5 border rounded text-[0.5rem] flex flex-col items-center justify-center aspect-square 
-                            ${selectedCharCode === code ? 'bg-msx-accent text-white border-msx-accent' : 'bg-msx-panelbg text-msx-textsecondary border-msx-border hover:border-msx-highlight'}`}
-                title={`Edit character '${display}' (ASCII: ${code})`}
+        <div className="w-48 border-r border-msx-border flex-shrink-0 flex flex-col min-h-0">
+          <div className="p-2 flex-shrink-0">
+            <h4 className="text-sm pixel-font text-msx-highlight mb-2">Characters {filterEditableCharsOnly ? "(Editable Subset)" : "(All 256)"}</h4>
+            <div className="flex gap-1 mb-2">
+              <Button
+                onClick={handleSelectAll}
+                size="sm"
+                variant="secondary"
+                className="text-xs flex-1"
+                disabled={selectedCharCode === null}
+                title="Copy current character pattern to all visible characters"
               >
-                <SingleCharPreview 
-                    pattern={fontData[code]} 
-                    scale={1.5} 
+                Select All
+              </Button>
+              <Button
+                onClick={handleSelectNone}
+                size="sm"
+                variant="secondary"
+                className="text-xs flex-1"
+                title="Clear all visible character patterns"
+              >
+                Select None
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto px-2 pb-2 min-h-0">
+            <div className="grid grid-cols-8 gap-1">
+              {charCodesForSelector.map(({ code, display }) => (
+                <button
+                  key={code}
+                  onClick={() => setSelectedCharCode(code)}
+                  className={`p-0.5 border rounded text-[0.5rem] flex flex-col items-center justify-center aspect-square 
+                            ${selectedCharCode === code ? 'bg-msx-accent text-white border-msx-accent' : 'bg-msx-panelbg text-msx-textsecondary border-msx-border hover:border-msx-highlight'}`}
+                  title={`Edit character '${display}' (ASCII: ${code})`}
+                >
+                  <SingleCharPreview
+                    pattern={fontData[code]}
+                    scale={1.5}
                     isSelected={selectedCharCode === code}
                     rowColors={currentScreenMode === "SCREEN 2 (Graphics I)" ? fontColorAttributes[code] : undefined}
                     currentScreenMode={currentScreenMode}
-                />
-                <span className="mt-0.5 truncate block w-full text-center" style={{maxWidth: '100%'}}>{display}</span>
-              </button>
-            ))}
+                  />
+                  <span className="mt-0.5 truncate block w-full text-center" style={{ maxWidth: '100%' }}>{display}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -685,10 +689,10 @@ export const FontEditor: React.FC<FontEditorProps> = ({
                 <label htmlFor="fontZoom" className="text-xs pixel-font text-msx-textsecondary">Zoom:</label>
                 <input type="range" id="fontZoom" min="10" max="40" value={zoom} onChange={(e) => setZoom(parseInt(e.target.value))} className="w-24 accent-msx-accent" />
               </div>
-              <FontPixelGrid 
-                pattern={currentPattern} 
-                onPixelToggle={handlePixelToggle} 
-                pixelSize={zoom} 
+              <FontPixelGrid
+                pattern={currentPattern}
+                onPixelToggle={handlePixelToggle}
+                pixelSize={zoom}
                 rowColors={currentCharColorAttributes}
                 currentScreenMode={currentScreenMode}
               />
@@ -704,61 +708,61 @@ export const FontEditor: React.FC<FontEditorProps> = ({
 
         {/* Right: Color Attributes & Preview */}
         <div className="w-72 p-2 border-l border-msx-border flex-shrink-0 flex flex-col items-center space-y-3 overflow-y-auto">
-            <h4 className="text-sm pixel-font text-msx-highlight">Character Pattern Preview</h4>
-            {selectedCharCode !== null && 
-                <SingleCharPreview 
-                    pattern={currentPattern} 
-                    scale={8} 
-                    rowColors={currentCharColorAttributes}
-                    currentScreenMode={currentScreenMode}
-                />}
-            
-            {currentScreenMode === "SCREEN 2 (Graphics I)" && selectedCharCode !== null && (
-              <div className="w-full mt-2">
-                <h5 className="text-xs pixel-font text-msx-cyan mb-1 text-center">Row Colors (FG/BG)</h5>
-                <div className="space-y-0.5">
-                  {(currentCharColorAttributes || Array(8).fill({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR })).map((attr, rowIndex) => {
-                     const fgColorObj = MSX1_PALETTE_MAP.get(attr.fg);
-                     const bgColorObj = MSX1_PALETTE_MAP.get(attr.bg);
-                     return (
-                        <div key={rowIndex} className="flex items-center justify-between text-xs p-0.5 bg-msx-panelbg/50 rounded">
-                            <span className="text-msx-textsecondary w-10">Row {rowIndex}:</span>
-                            <button 
-                                onClick={() => handleRowColorChange(selectedCharCode, rowIndex, 'fg', selectedColor)}
-                                className="w-8 h-5 border border-msx-border rounded text-white text-[0.6rem] flex items-center justify-center" style={{backgroundColor: attr.fg}}
-                                title={`Set FG to selected palette color. Current: ${fgColorObj?.name || attr.fg} (Idx ${fgColorObj?.index})`}>
-                                {fgColorObj?.index}
-                            </button>
-                            <button 
-                                onClick={() => handleRowColorChange(selectedCharCode, rowIndex, 'bg', selectedColor)}
-                                className="w-8 h-5 border border-msx-border rounded text-white text-[0.6rem] flex items-center justify-center" style={{backgroundColor: attr.bg}}
-                                title={`Set BG to selected palette color. Current: ${bgColorObj?.name || attr.bg} (Idx ${bgColorObj?.index})`}>
-                                {bgColorObj?.index}
-                            </button>
-                        </div>
-                     );
-                  })}
-                </div>
-                <div className="mt-2 flex flex-col space-y-1">
-                    <Button onClick={() => handleApplyColorsToRange('numbers')} size="sm" variant="ghost" className="text-xs" disabled={!currentCharColorAttributes || ![48].includes(selectedCharCode)}>Apply Row Colors to 0-9</Button>
-                    <Button onClick={() => handleApplyColorsToRange('letters')} size="sm" variant="ghost" className="text-xs" disabled={!currentCharColorAttributes || ![65].includes(selectedCharCode)}>Apply Row Colors to A-Z</Button>
-                </div>
+          <h4 className="text-sm pixel-font text-msx-highlight">Character Pattern Preview</h4>
+          {selectedCharCode !== null &&
+            <SingleCharPreview
+              pattern={currentPattern}
+              scale={8}
+              rowColors={currentCharColorAttributes}
+              currentScreenMode={currentScreenMode}
+            />}
+
+          {currentScreenMode === "SCREEN 2 (Graphics I)" && selectedCharCode !== null && (
+            <div className="w-full mt-2">
+              <h5 className="text-xs pixel-font text-msx-cyan mb-1 text-center">Row Colors (FG/BG)</h5>
+              <div className="space-y-0.5">
+                {(currentCharColorAttributes || Array(8).fill({ fg: DEFAULT_SCREEN2_FG_COLOR, bg: DEFAULT_SCREEN2_BG_COLOR })).map((attr, rowIndex) => {
+                  const fgColorObj = MSX1_PALETTE_MAP.get(attr.fg);
+                  const bgColorObj = MSX1_PALETTE_MAP.get(attr.bg);
+                  return (
+                    <div key={rowIndex} className="flex items-center justify-between text-xs p-0.5 bg-msx-panelbg/50 rounded">
+                      <span className="text-msx-textsecondary w-10">Row {rowIndex}:</span>
+                      <button
+                        onClick={() => handleRowColorChange(selectedCharCode, rowIndex, 'fg', selectedColor)}
+                        className="w-8 h-5 border border-msx-border rounded text-white text-[0.6rem] flex items-center justify-center" style={{ backgroundColor: attr.fg }}
+                        title={`Set FG to selected palette color. Current: ${fgColorObj?.name || attr.fg} (Idx ${fgColorObj?.index})`}>
+                        {fgColorObj?.index}
+                      </button>
+                      <button
+                        onClick={() => handleRowColorChange(selectedCharCode, rowIndex, 'bg', selectedColor)}
+                        className="w-8 h-5 border border-msx-border rounded text-white text-[0.6rem] flex items-center justify-center" style={{ backgroundColor: attr.bg }}
+                        title={`Set BG to selected palette color. Current: ${bgColorObj?.name || attr.bg} (Idx ${bgColorObj?.index})`}>
+                        {bgColorObj?.index}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-            
-            <h4 className="text-sm pixel-font text-msx-highlight mt-2">Text String Preview</h4>
-            <input 
-                type="text" 
-                value={previewText} 
-                onChange={(e) => setPreviewText(e.target.value.toUpperCase())} 
-                className="w-full p-1.5 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
-                placeholder="Type to preview..."
-                maxLength={20}
-            />
-            <div className="p-1 border border-msx-border rounded min-h-[32px] w-full flex justify-center" 
-                 style={{backgroundColor: PREVIEW_PIXEL_OFF_COLOR }}>
-                {renderTextPreview()}
+              <div className="mt-2 flex flex-col space-y-1">
+                <Button onClick={() => handleApplyColorsToRange('numbers')} size="sm" variant="ghost" className="text-xs" disabled={!currentCharColorAttributes || ![48].includes(selectedCharCode)}>Apply Row Colors to 0-9</Button>
+                <Button onClick={() => handleApplyColorsToRange('letters')} size="sm" variant="ghost" className="text-xs" disabled={!currentCharColorAttributes || ![65].includes(selectedCharCode)}>Apply Row Colors to A-Z</Button>
+              </div>
             </div>
+          )}
+
+          <h4 className="text-sm pixel-font text-msx-highlight mt-2">Text String Preview</h4>
+          <input
+            type="text"
+            value={previewText}
+            onChange={(e) => setPreviewText(e.target.value.toUpperCase())}
+            className="w-full p-1.5 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+            placeholder="Type to preview..."
+            maxLength={20}
+          />
+          <div className="p-1 border border-msx-border rounded min-h-[32px] w-full flex justify-center"
+            style={{ backgroundColor: PREVIEW_PIXEL_OFF_COLOR }}>
+            {renderTextPreview()}
+          </div>
         </div>
       </div>
       {isExportAsmModalOpen && (

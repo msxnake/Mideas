@@ -64,6 +64,25 @@ const CONDITION_IDS: Record<string, number> = {
     [ConditionTypes.HAS_DEADLY_TILE_COLLISION]: 11,
     [ConditionTypes.ANIMATION_COMPLETE]: 12,
     [ConditionTypes.KEY_AND_MOVEMENT]: 13,
+    [ConditionTypes.VARIABLE_COMPARE]: 14,
+};
+
+// Variable IDs for VARIABLE_COMPARE condition
+const VARIABLE_IDS: Record<string, number> = {
+    'x': 0,   // entity_x_pos
+    'y': 1,   // entity_y_pos
+    'vx': 2,  // entity_vel_x
+    'vy': 3,  // entity_vel_y
+};
+
+// Operator IDs for VARIABLE_COMPARE condition
+const OPERATOR_IDS: Record<string, number> = {
+    '==': 0,
+    '!=': 1,
+    '>': 2,
+    '<': 3,
+    '>=': 4,
+    '<=': 5,
 };
 
 // =============================================================================
@@ -391,15 +410,31 @@ SM_ExecuteActions_Loop:
         ; HL = Updated Pointer(after params)
     ; ------------------------------------------------------------------
         SM_EvaluateCondition:
-    ld b, a; B = Entity Index
-    ld a, (hl); Get Condition ID
+    ld b, a             ; B = Entity Index
+    ld a, (hl)          ; Get Condition ID
     inc hl
 
-    ; TODO: Dispatch Condition
-    ; For now, just skip params and return True
-
-    ; Placeholder: Always True, consume 0 params
-    ld a, 1
+    ; Dispatch to condition handler
+    push hl             ; Save Params Ptr
+    
+    ; Calculate Table Address
+    ld l, a
+    ld h, 0
+    add hl, hl          ; * 2 (word addresses)
+    ld de, SM_ConditionTable
+    add hl, de
+    
+    ; Get Handler Address
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ; DE = Handler Address
+    
+    ; Restore Params Ptr to HL
+    pop hl
+    
+    ; Jump to Handler (B = Entity Index, HL = Params)
+    push de
     ret
     `;
 
@@ -907,6 +942,242 @@ Action_AssignVar:
     inc hl
     inc hl
     ret
+
+    ; ------------------------------------------------------------------
+    ; CONDITION DISPATCH TABLE
+    ; ------------------------------------------------------------------
+
+SM_ConditionTable:
+    DW Condition_Nop            ; 0
+    DW Condition_And            ; 1
+    DW Condition_Or             ; 2
+    DW Condition_Not            ; 3
+    DW Condition_KeyPressed     ; 4
+    DW Condition_KeyReleased    ; 5
+    DW Condition_TimeOut        ; 6
+    DW Condition_CanMove        ; 7
+    DW Condition_HasCollision   ; 8
+    DW Condition_PathClear      ; 9
+    DW Condition_OnWallCollision; 10
+    DW Condition_DeadlyTile     ; 11
+    DW Condition_AnimComplete   ; 12
+    DW Condition_KeyAndMove     ; 13
+    DW Condition_VariableCompare; 14
+
+    ; ------------------------------------------------------------------
+    ; CONDITION HANDLERS IMPLEMENTATION
+    ; ------------------------------------------------------------------
+
+Condition_Nop:
+    ld a, 1                 ; Always true
+    ret
+
+Condition_And:
+    ; TODO: Implement AND logic
+    ld a, 1
+    ret
+
+Condition_Or:
+    ; TODO: Implement OR logic
+    ld a, 1
+    ret
+
+Condition_Not:
+    ; TODO: Implement NOT logic
+    ld a, 1
+    ret
+
+Condition_KeyPressed:
+    ; TODO: Implement key press check
+    inc hl                  ; Skip key param
+    ld a, 1
+    ret
+
+Condition_KeyReleased:
+    ; TODO: Implement key release check
+    inc hl                  ; Skip key param
+    ld a, 1
+    ret
+
+Condition_TimeOut:
+    ; TODO: Implement timeout check
+    ld a, 1
+    ret
+
+Condition_CanMove:
+    ; TODO: Implement movement check
+    inc hl                  ; Skip direction param
+    ld a, 1
+    ret
+
+Condition_HasCollision:
+    ; TODO: Implement collision check
+    ld a, 1
+    ret
+
+Condition_PathClear:
+    ; TODO: Implement path clear check
+    ld a, 1
+    ret
+
+Condition_OnWallCollision:
+    ; TODO: Implement wall collision check
+    inc hl                  ; Skip direction param
+    ld a, 1
+    ret
+
+Condition_DeadlyTile:
+    ; TODO: Implement deadly tile check
+    ld a, 1
+    ret
+
+Condition_AnimComplete:
+    ; TODO: Implement animation complete check
+    ld a, 1
+    ret
+
+Condition_KeyAndMove:
+    ; TODO: Implement key and movement check
+    ld a, 1
+    ret
+
+Condition_VariableCompare:
+    ; Params: VarID (1 byte), Operator (1 byte), Value (1 byte)
+    ; Input: B = Entity Index, HL = Params Ptr
+    ; Output: A = 1 (true) or 0 (false), HL = Updated Ptr
+    
+    ld a, (hl)              ; A = Variable ID
+    inc hl
+    ld c, (hl)              ; C = Operator ID
+    inc hl
+    ld d, (hl)              ; D = Compare Value
+    inc hl
+    
+    push hl                 ; Save updated params ptr
+    push bc                 ; Save Operator and Entity Index
+    push de                 ; Save Compare Value
+    
+    ; Get variable value based on Variable ID
+    ; A = Variable ID (0=x, 1=y, 2=vx, 3=vy)
+    ; B = Entity Index
+    
+    ld c, b                 ; C = Entity Index
+    ld b, 0                 ; BC = Entity Index
+    
+    cp 0                    ; Check if x
+    jr z, .get_x
+    cp 1                    ; Check if y
+    jr z, .get_y
+    cp 2                    ; Check if vx
+    jr z, .get_vx
+    cp 3                    ; Check if vy
+    jr z, .get_vy
+    
+    ; Invalid variable ID, return false
+    pop de
+    pop bc
+    pop hl
+    ld a, 0
+    ret
+
+.get_x:
+    ld hl, entity_x_pos
+    add hl, bc
+    ld e, (hl)              ; E = entity x position
+    jr .do_compare
+
+.get_y:
+    ld hl, entity_y_pos
+    add hl, bc
+    ld e, (hl)              ; E = entity y position
+    jr .do_compare
+
+.get_vx:
+    ld hl, entity_vel_x
+    add hl, bc
+    ld e, (hl)              ; E = entity x velocity
+    jr .do_compare
+
+.get_vy:
+    ld hl, entity_vel_y
+    add hl, bc
+    ld e, (hl)              ; E = entity y velocity
+    ; Fall through to .do_compare
+
+.do_compare:
+    ; E = Variable Value
+    ; Stack: Compare Value (D), Operator (C in saved BC), Entity Index
+    pop hl                  ; HL = Compare Value (D in H)
+    ld d, h                 ; D = Compare Value
+    pop bc                  ; C = Operator ID, B = Entity Index (restore)
+    pop hl                  ; HL = Updated Params Ptr
+    
+    ; Now: E = Variable Value, D = Compare Value, C = Operator
+    ; Perform comparison based on operator
+    ld a, c                 ; A = Operator ID
+    
+    cp 0                    ; == operator
+    jr z, .op_equals
+    cp 1                    ; != operator
+    jr z, .op_not_equals
+    cp 2                    ; > operator
+    jr z, .op_greater
+    cp 3                    ; < operator
+    jr z, .op_less
+    cp 4                    ; >= operator
+    jr z, .op_greater_equal
+    cp 5                    ; <= operator
+    jr z, .op_less_equal
+    
+    ; Invalid operator, return false
+    ld a, 0
+    ret
+
+.op_equals:
+    ld a, e                 ; A = Variable Value
+    cp d                    ; Compare with D
+    jr z, .return_true
+    jr .return_false
+
+.op_not_equals:
+    ld a, e
+    cp d
+    jr nz, .return_true
+    jr .return_false
+
+.op_greater:
+    ld a, e
+    cp d
+    jr z, .return_false     ; If equal, not greater
+    jr nc, .return_true     ; If no carry, E >= D, so E > D (since not equal)
+    jr .return_false
+
+.op_less:
+    ld a, e
+    cp d
+    jr c, .return_true      ; If carry, E < D
+    jr .return_false
+
+.op_greater_equal:
+    ld a, e
+    cp d
+    jr nc, .return_true     ; If no carry, E >= D
+    jr .return_false
+
+.op_less_equal:
+    ld a, e
+    cp d
+    jr z, .return_true      ; If equal
+    jr c, .return_true      ; If carry, E < D
+    jr .return_false
+
+.return_true:
+    ld a, 1
+    ret
+
+.return_false:
+    ld a, 0
+    ret
     `;
 
 // =============================================================================
@@ -1094,6 +1365,13 @@ function generateConditionBytes(condition: Condition): string {
             } else {
                 bytes += `    DB 0\n`;
             }
+            break;
+
+        case ConditionTypes.VARIABLE_COMPARE:
+            const varId = VARIABLE_IDS[condition.params?.variable || 'x'] || 0;
+            const opId = OPERATOR_IDS[condition.params?.operator || '=='] || 0;
+            const value = condition.params?.value || 0;
+            bytes += `    DB ${varId}, ${opId}, ${value}; ${condition.params?.variable} ${condition.params?.operator} ${value}\n`;
             break;
 
         default:
