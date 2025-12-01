@@ -457,6 +457,10 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Cooldown to avoid immediate re-trigger of screen exits after a transition
     const lastScreenTransitionTimeRef = useRef<number>(0);
     const hudBufferRef = useRef<HTMLCanvasElement | null>(null);
+    // Prevent duplicate item collisions within a single frame
+    const collisionItemFrameGuardRef = useRef<Set<string>>(new Set());
+    // Prevent double variable increments for the same collectible within a frame
+    const processedCollectibleScoreRef = useRef<Set<string>>(new Set());
 
     const previewScreenMode = useMemo(
         () => resolveScreenModeForMap(currentScreenMap, currentScreenMode),
@@ -521,6 +525,84 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         entity.carrySpriteBackup = undefined;
     };
 
+    const formatHudValue = (value: any, digits?: number): string | undefined => {
+        if (value === undefined || value === null) return undefined;
+        const parsedDigits = Number.isFinite(digits) ? Math.max(0, Number(digits)) : undefined;
+        const numeric = Number(value);
+        if (!Number.isNaN(numeric)) {
+            const asInt = Math.floor(numeric);
+            return parsedDigits !== undefined ? Math.max(0, asInt).toString().padStart(parsedDigits, '0') : asInt.toString();
+        }
+        return String(value);
+    };
+
+    const getGlobalVariableValue = (rawName?: string | null): any => {
+        const resolved = normalizeVariableName(rawName);
+        if (!resolved) return undefined;
+        const current = gameGlobalVariablesRef.current || {};
+        // Direct hit
+        if (resolved in current) return current[resolved];
+        // Case-insensitive / normalized fallback
+        const lower = resolved.toLowerCase();
+        const matchKey = Object.keys(current).find(k => (normalizeVariableName(k) ?? k).toLowerCase() === lower);
+        return matchKey ? current[matchKey] : undefined;
+    };
+
+    const resolveHudText = (hudEl: any): string => {
+        const rawText = (hudEl as any).text || (hudEl as any).name || '';
+        if (!rawText) return '';
+        const digits = Number((hudEl as any).details?.digits);
+        const safeDigits = Number.isFinite(digits) ? digits : undefined;
+
+        // 1) Replace {{variable}} placeholders with matching global variable values
+        const placeholderRegex = /\{\{\s*([^{}]+?)\s*\}\}/g;
+        let replaced = false;
+        const withPlaceholders = rawText.replace(placeholderRegex, (full, varNameRaw) => {
+            const varName = normalizeVariableName(varNameRaw) ?? (typeof varNameRaw === 'string' ? varNameRaw.trim() : `${varNameRaw}`);
+            const formatted = varName ? formatHudValue(getGlobalVariableValue(varName), safeDigits) : undefined;
+            if (formatted !== undefined) {
+                replaced = true;
+                return formatted;
+            }
+            return full;
+        });
+        if (replaced) return withPlaceholders;
+
+        // 2) Fallback: infer variable name from HUD type or explicit detail fields
+        const explicitVarName = normalizeVariableName(
+            (hudEl as any).details?.variableName ??
+            (hudEl as any).details?.globalVariableName ??
+            (hudEl as any).details?.bindingVariable
+        );
+        const defaultVarName = (() => {
+            switch ((hudEl as any).type) {
+                case 'Score': return 'Score';
+                case 'HighScore': return 'HighScore';
+                case 'CoinCounter': return 'Coin';
+                case 'CustomCounter': return (hudEl as any).text || (hudEl as any).name;
+                default: return undefined;
+            }
+        })();
+        const resolvedVarName = explicitVarName ?? normalizeVariableName(defaultVarName);
+        const formattedFallback = resolvedVarName ? formatHudValue(getGlobalVariableValue(resolvedVarName), safeDigits) : undefined;
+        if (formattedFallback !== undefined) {
+            if (safeDigits && safeDigits > 0) {
+                const digitPattern = new RegExp(`\\d{${safeDigits}}`);
+                if (digitPattern.test(rawText)) {
+                    return rawText.replace(digitPattern, formattedFallback.padStart(safeDigits, '0'));
+                }
+            }
+            const digitMatches = rawText.match(/\d+/g);
+            if (digitMatches && digitMatches.length > 0) {
+                const target = digitMatches[digitMatches.length - 1];
+                return rawText.replace(target, formattedFallback);
+            }
+            return `${rawText} ${formattedFallback}`;
+        }
+
+        return rawText;
+    };
+
     // Pre-render HUD text (mirrors Screen Editor HUD renderer so text appears in GameFlow)
     useEffect(() => {
         const map = currentScreenMap;
@@ -550,14 +632,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             if (!hudEl || (hudEl as any).visible === false) continue;
             const isTextBased = textBasedTypes.has((hudEl as any).type);
             const rawText = (hudEl as any).text || (hudEl as any).name;
-            if (!isTextBased || !rawText) continue;
+            const resolvedText = isTextBased ? resolveHudText(hudEl) : rawText;
+            if (!isTextBased || !resolvedText) continue;
 
             const charSpacing = (hudEl as any).details?.charSpacing || 0;
             const hudTextColor = (hudEl as any).details?.textColor;
             const hudBackgroundColor = (hudEl as any).details?.textBackgroundColor;
 
             const dataUrl = renderUnifiedTextToDataURL(
-                rawText,
+                resolvedText,
                 tileBanks.length ? tileBanks : undefined,
                 allAssets,
                 msxFont,
@@ -1350,6 +1433,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                         return Number.isNaN(n) ? 1 : n;
                     })();
                     if (resolvedVarName) {
+                        // Guard: avoid double increment for the same collectible within a frame
+                        const lastOther = (entity as any).lastCollidedEntity;
+                        const otherIsCollectible = lastOther?.template?.components?.some((c: any) => c.definitionId === 'comp_collectible');
+                        if (otherIsCollectible) {
+                            if (processedCollectibleScoreRef.current.has(lastOther.instance.id)) {
+                                break;
+                            }
+                            processedCollectibleScoreRef.current.add(lastOther.instance.id);
+                        }
                         updateGameGlobalVariables(prev => {
                             const raw = (prev as any)[resolvedVarName];
                             const curr = Number(typeof raw === 'string' ? raw.trim() : raw);
@@ -2219,6 +2311,13 @@ function changeEntityState(
 // Procesar condiciones y verificar transiciones
 const processEventTransitions = useCallback((entity: AnimatedEntity) => {
     if (!entity.stateMachine || !entity.currentState) return;
+    // Skip already collected items to avoid double-processing state actions
+    const isCollectibleEntity = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
+    if (isCollectibleEntity && (entity as any).__collectedOnce) {
+        const entityEvents = pendingEvents.current.get(entity.instance.id);
+        if (entityEvents) entityEvents.clear();
+        return;
+    }
 
     // Check if entity is waiting (WAIT action blocks all state transitions)
     if (entity.waitUntilTime !== undefined) {
@@ -4274,6 +4373,9 @@ useEffect(() => {
         try { syncGamepadToPressedKeys(); } catch { }
         // Allow gamepad to navigate SubMenu
         try { syncGamepadForMenu(); } catch { }
+        // Reset per-frame item collision guard
+        collisionItemFrameGuardRef.current.clear();
+        processedCollectibleScoreRef.current.clear();
         // --- Calcular deltaTime (opcional) ---
         // const deltaTime = currentTime - lastTime;
         // lastTime = currentTime;
@@ -4362,6 +4464,10 @@ useEffect(() => {
                 switchToCarrySpriteIfConfigured(entityA);
             } else if (!entityA.carriedBox && entityA.carrySpriteBackup) {
                 restoreSpriteAfterCarry(entityA);
+            }
+            // Prevent double-processing of collectibles once consumed
+            if (isCollectibleItem && (entityA as any).__collectedOnce) {
+                return;
             }
 
             // --- Early-out para entidades que no pertenecen a esta pantalla ---
@@ -5218,6 +5324,10 @@ useEffect(() => {
                     if (heroRef.current?.carriedBox === entityA || heroRef.current?.carriedBox === entityB) {
                         continue;
                     }
+                    // Skip already collected items to avoid double-processing
+                    const isCollectedA = entityA.template.components.some(c => c.definitionId === 'comp_collectible') && (entityA as any).__collectedOnce;
+                    const isCollectedB = entityB.template.components.some(c => c.definitionId === 'comp_collectible') && (entityB as any).__collectedOnce;
+                    if (isCollectedA || isCollectedB) continue;
                     const entityBHasCollision = entityB.template.components.some(c => c.definitionId === 'comp_collision');
 
                     if (indexA === 0 && now % 1000 < 16) {
@@ -5297,19 +5407,41 @@ useEffect(() => {
                                 );
 
                                 // Only trigger collision events if not invulnerable
-                                if (!isAInvulnerable) {
-                                    const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
-                                    triggerEvent(entityA.instance.id, eventNameA);
-                                    // Store reference to the other entity for DESTROY_ENTITY action
-                                    (entityA as any).lastCollidedEntity = entityB;
+                            if (!isAInvulnerable) {
+                                const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
+                                // Guard: avoid double-processing the same collectible in the same frame
+                                if (eventNameA === 'collision_item' && entityB.template.components.some(c => c.definitionId === 'comp_collectible')) {
+                                    const key = entityB.instance.id;
+                                    if (collisionItemFrameGuardRef.current.has(key)) {
+                                        continue;
+                                    }
+                                    collisionItemFrameGuardRef.current.add(key);
                                 }
-                                if (!isBInvulnerable) {
-                                    const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
-                                    triggerEvent(entityB.instance.id, eventNameB);
-                                    // Store reference to the other entity for DESTROY_ENTITY action
-                                    (entityB as any).lastCollidedEntity = entityA;
+                                triggerEvent(entityA.instance.id, eventNameA);
+                                // Store reference to the other entity for DESTROY_ENTITY action
+                                (entityA as any).lastCollidedEntity = entityB;
+                                if (eventNameA === 'collision_item' && entityB.template.components.some(c => c.definitionId === 'comp_collectible')) {
+                                    (entityB as any).__collectedOnce = true;
                                 }
-                            } else {
+                            }
+                            if (!isBInvulnerable) {
+                                const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
+                                // Guard: avoid double-processing the same collectible in the same frame
+                                if (eventNameB === 'collision_item' && entityA.template.components.some(c => c.definitionId === 'comp_collectible')) {
+                                    const key = entityA.instance.id;
+                                    if (collisionItemFrameGuardRef.current.has(key)) {
+                                        continue;
+                                    }
+                                    collisionItemFrameGuardRef.current.add(key);
+                                }
+                                triggerEvent(entityB.instance.id, eventNameB);
+                                // Store reference to the other entity for DESTROY_ENTITY action
+                                (entityB as any).lastCollidedEntity = entityA;
+                                if (eventNameB === 'collision_item' && entityA.template.components.some(c => c.definitionId === 'comp_collectible')) {
+                                    (entityA as any).__collectedOnce = true;
+                                }
+                            }
+                        } else {
                                 // SOLID COLLISION: Apply physical separation
                                 resolveEntityCollision(entityA, entityB, propsA, propsB);
 
