@@ -1027,6 +1027,36 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 // Check directly on entity property (not events)
                 return entity.animationHasCompleted === true;
 
+            case 'VARIABLE_COMPARE': {
+                const variable = condition.params?.variable || 'x';
+                const operator = condition.params?.operator || '==';
+                const rawValue = condition.params?.value ?? 0;
+                const rightValue = Number.isNaN(Number(rawValue)) ? 0 : Number(rawValue);
+                const leftValue = (() => {
+                    switch (variable) {
+                        case 'x': return Number.isFinite(entity.x) ? entity.x : 0;
+                        case 'y': return Number.isFinite(entity.y) ? entity.y : 0;
+                        case 'vx': return Number.isFinite(entity.vx) ? entity.vx : 0;
+                        case 'vy': return Number.isFinite(entity.vy) ? entity.vy : 0;
+                        default: {
+                            const fallback = (entity as any)?.[variable];
+                            const parsed = Number(fallback);
+                            return Number.isNaN(parsed) ? 0 : parsed;
+                        }
+                    }
+                })();
+
+                switch (operator) {
+                    case '==': return leftValue === rightValue;
+                    case '!=': return leftValue !== rightValue;
+                    case '>': return leftValue > rightValue;
+                    case '<': return leftValue < rightValue;
+                    case '>=': return leftValue >= rightValue;
+                    case '<=': return leftValue <= rightValue;
+                    default: return false;
+                }
+            }
+
             case 'AND':
                 return condition.conditions?.every((c: any) => evaluateCondition(c, entity)) ?? false;
 
