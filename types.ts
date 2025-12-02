@@ -1071,6 +1071,8 @@ export interface GameFlowGlobalsNode extends GameFlowNode_Base {
   type: 'Globals';
   /** Optional display name for the node. */
   title?: string;
+  /** Asset that provides the available global variables to pick from. */
+  globalVariablesAssetId?: string;
   /** List of variable assignments to apply when this node is reached. */
   variables: Array<{
     id: string;

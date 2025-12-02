@@ -212,6 +212,16 @@ const normalizeVariableName = (value?: string | null): string | undefined => {
     return normalized || undefined;
 };
 
+// Detect collectibles either by component or by common naming convention (e.g., "coin", "key", "item")
+const isCollectibleTemplate = (template: EntityTemplate): boolean => {
+    const hasCollectibleComp = template.components?.some(c => c.definitionId === 'comp_collectible');
+    if (hasCollectibleComp) return true;
+    const name = (template.name || '').toLowerCase();
+    return name.includes('coin') || name.includes('key') || name.includes('collectible') || name.includes('item');
+};
+
+const isCollectibleEntity = (entity: AnimatedEntity): boolean => isCollectibleTemplate(entity.template);
+
 const coerceGlobalVariableValue = (value: any): any => {
     if (typeof value === 'boolean') {
         return value;
@@ -385,6 +395,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const revealedSecretTiles = useRef<Set<string>>(new Set());
     // Visual effects for secret discovery (sparkles/particles)
     const secretDiscoveryEffects = useRef<Array<{ x: number, y: number, lifetime: number, maxLifetime: number }>>([]);
+    // Spawn anchors for collectibles (e.g., coins) distributed across the screen
+    const nucleoPositionsRef = useRef<Array<{ x: number; y: number }>>([]);
     const [currentNodeId, setCurrentNodeId] = useState<string | null>(null);
     const [navigationStack, setNavigationStack] = useState<string[]>([]);
     const [selectedOptionIndex, setSelectedOptionIndex] = useState(0);
@@ -394,6 +406,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const [showHitboxDebug, setShowHitboxDebug] = useState(false);
     const [showTileHitboxes, setShowTileHitboxes] = useState(false); // Debug: outlines for solid Collision tiles
     const [showEntityCount, setShowEntityCount] = useState(false);
+    const [showStateMachineStates, setShowStateMachineStates] = useState(false); // Show all entity states when StateMachine node is active
     const [visibleEntityCount, setVisibleEntityCount] = useState(0);
     const visibleEntityCountRef = useRef(0);
     const showEntityCountRef = useRef(showEntityCount);
@@ -402,6 +415,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         const saved = localStorage.getItem('crtShaderConfig');
         return saved ? JSON.parse(saved) : defaultCRTConfig;
     });
+    const collectibleDefaultItemType = useMemo(() => {
+        const def = componentDefinitions.find(d => d.id === 'comp_collectible');
+        const prop = def?.properties?.find(p => p.name === 'itemType');
+        return prop?.defaultValue;
+    }, [componentDefinitions]);
     const [isCrtConfigOpen, setIsCrtConfigOpen] = useState(false);
     // Carry offset now comes from comp_carry on the Player entity (editable in entity attrs)
     const [gameGlobalVariables, setGameGlobalVariables] = useState<Record<string, any>>({});
@@ -742,7 +760,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 if (!shouldCountBox) continue;
             }
 
-            const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
+            const isCollectible = isCollectibleEntity(entity);
             if (isCollectible) {
                 const shouldCountCollectible =
                     entity.ownerScreenId === currentScreenId ||
@@ -977,6 +995,18 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const isPressed = pressedKeys.current.has(key);
                 return isPressed;
 
+            case 'TIME_OUT': {
+                // Default to GameTime global variable, allow override via params
+                const targetVar = normalizeVariableName(
+                    condition.params?.variable ?? condition.params?.variableName ?? 'GameTime'
+                );
+                if (!targetVar) return false;
+                const remainingTime = getGlobalVariableValue(targetVar);
+                const numericTime = Number(remainingTime);
+                if (Number.isNaN(numericTime)) return false;
+                return numericTime < 1;
+            }
+
             case 'HAS_COLLISION':
                 // Verificar tipo especfico de colisin (enemy, item, wall, any)
                 const collisionType = condition.params?.collisionType || 'any';
@@ -995,65 +1025,30 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             return false;
                         }
 
-                        // Remove deprecated filters from state-machine conditions
-                        // We ignore templateId/templateName so transitions only use itemType.
-                        if (condition && (condition as any).params) {
-                            delete (condition as any).params.templateId;
-                            delete (condition as any).params.templateName;
-                        }
-
-                        // Funcin para normalizar valores (trim + lowercase)
+                        // Función para normalizar valores (trim + lowercase)
                         const normalizeValue = (value: any) => {
                             if (value === null || value === undefined || value === '') return '';
                             return String(value).trim().toLowerCase();
                         };
 
-                        // Obtener y normalizar parmetros de la condicin
+                        // Obtener parámetros de la condición (solo itemType)
                         const wantsItemType = condition.params?.itemType;
-                        const wantsTemplateId = condition.params?.templateId;
-                        const wantsTemplateName = condition.params?.templateName;
 
                         // Debug logging mejorado
                         console.log(`[Collision Debug] Item collided: ${other.template.name} (ID: ${other.template.id})`);
-                        const debugParams = {
-                            wantsItemType: wantsItemType,
-                            wantsTemplateId: wantsTemplateId,
-                            wantsTemplateName: wantsTemplateName
-                        };
-                        console.log(`[Collision Debug] State machine condition params:`, debugParams);
+                        console.log(`[Collision Debug] State machine condition params:`, { itemType: wantsItemType || '(any)' });
 
-                        // 1) Filtrar por templateId si se especifica (ms especfico)
-                        if (wantsTemplateId) {
-                            const normalizedWantedId = normalizeValue(wantsTemplateId);
-                            const normalizedActualId = normalizeValue(other.template.id);
-                            if (normalizedActualId !== normalizedWantedId) {
-                                console.debug(`Template ID mismatch: wanted "${normalizedWantedId}", got "${normalizedActualId}"`);
-                                return false;
-                            }
-                            console.debug(`Template ID match: "${normalizedWantedId}"`);
-                        }
-
-                        // 2) Filtrar por templateName si se especifica
-                        if (wantsTemplateName) {
-                            const normalizedWantedName = normalizeValue(wantsTemplateName);
-                            const normalizedActualName = normalizeValue(other.template.name);
-                            if (normalizedActualName !== normalizedWantedName) {
-                                console.debug(`Template name mismatch: wanted "${normalizedWantedName}", got "${normalizedActualName}"`);
-                                return false;
-                            }
-                            console.debug(`Template name match: "${normalizedWantedName}"`);
-                        }
-
-                        // 3) Filtrar por itemType (propiedad de comp_collectible)
+                        // Filtrar por itemType (propiedad de comp_collectible o cualquier component con itemType)
                         if (wantsItemType) {
                             const comp = other.template.components?.find((c: any) => c.definitionId === 'comp_collectible');
                             if (!comp) {
                                 console.warn(`Item entity ${other.template.name} is missing comp_collectible component`);
                                 return false;
                             }
-                            let otherItemType = comp.defaultValues?.itemType || '';
-                            if (other.instance?.componentOverrides?.['comp_collectible']?.itemType !== undefined) {
-                                otherItemType = other.instance.componentOverrides['comp_collectible'].itemType;
+                            let otherItemType = comp.defaultValues?.itemType ?? collectibleDefaultItemType ?? '';
+                            const overrideItemType = other.instance?.componentOverrides?.['comp_collectible']?.itemType;
+                            if (overrideItemType !== undefined && `${overrideItemType}`.trim() !== '') {
+                                otherItemType = overrideItemType;
                             }
                             const normalizedWantedType = normalizeValue(wantsItemType);
                             const normalizedActualType = normalizeValue(otherItemType);
@@ -1114,30 +1109,80 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                 const variable = condition.params?.variable || 'x';
                 const operator = condition.params?.operator || '==';
                 const rawValue = condition.params?.value ?? 0;
-                const rightValue = Number.isNaN(Number(rawValue)) ? 0 : Number(rawValue);
+
+                // Helper to normalize values for comparison (handles booleans, numbers, strings)
+                const normalizeValue = (value: any): boolean | number | string => {
+                    if (typeof value === 'boolean') {
+                        return value;
+                    }
+                    if (typeof value === 'string') {
+                        const trimmed = value.trim().toLowerCase();
+                        if (trimmed === 'true') return true;
+                        if (trimmed === 'false') return false;
+                        const num = Number(trimmed);
+                        if (!Number.isNaN(num)) return num;
+                        return trimmed;
+                    }
+                    if (typeof value === 'number') {
+                        return value;
+                    }
+                    return value;
+                };
+
+                // Primero intentar acceder a variables de la entidad (x, y, vx, vy)
+                // Si no existe, buscar en las variables globales
                 const leftValue = (() => {
+                    // Variables de la entidad (acceso directo - siempre son números)
                     switch (variable) {
                         case 'x': return Number.isFinite(entity.x) ? entity.x : 0;
                         case 'y': return Number.isFinite(entity.y) ? entity.y : 0;
                         case 'vx': return Number.isFinite(entity.vx) ? entity.vx : 0;
                         case 'vy': return Number.isFinite(entity.vy) ? entity.vy : 0;
                         default: {
-                            const fallback = (entity as any)?.[variable];
-                            const parsed = Number(fallback);
-                            return Number.isNaN(parsed) ? 0 : parsed;
+                            // Intentar buscar en variables globales
+                            const resolvedVarName = normalizeVariableName(variable) ?? variable;
+                            const globalValue = gameGlobalVariablesRef.current?.[resolvedVarName];
+
+                            if (globalValue !== undefined) {
+                                return normalizeValue(globalValue);
+                            }
+
+                            // Fallback: intentar acceder a otras propiedades de la entidad
+                            const entityProp = (entity as any)?.[variable];
+                            if (entityProp !== undefined) {
+                                return normalizeValue(entityProp);
+                            }
+
+                            return 0;
                         }
                     }
                 })();
 
-                switch (operator) {
-                    case '==': return leftValue === rightValue;
-                    case '!=': return leftValue !== rightValue;
-                    case '>': return leftValue > rightValue;
-                    case '<': return leftValue < rightValue;
-                    case '>=': return leftValue >= rightValue;
-                    case '<=': return leftValue <= rightValue;
-                    default: return false;
+                const rightValue = normalizeValue(rawValue);
+
+                // Type-aware comparison
+                const leftType = typeof leftValue;
+                const rightType = typeof rightValue;
+
+                // For equality/inequality, allow comparison across types
+                if (operator === '==' || operator === '!=') {
+                    const isEqual = leftValue == rightValue; // Use == for loose equality
+                    return operator === '==' ? isEqual : !isEqual;
                 }
+
+                // For numeric comparisons, ensure both are numbers
+                if (leftType === 'number' && rightType === 'number') {
+                    switch (operator) {
+                        case '>': return (leftValue as number) > (rightValue as number);
+                        case '<': return (leftValue as number) < (rightValue as number);
+                        case '>=': return (leftValue as number) >= (rightValue as number);
+                        case '<=': return (leftValue as number) <= (rightValue as number);
+                        default: return false;
+                    }
+                }
+
+                // Can't do numeric comparison on non-numbers
+                return false;
             }
 
             case 'AND':
@@ -1397,29 +1442,42 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                             otherEntity.markedForDestruction = true;
 
                             // If it's a collectible item, register it as collected to prevent respawning
-                            const isCollectible = otherEntity.template.components?.some(c => c.definitionId === 'comp_collectible');
-                            if (isCollectible && otherEntity.ownerScreenId) {
-                                const registryKey = `${otherEntity.ownerScreenId}_${otherEntity.instance.id}`;
-                                collectedItemsRegistry.current.add(registryKey);
-                            }
-                        }
-                    } else {
-                        // Default: destroy self
-                        entity.markedForDestruction = true;
-
-                        // If destroying self and it's a collectible item, register it
-                        const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
-                        if (isCollectible && entity.ownerScreenId) {
-                            const registryKey = `${entity.ownerScreenId}_${entity.instance.id}`;
+                        const isCollectible = isCollectibleEntity(otherEntity);
+                        if (isCollectible && otherEntity.ownerScreenId) {
+                            const registryKey = `${otherEntity.ownerScreenId}_${otherEntity.instance.id}`;
                             collectedItemsRegistry.current.add(registryKey);
                         }
                     }
-                    break;
+                } else {
+                    // Default: destroy self
+                    entity.markedForDestruction = true;
+
+                    // If destroying self and it's a collectible item, register it
+                    const isCollectible = isCollectibleEntity(entity);
+                    if (isCollectible && entity.ownerScreenId) {
+                        const registryKey = `${entity.ownerScreenId}_${entity.instance.id}`;
+                        collectedItemsRegistry.current.add(registryKey);
+                    }
+                }
+                break;
                 }
 
                 case 'SET_POSITION': {
                     if (action.params.x !== undefined) entity.x = Number(action.params.x);
                     if (action.params.y !== undefined) entity.y = Number(action.params.y);
+                    break;
+                }
+
+                case 'SET_VARIABLE': {
+                    const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
+                    const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
+                    if (resolvedVarName) {
+                        const nextValue = coerceGlobalVariableValue(action.params.value);
+                        updateGameGlobalVariables(prev => ({
+                            ...prev,
+                            [resolvedVarName]: nextValue
+                        }));
+                    }
                     break;
                 }
 
@@ -1435,7 +1493,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     if (resolvedVarName) {
                         // Guard: avoid double increment for the same collectible within a frame
                         const lastOther = (entity as any).lastCollidedEntity;
-                        const otherIsCollectible = lastOther?.template?.components?.some((c: any) => c.definitionId === 'comp_collectible');
+                        const otherIsCollectible = lastOther ? isCollectibleEntity(lastOther) : false;
                         if (otherIsCollectible) {
                             if (processedCollectibleScoreRef.current.has(lastOther.instance.id)) {
                                 break;
@@ -1572,138 +1630,174 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const templateId = action.params.templateId || action.params.entityTemplateId;
     const isRelative = action.params.isRelative === true;
     const matchFacing = action.params.matchFacing === true;
+    const delayMs = Number(action.params.delayMs ?? action.params.spawnDelayMs ?? 0);
 
-    let spawnX = 0;
-    let spawnY = 0;
+    const performSpawn = () => {
+        let spawnX = 0;
+        let spawnY = 0;
 
-    if (isRelative) {
-        const offsetX = Number(action.params.x || 0);
-        const offsetY = Number(action.params.y || 0);
+        if (isRelative) {
+            const offsetX = Number(action.params.x || 0);
+            const offsetY = Number(action.params.y || 0);
 
-        // Check facing direction for mirroring
-        const isParentMirrored = entity.isFacingMirrored;
-        const finalOffsetX = (matchFacing && isParentMirrored) ? -offsetX : offsetX;
+            // Check facing direction for mirroring
+            const isParentMirrored = entity.isFacingMirrored;
+            const finalOffsetX = (matchFacing && isParentMirrored) ? -offsetX : offsetX;
 
-        spawnX = entity.x + finalOffsetX;
-        spawnY = entity.y + offsetY;
-    } else {
-        spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
-        spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
-    }
-
-    const actionLifetimeMs = action.params.lifetimeMs !== undefined ? Number(action.params.lifetimeMs) : undefined;
-
-    if (!templateId) break;
-
-    // Find entity template
-    const template = entityTemplates.find(t => t.id === templateId || t.name === templateId);
-    if (!template) break;
-
-    // Find sprite for this entity
-    let spriteAssetId: string | undefined;
-    for (const comp of template.components) {
-        const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
-        const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
-        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
-            spriteAssetId = comp.defaultValues[spriteProp.name];
-            break;
+            spawnX = entity.x + finalOffsetX;
+            spawnY = entity.y + offsetY;
+        } else {
+            spawnX = Number(action.params.x !== undefined ? action.params.x : entity.x);
+            spawnY = Number(action.params.y !== undefined ? action.params.y : entity.y);
         }
-    }
 
-    const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
-    const sprite = spriteAsset?.data as Sprite;
-    if (!sprite?.frames?.length) break;
+        const actionLifetimeMs = action.params.lifetimeMs !== undefined ? Number(action.params.lifetimeMs) : undefined;
 
-    // Create frame images
-    const frameImages = sprite.frames.map(frame => {
-        const img = new Image();
-        img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
-        return img;
-    });
+        if (!templateId) return;
 
-    // Create mirrored frames if needed
-    let mirroredFrameImages: HTMLImageElement[] | undefined;
-    if (['right', 'left'].includes(sprite.facingDirection)) {
-        mirroredFrameImages = sprite.frames.map(frame => {
-            const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+        // Find entity template
+        // Look up the template both in the in-memory list and in entitytemplate assets (to support templates loaded from assets only)
+        const template = entityTemplates.find(t => t.id === templateId || t.name === templateId)
+            || (allAssets.find(a => a.type === 'entitytemplate' && (a.id === templateId || a.name === templateId || (a.data as any)?.id === templateId))?.data as EntityTemplate | undefined);
+        if (!template) return;
+        const templateName = (template.name || '').toLowerCase();
+        const wantsRandomNucleo = action.params.randomNucleo === true || action.params.randomNucleo === 'true' ||
+            action.params.spawnAtRandomNucleo === true || action.params.spawnAtRandomNucleo === 'true' ||
+            action.params.useNucleo === true || action.params.useNucleo === 'true';
+        const shouldAutoUseNucleo = templateName.includes('coin') &&
+            action.params.x === undefined &&
+            action.params.y === undefined &&
+            nucleoPositionsRef.current.length > 0;
+        if ((wantsRandomNucleo || shouldAutoUseNucleo) && nucleoPositionsRef.current.length > 0) {
+            const randomIndex = Math.floor(Math.random() * nucleoPositionsRef.current.length);
+            const randomAnchor = nucleoPositionsRef.current[randomIndex];
+            spawnX = randomAnchor.x;
+            spawnY = randomAnchor.y;
+        } else if (wantsRandomNucleo && nucleoPositionsRef.current.length === 0) {
+            try { console.warn('SPAWN_ENTITY asked for random nucleo but none exist in this screen'); } catch { }
+        }
+
+        // Find sprite for this entity
+        let spriteAssetId: string | undefined;
+        for (const comp of template.components) {
+            const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+            const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+            if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                spriteAssetId = comp.defaultValues[spriteProp.name];
+                break;
+            }
+        }
+
+        const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+        const sprite = spriteAsset?.data as Sprite;
+        if (!sprite?.frames?.length) return;
+
+        // Create frame images
+        const frameImages = sprite.frames.map(frame => {
             const img = new Image();
-            img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+            img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
             return img;
         });
-    }
 
-    // Find state machine if entity has one
-    let stateMachine: StateMachine | undefined;
-    let currentState: string | undefined;
-    let initialStateDef: StateMachineState | undefined;
-    const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
-    const stateMachineAssetId = smc?.defaultValues?.stateMachineAssetId;
-    if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
-        const stateMachineAsset = allAssets.find(a =>
-            a.id === stateMachineAssetId && a.type === 'statemachine'
-        );
-        stateMachine = stateMachineAsset?.data as StateMachine | undefined;
-        if (stateMachine) {
-            const startStateId = smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
-            let initialState = stateMachine.states.find(s => s.id === startStateId);
-            if (!initialState && startStateId) {
-                initialState = stateMachine.states.find(s => s.name === startStateId);
-            }
-            if (!initialState) {
-                initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle')
-                    || stateMachine.states[0];
-            }
-            initialStateDef = initialState;
-            currentState = initialState?.name;
+        // Create mirrored frames if needed
+        let mirroredFrameImages: HTMLImageElement[] | undefined;
+        if (['right', 'left'].includes(sprite.facingDirection)) {
+            mirroredFrameImages = sprite.frames.map(frame => {
+                const mirroredData = mirrorPixelDataHorizontally(frame.data as PixelData);
+                const img = new Image();
+                img.src = createSpriteDataURL(mirroredData, sprite.size.width, sprite.size.height);
+                return img;
+            });
         }
-    }
 
-    // Create new entity instance
-    const newInstance: EntityInstance = {
-        id: `spawned_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: template.name,
-        entityTemplateId: template.id,
-        position: { x: Math.floor(spawnX / 8), y: Math.floor(spawnY / 8) },
-        componentOverrides: {}
+        // Find state machine if entity has one
+        let stateMachine: StateMachine | undefined;
+        let currentState: string | undefined;
+        let initialStateDef: StateMachineState | undefined;
+        const smc = template.components.find(c => c.definitionId === 'comp_statemachine');
+        const stateMachineAssetId = smc?.defaultValues?.stateMachineAssetId;
+        if (stateMachineAssetId && stateMachineAssetId !== '0' && stateMachineAssetId !== '') {
+            const stateMachineAsset = allAssets.find(a =>
+                a.id === stateMachineAssetId && a.type === 'statemachine'
+            );
+            stateMachine = stateMachineAsset?.data as StateMachine | undefined;
+            if (stateMachine) {
+                const startStateId = smc?.defaultValues?.currentStateId || stateMachine.initialStateId;
+                let initialState = stateMachine.states.find(s => s.id === startStateId);
+                if (!initialState && startStateId) {
+                    initialState = stateMachine.states.find(s => s.name === startStateId);
+                }
+                if (!initialState) {
+                    initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle')
+                        || stateMachine.states[0];
+                }
+                initialStateDef = initialState;
+                currentState = initialState?.name;
+            }
+        }
+
+        // Determine ownership for persistence/visibility (boxes and collectibles stick to their origin screen)
+        const isBoxEntity = template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(template.name || '');
+        const isCollectibleItem = isCollectibleTemplate(template);
+        const ownerScreenId = (isBoxEntity || isCollectibleItem) ? currentScreenMapRef.current?.id : undefined;
+
+        // Create new entity instance
+        const newInstance: EntityInstance = {
+            id: `spawned_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            name: template.name,
+            entityTemplateId: template.id,
+            position: { x: Math.floor(spawnX / 8), y: Math.floor(spawnY / 8) },
+            componentOverrides: {}
+        };
+
+        const childLink = parseChildLinkConfig(template, newInstance);
+        const lifetimeMs = resolveLifetimeMs(template, newInstance, actionLifetimeMs);
+        const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
+
+        // Create animated entity
+        const newEntity: AnimatedEntity = {
+            instance: newInstance,
+            template,
+            sprite,
+            spriteAssetId: spriteAsset?.id,
+            x: spawnX,
+            y: spawnY,
+            vx: 0,
+            vy: 0,
+            frameImages,
+            mirroredFrameImages,
+            currentFrame: 0,
+            lastFrameUpdateTime: performance.now(),
+            stateMachine,
+            currentState,
+            isOnGround: false,
+            spawnTime: performance.now(),
+            parentEntityId: null,
+            platformGraceFramesLeft: 0,
+            childLink,
+            lifetimeMs,
+            expiresAt,
+            isFacingMirrored: matchFacing ? entity.isFacingMirrored : false,
+            desiredFacingDirection: matchFacing ? entity.desiredFacingDirection : undefined,
+            ownerScreenId
+        };
+
+        if (stateMachine && initialStateDef) {
+            changeEntityState(newEntity, initialStateDef, { runExitActions: false });
+        }
+
+        // Add to entities list
+        entitiesRef.current.push(newEntity);
     };
 
-    const childLink = parseChildLinkConfig(template, newInstance);
-    const lifetimeMs = resolveLifetimeMs(template, newInstance, actionLifetimeMs);
-    const expiresAt = lifetimeMs ? performance.now() + lifetimeMs : undefined;
-
-    // Create animated entity
-    const newEntity: AnimatedEntity = {
-        instance: newInstance,
-        template,
-        sprite,
-        spriteAssetId: spriteAsset?.id,
-        x: spawnX,
-        y: spawnY,
-        vx: 0,
-        vy: 0,
-        frameImages,
-        mirroredFrameImages,
-        currentFrame: 0,
-        lastFrameUpdateTime: performance.now(),
-        stateMachine,
-        currentState,
-        isOnGround: false,
-        spawnTime: performance.now(),
-        parentEntityId: null,
-        platformGraceFramesLeft: 0,
-        childLink,
-        lifetimeMs,
-        expiresAt,
-        isFacingMirrored: matchFacing ? entity.isFacingMirrored : false,
-        desiredFacingDirection: matchFacing ? entity.desiredFacingDirection : undefined
-    };
-
-    if (stateMachine && initialStateDef) {
-        changeEntityState(newEntity, initialStateDef, { runExitActions: false });
+    if (delayMs > 0) {
+        setTimeout(() => {
+            if (!isOpen) return;
+            performSpawn();
+        }, delayMs);
+    } else {
+        performSpawn();
     }
-
-    // Add to entities list
-    entitiesRef.current.push(newEntity);
     break;
 }
 
@@ -2311,12 +2405,15 @@ function changeEntityState(
 // Procesar condiciones y verificar transiciones
 const processEventTransitions = useCallback((entity: AnimatedEntity) => {
     if (!entity.stateMachine || !entity.currentState) return;
+    const entityEvents = pendingEvents.current.get(entity.instance.id);
     // Skip already collected items to avoid double-processing state actions
-    const isCollectibleEntity = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
-    if (isCollectibleEntity && (entity as any).__collectedOnce) {
-        const entityEvents = pendingEvents.current.get(entity.instance.id);
-        if (entityEvents) entityEvents.clear();
-        return;
+    const isCollectible = isCollectibleEntity(entity);
+    if (isCollectible && (entity as any).__collectedOnce) {
+        // Allow one final processing pass if there are pending events (e.g., collision_item)
+        if (!entityEvents || entityEvents.size === 0) {
+            if (entityEvents) entityEvents.clear();
+            return;
+        }
     }
 
     // Check if entity is waiting (WAIT action blocks all state transitions)
@@ -2797,12 +2894,15 @@ useEffect(() => {
 useEffect(() => {
     if (!isOpen) {
         heroRef.current = null;
+        nucleoPositionsRef.current = [];
         return;
     }
     if (!currentScreenMap) {
         entitiesRef.current = [];
+        nucleoPositionsRef.current = [];
         return;
     };
+    nucleoPositionsRef.current = [];
     // Store refs for use inside asynchronous actions
     currentScreenMapRef.current = currentScreenMap;
     currentWorldMapGraphRef.current = currentWorldMapGraph;
@@ -2833,6 +2933,16 @@ useEffect(() => {
     const nativeEntities = currentScreenMap.layers.entities.map(instance => {
         const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
         if (!template) return null;
+        const templateName = (template.name || '').toLowerCase();
+        const templateIdNormalized = (template.id || '').toLowerCase();
+        const isNucleoTemplate = templateName === 'nucleo' || templateIdNormalized === 'nucleo';
+        if (isNucleoTemplate) {
+            nucleoPositionsRef.current.push({
+                x: instance.position.x * TILE_SIZE,
+                y: instance.position.y * TILE_SIZE
+            });
+            return null; // Use nucleo as a spawn anchor only
+        }
         let spriteAssetId: string | undefined;
         if (instance.componentOverrides) {
             for (const compId in instance.componentOverrides) {
@@ -2938,7 +3048,7 @@ useEffect(() => {
 
         // Initialize ownerScreenId for Box entities (screen persistence)
         const isBoxEntity = template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(template.name);
-        const isCollectibleItem = template.components?.some(c => c.definitionId === 'comp_collectible');
+            const isCollectibleItem = isCollectibleTemplate(template);
         const ownerScreenId = (isBoxEntity || isCollectibleItem) ? currentScreenMap.id : undefined;
 
         // Skip Box entities that have already been picked up from this screen
@@ -4455,7 +4565,7 @@ useEffect(() => {
             const isCarriedBox = heroRef.current?.carriedBox === entityA;
             // Treat entities tagged as box as collidable with tiles even if they don't explicitly have comp_collision
             const isBoxEntity = entityA.template.components?.some(c => c.definitionId === 'comp_box') || /box/i.test(entityA.template.name);
-            const isCollectibleItem = entityA.template.components?.some(c => c.definitionId === 'comp_collectible');
+            const isCollectibleItem = isCollectibleEntity(entityA);
             const childLinkConfig = entityA.childLink;
             const childLinkParent = childLinkConfig && entityA.parentEntityId
                 ? entityLookup.get(entityA.parentEntityId)
@@ -5325,8 +5435,8 @@ useEffect(() => {
                         continue;
                     }
                     // Skip already collected items to avoid double-processing
-                    const isCollectedA = entityA.template.components.some(c => c.definitionId === 'comp_collectible') && (entityA as any).__collectedOnce;
-                    const isCollectedB = entityB.template.components.some(c => c.definitionId === 'comp_collectible') && (entityB as any).__collectedOnce;
+                    const isCollectedA = isCollectibleEntity(entityA) && (entityA as any).__collectedOnce;
+                    const isCollectedB = isCollectibleEntity(entityB) && (entityB as any).__collectedOnce;
                     if (isCollectedA || isCollectedB) continue;
                     const entityBHasCollision = entityB.template.components.some(c => c.definitionId === 'comp_collision');
 
@@ -5376,9 +5486,8 @@ useEffect(() => {
 
                                 // Helper function: Determine collision event type based on entity layer and components
                                 const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
-                                    // Check if entity has comp_collectible
-                                    const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
-                                    if (hasCollectible) return 'collision_item';
+                                    // Check if entity is collectible
+                                    if (isCollectibleEntity(entity)) return 'collision_item';
 
                                     // Check layer 8 (bit 3) for platforms/walls - MUST check before enemy detection
                                     if ((entityLayer & 8) !== 0) return 'collision_wall';
@@ -5410,7 +5519,7 @@ useEffect(() => {
                             if (!isAInvulnerable) {
                                 const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
                                 // Guard: avoid double-processing the same collectible in the same frame
-                                if (eventNameA === 'collision_item' && entityB.template.components.some(c => c.definitionId === 'comp_collectible')) {
+                                if (eventNameA === 'collision_item' && isCollectibleEntity(entityB)) {
                                     const key = entityB.instance.id;
                                     if (collisionItemFrameGuardRef.current.has(key)) {
                                         continue;
@@ -5420,14 +5529,14 @@ useEffect(() => {
                                 triggerEvent(entityA.instance.id, eventNameA);
                                 // Store reference to the other entity for DESTROY_ENTITY action
                                 (entityA as any).lastCollidedEntity = entityB;
-                                if (eventNameA === 'collision_item' && entityB.template.components.some(c => c.definitionId === 'comp_collectible')) {
+                                if (eventNameA === 'collision_item' && isCollectibleEntity(entityB)) {
                                     (entityB as any).__collectedOnce = true;
                                 }
                             }
                             if (!isBInvulnerable) {
                                 const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
                                 // Guard: avoid double-processing the same collectible in the same frame
-                                if (eventNameB === 'collision_item' && entityA.template.components.some(c => c.definitionId === 'comp_collectible')) {
+                                if (eventNameB === 'collision_item' && isCollectibleEntity(entityA)) {
                                     const key = entityA.instance.id;
                                     if (collisionItemFrameGuardRef.current.has(key)) {
                                         continue;
@@ -5437,7 +5546,7 @@ useEffect(() => {
                                 triggerEvent(entityB.instance.id, eventNameB);
                                 // Store reference to the other entity for DESTROY_ENTITY action
                                 (entityB as any).lastCollidedEntity = entityA;
-                                if (eventNameB === 'collision_item' && entityA.template.components.some(c => c.definitionId === 'comp_collectible')) {
+                                if (eventNameB === 'collision_item' && isCollectibleEntity(entityA)) {
                                     (entityA as any).__collectedOnce = true;
                                 }
                             }
@@ -5447,9 +5556,8 @@ useEffect(() => {
 
                                 // Helper function: Determine collision event type based on entity layer and components
                                 const getCollisionEventType = (entity: typeof entityA | typeof entityB, entityLayer: number): string => {
-                                    // Check if entity has comp_collectible
-                                    const hasCollectible = entity.template.components.some(c => c.definitionId === 'comp_collectible');
-                                    if (hasCollectible) return 'collision_item';
+                                    // Check if entity is collectible
+                                    if (isCollectibleEntity(entity)) return 'collision_item';
 
                                     // Check layer 8 (bit 3) for platforms/walls - MUST check before enemy detection
                                     if ((entityLayer & 8) !== 0) return 'collision_wall';
@@ -6046,7 +6154,7 @@ useEffect(() => {
                 if (!shouldRenderBox) return; // Skip this Box (belongs to another screen and not linked)
 
                 // Filter Collectible items: only render if they belong to current screen
-                const isCollectible = entity.template.components?.some(c => c.definitionId === 'comp_collectible');
+                const isCollectible = isCollectibleEntity(entity);
                 const shouldRenderCollectible = !isCollectible ||
                     entity.ownerScreenId === currentScreenId ||
                     isChildOfVisibleParent;
@@ -6207,6 +6315,24 @@ const modalContent = (
                         {`Entities: ${visibleEntityCount}`}
                     </div>
                 )}
+                {showStateMachineStates && currentNode?.type === 'WorldLink' && (
+                    <div
+                        className="absolute text-white bg-black bg-opacity-70 px-3 py-2 rounded pixel-font"
+                        style={{ top: 40, right: 8, fontSize: 12, maxHeight: '400px', overflowY: 'auto' }}
+                    >
+                        <div className="font-bold mb-1">Entity States:</div>
+                        {entitiesRef.current
+                            .filter(e => e.stateMachine && e.currentState)
+                            .map((e, idx) => (
+                                <div key={idx} className="text-xs mb-0.5">
+                                    {e.template.name}: <span className="text-yellow-300">{e.currentState}</span>
+                                </div>
+                            ))}
+                        {entitiesRef.current.filter(e => e.stateMachine && e.currentState).length === 0 && (
+                            <div className="text-xs text-gray-400">No entities with state machines</div>
+                        )}
+                    </div>
+                )}
                 {cursorAsset && subMenuNode && (() => {
                     const expandedOpts = expandMenuOptions(subMenuNode);
                     const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
@@ -6270,6 +6396,24 @@ const modalContent = (
                             {`Entities: ${visibleEntityCount}`}
                         </div>
                     )}
+                    {showStateMachineStates && currentNode?.type === 'WorldLink' && (
+                        <div
+                            className="absolute text-white bg-black bg-opacity-70 px-2 py-1 rounded pixel-font"
+                            style={{ top: 26, right: 4, fontSize: 10, maxHeight: '300px', overflowY: 'auto' }}
+                        >
+                            <div className="font-bold mb-0.5">Entity States:</div>
+                            {entitiesRef.current
+                                .filter(e => e.stateMachine && e.currentState)
+                                .map((e, idx) => (
+                                    <div key={idx} className="text-xs mb-0.5">
+                                        {e.template.name}: <span className="text-yellow-300">{e.currentState}</span>
+                                    </div>
+                                ))}
+                            {entitiesRef.current.filter(e => e.stateMachine && e.currentState).length === 0 && (
+                                <div className="text-xs text-gray-400">No entities with state machines</div>
+                            )}
+                        </div>
+                    )}
                     {cursorAsset && subMenuNode && (() => {
                         const expandedOpts = expandMenuOptions(subMenuNode);
                         const selectedText = expandedOpts[selectedOptionIndex]?.text || '';
@@ -6329,8 +6473,26 @@ const modalContent = (
                                     <Button onClick={() => setShowEntityCount(!showEntityCount)} variant={showEntityCount ? 'secondary' : 'ghost'} size="md" className="mr-4">
                                         Entities: {showEntityCount ? visibleEntityCount : 'Off'}
                                     </Button>
+                                    <Button onClick={() => setShowStateMachineStates(!showStateMachineStates)} variant={showStateMachineStates ? 'secondary' : 'ghost'} size="md" className="mr-4">
+                                        States: {showStateMachineStates ? 'On' : 'Off'}
+                                    </Button>
                                     <Button onClick={() => setIsPositioningMode(!isPositioningMode)} variant={isPositioningMode ? 'secondary' : 'ghost'} size="md" className="mr-4">
                                         Position Player: {isPositioningMode ? 'On' : 'Off'}
+                                    </Button>
+                                    <Button variant="ghost" size="md" className="mr-4 cursor-default">
+                                        {(() => {
+                                            const playerEntity = entitiesRef.current.find(entity =>
+                                                entity.template.components.some(c =>
+                                                    c.definitionId === 'comp_player_input' ||
+                                                    c.definitionId === 'comp_cursors' ||
+                                                    c.definitionId === 'comp_input'
+                                                )
+                                            );
+                                            if (!playerEntity?.stateMachine) {
+                                                return 'Player: No StateMachine';
+                                            }
+                                            return `Player State: ${playerEntity.currentState || 'N/A'}`;
+                                        })()}
                                     </Button>
                                     {/* Carry offset is now configured via comp_carry on the Player entity */}
                                 </>

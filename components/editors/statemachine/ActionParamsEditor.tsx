@@ -300,12 +300,12 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 />
               ) : isBoolean ? (
                 <select
-                  value={String(action.params.value ?? '')}
+                  value={action.params.value === undefined ? 'false' : String(action.params.value)}
                   onChange={(e) => handleParamChange('value', e.target.value === 'true')}
                   className="w-full p-1 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
                 >
-                  <option value="true">True</option>
-                  <option value="false">False</option>
+                  <option value="true">true</option>
+                  <option value="false">false</option>
                 </select>
               ) : hasEnumValues ? (
                 <select
@@ -522,6 +522,26 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
                 ? 'Offset from entity position (mirrored if facing left/mirrored).'
                 : 'Leave X and Y empty to spawn at the current entity position.'}
             </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={action.params.randomNucleo === true}
+                onChange={(e) => handleParamChange('randomNucleo', e.target.checked)}
+                className="form-checkbox h-3 w-3 text-msx-primary bg-msx-bgcolor border-msx-border rounded focus:ring-0 focus:ring-offset-0"
+              />
+              <span className="text-xs text-gray-300">Spawn en un nucleo al azar (anchors "nucleo" del mapa)</span>
+            </div>
+            <ParamInput
+              label="Delay (ms)"
+              type="number"
+              value={action.params.delayMs ?? action.params.spawnDelayMs ?? ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                const parsed = val === '' ? undefined : parseFloat(val);
+                const finalVal = Number.isNaN(parsed) ? undefined : parsed;
+                handleParamChange('delayMs', finalVal);
+              }}
+            />
             <div className="grid grid-cols-2 gap-2">
               <ParamInput
                 label={action.params.isRelative ? "Offset X" : "X"}

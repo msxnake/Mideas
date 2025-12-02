@@ -929,12 +929,15 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
             type: 'Waypoint'
         };
         setNodeToPlace(newNodeData);
-    } else if (type === 'Globals') {
+  } else if (type === 'Globals') {
+        const defaultGlobalVarsAssetId = allAssets.find(a => a.type === 'globalvariables')?.id;
+        const defaultVariableName = 'Ammo';
         newNodeData = {
             type: 'Globals',
             title: 'Set Globals',
+            globalVariablesAssetId: defaultGlobalVarsAssetId,
             variables: [
-                { id: 'var1', name: 'Ammo', value: '0' }
+                { id: 'var1', name: defaultVariableName, value: '0' }
             ]
         } as unknown as NodeToPlace;
         setNodeToPlace(newNodeData);
@@ -1396,6 +1399,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           <GlobalsNodeEditor
             node={editingGlobalsNode}
             onNodeChange={(n) => setEditingGlobalsNode(n)}
+            allAssets={allAssets}
           />
           <div className="flex justify-end p-4">
             <Button onClick={handleSaveGlobalsNode}>Save</Button>

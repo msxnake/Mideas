@@ -824,7 +824,7 @@ export interface MideasGlobalVariable {
   /** Possible values for this variable */
   values: { label: string; value: number | string; asmConstant?: string }[];
   /** Category for organization */
-  category: 'objective' | 'score' | 'player' | 'inventory' | 'progress' | 'time' | 'difficulty' | 'special';
+  category: 'objective' | 'score' | 'player' | 'inventory' | 'progress' | 'time' | 'difficulty' | 'special' | 'entity';
 }
 
 export const MIDEAS_GLOBAL_VARIABLES: MideasGlobalVariable[] = [

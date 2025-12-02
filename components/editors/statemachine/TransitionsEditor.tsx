@@ -6,11 +6,10 @@ import { ProjectAsset, EntityTemplate } from '../../../types';
 import { TrashIcon } from '../../icons/MsxIcons';
 import { ConditionBuilder } from './ConditionBuilder';
 import { ActionSequenceEditor } from './ActionSequenceEditor';
-import { TransitionGuardEditor } from '../TransitionGuardEditor';
 
 interface TransitionsEditorProps {
   stateMachine: StateMachine;
-  onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[], guard?: any) => void;
+  onAddTransition: (fromStateId: string, toStateId: string, conditions: Condition, actions: Action[]) => void;
   onDeleteTransition: (id: string) => void;
   onUpdateTransition: (id: string, updates: Partial<StateMachineTransition>) => void;
   allAssets: ProjectAsset[];
@@ -31,17 +30,15 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
   const [toState, setToState] = useState<string>(states[0]?.id || '');
   const [condition, setCondition] = useState<Condition | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
-  const [guard, setGuard] = useState<any>(undefined);
   const [editingTransitionId, setEditingTransitionId] = useState<string | null>(null);
 
   const stateMap = new Map(states.map(s => [s.id, s.name]));
   stateMap.set('__ANY_STATE__', 'Any State (*)' as any);
   const handleAddClick = () => {
     if (fromState && toState && condition) {
-      onAddTransition(fromState, toState, condition, actions, guard);
+      onAddTransition(fromState, toState, condition, actions);
       setCondition(null);
       setActions([]);
-      setGuard(undefined);
     } else {
       alert("Please select from/to states and define a condition.");
     }
@@ -66,7 +63,6 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
             <th className="py-2 px-4">From</th>
             <th className="py-2 px-4">To</th>
             <th className="py-2 px-4">Condition</th>
-            <th className="py-2 px-4">Guard</th>
             <th className="py-2 px-4"></th>
           </tr>
         </thead>
@@ -81,15 +77,6 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
                 </td>
                 <td className="py-2 px-4">{stateMap.get(transition.toStateId) || 'Unknown'}</td>
                 <td className="py-2 px-4 text-xs">{renderCondition(transition.conditions)}</td>
-                <td className="py-2 px-4 text-xs">
-                  {transition.guard ? (
-                    <span className="text-msx-primary font-mono">
-                      IF {transition.guard.variableName} {transition.guard.operator} {transition.guard.compareValue}
-                    </span>
-                  ) : (
-                    <span className="text-msx-textsecondary italic">none</span>
-                  )}
-                </td>
                 <td className="py-2 px-4">
                   <button
                     onClick={(e) => { e.stopPropagation(); onDeleteTransition(transition.id); }}
@@ -102,7 +89,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
               </tr>
               {editingTransitionId === transition.id && (
                 <tr className="border-b border-msx-border">
-                  <td colSpan={5} className="p-2 bg-msx-bgcolor-dark space-y-3">
+                  <td colSpan={4} className="p-2 bg-msx-bgcolor-dark space-y-3">
                     <div>
                       <h5 className="text-xs font-bold mb-2">Condition</h5>
                       <ConditionBuilder
@@ -110,14 +97,6 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
                         onUpdate={(c) => onUpdateTransition(transition.id, { conditions: c as any })}
                         allAssets={allAssets}
                         entityTemplates={entityTemplates}
-                      />
-                    </div>
-                    <div>
-                      <h5 className="text-xs font-bold mb-2">Guard (Condition)</h5>
-                      <TransitionGuardEditor
-                        guard={transition.guard}
-                        onGuardChange={(guard) => onUpdateTransition(transition.id, { guard })}
-                        allAssets={allAssets}
                       />
                     </div>
                     <div>
@@ -164,14 +143,6 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
         </div>
         {condition && (
           <>
-            <div>
-              <h5 className="text-xs font-bold mb-2">Guard (Optional)</h5>
-              <TransitionGuardEditor
-                guard={guard}
-                onGuardChange={setGuard}
-                allAssets={allAssets}
-              />
-            </div>
             <div>
               <h5 className="text-xs font-bold mb-1">Actions</h5>
               <ActionSequenceEditor

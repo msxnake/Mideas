@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Condition, ConditionType, ConditionTypes } from '../../../statemachine.types';
 import { ProjectAsset, EntityTemplate, ScreenMap, EntityInstance, ComponentDefinition } from '../../../types';
 import { Button } from '../../common/Button';
+import { getAllGlobalVariables } from '../../../utils/globalVariablesUtils';
 
 interface ConditionBuilderProps {
   onUpdate: (condition: Condition | null) => void;
@@ -14,6 +15,54 @@ interface ConditionBuilderProps {
 export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, condition, level = 0, allAssets = [], entityTemplates = [] }) => {
   // Local refresh flag to force re-scan of assets for dropdowns
   const [refreshTick, setRefreshTick] = useState(0);
+
+  // Get all variables (default + custom + entity properties)
+  const allVariables = useMemo(() => {
+    const globalVars = getAllGlobalVariables(allAssets);
+
+    // Add entity-specific variables at the beginning
+    const entityVariables = [
+      {
+        name: 'x',
+        asmName: 'entity_x',
+        constantPrefix: 'X_',
+        type: 'byte' as const,
+        description: 'Entity X position (pixels)',
+        category: 'entity' as const,
+        values: []
+      },
+      {
+        name: 'y',
+        asmName: 'entity_y',
+        constantPrefix: 'Y_',
+        type: 'byte' as const,
+        description: 'Entity Y position (pixels)',
+        category: 'entity' as const,
+        values: []
+      },
+      {
+        name: 'vx',
+        asmName: 'entity_vx',
+        constantPrefix: 'VX_',
+        type: 'byte' as const,
+        description: 'Entity X velocity',
+        category: 'entity' as const,
+        values: []
+      },
+      {
+        name: 'vy',
+        asmName: 'entity_vy',
+        constantPrefix: 'VY_',
+        type: 'byte' as const,
+        description: 'Entity Y velocity',
+        category: 'entity' as const,
+        values: []
+      }
+    ];
+
+    return [...entityVariables, ...globalVars];
+  }, [allAssets]);
+
   // Handle null condition gracefully: offer to create a default condition
   if (!condition) {
     const createDefault = () => onUpdate({ type: ConditionTypes.KEY_PRESSED, params: { key: '' } });
@@ -302,59 +351,75 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
             </div>
           </div>
         );
-      case ConditionTypes.VARIABLE_COMPARE:
+      case ConditionTypes.VARIABLE_COMPARE: {
+        const selectedVarName = condition.params?.variable || (allVariables[0]?.name || 'x');
+        const selectedVar = allVariables.find(v => v.name === selectedVarName);
+        const isBoolean = selectedVar?.type === 'boolean';
+
         return (
           <div className="space-y-2">
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="text-xs text-msx-textsecondary">Variable</label>
                 <select
-                  value={condition.params?.variable || 'x'}
+                  value={selectedVarName}
                   onChange={(e) => handleParamChange('variable', e.target.value)}
                   className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
                 >
-                  <option value="x">x (position)</option>
-                  <option value="y">y (position)</option>
-                  <option value="vx">vx (velocity)</option>
-                  <option value="vy">vy (velocity)</option>
+                  {allVariables.map((variable) => (
+                    <option key={variable.name} value={variable.name}>
+                      {`${variable.category} → ${variable.name}`}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-msx-textsecondary">Operator</label>
                 <select
-                  value={condition.params?.operator || '=='}
+                  value={condition.params?.operator || (isBoolean ? '==' : '==')}
                   onChange={(e) => handleParamChange('operator', e.target.value)}
                   className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
                 >
                   <option value="==">==</option>
                   <option value="!=">!=</option>
-                  <option value=">">&gt;</option>
-                  <option value="<">&lt;</option>
-                  <option value=">=">&gt;=</option>
-                  <option value="<=">&lt;=</option>
+                  {!isBoolean && <option value=">">&gt;</option>}
+                  {!isBoolean && <option value="<">&lt;</option>}
+                  {!isBoolean && <option value=">=">&gt;=</option>}
+                  {!isBoolean && <option value="<=">&lt;=</option>}
                 </select>
               </div>
               <div>
                 <label className="text-xs text-msx-textsecondary">Value</label>
-                <input
-                  type="number"
-                  value={condition.params?.value ?? 0}
-                  onChange={(e) => handleParamChange('value', parseInt(e.target.value) || 0)}
-                  className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-                  min={condition.params?.variable === 'vx' || condition.params?.variable === 'vy' ? -128 : 0}
-                  max={condition.params?.variable === 'vx' || condition.params?.variable === 'vy' ? 127 : 255}
-                />
+                {isBoolean ? (
+                  <select
+                    value={String(condition.params?.value ?? 'false')}
+                    onChange={(e) => handleParamChange('value', e.target.value === 'true')}
+                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                  >
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    value={condition.params?.value ?? 0}
+                    onChange={(e) => handleParamChange('value', parseInt(e.target.value) || 0)}
+                    className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+                  />
+                )}
               </div>
             </div>
-            <div className="text-xs text-msx-textsecondary">
-              {(condition.params?.variable === 'x' || condition.params?.variable === 'y') && '📍 Position range: 0-255'}
-              {(condition.params?.variable === 'vx' || condition.params?.variable === 'vy') && '⚡ Velocity range: -128 to 127'}
-            </div>
+            {selectedVar && (
+              <div className="text-xs text-msx-textsecondary">
+                📊 Type: {selectedVar.type} | Category: {selectedVar.category}
+              </div>
+            )}
             <div className="text-xs text-yellow-400 italic">
               💡 Example: Use "x &gt; 240" to detect when entity reaches right edge of screen
             </div>
           </div>
         );
+      }
       // Note: Variable comparisons now use TransitionGuard instead
       default:
         return null;
