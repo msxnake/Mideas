@@ -165,13 +165,23 @@ update_entities:
       const realY = entity.position?.y || 100;
 
       // Convert tile coordinates to pixel coordinates
-      // NOTE: Mideas tiles can be any size multiple of 8 pixels
-      // Need to determine the grid size from the actual screen layout
-      // For now, assume standard 16x16 grid but this should be dynamic
-      const tileGridSizeX = 16;  // Should be calculated from screen map
-      const tileGridSizeY = 16;  // Should be calculated from screen map
+      // MSX Screen 2 uses 8x8 pixel tiles (32 columns × 24 rows)
+      // Mideas entity positions are in tile coordinates, so multiply by 8
+      const tileGridSizeX = 8;  // MSX standard 8x8 tiles
+      const tileGridSizeY = 8;  // MSX standard 8x8 tiles
       const pixelX = realX * tileGridSizeX;
       const pixelY = realY * tileGridSizeY;
+
+      // Validate coordinates are within MSX screen bounds
+      // MSX Screen 2: 256x192 pixels (32x24 tiles)
+      // Sprites can be positioned at X: 0-255, Y: 0-191
+      const validX = Math.min(pixelX, 255);
+      const validY = Math.min(pixelY, 191);
+
+      // Warn if coordinates were clamped
+      if (pixelX !== validX || pixelY !== validY) {
+        console.warn(`Entity ${entity.name} position clamped: (${pixelX},${pixelY}) → (${validX},${validY})`);
+      }
 
       // Get component list for documentation
       const usedComponentNames: string[] = [];
@@ -220,7 +230,7 @@ update_entities:
 
       code += `init_${entityName.toLowerCase()}:
     ; Initialize ${entity.name} at real position from JSON
-    ; JSON position: (${realX}, ${realY}) tiles = (${pixelX}, ${pixelY}) pixels
+    ; JSON position: (${realX}, ${realY}) tiles = (${validX}, ${validY}) pixels
     ; Template: ${entity.entityTemplateId}
     ; Components: ${usedComponentNames.join(', ')}
     ; Direction mask: #${directionMask.toString(16).toUpperCase().padStart(2, '0')} (${directionMask.toString(2).padStart(4, '0')}b) = ${directionDesc}
@@ -235,11 +245,11 @@ update_entities:
     ld e, ${index}             ; Entity index
     ld d, 0
     add hl, de
-    ld (hl), ${pixelX}         ; Set real X position from JSON
+    ld (hl), ${validX}         ; Set real X position from JSON
 
     ld hl, entity_y_pos
     add hl, de
-    ld (hl), ${pixelY}         ; Set real Y position from JSON
+    ld (hl), ${validY}         ; Set real Y position from JSON
 
     ; Set entity screen ID (for multi-screen support)
     ld hl, entity_screen_id
@@ -289,8 +299,8 @@ update_entities:
     jr nz, .skip_show_${index} ; Skip if not screen 0
 
     ld a, ${index}             ; Sprite number
-    ld b, ${pixelX}            ; X position
-    ld c, ${pixelY}            ; Y position
+    ld b, ${validX}            ; X position
+    ld c, ${validY}            ; Y position
     ld d, ${index * 4}             ; Pattern (index * 4 for 16x16)
     ld e, 15                   ; Color
     call show_sprite

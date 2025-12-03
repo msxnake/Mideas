@@ -34,14 +34,21 @@ export function generateInitCodeForNode(
     case 'WorldLink':
       const worldAssetId = node.worldAssetId;
       const worldMap = analysis.screenMaps?.find(s => s.id === worldAssetId);
+
+      // Check if any screen has HUD elements
+      const hasHud = analysis.screenMaps?.some(screen =>
+        screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
+      );
+
       return `
     ; GameFlow: Start → WorldLink (${worldMap?.name || 'World'})
     ; Initialize game world directly from GameFlow
-    
+
     ; CRITICAL: Load graphics data into VRAM FIRST
     call load_patterns_to_vram    ; Load tile graphics (Pattern Table)
     call load_colors_to_vram      ; Load tile colors (Color Table)
-    
+${hasHud ? `    call init_font_system         ; Load font patterns for HUD text
+` : ''}
     ; Then initialize game systems
     call init_sprites
     call init_components
@@ -52,7 +59,7 @@ export function generateInitCodeForNode(
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
     call update_sprites_to_vram   ; Copy sprite attributes to VRAM
-    
+
     jp main_loop  ; Jump to main game loop`;
 
     case 'SubMenu':
@@ -86,6 +93,35 @@ export function generateInitCodeForNode(
     ; GameFlow: Start → Group (nested GameFlow)
     ; Load nested GameFlow: ${node.gameFlowAssetId || 'Unknown'}
     call ${toRoutineLabel('init_gameflow_' + (node.gameFlowAssetId || 'default'))}
+    jp main_program`;
+
+    case 'Globals':
+      // Globals node sets global variables, then continues to next node
+      // We need to find the next connected node and generate init for it
+      const globalsConnection = analysis?.gameFlow?.connections?.find(
+        (c: any) => (c.from as any)?.nodeId === node.id || (typeof c.from === 'string' && c.from === node.id)
+      );
+
+      if (globalsConnection) {
+        // Find the target node
+        const targetNodeId = globalsConnection.to?.nodeId || globalsConnection.to;
+        const nextNode = analysis?.gameFlow?.nodes.find((n: any) => n.id === targetNodeId);
+
+        if (nextNode) {
+          // Generate initialization for the NEXT node (which will load graphics, etc.)
+          // Then the gameflow state machine will handle the Globals node execution
+          return `
+    ; GameFlow: Start → Globals → ${nextNode.type}
+    ; Globals node will be executed by GameFlow state machine
+    ; Initialize directly to the next node (${nextNode.type})
+${generateInitCodeForNode(nextNode, analysis)}`;
+        }
+      }
+
+      // No connection found - fallback
+      return `
+    ; GameFlow: Start → Globals (no connection found)
+    ; Fallback to generic main program
     jp main_program`;
 
     default:

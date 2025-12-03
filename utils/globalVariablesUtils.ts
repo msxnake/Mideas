@@ -114,9 +114,10 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     });
   });
 
-  // 2. Extract code from StateMachine nodes AND variable references from IfThenElse nodes
+  // 2. Extract code from StateMachine nodes AND variable references from IfThenElse and Globals nodes
   const gameFlowAsset = assets.find(a => a.type === 'gameflow');
   const ifThenElseVariableNames = new Set<string>();
+  const globalsVariableNames = new Set<string>();
 
   if (gameFlowAsset?.data) {
     const gameFlow = gameFlowAsset.data as any;
@@ -128,8 +129,17 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
         }
 
         // IfThenElse nodes reference global variables by name
-        if (node.type === 'IfThenElse' && node.data?.variableName) {
-          ifThenElseVariableNames.add(node.data.variableName);
+        if (node.type === 'IfThenElse' && node.variableName) {
+          ifThenElseVariableNames.add(node.variableName);
+        }
+
+        // Globals nodes set global variables
+        if (node.type === 'Globals' && node.variables && Array.isArray(node.variables)) {
+          node.variables.forEach((varAssignment: any) => {
+            if (varAssignment.variableName) {
+              globalsVariableNames.add(varAssignment.variableName);
+            }
+          });
         }
       });
     }
@@ -159,9 +169,46 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     // Check 2: Variable is referenced by an IfThenElse node
     const isUsedInIfThenElse = ifThenElseVariableNames.has(variable.name);
 
-    if ((isUsedInCode || isUsedInIfThenElse) && !usedVariableNames.has(variable.name)) {
+    // Check 3: Variable is set by a Globals node
+    const isUsedInGlobals = globalsVariableNames.has(variable.name);
+
+    if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals) && !usedVariableNames.has(variable.name)) {
       usedVariables.push(variable);
       usedVariableNames.add(variable.name);
+    }
+  });
+
+  // 5. Add any missing variables referenced in Globals nodes that weren't in allVariables
+  globalsVariableNames.forEach(varName => {
+    if (!usedVariableNames.has(varName)) {
+      // Create a default variable for this undefined name
+      const asmName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+      usedVariables.push({
+        name: varName,
+        asmName: asmName,
+        type: '8bit',
+        defaultValue: 0,
+        description: `Auto-generated variable from Globals node`,
+        category: 'custom'
+      });
+      usedVariableNames.add(varName);
+    }
+  });
+
+  // 6. Add any missing variables referenced in IfThenElse nodes that weren't in allVariables
+  ifThenElseVariableNames.forEach(varName => {
+    if (!usedVariableNames.has(varName)) {
+      // Create a default variable for this undefined name
+      const asmName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+      usedVariables.push({
+        name: varName,
+        asmName: asmName,
+        type: '8bit',
+        defaultValue: 0,
+        description: `Auto-generated variable from IfThenElse node`,
+        category: 'custom'
+      });
+      usedVariableNames.add(varName);
     }
   });
 

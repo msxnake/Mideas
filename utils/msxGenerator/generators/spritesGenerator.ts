@@ -18,7 +18,11 @@ const DEFAULT_DATA_FORMAT = 'hex';
  */
 export function generateSpritesFile(analysis: ProjectAnalysis): string {
   const sprites = analysis.sprites || [];
-  const spriteCount = sprites.length;
+  const entities = analysis.entities || [];
+
+  // Calculate required sprite count: max(sprite assets, entity count)
+  // Each entity needs at least one sprite slot for rendering
+  const spriteCount = Math.max(sprites.length, entities.length);
 
   if (spriteCount === 0) {
     return `; ==================================================================
@@ -113,15 +117,28 @@ init_sprites:
 load_sprite_patterns:
 `;
 
-  // Load each sprite pattern to VRAM
+  // Load sprite patterns to VRAM
+  // For entities without explicit sprite assets, reuse the first sprite pattern
   for (let i = 0; i < spriteCount; i++) {
-    const name = sprites[i].name;
-    code += `    ; Load sprite ${i}: ${name}
+    // If we have a sprite asset for this index, use it
+    // Otherwise, reuse sprite 0 (or create a blank pattern)
+    if (i < sprites.length) {
+      const name = sprites[i].name;
+      code += `    ; Load sprite ${i}: ${name}
     ld hl, SPRITE_${i}_PATTERN
     ld de, SPRPAT + (${i} * 32)
     ld bc, 32
     call LDIRVM
 `;
+    } else {
+      // Reuse first sprite pattern for entities without explicit sprites
+      code += `    ; Load sprite ${i}: (reusing sprite 0 for entity)
+    ld hl, SPRITE_0_PATTERN
+    ld de, SPRPAT + (${i} * 32)
+    ld bc, 32
+    call LDIRVM
+`;
+    }
   }
 
   code += `    ret

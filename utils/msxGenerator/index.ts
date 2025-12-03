@@ -22,6 +22,7 @@ import { generateComponentsFile } from './generators/componentsGenerator';
 import { generateEntitiesFile } from './generators/entitiesGenerator';
 import { generateScreensFile } from './generators/screensGenerator';
 import { generateFontFile } from './generators/fontGenerator';
+import { generateHudFile } from './generators/hudGenerator';
 import { generateWorldsFile } from './generators/worldGenerator';
 import { generateMenusFile } from './generators/menusGenerator';
 import { generateStateMachineSystem } from './generators/stateMachineGenerator';
@@ -151,6 +152,7 @@ export function generateModularASM(
     'screens.asm': generateScreensFile(analysis),
     'sprites.asm': generateSpritesFile(analysis),
     'font.asm': generateFontFile(analysis),
+    'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines) : '; No State Machines\n',
     'gameflow.asm': '', // TODO: Extract from main or header if needed
@@ -212,6 +214,7 @@ export function generateModularASMFromSummary(
     'screens.asm': generateScreensFile(analysis),
     'sprites.asm': generateSpritesFile(analysis),
     'font.asm': generateFontFile(analysis),
+    'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines) : '; No State Machines\n',
     'gameflow.asm': '',

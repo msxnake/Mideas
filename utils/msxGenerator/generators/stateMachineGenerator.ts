@@ -1265,6 +1265,12 @@ function serializeValue(value: any): string {
         return value ? '1' : '0';
     }
     if (typeof value === 'string') {
+        // Handle string representations of booleans
+        if (value === 'true') return '1';
+        if (value === 'false') return '0';
+        // Try to parse as number
+        const num = parseInt(value, 10);
+        if (!isNaN(num)) return num.toString();
         return '0';
     }
     return '0';
@@ -1371,7 +1377,7 @@ function generateConditionBytes(condition: Condition): string {
             const varId = VARIABLE_IDS[condition.params?.variable || 'x'] || 0;
             const opId = OPERATOR_IDS[condition.params?.operator || '=='] || 0;
             const value = condition.params?.value || 0;
-            bytes += `    DB ${varId}, ${opId}, ${value}; ${condition.params?.variable} ${condition.params?.operator} ${value}\n`;
+            bytes += `    DB ${varId}, ${opId}, ${serializeValue(value)}; ${condition.params?.variable} ${condition.params?.operator} ${value}\n`;
             break;
 
         default:

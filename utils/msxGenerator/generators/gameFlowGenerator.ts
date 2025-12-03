@@ -262,6 +262,90 @@ ${nodeLabel}:
           code += `if_then_else_skip:\n    ret\n`;
           break;
 
+        case 'Globals':
+          // Globals node sets global variables and transitions to next node
+          const globalsConnection = gameFlow.connections?.find(
+            (c: any) => c.from?.nodeId === node.id || c.from === node.id
+          );
+
+          // First, collect all VALID variable assignments
+          const validAssignments: Array<{varName: string, asmVarName: string, valueExpression: string, originalValue: any}> = [];
+
+          if (node.variables && Array.isArray(node.variables)) {
+            node.variables.forEach((varAssignment: any) => {
+              const varName = varAssignment.variableName || 'unknown';
+              const varValue = varAssignment.value !== undefined ? varAssignment.value : 0;
+
+              // Convert variable name to ASM label (snake_case)
+              const asmVarName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+
+              // Check if this variable exists in analysis.globalVariables
+              const variableExists = analysis.globalVariables?.some(
+                (v: any) => v.asmName === asmVarName || v.name === varName
+              );
+
+              if (!variableExists) {
+                // Variable not defined - skip silently
+                console.warn(`Globals node: Variable "${varName}" (${asmVarName}) not defined in analysis.globalVariables, skipping`);
+                return;
+              }
+
+              // Determine the value expression
+              let valueExpression = '';
+
+              // Handle boolean values FIRST (before any other checks)
+              if (typeof varValue === 'boolean') {
+                valueExpression = varValue ? '1' : '0';
+              } else if (varValue === 'true' || varValue === 'True') {
+                valueExpression = '1';
+              } else if (varValue === 'false' || varValue === 'False') {
+                valueExpression = '0';
+              } else if (typeof varValue === 'number') {
+                // It's already a number
+                valueExpression = String(varValue);
+              } else if (typeof varValue === 'string' && !isNaN(Number(varValue)) && varValue.trim() !== '') {
+                // String that represents a valid number
+                valueExpression = varValue;
+              } else if (typeof varValue === 'string') {
+                // It's a named constant - generate constant name
+                const valueUpper = varValue.toUpperCase().replace(/\s+/g, '_');
+                const varNameUpper = varName.toUpperCase().replace(/([A-Z])/g, '_$1').replace(/^_/, '');
+                valueExpression = `${varNameUpper}_${valueUpper}`;
+              } else {
+                // Default fallback
+                valueExpression = '0';
+              }
+
+              validAssignments.push({ varName, asmVarName, valueExpression, originalValue: varValue });
+            });
+          }
+
+          // Generate the node code
+          code += `
+${nodeLabel}:
+    ; Globals Node - Set global variables
+`;
+
+          // Only generate assignment code if there are valid variables
+          if (validAssignments.length > 0) {
+            validAssignments.forEach(assignment => {
+              code += `    ld a, ${assignment.valueExpression}         ; Set ${assignment.varName} = ${assignment.originalValue}\n`;
+              code += `    ld (${assignment.asmVarName}), a\n`;
+            });
+          } else {
+            code += `    ; No valid global variables to set (all skipped or undefined)\n`;
+          }
+
+          // Transition to next node
+          if (globalsConnection) {
+            const nextNodeId = globalsConnection.to?.nodeId || globalsConnection.to;
+            const nextNodeLabel = `gameflow_node_${nextNodeId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            code += `    jp ${nextNodeLabel}          ; Continue to next node\n`;
+          } else {
+            code += `    ret                      ; No connections, return\n`;
+          }
+          break;
+
         default:
           code += `
 ${nodeLabel}:
@@ -279,3 +363,4 @@ ${nodeLabel}:
 
   return code;
 }
+timestamp: 1764767376

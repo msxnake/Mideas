@@ -106,6 +106,7 @@ export interface GeneratedASMFiles {
   'menus.asm': string;
   'statemachine.asm': string;
   'font.asm': string;
+  'hud.asm': string;
   'main.asm': string;
   'unitedFiles.asm': string;
 }

@@ -28,6 +28,7 @@ export interface GeneratedASMFiles {
     'colors.asm': string;
     'sprites.asm': string;
     'font.asm': string;
+    'hud.asm': string;
     'menus.asm': string;
     'statemachine.asm': string;
     'main.asm': string;
@@ -48,7 +49,10 @@ export function generateUnifiedFile(files: GeneratedASMFiles, projectName: strin
     const hasText = analysis.screenMaps?.some(screen =>
         (screen.layers as any)?.text || (screen as any).textElements?.length > 0
     );
-    const needsFont = hasMenus || hasText;
+    const hasHud = analysis.screenMaps?.some(screen =>
+        screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
+    );
+    const needsFont = hasMenus || hasText || hasHud;
 
     return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
@@ -61,8 +65,8 @@ export function generateUnifiedFile(files: GeneratedASMFiles, projectName: strin
 ; Sprites: ${analysis.sprites?.length || 0}
 ; Screens: ${analysis.screenMaps?.length || 0}
 ; Entities: ${analysis.entities?.length || 0}
-; Entities: ${analysis.entities?.length || 0}
 ; Menus: ${hasMenus ? 'Yes' : 'No'}
+; HUD: ${hasHud ? 'Yes' : 'No'}
 ; State Machines: ${analysis.stateMachines?.length || 0}
 ; ==================================================================
 
@@ -89,6 +93,8 @@ ${analysis.entities && analysis.entities.length > 0 ? files['entities.asm'] : ';
 ${hasMenus ? files['menus.asm'] : '; [menus.asm skipped - no menus]\n'}
 
 ${needsFont ? files['font.asm'] : '; [font.asm skipped - no text/menus]\n'}
+
+${hasHud ? files['hud.asm'] : '; [hud.asm skipped - no HUD elements]\n'}
 
 ${analysis.stateMachines && analysis.stateMachines.length > 0 ? files['statemachine.asm'] : '; [statemachine.asm skipped - no state machines]\n'}
 
@@ -563,9 +569,9 @@ render_game:
     ; This is much more efficient than reloading entire screen
     call update_sprites_to_vram
 
-${needsFont ? `    ; Render HUD / Text
-    ; call render_hud  ; TODO: Implement HUD rendering
-` : `    ; No text needed
+${hasHud ? `    ; Render HUD elements
+    call render_hud
+` : `    ; No HUD elements
 `}    ret
 
 render_pause:
