@@ -90,6 +90,12 @@ init_rom:
     ; CRITICAL: Set game flow state and update sprites to VRAM
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
+    
+    ; Initialize input state to non-center value to prevent accidental pause
+    ld a, #FF
+    ld (input_state), a
+    ld (prev_input_state), a
+    
     call update_sprites_to_vram   ; Copy sprite attributes to VRAM
 
     jp main_loop  ; Jump to main game loop
@@ -772,7 +778,7 @@ SPRITE_1_PATTERN EQU COIN_1_F0_LAYER1
 ; Table: Entity Sprite Configuration
 ; Format: db base_hw_sprite_index, layer_count
 entity_sprite_config:
-    db 0, 1 ; Entity 0 (Default)
+    db 0, 2 ; Entity 0 (Player - 2 layers for multi-color sprite)
     db 1, 1 ; Entity 1 (Default)
     db 2, 1 ; Entity 2 (Default)
     db 3, 1 ; Entity 3 (Default)
@@ -789,8 +795,9 @@ entity_sprite_config:
 ; Table: Hardware Sprite Layer Colors
 ; Format: db color_index
 sprite_layer_colors:
-    ; Entity 0 (Default) layers:
-    db 15 ; Layer 0
+    ; Entity 0 (Player) layers:
+    db 15 ; Layer 0 - White
+    db 6  ; Layer 1 - Red
     ; Entity 1 (Default) layers:
     db 15 ; Layer 0
     ; Entity 2 (Default) layers:
@@ -828,18 +835,20 @@ init_sprites:
 
 load_sprite_patterns:
     ; Load patterns for all active entities
-    ; Entity 0: Default (1 layers)
+    ; Entity 0: Player (2 layers for multi-color)
     ; Base HW Sprite: 0
-    ld hl, SPRITE_0_PATTERN
+    ; Layer 1 (White) -> Pattern slot 0
+    ld hl, NEW_SPRITE_0_F0_LAYER1
     ld de, SPRPAT + (0 * 32)
-    ld bc, 32 ; Load 1 layers (32 bytes each)
+    ld bc, 32 ; 32 bytes for 16x16 sprite
     call LDIRVM
-    ; Entity 1: Default (1 layers)
-    ; Base HW Sprite: 1
-    ld hl, SPRITE_0_PATTERN
+    ; Layer 2 (Red) -> Pattern slot 1
+    ld hl, NEW_SPRITE_0_F0_LAYER2
     ld de, SPRPAT + (1 * 32)
-    ld bc, 32 ; Load 1 layers (32 bytes each)
+    ld bc, 32 ; 32 bytes for 16x16 sprite
     call LDIRVM
+    ; Entity 1: Default (1 layers) - starts at HW sprite 2 now
+    ; Base HW Sprite: 2
     ; Entity 2: Default (1 layers)
     ; Base HW Sprite: 2
     ld hl, SPRITE_0_PATTERN
@@ -1370,81 +1379,164 @@ init_position_system:
 update_position_component:
     ret
     
-    ; Sprite system filtered out(not used)
+; ==================================================================
+; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
+; ==================================================================
+
 init_sprite_system:
+    ; Initialize sprite rendering system
+    ; Clear all sprite attributes
+    call clear_all_sprites
     ret
 
 update_sprite_component:
+    ; Simplified version - just update sprites to VRAM
+    call update_sprites_to_vram
     ret
 
+; Original complex version disabled for debugging
+; sprite_update_loop to sprite_next_entity removed
+
+; ==================================================================
+; HELPER: Force update a single entity's sprite (used by init_entities)
+; Input: C = Entity Index
+; ==================================================================
 force_update_entity_sprite:
     ; Input: C = Entity Index
-    ; Writes sprite attributes to RAM buffer
+    ; Writes sprite attributes to RAM buffer for this entity
+    ; Supports multi-layer sprites
+    ; ONLY if entity has COMP_MASK_SPRITE component
+    push af
     push bc
     push de
     push hl
+    push ix
     
-    ; Get X/Y from memory
-    ld hl, entity_x_pos
+    ; First check if entity has sprite component
     ld e, c
     ld d, 0
+    ld hl, entity_comp_masks
     add hl, de
-    ld b, (hl)                 ; B = X
+    ld a, (hl)
+    and COMP_MASK_SPRITE          ; Check bit 1 (Sprite component)
+    jp z, .no_sprite              ; Skip if no sprite component
+    
+    ; Save entity index
+    push de                        ; Save entity index in DE
+    
+    ; Get X and Y positions
+    ld hl, entity_x_pos
+    add hl, de
+    ld b, (hl)                     ; B = X position
     
     ld hl, entity_y_pos
     add hl, de
-    ld a, (hl)                 ; A = Y
-    push af                    ; Save Y
+    ld c, (hl)                     ; C = Y position
     
-    ; Get sprite pattern (entity index * 4 for 16x16 sprites)
-    ld a, e                    ; A = Entity Index
-    sla a                      ; * 2
-    sla a                      ; * 4
-    ld d, a                    ; D = Pattern (index * 4)
-    
-    ; Get sprite color from sprite_color array
-    ld hl, sprite_color
-    add hl, de                 ; Wait, DE has wrong value now
-    ; Re-get entity index
-    ld a, c                    ; A = Entity index again
-    ld e, a
-    ld d, 0
-    ld hl, sprite_color
+    ; Get sprite config (base HW sprite, layer count)
+    ld hl, entity_sprite_config
     add hl, de
-    ld e, (hl)                 ; E = Color
+    add hl, de                     ; Index * 2 (2 bytes per entry)
+    ld a, (hl)                     ; A = Base HW Sprite Index
+    inc hl
+    ld d, (hl)                     ; D = Layer Count
+    ld e, a                        ; E = Current HW Sprite Index
     
-    ; Re-calculate pattern
-    ld a, c
-    sla a
-    sla a
-    ld d, a                    ; D = Pattern
+    ; Calculate base color pointer for this entity's layers
+    pop hl                         ; HL = entity index (was in DE)
+    push hl                        ; Save it again
     
-    ; Calculate sprite attributes address: sprite_attributes + (entity * 4)
-    ld hl, sprite_attributes
-    ld a, c                    ; Entity index
-    sla a                      ; * 2
-    sla a                      ; * 4
+    ; Find sprite_layer_colors offset for this entity
+    ; Need to sum layer counts of all previous entities
+    ; For simplicity, Entity 0 starts at offset 0
+    ; Entity 0 has 2 layers, so Entity 1 starts at offset 2, etc.
+    ; For now, use entity_sprite_config to calculate offset
+    
+    ld a, l                        ; Entity index
+    or a                           ; Is it entity 0?
+    jr z, .layer_offset_zero
+    
+    ; For entities > 0, calculate offset
+    ; This is simplified - assumes entity 0 has 2 layers
+    ; Entity 1 onwards start after entity 0's layers
+    ld a, 2                        ; Entity 0 has 2 layers
+    jr .got_color_offset
+    
+.layer_offset_zero:
+    xor a                          ; Offset = 0 for entity 0
+    
+.got_color_offset:
+    ; A = color table offset for this entity
+    ld hl, sprite_layer_colors
     add a, l
     ld l, a
-    jr nc, .no_carry
+    jr nc, .no_cc1
     inc h
-.no_carry:
+.no_cc1:
+    push hl                        ; Save color pointer
     
-    ; Write attributes: Y, X, Pattern, Color
-    pop af                     ; A = Y
-    ld (hl), a                 ; Write Y
-    inc hl
-    ld (hl), b                 ; Write X
-    inc hl
-    ld (hl), d                 ; Write Pattern
-    inc hl
-    ld (hl), e                 ; Write Color
+    ; Now loop through layers
+    ; D = Layer Count
+    ; E = Current HW Sprite Index
+    ; B = X, C = Y
     
+.layer_loop:
+    push de                        ; Save layer count and HW sprite
+    push bc                        ; Save X, Y
+    
+    ; Calculate sprite_attributes address for this HW sprite
+    ; sprite_attributes + (hw_sprite * 4)
+    ld hl, sprite_attributes
+    ld a, e                        ; HW Sprite index
+    sla a                          ; * 2
+    sla a                          ; * 4
+    add a, l
+    ld l, a
+    jr nc, .no_carry1
+    inc h
+.no_carry1:
+    
+    ; Write Y position
+    ld (hl), c
+    inc hl
+    ; Write X position
+    ld (hl), b
+    inc hl
+    ; Write Pattern (HW Sprite * 4 for 16x16 sprites)
+    ld a, e                        ; HW Sprite index
+    sla a
+    sla a
+    ld (hl), a
+    inc hl
+    
+    ; Write Color from color table
+    pop bc                         ; Restore X, Y
+    pop de                         ; Restore layer count and HW sprite
+    
+    ; Get color from saved color pointer
+    ex (sp), hl                    ; HL = color pointer, stack = sprite attr ptr
+    ld a, (hl)                     ; Get color for this layer
+    inc hl                         ; Move to next layer's color
+    ex (sp), hl                    ; Restore sprite attr ptr, save updated color ptr
+    
+    ld (hl), a                     ; Write color
+    
+    ; Next layer
+    inc e                          ; Next HW sprite
+    dec d                          ; Decrement layer count
+    jr nz, .layer_loop
+    
+    pop hl                         ; Pop color pointer
+    pop de                         ; Pop entity index
+    
+.no_sprite:
+    pop ix
     pop hl
     pop de
     pop bc
+    pop af
     ret
-    
+
     ; Movement system filtered out(not used)
 init_movement_system:
     ret
@@ -4671,10 +4763,10 @@ start_game_from_menu:
     call init_game_entities
     call reset_game_variables
 
-    ; Re-initialize SCREEN 2 graphics (CLS corrupts graphics mode!)
-    call clear_all_sprites
-    call load_patterns_to_vram
-    call load_colors_to_vram
+    ; Re-initialize graphics for SCREEN 2 (CLS doesn't work properly in SCREEN 2)
+    call clear_all_sprites           ; Clear sprite attributes
+    call load_patterns_to_vram       ; Reload tile patterns
+    call load_colors_to_vram         ; Reload tile colors
     call load_game_screen
     ret
 
@@ -4942,12 +5034,12 @@ render_frame:
 render_main_menu:
     ; Render main menu
     ; No menu system - check if we should auto-start game
-    ; Only auto-start once (when prev_flow_state != MAIN_MENU means already started)
+    ; Avoid re-initialization by checking if this is first frame
     ld a, (prev_flow_state)
     cp FLOW_STATE_MAIN_MENU
-    jr nz, .skip_init          ; Already started, skip init
+    jr nz, .skip_init          ; Already changed state, skip init
     
-    ; First frame - start game
+    ; First frame in menu state - start game
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
     call init_game_entities
@@ -4969,19 +5061,14 @@ render_game:
 
 render_pause:
     ; Render pause screen
-    ; Show PAUSE text
-    ld hl, 12 + (10 * 32)      ; Center of screen (approx)
-    ld de, string_pause
-    call OUTDO
+    ; NOTE: OUTDO corrupts SCREEN 2! Do nothing for now.
+    ; TODO: Use custom font rendering for SCREEN 2
     ret
 
 render_game_over:
     ; Render game over screen
-    ; Show GAME OVER text
-    ld hl, 10 + (10 * 32)      ; Center of screen (approx)
-    ld de, string_game_over
-    call OUTDO
-    
+    ; NOTE: OUTDO corrupts SCREEN 2! Do nothing for now.
+    ; TODO: Use custom font rendering for SCREEN 2
     ; Return to menu after delay (handled in update)
     ret
 

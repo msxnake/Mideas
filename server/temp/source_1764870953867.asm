@@ -1378,71 +1378,6 @@ update_sprite_component:
     ret
 
 force_update_entity_sprite:
-    ; Input: C = Entity Index
-    ; Writes sprite attributes to RAM buffer
-    push bc
-    push de
-    push hl
-    
-    ; Get X/Y from memory
-    ld hl, entity_x_pos
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld b, (hl)                 ; B = X
-    
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)                 ; A = Y
-    push af                    ; Save Y
-    
-    ; Get sprite pattern (entity index * 4 for 16x16 sprites)
-    ld a, e                    ; A = Entity Index
-    sla a                      ; * 2
-    sla a                      ; * 4
-    ld d, a                    ; D = Pattern (index * 4)
-    
-    ; Get sprite color from sprite_color array
-    ld hl, sprite_color
-    add hl, de                 ; Wait, DE has wrong value now
-    ; Re-get entity index
-    ld a, c                    ; A = Entity index again
-    ld e, a
-    ld d, 0
-    ld hl, sprite_color
-    add hl, de
-    ld e, (hl)                 ; E = Color
-    
-    ; Re-calculate pattern
-    ld a, c
-    sla a
-    sla a
-    ld d, a                    ; D = Pattern
-    
-    ; Calculate sprite attributes address: sprite_attributes + (entity * 4)
-    ld hl, sprite_attributes
-    ld a, c                    ; Entity index
-    sla a                      ; * 2
-    sla a                      ; * 4
-    add a, l
-    ld l, a
-    jr nc, .no_carry
-    inc h
-.no_carry:
-    
-    ; Write attributes: Y, X, Pattern, Color
-    pop af                     ; A = Y
-    ld (hl), a                 ; Write Y
-    inc hl
-    ld (hl), b                 ; Write X
-    inc hl
-    ld (hl), d                 ; Write Pattern
-    inc hl
-    ld (hl), e                 ; Write Color
-    
-    pop hl
-    pop de
-    pop bc
     ret
     
     ; Movement system filtered out(not used)
@@ -4671,10 +4606,10 @@ start_game_from_menu:
     call init_game_entities
     call reset_game_variables
 
-    ; Re-initialize SCREEN 2 graphics (CLS corrupts graphics mode!)
-    call clear_all_sprites
-    call load_patterns_to_vram
-    call load_colors_to_vram
+    ; Re-initialize graphics for SCREEN 2 (CLS doesn't work properly in SCREEN 2)
+    call clear_all_sprites           ; Clear sprite attributes
+    call load_patterns_to_vram       ; Reload tile patterns
+    call load_colors_to_vram         ; Reload tile colors
     call load_game_screen
     ret
 
@@ -4942,12 +4877,12 @@ render_frame:
 render_main_menu:
     ; Render main menu
     ; No menu system - check if we should auto-start game
-    ; Only auto-start once (when prev_flow_state != MAIN_MENU means already started)
+    ; Avoid re-initialization by checking if this is first frame
     ld a, (prev_flow_state)
     cp FLOW_STATE_MAIN_MENU
-    jr nz, .skip_init          ; Already started, skip init
+    jr nz, .skip_init          ; Already changed state, skip init
     
-    ; First frame - start game
+    ; First frame in menu state - start game
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
     call init_game_entities

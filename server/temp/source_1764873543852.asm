@@ -642,12 +642,12 @@ SPRITE_NEW_SPRITE_0_FRAMES    EQU 3
 ;; Size: 16x16
 ;; Layer 0 (Color: #000000) - SKIPPED (color not used or is background)
 NEW_SPRITE_0_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#0F,#00,#0B,#00,#1B,#40,#1F,#C0,#0F,#80,#01,#80,#00,#00
-    DB #29,#00,#00,#00,#00,#00,#00,#80,#00,#00,#00,#80,#00,#00,#02,#80
+    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#00,#02
+    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#80,#00,#80,#00,#80
 
 NEW_SPRITE_0_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #1F,#E0,#00,#E1,#00,#95,#00,#0A,#00,#00,#00,#00,#00,#00,#03,#C0
-    DB #16,#40,#03,#E0,#07,#F0,#03,#60,#00,#80,#00,#00,#00,#80,#01,#00
+    DB #1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#07,#03,#00,#00,#00,#01
+    DB #E0,#E1,#95,#0A,#00,#00,#00,#C0,#40,#E0,#F0,#60,#80,#00,#80,#00
 
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
 ;; ---- End of Frame: New Sprite_0_F0 ----
@@ -656,12 +656,12 @@ NEW_SPRITE_0_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
 ;; Size: 16x16
 ;; Layer 0 (Color: #000000) - SKIPPED (color not used or is background)
 NEW_SPRITE_0_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#0F,#00,#0B,#00,#1B,#40,#1F,#C0,#0F,#80,#01,#80
-    DB #00,#00,#29,#00,#00,#00,#00,#00,#0A,#28,#00,#04,#08,#00,#10,#00
+    DB #00,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#0A,#00,#08,#10
+    DB #00,#00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#28,#04,#00,#00
 
 NEW_SPRITE_0_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #07,#C0,#1F,#E0,#00,#EA,#00,#95,#00,#01,#00,#00,#00,#00,#00,#00
-    DB #03,#C0,#16,#40,#03,#E0,#07,#F0,#05,#D4,#08,#00,#00,#04,#28,#00
+    DB #07,#1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#07,#05,#08,#00,#28
+    DB #C0,#E0,#EA,#95,#01,#00,#00,#00,#C0,#40,#E0,#F0,#D4,#00,#04,#00
 
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
 ;; ---- End of Frame: New Sprite_0_F1 ----
@@ -670,12 +670,12 @@ NEW_SPRITE_0_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
 ;; Size: 16x16
 ;; Layer 0 (Color: #000000) - SKIPPED (color not used or is background)
 NEW_SPRITE_0_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#0F,#00,#0B,#00,#1B,#40,#1F,#C0,#0F,#80,#01,#80,#00,#00
-    DB #29,#00,#00,#00,#00,#00,#00,#00,#02,#00,#00,#00,#02,#00,#04,#00
+    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#02,#00,#02,#04
+    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 NEW_SPRITE_0_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #1F,#E0,#00,#EA,#00,#95,#00,#00,#00,#00,#00,#00,#00,#00,#03,#C0
-    DB #16,#60,#03,#F0,#07,#F8,#05,#D8,#00,#00,#02,#00,#00,#00,#0A,#00
+    DB #1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#07,#05,#00,#02,#00,#0A
+    DB #E0,#EA,#95,#00,#00,#00,#00,#C0,#60,#F0,#F8,#D8,#00,#00,#00,#00
 
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
 ;; ---- End of Frame: New Sprite_0_F2 ----
@@ -699,8 +699,8 @@ SPRITE_COIN_1_FRAMES    EQU 6
 ;; Size: 16x16
 ;; Layer 0 (Color: rgba(0,0,0,0)) - SKIPPED (color not used or is background)
 COIN_1_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#80,#03,#C0,#06,#E0,#0D,#70
-    DB #0E,#F0,#0F,#F0,#07,#E0,#03,#C0,#01,#80,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#01,#03,#06,#0D,#0E,#0F,#07,#03,#01,#00,#00,#00
+    DB #00,#00,#00,#00,#80,#C0,#E0,#70,#F0,#F0,#E0,#C0,#80,#00,#00,#00
 
 ;; Layer 2 (Color: #FF0000) - SKIPPED (color not used or is background)
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
@@ -710,8 +710,8 @@ COIN_1_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
 ;; Size: 16x16
 ;; Layer 0 (Color: rgba(0,0,0,0)) - SKIPPED (color not used or is background)
 COIN_1_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
-    DB #00,#00,#00,#00,#20,#08,#00,#00,#01,#80,#02,#40,#05,#A0,#8B,#D1
-    DB #0B,#D0,#0B,#D0,#05,#A0,#02,#40,#01,#80,#00,#00,#20,#04,#00,#00
+    DB #00,#00,#20,#00,#01,#02,#05,#8B,#0B,#0B,#05,#02,#01,#00,#20,#00
+    DB #00,#00,#08,#00,#80,#40,#A0,#D1,#D0,#D0,#A0,#40,#80,#00,#04,#00
 
 ;; Layer 2 (Color: #FF0000) - SKIPPED (color not used or is background)
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
@@ -721,8 +721,8 @@ COIN_1_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
 ;; Size: 16x16
 ;; Layer 0 (Color: rgba(0,0,0,0)) - SKIPPED (color not used or is background)
 COIN_1_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
-    DB #00,#00,#40,#04,#20,#08,#00,#00,#03,#C0,#04,#20,#0B,#D0,#97,#E9
-    DB #17,#E8,#17,#E8,#0B,#D0,#04,#20,#03,#C0,#00,#00,#20,#04,#40,#02
+    DB #00,#40,#20,#00,#03,#04,#0B,#97,#17,#17,#0B,#04,#03,#00,#20,#40
+    DB #00,#04,#08,#00,#C0,#20,#D0,#E9,#E8,#E8,#D0,#20,#C0,#00,#04,#02
 
 ;; Layer 2 (Color: #FF0000) - SKIPPED (color not used or is background)
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
@@ -732,8 +732,8 @@ COIN_1_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
 ;; Size: 16x16
 ;; Layer 0 (Color: rgba(0,0,0,0)) - SKIPPED (color not used or is background)
 COIN_1_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#03,#80,#07,#C0,#07,#C0
-    DB #07,#C0,#07,#C0,#07,#C0,#03,#80,#01,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#01,#03,#07,#07,#07,#07,#07,#03,#01,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#80,#C0,#C0,#C0,#C0,#C0,#80,#00,#00,#00,#00
 
 ;; Layer 2 (Color: #FF0000) - SKIPPED (color not used or is background)
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
@@ -743,8 +743,8 @@ COIN_1_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
 ;; Size: 16x16
 ;; Layer 0 (Color: rgba(0,0,0,0)) - SKIPPED (color not used or is background)
 COIN_1_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#03,#80,#03,#80,#03,#80
-    DB #03,#80,#03,#80,#03,#80,#03,#80,#01,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#01,#03,#03,#03,#03,#03,#03,#03,#01,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#80,#80,#80,#80,#80,#80,#80,#00,#00,#00,#00
 
 ;; Layer 2 (Color: #FF0000) - SKIPPED (color not used or is background)
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
@@ -754,8 +754,8 @@ COIN_1_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
 ;; Size: 16x16
 ;; Layer 0 (Color: rgba(0,0,0,0)) - SKIPPED (color not used or is background)
 COIN_1_F5_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#01,#00,#01,#00,#01,#00
-    DB #01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; Layer 2 (Color: #FF0000) - SKIPPED (color not used or is background)
 ;; Layer 3 (Color: #00FF00) - SKIPPED (color not used or is background)
@@ -1370,16 +1370,204 @@ init_position_system:
 update_position_component:
     ret
     
-    ; Sprite system filtered out(not used)
+; ==================================================================
+; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
+; ==================================================================
+
 init_sprite_system:
+    ; Initialize sprite rendering system
+    ; Clear all sprite attributes
+    call clear_all_sprites
     ret
 
 update_sprite_component:
+    ; Update sprite rendering based on entity positions
+    ld b, 32                   ; Loop through all entities
+    ld hl, entity_comp_masks   ; Check component masks
+    ld c, 0                    ; Entity index counter
+
+sprite_update_loop:
+    ld a, (hl)                 ; Get entity component mask
+    and COMP_MASK_SPRITE       ; Check if has sprite component
+    jp z, sprite_next_entity   ; Skip if no sprite component (jp because distance > 127 bytes)
+
+    ; Check if entity is in current screen (multi-screen support)
+    push bc
+    push hl
+
+    ; Check entity screen ID
+    ld hl, entity_screen_id
+    ld e, c                    ; Entity index
+    ld d, 0
+    add hl, de                 ; HL points to entity screen ID
+    ld a, (hl)                 ; A = entity screen ID
+
+    ; Compare with current screen ID
+    ld hl, current_screen_id
+    cp (hl)                    ; Compare entity screen with current screen
+    jr nz, sprite_hide         ; If different screen, hide sprite
+
+    ; Entity is in current screen - render normally
+    ; Get entity position
+    ld e, c                    ; Save entity index in E
+    ld d, 0                    ; DE = entity index
+    
+    ld hl, entity_x_pos
+    add hl, de                 ; HL points to entity X
+    ld b, (hl)                 ; B = X position
+
+    ld hl, entity_y_pos
+    add hl, de                 ; HL points to entity Y
+    ld a, (hl)                 ; A = Y position (temp)
+    ld c, a                    ; C = Y position
+
+    ; MULTI-LAYER SPRITE RENDERING
+    ; Get entity configuration (Base HW Sprite + Layer Count)
+    push bc                    ; Save X/Y
+    
+    ld hl, entity_sprite_config
+    ld e, c                    ; Entity index (C was Y, wait... C is entity index in outer loop?)
+                               ; No, C was overwritten by Y position above!
+                               ; We need to recover Entity Index.
+                               ; Outer loop uses C as Entity Index.
+                               ; But we just did 'ld c, (hl)' (Y pos).
+                               ; We need to be careful.
+    
+    ; RE-READING ENTITY INDEX
+    ; In outer loop: C = Entity Index.
+    ; We saved it in E at line 141: 'ld e, c'.
+    ; So E is Entity Index.
+    
+    ld hl, entity_sprite_config
+    ld d, 0
+    add hl, de
+    add hl, de                 ; Index * 2 (2 bytes per entry)
+    
+    ld a, (hl)                 ; Base HW Sprite Index
+    inc hl
+    ld h, (hl)                 ; Layer Count
+    ld l, a                    ; L = Base HW Sprite
+    
+    pop bc                     ; Restore B=X, C=Y (Wait, C was Y, B was X)
+                               ; Stack has [BC] pushed.
+                               ; But we pushed BC *after* loading X/Y?
+                               ; Let's re-verify register usage.
+
+    ; Let's restart the register setup to be safe.
+    ; E = Entity Index (from line 141)
+    
+    ; Get X/Y
+    push de                    ; Save Entity Index
+    
+    ld hl, entity_x_pos
+    ld d, 0
+    add hl, de                 ; HL points to entity X
+    ld b, (hl)                 ; B = X position
+    
+    ld hl, entity_y_pos
+    add hl, de                 ; HL points to entity Y
+    ld c, (hl)                 ; C = Y position
+    
+    pop de                     ; Restore E = Entity Index
+    
+    ; Get Config
+    ld hl, entity_sprite_config
+    ld d, 0
+    add hl, de
+    add hl, de                 ; Index * 2
+    
+    ld a, (hl)                 ; Base HW Sprite
+    inc hl
+    ld h, (hl)                 ; Layer Count
+    ld l, a                    ; L = Base HW Sprite (Current HW Sprite)
+    
+    ; Loop through layers
+    ; H = Remaining Layers
+    ; L = Current HW Sprite
+    ; B = X Position
+    ; C = Y Position
+    
+sprite_layer_loop:
+    push hl                    ; Save counters
+    push bc                    ; Save Position
+    
+    ; Calculate Pattern: HW Sprite * 4
+    ld a, l
+    sla a
+    sla a
+    ld d, a                    ; D = Pattern
+    
+    ; Get Color from sprite_layer_colors table
+    ; Table is indexed by HW Sprite Index (L)
+    push de
+    ld de, sprite_layer_colors
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a                    ; DE = &sprite_layer_colors[hwSprite]
+    ld a, (de)                 ; A = Color
+    pop de                     ; Restore D (Pattern)
+    ld e, a                    ; E = Color
+    
+    ; Call show_sprite (A=HW Sprite, B=X, C=Y, D=Pattern, E=Color)
+    ld a, l                    ; A = HW Sprite
+    call show_sprite
+    
+    pop bc                     ; Restore Position
+    pop hl                     ; Restore counters
+    
+    inc l                      ; Next HW Sprite
+    dec h                      ; Decrement Layer Count
+    jr nz, sprite_layer_loop
+    
+    jr sprite_continue
+
+sprite_hide:
+    ; Entity is in different screen - hide sprite (Y = 208+)
+    ; We must hide ALL layers for this entity
+    ; C is Entity Index (from outer loop)
+    
+    ld hl, entity_sprite_config
+    ld e, c
+    ld d, 0
+    add hl, de
+    add hl, de
+    
+    ld a, (hl)                 ; Base HW Sprite
+    inc hl
+    ld b, (hl)                 ; Layer Count
+    
+sprite_hide_loop:
+    push bc
+    push af
+    call hide_sprite           ; A = HW Sprite
+    pop af
+    pop bc
+    
+    inc a                      ; Next HW Sprite
+    djnz sprite_hide_loop
+
+sprite_continue:
+    pop hl
+    pop bc
+
+sprite_next_entity:
+    inc hl                     ; Next entity
+    inc c                      ; Next entity index
+    dec b                      ; Decrement loop counter
+    jp nz, sprite_update_loop  ; Jump if not zero (djnz replacement for long jumps)
+
+    ; Update all sprites to VRAM
+    call update_sprites_to_vram
     ret
 
+; ==================================================================
+; HELPER: Force update a single entity's sprite (used by init_entities)
+; Input: C = Entity Index
+; ==================================================================
 force_update_entity_sprite:
-    ; Input: C = Entity Index
-    ; Writes sprite attributes to RAM buffer
     push bc
     push de
     push hl
@@ -1394,57 +1582,65 @@ force_update_entity_sprite:
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)                 ; A = Y
-    push af                    ; Save Y
+    ld c, a                    ; C = Y
     
-    ; Get sprite pattern (entity index * 4 for 16x16 sprites)
-    ld a, e                    ; A = Entity Index
-    sla a                      ; * 2
-    sla a                      ; * 4
-    ld d, a                    ; D = Pattern (index * 4)
+    push bc                    ; Save Position (B=X, C=Y)
     
-    ; Get sprite color from sprite_color array
-    ld hl, sprite_color
-    add hl, de                 ; Wait, DE has wrong value now
-    ; Re-get entity index
-    ld a, c                    ; A = Entity index again
-    ld e, a
+    ; Restore Entity Index from E (we put C into E earlier)
+    ld c, e                    ; C = Entity Index
+    
+    ; Get Config
+    ld hl, entity_sprite_config
     ld d, 0
-    ld hl, sprite_color
     add hl, de
-    ld e, (hl)                 ; E = Color
+    add hl, de                 ; Index * 2
     
-    ; Re-calculate pattern
-    ld a, c
+    ld a, (hl)                 ; Base HW Sprite
+    inc hl
+    ld h, (hl)                 ; Layer Count
+    ld l, a                    ; L = Base HW Sprite
+    
+    ; Loop through layers
+force_sprite_layer_loop:
+    push hl                    ; Save counters
+    push bc                    ; Save Position
+    
+    ; Calculate Pattern: HW Sprite * 4
+    ld a, l
     sla a
     sla a
     ld d, a                    ; D = Pattern
     
-    ; Calculate sprite attributes address: sprite_attributes + (entity * 4)
-    ld hl, sprite_attributes
-    ld a, c                    ; Entity index
-    sla a                      ; * 2
-    sla a                      ; * 4
-    add a, l
-    ld l, a
-    jr nc, .no_carry
-    inc h
-.no_carry:
+    ; Get Color
+    push de
+    ld de, sprite_layer_colors
+    ld a, l
+    add a, e
+    ld e, a
+    ld a, 0
+    adc a, d
+    ld d, a
+    ld a, (de)
+    pop de                     ; Restore D
+    ld e, a                    ; E = Color
     
-    ; Write attributes: Y, X, Pattern, Color
-    pop af                     ; A = Y
-    ld (hl), a                 ; Write Y
-    inc hl
-    ld (hl), b                 ; Write X
-    inc hl
-    ld (hl), d                 ; Write Pattern
-    inc hl
-    ld (hl), e                 ; Write Color
+    ; Call show_sprite
+    ld a, l                    ; A = HW Sprite
+    call show_sprite
     
+    pop bc                     ; Restore Position
+    pop hl                     ; Restore counters
+    
+    inc l
+    dec h
+    jr nz, force_sprite_layer_loop
+    
+    pop bc                     ; Restore Position
     pop hl
     pop de
     pop bc
     ret
-    
+
     ; Movement system filtered out(not used)
 init_movement_system:
     ret
@@ -4671,10 +4867,10 @@ start_game_from_menu:
     call init_game_entities
     call reset_game_variables
 
-    ; Re-initialize SCREEN 2 graphics (CLS corrupts graphics mode!)
-    call clear_all_sprites
-    call load_patterns_to_vram
-    call load_colors_to_vram
+    ; Re-initialize graphics for SCREEN 2 (CLS doesn't work properly in SCREEN 2)
+    call clear_all_sprites           ; Clear sprite attributes
+    call load_patterns_to_vram       ; Reload tile patterns
+    call load_colors_to_vram         ; Reload tile colors
     call load_game_screen
     ret
 
@@ -4942,12 +5138,12 @@ render_frame:
 render_main_menu:
     ; Render main menu
     ; No menu system - check if we should auto-start game
-    ; Only auto-start once (when prev_flow_state != MAIN_MENU means already started)
+    ; Avoid re-initialization by checking if this is first frame
     ld a, (prev_flow_state)
     cp FLOW_STATE_MAIN_MENU
-    jr nz, .skip_init          ; Already started, skip init
+    jr nz, .skip_init          ; Already changed state, skip init
     
-    ; First frame - start game
+    ; First frame in menu state - start game
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
     call init_game_entities

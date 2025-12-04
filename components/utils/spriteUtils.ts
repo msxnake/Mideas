@@ -25,20 +25,76 @@ export const generateSpriteBinaryData = (sprite: Sprite): Uint8Array => {
       let colorUsedInFrameLayer = false; // Check if this specific palette color is used in this frame
       const frameLayerBytes: number[] = [];
 
-      for (let y = 0; y < sprite.size.height; y++) {
-        for (let xByte = 0; xByte < Math.ceil(sprite.size.width / 8); xByte++) {
+      const width = sprite.size.width;
+      const height = sprite.size.height;
+
+      if (width === 16 && height === 16) {
+        // 16x16 sprite - use MSX column-major format
+        // Left column, rows 0-7
+        for (let y = 0; y < 8; y++) {
           let byteValue = 0;
           for (let bit = 0; bit < 8; bit++) {
-            const px = xByte * 8 + bit;
-            if (px < sprite.size.width) {
-              const pixelColorValue = frame.data[y]?.[px];
-              if (pixelColorValue === layerColor) {
-                byteValue |= (1 << (7 - bit));
-                colorUsedInFrameLayer = true;
-              }
+            const pixelColorValue = frame.data[y]?.[bit];
+            if (pixelColorValue === layerColor) {
+              byteValue |= (1 << (7 - bit));
+              colorUsedInFrameLayer = true;
             }
           }
           frameLayerBytes.push(byteValue);
+        }
+        // Left column, rows 8-15
+        for (let y = 8; y < 16; y++) {
+          let byteValue = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const pixelColorValue = frame.data[y]?.[bit];
+            if (pixelColorValue === layerColor) {
+              byteValue |= (1 << (7 - bit));
+              colorUsedInFrameLayer = true;
+            }
+          }
+          frameLayerBytes.push(byteValue);
+        }
+        // Right column, rows 0-7
+        for (let y = 0; y < 8; y++) {
+          let byteValue = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const pixelColorValue = frame.data[y]?.[8 + bit];
+            if (pixelColorValue === layerColor) {
+              byteValue |= (1 << (7 - bit));
+              colorUsedInFrameLayer = true;
+            }
+          }
+          frameLayerBytes.push(byteValue);
+        }
+        // Right column, rows 8-15
+        for (let y = 8; y < 16; y++) {
+          let byteValue = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const pixelColorValue = frame.data[y]?.[8 + bit];
+            if (pixelColorValue === layerColor) {
+              byteValue |= (1 << (7 - bit));
+              colorUsedInFrameLayer = true;
+            }
+          }
+          frameLayerBytes.push(byteValue);
+        }
+      } else {
+        // 8x8 or other sizes - use linear format
+        for (let y = 0; y < height; y++) {
+          for (let xByte = 0; xByte < Math.ceil(width / 8); xByte++) {
+            let byteValue = 0;
+            for (let bit = 0; bit < 8; bit++) {
+              const px = xByte * 8 + bit;
+              if (px < width) {
+                const pixelColorValue = frame.data[y]?.[px];
+                if (pixelColorValue === layerColor) {
+                  byteValue |= (1 << (7 - bit));
+                  colorUsedInFrameLayer = true;
+                }
+              }
+            }
+            frameLayerBytes.push(byteValue);
+          }
         }
       }
       // Only add this layer's bytes if the color was actually used in the frame.
@@ -137,19 +193,79 @@ export const generateSingleFrameASMCode = (
       asmString += `;; WARNING: Sprite width ${spriteWidth} is not a multiple of 8. Bitmask generation might be problematic for standard VDP.\n`;
     }
 
-    for (let y = 0; y < spriteHeight; y++) {
-      for (let xByte = 0; xByte < Math.ceil(spriteWidth / 8); xByte++) {
+    // MSX VDP 16x16 sprite format:
+    // For 16x16 sprites, the VDP expects data in a specific column-major order:
+    // Bytes 0-7:   Left column (pixels 0-7), rows 0-7
+    // Bytes 8-15:  Left column (pixels 0-7), rows 8-15
+    // Bytes 16-23: Right column (pixels 8-15), rows 0-7
+    // Bytes 24-31: Right column (pixels 8-15), rows 8-15
+
+    if (spriteWidth === 16 && spriteHeight === 16) {
+      // 16x16 sprite - use MSX column-major format
+      // Left column, rows 0-7
+      for (let y = 0; y < 8; y++) {
         let byteValue = 0;
         for (let bit = 0; bit < 8; bit++) {
-          const px = xByte * 8 + bit;
-          if (px < spriteWidth) {
-            const pixelColorValue = frameData[y]?.[px];
-            if (pixelColorValue === layerColor) {
-              byteValue |= (1 << (7 - bit));
-            }
+          const px = bit; // Left column (pixels 0-7)
+          const pixelColorValue = frameData[y]?.[px];
+          if (pixelColorValue === layerColor) {
+            byteValue |= (1 << (7 - bit));
           }
         }
         layerBytes.push(byteValue);
+      }
+      // Left column, rows 8-15
+      for (let y = 8; y < 16; y++) {
+        let byteValue = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const px = bit; // Left column (pixels 0-7)
+          const pixelColorValue = frameData[y]?.[px];
+          if (pixelColorValue === layerColor) {
+            byteValue |= (1 << (7 - bit));
+          }
+        }
+        layerBytes.push(byteValue);
+      }
+      // Right column, rows 0-7
+      for (let y = 0; y < 8; y++) {
+        let byteValue = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const px = 8 + bit; // Right column (pixels 8-15)
+          const pixelColorValue = frameData[y]?.[px];
+          if (pixelColorValue === layerColor) {
+            byteValue |= (1 << (7 - bit));
+          }
+        }
+        layerBytes.push(byteValue);
+      }
+      // Right column, rows 8-15
+      for (let y = 8; y < 16; y++) {
+        let byteValue = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const px = 8 + bit; // Right column (pixels 8-15)
+          const pixelColorValue = frameData[y]?.[px];
+          if (pixelColorValue === layerColor) {
+            byteValue |= (1 << (7 - bit));
+          }
+        }
+        layerBytes.push(byteValue);
+      }
+    } else {
+      // 8x8 or other sizes - use linear format
+      for (let y = 0; y < spriteHeight; y++) {
+        for (let xByte = 0; xByte < Math.ceil(spriteWidth / 8); xByte++) {
+          let byteValue = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const px = xByte * 8 + bit;
+            if (px < spriteWidth) {
+              const pixelColorValue = frameData[y]?.[px];
+              if (pixelColorValue === layerColor) {
+                byteValue |= (1 << (7 - bit));
+              }
+            }
+          }
+          layerBytes.push(byteValue);
+        }
       }
     }
 

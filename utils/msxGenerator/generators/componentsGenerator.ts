@@ -118,7 +118,7 @@ update_sprite_component:
 sprite_update_loop:
     ld a, (hl)                 ; Get entity component mask
     and COMP_MASK_SPRITE       ; Check if has sprite component
-    jr z, sprite_next_entity   ; Skip if no sprite component
+    jp z, sprite_next_entity   ; Skip if no sprite component (jp because distance > 127 bytes)
 
     ; Check if entity is in current screen (multi-screen support)
     push bc
@@ -1437,8 +1437,10 @@ update_position_component:
     `;
     }
 
-    // Generate Sprite System (if used)
-    if (usedComponents.has('Sprite')) {
+    // Generate Sprite System (if used OR if project has sprites)
+    // CRITICAL FIX: Always generate when sprites exist, even if component analysis fails
+    const hasSprites = analysis.sprites && analysis.sprites.length > 0;
+    if (usedComponents.has('Sprite') || hasSprites) {
         code += generateSpriteSystem(analysis);
     } else {
         code += `

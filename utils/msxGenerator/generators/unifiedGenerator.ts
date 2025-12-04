@@ -295,8 +295,10 @@ start_game_from_menu:
     call init_game_entities
     call reset_game_variables
 
-    ; Clear screen and load game screen
-    call CLS
+    ; Re-initialize graphics for SCREEN 2 (CLS doesn't work properly in SCREEN 2)
+    call clear_all_sprites           ; Clear sprite attributes
+    call load_patterns_to_vram       ; Reload tile patterns
+    call load_colors_to_vram         ; Reload tile colors
     call load_game_screen
     ret
 
@@ -554,11 +556,18 @@ render_main_menu:
     ; Render main menu
 ${hasMenus ? `    ; Menu system detected - render menu
     call render_menu_system
-` : `    ; No menu system - auto-start game
+` : `    ; No menu system - check if we should auto-start game
+    ; Avoid re-initialization by checking if this is first frame
+    ld a, (prev_flow_state)
+    cp FLOW_STATE_MAIN_MENU
+    jr nz, .skip_init          ; Already changed state, skip init
+    
+    ; First frame in menu state - start game
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
     call init_game_entities
     call load_game_screen
+.skip_init:
 `}    ret
 
 render_game:
