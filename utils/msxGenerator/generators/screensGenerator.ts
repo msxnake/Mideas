@@ -138,11 +138,13 @@ load_screen_default:
               r >= activeY &&
               r < activeY + activeH;
 
-            if (!isActiveArea) {
-              // Outside active area: use empty tile (black background)
-              mapIndices.push(0); // Use 0 for empty/black, not EMPTY_CELL_CHAR_CODE (255) which might be a valid char
-              continue;
-            }
+            // CRITICAL FIX: Do NOT clip tiles outside active area.
+            // The active area is logical (for player movement/camera), but graphics
+            // should be rendered for the entire 32x24 screen if they exist.
+            // if (!isActiveArea) {
+            //   mapIndices.push(0);
+            //   continue;
+            // }
 
             // Inside active area: map to screen coordinates
             const screenTile = screen.layers.background[r]?.[c];

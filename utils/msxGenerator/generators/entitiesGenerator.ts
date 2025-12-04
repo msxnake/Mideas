@@ -175,7 +175,7 @@ update_entities:
       // Validate coordinates are within MSX screen bounds
       // MSX Screen 2: 256x192 pixels (32x24 tiles)
       // Sprites can be positioned at X: 0-255, Y: 0-191
-      const validX = Math.min(pixelX, 255);
+      const validX = Math.min(pixelX, 240);
       const validY = Math.min(pixelY, 191);
 
       // Warn if coordinates were clamped
@@ -274,7 +274,7 @@ update_entities:
 
     ld hl, sprite_color
     add hl, de
-    ld (hl), 15                ; White color
+    ld (hl), ${(index % 14) + 2}                ; Distinct color for debugging
 
     ; Set direction mask for Cursors component (if entity has Input component)
     ld hl, entity_dir_mask
@@ -298,12 +298,9 @@ update_entities:
     or a                       ; Check if screen 0
     jr nz, .skip_show_${index} ; Skip if not screen 0
 
-    ld a, ${index}             ; Sprite number
-    ld b, ${validX}            ; X position
-    ld c, ${validY}            ; Y position
-    ld d, ${index * 4}             ; Pattern (index * 4 for 16x16)
-    ld e, 15                   ; Color
-    call show_sprite
+    ; Force update sprite attributes (using correct multi-layer config)
+    ld c, ${index}             ; Entity Index
+    call force_update_entity_sprite
 
 .skip_show_${index}:
     ret

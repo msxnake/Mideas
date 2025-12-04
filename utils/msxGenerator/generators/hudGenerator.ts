@@ -70,7 +70,7 @@ function generateHudDataStructures(hudElements: HUDElement[]): string {
 
     // Generate element data table
     asm += `; HUD Element Data Table\n`;
-    asm += `; Format: [Type:1][X:1][Y:1][TextPtr:2][Visible:1]\n`;
+    asm += `; Format: [Type:1][X:1][Y:1][Width:1][Height:1][Flags:1][TextPtr:2][Visible:1]\n`;
     asm += `hud_element_data:\n`;
 
     hudElements.forEach((el, index) => {
@@ -80,7 +80,36 @@ function generateHudDataStructures(hudElements: HUDElement[]): string {
         const visible = el.visible ? 1 : 0;
         const textLabel = `hud_text_${index}`;
 
+        // Calculate dimensions and flags
+        let width = 0;
+        let height = 1; // Default height (rows)
+        let flags = 0;
+
+        // Check for border/frame
+        // We check 'details.border' (from TextBox) or 'details.borderColor' (from EnergyBar etc)
+        const details = (el as any).details || {};
+        if (details.border || details.borderColor || details.overallBorderColor) {
+            flags |= 1; // Bit 0: Draw Border
+        }
+
+        // Calculate width based on text length or explicit width
+        if (el.text) {
+            width = el.text.length;
+        } else if (details.width) {
+            width = Math.ceil(details.width / 8); // Convert pixels to tiles if needed
+        } else {
+            width = 10; // Default fallback
+        }
+
+        // Adjust for frame padding if border is enabled
+        if (flags & 1) {
+            // If border is enabled, we assume the text is inside, so we might need to expand the area?
+            // For now, let's assume Width/Height are the CONTENT dimensions.
+            // The draw_frame routine will draw AROUND this content.
+        }
+
         asm += `    DB ${typeId}, ${x}, ${y}    ; Element ${index}: ${el.type} at (${x},${y})\n`;
+        asm += `    DB ${width}, ${height}, ${flags} ; W, H, Flags\n`;
         asm += `    DW ${textLabel}             ; Text pointer\n`;
         asm += `    DB ${visible}                ; Visible\n`;
     });
@@ -115,36 +144,79 @@ render_hud:
     push bc
     push de
     push hl
+    push ix
 
     ld b, HUD_ELEMENT_COUNT
-    ld hl, hud_element_data
+    ld ix, hud_element_data
 
 .render_loop:
     push bc                     ; Save counter
-    push hl                     ; Save data pointer
 
-    ; Read element data
-    ld a, (hl)                  ; A = Type
-    inc hl
-    ld d, (hl)                  ; D = X position
-    inc hl
-    ld e, (hl)                  ; E = Y position
-    inc hl
-    ld c, (hl)                  ; BC = Text pointer (low)
-    inc hl
-    ld b, (hl)
-    inc hl
-    ld a, (hl)                  ; A = Visible flag
-    inc hl
-
-    ; Check if visible
+    ; Check visible flag first (offset 8)
+    ld a, (ix+8)                ; A = Visible
     or a
-    jr z, .skip_element
+    jr z, .skip_element         ; Skip if not visible
+
+    ; Read element fields
+    ld d, (ix+1)                ; D = X position (pixels)
+    ld e, (ix+2)                ; E = Y position (pixels)
+    ld b, (ix+3)                ; B = Width (tiles)
+    ld c, (ix+4)                ; C = Height (tiles)
+    ld a, (ix+5)                ; A = Flags
+
+    ; Save values we'll need later
+    push bc                     ; Save Width, Height
+    push de                     ; Save X, Y
+
+    ; ---------------------------------------------------------
+    ; 1. Draw Frame (if enabled)
+    ; ---------------------------------------------------------
+    bit 0, a                    ; Check Bit 0 (Border)
+    jr z, .no_border
+
+    ; Convert X,Y pixels to Tile coordinates
+    ; TileX = X/8, TileY = Y/8
+    ld a, d
+    srl a
+    srl a
+    srl a
+    ld d, a                     ; D = Tile X
+    
+    ld a, e
+    srl a
+    srl a
+    srl a
+    ld e, a                     ; E = Tile Y
+    
+    ; Adjust for padding: Frame is 1 tile larger on all sides
+    dec d                       ; Frame X = Content X - 1
+    dec e                       ; Frame Y = Content Y - 1
+    
+    ; Frame Width = Content Width + 2
+    inc b
+    inc b                       ; Width += 2
+    
+    inc c
+    inc c                       ; Height += 2
+    
+    call hud_draw_frame
+    
+    ; Restore original X, Y, Width, Height for text rendering
+    pop de                      ; DE = X, Y (pixels)
+    pop bc                      ; BC = Width, Height (tiles, not used for text but we pop for stack balance)
+    push de                     ; Save X, Y again
+    push bc                     ; Save Width, Height again (for stack cleanup)
+
+.no_border:
+    ; ---------------------------------------------------------
+    ; 2. Draw Text
+    ; ---------------------------------------------------------
+    pop de                      ; DE = X, Y (pixels)
+    pop bc                      ; BC = Width, Height (discard, not needed)
 
     ; Calculate VRAM address from X,Y pixel coordinates
     ; Screen 2 Name Table = #1800 + (Y/8)*32 + (X/8)
-    push bc                     ; Save text pointer
-
+    
     ; Y/8 = row
     ld a, e                     ; A = Y
     srl a
@@ -173,19 +245,23 @@ render_hud:
     ld de, #1800
     add hl, de                  ; HL = VRAM address
 
-    pop de                      ; DE = Text pointer
+    ; Get Text Pointer
+    ld e, (ix+6)                ; TextPtr Low
+    ld d, (ix+7)                ; TextPtr High
+    ; DE = Text Pointer
 
     ; Render text string at HL (VRAM) from DE (string)
     call hud_print_string
 
 .skip_element:
-    pop hl                      ; Restore data pointer
-    ld de, 6                    ; Size of each element entry
-    add hl, de                  ; Move to next element
+    ; Move to next element
+    ld bc, 9                    ; Size of each element entry
+    add ix, bc                  ; IX points to next element
 
     pop bc                      ; Restore counter
     djnz .render_loop
 
+    pop ix
     pop hl
     pop de
     pop bc
@@ -216,16 +292,14 @@ hud_print_string:
     jr z, .print_done
 
     ; Convert ASCII to tile index (A-Z, 0-9, space, punctuation)
-    call hud_ascii_to_tile
+    call hud_ascii_to_tile      ; A = tile/char code
 
     ; Write tile to VRAM Name Table
-    push de
-    push hl
-    ex de, hl                   ; Swap: HL = VRAM address, DE = string ptr
+    ; WRTVRM signature: A = data, HL = VRAM address
+    ; A already has character, HL already has VRAM address
+    push de                     ; Save string pointer
     call WRTVRM                 ; Write A to VRAM at HL
-    ex de, hl                   ; Swap back: HL = VRAM, DE = string ptr
-    pop hl
-    pop de
+    pop de                      ; Restore string pointer
 
     ; Move to next character
     inc de                      ; Next char in string
@@ -244,67 +318,145 @@ hud_print_string:
 ; hud_ascii_to_tile
 ; Convert ASCII character to tile index for font rendering
 ; Input: A = ASCII character
-; Output: A = Tile index
+; Output: A = Tile index (ASCII code for direct mapping)
 ; ------------------------------------------------------------------
 hud_ascii_to_tile:
-    ; Space (32) -> tile 0
+    ; SIMPLIFIED: Just return the ASCII code directly
+    ; Font patterns are loaded at their ASCII positions
+    
+    ; Validate range (printable ASCII 32-126)
     cp 32
-    jr nz, .not_space
-    ld a, 0
+    ret nc              ; If >= 32, it's valid - return as-is
+    
+    ; Below 32 (control characters) - default to space
+    ld a, 32            ; Space character
     ret
 
-.not_space:
-    ; Numbers '0'-'9' (48-57) -> tiles 1-10
-    cp '0'
-    jr c, .not_number
-    cp '9'+1
-    jr nc, .not_number
-    sub '0'
-    inc a                       ; Offset by 1 (tile 0 = space)
-    ret
-
-.not_number:
-    ; Letters 'A'-'Z' (65-90) -> tiles 11-36
-    cp 'A'
-    jr c, .not_upper
-    cp 'Z'+1
-    jr nc, .not_upper
-    sub 'A'
-    add a, 11                   ; Offset by 11 (0=space, 1-10=numbers)
-    ret
-
-.not_upper:
-    ; Letters 'a'-'z' (97-122) -> tiles 11-36 (same as uppercase)
-    cp 'a'
-    jr c, .punctuation
-    cp 'z'+1
-    jr nc, .punctuation
-    sub 'a'
-    add a, 11
-    ret
-
-.punctuation:
-    ; Punctuation: ':' -> tile 37, '-' -> tile 38, '.' -> tile 39
-    cp ':'
-    jr nz, .not_colon
-    ld a, 37
-    ret
-
-.not_colon:
-    cp '-'
-    jr nz, .not_dash
-    ld a, 38
-    ret
-
-.not_dash:
-    cp '.'
-    jr nz, .not_dot
-    ld a, 39
-    ret
-
-.not_dot:
-    ; Default: space
-    ld a, 0
+; ------------------------------------------------------------------
+; hud_draw_frame
+; Draw a rectangular frame using font characters
+; Input: D = Tile X, E = Tile Y, B = Width (tiles), C = Height (tiles)
+; Uses characters: 43 (+), 45 (-), 124 (|)
+; ------------------------------------------------------------------
+hud_draw_frame:
+    push af
+    push bc
+    push de
+    push hl
+    
+    ; Calculate VRAM Start Address
+    ; Addr = #1800 + (E * 32) + D
+    ld l, e
+    ld h, 0
+    add hl, hl          ; * 2
+    add hl, hl          ; * 4
+    add hl, hl          ; * 8
+    add hl, hl          ; * 16
+    add hl, hl          ; * 32
+    
+    ld e, d
+    ld d, 0
+    add hl, de
+    ld de, #1800
+    add hl, de          ; HL = Top-Left Corner VRAM Address
+    
+    ; Draw Top Row
+    push hl             ; Save Start Address
+    push bc             ; Save Dimensions
+    
+    ; Top-Left Corner
+    ld a, 43            ; '+'
+    call WRTVRM
+    inc hl
+    
+    ; Top Edge
+    ld a, b
+    sub 2               ; Width - 2 corners
+    jr z, .skip_top_edge ; Skip if exactly 2 wide (no edge)
+    jr c, .skip_top_edge ; Skip if < 2 wide
+    ld b, a
+.top_edge_loop:
+    ld a, 45            ; '-'
+    call WRTVRM
+    inc hl
+    djnz .top_edge_loop
+.skip_top_edge:
+    
+    ; Top-Right Corner
+    ld a, 43            ; '+'
+    call WRTVRM
+    
+    pop bc              ; Restore Dimensions
+    pop hl              ; Restore Start Address
+    
+    ; Move to next row
+    ld de, 32
+    add hl, de
+    
+    ; Draw Middle Rows (Vertical Edges)
+    ld a, c
+    sub 2               ; Height - 2 rows
+    jr z, .bottom_row   ; Skip if height is small
+    jr c, .bottom_row   ; Skip if height is < 2
+    ld c, a             ; C = Middle Rows count
+    
+.middle_row_loop:
+    push hl             ; Save Row Start
+    push bc             ; Save Counters
+    
+    ; Left Edge
+    ld a, 124           ; '|'
+    call WRTVRM
+    
+    ; Skip Middle (Content Area)
+    ld a, b
+    dec a               ; Width - 1
+    ; Ensure we don't add negative offset if width is 0 (unlikely here but safe)
+    ; Actually Width must be at least 2 to have corners, so Width-1 >= 1.
+    ld e, a
+    ld d, 0
+    add hl, de
+    
+    ; Right Edge
+    ld a, 124           ; '|'
+    call WRTVRM
+    
+    pop bc              ; Restore Counters
+    pop hl              ; Restore Row Start
+    
+    ld de, 32
+    add hl, de          ; Next Row
+    dec c
+    jr nz, .middle_row_loop
+    
+.bottom_row:
+    ; Draw Bottom Row
+    ; Bottom-Left Corner
+    ld a, 43            ; '+'
+    call WRTVRM
+    inc hl
+    
+    ; Bottom Edge
+    ld a, b
+    sub 2               ; Width - 2 corners
+    jr z, .skip_bottom_edge
+    jr c, .skip_bottom_edge
+    ld b, a
+.bottom_edge_loop:
+    ld a, 45            ; '-'
+    call WRTVRM
+    inc hl
+    djnz .bottom_edge_loop
+.skip_bottom_edge:
+    
+    ; Bottom-Right Corner
+    ld a, 43            ; '+'
+    call WRTVRM
+    
+    pop hl
+    pop de
+    pop bc
+    pop af
     ret
 
 ; ------------------------------------------------------------------

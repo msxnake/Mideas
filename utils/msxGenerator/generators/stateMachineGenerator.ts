@@ -1373,12 +1373,23 @@ function generateConditionBytes(condition: Condition): string {
             }
             break;
 
-        case ConditionTypes.VARIABLE_COMPARE:
-            const varId = VARIABLE_IDS[condition.params?.variable || 'x'] || 0;
-            const opId = OPERATOR_IDS[condition.params?.operator || '=='] || 0;
-            const value = condition.params?.value || 0;
-            bytes += `    DB ${varId}, ${opId}, ${serializeValue(value)}; ${condition.params?.variable} ${condition.params?.operator} ${value}\n`;
+        case ConditionTypes.VARIABLE_COMPARE: {
+            // Get variable name with proper fallback
+            const variableName = condition.params?.variable || 'x';
+            const varId = VARIABLE_IDS[variableName];
+
+            // If variable is not in the basic entity variables map, log warning
+            if (varId === undefined) {
+                console.warn(`[State Machine Generator] Unknown variable "${variableName}" in VARIABLE_COMPARE. Using x (ID 0) as fallback.`);
+                // Use variable ID 0 (x position) as fallback
+                bytes += `    DB 0, ${OPERATOR_IDS[condition.params?.operator || '=='] || 0}, ${serializeValue(condition.params?.value || 0)}; FALLBACK: unknown var "${variableName}" -> x ${condition.params?.operator || '=='} ${condition.params?.value || 0}\n`;
+            } else {
+                const opId = OPERATOR_IDS[condition.params?.operator || '=='] || 0;
+                const value = condition.params?.value || 0;
+                bytes += `    DB ${varId}, ${opId}, ${serializeValue(value)}; ${variableName} ${condition.params?.operator || '=='} ${value}\n`;
+            }
             break;
+        }
 
         default:
             break;

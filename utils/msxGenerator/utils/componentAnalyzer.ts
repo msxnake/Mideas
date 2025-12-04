@@ -152,6 +152,9 @@ export function getEntitiesWithComponent(componentName: string, analysis: Compon
 /**
  * Generate component mask for a specific entity based on its actual components
  * Returns 16-bit mask to support 10+ components (Jump, Gravity, etc.)
+ * 
+ * INTELLIGENT FIX: Only adds Sprite component if entity has sprite data
+ * Position markers (like "nucleo" entities) won't get unnecessary sprites
  */
 export function generateEntityComponentMask(entity: any, template: any, analysis: ProjectAnalysis): number {
   let mask = 0;
@@ -170,6 +173,9 @@ export function generateEntityComponentMask(entity: any, template: any, analysis
     'Gravity': 9     // Bit 9  - #0200 (NEW)
   };
 
+  // Track if entity has sprite component defined
+  let hasSpriteComponent = false;
+
   if (template && template.components) {
     template.components.forEach((comp: any) => {
       const componentDefId = comp.definitionId || comp.componentDefinitionId;
@@ -177,6 +183,11 @@ export function generateEntityComponentMask(entity: any, template: any, analysis
 
       if (standardName && COMP_BIT_POSITION[standardName] !== undefined) {
         mask |= (1 << COMP_BIT_POSITION[standardName]);
+
+        // Check if this is a sprite/render component
+        if (standardName === 'Sprite') {
+          hasSpriteComponent = true;
+        }
       }
     });
   }
@@ -187,8 +198,30 @@ export function generateEntityComponentMask(entity: any, template: any, analysis
       const standardName = STANDARD_COMPONENT_IDS[compId];
       if (standardName && COMP_BIT_POSITION[standardName] !== undefined) {
         mask |= (1 << COMP_BIT_POSITION[standardName]);
+
+        if (standardName === 'Sprite') {
+          hasSpriteComponent = true;
+        }
       }
     });
+  }
+
+  // INTELLIGENT FIX: Only add Position+Sprite if entity actually needs rendering
+  // Check if template has sprite data (spriteId or similar)
+  const hasVisualSprite = hasSpriteComponent ||
+    template?.components?.some((c: any) =>
+      c.definitionId === 'comp_render' ||
+      c.definitionId === 'comp_sprite' ||
+      c.defaultValues?.spriteId != null
+    );
+
+  // Always add Position (all entities need position tracking)
+  mask |= (1 << COMP_BIT_POSITION['Position']); // Bit 0: #0001
+
+  // Only add Sprite if entity has visual representation
+  // Position markers like "nucleo" won't get sprites
+  if (hasVisualSprite) {
+    mask |= (1 << COMP_BIT_POSITION['Sprite']);   // Bit 1: #0002
   }
 
   return mask;

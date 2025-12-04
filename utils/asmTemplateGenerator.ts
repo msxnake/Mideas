@@ -29,6 +29,7 @@ export interface ProjectAnalysis {
   screens: ScreenMap[];   // Added alias for compatibility
   worldmaps?: any[];  // Worldmap data for GameFlow WorldLink nodes
   entities?: EntityInstance[];
+  fonts?: any[];
   gameFlow?: GameFlowGraph;
   stateMachines?: StateMachine[]; // Added State Machines
   hasECS: boolean;
@@ -121,6 +122,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     screens: screenMaps, // Added alias
     worldmaps,  // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
     entities,  // CRITICAL: Include entities extracted from screenmaps
+    fonts: assets.filter(a => a.type === 'font'), // CRITICAL: Include fonts for fontGenerator
     gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
     stateMachines, // CRITICAL: Include State Machines
     hasECS,
