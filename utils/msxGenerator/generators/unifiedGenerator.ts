@@ -585,21 +585,14 @@ ${hasHud ? `    ; Render HUD elements
 
 render_pause:
     ; Render pause screen
-${needsFont ? `    ; Show PAUSE text
-    ld hl, 12 + (10 * 32)      ; Center of screen (approx)
-    ld de, string_pause
-    call OUTDO
-` : `    ; No text - just freeze
-`}    ret
+    ; NOTE: OUTDO corrupts SCREEN 2 graphics!
+    ; TODO: Use custom font rendering for SCREEN 2
+    ret
 
 render_game_over:
     ; Render game over screen
-${needsFont ? `    ; Show GAME OVER text
-    ld hl, 10 + (10 * 32)      ; Center of screen (approx)
-    ld de, string_game_over
-    call OUTDO
-` : `    ; No text - just wait
-`}    
+    ; NOTE: OUTDO corrupts SCREEN 2 graphics!
+    ; TODO: Use custom font rendering for SCREEN 2
     ; Return to menu after delay (handled in update)
     ret
 

@@ -59,6 +59,12 @@ ${hasHud ? `    call init_font_system         ; Load font patterns for HUD text
     ; CRITICAL: Set game flow state and update sprites to VRAM
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
+    
+    ; Initialize input state to non-center value to prevent accidental pause
+    ld a, #FF
+    ld (input_state), a
+    ld (prev_input_state), a
+    
     call update_sprites_to_vram   ; Copy sprite attributes to VRAM
 
     jp main_loop  ; Jump to main game loop`;
