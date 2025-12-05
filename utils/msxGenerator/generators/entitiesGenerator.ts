@@ -21,6 +21,7 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
   // INTELLIGENT FILTERING: Analyze which entities are actually used
   const componentUsage = analyzeComponentUsage(analysis);
   const activeEntities = componentUsage.activeEntities;
+  const COMP_MASK_SPRITE = 0x02; // Bit used for sprite component
 
   console.log('🎯 Generating optimized entities.asm...');
   console.log(`  - Total entity templates in JSON: ${analysis.templates?.length || 0}`);
@@ -56,6 +57,7 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
       // Get template for component mask calculation
       const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
       const componentMask = generateEntityComponentMask(entity, template, analysis);
+      const hasSprite = (componentMask & COMP_MASK_SPRITE) !== 0;
 
       code += `; Entity: ${entity.name} (instance from template: ${entity.entityTemplateId})
 ENTITY_${entityName}_ID EQU ${index}
@@ -159,6 +161,7 @@ update_entities:
       // Get template for component mask calculation
       const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
       const componentMask = generateEntityComponentMask(entity, template, analysis);
+      const hasSprite = (componentMask & COMP_MASK_SPRITE) !== 0;
 
       // Get real position from JSON entity data
       const realX = entity.position?.x || 100;
@@ -267,7 +270,7 @@ update_entities:
           return screenIndex;
         })()}                 ; Screen ID (calculated from project data)
 
-    ; Set sprite pattern and color
+${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     ld hl, sprite_pattern
     add hl, de
     ld (hl), ${index * 4}          ; Use entity index * 4 for 16x16 sprites
@@ -275,13 +278,14 @@ update_entities:
     ld hl, sprite_color
     add hl, de
     ld (hl), ${(index % 14) + 2}                ; Distinct color for debugging
+` : '    ; Anchor/reference entity - no sprite allocation needed\n'}
 
     ; Set direction mask for Cursors component (if entity has Input component)
     ld hl, entity_dir_mask
     add hl, de
     ld (hl), #${directionMask.toString(16).toUpperCase().padStart(2, '0')}            ; Direction restrictions: ${directionDesc}
 
-    ; Make sprite visible immediately (only if on screen 0 or current screen)
+${hasSprite ? `    ; Make sprite visible immediately (only if on screen 0 or current screen)
     ; For safety, we'll let the update loop handle visibility based on screen ID
     ; but we can initialize it here if it's on screen 0
     ld a, ${(() => {
@@ -303,6 +307,7 @@ update_entities:
     call force_update_entity_sprite
 
 .skip_show_${index}:
+` : '    ; No sprite to show for this entity\n'}
     ret
 
 update_${entityName.toLowerCase()}:

@@ -209,6 +209,9 @@ sprite_update_loop:
     inc hl
     ld h, (hl)                 ; Layer Count
     ld l, a                    ; L = Base HW Sprite (Current HW Sprite)
+    ld a, h
+    or a
+    jp z, sprite_continue      ; No layers -> skip rendering
     
     ; Loop through layers
     ; H = Remaining Layers
@@ -267,6 +270,9 @@ sprite_hide:
     ld a, (hl)                 ; Base HW Sprite
     inc hl
     ld b, (hl)                 ; Layer Count
+    ld a, b
+    or a
+    jr z, sprite_continue      ; Nothing to hide for anchor entities
     
 sprite_hide_loop:
     push bc
@@ -328,7 +334,10 @@ force_update_entity_sprite:
     inc hl
     ld h, (hl)                 ; Layer Count
     ld l, a                    ; L = Base HW Sprite
-    
+    ld a, h
+    or a
+    jr z, force_sprite_done    ; Skip if no layers for this entity
+
     ; Loop through layers
 force_sprite_layer_loop:
     push hl                    ; Save counters
@@ -363,7 +372,8 @@ force_sprite_layer_loop:
     inc l
     dec h
     jr nz, force_sprite_layer_loop
-    
+
+force_sprite_done:
     pop bc                     ; Restore Position
     pop hl
     pop de

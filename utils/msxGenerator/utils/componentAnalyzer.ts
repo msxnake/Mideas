@@ -40,6 +40,23 @@ const STANDARD_COMPONENT_IDS: Record<string, string> = {
 };
 
 /**
+ * Resolve final spriteId for an entity (defaults + overrides)
+ */
+function resolveSpriteId(entity: any, template: any): string | undefined {
+  const spriteComp = template?.components?.find((c: any) =>
+    c.definitionId === 'comp_sprite' || c.definitionId === 'comp_render'
+  );
+
+  if (!spriteComp) return undefined;
+
+  const defaults = spriteComp.defaultValues || {};
+  const overrides = entity.componentOverrides?.['comp_sprite'] || entity.componentOverrides?.['comp_render'] || {};
+  const finalProps = { ...defaults, ...overrides };
+
+  return finalProps.spriteId || finalProps.spriteAssetId || finalProps.sprite || finalProps.spriteName;
+}
+
+/**
  * Analyze which components are actually used in the project
  *
  * @param analysis - Project analysis with entities and templates
@@ -206,22 +223,24 @@ export function generateEntityComponentMask(entity: any, template: any, analysis
     });
   }
 
-  // INTELLIGENT FIX: Only add Position+Sprite if entity actually needs rendering
-  // Check if template has sprite data (spriteId or similar)
-  const hasVisualSprite = hasSpriteComponent ||
-    template?.components?.some((c: any) =>
-      c.definitionId === 'comp_render' ||
-      c.definitionId === 'comp_sprite' ||
-      c.defaultValues?.spriteId != null
-    );
-
   // Always add Position (all entities need position tracking)
   mask |= (1 << COMP_BIT_POSITION['Position']); // Bit 0: #0001
 
-  // Only add Sprite if entity has visual representation
-  // Position markers like "nucleo" won't get sprites
-  if (hasVisualSprite) {
+  // INTELLIGENT FIX: Only add Sprite if entity has render/sprite component
+  // If template has comp_render or comp_sprite, it needs sprite rendering
+  // We trust the template definition - if it declares a render component, enable sprites
+  if (hasSpriteComponent) {
     mask |= (1 << COMP_BIT_POSITION['Sprite']);   // Bit 1: #0002
+  } else {
+    // Double-check: Even if no sprite component was found in the iteration above,
+    // check if template has sprite data (spriteId or similar) as a fallback
+    const spriteId = resolveSpriteId(entity, template);
+    const hasValidSpriteAsset = spriteId &&
+      analysis.sprites?.some((s: any) => s.id === spriteId || s.name === spriteId);
+
+    if (hasValidSpriteAsset) {
+      mask |= (1 << COMP_BIT_POSITION['Sprite']);   // Bit 1: #0002
+    }
   }
 
   return mask;

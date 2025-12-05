@@ -21,8 +21,15 @@ const DEFAULT_DATA_FORMAT = 'hex';
 export function generateSpritesFile(analysis: ProjectAnalysis): string {
   const sprites = analysis.sprites || [];
 
+  console.log('🎨 generateSpritesFile() called:');
+  console.log(`  - analysis.sprites.length: ${sprites.length}`);
+  console.log(`  - analysis.entities.length: ${analysis.entities?.length || 0}`);
+  console.log(`  - analysis.templates.length: ${analysis.templates?.length || 0}`);
+
   // INTELLIGENT SPRITE MAPPING & MULTI-LAYER SUPPORT
   const { activeEntities } = analyzeComponentUsage(analysis);
+
+  console.log(`  - activeEntities.length: ${activeEntities.length}`);
 
   // Helper to get MSX1 color index from hex
   const hexToMSX1Index = (hex: string): number => {
@@ -57,6 +64,48 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     return Array.from(uniqueColors).sort((a, b) => a - b);
   };
 
+  const resolveSpriteIdFromProps = (props: any): string | undefined => {
+    return props?.spriteId || props?.spriteAssetId || props?.sprite || props?.spriteName;
+  };
+
+  const getEntitySpriteInfo = (entity: any): { spriteAssetIndex: number; spriteName: string; colors: number[] } | null => {
+    const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
+    if (!template) return null;
+
+    const spriteComp = template.components?.find((c: any) =>
+      c.definitionId === 'comp_sprite' || c.definitionId === 'comp_render'
+    );
+
+    if (!spriteComp) return null;
+
+    const defaults = spriteComp.defaultValues || {};
+    const overrides = entity.componentOverrides?.['comp_sprite'] || entity.componentOverrides?.['comp_render'] || {};
+    const finalProps = { ...defaults, ...overrides };
+    const spriteId = resolveSpriteIdFromProps(finalProps);
+
+    if (!spriteId) return null;
+
+    const foundIndex = sprites.findIndex(s => s.id === spriteId || s.name === spriteId);
+
+    // IMPORTANT FIX: If sprite not found in assets but template has comp_render,
+    // return placeholder info instead of null. This allows entities with placeholders
+    // to be rendered with a default sprite (white square)
+    if (foundIndex < 0) {
+      // Return placeholder sprite info
+      return {
+        spriteAssetIndex: -1, // Special index for placeholder
+        spriteName: `PLACEHOLDER_${entity.name}`,
+        colors: [15] // White color for visibility
+      };
+    }
+
+    return {
+      spriteAssetIndex: foundIndex,
+      spriteName: sprites[foundIndex].name,
+      colors: getSpriteLayerColors(sprites[foundIndex])
+    };
+  };
+
   // Phase 1: Analyze allocation
   // Map each active entity to a set of hardware sprites (layers)
   interface EntitySpriteAllocation {
@@ -72,44 +121,30 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
   let currentHwSpriteIndex = 0;
 
   activeEntities.forEach((entity, entityIndex) => {
-    let spriteAssetIndex = 0;
-    let spriteName = "Default";
-    let colors = [15]; // Default white 1 layer
+    const spriteInfo = getEntitySpriteInfo(entity);
 
-    // Find assigned sprite
-    const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
-    if (template) {
-      const spriteComp = template.components?.find((c: any) =>
-        c.definitionId === 'comp_sprite' || c.definitionId === 'comp_render'
-      );
-
-      if (spriteComp) {
-        const props = entity.componentOverrides?.['comp_sprite'] || {};
-        const defaults = spriteComp.defaultValues || {};
-        const finalProps = { ...defaults, ...props };
-        const spriteId = finalProps.spriteId;
-
-        if (spriteId) {
-          const foundIndex = sprites.findIndex(s => s.id === spriteId);
-          if (foundIndex >= 0) {
-            spriteAssetIndex = foundIndex;
-            spriteName = sprites[foundIndex].name;
-            colors = getSpriteLayerColors(sprites[foundIndex]);
-          }
-        }
-      }
+    if (!spriteInfo) {
+      entityAllocations.push({
+        entityIndex,
+        spriteName: 'NO_SPRITE',
+        spriteAssetIndex: -1,
+        baseHwSpriteIndex: currentHwSpriteIndex,
+        layerCount: 0,
+        colors: []
+      });
+      return;
     }
 
     entityAllocations.push({
       entityIndex,
-      spriteName,
-      spriteAssetIndex,
+      spriteName: spriteInfo.spriteName,
+      spriteAssetIndex: spriteInfo.spriteAssetIndex,
       baseHwSpriteIndex: currentHwSpriteIndex,
-      layerCount: colors.length,
-      colors
+      layerCount: spriteInfo.colors.length,
+      colors: spriteInfo.colors
     });
 
-    currentHwSpriteIndex += colors.length;
+    currentHwSpriteIndex += spriteInfo.colors.length;
   });
 
   const totalHardwareSprites = Math.max(currentHwSpriteIndex, 1); // Ensure at least 1
@@ -156,8 +191,27 @@ SPRITE_${index}_PATTERN:
     }
   });
 
+  // Generate placeholder sprite pattern (white 16x16 square for missing sprites)
+  code += `
+; ==================================================================
+; PLACEHOLDER SPRITE PATTERN (for entities with missing sprite assets)
+; ==================================================================
+; 16x16 white square sprite (solid fill)
+SPRITE_PLACEHOLDER_PATTERN:
+    ; Top half (8x8)
+    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+    ; Bottom half (8x8)
+    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+    ; Right half top (8x8)
+    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+    ; Right half bottom (8x8)
+    db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+
+`;
+
   if (sprites.length === 0) {
-    code += `\nSPRITE_0_PATTERN:\n    ds 32, 0 ; Empty pattern\n`;
+    code += `; No sprite assets found - using placeholder pattern only
+SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN\n`;
   }
 
   code += `
@@ -170,7 +224,8 @@ SPRITE_${index}_PATTERN:
 entity_sprite_config:
 `;
   entityAllocations.forEach(alloc => {
-    code += `    db ${alloc.baseHwSpriteIndex}, ${alloc.layerCount} ; Entity ${alloc.entityIndex} (${alloc.spriteName})\n`;
+    const baseIndex = alloc.baseHwSpriteIndex >= 0 ? alloc.baseHwSpriteIndex : 0;
+    code += `    db ${baseIndex}, ${alloc.layerCount} ; Entity ${alloc.entityIndex} (${alloc.spriteName})\n`;
   });
   // Fill for remaining entities (if any mismatch)
   if (entityAllocations.length < 32) {
@@ -183,10 +238,12 @@ entity_sprite_config:
 sprite_layer_colors:
 `;
   entityAllocations.forEach(alloc => {
-    code += `    ; Entity ${alloc.entityIndex} (${alloc.spriteName}) layers:\n`;
-    alloc.colors.forEach((color, i) => {
-      code += `    db ${color} ; Layer ${i}\n`;
-    });
+    if (alloc.layerCount > 0) {
+      code += `    ; Entity ${alloc.entityIndex} (${alloc.spriteName}) layers:\n`;
+      alloc.colors.forEach((color, i) => {
+        code += `    db ${color} ; Layer ${i}\n`;
+      });
+    }
   });
   // Padding
   code += `    ds 4, 0 ; Safety padding\n`;
@@ -208,9 +265,18 @@ load_sprite_patterns:
 `;
 
   entityAllocations.forEach(alloc => {
+    if (alloc.layerCount === 0) {
+      return; // Skip entities with no sprite layers
+    }
+
+    // Use placeholder pattern for entities with missing sprite assets
+    const patternLabel = alloc.spriteAssetIndex < 0
+      ? 'SPRITE_PLACEHOLDER_PATTERN'
+      : `SPRITE_${alloc.spriteAssetIndex}_PATTERN`;
+
     code += `    ; Entity ${alloc.entityIndex}: ${alloc.spriteName} (${alloc.layerCount} layers)
     ; Base HW Sprite: ${alloc.baseHwSpriteIndex}
-    ld hl, SPRITE_${alloc.spriteAssetIndex}_PATTERN
+    ld hl, ${patternLabel}
     ld de, SPRPAT + (${alloc.baseHwSpriteIndex} * 32)
     ld bc, ${alloc.layerCount * 32} ; Load ${alloc.layerCount} layers (32 bytes each)
     call LDIRVM
