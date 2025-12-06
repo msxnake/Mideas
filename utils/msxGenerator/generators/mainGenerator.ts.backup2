@@ -110,7 +110,7 @@ init_game_systems:
     ; This function is implemented in the unified assembly
     ; and calls component initialization functions
     call init_components
-    call init_sprites
+    call init_entities
     ret
 
 update_current_state:

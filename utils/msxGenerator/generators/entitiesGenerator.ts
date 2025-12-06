@@ -86,6 +86,9 @@ ENTITY_${entityName}_Y EQU ${entity.position.y}
 init_entities:
     ; Initialize all active game entities (${activeEntities.length} entities)
     
+    ; Ensure sprite system is reset whenever entities are initialized
+    call init_sprites
+    
     ; CRITICAL: Clear entity screen IDs to prevent ghost entities on restart
     ; This ensures all entities start with screen ID 0, even if they were
     ; moved to different screens in a previous game session

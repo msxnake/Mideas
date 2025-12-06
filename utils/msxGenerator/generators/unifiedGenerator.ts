@@ -131,11 +131,6 @@ ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize componen
     call init_components
 ` : `    ; No entities - skipping component system initialization
 `}
-${analysis.sprites && analysis.sprites.length > 0 ? `    ; Initialize sprite system and load patterns
-    call init_sprites
-    call load_sprite_patterns  ; Load sprite patterns to VRAM
-` : `    ; No sprites detected
-`}
 ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color data (tiles detected)
     call load_pattern_bank0
     call load_pattern_bank1
@@ -374,8 +369,6 @@ init_game_entities:
     ; Initialize all game entities for new game
 ${analysis.entities && analysis.entities.length > 0 ? `    call init_entities
 ` : `    ; No entities to initialize
-`}${analysis.sprites && analysis.sprites.length > 0 ? `    call init_sprites
-` : `    ; No sprites system (using direct display)
 `}    ret
 
 reset_game_variables:

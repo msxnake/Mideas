@@ -125,9 +125,9 @@ init_components:
     ld (hl), 0
     ldir
 
-${usedComponents.has('Position') ? `    ; Initialize position system
+    ; Initialize position system
     call init_position_system
-` : ''}${usedComponents.has('Sprite') ? `    ; Initialize sprite system
+${usedComponents.has('Sprite') ? `    ; Initialize sprite system
     call init_sprite_system
 ` : ''}${usedComponents.has('Movement') ? `    ; Initialize movement system
     call init_movement_system

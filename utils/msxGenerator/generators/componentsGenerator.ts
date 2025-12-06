@@ -1241,11 +1241,10 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
 
     `;
 
-    if (usedComponents.has('Position')) {
-        code += `    ; Initialize position system
+    code += `    ; Initialize position system (always)
     call init_position_system
     `;
-    }
+
 
     if (usedComponents.has('Sprite')) {
         code += `    ; Initialize sprite system
@@ -1433,19 +1432,8 @@ entity_gravity_vel  EQU temp_word_4; Accumulated gravity velocity(signed word, 6
         ${generateInitComponents(componentUsage)}
 `;
 
-    // Generate Position System (if used)
-    if (usedComponents.has('Position')) {
-        code += generatePositionSystem();
-    } else {
-        code += `
-    ; Position system filtered out(not used)
-init_position_system:
-    ret
-
-update_position_component:
-    ret
-    `;
-    }
+    // Generate Position System (always needed for entity coords)
+    code += generatePositionSystem();
 
     // Generate Sprite System (if used OR if project has sprites)
     // CRITICAL FIX: Always generate when sprites exist, even if component analysis fails

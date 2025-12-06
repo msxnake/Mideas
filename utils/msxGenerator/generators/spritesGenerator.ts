@@ -80,16 +80,46 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     if (!spriteComp) {
       const entityName = (entity.name || '').toLowerCase();
       const templateName = (template.name || '').toLowerCase();
-      const matchedIndex = sprites.findIndex(s => {
+      const matchedIndexByName = sprites.findIndex(s => {
         const n = (s.name || '').toLowerCase();
         return n && (entityName.includes(n) || templateName.includes(n));
       });
+
+      // Extra heuristics: common keywords
+      const keywordMatch = (keyword: string) =>
+        sprites.findIndex(s => (s.name || '').toLowerCase().includes(keyword));
+
+      const matchedIndex =
+        matchedIndexByName >= 0
+          ? matchedIndexByName
+          : entityName.includes('hero')
+          ? keywordMatch('hero')
+          : entityName.includes('player')
+          ? keywordMatch('hero')
+          : entityName.includes('coin')
+          ? keywordMatch('coin')
+          : templateName.includes('hero')
+          ? keywordMatch('hero')
+          : templateName.includes('player')
+          ? keywordMatch('hero')
+          : templateName.includes('coin')
+          ? keywordMatch('coin')
+          : -1;
 
       if (matchedIndex >= 0) {
         return {
           spriteAssetIndex: matchedIndex,
           spriteName: sprites[matchedIndex].name,
           colors: getSpriteLayerColors(sprites[matchedIndex])
+        };
+      }
+
+      // Last resort: if we have sprites, assign the first one so entities are not placeholders
+      if (sprites.length > 0) {
+        return {
+          spriteAssetIndex: 0,
+          spriteName: sprites[0].name,
+          colors: getSpriteLayerColors(sprites[0])
         };
       }
 
@@ -101,7 +131,14 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     const finalProps = { ...defaults, ...overrides };
     const spriteId = resolveSpriteIdFromProps(finalProps);
 
-    if (!spriteId) return null;
+    if (!spriteId) {
+      // No spriteId but has comp_render: force placeholder so it's treated as sprite
+      return {
+        spriteAssetIndex: -1,
+        spriteName: `PLACEHOLDER_${entity.name}`,
+        colors: [15]
+      };
+    }
 
     const foundIndex = sprites.findIndex(s => s.id === spriteId || s.name === spriteId);
 
@@ -142,14 +179,16 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     const spriteInfo = getEntitySpriteInfo(entity);
 
     if (!spriteInfo) {
+      // Fallback: ensure every active entity gets at least a placeholder sprite
       entityAllocations.push({
         entityIndex,
-        spriteName: 'NO_SPRITE',
+        spriteName: 'PLACEHOLDER',
         spriteAssetIndex: -1,
         baseHwSpriteIndex: currentHwSpriteIndex,
-        layerCount: 0,
-        colors: []
+        layerCount: 1,
+        colors: [15] // White placeholder
       });
+      currentHwSpriteIndex += 1;
       return;
     }
 
@@ -165,7 +204,8 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     currentHwSpriteIndex += spriteInfo.colors.length;
   });
 
-  const totalHardwareSprites = Math.max(currentHwSpriteIndex, 1); // Ensure at least 1
+  // Always reserve full hardware sprite table (32) to keep attributes/LDIRVM in sync
+  const totalHardwareSprites = 32;
 
   // Phase 2: Generate Code
   let code = `; ==================================================================
@@ -255,16 +295,21 @@ entity_sprite_config:
 ; Format: db color_index
 sprite_layer_colors:
 `;
+  let colorsWritten = 0;
   entityAllocations.forEach(alloc => {
     if (alloc.layerCount > 0) {
       code += `    ; Entity ${alloc.entityIndex} (${alloc.spriteName}) layers:\n`;
       alloc.colors.forEach((color, i) => {
         code += `    db ${color} ; Layer ${i}\n`;
+        colorsWritten += 1;
       });
     }
   });
   // Padding
-  code += `    ds 4, 0 ; Safety padding\n`;
+  const remainingColors = totalHardwareSprites - colorsWritten;
+  if (remainingColors > 0) {
+    code += `    ds ${remainingColors}, 0 ; Padding\n`;
+  }
 
   code += `
 ; ==================================================================

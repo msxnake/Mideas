@@ -53,8 +53,6 @@ export function generateInitCodeForNode(
 ${hasHud ? `    call init_font_system         ; Load font patterns for HUD text
 ` : ''}
     ; Then initialize game systems
-    call init_sprites
-    call load_sprite_patterns     ; Load sprite patterns to VRAM
     call init_components
     call init_entities
     call ${toRoutineLabel('load_world_' + worldAssetId)}

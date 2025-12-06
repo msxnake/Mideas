@@ -63,7 +63,6 @@ ${nodeLabel}:
           code += `
 ${nodeLabel}:
     ; WorldLink Node - Load world: ${worldAssetId || 'Unknown'}
-    call init_sprites
     call init_components
     call init_entities
     call ${toRoutineLabel('load_world_' + (worldAssetId || 'default'))}

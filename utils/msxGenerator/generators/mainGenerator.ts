@@ -108,8 +108,7 @@ main_loop:
 init_game_systems:
     ; Initialize all game systems
     call init_components
-    call init_entities       ; Initialize entities (positions, screens, etc.)
-    call init_sprites
+    call init_entities       ; Initialize entities (positions, screens, etc.) and sprites
     ret
 
 update_current_state:
