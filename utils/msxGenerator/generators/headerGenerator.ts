@@ -44,6 +44,9 @@ export function generateInitCodeForNode(
     ; GameFlow: Start → WorldLink (${worldMap?.name || 'World'})
     ; Initialize game world directly from GameFlow
 
+    ; Turn off display while redefining patterns/sprites to avoid flicker
+    call DISSCR
+
     ; CRITICAL: Load graphics data into VRAM FIRST
     call load_patterns_to_vram    ; Load tile graphics (Pattern Table)
     call load_colors_to_vram      ; Load tile colors (Color Table)
@@ -55,6 +58,9 @@ ${hasHud ? `    call init_font_system         ; Load font patterns for HUD text
     call init_components
     call init_entities
     call ${toRoutineLabel('load_world_' + worldAssetId)}
+
+    ; Re-enable display after VRAM updates
+    call ENASCR
 
     ; CRITICAL: Set game flow state and update sprites to VRAM
     ld a, FLOW_STATE_GAME

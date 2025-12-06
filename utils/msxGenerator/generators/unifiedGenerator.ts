@@ -126,6 +126,7 @@ main_loop:
 ; ==================================================================
 
 init_game_systems:
+    call DISSCR               ; Disable screen while loading VRAM assets
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize component systems (entities detected)
     call init_components
 ` : `    ; No entities - skipping component system initialization
@@ -161,6 +162,7 @@ ${needsFont ? `    ; Initialize font system
     call init_font_system
 ` : `    ; No text/menus - skip font initialization
 `}
+    call ENASCR               ; Re-enable screen after VRAM updates
     ret
 
 update_current_state:
@@ -296,10 +298,12 @@ start_game_from_menu:
     call reset_game_variables
 
     ; Re-initialize graphics for SCREEN 2 (CLS doesn't work properly in SCREEN 2)
+    call DISSCR                     ; Hide screen while reloading VRAM assets
     call clear_all_sprites           ; Clear sprite attributes
     call load_patterns_to_vram       ; Reload tile patterns
     call load_colors_to_vram         ; Reload tile colors
     call load_game_screen
+    call ENASCR                     ; Show screen again after reload
     ret
 
 pause_game:

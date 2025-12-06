@@ -76,7 +76,25 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
       c.definitionId === 'comp_sprite' || c.definitionId === 'comp_render'
     );
 
-    if (!spriteComp) return null;
+    // FALLBACK: If template lacks explicit sprite component, try matching sprite assets by name
+    if (!spriteComp) {
+      const entityName = (entity.name || '').toLowerCase();
+      const templateName = (template.name || '').toLowerCase();
+      const matchedIndex = sprites.findIndex(s => {
+        const n = (s.name || '').toLowerCase();
+        return n && (entityName.includes(n) || templateName.includes(n));
+      });
+
+      if (matchedIndex >= 0) {
+        return {
+          spriteAssetIndex: matchedIndex,
+          spriteName: sprites[matchedIndex].name,
+          colors: getSpriteLayerColors(sprites[matchedIndex])
+        };
+      }
+
+      return null;
+    }
 
     const defaults = spriteComp.defaultValues || {};
     const overrides = entity.componentOverrides?.['comp_sprite'] || entity.componentOverrides?.['comp_render'] || {};
@@ -264,6 +282,7 @@ load_sprite_patterns:
     ; Load patterns for all active entities
 `;
 
+  let patternsGenerated = false;
   entityAllocations.forEach(alloc => {
     if (alloc.layerCount === 0) {
       return; // Skip entities with no sprite layers
@@ -281,7 +300,34 @@ load_sprite_patterns:
     ld bc, ${alloc.layerCount * 32} ; Load ${alloc.layerCount} layers (32 bytes each)
     call LDIRVM
 `;
+
+    patternsGenerated = true;
   });
+
+  if (!patternsGenerated) {
+    if (sprites.length === 0) {
+      code += `    ; No sprites to load
+`;
+    } else {
+      code += `    ; No active entities detected, load all sprite assets sequentially
+`;
+      let fallbackPatternIndex = 0;
+      sprites.forEach((sprite, index) => {
+        const layerCount = getSpriteLayerColors(sprite).length || 1;
+        const frameCount = sprite.frames?.length || 1;
+        const bytesToCopy = layerCount * frameCount * 32; // 32 bytes per 16x16 layer per frame
+
+        code += `    ; Sprite Asset ${index}: ${sprite.name} (${frameCount} frames, ${layerCount} layers)
+    ld hl, SPRITE_${index}_PATTERN
+    ld de, SPRPAT + (${fallbackPatternIndex} * 32)
+    ld bc, ${bytesToCopy}
+    call LDIRVM
+`;
+
+        fallbackPatternIndex += layerCount * frameCount;
+      });
+    }
+  }
 
   code += `    ret
 
