@@ -69,95 +69,99 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
   };
 
   const getEntitySpriteInfo = (entity: any): { spriteAssetIndex: number; spriteName: string; colors: number[] } | null => {
+    console.log(`\n🔍 getEntitySpriteInfo for entity: "${entity.name}" (template: ${entity.entityTemplateId})`);
+    console.log(`   Available sprites: ${sprites.map(s => `"${s.name}" (${s.id})`).join(', ') || 'NONE'}`);
+
     const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
-    if (!template) return null;
+    if (!template) {
+      console.log(`   ❌ Template not found!`);
+      return null;
+    }
+    console.log(`   Template found: "${template.name}"`);
+    console.log(`   Template components: ${template.components?.map((c: any) => c.definitionId).join(', ') || 'NONE'}`);
 
-    const spriteComp = template.components?.find((c: any) =>
-      c.definitionId === 'comp_sprite' || c.definitionId === 'comp_render'
-    );
+    // Use the same logic as GameFlowPreviewModal.tsx:
+    // 1. First check componentOverrides for sprite_ref properties
+    // 2. Then check template.components defaultValues for sprite_ref properties
 
-    // FALLBACK: If template lacks explicit sprite component, try matching sprite assets by name
-    if (!spriteComp) {
-      const entityName = (entity.name || '').toLowerCase();
-      const templateName = (template.name || '').toLowerCase();
-      const matchedIndexByName = sprites.findIndex(s => {
-        const n = (s.name || '').toLowerCase();
-        return n && (entityName.includes(n) || templateName.includes(n));
-      });
+    const componentDefinitions = analysis.components || [];
+    let spriteAssetId: string | undefined;
 
-      // Extra heuristics: common keywords
-      const keywordMatch = (keyword: string) =>
-        sprites.findIndex(s => (s.name || '').toLowerCase().includes(keyword));
-
-      const matchedIndex =
-        matchedIndexByName >= 0
-          ? matchedIndexByName
-          : entityName.includes('hero')
-          ? keywordMatch('hero')
-          : entityName.includes('player')
-          ? keywordMatch('hero')
-          : entityName.includes('coin')
-          ? keywordMatch('coin')
-          : templateName.includes('hero')
-          ? keywordMatch('hero')
-          : templateName.includes('player')
-          ? keywordMatch('hero')
-          : templateName.includes('coin')
-          ? keywordMatch('coin')
-          : -1;
-
-      if (matchedIndex >= 0) {
-        return {
-          spriteAssetIndex: matchedIndex,
-          spriteName: sprites[matchedIndex].name,
-          colors: getSpriteLayerColors(sprites[matchedIndex])
-        };
+    // Step 1: Check entity instance overrides first
+    if (entity.componentOverrides) {
+      for (const compId in entity.componentOverrides) {
+        const compDef = componentDefinitions.find((c: any) => c.id === compId);
+        const spriteProp = compDef?.properties?.find((p: any) => p.type === 'sprite_ref');
+        if (spriteProp && entity.componentOverrides[compId]?.[spriteProp.name]) {
+          spriteAssetId = entity.componentOverrides[compId][spriteProp.name];
+          console.log(`   ✅ Found spriteAssetId in overrides: "${spriteAssetId}"`);
+          break;
+        }
       }
+    }
 
-      // Last resort: if we have sprites, assign the first one so entities are not placeholders
+    // Step 2: If not found in overrides, check template component defaults
+    if (!spriteAssetId) {
+      for (const comp of template.components || []) {
+        const compDef = componentDefinitions.find((c: any) => c.id === comp.definitionId);
+        const spriteProp = compDef?.properties?.find((p: any) => p.type === 'sprite_ref');
+        if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+          spriteAssetId = comp.defaultValues[spriteProp.name];
+          console.log(`   ✅ Found spriteAssetId in template defaults: "${spriteAssetId}"`);
+          break;
+        }
+      }
+    }
+
+    console.log(`   Resolved spriteAssetId: "${spriteAssetId || 'undefined'}"`);
+
+    // If no spriteAssetId found, entity has no sprite configured
+    if (!spriteAssetId) {
+      console.log(`   ⚠️ No sprite_ref property found in any component`);
+      // Fallback: use first available sprite if any exist
       if (sprites.length > 0) {
+        console.log(`   ⚠️ Defaulting to first sprite "${sprites[0].name}"`);
         return {
           spriteAssetIndex: 0,
           spriteName: sprites[0].name,
           colors: getSpriteLayerColors(sprites[0])
         };
       }
-
       return null;
     }
 
-    const defaults = spriteComp.defaultValues || {};
-    const overrides = entity.componentOverrides?.['comp_sprite'] || entity.componentOverrides?.['comp_render'] || {};
-    const finalProps = { ...defaults, ...overrides };
-    const spriteId = resolveSpriteIdFromProps(finalProps);
+    // Find sprite by ID
+    let foundIndex = sprites.findIndex(s => s.id === spriteAssetId);
 
-    if (!spriteId) {
-      // No spriteId but has comp_render: force placeholder so it's treated as sprite
-      return {
-        spriteAssetIndex: -1,
-        spriteName: `PLACEHOLDER_${entity.name}`,
-        colors: [15]
-      };
-    }
-
-    const foundIndex = sprites.findIndex(s => s.id === spriteId || s.name === spriteId);
-
-    // IMPORTANT FIX: If sprite not found in assets but template has comp_render,
-    // return placeholder info instead of null. This allows entities with placeholders
-    // to be rendered with a default sprite (white square)
+    // If not found by ID, try by name
     if (foundIndex < 0) {
-      // Return placeholder sprite info
+      foundIndex = sprites.findIndex(s => s.name === spriteAssetId);
+    }
+
+    // If still not found, try partial name match
+    if (foundIndex < 0) {
+      const spriteIdLower = spriteAssetId.toLowerCase();
+      foundIndex = sprites.findIndex(s =>
+        s.name?.toLowerCase().includes(spriteIdLower) ||
+        spriteIdLower.includes(s.name?.toLowerCase() || '')
+      );
+    }
+
+    if (foundIndex >= 0) {
+      console.log(`   ✅ Found sprite "${sprites[foundIndex].name}" at index ${foundIndex}`);
       return {
-        spriteAssetIndex: -1, // Special index for placeholder
-        spriteName: `PLACEHOLDER_${entity.name}`,
-        colors: [15] // White color for visibility
+        spriteAssetIndex: foundIndex,
+        spriteName: sprites[foundIndex].name,
+        colors: getSpriteLayerColors(sprites[foundIndex])
       };
     }
 
+    // Sprite ID specified but not found in assets
+    console.log(`   ❌ Sprite "${spriteAssetId}" not found in project assets`);
     return {
-      spriteAssetIndex: foundIndex,
-      spriteName: sprites[foundIndex].name,
-      colors: getSpriteLayerColors(sprites[foundIndex])
+      spriteAssetIndex: -1,
+      spriteName: `MISSING_${spriteAssetId}`,
+      colors: [15] // White placeholder
     };
   };
 
