@@ -63,8 +63,6 @@ ${nodeLabel}:
           code += `
 ${nodeLabel}:
     ; WorldLink Node - Load world: ${worldAssetId || 'Unknown'}
-    call init_components
-    call init_entities
     call ${toRoutineLabel('load_world_' + (worldAssetId || 'default'))}
     ; CRITICAL: Set game flow state and update sprites to VRAM
     ld a, FLOW_STATE_GAME
@@ -156,11 +154,11 @@ ${nodeLabel}:
           // Find THEN and ELSE connections (using sourceId to differentiate)
           const thenConnection = gameFlow.connections?.find(
             (c: any) => (c.from?.nodeId === node.id || c.from === node.id) &&
-                       (c.from?.sourceId === 'then' || !c.from?.sourceId) // Default to THEN if no sourceId
+              (c.from?.sourceId === 'then' || !c.from?.sourceId) // Default to THEN if no sourceId
           );
           const elseConnection = gameFlow.connections?.find(
             (c: any) => (c.from?.nodeId === node.id || c.from === node.id) &&
-                       c.from?.sourceId === 'else'
+              c.from?.sourceId === 'else'
           );
 
           const thenNodeId = thenConnection ? (thenConnection.to?.nodeId || thenConnection.to) : null;
@@ -268,7 +266,7 @@ ${nodeLabel}:
           );
 
           // First, collect all VALID variable assignments
-          const validAssignments: Array<{varName: string, asmVarName: string, valueExpression: string, originalValue: any}> = [];
+          const validAssignments: Array<{ varName: string, asmVarName: string, valueExpression: string, originalValue: any }> = [];
 
           if (node.variables && Array.isArray(node.variables)) {
             node.variables.forEach((varAssignment: any) => {

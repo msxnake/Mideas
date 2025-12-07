@@ -137,73 +137,23 @@ sprite_update_loop:
     jr nz, sprite_hide         ; If different screen, hide sprite
 
     ; Entity is in current screen - render normally
-    ; Get entity position
-    ld e, c                    ; Save entity index in E
-    ld d, 0                    ; DE = entity index
+    ; E already contains entity index (from line 129)
+    ; D = 0 (from line 130)
     
+    ; Get entity position (X, Y)
     ld hl, entity_x_pos
     add hl, de                 ; HL points to entity X
     ld b, (hl)                 ; B = X position
 
-    ld hl, entity_y_pos
-    add hl, de                 ; HL points to entity Y
-    ld a, (hl)                 ; A = Y position (temp)
-    ld c, a                    ; C = Y position
-
-    ; MULTI-LAYER SPRITE RENDERING
-    ; Get entity configuration (Base HW Sprite + Layer Count)
-    push bc                    ; Save X/Y
-    
-    ld hl, entity_sprite_config
-    ld e, c                    ; Entity index (C was Y, wait... C is entity index in outer loop?)
-                               ; No, C was overwritten by Y position above!
-                               ; We need to recover Entity Index.
-                               ; Outer loop uses C as Entity Index.
-                               ; But we just did 'ld c, (hl)' (Y pos).
-                               ; We need to be careful.
-    
-    ; RE-READING ENTITY INDEX
-    ; In outer loop: C = Entity Index.
-    ; We saved it in E at line 141: 'ld e, c'.
-    ; So E is Entity Index.
-    
-    ld hl, entity_sprite_config
-    ld d, 0
-    add hl, de
-    add hl, de                 ; Index * 2 (2 bytes per entry)
-    
-    ld a, (hl)                 ; Base HW Sprite Index
-    inc hl
-    ld h, (hl)                 ; Layer Count
-    ld l, a                    ; L = Base HW Sprite
-    
-    pop bc                     ; Restore B=X, C=Y (Wait, C was Y, B was X)
-                               ; Stack has [BC] pushed.
-                               ; But we pushed BC *after* loading X/Y?
-                               ; Let's re-verify register usage.
-
-    ; Let's restart the register setup to be safe.
-    ; E = Entity Index (from line 141)
-    
-    ; Get X/Y
-    push de                    ; Save Entity Index
-    
-    ld hl, entity_x_pos
-    ld d, 0
-    add hl, de                 ; HL points to entity X
-    ld b, (hl)                 ; B = X position
-    
     ld hl, entity_y_pos
     add hl, de                 ; HL points to entity Y
     ld c, (hl)                 ; C = Y position
-    
-    pop de                     ; Restore E = Entity Index
-    
-    ; Get Config
+
+    ; Get sprite configuration (Base HW Sprite + Layer Count)
+    ; E still contains entity index, D = 0
     ld hl, entity_sprite_config
-    ld d, 0
     add hl, de
-    add hl, de                 ; Index * 2
+    add hl, de                 ; Index * 2 (2 bytes per entry)
     
     ld a, (hl)                 ; Base HW Sprite
     inc hl
@@ -223,11 +173,9 @@ sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
     
-    ; Calculate Pattern: HW Sprite * 4
+    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
     ld a, l
-    sla a
-    sla a
-    ld d, a                    ; D = Pattern
+    ld d, a                    ; D = Pattern (direct index, not *4)
     
     ; Get Color from sprite_layer_colors table
     ; Table is indexed by HW Sprite Index (L)
@@ -259,11 +207,10 @@ sprite_layer_loop:
 sprite_hide:
     ; Entity is in different screen - hide sprite (Y = 208+)
     ; We must hide ALL layers for this entity
-    ; C is Entity Index (from outer loop)
+    ; E contains Entity Index (from line 129)
+    ; D = 0 (from line 130)
     
     ld hl, entity_sprite_config
-    ld e, c
-    ld d, 0
     add hl, de
     add hl, de
     
@@ -316,17 +263,13 @@ force_update_entity_sprite:
     
     ld hl, entity_y_pos
     add hl, de
-    ld a, (hl)                 ; A = Y
-    ld c, a                    ; C = Y
+    ld c, (hl)                 ; C = Y
     
-    push bc                    ; Save Position (B=X, C=Y)
-    
-    ; Restore Entity Index from E (we put C into E earlier)
-    ld c, e                    ; C = Entity Index
+    ; E still has Entity Index, D = 0
+    ; B = X, C = Y
     
     ; Get Config
     ld hl, entity_sprite_config
-    ld d, 0
     add hl, de
     add hl, de                 ; Index * 2
     
@@ -339,15 +282,16 @@ force_update_entity_sprite:
     jr z, force_sprite_done    ; Skip if no layers for this entity
 
     ; Loop through layers
+    ; H = Layer Count
+    ; L = HW Sprite Index
+    ; B = X, C = Y
 force_sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
     
-    ; Calculate Pattern: HW Sprite * 4
+    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
     ld a, l
-    sla a
-    sla a
-    ld d, a                    ; D = Pattern
+    ld d, a                    ; D = Pattern (direct index, not *4)
     
     ; Get Color
     push de
@@ -374,7 +318,6 @@ force_sprite_layer_loop:
     jr nz, force_sprite_layer_loop
 
 force_sprite_done:
-    pop bc                     ; Restore Position
     pop hl
     pop de
     pop bc
@@ -690,16 +633,16 @@ ${yDivisionCode}
     ; Handle collision with screen boundaries
         ; Stop movement in the collision direction
     ld a, 0
-    ld(entity_vel_x), a; Stop X movement
-    ld(entity_vel_y), a; Stop Y movement
+    ld (entity_vel_x), a; Stop X movement
+    ld (entity_vel_y), a; Stop Y movement
     ret
 
     handle_tile_collision:
     ; Handle collision with solid tiles
         ; Prevent movement into the tile
     ld a, 0
-    ld(entity_vel_x), a; Stop X movement
-    ld(entity_vel_y), a; Stop Y movement
+    ld (entity_vel_x), a; Stop X movement
+    ld (entity_vel_y), a; Stop Y movement
     ret
 
     handle_entity_collision:
@@ -765,7 +708,7 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
         input_update_loop:
             ld a, (hl)                 ; Get entity component mask
             and COMP_MASK_INPUT        ; Check if has input component
-            jr z, input_next_entity    ; Skip if no input component
+            jp z, input_next_entity    ; Skip if no input component
 
             ; Apply input to entity movement (real implementation)
             push bc
@@ -785,146 +728,146 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
 
             ; Check directional input with direction restrictions
             cp STICK_UP
-            jr z, input_move_up
+            jp z, input_move_up
             cp STICK_DOWN
-            jr z, input_move_down
+            jp z, input_move_down
             cp STICK_LEFT
-            jr z, input_move_left
+            jp z, input_move_left
             cp STICK_RIGHT
-            jr z, input_move_right
+            jp z, input_move_right
             cp STICK_UPRIGHT
-            jr z, input_move_upright
+            jp z, input_move_upright
             cp STICK_UPLEFT
-            jr z, input_move_upleft
+            jp z, input_move_upleft
             cp STICK_DOWNRIGHT
-            jr z, input_move_downright
+            jp z, input_move_downright
             cp STICK_DOWNLEFT
-            jr z, input_move_downleft
-            jr input_apply_velocity
+            jp z, input_move_downleft
+            jp input_apply_velocity
 
         input_move_up:
             ; Check if UP is allowed (bit 0)
             ld a, d
             and DIR_ALLOW_UP
-            jr z, input_apply_velocity ; Not allowed, skip
+            jp z, input_apply_velocity ; Not allowed, skip
             ld c, -2                   ; Negative Y velocity (up)
-            jr input_apply_velocity
+            jp input_apply_velocity
 
         input_move_down:
             ; Check if DOWN is allowed (bit 1)
             ld a, d
             and DIR_ALLOW_DOWN
-            jr z, input_apply_velocity ; Not allowed, skip
+            jp z, input_apply_velocity ; Not allowed, skip
             ld c, 2                    ; Positive Y velocity (down)
-            jr input_apply_velocity
+            jp input_apply_velocity
 
         input_move_left:
             ; Check if LEFT is allowed (bit 2)
             ld a, d
             and DIR_ALLOW_LEFT
-            jr z, input_apply_velocity ; Not allowed, skip
+            jp z, input_apply_velocity ; Not allowed, skip
             ld b, -2                   ; Negative X velocity (left)
-            jr input_apply_velocity
+            jp input_apply_velocity
 
         input_move_right:
             ; Check if RIGHT is allowed (bit 3)
             ld a, d
             and DIR_ALLOW_RIGHT
-            jr z, input_apply_velocity ; Not allowed, skip
+            jp z, input_apply_velocity ; Not allowed, skip
             ld b, 2                    ; Positive X velocity (right)
-            jr input_apply_velocity
+            jp input_apply_velocity
 
         input_move_upright:
             ; Check if both UP and RIGHT are allowed
             ld a, d
             and DIR_ALLOW_UP
-            jr z, input_check_right_only ; UP not allowed
+            jp z, input_check_right_only ; UP not allowed
             ld a, d
             and DIR_ALLOW_RIGHT
-            jr z, input_check_up_only  ; RIGHT not allowed
+            jp z, input_check_up_only  ; RIGHT not allowed
             ; Both allowed - diagonal
             ld b, 1                    ; Diagonal movement (slower)
             ld c, -1
-            jr input_apply_velocity
+            jp input_apply_velocity
         input_check_right_only:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
-            jr z, input_apply_velocity
+            jp z, input_apply_velocity
             ld b, 2
-            jr input_apply_velocity
+            jp input_apply_velocity
         input_check_up_only:
             ; Only UP allowed
             ld c, -2
-            jr input_apply_velocity
+            jp input_apply_velocity
 
         input_move_upleft:
             ; Check if both UP and LEFT are allowed
             ld a, d
             and DIR_ALLOW_UP
-            jr z, input_check_left_only1 ; UP not allowed
+            jp z, input_check_left_only1 ; UP not allowed
             ld a, d
             and DIR_ALLOW_LEFT
-            jr z, input_check_up_only1 ; LEFT not allowed
+            jp z, input_check_up_only1 ; LEFT not allowed
             ; Both allowed - diagonal
             ld b, -1
             ld c, -1
-            jr input_apply_velocity
+            jp input_apply_velocity
         input_check_left_only1:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
-            jr z, input_apply_velocity
+            jp z, input_apply_velocity
             ld b, -2
-            jr input_apply_velocity
+            jp input_apply_velocity
         input_check_up_only1:
             ; Only UP allowed
             ld c, -2
-            jr input_apply_velocity
+            jp input_apply_velocity
 
         input_move_downright:
             ; Check if both DOWN and RIGHT are allowed
             ld a, d
             and DIR_ALLOW_DOWN
-            jr z, input_check_right_only2 ; DOWN not allowed
+            jp z, input_check_right_only2 ; DOWN not allowed
             ld a, d
             and DIR_ALLOW_RIGHT
-            jr z, input_check_down_only2 ; RIGHT not allowed
+            jp z, input_check_down_only2 ; RIGHT not allowed
             ; Both allowed - diagonal
             ld b, 1
             ld c, 1
-            jr input_apply_velocity
+            jp input_apply_velocity
         input_check_right_only2:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
-            jr z, input_apply_velocity
+            jp z, input_apply_velocity
             ld b, 2
-            jr input_apply_velocity
+            jp input_apply_velocity
         input_check_down_only2:
             ; Only DOWN allowed
             ld c, 2
-            jr input_apply_velocity
+            jp input_apply_velocity
 
         input_move_downleft:
             ; Check if both DOWN and LEFT are allowed
             ld a, d
             and DIR_ALLOW_DOWN
-            jr z, input_check_left_only3 ; DOWN not allowed
+            jp z, input_check_left_only3 ; DOWN not allowed
             ld a, d
             and DIR_ALLOW_LEFT
-            jr z, input_check_down_only3 ; LEFT not allowed
+            jp z, input_check_down_only3 ; LEFT not allowed
             ; Both allowed - diagonal
             ld b, -1
             ld c, 1
-            jr input_apply_velocity
+            jp input_apply_velocity
         input_check_left_only3:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
-            jr z, input_apply_velocity
+            jp z, input_apply_velocity
             ld b, -2
-            jr input_apply_velocity
+            jp input_apply_velocity
         input_check_down_only3:
             ; Only DOWN allowed
             ld c, 2
@@ -962,7 +905,7 @@ function generateBehaviorSystem(): string {
 
         init_behavior_system:
 ; Initialize AI / behavior system
-ret
+            ret
 
 update_behavior_component:
 ; Update AI / behavior logic for entities
@@ -981,7 +924,7 @@ behavior_next_entity:
             inc hl; Next entity
             dec b; Decrement loop counter
             jp nz, behavior_update_loop
-ret
+            ret
     `;
 }
 
@@ -1000,9 +943,9 @@ function generateGravitySystem(): string {
             ld hl, entity_gravity_vel
             ld de, entity_gravity_vel + 1
             ld bc, 63; 64 bytes - 1(32 words)
-ld(hl), 0
-ldir
-ret
+            ld (hl), 0
+            ldir
+            ret
 
 update_gravity_component:
 ; Apply gravity acceleration to entities
@@ -1300,6 +1243,42 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     `;
     }
 
+    if (usedComponents.has('Cursors')) {
+        code += `    ; Initialize cursors system (stub)
+    call init_cursors_system
+    `;
+    }
+
+    if (usedComponents.has('StateMachine')) {
+        code += `    ; Initialize state machine system (stub)
+    call init_statemachine_system
+    `;
+    }
+
+    if (usedComponents.has('Carry')) {
+        code += `    ; Initialize carry system (stub)
+    call init_carry_system
+    `;
+    }
+
+    if (usedComponents.has('Damage')) {
+        code += `    ; Initialize damage system (stub)
+    call init_damage_system
+    `;
+    }
+
+    if (usedComponents.has('WallCollision')) {
+        code += `    ; Initialize wall collision system (stub)
+    call init_wallcollision_system
+    `;
+    }
+
+    if (usedComponents.has('Collectible')) {
+        code += `    ; Initialize collectible system (stub)
+    call init_collectible_system
+    `;
+    }
+
     code += `
     ret
     `;
@@ -1562,6 +1541,132 @@ init_gravity_system:
     ret
 
 update_gravity_component:
+    ret
+    `;
+    }
+
+    // Generate Cursors System stub (if used)
+    if (!usedComponents.has('Cursors')) {
+        code += `
+    ; Cursors system filtered out(not used)
+init_cursors_system:
+    ret
+
+update_cursors_component:
+    ret
+    `;
+    } else {
+        code += `
+    ; Cursors system (stub - TODO: implement)
+init_cursors_system:
+    ret
+
+update_cursors_component:
+    ret
+    `;
+    }
+
+    // Generate StateMachine System stub (if used)
+    if (!usedComponents.has('StateMachine')) {
+        code += `
+    ; StateMachine system filtered out(not used)
+init_statemachine_system:
+    ret
+
+update_statemachine_component:
+    ret
+    `;
+    } else {
+        code += `
+    ; StateMachine system (stub - TODO: implement)
+init_statemachine_system:
+    ret
+
+update_statemachine_component:
+    ret
+    `;
+    }
+
+    // Generate Carry System stub (if used)
+    if (!usedComponents.has('Carry')) {
+        code += `
+    ; Carry system filtered out(not used)
+init_carry_system:
+    ret
+
+update_carry_component:
+    ret
+    `;
+    } else {
+        code += `
+    ; Carry system (stub - TODO: implement)
+init_carry_system:
+    ret
+
+update_carry_component:
+    ret
+    `;
+    }
+
+    // Generate Damage System stub (if used)
+    if (!usedComponents.has('Damage')) {
+        code += `
+    ; Damage system filtered out(not used)
+init_damage_system:
+    ret
+
+update_damage_component:
+    ret
+    `;
+    } else {
+        code += `
+    ; Damage system (stub - TODO: implement)
+init_damage_system:
+    ret
+
+update_damage_component:
+    ret
+    `;
+    }
+
+    // Generate WallCollision System stub (if used)
+    if (!usedComponents.has('WallCollision')) {
+        code += `
+    ; WallCollision system filtered out(not used)
+init_wallcollision_system:
+    ret
+
+update_wallcollision_component:
+    ret
+    `;
+    } else {
+        code += `
+    ; WallCollision system (stub - TODO: implement)
+init_wallcollision_system:
+    ret
+
+update_wallcollision_component:
+    ret
+    `;
+    }
+
+    // Generate Collectible System stub (if used)
+    if (!usedComponents.has('Collectible')) {
+        code += `
+    ; Collectible system filtered out(not used)
+init_collectible_system:
+    ret
+
+update_collectible_component:
+    ret
+    `;
+    } else {
+        code += `
+    ; Collectible system (stub - TODO: implement)
+init_collectible_system:
+    ret
+
+update_collectible_component:
     ret
     `;
     }

@@ -1577,9 +1577,11 @@ sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
     
-    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
+    ; Calculate Pattern: HW Sprite * 4
     ld a, l
-    ld d, a                    ; D = Pattern (direct index, not *4)
+    sla a
+    sla a
+    ld d, a                    ; D = Pattern
     
     ; Get Color from sprite_layer_colors table
     ; Table is indexed by HW Sprite Index (L)
@@ -1667,13 +1669,17 @@ force_update_entity_sprite:
     
     ld hl, entity_y_pos
     add hl, de
-    ld c, (hl)                 ; C = Y
+    ld a, (hl)                 ; A = Y
+    ld c, a                    ; C = Y
     
-    ; E still has Entity Index, D = 0
-    ; B = X, C = Y
+    push bc                    ; Save Position (B=X, C=Y)
+    
+    ; Restore Entity Index from E (we put C into E earlier)
+    ld c, e                    ; C = Entity Index
     
     ; Get Config
     ld hl, entity_sprite_config
+    ld d, 0
     add hl, de
     add hl, de                 ; Index * 2
     
@@ -1686,16 +1692,15 @@ force_update_entity_sprite:
     jr z, force_sprite_done    ; Skip if no layers for this entity
 
     ; Loop through layers
-    ; H = Layer Count
-    ; L = HW Sprite Index
-    ; B = X, C = Y
 force_sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
     
-    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
+    ; Calculate Pattern: HW Sprite * 4
     ld a, l
-    ld d, a                    ; D = Pattern (direct index, not *4)
+    sla a
+    sla a
+    ld d, a                    ; D = Pattern
     
     ; Get Color
     push de
@@ -1722,6 +1727,7 @@ force_sprite_layer_loop:
     jr nz, force_sprite_layer_loop
 
 force_sprite_done:
+    pop bc                     ; Restore Position
     pop hl
     pop de
     pop bc
@@ -2684,13 +2690,18 @@ init_player_1:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
-    ; Force update sprite attributes immediately
+    ; Make sprite visible immediately (only if on screen 0 or current screen)
+    ; For safety, we'll let the update loop handle visibility based on screen ID
+    ; but we can initialize it here if it's on screen 0
+    ld a, 0
+    or a                       ; Check if screen 0
+    jr nz, .skip_show_0 ; Skip if not screen 0
 
     ; Force update sprite attributes (using correct multi-layer config)
     ld c, 0             ; Entity Index
     call force_update_entity_sprite
 
-
+.skip_show_0:
 
     ret
 
@@ -3324,13 +3335,18 @@ init_coin_1:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
-    ; Force update sprite attributes immediately
+    ; Make sprite visible immediately (only if on screen 0 or current screen)
+    ; For safety, we'll let the update loop handle visibility based on screen ID
+    ; but we can initialize it here if it's on screen 0
+    ld a, 0
+    or a                       ; Check if screen 0
+    jr nz, .skip_show_11 ; Skip if not screen 0
 
     ; Force update sprite attributes (using correct multi-layer config)
     ld c, 11             ; Entity Index
     call force_update_entity_sprite
 
-
+.skip_show_11:
 
     ret
 
@@ -5626,6 +5642,8 @@ gameflow_node_gf_start_1764189149797:
 
 gameflow_node_gfn_1764189161182:
     ; WorldLink Node - Load world: worldmap_1764189091692
+    call init_components
+    call init_entities
     call load_world_worldmap_1764189091692
     ; CRITICAL: Set game flow state and update sprites to VRAM
     ld a, FLOW_STATE_GAME

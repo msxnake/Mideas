@@ -26,6 +26,7 @@ const STANDARD_COMPONENT_IDS: Record<string, string> = {
   'comp_movement': 'Movement',
   'comp_velocity': 'Movement',
   'comp_collision': 'Collision',
+  'comp_wall_collision': 'WallCollision',
   'comp_player_input': 'Input',
   'comp_input': 'Input',
   'comp_ai_behavior': 'Behavior',
@@ -36,7 +37,9 @@ const STANDARD_COMPONENT_IDS: Record<string, string> = {
   'comp_jump': 'Jump',
   'comp_damage': 'Damage',
   'comp_statemachine': 'StateMachine',
-  'comp_cursors': 'Cursors'
+  'comp_cursors': 'Cursors',
+  'comp_carry': 'Carry',
+  'comp_collectible': 'Collectible'
 };
 
 /**

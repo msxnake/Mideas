@@ -1541,23 +1541,73 @@ sprite_update_loop:
     jr nz, sprite_hide         ; If different screen, hide sprite
 
     ; Entity is in current screen - render normally
-    ; E already contains entity index (from line 129)
-    ; D = 0 (from line 130)
+    ; Get entity position
+    ld e, c                    ; Save entity index in E
+    ld d, 0                    ; DE = entity index
     
-    ; Get entity position (X, Y)
     ld hl, entity_x_pos
     add hl, de                 ; HL points to entity X
     ld b, (hl)                 ; B = X position
 
     ld hl, entity_y_pos
     add hl, de                 ; HL points to entity Y
-    ld c, (hl)                 ; C = Y position
+    ld a, (hl)                 ; A = Y position (temp)
+    ld c, a                    ; C = Y position
 
-    ; Get sprite configuration (Base HW Sprite + Layer Count)
-    ; E still contains entity index, D = 0
+    ; MULTI-LAYER SPRITE RENDERING
+    ; Get entity configuration (Base HW Sprite + Layer Count)
+    push bc                    ; Save X/Y
+    
     ld hl, entity_sprite_config
+    ld e, c                    ; Entity index (C was Y, wait... C is entity index in outer loop?)
+                               ; No, C was overwritten by Y position above!
+                               ; We need to recover Entity Index.
+                               ; Outer loop uses C as Entity Index.
+                               ; But we just did 'ld c, (hl)' (Y pos).
+                               ; We need to be careful.
+    
+    ; RE-READING ENTITY INDEX
+    ; In outer loop: C = Entity Index.
+    ; We saved it in E at line 141: 'ld e, c'.
+    ; So E is Entity Index.
+    
+    ld hl, entity_sprite_config
+    ld d, 0
     add hl, de
     add hl, de                 ; Index * 2 (2 bytes per entry)
+    
+    ld a, (hl)                 ; Base HW Sprite Index
+    inc hl
+    ld h, (hl)                 ; Layer Count
+    ld l, a                    ; L = Base HW Sprite
+    
+    pop bc                     ; Restore B=X, C=Y (Wait, C was Y, B was X)
+                               ; Stack has [BC] pushed.
+                               ; But we pushed BC *after* loading X/Y?
+                               ; Let's re-verify register usage.
+
+    ; Let's restart the register setup to be safe.
+    ; E = Entity Index (from line 141)
+    
+    ; Get X/Y
+    push de                    ; Save Entity Index
+    
+    ld hl, entity_x_pos
+    ld d, 0
+    add hl, de                 ; HL points to entity X
+    ld b, (hl)                 ; B = X position
+    
+    ld hl, entity_y_pos
+    add hl, de                 ; HL points to entity Y
+    ld c, (hl)                 ; C = Y position
+    
+    pop de                     ; Restore E = Entity Index
+    
+    ; Get Config
+    ld hl, entity_sprite_config
+    ld d, 0
+    add hl, de
+    add hl, de                 ; Index * 2
     
     ld a, (hl)                 ; Base HW Sprite
     inc hl
@@ -1577,9 +1627,11 @@ sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
     
-    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
+    ; Calculate Pattern: HW Sprite * 4
     ld a, l
-    ld d, a                    ; D = Pattern (direct index, not *4)
+    sla a
+    sla a
+    ld d, a                    ; D = Pattern
     
     ; Get Color from sprite_layer_colors table
     ; Table is indexed by HW Sprite Index (L)
@@ -1611,10 +1663,11 @@ sprite_layer_loop:
 sprite_hide:
     ; Entity is in different screen - hide sprite (Y = 208+)
     ; We must hide ALL layers for this entity
-    ; E contains Entity Index (from line 129)
-    ; D = 0 (from line 130)
+    ; C is Entity Index (from outer loop)
     
     ld hl, entity_sprite_config
+    ld e, c
+    ld d, 0
     add hl, de
     add hl, de
     
@@ -1667,13 +1720,17 @@ force_update_entity_sprite:
     
     ld hl, entity_y_pos
     add hl, de
-    ld c, (hl)                 ; C = Y
+    ld a, (hl)                 ; A = Y
+    ld c, a                    ; C = Y
     
-    ; E still has Entity Index, D = 0
-    ; B = X, C = Y
+    push bc                    ; Save Position (B=X, C=Y)
+    
+    ; Restore Entity Index from E (we put C into E earlier)
+    ld c, e                    ; C = Entity Index
     
     ; Get Config
     ld hl, entity_sprite_config
+    ld d, 0
     add hl, de
     add hl, de                 ; Index * 2
     
@@ -1686,16 +1743,15 @@ force_update_entity_sprite:
     jr z, force_sprite_done    ; Skip if no layers for this entity
 
     ; Loop through layers
-    ; H = Layer Count
-    ; L = HW Sprite Index
-    ; B = X, C = Y
 force_sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
     
-    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
+    ; Calculate Pattern: HW Sprite * 4
     ld a, l
-    ld d, a                    ; D = Pattern (direct index, not *4)
+    sla a
+    sla a
+    ld d, a                    ; D = Pattern
     
     ; Get Color
     push de
@@ -1722,6 +1778,7 @@ force_sprite_layer_loop:
     jr nz, force_sprite_layer_loop
 
 force_sprite_done:
+    pop bc                     ; Restore Position
     pop hl
     pop de
     pop bc
@@ -2010,7 +2067,7 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
         input_update_loop:
             ld a, (hl)                 ; Get entity component mask
             and COMP_MASK_INPUT        ; Check if has input component
-            jp z, input_next_entity    ; Skip if no input component
+            jr z, input_next_entity    ; Skip if no input component
 
             ; Apply input to entity movement (real implementation)
             push bc
@@ -2030,146 +2087,146 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
 
             ; Check directional input with direction restrictions
             cp STICK_UP
-            jp z, input_move_up
+            jr z, input_move_up
             cp STICK_DOWN
-            jp z, input_move_down
+            jr z, input_move_down
             cp STICK_LEFT
-            jp z, input_move_left
+            jr z, input_move_left
             cp STICK_RIGHT
-            jp z, input_move_right
+            jr z, input_move_right
             cp STICK_UPRIGHT
-            jp z, input_move_upright
+            jr z, input_move_upright
             cp STICK_UPLEFT
-            jp z, input_move_upleft
+            jr z, input_move_upleft
             cp STICK_DOWNRIGHT
-            jp z, input_move_downright
+            jr z, input_move_downright
             cp STICK_DOWNLEFT
-            jp z, input_move_downleft
-            jp input_apply_velocity
+            jr z, input_move_downleft
+            jr input_apply_velocity
 
         input_move_up:
             ; Check if UP is allowed (bit 0)
             ld a, d
             and DIR_ALLOW_UP
-            jp z, input_apply_velocity ; Not allowed, skip
+            jr z, input_apply_velocity ; Not allowed, skip
             ld c, -2                   ; Negative Y velocity (up)
-            jp input_apply_velocity
+            jr input_apply_velocity
 
         input_move_down:
             ; Check if DOWN is allowed (bit 1)
             ld a, d
             and DIR_ALLOW_DOWN
-            jp z, input_apply_velocity ; Not allowed, skip
+            jr z, input_apply_velocity ; Not allowed, skip
             ld c, 2                    ; Positive Y velocity (down)
-            jp input_apply_velocity
+            jr input_apply_velocity
 
         input_move_left:
             ; Check if LEFT is allowed (bit 2)
             ld a, d
             and DIR_ALLOW_LEFT
-            jp z, input_apply_velocity ; Not allowed, skip
+            jr z, input_apply_velocity ; Not allowed, skip
             ld b, -2                   ; Negative X velocity (left)
-            jp input_apply_velocity
+            jr input_apply_velocity
 
         input_move_right:
             ; Check if RIGHT is allowed (bit 3)
             ld a, d
             and DIR_ALLOW_RIGHT
-            jp z, input_apply_velocity ; Not allowed, skip
+            jr z, input_apply_velocity ; Not allowed, skip
             ld b, 2                    ; Positive X velocity (right)
-            jp input_apply_velocity
+            jr input_apply_velocity
 
         input_move_upright:
             ; Check if both UP and RIGHT are allowed
             ld a, d
             and DIR_ALLOW_UP
-            jp z, input_check_right_only ; UP not allowed
+            jr z, input_check_right_only ; UP not allowed
             ld a, d
             and DIR_ALLOW_RIGHT
-            jp z, input_check_up_only  ; RIGHT not allowed
+            jr z, input_check_up_only  ; RIGHT not allowed
             ; Both allowed - diagonal
             ld b, 1                    ; Diagonal movement (slower)
             ld c, -1
-            jp input_apply_velocity
+            jr input_apply_velocity
         input_check_right_only:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
-            jp z, input_apply_velocity
+            jr z, input_apply_velocity
             ld b, 2
-            jp input_apply_velocity
+            jr input_apply_velocity
         input_check_up_only:
             ; Only UP allowed
             ld c, -2
-            jp input_apply_velocity
+            jr input_apply_velocity
 
         input_move_upleft:
             ; Check if both UP and LEFT are allowed
             ld a, d
             and DIR_ALLOW_UP
-            jp z, input_check_left_only1 ; UP not allowed
+            jr z, input_check_left_only1 ; UP not allowed
             ld a, d
             and DIR_ALLOW_LEFT
-            jp z, input_check_up_only1 ; LEFT not allowed
+            jr z, input_check_up_only1 ; LEFT not allowed
             ; Both allowed - diagonal
             ld b, -1
             ld c, -1
-            jp input_apply_velocity
+            jr input_apply_velocity
         input_check_left_only1:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
-            jp z, input_apply_velocity
+            jr z, input_apply_velocity
             ld b, -2
-            jp input_apply_velocity
+            jr input_apply_velocity
         input_check_up_only1:
             ; Only UP allowed
             ld c, -2
-            jp input_apply_velocity
+            jr input_apply_velocity
 
         input_move_downright:
             ; Check if both DOWN and RIGHT are allowed
             ld a, d
             and DIR_ALLOW_DOWN
-            jp z, input_check_right_only2 ; DOWN not allowed
+            jr z, input_check_right_only2 ; DOWN not allowed
             ld a, d
             and DIR_ALLOW_RIGHT
-            jp z, input_check_down_only2 ; RIGHT not allowed
+            jr z, input_check_down_only2 ; RIGHT not allowed
             ; Both allowed - diagonal
             ld b, 1
             ld c, 1
-            jp input_apply_velocity
+            jr input_apply_velocity
         input_check_right_only2:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
-            jp z, input_apply_velocity
+            jr z, input_apply_velocity
             ld b, 2
-            jp input_apply_velocity
+            jr input_apply_velocity
         input_check_down_only2:
             ; Only DOWN allowed
             ld c, 2
-            jp input_apply_velocity
+            jr input_apply_velocity
 
         input_move_downleft:
             ; Check if both DOWN and LEFT are allowed
             ld a, d
             and DIR_ALLOW_DOWN
-            jp z, input_check_left_only3 ; DOWN not allowed
+            jr z, input_check_left_only3 ; DOWN not allowed
             ld a, d
             and DIR_ALLOW_LEFT
-            jp z, input_check_down_only3 ; LEFT not allowed
+            jr z, input_check_down_only3 ; LEFT not allowed
             ; Both allowed - diagonal
             ld b, -1
             ld c, 1
-            jp input_apply_velocity
+            jr input_apply_velocity
         input_check_left_only3:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
-            jp z, input_apply_velocity
+            jr z, input_apply_velocity
             ld b, -2
-            jp input_apply_velocity
+            jr input_apply_velocity
         input_check_down_only3:
             ; Only DOWN allowed
             ld c, 2
@@ -2200,7 +2257,7 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
 
         init_behavior_system:
 ; Initialize AI / behavior system
-            ret
+ret
 
 update_behavior_component:
 ; Update AI / behavior logic for entities
@@ -2219,7 +2276,7 @@ behavior_next_entity:
             inc hl; Next entity
             dec b; Decrement loop counter
             jp nz, behavior_update_loop
-            ret
+ret
     
     ; ==================================================================
         ; HEALTH COMPONENT SYSTEM
@@ -2270,9 +2327,9 @@ behavior_next_entity:
             ld hl, entity_gravity_vel
             ld de, entity_gravity_vel + 1
             ld bc, 63; 64 bytes - 1(32 words)
-            ld (hl), 0
-            ldir
-            ret
+ld (hl), 0
+ldir
+ret
 
 update_gravity_component:
 ; Apply gravity acceleration to entities
@@ -2684,13 +2741,18 @@ init_player_1:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
-    ; Force update sprite attributes immediately
+    ; Make sprite visible immediately (only if on screen 0 or current screen)
+    ; For safety, we'll let the update loop handle visibility based on screen ID
+    ; but we can initialize it here if it's on screen 0
+    ld a, 0
+    or a                       ; Check if screen 0
+    jr nz, .skip_show_0 ; Skip if not screen 0
 
     ; Force update sprite attributes (using correct multi-layer config)
     ld c, 0             ; Entity Index
     call force_update_entity_sprite
 
-
+.skip_show_0:
 
     ret
 
@@ -3324,13 +3386,18 @@ init_coin_1:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
-    ; Force update sprite attributes immediately
+    ; Make sprite visible immediately (only if on screen 0 or current screen)
+    ; For safety, we'll let the update loop handle visibility based on screen ID
+    ; but we can initialize it here if it's on screen 0
+    ld a, 0
+    or a                       ; Check if screen 0
+    jr nz, .skip_show_11 ; Skip if not screen 0
 
     ; Force update sprite attributes (using correct multi-layer config)
     ld c, 11             ; Entity Index
     call force_update_entity_sprite
 
-
+.skip_show_11:
 
     ret
 
@@ -5626,6 +5693,8 @@ gameflow_node_gf_start_1764189149797:
 
 gameflow_node_gfn_1764189161182:
     ; WorldLink Node - Load world: worldmap_1764189091692
+    call init_components
+    call init_entities
     call load_world_worldmap_1764189091692
     ; CRITICAL: Set game flow state and update sprites to VRAM
     ld a, FLOW_STATE_GAME

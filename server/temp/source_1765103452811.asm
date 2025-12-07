@@ -2623,6 +2623,14 @@ init_entities:
     call init_nucleo_9
     call init_nucleo_10
     call init_coin_1
+    ; DEBUG: Forzar sprite del jugador visible
+    ld a, 0              ; Sprite 0
+    ld b, 120            ; X
+    ld c, 152            ; Y
+    ld d, 0              ; Pattern 0 (16×16)
+    ld e, 2              ; Color 2 (rojo)
+    call show_sprite
+    call update_sprites_to_vram
     ret
 
 update_entities:

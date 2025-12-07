@@ -5626,6 +5626,8 @@ gameflow_node_gf_start_1764189149797:
 
 gameflow_node_gfn_1764189161182:
     ; WorldLink Node - Load world: worldmap_1764189091692
+    call init_components
+    call init_entities
     call load_world_worldmap_1764189091692
     ; CRITICAL: Set game flow state and update sprites to VRAM
     ld a, FLOW_STATE_GAME

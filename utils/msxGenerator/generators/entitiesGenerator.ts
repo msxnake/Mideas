@@ -288,28 +288,13 @@ ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     add hl, de
     ld (hl), #${directionMask.toString(16).toUpperCase().padStart(2, '0')}            ; Direction restrictions: ${directionDesc}
 
-${hasSprite ? `    ; Make sprite visible immediately (only if on screen 0 or current screen)
-    ; For safety, we'll let the update loop handle visibility based on screen ID
-    ; but we can initialize it here if it's on screen 0
-    ld a, ${(() => {
-          let screenIndex = 0;
-          if (analysis.screenMaps) {
-            analysis.screenMaps.forEach((screen, sIndex) => {
-              if (screen.layers.entities.some(e => e.id === entity.id)) {
-                screenIndex = sIndex;
-              }
-            });
-          }
-          return screenIndex;
-        })()}
-    or a                       ; Check if screen 0
-    jr nz, .skip_show_${index} ; Skip if not screen 0
+${hasSprite ? `    ; Force update sprite attributes immediately
 
     ; Force update sprite attributes (using correct multi-layer config)
     ld c, ${index}             ; Entity Index
     call force_update_entity_sprite
 
-.skip_show_${index}:
+
 ` : '    ; No sprite to show for this entity\n'}
     ret
 
