@@ -77,7 +77,7 @@ CLRTBL2 EQU #2000        ; Color table base address (Bank 0)
 
 ; Other VRAM Areas
 NAMETBL EQU #1800        ; Name table base address
-SPRATR  EQU #1B00        ; Sprite attribute table
+SPRATR  EQU #1B80        ; Sprite attribute table
 SPRPAT  EQU #3800        ; Sprite pattern table
 
 ; ==================================================================
@@ -93,7 +93,7 @@ SCREEN3     EQU 3        ; 64x48 multicolor
 ; ==================================================================
 ${analysis.tiles && analysis.tiles.length > 0 ? `
 ; Project-specific tile dimensions detected:
-${analysis.tiles.map((tile, i) => `; Tile ${i}: ${tile.name} = ${tile.width}x${tile.height}px (${Math.ceil(tile.width/8)}x${Math.ceil(tile.height/8)} MSX chars)`).join('\n')}
+${analysis.tiles.map((tile, i) => `; Tile ${i}: ${tile.name} = ${tile.width}x${tile.height}px (${Math.ceil(tile.width / 8)}x${Math.ceil(tile.height / 8)} MSX chars)`).join('\n')}
 
 ; Using primary tile size: ${analysis.tiles[0].width}x${analysis.tiles[0].height}px
 TILE_WIDTH      EQU ${analysis.tiles[0].width}    ; Primary tile width in pixels

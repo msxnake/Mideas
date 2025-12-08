@@ -62,7 +62,7 @@ init_rom:
     call CHGMOD
 
     ;; Configure VDP sprite tables
-    ld bc,#3705  ; VDP Register #5: Sprite Attribute Table = #1B80 (SPRATR)
+    ld bc,#1B05  ; VDP Register #5: Sprite Attribute Table = #1B00 (SPRATR)
     call WRTVDP
     ld bc,#3806  ; VDP Register #6: Sprite Pattern Table = #3800 (SPRPAT)
     call WRTVDP
@@ -77,7 +77,13 @@ init_rom:
     ;init random seed
     ;call random_seed_update
 
-    jp main_program
+
+    ; GameFlow: Start → WorldLink (World)
+    ; Initialize game world directly from GameFlow
+
+   
+
+    jp main_game  ; Jump to main game loop
 
 ; ==================================================================
 ; END OF HEADER
@@ -199,7 +205,7 @@ CLRTBL2 EQU #2000        ; Color table base address (Bank 0)
 
 ; Other VRAM Areas
 NAMETBL EQU #1800        ; Name table base address
-SPRATR  EQU #1B80        ; Sprite attribute table
+SPRATR  EQU #1B00        ; Sprite attribute table
 SPRPAT  EQU #3800        ; Sprite pattern table
 
 ; ==================================================================

@@ -1,51 +1,9 @@
-/**
- * @fileoverview Header Generator - ROM header and initialization
- * Generates header.asm with basic MSX ROM initialization
- */
-
-import { ProjectAnalysis } from '../../asmTemplateGenerator';
-
-/**
- * Generate ROM header with "AB" signature (header.asm)
- * Generates basic MSX ROM initialization, then jumps to main_program
- *
- * @param projectName - Name of the project
- * @param analysis - Project analysis with GameFlow data
- * @returns ASM code string with ROM header and initialization
- */
-export function generateHeaderFile(projectName: string, analysis?: ProjectAnalysis): string {
-  // Generate GameFlow comment for documentation
-  let gameFlowComment = '';
-
-  if (analysis?.gameFlow) {
-    const gameFlow = analysis.gameFlow;
-    gameFlowComment = `\n; GameFlow Integration: Using "${gameFlow.name}" as initialization flow`;
-
-    // Find Start node
-    const startNode = gameFlow.nodes.find(n => n.type === 'Start');
-
-    if (startNode) {
-      // Find first connection from Start node
-      const firstConnection = gameFlow.connections.find(
-        c => (c.from as any)?.nodeId === startNode.id || (typeof c.from === 'string' && c.from === startNode.id)
-      );
-
-      if (firstConnection) {
-        // Find the target node
-        const targetNodeId = firstConnection.to?.nodeId || firstConnection.to;
-        const firstNode = gameFlow.nodes.find(n => n.id === targetNodeId);
-
-        if (firstNode) {
-          gameFlowComment += `\n; Flow: Start → ${firstNode.type} (${(firstNode as any).title || (firstNode as any).name || firstNode.id})`;
-        }
-      }
-    }
-  }
-
-  return `; ==================================================================
+; ==================================================================
 ; MSX CARTRIDGE ROM HEADER
 ; File: header.asm
-; Description: Standard MSX cartridge initialization${gameFlowComment}
+; Description: Standard MSX cartridge initialization
+; GameFlow Integration: Using "Main" as initialization flow
+; Flow: Start → WorldLink (gfn_1764189161182)
 ; ==================================================================
 
     org #4000           ; MSX cartridge start address
@@ -108,5 +66,3 @@ init_rom:
 ; ==================================================================
 ; END OF HEADER
 ; ==================================================================
-`;
-}
