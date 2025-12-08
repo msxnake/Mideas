@@ -225,6 +225,8 @@ SM_CheckTransitions_Loop:
     ;[1...] = Params(Variable length)
     ;[Next] = Target State Ptr(Low)
     ;[Next + 1] = Target State Ptr(High)
+    ;[Next + 2] = Actions Ptr(Low)
+    ;[Next + 3] = Actions Ptr(High)
     
     ld a, b; A = Entity Index
     call SM_EvaluateCondition
@@ -253,12 +255,40 @@ SM_TransitionTriggered:
     inc hl
     ld d, (hl)
     ; DE = Target State Address
+    inc hl
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ; HL = Actions Ptr (0 if none)
+
+    ; Execute transition actions if present
+    ld a, h
+    or l
+    jr z, .skip_transition_actions
+    push de            ; Save target state
+    ld a, b            ; Entity Index
+    ex de, hl          ; DE = Actions Ptr
+    call SM_ExecuteActions
+    ex de, hl          ; HL = Actions Ptr (unused)
+    pop de             ; Restore target state
+
+.skip_transition_actions:
+
+    ; Special case: Target State = 0 -> don't change state (Any->Any)
+    ld a, d
+    or e
+    jr z, .no_state_change
 
     ; Perform State Change
     ld a, b; A = Entity Index
     call SM_ChangeState
 
     scf             ; Set carry(transition occurred)
+    ret
+
+.no_state_change:
+    scf             ; Transition occurred (actions already executed)
     ret
 
     ; ------------------------------------------------------------------
@@ -1204,6 +1234,11 @@ export function generateStateMachineSystem(stateMachines: StateMachine[]): strin
 function generateStateMachineData(sm: StateMachine): string {
     let asm = `; State Machine: ${sm.name} (${sm.id}) \n`;
     const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const isAnyStateId = (value?: string | null) => {
+        if (!value) return false;
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'any' || normalized === '__any_state__' || normalized === 'any state (*)';
+    };
 
     // Generate States
     for (const state of sm.states) {
@@ -1216,8 +1251,10 @@ function generateStateMachineData(sm: StateMachine): string {
         asm += `    DB 0; ID(unused) \n`;
         asm += `    DW ${state.onEnter && state.onEnter.length > 0 ? onEnterLabel : 0} \n`;
         asm += `    DW ${state.onExit && state.onExit.length > 0 ? onExitLabel : 0} \n`;
-        // Check if there are transitions from this state
-        const transitions = sm.transitions.filter(t => t.fromStateId === state.id);
+        // Include transitions that start from this state or from the special "Any" state
+        const transitions = sm.transitions.filter(t =>
+            t.fromStateId === state.id || isAnyStateId(t.fromStateId)
+        );
         asm += `    DW ${transitions.length > 0 ? transitionsLabel : 0} \n`;
 
         // Actions Data
@@ -1241,15 +1278,32 @@ function generateStateMachineData(sm: StateMachine): string {
         if (transitions.length > 0) {
             asm += `${transitionsLabel}: \n`;
             asm += `    DB ${transitions.length}; Count\n`;
-            for (const t of transitions) {
-                const targetStateLabel = `SM_${safeName}_${t.toStateId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            transitions.forEach((t, idx) => {
+                const isAnyToAny = isAnyStateId(t.fromStateId) && isAnyStateId(t.toStateId);
+                const targetStateLabel = isAnyToAny
+                    ? '0' // special marker: do not change state, only actions
+                    : `SM_${safeName}_${t.toStateId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                const actionLabel =
+                    t.actions && t.actions.length > 0
+                        ? `${transitionsLabel}_Actions_${idx}`
+                        : '0';
+
                 if (t.conditions) {
                     asm += generateConditionBytes(t.conditions);
                 } else {
                     asm += `    DB 0; Empty Condition(Always True) \n`;
                 }
                 asm += `    DW ${targetStateLabel} \n`;
-            }
+                asm += `    DW ${actionLabel} \n`;
+
+                if (actionLabel !== '0') {
+                    asm += `${actionLabel}: \n`;
+                    for (const action of t.actions || []) {
+                        asm += generateActionBytes(action, sm.name);
+                    }
+                    asm += `    DB 0xFF; END\n`;
+                }
+            });
         }
         asm += '\n';
     }

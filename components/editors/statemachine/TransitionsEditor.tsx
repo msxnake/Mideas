@@ -130,6 +130,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
           </select>
           <select value={toState} onChange={e => setToState(e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded">
             <option value="">To State</option>
+            <option value="__ANY_STATE__" className="font-bold text-msx-primary">Any State (*)</option>
             {states.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>

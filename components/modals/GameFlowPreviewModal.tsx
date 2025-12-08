@@ -2402,6 +2402,12 @@ function changeEntityState(
     return { stateChanged };
 }
 
+const isAnyStateId = (stateId?: string): boolean => {
+    if (typeof stateId !== 'string') return false;
+    const normalized = stateId.trim().toLowerCase();
+    return normalized === 'any' || normalized === '__any_state__' || normalized === 'any state (*)';
+};
+
 // Procesar condiciones y verificar transiciones
 const processEventTransitions = useCallback((entity: AnimatedEntity) => {
     if (!entity.stateMachine || !entity.currentState) return;
@@ -2438,22 +2444,30 @@ const processEventTransitions = useCallback((entity: AnimatedEntity) => {
 
     // Look for transitions whose conditions are satisfied
     for (const transition of entity.stateMachine.transitions) {
-        if (transition.fromStateId !== currentStateDef.id) continue;
+        const fromMatchesCurrent = transition.fromStateId === currentStateDef.id;
+        const fromIsAny = isAnyStateId(transition.fromStateId);
+        if (!fromMatchesCurrent && !fromIsAny) continue;
 
         const conditionSatisfied = transition.conditions ? evaluateCondition(transition.conditions, entity) : true;
         if (conditionSatisfied && evaluateGuard(transition.guard)) {
-            const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
+            const toIsAny = isAnyStateId(transition.toStateId);
+            const nextState = toIsAny
+                ? currentStateDef
+                : entity.stateMachine.states.find(s => s.id === transition.toStateId);
             if (nextState) {
-                const { stateChanged } = changeEntityState(entity, nextState, {
-                    previousState: currentStateDef,
-                    runEnterActions: false
-                });
+                let stateChanged = false;
+                if (!toIsAny) {
+                    stateChanged = changeEntityState(entity, nextState, {
+                        previousState: currentStateDef,
+                        runEnterActions: false
+                    }).stateChanged;
+                }
 
                 if (transition.actions) {
                     executeStateActions(entity, transition.actions);
                 }
 
-                if (stateChanged) {
+                if (!toIsAny && stateChanged) {
                     executeStateActions(entity, nextState.onEnter);
                 }
 
@@ -2485,7 +2499,9 @@ const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, i
         return;
     }
     for (const transition of entity.stateMachine.transitions) {
-        if (transition.fromStateId !== currentStateDef.id) continue;
+        const fromMatchesCurrent = transition.fromStateId === currentStateDef.id;
+        const fromIsAny = isAnyStateId(transition.fromStateId);
+        if (!fromMatchesCurrent && !fromIsAny) continue;
         const condition = transition.conditions;
         if (!condition) continue;
         let conditionMet = false;
@@ -2495,16 +2511,22 @@ const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, i
             conditionMet = true;
         }
         if (conditionMet) {
-            const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
+            const toIsAny = isAnyStateId(transition.toStateId);
+            const nextState = toIsAny
+                ? currentStateDef
+                : entity.stateMachine.states.find(s => s.id === transition.toStateId);
             if (nextState) {
-                const { stateChanged } = changeEntityState(entity, nextState, {
-                    previousState: currentStateDef,
-                    runEnterActions: false
-                });
+                let stateChanged = false;
+                if (!toIsAny) {
+                    stateChanged = changeEntityState(entity, nextState, {
+                        previousState: currentStateDef,
+                        runEnterActions: false
+                    }).stateChanged;
+                }
                 if (transition.actions) {
                     executeStateActions(entity, transition.actions);
                 }
-                if (stateChanged) {
+                if (!toIsAny && stateChanged) {
                     executeStateActions(entity, nextState.onEnter);
                 }
                 return;
