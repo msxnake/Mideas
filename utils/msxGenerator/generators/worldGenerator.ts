@@ -75,12 +75,12 @@ load_world_default:
 
     code += `; World: ${world.name || 'Unnamed'} (${worldId})
 WORLD_${worldName}_ID EQU ${index}
-WORLD_${worldName}_SCREEN_COUNT EQU ${world.data?.nodes?.length || 0}
+WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
 `;
 
     // Generate constants for each screen node in the world
-    if (world.data?.nodes && world.data.nodes.length > 0) {
-      world.data.nodes.forEach((node: any, nodeIndex: number) => {
+    if (world.nodes && world.nodes.length > 0) {
+      world.nodes.forEach((node: any, nodeIndex: number) => {
         const nodeName = toConstantName(node.name || `screen_${nodeIndex}`);
         code += `WORLD_${worldName}_SCREEN_${nodeName}_ID EQU ${nodeIndex}
 `;
@@ -99,8 +99,8 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.data?.nodes?.length || 0}
   worldMaps.forEach((world: any) => {
     const worldName = toRoutineLabel(world.name || 'unnamed');
     const worldId = world.id || 'unknown';
-    const startScreenNodeId = world.data?.startScreenNodeId;
-    const nodes = world.data?.nodes || [];
+    const startScreenNodeId = world.startScreenNodeId;
+    const nodes = world.nodes || [];
 
     code += `; ------------------------------------------------------------------
 ; Load World: ${world.name || 'Unnamed'}
@@ -131,12 +131,14 @@ load_world_${toRoutineLabel(worldId)}:
       return;
     }
 
-    // Find the screen asset
+    // Find the screen asset - use name + ID suffix for function call (matches screensGenerator.ts)
     const screenAsset = analysis.screens?.find((s: any) => s.id === startScreenAssetId);
-    const screenName = screenAsset?.name || 'unknown';
+    const screenName = screenAsset?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'UNKNOWN';
+    // Use screen ID suffix to match the load_screen function name
+    const screenIdSuffix = startScreenAssetId ? `_${startScreenAssetId.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
 
-    code += `    ; Load start screen: ${screenName} (${startScreenAssetId})
-    call ${toRoutineLabel('load_screen_' + startScreenAssetId)}
+    code += `    ; Load start screen: ${screenAsset?.name || 'unknown'} (${startScreenAssetId})
+    call load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}
 
     ; Initialize world state
     ld a, WORLD_${toConstantName(world.name || 'unnamed')}_ID
@@ -159,8 +161,8 @@ load_world_${toRoutineLabel(worldId)}:
 
   worldMaps.forEach((world: any) => {
     const worldId = world.id || 'unknown';
-    const nodes = world.data?.nodes || [];
-    const connections = world.data?.connections || [];
+    const nodes = world.nodes || [];
+    const connections = world.connections || [];
 
     if (connections.length === 0) {
       code += `; World ${world.name || 'Unnamed'} has no screen connections
@@ -190,9 +192,15 @@ load_world_${toRoutineLabel(worldId)}:
       const fromScreenId = fromNode.screenAssetId;
       const toScreenId = toNode.screenAssetId;
 
+      // Find screen assets to get their names (matches screensGenerator.ts naming)
+      const toScreenAsset = analysis.screens?.find((s: any) => s.id === toScreenId);
+      const toScreenName = toScreenAsset?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'UNKNOWN';
+      // Use screen ID suffix to match the load_screen function name
+      const toScreenIdSuffix = toScreenId ? `_${toScreenId.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+
       code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
 transition_${toRoutineLabel(worldId)}_${connIndex}:
-    call ${toRoutineLabel('load_screen_' + toScreenId)}
+    call load_screen_${toScreenName.toLowerCase()}${toScreenIdSuffix.toLowerCase()}
     ret
 
 `;

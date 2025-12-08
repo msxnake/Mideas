@@ -4,14 +4,6 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
-import { generateGameFlowStateMachine } from './gameFlowGenerator';
-
-/**
- * Convert routine name to lowercase (for labels, CALL, JP, JR targets)
- */
-function toRoutineLabel(name: string): string {
-    return name.toLowerCase();
-}
 
 /**
  * Generate main.asm with ordered imports
@@ -55,21 +47,35 @@ ${analysis.sprites && analysis.sprites.length > 0 ? `; 7. Sprite Data (if sprite
 include "sprites.asm"
 ` : ''}
 
-${analysis.screenMaps && analysis.screenMaps.length > 0 ? `; 8. Screen Maps (if screens exist)
+; 8. Components (game logic)
+include "components.asm"
+
+; 9. Entities (game objects)
+include "entities.asm"
+
+${analysis.worldmaps && (analysis.worldmaps as any[]).length > 0 ? `; 10. Worlds (world maps)
+include "worlds.asm"
+` : ''}
+
+${analysis.screenMaps && analysis.screenMaps.length > 0 ? `; 11. Screen Maps (if screens exist)
 include "screens.asm"
 ` : ''}
 
-; 9. Font Data (custom font for Screen 2 text)
+; 12. Font Data (custom font for Screen 2 text)
 include "font.asm"
 
-; 10. Components (game logic)
-include "components.asm"
+; 13. HUD System (heads-up display)
+include "hud.asm"
 
-; 11. Entities (game objects)
-include "entities.asm"
-
-; 12. Menus (user interface)
+; 14. Menus (user interface)
 include "menus.asm"
+
+${analysis.stateMachines && analysis.stateMachines.length > 0 ? `; 15. State Machines (entity AI)
+include "statemachine.asm"
+` : ''}
+
+; 16. GameFlow (game flow state machine)
+include "gameflow.asm"
 
 ; ==================================================================
 ; MAIN PROGRAM ENTRY POINT
@@ -115,7 +121,7 @@ update_current_state:
     ; Update game logic based on current state
     call update_input_component
     call update_behavior_component  ; AI/Logic
-    call update_statemachine_component  ; State Machine updates (NEW!)
+    call update_statemachine_component  ; State Machine updates
     call update_movement_component
     call update_position_component
     call update_collision_component
@@ -131,136 +137,9 @@ render_frame:
     ret
 
 ; ==================================================================
-; GAMEFLOW SYSTEM FUNCTIONS (Critical for Paridad)
-; ==================================================================
-
-load_game_screen:
-    ; Load game screen based on GameFlow execution path
-    ; This follows the exact same flow as Play mode for PARIDAD
-${analysis.gameFlow ? `
-    ; GameFlow detected - follow node execution path
-    ; Start node: ${analysis.gameFlow.startNodeId || 'unknown'}
-    ; Nodes: ${analysis.gameFlow.nodes?.length || 0} total
-${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ?
-                analysis.gameFlow.nodes.map((node, i) =>
-                    `    ; Node ${i}: ${node.id} (${node.type || 'unknown'}) ${(node as any).data?.worldMapId ? `-> World: ${(node as any).data.worldMapId}` : ''}`
-                ).join('\n') : '    ; No nodes in GameFlow'}
-
-    ; Execute first GameFlow transition (matches Play mode behavior)
-    call execute_gameflow_start` :
-            `    ; No GameFlow detected - load first available screen
-${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load first screen: ${analysis.screenMaps[0]?.name || 'default'}
-    call ${toRoutineLabel('load_screen_' + (analysis.screenMaps[0]?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'DEFAULT'))}` : `    ; No screens detected - load default pattern`}`}
-    ret
-
-; ==================================================================
-; GAMEFLOW EXECUTION FUNCTIONS (Critical for Paridad)
-; ==================================================================
-
-execute_gameflow_start:
-${analysis.gameFlow ? `
-    ; Execute the GameFlow start node exactly as Play mode does
-    ; Start node ID: ${analysis.gameFlow.startNodeId || 'none'}
-${analysis.gameFlow.startNodeId ? `
-    ; Find and execute start node
-    ld hl, gameflow_node_${analysis.gameFlow.startNodeId.replace(/[^a-zA-Z0-9]/g, '_')}
-    call execute_gameflow_node` : `
-    ; No start node defined - execute first available node
-${analysis.gameFlow.nodes && analysis.gameFlow.nodes.length > 0 ? `
-    ld hl, gameflow_node_${analysis.gameFlow.nodes[0].id.replace(/[^a-zA-Z0-9]/g, '_')}
-    call execute_gameflow_node` : `
-    ; No nodes available - load default screen
-    call load_default_screen`}`}` : `
-    ; No GameFlow - fallback to screen loading
-    call load_default_screen`}
-    ret
-
-execute_gameflow_node:
-    ; Execute a single GameFlow node (matches Play mode execution)
-    ; HL = pointer to node data structure
-
-    ; Get node type and execute appropriate handler
-    ld a, (hl)                    ; Load node type
-    cp NODE_TYPE_START
-    jp z, execute_start_node
-    cp NODE_TYPE_WORLDLINK
-    jp z, execute_world_link_node
-    cp NODE_TYPE_SCREEN
-    jp z, execute_screen_node
-    cp NODE_TYPE_MENU
-    jp z, execute_menu_node
-
-    ; Unknown node type - skip
-    ret
-
-execute_start_node:
-    ; Start node - typically just transitions to next node
-    ; Find next connected node and execute it
-    call find_next_gameflow_node
-    jp execute_gameflow_node
-
-execute_world_link_node:
-    ; World link node - execution handled by GameFlow state machine
-    ; Each WorldLink node has its own implementation in gameflow.asm
-    ; This stub should never be called directly
-    ret
-
-execute_screen_node:
-    ; Screen node - load the specific screen
-    ; Extract screen reference from node data
-    call load_referenced_screen
-    ret
-
-execute_menu_node:
-    ; Menu node - show menu interface
-    call show_menu_interface
-    ret
-
-load_default_screen:
-    ; Fallback: load first available screen
-${analysis.screenMaps && analysis.screenMaps.length > 0 ? `
-    call ${toRoutineLabel('load_screen_' + (analysis.screenMaps[0]?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'DEFAULT'))}` : `
-    ; No screens available - show placeholder
-    call show_no_content_message`}
-    ret
-
-find_next_gameflow_node:
-    ; Find the next node in GameFlow connections
-    ; Implementation depends on connection data structure
-    ; For now, use first connection if available
-    ret
-
-load_referenced_screen:
-    ; Load screen referenced by current node
-    ; Implementation needs node data parsing
-    call load_default_screen
-    ret
-
-show_menu_interface:
-    ; Show menu defined in GameFlow node
-    ; Implementation needs menu data parsing
-    ret
-
-show_no_content_message:
-    ; Show message when no content is available
-    ret
-
-show_end_screen:
-    ; Show end screen (Game Over, Victory, etc)
-    ; Implementation needs end screen rendering
-    ret
-
-; ==================================================================
-; GAMEFLOW NODE DATA STRUCTURES (Generated State Machine)
-; ==================================================================
-
-${analysis.gameFlow ? generateGameFlowStateMachine(analysis.gameFlow, analysis) : `
-; No GameFlow detected - using default screen loading
-`}
-
-; ==================================================================
 ; END OF MAIN PROGRAM
 ; ==================================================================
     end                 ; End of assembly
 `;
 }
+

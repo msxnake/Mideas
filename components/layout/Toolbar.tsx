@@ -3,9 +3,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
 import { Button } from '../common/Button';
-import { ProjectAsset, DataFormat, EditorType } from '../../types'; 
-import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon } from '../icons/MsxIcons';
+import { ProjectAsset, DataFormat, EditorType } from '../../types';
+import { SaveFloppyIcon, FolderOpenIcon, PlayIcon, CogIcon, PlusCircleIcon, QuestionMarkCircleIcon, ArrowUturnLeftIcon, ArrowUturnRightIcon, PuzzlePieceIcon, TilesetIcon, SpriteIcon, MapIcon, WorldMapIcon, SoundIcon, MusicNoteIcon, CodeIcon, BugIcon, SwapHorizIcon, GameFlowIcon, PencilIcon, WorldViewIcon, SparklesIcon, ClockIcon, TrashIcon } from '../icons/MsxIcons';
 import { APP_VERSION } from '../../constants';
+import { getRecentProjects, removeRecentProject, clearRecentProjects, formatRecentDate, RecentProject } from '../../utils/recentProjects';
+
 
 /**
  * Props for the Toolbar component.
@@ -81,7 +83,10 @@ interface ToolbarProps {
   isToggleEditorDisabled: boolean;
   /** Current MSX screen mode for asset creation/rendering. */
   currentScreenMode: string;
+  /** Callback to load a recent project by its path. */
+  onOpenRecentProject?: (path: string) => void;
 }
+
 
 /**
  * A reusable dropdown menu component.
@@ -103,15 +108,17 @@ const DropdownMenu: React.FC<{ label: string; children: React.ReactNode }> = ({ 
   const handleSelect = () => {
     setIsOpen(false);
   };
-  
+
   const childrenWithProps = React.Children.map(children, child => {
-      if (React.isValidElement(child)) {
-          return React.cloneElement(child, { onClick: () => {
-              if ((child.props as any).onClick) (child.props as any).onClick();
-              handleSelect();
-          }} as any);
-      }
-      return child;
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child, {
+        onClick: () => {
+          if ((child.props as any).onClick) (child.props as any).onClick();
+          handleSelect();
+        }
+      } as any);
+    }
+    return child;
   });
 
   return (
@@ -170,10 +177,10 @@ const DropdownToggleItem: React.FC<{
   offText?: string;
 }> = ({ label, isChecked, onToggle, onText = 'On', offText = 'Off' }) => {
   return (
-      <button onClick={onToggle} className="w-full text-left px-3 py-1.5 text-xs text-msx-textsecondary hover:bg-msx-accent hover:text-white flex items-center justify-between">
-          <span>{label}</span>
-          <span className="text-msx-cyan font-semibold">{isChecked ? onText : offText}</span>
-      </button>
+    <button onClick={onToggle} className="w-full text-left px-3 py-1.5 text-xs text-msx-textsecondary hover:bg-msx-accent hover:text-white flex items-center justify-between">
+      <span>{label}</span>
+      <span className="text-msx-cyan font-semibold">{isChecked ? onText : offText}</span>
+    </button>
   )
 };
 
@@ -191,48 +198,145 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenWorldView, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
   onToggleEditor, isToggleEditorDisabled,
-  currentScreenMode
+  currentScreenMode,
+  onOpenRecentProject
 }) => {
-    const { loadConfig: loadThemeConfig } = useTheme();
+  const { loadConfig: loadThemeConfig } = useTheme();
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  const [isRecentMenuOpen, setIsRecentMenuOpen] = useState(false);
+  const recentMenuRef = useRef<HTMLDivElement>(null);
 
-    const handleLoadIdeConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const config = JSON.parse(e.target?.result as string);
-                if(config.ide) {
-                    if (config.ide.dataOutputFormat) setDataOutputFormat(config.ide.dataOutputFormat);
-                    if (typeof config.ide.autosaveEnabled === 'boolean') setAutosaveEnabled(config.ide.autosaveEnabled);
-                }
-                if(config.theme) {
-                    loadThemeConfig(config.theme);
-                }
-                alert("Configuration loaded.");
-            } catch (error) {
-                alert("Failed to load configuration file. It might be corrupted or in the wrong format.");
-            }
-        };
-        reader.readAsText(file);
+  // Load recent projects on mount and when menu opens
+  useEffect(() => {
+    setRecentProjects(getRecentProjects());
+  }, []);
+
+  // Close recent menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (recentMenuRef.current && !recentMenuRef.current.contains(event.target as Node)) {
+        setIsRecentMenuOpen(false);
+      }
     };
-    
-    const configFileInputRef = useRef<HTMLInputElement>(null);
+    if (isRecentMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isRecentMenuOpen]);
+
+  const handleOpenRecent = useCallback((path: string) => {
+    if (onOpenRecentProject) {
+      onOpenRecentProject(path);
+    }
+    setIsRecentMenuOpen(false);
+  }, [onOpenRecentProject]);
+
+  const handleRemoveRecent = useCallback((e: React.MouseEvent, path: string) => {
+    e.stopPropagation();
+    removeRecentProject(path);
+    setRecentProjects(getRecentProjects());
+  }, []);
+
+  const handleClearRecentProjects = useCallback(() => {
+    clearRecentProjects();
+    setRecentProjects([]);
+    setIsRecentMenuOpen(false);
+  }, []);
+
+  const handleLoadIdeConfig = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const config = JSON.parse(e.target?.result as string);
+        if (config.ide) {
+          if (config.ide.dataOutputFormat) setDataOutputFormat(config.ide.dataOutputFormat);
+          if (typeof config.ide.autosaveEnabled === 'boolean') setAutosaveEnabled(config.ide.autosaveEnabled);
+        }
+        if (config.theme) {
+          loadThemeConfig(config.theme);
+        }
+        alert("Configuration loaded.");
+      } catch (error) {
+        alert("Failed to load configuration file. It might be corrupted or in the wrong format.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const configFileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="bg-msx-panelbg border-b border-msx-border p-1.5 flex items-center space-x-2 shadow-md relative">
-      <input type="file" ref={configFileInputRef} onChange={handleLoadIdeConfig} accept=".json" style={{display: 'none'}} />
+      <input type="file" ref={configFileInputRef} onChange={handleLoadIdeConfig} accept=".json" style={{ display: 'none' }} />
 
       {/* File Menu */}
       <DropdownMenu label="File">
-        <DropdownItem onClick={onNewProject} icon={<PlusCircleIcon/>}>New Project</DropdownItem>
+        <DropdownItem onClick={onNewProject} icon={<PlusCircleIcon />}>New Project</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={onSaveProject} icon={<SaveFloppyIcon/>}>Save Project</DropdownItem>
-        <DropdownItem onClick={onSaveProjectAs} icon={<SaveFloppyIcon/>}>Save Project As...</DropdownItem>
-        <DropdownItem onClick={onLoadProject} icon={<FolderOpenIcon/>}>Load Project</DropdownItem>
+        <DropdownItem onClick={onSaveProject} icon={<SaveFloppyIcon />}>Save Project</DropdownItem>
+        <DropdownItem onClick={onSaveProjectAs} icon={<SaveFloppyIcon />}>Save Project As...</DropdownItem>
+        <DropdownItem onClick={onLoadProject} icon={<FolderOpenIcon />}>Load Project</DropdownItem>
+
+        {/* Open Recent Submenu */}
+        <div ref={recentMenuRef} className="relative">
+          <button
+            onClick={() => {
+              setRecentProjects(getRecentProjects());
+              setIsRecentMenuOpen(!isRecentMenuOpen);
+            }}
+            className="w-full text-left px-3 py-1.5 text-xs text-msx-textsecondary hover:bg-msx-accent hover:text-white flex items-center justify-between"
+          >
+            <span className="flex items-center">
+              <span className="mr-2 w-4 h-4"><ClockIcon /></span>
+              Open Recent
+            </span>
+            <span className="text-[10px]">▶</span>
+          </button>
+
+          {isRecentMenuOpen && (
+            <div className="absolute left-full top-0 ml-1 bg-msx-panelbg border border-msx-border rounded-md shadow-lg z-40 py-1 w-72 max-h-80 overflow-y-auto animate-fadeIn">
+              {recentProjects.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-msx-textsecondary italic">No recent projects</div>
+              ) : (
+                <>
+                  {recentProjects.map((project) => (
+                    <div
+                      key={project.path}
+                      onClick={() => handleOpenRecent(project.path)}
+                      className="w-full text-left px-3 py-1.5 text-xs text-msx-textsecondary hover:bg-msx-accent hover:text-white flex items-center justify-between cursor-pointer group"
+                    >
+                      <div className="flex-1 min-w-0 mr-2">
+                        <div className="font-medium truncate">{project.name}</div>
+                        <div className="text-[10px] opacity-60">{formatRecentDate(project.lastOpened)}</div>
+                      </div>
+                      <button
+                        onClick={(e) => handleRemoveRecent(e, project.path)}
+                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500 rounded transition-opacity"
+                        title="Remove from recent"
+                      >
+                        <TrashIcon className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  <DropdownSeparator />
+                  <button
+                    onClick={handleClearRecentProjects}
+                    className="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-red-500 hover:text-white"
+                  >
+                    Clear Recent Projects
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
         <DropdownSeparator />
         <DropdownItem onClick={onExportZ80Code}>Export Z80 Code</DropdownItem>
       </DropdownMenu>
+
 
       {/* Undo/Redo Buttons */}
       <Button onClick={onUndo} variant="ghost" size="sm" icon={<ArrowUturnLeftIcon />} title="Undo (Ctrl+Z)" disabled={isUndoDisabled}>Undo</Button>
@@ -240,32 +344,32 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* New Asset Menu */}
       <DropdownMenu label="New Asset">
-        <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon/>} colorClass="text-purple-200 hover:bg-purple-600 hover:text-white">State Machine</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon />} colorClass="text-purple-200 hover:bg-purple-600 hover:text-white">State Machine</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon/>} colorClass="text-red-200 hover:bg-red-500 hover:text-white">Tile</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon/>} colorClass="text-orange-200 hover:bg-orange-500 hover:text-white">Sprite</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon/>} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Font</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon/>} colorClass="text-green-200 hover:bg-green-500 hover:text-white">Boss</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('screenmap')} icon={<MapIcon/>} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white">Screen Map</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon/>} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">World Map</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon/>} colorClass="text-violet-200 hover:bg-violet-500 hover:text-white">Game Flow</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('tile')} icon={<TilesetIcon />} colorClass="text-red-200 hover:bg-red-500 hover:text-white">Tile</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('sprite')} icon={<SpriteIcon />} colorClass="text-orange-200 hover:bg-orange-500 hover:text-white">Sprite</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('font')} icon={<PencilIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Font</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('boss')} icon={<BugIcon />} colorClass="text-green-200 hover:bg-green-500 hover:text-white">Boss</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('screenmap')} icon={<MapIcon />} colorClass="text-blue-200 hover:bg-blue-500 hover:text-white">Screen Map</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('worldmap')} icon={<WorldMapIcon />} colorClass="text-indigo-200 hover:bg-indigo-500 hover:text-white">World Map</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('gameflow')} icon={<GameFlowIcon />} colorClass="text-violet-200 hover:bg-violet-500 hover:text-white">Game Flow</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon/>} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white">Palette</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('palette')} icon={<SparklesIcon />} colorClass="text-fuchsia-200 hover:bg-fuchsia-500 hover:text-white">Palette</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon/>} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white">Tile Banks</DropdownItem>
-        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon/>} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
-        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon/>} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('globalvariables')} icon={<SparklesIcon/>} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Global Variables</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white">Data Struct (Code)</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('tilebank')} icon={<TilesetIcon />} colorClass="text-purple-200 hover:bg-purple-500 hover:text-white">Tile Banks</DropdownItem>
+        <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
+        <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('globalvariables')} icon={<SparklesIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Global Variables</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon />} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white">Data Struct (Code)</DropdownItem>
         <DropdownSeparator />
-        <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon/>} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Sound FX</DropdownItem>
-      <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon/>} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white">Music Track</DropdownItem>
-      <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon/>} colorClass="text-lime-200 hover:bg-lime-500 hover:text-white">Code File</DropdownItem>
-    </DropdownMenu>
+        <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Sound FX</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon />} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white">Music Track</DropdownItem>
+        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon />} colorClass="text-lime-200 hover:bg-lime-500 hover:text-white">Code File</DropdownItem>
+      </DropdownMenu>
 
-    <div className="px-3 py-1.5 text-xs border border-msx-border rounded text-msx-textsecondary">
-      Mode: <span className="text-msx-highlight">{currentScreenMode}</span> (locked)
-    </div>
+      <div className="px-3 py-1.5 text-xs border border-msx-border rounded text-msx-textsecondary">
+        Mode: <span className="text-msx-highlight">{currentScreenMode}</span> (locked)
+      </div>
 
       {/* Run Menu */}
       <DropdownMenu label="Run">
@@ -273,10 +377,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onCompressAllDataFiles}>Compress all Data Files</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={onCompile}>Compile</DropdownItem>
-        <DropdownItem onClick={onRun} icon={<PlayIcon/>}>Run</DropdownItem>
+        <DropdownItem onClick={onRun} icon={<PlayIcon />}>Run</DropdownItem>
         <DropdownItem onClick={onCompileAndRun}>Compile and Run</DropdownItem>
-        <DropdownSeparator/>
-        <DropdownItem onClick={onCompressExportCompileRun} icon={<PlayIcon/>}>Compress, Export, Compile, Run</DropdownItem>
+        <DropdownSeparator />
+        <DropdownItem onClick={onCompressExportCompileRun} icon={<PlayIcon />}>Compress, Export, Compile, Run</DropdownItem>
       </DropdownMenu>
 
       {/* Configure Menu */}
@@ -284,11 +388,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onConfigureASM}>Configure ASM Compiler...</DropdownItem>
         <DropdownItem onClick={onConfigureEmulator}>Configure MSX Emulator...</DropdownItem>
         <DropdownSeparator />
-        <DropdownToggleItem label="Data Format (Hex/Dec)" isChecked={dataOutputFormat === 'hex'} onToggle={() => setDataOutputFormat(dataOutputFormat === 'hex' ? 'decimal' : 'hex')} onText="Hex" offText="Dec"/>
+        <DropdownToggleItem label="Data Format (Hex/Dec)" isChecked={dataOutputFormat === 'hex'} onToggle={() => setDataOutputFormat(dataOutputFormat === 'hex' ? 'decimal' : 'hex')} onText="Hex" offText="Dec" />
         <DropdownToggleItem label="Autosave" isChecked={autosaveEnabled} onToggle={() => setAutosaveEnabled(!autosaveEnabled)} />
         <DropdownSeparator />
-        <DropdownItem onClick={onOpenThemeSettings} icon={<CogIcon/>}>Theme Settings...</DropdownItem>
-        <DropdownSeparator/>
+        <DropdownItem onClick={onOpenThemeSettings} icon={<CogIcon />}>Theme Settings...</DropdownItem>
+        <DropdownSeparator />
         <DropdownItem onClick={onSaveConfig}>Save Config</DropdownItem>
         <DropdownItem onClick={() => configFileInputRef.current?.click()}>Load Config</DropdownItem>
         <DropdownItem onClick={onResetConfig}>Restore Default Config</DropdownItem>
@@ -296,7 +400,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       {/* Help Menu */}
       <DropdownMenu label="Help">
-        <DropdownItem onClick={onOpenHelpDocs} icon={<QuestionMarkCircleIcon/>}>Tutorials</DropdownItem>
+        <DropdownItem onClick={onOpenHelpDocs} icon={<QuestionMarkCircleIcon />}>Tutorials</DropdownItem>
         <DropdownItem onClick={onOpenAbout}>About</DropdownItem>
       </DropdownMenu>
 
@@ -341,14 +445,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       >
         Last Editor
       </Button>
-      
+
       <div className="flex-grow" />
-      <div style={{color: 'red', backgroundColor: 'white', padding: '2px 5px', marginRight: '10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '3px'}}>
+      <div style={{ color: 'red', backgroundColor: 'white', padding: '2px 5px', marginRight: '10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '3px' }}>
         v{APP_VERSION}
       </div>
-      
+
       {isAutosaving && (
-        <div className="absolute top-1.5 right-1.5 w-3 h-3 bg-msx-danger rounded-full blinking-dot-indicator" title="Autosaving project..." aria-live="polite" aria-label="Autosaving project"/>
+        <div className="absolute top-1.5 right-1.5 w-3 h-3 bg-msx-danger rounded-full blinking-dot-indicator" title="Autosaving project..." aria-live="polite" aria-label="Autosaving project" />
       )}
     </div>
   );

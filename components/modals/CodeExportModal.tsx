@@ -313,10 +313,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             'patterns.asm',    // Asset files
             'colors.asm',
             'sprites.asm',
-            'screens.asm',
             'components.asm',  // Logic files
             'entities.asm',
-            'menus.asm'
+            'worlds.asm',
+            'screens.asm',
+            'font.asm',
+            'hud.asm',
+            'menus.asm',
+            'statemachine.asm',
+            'gameflow.asm'     // GameFlow state machine
           ];
 
           files = fileOrder
@@ -961,7 +966,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                         // Convert all modular files to GeneratedFile array with logical ordering
                         const fileOrder = [
-                          'main.asm',        // Main file first
+                          'unitedFiles.asm', // Unified file first (for easy viewing)
+                          'main.asm',        // Main file
                           'bios.asm',        // Core system files
                           'constants.asm',
                           'variables.asm',
@@ -969,11 +975,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           'patterns.asm',    // Asset files
                           'colors.asm',
                           'sprites.asm',
-                          'screens.asm',
                           'components.asm',  // Logic files
                           'entities.asm',
+                          'worlds.asm',
+                          'screens.asm',
+                          'font.asm',
+                          'hud.asm',
                           'menus.asm',
-                          'unitedFiles.asm'  // Unified file last
+                          'statemachine.asm',
+                          'gameflow.asm'     // GameFlow state machine
                         ];
 
                         const allFiles = fileOrder
@@ -983,10 +993,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             content: modularFiles[fileName]
                           }));
 
+
                         // Debug: Check what files were generated
                         console.log('🔍 Generated modular files:', Object.keys(modularFiles));
                         console.log('📝 unitedFiles.asm exists:', !!modularFiles['unitedFiles.asm']);
                         console.log('📝 main.asm exists:', !!modularFiles['main.asm']);
+                        console.log('📝 gameflow.asm exists:', !!modularFiles['gameflow.asm']);
+                        console.log('📝 gameflow.asm length:', modularFiles['gameflow.asm']?.length || 0);
+
 
                         // Use unitedFiles.asm for compilation (contains all code in one file)
                         // or fallback to main.asm for display/download
@@ -1242,8 +1256,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       key={index}
                       onClick={() => handleFileTabChange(index)}
                       className={`px-3 py-1 text-xs font-mono rounded transition-colors ${activeFileIndex === index
-                          ? 'bg-msx-highlight text-msx-panelbg'
-                          : 'bg-msx-panelbg text-msx-textsecondary hover:bg-msx-highlight hover:bg-opacity-20'
+                        ? 'bg-msx-highlight text-msx-panelbg'
+                        : 'bg-msx-panelbg text-msx-textsecondary hover:bg-msx-highlight hover:bg-opacity-20'
                         }`}
                     >
                       {file.name}

@@ -12,7 +12,7 @@ import { generateBIOSFile } from './generators/biosGenerator';
 import { generateConstantsFile } from './generators/constantsGenerator';
 import { generateVariablesFile } from './generators/variablesGenerator';
 import { generateHeaderFile } from './generators/headerGenerator';
-import { generateGameFlowStateMachine } from './generators/gameFlowGenerator';
+import { generateGameFlowFile } from './generators/gameFlowGenerator';
 import { generateMainFile } from './generators/mainGenerator';
 import { generatePatternsFile } from './generators/patternsGenerator';
 import { generateColorsFile } from './generators/colorsGenerator';
@@ -155,7 +155,7 @@ export function generateModularASM(
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines) : '; No State Machines\n',
-    'gameflow.asm': '', // TODO: Extract from main or header if needed
+    'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(projectName, analysis),
     'unitedFiles.asm': ''
   };
@@ -217,7 +217,7 @@ export function generateModularASMFromSummary(
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
     'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines) : '; No State Machines\n',
-    'gameflow.asm': '',
+    'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis),
     'unitedFiles.asm': ''
   };

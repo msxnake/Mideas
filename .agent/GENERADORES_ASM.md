@@ -184,43 +184,63 @@ Los generadores se ejecutan en este orden exacto (líneas 142-161 de `index.ts`)
 - **Formato:** Cada estado tiene tabla de transiciones con condiciones
 
 ### 16. **gameflow.asm**
-- **Generador:** `generators/gameFlowGenerator.ts` → `generateGameFlowStateMachine(gameFlow, analysis)`
-- **Propósito:** Máquina de estados de GameFlow (flujo del juego)
+- **Generador:** `generators/gameFlowGenerator.ts` → `generateGameFlowFile(analysis)`
+- **Propósito:** Sistema completo de GameFlow (flujo del juego)
 - **Contenido:**
-  - Node handlers para cada tipo:
-    - **Start:** Salta al primer nodo conectado
-    - **WorldLink:** Carga mundo y entra al main_loop
-    - **SubMenu:** Muestra menú
-    - **Text:** Muestra texto
-    - **Transition:** Efectos de transición
-    - **Group:** GameFlow anidado
-    - **End:** Pantalla de fin
-    - **Restart:** Reinicia el juego (jp init_rom)
-    - **Waypoint:** Nodo de enrutamiento
-    - **IfThenElse:** Condicional (compara variables globales)
-    - **Globals:** Asigna valores a variables globales
+  - **Funciones principales:**
+    - `load_game_screen` (carga pantalla según GameFlow)
+    - `execute_gameflow_start` (ejecuta nodo inicial)
+    - `execute_gameflow_node` (ejecuta un nodo)
+  - **Handlers de ejecución:**
+    - `execute_start_node`
+    - `execute_world_link_node`
+    - `execute_screen_node`
+    - `execute_menu_node`
+  - **Funciones auxiliares:**
+    - `load_default_screen`
+    - `find_next_gameflow_node`
+    - `load_referenced_screen`
+    - `show_menu_interface`
+    - `show_no_content_message`
+    - `show_end_screen`
+  - **Node handlers (máquina de estados):**
+    - Start: Salta al primer nodo conectado
+    - WorldLink: Carga mundo y entra al main_loop
+    - SubMenu: Muestra menú
+    - Text: Muestra texto
+    - Transition: Efectos de transición
+    - Group: GameFlow anidado
+    - End: Pantalla de fin
+    - Restart: Reinicia el juego (jp init_rom)
+    - Waypoint: Nodo de enrutamiento
+    - IfThenElse: Condicional (compara variables globales)
+    - Globals: Asigna valores a variables globales
 - **Dependencias:** State Machines
-- **Nota:** Actualmente se genera dentro de `main.asm`, no como archivo separado
+- **Condición:** Siempre se genera (stub si no hay GameFlow)
 - **Operadores soportados:** ==, !=, >, <, >=, <=
+- **Nota:** Ahora es un archivo SEPARADO e INDEPENDIENTE (antes estaba dentro de main.asm)
 
 ### 17. **main.asm**
 - **Generador:** `generators/mainGenerator.ts` → `generateMainFile(projectName, analysis)`
 - **Propósito:** Archivo principal con includes ordenados y main_program
 - **Contenido:**
-  - Includes ordenados de todos los archivos anteriores
-  - `main_program` (entry point del juego)
-  - `main_loop` (bucle principal: halt, update, render)
-  - GameFlow execution functions:
-    - `execute_gameflow_start`
-    - `execute_gameflow_node`
-    - Handlers por tipo de nodo
-  - Game system functions:
-    - `init_game_systems`
+  - **Includes ordenados** de todos los archivos anteriores (1-16)
+  - **main_program** (entry point del juego)
+    - Inicialización de sistemas (`init_game_systems`)
+    - Inicialización de fuentes (`init_font_system`)
+    - Inicialización de GameFlow
+    - Llamada a `load_game_screen`
+  - **main_loop** (bucle principal)
+    - `halt` (espera V-Blank)
     - `update_current_state`
     - `render_frame`
-    - `load_game_screen`
-- **Dependencias:** Todos los archivos anteriores
+  - **Game system functions:**
+    - `init_game_systems` (inicializa components y entities)
+    - `update_current_state` (actualiza todos los componentes)
+    - `render_frame` (renderizado)
+- **Dependencias:** Todos los archivos anteriores (1-16)
 - **Flujo:** init_rom → main_program → load_game_screen → main_loop
+- **Nota:** Ya NO contiene código de GameFlow inline (ahora está en gameflow.asm)
 
 ### 18. **unitedFiles.asm** (Opcional)
 - **Generador:** `generators/unifiedGenerator.ts` → `generateUnifiedFile(files, projectName, analysis)`
