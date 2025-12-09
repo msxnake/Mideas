@@ -4,6 +4,7 @@
  */
 
 const RECENT_PROJECTS_KEY = 'mideas_recent_projects';
+const RECENT_PROJECTS_DATA_KEY = 'mideas_recent_projects_data';
 const MAX_RECENT_PROJECTS = 10;
 
 /**
@@ -16,6 +17,31 @@ export interface RecentProject {
     path: string;
     /** Last opened timestamp */
     lastOpened: number;
+}
+
+/**
+ * Internal helper to get the cached project data map from localStorage.
+ */
+function getRecentProjectDataMap(): Record<string, string> {
+    const raw = localStorage.getItem(RECENT_PROJECTS_DATA_KEY);
+    if (!raw) return {};
+    try {
+        return JSON.parse(raw);
+    } catch (error) {
+        console.error('Error parsing recent projects data cache:', error);
+        return {};
+    }
+}
+
+/**
+ * Internal helper to persist the project data cache map.
+ */
+function saveRecentProjectDataMap(map: Record<string, string>) {
+    try {
+        localStorage.setItem(RECENT_PROJECTS_DATA_KEY, JSON.stringify(map));
+    } catch (error) {
+        console.error('Error saving recent projects data cache:', error);
+    }
 }
 
 /**
@@ -38,8 +64,9 @@ export function getRecentProjects(): RecentProject[] {
  * Add a project to the recent projects list
  * @param name - Project name
  * @param path - File path or identifier
+ * @param serializedData - Optional serialized project data to cache for quick reopening
  */
-export function addRecentProject(name: string, path: string): void {
+export function addRecentProject(name: string, path: string, serializedData?: string): void {
     try {
         const projects = getRecentProjects();
 
@@ -59,6 +86,19 @@ export function addRecentProject(name: string, path: string): void {
         const trimmed = filtered.slice(0, MAX_RECENT_PROJECTS);
 
         localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(trimmed));
+
+        // Persist cached data if provided and prune old cached entries
+        const dataMap = getRecentProjectDataMap();
+        if (serializedData) {
+            dataMap[path] = serializedData;
+        }
+        // Remove cached data for entries no longer tracked
+        Object.keys(dataMap).forEach(key => {
+            if (!trimmed.find(p => p.path === key)) {
+                delete dataMap[key];
+            }
+        });
+        saveRecentProjectDataMap(dataMap);
     } catch (error) {
         console.error('Error saving recent project:', error);
     }
@@ -73,6 +113,12 @@ export function removeRecentProject(path: string): void {
         const projects = getRecentProjects();
         const filtered = projects.filter(p => p.path !== path);
         localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(filtered));
+
+        const dataMap = getRecentProjectDataMap();
+        if (dataMap[path]) {
+          delete dataMap[path];
+          saveRecentProjectDataMap(dataMap);
+        }
     } catch (error) {
         console.error('Error removing recent project:', error);
     }
@@ -84,8 +130,22 @@ export function removeRecentProject(path: string): void {
 export function clearRecentProjects(): void {
     try {
         localStorage.removeItem(RECENT_PROJECTS_KEY);
+        localStorage.removeItem(RECENT_PROJECTS_DATA_KEY);
     } catch (error) {
         console.error('Error clearing recent projects:', error);
+    }
+}
+
+/**
+ * Retrieve cached serialized project data for a given path, if available.
+ */
+export function getRecentProjectData(path: string): string | null {
+    try {
+        const dataMap = getRecentProjectDataMap();
+        return dataMap[path] || null;
+    } catch (error) {
+        console.error('Error reading cached recent project data:', error);
+        return null;
     }
 }
 

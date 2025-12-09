@@ -282,7 +282,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {/* Open Recent Submenu */}
         <div ref={recentMenuRef} className="relative">
           <button
-            onClick={() => {
+            onClick={(e) => {
+              // Prevent the parent dropdown from auto-closing when toggling the submenu
+              e.stopPropagation();
               setRecentProjects(getRecentProjects());
               setIsRecentMenuOpen(!isRecentMenuOpen);
             }}

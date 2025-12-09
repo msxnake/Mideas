@@ -66,36 +66,44 @@ export function generateHeaderFile(projectName: string, analysis?: ProjectAnalys
 ; ROM INITIALIZATION ENTRY POINT
 ; ==================================================================
 init_rom:
-    ; Initialize stack
-    ld sp, #F380
 
-    di                           ; Disable interrupts during init
+
+    di
+    im 1
+    ; init the stack:
+    ld sp,#F380
+    ; reset some interrupts to make sure it runs in some MSX computers 
+    ; with disk controllers installed in some interrupt handlers
     ld a,#C9
     ld (HKEY),a
+    ld (TIMI),a
     ei
 
-    ; Set up memory mapper (if any)
-    ; This is a placeholder for future mapper initialization
-    ; call setup_rom_ram_slots
+    call SETPAGES32K
 
+    ; Silence, init keyboard, and clear config:
     xor a
-    ld (CLIKSW),a ; Click switch off
+    ld (CLIKSW),a
+    ld (deterministic),a
+    ; Change background colors:
+    ld (BAKCLR),a
+    ld (BDRCLR),a
+    call CHGCLR
 
-    ; NOTE: Background/border colors are now set by each load_screen_X function
-    ; This allows each screen to have its own colors via ScreenMap.backgroundColor/borderColor
+    ld a,2      ; Change screen mode
+    call CHGMOD
 
-    ; Enable Inigrp bios
-    call INIGRP
-    
     ;; 16x16 sprites:
     ld bc,#e201  ;; write #e2 in VDP register #01 (activate sprites, generate interrupts, 16x16 sprites with no magnification)
     call WRTVDP
 
-    ;call check_if_60hz
-    ;ld (isComputer50HzOr60Hz),a
+    call CheckIf60Hz
+    ld (isComputer50HzOr60Hz),a ; 0: 50Hz, 1: 60Hz
 
-    ;init random seed
-    ;call random_seed_update
+    ; Init sound engine:
+    ;call StopMusic
+    ;call setup_custom_interrupt
+
 
     jp main_program
 

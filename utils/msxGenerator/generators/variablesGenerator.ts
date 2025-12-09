@@ -192,6 +192,16 @@ MAX_ENTITIES        EQU 32
     currentAddress += 2;
   }
 
+  // aux variables
+  code += `
+; ==================================================================
+; AUXILIARY VARIABLES 
+; ==================================================================
+  deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Deterministic mode flag\n`;
+  currentAddress++;
+  
+
+
   // Temporary variables (always needed)
   code += `
 ; ==================================================================
