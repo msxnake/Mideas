@@ -77,7 +77,7 @@ CLRTBL2 EQU #2000        ; Color table base address (Bank 0)
 
 ; Other VRAM Areas
 NAMETBL EQU #1800        ; Name table base address
-SPRATR  EQU #1B80        ; Sprite attribute table
+SPRATR  EQU #1B00        ; Sprite attribute table
 SPRPAT  EQU #3800        ; Sprite pattern table
 
 ; ==================================================================

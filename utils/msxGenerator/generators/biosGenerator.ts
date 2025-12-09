@@ -30,6 +30,7 @@ DISSCR  EQU #0041        ; Disable screen (prevent flicker)
 ENASCR  EQU #0044        ; Enable screen
 INITXT  EQU #006C        ; Initialize text mode
 INIT32  EQU #006F        ; Initialize screen mode
+INIGRP  EQU #0072        ; Initialize graphics routines
 
 ; Character I/O
 CHPUT   EQU #00A2        ; Character output (A=char)

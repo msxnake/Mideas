@@ -84,15 +84,9 @@ init_rom:
     ; NOTE: Background/border colors are now set by each load_screen_X function
     ; This allows each screen to have its own colors via ScreenMap.backgroundColor/borderColor
 
-    ld a,2      ; Change screen mode
-    call CHGMOD
-
-    ;; Configure VDP sprite tables
-    ld bc,#3705  ; VDP Register #5: Sprite Attribute Table = #1B80 (SPRATR)
-    call WRTVDP
-    ld bc,#3806  ; VDP Register #6: Sprite Pattern Table = #3800 (SPRPAT)
-    call WRTVDP
-
+    ; Enable Inigrp bios
+    call INIGRP
+    
     ;; 16x16 sprites:
     ld bc,#e201  ;; write #e2 in VDP register #01 (activate sprites, generate interrupts, 16x16 sprites with no magnification)
     call WRTVDP
