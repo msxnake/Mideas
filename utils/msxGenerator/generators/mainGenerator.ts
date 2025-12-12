@@ -78,72 +78,17 @@ include "statemachine.asm"
 include "gameflow.asm"
 
 ; ==================================================================
-; MAIN PROGRAM ENTRY POINT
+; MAIN PROGRAM - UTILITY FUNCTIONS ONLY
 ; ==================================================================
-main_program:
-    ; Initialize game systems
-    call init_game_systems
-
-    ; Initialize font system for Screen 2 text
-    call init_font_system
-
-    ; Initialize Game Flow system
-    xor a
-    ld (current_flow_state), a
-    ld (prev_flow_state), a
-
-    ; Load initial screen based on GameFlow (Critical for Paridad)
-    call load_game_screen
-
-    ; Main game loop
-main_loop:
-    halt                 ; Wait for V-Blank
-
-    ; Update current game state
-    call update_current_state
-
-    ; Render current frame
-    call render_frame
-
-    ; Loop forever
-    jp main_loop
-
+;
+; NOTE: The main game loop and execution flow are now handled
+; exclusively by GameFlow (see gameflow.asm).
+;
+; This section only contains utility functions used throughout
+; the game code.
 ; ==================================================================
-; GAME SYSTEM FUNCTIONS (implemented in components.asm)
-; ==================================================================
-init_game_systems:
-    ; Initialize all game systems
-    call init_components
-    call init_entities       ; Initialize entities (positions, screens, etc.) and sprites
-    ret
 
-update_current_state:
-    ; Update game logic based on current state
-    call update_input_component
-    call update_behavior_component  ; AI/Logic
-    call update_statemachine_component  ; State Machine updates
-    call update_movement_component
-    call update_position_component
-    call update_collision_component
-    call update_health_component    ; Health/Death checks
-    call update_animation_component ; Sprite animations
-    call update_sprite_component    ; Render sprites
-    ret
-
-render_frame:
-    ; Render current frame
-    ; This function is implemented in the unified assembly
-    ; Game rendering is handled by component systems
-    ret
-
-
-    ;-----------------------------------------------
-; From: http://www.z80st.es/downloads/code/ (author: Konamiman)
-; GETSLOT:  constructs the SLOT value to then call ENSALT
-; input:
-; a: slot
-; output:
-; a: value for ENSALT
+; Helper: Call function from page 1 (for ROM paging)
 GETSLOT:    
     and #03             ; Proteccion, nos aseguramos de que el valor esta en 0-3
     ld  c,a             ; c = slot de la pagina

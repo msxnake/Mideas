@@ -1674,6 +1674,81 @@ update_collectible_component:
     // Always include entity management helpers
     code += generateEntityManagement();
 
+    // ==================================================================
+    // GAMEFLOW INTEGRATION FUNCTIONS
+    // ==================================================================
+
+    // Generate update_all_entities function - called by GameFlow game loop
+    code += `
+; ==================================================================
+; UPDATE ALL ENTITIES - Called by GameFlow
+; ==================================================================
+; This function updates all active entities by calling each
+; component update system in the correct order
+update_all_entities:
+    ; Update all entity components in proper order
+    call update_input_component        ; 1. Input (player control)
+    call update_behavior_component     ; 2. Behavior/AI
+    call update_movement_component     ; 3. Movement/Physics
+    call update_gravity_component      ; 4. Gravity
+    call update_position_component     ; 5. Position (apply velocities)
+    call update_collision_component    ; 6. Collision detection
+    call update_health_component       ; 7. Health/Death
+    call update_animation_component    ; 8. Animation
+    call update_sprite_component       ; 9. Sprite rendering
+    ret
+
+`;
+
+    // Generate execute_all_state_machines function - called by GameFlow game loop
+    code += `
+; ==================================================================
+; EXECUTE ALL STATE MACHINES - Called by GameFlow
+; ==================================================================
+; This function executes the state machine for each entity that has one
+execute_all_state_machines:
+    ld b, 32                      ; Loop through all 32 entities
+    xor a                         ; A = 0 (entity index counter)
+    
+.sm_loop:
+    push af                       ; Save entity index
+    push bc                       ; Save loop counter
+    
+    ; Check if this entity has a state machine assigned
+    ld c, a                       ; C = entity index
+    ld b, 0                       ; BC = entity index
+    ld hl, entity_sm_ptr_l
+    add hl, bc
+    ld e, (hl)                    ; E = SM ptr low
+    
+    ld hl, entity_sm_ptr_h
+    add hl, bc
+    ld d, (hl)                    ; D = SM ptr high
+    
+    ; Check if SM pointer is non-zero
+    ld a, d
+    or e
+    jr z, .skip_entity            ; No SM assigned, skip
+    
+    ; Entity has a state machine - execute it
+    pop bc                        ; Restore loop counter
+    pop af                        ; Restore entity index
+    push af                       ; Save again for continuation
+    push bc                       ; Save again for continuation
+    
+    call SM_Update                ; Execute state machine (A = entity index)
+    
+.skip_entity:
+    pop bc                        ; Restore loop counter
+    pop af                        ; Restore entity index
+    
+    inc a                         ; Next entity
+    djnz .sm_loop                 ; Loop for all entities
+    
+    ret
+
+`;
+
     // End of file
     code += `
     ; ==================================================================

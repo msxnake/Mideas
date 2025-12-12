@@ -1,13 +1,17 @@
 /**
  * @fileoverview Header Generator - ROM header and initialization
  * Generates header.asm with basic MSX ROM initialization
+ * 
+ * ARCHITECTURE: GameFlow-centric initialization
+ * The ROM init now calls gameflow_init and gameflow_start,
+ * making GameFlow the sole orchestrator of execution.
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 
 /**
  * Generate ROM header with "AB" signature (header.asm)
- * Generates basic MSX ROM initialization, then jumps to main_program
+ * Generates basic MSX ROM initialization, then jumps to GameFlow
  *
  * @param projectName - Name of the project
  * @param analysis - Project analysis with GameFlow data
@@ -19,7 +23,7 @@ export function generateHeaderFile(projectName: string, analysis?: ProjectAnalys
 
   if (analysis?.gameFlow) {
     const gameFlow = analysis.gameFlow;
-    gameFlowComment = `\n; GameFlow Integration: Using "${gameFlow.name}" as initialization flow`;
+    gameFlowComment = `\n; GameFlow Integration: Using "${gameFlow.name}" as execution orchestrator`;
 
     // Find Start node
     const startNode = gameFlow.nodes.find(n => n.type === 'Start');
@@ -66,46 +70,53 @@ export function generateHeaderFile(projectName: string, analysis?: ProjectAnalys
 ; ROM INITIALIZATION ENTRY POINT
 ; ==================================================================
 init_rom:
-
-
     di
     im 1
-    ; init the stack:
-    ld sp,#F380
-    ; reset some interrupts to make sure it runs in some MSX computers 
-    ; with disk controllers installed in some interrupt handlers
-    ld a,#C9
-    ld (HKEY),a
-    ld (TIMI),a
+    
+    ; Initialize stack
+    ld sp, #F380
+    
+    ; Reset some interrupts to ensure compatibility
+    ; with MSX computers with disk controllers
+    ld a, #C9
+    ld (HKEY), a
+    ld (TIMI), a
     ei
 
     call SETPAGES32K
 
-    ; Silence, init keyboard, and clear config:
+    ; Silence click, init keyboard, clear config
     xor a
-    ld (CLIKSW),a
-    ld (deterministic),a
-    ; Change background colors:
-    ld (BAKCLR),a
-    ld (BDRCLR),a
+    ld (CLIKSW), a
+    ld (deterministic), a
+    
+    ; Change background colors
+    ld (BAKCLR), a
+    ld (BDRCLR), a
     call CHGCLR
 
-    ld a,2      ; Change screen mode
+    ; Change screen mode to SCREEN 2
+    ld a, 2
     call CHGMOD
 
-    ;; 16x16 sprites:
-    ld bc,#e201  ;; write #e2 in VDP register #01 (activate sprites, generate interrupts, 16x16 sprites with no magnification)
+    ; Configure 16x16 sprites
+    ; VDP Register #01: activate sprites, generate interrupts, 16x16 sprites
+    ld bc, #E201
     call WRTVDP
 
+    ; Detect 50Hz/60Hz
     call CheckIf60Hz
-    ld (isComputer50HzOr60Hz),a ; 0: 50Hz, 1: 60Hz
+    ld (isComputer50HzOr60Hz), a ; 0: 50Hz, 1: 60Hz
 
-    ; Init sound engine:
-    ;call StopMusic
-    ;call setup_custom_interrupt
-
-
-    jp main_program
+    ; ====================================================
+    ; GAMEFLOW INITIALIZATION
+    ; ====================================================
+    ; Initialize GameFlow system
+    call gameflow_init
+    
+    ; Start execution from GameFlow Start node
+    ; GameFlow is now the sole orchestrator
+    jp gameflow_start
 
 ; ==================================================================
 ; END OF HEADER

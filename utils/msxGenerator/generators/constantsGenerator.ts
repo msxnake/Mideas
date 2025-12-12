@@ -112,35 +112,6 @@ MSX_CHARS_PER_TILE_X EQU 1   ; 1 MSX character per tile
 MSX_CHARS_PER_TILE_Y EQU 1   ; 1 MSX character per tile
 `}
 
-; Legacy compatibility
-SCREEN_WIDTH    EQU SCREEN_TILES_X
-SCREEN_HEIGHT   EQU SCREEN_TILES_Y
-TILE_SIZE       EQU 8    ; MSX character size (always 8x8)
-
-; ==================================================================
-; GAMEFLOW NODE TYPE CONSTANTS (Critical for Paridad)
-; ==================================================================
-; Always define base node type constants
-NODE_TYPE_START         EQU 0    ; Start node (initial entry point)
-NODE_TYPE_WORLD_LINK    EQU 1    ; World link node (loads world map)
-NODE_TYPE_SCREEN        EQU 2    ; Screen node (loads specific screen)
-NODE_TYPE_SUB_MENU      EQU 3    ; Menu node (shows menu interface)
-NODE_TYPE_TEXT          EQU 4    ; Text node (displays text)
-NODE_TYPE_TRANSITION    EQU 5    ; Transition node
-NODE_TYPE_RESTART       EQU 6    ; Restart node
-NODE_TYPE_GROUP         EQU 7    ; Group node
-NODE_TYPE_END           EQU 8    ; End node
-NODE_TYPE_WAYPOINT      EQU 9    ; Waypoint node
-NODE_TYPE_IF_THEN_ELSE  EQU 10   ; Conditional branching node
-NODE_TYPE_GLOBALS       EQU 11   ; Globals node
-NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
-
-; ==================================================================
-; SPRITE CONSTANTS
-; ==================================================================
-MAX_SPRITES     EQU 32   ; Máximo sprites por pantalla
-SPRITE_SIZE     EQU 8    ; 8x8 o 16x16 (según modo)
-
 
 ; ==================================================================
 ; MSX COLORS
