@@ -62,12 +62,15 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
     currentAddress++;
   }
 
-  // Frame counter (always useful)
+  // System variables
   code += `
 ; ==================================================================
-; FRAME COUNTER
+; SYSTEM VARIABLES
 ; ==================================================================
 `;
+  code += `ROM_slot            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ROM slot number (for SETPAGES32K)\n`;
+  currentAddress++;
+
   code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
   currentAddress += 2;
 

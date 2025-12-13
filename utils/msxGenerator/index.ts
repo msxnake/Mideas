@@ -26,6 +26,7 @@ import { generateHudFile } from './generators/hudGenerator';
 import { generateWorldsFile } from './generators/worldGenerator';
 import { generateMenusFile } from './generators/menusGenerator';
 import { generateStateMachineSystem } from './generators/stateMachineGenerator';
+import { generateInterruptFile } from './generators/interruptGenerator';
 
 /**
  * MSX Modular Configuration
@@ -139,10 +140,12 @@ export function generateModularASM(
   }
 
   // Generate individual files
+  console.log('📝 [MSX GENERATOR] Generating all ASM files...');
   const files: GeneratedASMFiles = {
     'bios.asm': generateBIOSFile(),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
+    'interrupt.asm': generateInterruptFile(analysis),
     'header.asm': generateHeaderFile(projectName, analysis),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
@@ -167,6 +170,8 @@ export function generateModularASM(
 
   console.log('✅ Modular ASM files generated successfully!');
   console.log(`📊 Generated ${Object.keys(files).filter(k => files[k as keyof GeneratedASMFiles]).length} files`);
+  console.log('📋 [DEBUG] Files generated:', Object.keys(files));
+  console.log('🎯 [DEBUG] interrupt.asm length:', files['interrupt.asm']?.length || 'MISSING!');
 
   return files;
 }
@@ -205,6 +210,7 @@ export function generateModularASMFromSummary(
     'bios.asm': generateBIOSFile(),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
+    'interrupt.asm': generateInterruptFile(analysis),
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),

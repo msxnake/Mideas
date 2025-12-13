@@ -19,6 +19,7 @@ export interface GeneratedASMFiles {
     'bios.asm': string;
     'constants.asm': string;
     'variables.asm': string;
+    'interrupt.asm': string;
     'header.asm': string;
     'components.asm': string;
     'entities.asm': string;
@@ -79,6 +80,8 @@ ${files['constants.asm']}
 
 ${files['variables.asm']}
 
+${files['interrupt.asm']}
+
 ${files['header.asm']}
 
 ${analysis.tiles && analysis.tiles.length > 0 ? files['patterns.asm'] : '; [patterns.asm skipped - no tiles]\n'}
@@ -111,6 +114,27 @@ ${(analysis as any).worldmaps?.length > 0 ? files['worlds.asm'] : '; [worlds.asm
 main_program:
     ; Initialize game systems
     call init_game_systems
+
+    ; Initialize interrupt task system (Konami-style H.TIMI hook)
+    call init_interrupt_system
+
+    ; Register default interrupt tasks based on project needs
+${analysis.hasEntities || analysis.hasSprites ? `    ; Task 0: Input polling (always enabled for responsive controls)
+    ld a, 0
+    ld hl, task_update_input
+    call enable_task
+` : ''}
+${analysis.hasEntities ? `    ; Task 1: Physics update (project has entities with movement)
+    ld a, 1
+    ld hl, task_update_physics
+    call enable_task
+` : ''}
+${analysis.hasCollisions ? `    ; Task 2: Collision detection (project has collision system)
+    ld a, 2
+    ld hl, task_update_collision
+    call enable_task
+` : ''}
+    ; Task 3: Sprites - NOT auto-registered (heavy task, enable manually when needed)
 
     ; Initialize Game Flow system
     xor a
@@ -558,6 +582,16 @@ render_game_over:
 render_credits:
     ; Pure game - no credits needed
     call return_to_menu
+    ret
+
+; ==================================================================
+; SCREEN LOADING STUB (for compatibility)
+; ==================================================================
+; NOTE: With GameFlow system, screen loading is handled by GameFlow nodes
+; This stub exists for backward compatibility with existing code references
+load_game_screen:
+    ; GameFlow handles screen loading via WorldLink/Screen nodes
+    ; This is just a compatibility stub
     ret
 
 ; ==================================================================

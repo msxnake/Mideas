@@ -309,6 +309,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             'bios.asm',        // Core system files
             'constants.asm',
             'variables.asm',
+            'interrupt.asm',   // Interrupt task system
             'header.asm',
             'patterns.asm',    // Asset files
             'colors.asm',
@@ -971,6 +972,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           'bios.asm',        // Core system files
                           'constants.asm',
                           'variables.asm',
+                          'interrupt.asm',   // Interrupt task system
                           'header.asm',
                           'patterns.asm',    // Asset files
                           'colors.asm',

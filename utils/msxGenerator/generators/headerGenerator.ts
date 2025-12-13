@@ -10,6 +10,39 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 
 /**
+ * Generate task registration code for interrupt system
+ */
+function generateTaskRegistration(analysis?: ProjectAnalysis): string {
+  if (!analysis) return '';
+
+  let code = '';
+
+  // Task 0: Input (ALWAYS registered)
+  code += `    ld a, 0\n`;
+  code += `    ld hl, task_update_input\n`;
+  code += `    call enable_task\n\n`;
+
+  // Task 1: Physics (if has entities - they likely need movement)
+  if (analysis.hasEntities) {
+    code += `    ld a, 1\n`;
+    code += `    ld hl, task_update_physics\n`;
+    code += `    call enable_task\n\n`;
+  }
+
+  // Task 2: Collision (if has collisions)
+  if (analysis.hasCollisions) {
+    code += `    ld a, 2\n`;
+    code += `    ld hl, task_update_collision\n`;
+    code += `    call enable_task\n\n`;
+  }
+
+  // Task 3: Sprites - NOT auto-registered (heavy task)
+  // User should enable manually when needed
+
+  return code;
+}
+
+/**
  * Generate ROM header with "AB" signature (header.asm)
  * Generates basic MSX ROM initialization, then jumps to GameFlow
  *
@@ -80,7 +113,7 @@ init_rom:
     ; with MSX computers with disk controllers
     ld a, #C9
     ld (HKEY), a
-    ld (TIMI), a
+    ; NOTE: TIMI (H.TIMI) is now managed by init_interrupt_system
     ei
 
     call SETPAGES32K
@@ -109,6 +142,15 @@ init_rom:
     ld (isComputer50HzOr60Hz), a ; 0: 50Hz, 1: 60Hz
 
     ; ====================================================
+    ; INTERRUPT SYSTEM INITIALIZATION (Konami-style)
+    ; ====================================================
+    ; Initialize interrupt task system (hooks H.TIMI)
+    call init_interrupt_system
+
+    ; Register default tasks based on project needs
+    ${generateTaskRegistration(analysis)}
+
+    ; ====================================================
     ; GAMEFLOW INITIALIZATION
     ; ====================================================
     ; Initialize GameFlow system
@@ -117,6 +159,52 @@ init_rom:
     ; Start execution from GameFlow Start node
     ; GameFlow is now the sole orchestrator
     jp gameflow_start
+
+; ==================================================================
+; AUXILIARY FUNCTIONS
+; ==================================================================
+
+; From: http://www.z80st.es/downloads/code/
+; SETPAGES32K:  BIOS-ROM-YY-ZZ   -> BIOS-ROM-ROM-ZZ (SITUA PAGINA 2)
+SETPAGES32K:    ; --- Posiciona las paginas de un megarom o un 32K ---
+    ld  a, #C9              ; Codigo de RET
+    ld  (SETPAGES32K_NOPRET), a   ; Modificamos la siguiente instruccion si estamos en RAM
+SETPAGES32K_NOPRET:
+    nop                     ; No hacemos nada si no estamos en RAM
+    ; --- Si llegamos aqui no estamos en RAM, hay que posicionar la pagina ---
+    call RSLREG             ; Leemos el contenido del registro de seleccion de slots
+    rrca                    ; Rotamos a la derecha...
+    rrca                    ; ...dos veces
+    call GETSLOT            ; Obtenemos el slot de la pagina 1 ($4000-$BFFF)
+    ld (ROM_slot), a        ; Save slot for later use
+    ld  h, #80              ; Seleccionamos pagina 2 ($8000-$BFFF)
+    jp  ENASLT              ; Posicionamos la pagina 2 y volvemos
+
+; Source: https://www.msx.org/forum/development/msx-development/how-0?page=0
+; Returns 1 in a and clears z flag if vdp is 60Hz
+CheckIf60Hz:
+    di
+    in      a, (#99)
+    nop
+    nop
+    nop
+vdpSync:
+    in      a, (#99)
+    and     #80
+    jr      z, vdpSync
+
+    ld      hl, #900
+vdpLoop:
+    dec     hl
+    ld      a, h
+    or      l
+    jr      nz, vdpLoop
+
+    in      a, (#99)
+    rlca
+    and     1
+    ei
+    ret
 
 ; ==================================================================
 ; END OF HEADER

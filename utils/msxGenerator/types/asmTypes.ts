@@ -94,6 +94,7 @@ export interface GeneratedASMFiles {
   'bios.asm': string;
   'constants.asm': string;
   'variables.asm': string;
+  'interrupt.asm': string;
   'header.asm': string;
   'patterns.asm': string;
   'colors.asm': string;

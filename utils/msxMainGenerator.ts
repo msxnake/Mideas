@@ -9,6 +9,7 @@ import * as ECSGen from './msxECSGenerators';
 import { generateScreenMapLayoutBytes, generateScreenLayoutASMCode, generateBehaviorMapData, generateBehaviorMapASMCode } from '../components/utils/screenUtils';
 import { generateTilePatternBytes, generateTileColorBytes } from '../components/utils/tileUtils';
 import { generateSpriteASMCode } from '../components/utils/spriteUtils';
+import { generateInterruptSystemASM } from './interruptSystemGenerator';
 
 /**
  * MSX Project configuration
@@ -325,6 +326,9 @@ Nota: Solo se puede usar un Game Flow por ROM`);
 
   // STEP 4: RAM Variable addresses (before code that uses them)
   code += generateInlineRAMVariables();
+
+  // STEP 4.5: Interrupt system (NUEVO - Konami-style task system)
+  code += generateInterruptSystemASM(analysis);
 
   // STEP 5: Main program entry point (before any subroutines)
   code += generateKonamiMainProgram(analysis, config);
@@ -1473,11 +1477,72 @@ CHANGE_FLOW_STATE:
 }
 
 /**
+ * Generate task registration code for interrupt system
+ */
+function generateTaskRegistration(analysis: ProjectAnalysis): string {
+  let code = '';
+
+  code += `    ; ==================================================================\n`;
+  code += `    ; INTERRUPT SYSTEM TASK REGISTRATION\n`;
+  code += `    ; Register only tasks needed by this project\n`;
+  code += `    ; ==================================================================\n\n`;
+
+  // Task 0: Input (ALWAYS registered)
+  code += `    ; Task 0: Input polling (ALWAYS enabled for responsive controls)\n`;
+  code += `    LD A, 0\n`;
+  code += `    LD HL, task_update_input\n`;
+  code += `    CALL enable_task\n\n`;
+
+  // Task 1: Physics (if has movement/physics)
+  const hasPhysics = analysis.hasPhysics || analysis.hasMovement;
+  if (hasPhysics) {
+    code += `    ; Task 1: Physics update (project has movement/physics)\n`;
+    code += `    LD A, 1\n`;
+    code += `    LD HL, task_update_physics\n`;
+    code += `    CALL enable_task\n\n`;
+  } else {
+    code += `    ; Task 1: Physics - NOT registered (no movement detected)\n\n`;
+  }
+
+  // Task 2: Collision (if has collisions)
+  if (analysis.hasCollisions) {
+    code += `    ; Task 2: Collision detection (project has collision system)\n`;
+    code += `    LD A, 2\n`;
+    code += `    LD HL, task_update_collision\n`;
+    code += `    CALL enable_task\n\n`;
+  } else {
+    code += `    ; Task 2: Collision - NOT registered (no collisions needed)\n\n`;
+  }
+
+  // Task 3: Sprites (if has sprites)
+  // NOTE: This is heavy, so we DON'T auto-register it
+  // User should enable it manually when needed
+  if (analysis.hasSprites) {
+    code += `    ; Task 3: Sprite rendering - NOT auto-registered (HEAVY task ~800 cycles)\n`;
+    code += `    ; Enable manually when sprites are on screen:\n`;
+    code += `    ;   LD A, 3\n`;
+    code += `    ;   LD HL, task_update_sprites\n`;
+    code += `    ;   CALL enable_task\n\n`;
+  } else {
+    code += `    ; Task 3: Sprites - NOT available (no sprites in project)\n\n`;
+  }
+
+  // Slots 4-7: User custom
+  code += `    ; Tasks 4-7: Custom user slots (enable as needed)\n`;
+  code += `    ; Example:\n`;
+  code += `    ;   LD A, 4\n`;
+  code += `    ;   LD HL, my_custom_routine\n`;
+  code += `    ;   CALL enable_task\n\n`;
+
+  return code;
+}
+
+/**
  * Generate Konami main program
  */
 function generateKonamiMainProgram(analysis: ProjectAnalysis, config: MSXProjectConfig): string {
-  return `; ==================================================================
-; MAIN PROGRAM (KONAMI CARTRIDGE)
+  let code = `; ==================================================================
+; MAIN PROGRAM (KONAMI CARTRIDGE) - INTERRUPT-BASED ARCHITECTURE
 ; ==================================================================
 
 MAIN_GAME_START:
@@ -1491,7 +1556,15 @@ MAIN_GAME_START:
     ; Initialize game systems
     CALL INIT_GAME_SYSTEMS
 
-    ; Initialize Game Flow system inline (avoid forward reference)
+    ; INTERRUPT SYSTEM: Initialize H.TIMI hook
+    CALL init_interrupt_system
+
+`;
+
+  // Add task registration (dynamic based on project analysis)
+  code += generateTaskRegistration(analysis);
+
+  code += `    ; Initialize Game Flow system inline (avoid forward reference)
     XOR A
     LD (current_flow_state), A
     LD (prev_flow_state), A
@@ -1500,20 +1573,22 @@ MAIN_GAME_START:
     LD A, FLOW_STATE_MAIN_MENU
     LD (current_flow_state), A
 
-    ; Main game loop
+    ; Main game loop - Now interrupt-driven
 MAIN_LOOP:
-    HALT                 ; Wait for V-Blank
+    HALT                 ; Wait for V-Blank (ISR executes registered tasks)
 
-    ; Update current game state
+    ; HEAVY/NON-CRITICAL logic only (tasks run in ISR):
+    ; - Input is handled by task_update_input (60Hz)
+    ; - Physics is handled by task_update_physics (60Hz)
+    ; - Collision is handled by task_update_collision (60Hz)
+
+    ; Update current game state (state machine logic)
     CALL UPDATE_CURRENT_STATE
 
-    ; Handle input
-    CALL HANDLE_INPUT
-
-    ; Update game systems
+    ; Update game systems (non-critical updates)
     CALL UPDATE_GAME_SYSTEMS
 
-    ; Render frame
+    ; Render frame (may be partially handled by tasks)
     CALL RENDER_FRAME
 
     ; Loop forever
@@ -1521,6 +1596,8 @@ MAIN_LOOP:
 
 
 `;
+
+  return code;
 }
 
 /**

@@ -33,7 +33,10 @@ include "constants.asm"
 ; 3. Variables (depends on constants)
 include "variables.asm"
 
-; 4. ROM Header (depends on variables)
+; 3.5. Interrupt System (Konami-style task system)
+include "interrupt.asm"
+
+; 4. ROM Header (depends on variables and interrupt system)
 include "header.asm"
 
 ${analysis.tiles && analysis.tiles.length > 0 ? `; 5. Pattern Data (if tiles exist)

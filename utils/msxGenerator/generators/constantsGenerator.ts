@@ -168,6 +168,19 @@ FLOW_STATE_GAME         EQU 1
 FLOW_STATE_PAUSE        EQU 2
 FLOW_STATE_GAME_OVER    EQU 3
 FLOW_STATE_CREDITS      EQU 4
+
+; GameFlow Node Types
+NODE_TYPE_START         EQU 0    ; Start node (initial entry point)
+NODE_TYPE_WORLDLINK     EQU 1    ; World link node (loads world map)
+NODE_TYPE_WORLD_LINK    EQU 1    ; Alias with underscore (for compatibility)
+NODE_TYPE_SCREEN        EQU 2    ; Screen node (loads specific screen)
+NODE_TYPE_MENU          EQU 3    ; Menu node (shows menu interface)
+NODE_TYPE_SUBMENU       EQU 3    ; Alias for menu node
+NODE_TYPE_SUB_MENU      EQU 3    ; Alias with underscore (for compatibility)
+NODE_TYPE_TEXT          EQU 4    ; Text node (displays text)
+NODE_TYPE_TRANSITION    EQU 5    ; Transition node
+NODE_TYPE_RESTART       EQU 6    ; Restart node (restart game/level)
+NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ${analysis.gameFlow ? `
 ; Additional Game Flow States detected in project
 ; (Custom states would be added here if needed)

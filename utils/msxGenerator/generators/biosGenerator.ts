@@ -50,6 +50,13 @@ GTPDL   EQU #00DE        ; Get paddle value
 SNSMAT  EQU #0141        ; Sense matrix (A=row)
 KILBUF  EQU #0156        ; Kill keyboard buffer
 
+; Slot Management
+RSLREG  EQU #0138        ; Read slot register
+WSLREG  EQU #013B        ; Write slot register
+GETSLOT EQU #013B        ; Get current slot
+ENASLT  EQU #0024        ; Enable slot (H=page, A=slot)
+CALSLT  EQU #001C        ; Call routine in another slot
+
 ; Sound
 GICINI  EQU #0090        ; Initialize PSG
 WRTPSG  EQU #0093        ; Write PSG register (A=reg, E=value)
