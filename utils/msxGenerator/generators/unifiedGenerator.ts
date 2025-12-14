@@ -80,9 +80,9 @@ ${files['constants.asm']}
 
 ${files['variables.asm']}
 
-${files['interrupt.asm']}
-
 ${files['header.asm']}
+
+${files['interrupt.asm']}
 
 ${analysis.tiles && analysis.tiles.length > 0 ? files['patterns.asm'] : '; [patterns.asm skipped - no tiles]\n'}
 
