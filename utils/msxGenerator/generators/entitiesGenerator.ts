@@ -18,6 +18,25 @@ import { analyzeComponentUsage, generateEntityComponentMask } from '../utils/com
  * @returns ASM code string with entity definitions and functions
  */
 export function generateEntitiesFile(analysis: ProjectAnalysis): string {
+  const parseBool = (value: any, defaultValue: boolean): boolean => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+      const asNum = parseInt(normalized, 10);
+      if (!Number.isNaN(asNum)) return asNum !== 0;
+    }
+    return defaultValue;
+  };
+
+  const parseByte = (value: any, defaultValue: number): number => {
+    const num = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+    if (Number.isNaN(num)) return defaultValue;
+    return Math.max(0, Math.min(255, num | 0));
+  };
+
   // INTELLIGENT FILTERING: Analyze which entities are actually used
   const componentUsage = analyzeComponentUsage(analysis);
   const activeEntities = componentUsage.activeEntities;
@@ -199,6 +218,8 @@ update_entities:
       if (componentMask & 0x20) usedComponentNames.push('Behavior');
       if (componentMask & 0x40) usedComponentNames.push('Health');
       if (componentMask & 0x80) usedComponentNames.push('Animation');
+      if (componentMask & 0x0100) usedComponentNames.push('Jump');
+      if (componentMask & 0x0200) usedComponentNames.push('Gravity');
 
       // Check if entity has Input/Cursors component and extract direction restrictions
       let directionMask = 0x0F; // Default: all directions enabled (binary 00001111)
@@ -234,6 +255,45 @@ update_entities:
       if (directionMask & 0x08) directionInfo.push('RIGHT');
       const directionDesc = directionInfo.length === 4 ? 'All directions' : directionInfo.join('+');
 
+      // Animation component initialization (if present)
+      let animationInitAsm = '';
+      if (componentMask & 0x80) {
+        const animComp = template?.components?.find((c: any) =>
+          c.definitionId === 'comp_animation' || c.definitionName === 'Animation'
+        );
+
+        const defaultValues = (animComp as any)?.defaultValues || (animComp as any)?.values || {};
+        const overrides = entity.componentOverrides?.['comp_animation'] || {};
+        const finalValues = { ...defaultValues, ...overrides };
+
+        const frameIndex = parseByte(finalValues.currentFrameIndex ?? finalValues.currentFrame ?? 0, 0);
+        const speed = Math.max(1, parseByte(finalValues.animationSpeed ?? 6, 6));
+        const loops = parseBool(finalValues.loops, true);
+        const playing = parseBool(finalValues.isPlaying, true);
+        const onlyWhenMoving = parseBool(finalValues.animateOnlyWhenMoving, false);
+
+        const flags = (playing ? 0x01 : 0x00) | (loops ? 0x02 : 0x00) | (onlyWhenMoving ? 0x04 : 0x00);
+
+        animationInitAsm = `
+    ; Initialize Animation component
+    ld hl, entity_anim_frame
+    add hl, de
+    ld (hl), #${frameIndex.toString(16).toUpperCase().padStart(2, '0')}           ; currentFrameIndex
+
+    ld hl, entity_anim_tick
+    add hl, de
+    ld (hl), 0                ; tick counter
+
+    ld hl, entity_anim_speed
+    add hl, de
+    ld (hl), #${speed.toString(16).toUpperCase().padStart(2, '0')}           ; animationSpeed
+
+    ld hl, entity_anim_flags
+    add hl, de
+    ld (hl), #${flags.toString(16).toUpperCase().padStart(2, '0')}           ; flags (playing/loop/onlyWhenMoving)
+`;
+      }
+
       code += `init_${entityName.toLowerCase()}:
     ; Initialize ${entity.name} at real position from JSON
     ; JSON position: (${realX}, ${realY}) tiles = (${validX}, ${validY}) pixels
@@ -242,8 +302,10 @@ update_entities:
     ; Direction mask: #${directionMask.toString(16).toUpperCase().padStart(2, '0')} (${directionMask.toString(2).padStart(4, '0')}b) = ${directionDesc}
 
     ; Set entity ID and component mask (DYNAMIC - based on template)
+    ; Mask is 16-bit: B=low byte, C=high byte
     ld a, ${index}             ; Entity ID
-    ld b, #${componentMask.toString(16).toUpperCase().padStart(2, '0')}              ; Component mask (${componentMask.toString(2).padStart(8, '0')}b)
+    ld b, #${(componentMask & 0xFF).toString(16).toUpperCase().padStart(2, '0')}              ; Mask low byte
+    ld c, #${((componentMask >> 8) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
     ; Set real position from JSON data
@@ -273,6 +335,7 @@ update_entities:
           return screenIndex;
         })()}                 ; Screen ID (calculated from project data)
 
+${animationInitAsm}
 ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     ld hl, sprite_pattern
     add hl, de

@@ -1,8 +1,10 @@
 import { useCallback } from 'react';
 import JSZip from 'jszip';
-import { ProjectAsset, EditorType, Sprite, MSXFont } from '../types';
+import { ProjectAsset, EditorType, Sprite, MSXFont, MSXFontColorAttributes } from '../types';
 import { generateMSXProjectFiles, DEFAULT_MSX_CONFIG } from '../utils/msxMainGenerator';
 import { normalizeImportedPT3Data } from '../components/utils/trackerUtils';
+import { buildIntermediateGameJsonV1 } from '../utils/intermediateGameJson';
+import { downloadTextFile } from '../utils/downloadUtils';
 
 interface ImportExportHandlersProps {
   assets: ProjectAsset[];
@@ -11,7 +13,9 @@ interface ImportExportHandlersProps {
   setCurrentEditor: (editor: EditorType) => void;
   setStatusBarMessage: (message: string) => void;
   currentProjectName: string | null;
+  currentScreenMode: string;
   msxFont: MSXFont;
+  msxFontColorAttributes: MSXFontColorAttributes;
   tileBanks: any[];
   componentDefinitions: any[];
   entityTemplates: any[];
@@ -26,7 +30,9 @@ export const useImportExportHandlers = ({
   setCurrentEditor,
   setStatusBarMessage,
   currentProjectName,
+  currentScreenMode,
   msxFont,
+  msxFontColorAttributes,
   tileBanks,
   componentDefinitions,
   entityTemplates,
@@ -158,11 +164,60 @@ export const useImportExportHandlers = ({
     }
   }, [setStatusBarMessage]);
 
+  const handleExportIntermediateGameJson = useCallback(() => {
+    try {
+      const projectName = currentProjectName || 'Mideas_Project';
+      const exportMode = window.prompt(
+        'Export mode: compact-pretty | compact-min | full-pretty | full-min',
+        'compact-pretty'
+      );
+      if (!exportMode) return;
+      const normalized = exportMode.trim().toLowerCase();
+      const includeHumanEntities = normalized.startsWith('full-');
+      const minified = normalized.endsWith('-min');
+      const indent: number | undefined = minified ? undefined : 2;
+
+      const intermediate = buildIntermediateGameJsonV1({
+        assets,
+        currentProjectName,
+        currentScreenMode,
+        tileBanks,
+        componentDefinitions,
+        entityTemplates,
+        msxFont,
+        msxFontColorAttributes,
+        includeHumanEntities,
+      });
+
+      const suffix = normalized.includes('full-') ? '_full' : '_compact';
+      const suffix2 = minified ? '_min' : '';
+      const filename = `${projectName}_game_structure${suffix}${suffix2}.json`;
+      const content = JSON.stringify(intermediate, null, indent as any);
+      downloadTextFile(filename, content, 'application/json');
+      setStatusBarMessage(`Game structure exported as "${filename}".`);
+    } catch (error) {
+      console.error('Error exporting intermediate game JSON:', error);
+      setStatusBarMessage('Error exporting game structure JSON.');
+    }
+  }, [
+    assets,
+    currentProjectName,
+    currentScreenMode,
+    tileBanks,
+    componentDefinitions,
+    entityTemplates,
+    mainMenuConfig,
+    msxFont,
+    msxFontColorAttributes,
+    setStatusBarMessage
+  ]);
+
   return {
     handleSpriteImported,
     handleImportTrack,
     handleExportAllCodeFiles,
     handleShowMapFile,
-    handleGenerateTemplatesAsm
+    handleGenerateTemplatesAsm,
+    handleExportIntermediateGameJson
   };
 };

@@ -5,12 +5,17 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { generateComponentsFile } from './componentsGenerator';
+
+export interface InterruptGeneratorConfig {
+  interruptDrivenComponents?: boolean;
+}
 
 /**
  * Generate interrupt.asm file
  */
-export function generateInterruptFile(analysis: ProjectAnalysis): string {
-  console.log('🎯 [INTERRUPT GENERATOR] Generating interrupt.asm...');
+export function generateInterruptFile(analysis: ProjectAnalysis, config: InterruptGeneratorConfig = {}): string {
+  console.log('ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...');
   let code = '';
 
   code += `; ==================================================================\n`;
@@ -30,7 +35,21 @@ export function generateInterruptFile(analysis: ProjectAnalysis): string {
   // Default tasks
   code += generateDefaultTasks(analysis);
 
-  console.log(`✅ [INTERRUPT GENERATOR] Generated interrupt.asm (${code.length} chars)`);
+  // Optional: Generate full component systems inside interrupt.asm
+  // This makes interrupt.asm self-contained for all ECS routines.
+  // NOTE: In this mode, components.asm should be skipped/emptied by the caller to avoid duplicate labels.
+  if (config.interruptDrivenComponents) {
+    code += `\n; ==================================================================\n`;
+    code += `; COMPONENT SYSTEMS (INLINED)\n`;
+    code += `; Generated inside interrupt.asm because interruptDrivenComponents=true\n`;
+    code += `; ==================================================================\n\n`;
+    code += generateComponentsFile(analysis);
+    code += `\n; ==================================================================\n`;
+    code += `; END OF INLINED COMPONENT SYSTEMS\n`;
+    code += `; ==================================================================\n\n`;
+  }
+
+  console.log(`ƒo. [INTERRUPT GENERATOR] Generated interrupt.asm (${code.length} chars)`);
   return code;
 }
 
@@ -43,7 +62,7 @@ function generateInterruptMemoryLayout(): string {
 ; Location: C090h-C0B0h (32 bytes)
 ; ==================================================================
 
-; Task table: 8 slots × 2 bytes (addresses) = 16 bytes
+; Task table: 8 slots Ç- 2 bytes (addresses) = 16 bytes
 task_table              EQU #C090   ; Base address of task table
 task_0_ptr              EQU #C090   ; Slot 0: Input polling (2 bytes)
 task_1_ptr              EQU #C092   ; Slot 1: Physics update (2 bytes)
@@ -96,7 +115,7 @@ init_interrupt_system:
     ; --- STEP 3: Initialize task table to 0 (all disabled) ---
     ld hl, task_table
     ld de, task_table+1
-    ld bc, 15                   ; 8 slots × 2 bytes = 16 bytes - 1
+    ld bc, 15                   ; 8 slots Ç- 2 bytes = 16 bytes - 1
     ld (hl), 0
     ldir                        ; Clear all task pointers
 
@@ -341,9 +360,15 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `    ; Read joystick 0 (cursors)\n`;
   code += `    xor a                       ; Joystick 0\n`;
   code += `    call GTSTCK                 ; BIOS call: A = direction\n`;
+  code += `    ld b, a                     ; B = direction\n`;
+  code += `    xor a                       ; Joystick 0\n`;
+  code += `    call GTTRIG                 ; A = trigger status (0 = pressed)\n`;
+  code += `    or a\n`;
+  code += `    jr nz, .no_fire\n`;
+  code += `    set 7, b                    ; Fire -> bit 7\n`;
+  code += `.no_fire:\n`;
+  code += `    ld a, b\n`;
   code += `    ld (input_state), a\n\n`;
-  code += `    ; TODO: Read trigger (button) if needed\n`;
-  code += `    ; call GTTRIG\n\n`;
   code += `    pop de\n`;
   code += `    pop af\n`;
   code += `    ret\n\n`;
@@ -361,10 +386,15 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
     code += `    push bc\n`;
     code += `    push de\n`;
     code += `    push hl\n\n`;
-    code += `    ; TODO: Implement full physics update\n`;
-    code += `    ; Loop over entities with COMP_MASK_MOVEMENT\n`;
-    code += `    ; Apply: entity_x_pos[i] += entity_vel_x[i]\n`;
-    code += `    ;        entity_y_pos[i] += entity_vel_y[i]\n\n`;
+    code += `    ; Physics pipeline (runs inside H.TIMI hook):\n`;
+    code += `    ; 1) Jump (sets gravity impulse)\n`;
+    code += `    ; 2) Movement (damping / velocity changes)\n`;
+    code += `    ; 3) Gravity (acceleration + applies to Y)\n`;
+    code += `    ; 4) Position (apply vel_x/vel_y -> x/y)\n`;
+    code += `    call update_jump_component\n`;
+    code += `    call update_movement_component\n`;
+    code += `    call update_gravity_component\n`;
+    code += `    call update_position_component\n\n`;
     code += `    pop hl\n`;
     code += `    pop de\n`;
     code += `    pop bc\n`;

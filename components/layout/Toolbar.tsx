@@ -27,6 +27,8 @@ interface ToolbarProps {
   onExportAllCodeFiles: () => void;
   /** Callback to export Z80 code. */
   onExportZ80Code: () => void;
+  /** Callback to export an intermediate JSON representation of the game structure. */
+  onExportGameStructureJson: () => void;
   /** Callback to compile the current code. */
   onCompile: () => void;
   /** Callback for the debug action. */
@@ -191,7 +193,7 @@ const DropdownToggleItem: React.FC<{
  */
 export const Toolbar: React.FC<ToolbarProps> = ({
   onNewProject, onNewAsset, onSaveProject, onSaveProjectAs, onLoadProject,
-  onExportAllCodeFiles, onExportZ80Code, onCompile, onDebug, onRun, onOpenHelpDocs,
+  onExportAllCodeFiles, onExportZ80Code, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
   autosaveEnabled, setAutosaveEnabled, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
@@ -337,6 +339,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         <DropdownSeparator />
         <DropdownItem onClick={onExportZ80Code}>Export Z80 Code</DropdownItem>
+        <DropdownItem onClick={onExportGameStructureJson}>Export Game Structure (.json)</DropdownItem>
       </DropdownMenu>
 
 

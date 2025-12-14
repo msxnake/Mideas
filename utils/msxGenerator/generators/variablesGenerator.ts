@@ -96,6 +96,9 @@ MAX_ENTITIES        EQU 32
   code += `entity_comp_masks   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity component masks (32 bytes)\n`;
   currentAddress += 32;
 
+  code += `entity_comp_masks_hi EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity component masks high byte (32 bytes)\n`;
+  currentAddress += 32;
+
   code += `entity_screen_id    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity screen ID (32 bytes)\n`;
   currentAddress += 32;
 
@@ -106,6 +109,15 @@ MAX_ENTITIES        EQU 32
   currentAddress += 32;
 
   code += `entity_anim_frame   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity animation frame (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_anim_tick    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity animation tick counter (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_anim_speed   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity animation speed (ticks per frame) (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_anim_flags   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity animation flags (32 bytes)\n`;
   currentAddress += 32;
 
   // State Machine variables (SoA layout)

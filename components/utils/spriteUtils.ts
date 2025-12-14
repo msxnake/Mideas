@@ -167,25 +167,13 @@ export const generateSingleFrameASMCode = (
   for (let layerIndex = 0; layerIndex < spritePalette.length; layerIndex++) {
     const layerColor = spritePalette[layerIndex];
 
-    let colorUsed = false;
-    if (layerColor !== backgroundColor) {
-      for (let y = 0; y < spriteHeight; y++) {
-        for (let x = 0; x < spriteWidth; x++) {
-          if (frameData[y]?.[x] === layerColor) {
-            colorUsed = true;
-            break;
-          }
-        }
-        if (colorUsed) break;
-      }
-    }
-
-    if (!colorUsed) {
-      asmString += `;; Layer ${layerIndex} (Color: ${layerColor}) - SKIPPED (color not used or is background)\n`;
+    // Always export all drawable layers so every frame has a stable layout.
+    // This is required so runtime animation can copy full frames reliably.
+    if (layerColor === backgroundColor) {
       continue;
     }
 
-    layersGenerated++;
+    layersGenerated += 1;
     asmString += `${safeFrameName}_LAYER${layerIndex}: ; Brush Color Index ${layerIndex} (Actual Color: ${layerColor})\n`;
 
     const layerBytes: number[] = [];
@@ -280,7 +268,7 @@ export const generateSingleFrameASMCode = (
   }
 
   if (layersGenerated === 0) {
-    asmString += `;; NO ACTIVE LAYERS EXPORTED for ${frameName} - Frame might be empty or only contain the background color.\n`;
+    asmString += `;; NO DRAWABLE LAYERS EXPORTED for ${frameName} - Palette may match background color.\n`;
   }
   asmString += `;; ---- End of Frame: ${frameName} ----\n\n`;
   return asmString;

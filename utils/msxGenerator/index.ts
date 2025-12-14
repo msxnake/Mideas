@@ -34,6 +34,7 @@ import { generateInterruptFile } from './generators/interruptGenerator';
 export interface MSXModularConfig {
   generateUnified?: boolean;
   targetFormat?: 'konami' | 'ascii8' | 'ascii16';
+  interruptDrivenComponents?: boolean;
 }
 
 /**
@@ -139,17 +140,21 @@ export function generateModularASM(
     console.log('🔄 Using fallback empty analysis');
   }
 
+  const interruptDrivenComponents = config.interruptDrivenComponents ?? true;
+
   // Generate individual files
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
   const files: GeneratedASMFiles = {
     'bios.asm': generateBIOSFile(),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
-    'interrupt.asm': generateInterruptFile(analysis),
+    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents }),
     'header.asm': generateHeaderFile(projectName, analysis),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
-    'components.asm': generateComponentsFile(analysis),
+    'components.asm': interruptDrivenComponents
+      ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
+      : generateComponentsFile(analysis),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),
@@ -205,16 +210,20 @@ export function generateModularASMFromSummary(
     throw error;
   }
 
+  const interruptDrivenComponents = config.interruptDrivenComponents ?? true;
+
   // Generate files using same logic as generateModularASM
   const files: GeneratedASMFiles = {
     'bios.asm': generateBIOSFile(),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
-    'interrupt.asm': generateInterruptFile(analysis),
+    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents }),
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
-    'components.asm': generateComponentsFile(analysis),
+    'components.asm': interruptDrivenComponents
+      ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
+      : generateComponentsFile(analysis),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),

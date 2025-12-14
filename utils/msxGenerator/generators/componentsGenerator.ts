@@ -691,14 +691,7 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
 
         update_input_component:
             ; Update input handling for player entities
-            ; Store previous input state for edge detection
-            ld a, (input_state)
-            ld (prev_input_state), a
-
-            ; Read current joystick state
-            ld a, 0                    ; Joystick port 0
-            call GTSTCK                ; Get joystick status (BIOS call)
-            ld (input_state), a        ; Store current input state
+            ; NOTE: input_state/prev_input_state are polled by interrupt task_update_input
 
             ; Process input for entities with input component
             ld b, 32                   ; Loop through all entities
@@ -950,16 +943,13 @@ function generateGravitySystem(): string {
 update_gravity_component:
 ; Apply gravity acceleration to entities
             ld b, 32; Loop through all entities
-            ld hl, entity_comp_masks; Check component masks
+            ld hl, entity_comp_masks_hi; Check component masks (high byte)
             ld c, 0; Entity index
 
 gravity_update_loop:
-            ld a, (hl); Get entity component mask(low byte)
-            inc hl
-            ld a, (hl); Get high byte
-            and #02; Check COMP_MASK_GRAVITY(#0200)
+            ld a, (hl); Get entity component mask high byte
+            and #02; Check COMP_MASK_GRAVITY(#0200) => bit 1 in high byte
             jr z, gravity_next_entity; Skip if no gravity component
-            dec hl; Restore HL
 
     ; Entity has gravity - apply acceleration
             push bc
@@ -1034,8 +1024,7 @@ gravity_done:
             pop bc
 
 gravity_next_entity:
-            inc hl; Next entity mask(2 bytes)
-            inc hl
+            inc hl; Next entity mask (high byte)
             inc c; Next entity index
             dec b; Decrement loop counter
             jp nz, gravity_update_loop
@@ -1073,12 +1062,221 @@ function generateAnimationSystem(): string {
     ; ==================================================================
 
         init_animation_system:
-            ; Initialize animation system
+            ; Initialize animation component data
+            ; Clear frames
+            ld hl, entity_anim_frame
+            ld de, entity_anim_frame+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Clear ticks
+            ld hl, entity_anim_tick
+            ld de, entity_anim_tick+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Default speed = ANIM_DEFAULT_SPEED
+            ld hl, entity_anim_speed
+            ld de, entity_anim_speed+1
+            ld bc, 31
+            ld (hl), ANIM_DEFAULT_SPEED
+            ldir
+
+            ; Default flags = playing + loop
+            ld hl, entity_anim_flags
+            ld de, entity_anim_flags+1
+            ld bc, 31
+            ld (hl), (ANIM_FLAG_PLAYING | ANIM_FLAG_LOOP)
+            ldir
             ret
 
         update_animation_component:
             ; Update animations for entities
-            ; TODO: Implement animation frame updates
+            ; - Advances entity_anim_frame using entity_anim_tick/entity_anim_speed
+            ; - Copies the selected frame's patterns to VRAM for this entity
+            ld b, 32
+            ld c, 0
+            ld hl, entity_comp_masks
+
+        .anim_loop:
+            ld a, (hl)
+            and COMP_MASK_ANIMATION
+            jr z, .next_entity
+
+            ld a, (hl)
+            and COMP_MASK_SPRITE
+            jr z, .next_entity
+
+            push bc
+            push hl
+
+            ; Check flags (playing?)
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            ld a, (hl)
+            bit 0, a
+            jr z, .done_entity
+
+            ; Only animate when moving?
+            bit 2, a
+            jr z, .tick
+
+            ; vel_x != 0 || vel_y != 0
+            ld hl, entity_vel_x
+            add hl, de
+            ld a, (hl)
+            ld hl, entity_vel_y
+            add hl, de
+            or (hl)
+            jr z, .done_entity
+
+        .tick:
+            ; tick++
+            ld hl, entity_anim_tick
+            add hl, de
+            inc (hl)
+
+            ; if tick < speed -> done
+            ld a, (hl)
+            ld hl, entity_anim_speed
+            add hl, de
+            cp (hl)
+            jr c, .done_entity
+
+            ; tick = 0
+            ld hl, entity_anim_tick
+            add hl, de
+            ld (hl), 0
+
+            ; Sprite asset index for this entity (#FF = none)
+            ld hl, entity_sprite_asset_index
+            add hl, de
+            ld a, (hl)
+            cp #FF
+            jr z, .done_entity
+            ld b, a                    ; B = sprite asset index
+
+            ; frameCount = sprite_asset_frame_count[B]
+            ld hl, sprite_asset_frame_count
+            ld e, b
+            ld d, 0
+            add hl, de
+            ld a, (hl)                 ; A = frameCount
+            cp 2
+            jr c, .done_entity         ; 0/1 frames -> no animation
+            ld l, a                    ; L = frameCount
+
+            ; Advance frame (entity_anim_frame++)
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_frame
+            add hl, de
+            ld a, (hl)
+            inc a
+            cp l
+            jr c, .store_frame
+
+            ; Overflow: loop?
+            ld hl, entity_anim_flags
+            add hl, de
+            bit 1, (hl)                ; loop flag
+            jr z, .clamp_last
+            xor a                      ; frame = 0
+            jr .store_frame
+
+        .clamp_last:
+            ld a, l
+            dec a                      ; frame = frameCount-1
+
+        .store_frame:
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_frame
+            add hl, de
+            ld (hl), a                 ; store new frame index
+
+            ; Get pointer to this sprite asset's frame pointer list
+            ld l, b
+            ld h, 0
+            add hl, hl                 ; index * 2
+            ld de, sprite_asset_frame_ptr_table
+            add hl, de
+            ld e, (hl)
+            inc hl
+            ld d, (hl)
+            ex de, hl                  ; HL = frame pointer list base
+
+            ; HL = &frame_ptrs[frame]
+            ld e, a
+            ld d, 0
+            add hl, de
+            add hl, de                 ; + frame*2
+            ld e, (hl)
+            inc hl
+            ld d, (hl)
+            ex de, hl                  ; HL = source pattern data
+
+            ; Get entity sprite config (base HW sprite + layer count)
+            push hl                    ; save source
+            ld e, c
+            ld d, 0
+            ld hl, entity_sprite_config
+            add hl, de
+            add hl, de                 ; entityIndex * 2
+            ld a, (hl)                 ; base HW sprite
+            inc hl
+            ld c, (hl)                 ; layer count
+            ld d, a                    ; D = base HW sprite (save)
+            pop hl                     ; restore source
+
+            ld a, c
+            or a
+            jr z, .done_entity         ; no layers for this entity
+
+            ; BC = layerCount * 32
+            ld a, c
+            ld b, 0
+            ld c, a
+            sla c
+            rl b
+            sla c
+            rl b
+            sla c
+            rl b
+            sla c
+            rl b
+            sla c
+            rl b
+
+            ; DE = SPRPAT + baseHwSprite*32
+            push hl                    ; save source
+            ld a, d
+            ld l, a
+            ld h, 0
+            add hl, hl
+            add hl, hl
+            add hl, hl
+            add hl, hl
+            add hl, hl                 ; HL = base * 32
+            ld de, SPRPAT
+            add hl, de
+            ex de, hl                  ; DE = VRAM destination
+            pop hl                     ; restore source
+
+            call LDIRVM                ; copy pattern data to VRAM
+
+        .done_entity:
+            pop hl
+            pop bc
+
+        .next_entity:
+            inc hl
+            inc c
+            djnz .anim_loop
     ret
     `;
 }
@@ -1094,11 +1292,144 @@ function generateJumpSystem(): string {
 
         init_jump_system:
             ; Initialize jump system
+            ; Clear jump velocities (32 words = 64 bytes)
+            ld hl, entity_jump_vel_y
+            ld de, entity_jump_vel_y+1
+            ld bc, 63
+            ld (hl), 0
+            ldir
+
+            ; Clear jump counters
+            ld hl, entity_jump_count
+            ld de, entity_jump_count+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Clear on-ground flags
+            ld hl, entity_on_ground
+            ld de, entity_on_ground+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
             ret
 
         update_jump_component:
             ; Update jump logic for entities
-            ; TODO: Implement jump mechanics
+            ; Fire button edge triggers jump for entities with Jump+Input
+            ; Uses: entity_jump_count, entity_on_ground, entity_gravity_vel
+            ; Tracks per-entity fire edge in entity_on_ground bit 7 (latch)
+
+            ld b, 32                      ; Loop all entities
+            ld hl, entity_comp_masks_hi    ; High byte masks (Jump/Gravity)
+            ld c, 0                       ; Entity index
+
+        jump_update_loop:
+            ld a, (hl)
+            and #01                       ; Jump bit (COMP_MASK_JUMP=#0100 -> high byte bit0)
+            jr z, jump_next_entity
+
+            ; Require Input component
+            push hl
+            ld hl, entity_comp_masks
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            and COMP_MASK_INPUT
+            pop hl
+            jr z, jump_next_entity
+
+            push bc
+            push hl
+
+            ; --- Simple grounded check against bottom boundary (Y >= 176) ---
+            ld hl, entity_y_pos
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            cp 176
+            jr c, .not_grounded
+
+            ; Clamp to ground and mark grounded
+            ld (hl), 176
+
+            ld hl, entity_on_ground
+            add hl, de
+            set 0, (hl)
+
+            ld hl, entity_jump_count
+            add hl, de
+            ld (hl), 0
+
+            jr .ground_done
+
+        .not_grounded:
+            ld hl, entity_on_ground
+            add hl, de
+            res 0, (hl)
+
+        .ground_done:
+            ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
+            ld a, (input_state)
+            and #80
+            jr z, .done_entity            ; not pressed
+            ld a, (prev_input_state)
+            and #80
+            jr nz, .done_entity           ; already held last frame
+
+            ; Check jump count < 2 OR grounded
+            ld hl, entity_jump_count
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            cp 2
+            jr c, .do_jump
+
+            ld hl, entity_on_ground
+            add hl, de
+            bit 0, (hl)
+            jr z, .done_entity
+
+        .do_jump:
+            ; jump_count++
+            ld hl, entity_jump_count
+            add hl, de
+            inc (hl)
+
+            ; clear grounded
+            ld hl, entity_on_ground
+            add hl, de
+            res 0, (hl)
+
+            ; If entity has Gravity, set gravity velocity to negative jump impulse
+            ; Jump impulse default: -300 (8.8 fixed) => #FED4
+            pop hl                        ; restore hl pointer to high mask for this entity
+            push hl
+            ld a, (hl)
+            and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
+            jr z, .done_entity
+
+            ld hl, entity_gravity_vel
+            ld e, c
+            ld d, 0
+            add hl, de
+            add hl, de                    ; word index
+            ld (hl), #D4                  ; low byte
+            inc hl
+            ld (hl), #FE                  ; high byte (negative)
+
+        .done_entity:
+            pop hl
+            pop bc
+
+        jump_next_entity:
+            inc hl                        ; Next entity high mask
+            inc c                         ; Next entity index
+            dec b
+            jp nz, jump_update_loop
     ret
     `;
 }
@@ -1106,31 +1437,35 @@ function generateJumpSystem(): string {
 /**
  * Generate entity management helper functions
  */
-function generateEntityManagement(): string {
-    return `
-    ; ==================================================================
-        ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system)
-    ; ==================================================================
+function generateEntityManagement(): string { 
+    return ` 
+    ; ================================================================== 
+        ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system) 
+    ; ================================================================== 
 
-        ; Create entity with components(A = entity ID, B = component mask)
-        create_entity:
-; Set component mask for entity
-            ld hl, entity_comp_masks
-            ld e, a; Entity index
-            ld d, 0
-            add hl, de; HL points to entity mask
-            ld (hl), b; Set component mask
+        ; Create entity with components(A = entity ID, B = mask low byte, C = mask high byte) 
+        create_entity: 
+; Set component mask for entity 
+            ld hl, entity_comp_masks 
+            ld e, a; Entity index 
+            ld d, 0 
+            add hl, de; HL points to entity mask 
+            ld (hl), b; Set component mask low byte
 
-    ; Initialize component data based on mask
-            bit 0, b; Check COMP_MASK_POSITION
-            call nz, init_entity_position
-
-            bit 1, b; Check COMP_MASK_SPRITE
-            call nz, init_entity_sprite
-
-    ; TODO: Initialize other components based on mask bits
-
-    ret
+            ld hl, entity_comp_masks_hi
+            add hl, de
+            ld (hl), c; Set component mask high byte 
+ 
+    ; Initialize component data based on mask 
+            bit 0, b; Check COMP_MASK_POSITION (low byte)
+            call nz, init_entity_position 
+ 
+            bit 1, b; Check COMP_MASK_SPRITE (low byte)
+            call nz, init_entity_sprite 
+ 
+    ; TODO: Initialize other components based on mask bits 
+ 
+    ret 
 
     ; Initialize position component for entity(A = entity ID)
         init_entity_position:
@@ -1164,25 +1499,32 @@ function generateEntityManagement(): string {
 /**
  * Generate init_components function with conditional initialization
  */
-function generateInitComponents(usage: ComponentUsageAnalysis): string {
-    const usedComponents = usage.usedComponents;
+function generateInitComponents(usage: ComponentUsageAnalysis): string { 
+    const usedComponents = usage.usedComponents; 
+ 
+    let code = `init_components: 
+; Initialize component systems(OPTIMIZED - only used components) 
+    ; Used: ${Array.from(usedComponents).join(', ')} 
+ 
+; Initialize current screen ID(multi - screen support) 
+        ld a, 0; Start at screen 0 
+        ld (current_screen_id), a 
+ 
+    ; Clear all component masks 
+        ld hl, entity_comp_masks 
+        ld de, entity_comp_masks + 1 
+        ld bc, 31 
+        ld (hl), 0 
+        ldir 
 
-    let code = `init_components:
-; Initialize component systems(OPTIMIZED - only used components)
-    ; Used: ${Array.from(usedComponents).join(', ')}
-
-; Initialize current screen ID(multi - screen support)
-        ld a, 0; Start at screen 0
-        ld (current_screen_id), a
-
-    ; Clear all component masks
-        ld hl, entity_comp_masks
-        ld de, entity_comp_masks + 1
+    ; Clear all component masks (high byte)
+        ld hl, entity_comp_masks_hi
+        ld de, entity_comp_masks_hi + 1
         ld bc, 31
         ld (hl), 0
-        ldir
-
-    `;
+        ldir 
+ 
+    `; 
 
     code += `    ; Initialize position system (always)
     call init_position_system
@@ -1386,6 +1728,14 @@ COMP_MASK_HEALTH     EQU #0040; Binary: 0000000001000000
 COMP_MASK_ANIMATION  EQU #0080; Binary: 0000000010000000
 COMP_MASK_JUMP       EQU #0100; Binary: 0000000100000000
 COMP_MASK_GRAVITY    EQU #0200; Binary: 0000001000000000
+
+; ==================================================================
+; ANIMATION FLAGS (entity_anim_flags)
+; ==================================================================
+ANIM_FLAG_PLAYING            EQU #01
+ANIM_FLAG_LOOP               EQU #02
+ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
+ANIM_DEFAULT_SPEED           EQU 8
 
     ; ==================================================================
 ; COMPONENT DATA STRUCTURES(Entity - Component arrays)
@@ -1687,15 +2037,14 @@ update_collectible_component:
 ; component update system in the correct order
 update_all_entities:
     ; Update all entity components in proper order
-    call update_input_component        ; 1. Input (player control)
+    call update_input_component        ; 1. Input (player control) - uses input_state from hook
     call update_behavior_component     ; 2. Behavior/AI
-    call update_movement_component     ; 3. Movement/Physics
-    call update_gravity_component      ; 4. Gravity
-    call update_position_component     ; 5. Position (apply velocities)
-    call update_collision_component    ; 6. Collision detection
-    call update_health_component       ; 7. Health/Death
-    call update_animation_component    ; 8. Animation
-    call update_sprite_component       ; 9. Sprite rendering
+    ; Physics is executed by H.TIMI hook task_update_physics:
+    ;   update_jump_component, update_movement_component, update_gravity_component, update_position_component
+    call update_collision_component    ; 3. Collision detection
+    call update_health_component       ; 4. Health/Death
+    call update_animation_component    ; 5. Animation
+    call update_sprite_component       ; 6. Sprite rendering
     ret
 
 `;

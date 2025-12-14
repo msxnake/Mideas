@@ -40,28 +40,28 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
 
   // Helper to analyze sprite layers/colors
   const getSpriteLayerColors = (sprite: any): number[] => {
-    if (!sprite || !sprite.frames || sprite.frames.length === 0) return [15]; // Default white
+    if (!sprite) return [15]; // Default white
 
-    const uniqueColors = new Set<number>();
-    const frameData = sprite.frames[0].data; // Use first frame for analysis
+    // IMPORTANT: Use the sprite palette, not per-frame pixel usage.
+    // We need a stable layer layout across all frames so runtime animation can
+    // copy complete frames reliably.
+    const palette: string[] = sprite.spritePalette || [];
+    const bg: string | undefined = sprite.backgroundColor;
 
-    if (frameData) {
-      frameData.forEach((row: string[]) => {
-        row.forEach((hex: string) => {
-          const index = hexToMSX1Index(hex);
-          // Ignore transparent (0) and assume background color is transparent for sprites
-          if (index !== 0) {
-            uniqueColors.add(index);
-          }
-        });
-      });
+    const colors: number[] = [];
+    const seen = new Set<number>();
+
+    for (const hex of palette) {
+      if (!hex) continue;
+      if (bg && hex === bg) continue;
+
+      const msxIndex = hexToMSX1Index(hex);
+      if (seen.has(msxIndex)) continue;
+      seen.add(msxIndex);
+      colors.push(msxIndex);
     }
 
-    // Sort colors to match likely layer order (usually palette order)
-    // If no colors found (empty sprite), return at least one color (white)
-    if (uniqueColors.size === 0) return [15];
-
-    return Array.from(uniqueColors).sort((a, b) => a - b);
+    return colors.length > 0 ? colors : [15];
   };
 
   const resolveSpriteIdFromProps = (props: any): string | undefined => {
@@ -225,33 +225,29 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
 ; ==================================================================
 `;
 
-  // Generate sprite patterns (for all sprite assets)
-  sprites.forEach((sprite, index) => {
+  // Generate sprite patterns (for all sprite assets) 
+  sprites.forEach((sprite, index) => { 
     const suffix = `_${index}`;
     const uniqueName = sprite.name + suffix;
     const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
     const spriteASM = generateSpriteASMCode(sprite, DEFAULT_DATA_FORMAT, index);
 
-    // Find first valid layer label
-    let firstLayerFound = -1;
-    for (let layerIndex = 0; layerIndex < 4; layerIndex++) {
-      if (spriteASM.includes(`${safeSpriteName}_F0_LAYER${layerIndex}:`)) {
-        firstLayerFound = layerIndex;
-        break;
-      }
-    }
-
-    code += `\n; Sprite Asset ${index}: ${sprite.name}\n${spriteASM}`;
-
-    if (firstLayerFound >= 0) {
-      code += `\n; Unified pattern label for sprite ${index}
-SPRITE_${index}_PATTERN EQU ${safeSpriteName}_F0_LAYER${firstLayerFound}\n`;
-    } else {
-      code += `\n; WARNING: No valid pattern layers found for sprite ${index}
-SPRITE_${index}_PATTERN:
-    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0\n`;
-    }
-  });
+    // First drawable layer = first palette entry that isn't background.
+    const palette: string[] = sprite.spritePalette || [];
+    const bg: string | undefined = sprite.backgroundColor;
+    const firstDrawableLayerIndex = palette.findIndex(c => c && (!bg || c !== bg));
+ 
+    code += `\n; Sprite Asset ${index}: ${sprite.name}\n${spriteASM}`; 
+ 
+    if (firstDrawableLayerIndex >= 0) {
+      code += `\n; Unified pattern label for sprite ${index} 
+SPRITE_${index}_PATTERN EQU ${safeSpriteName}_F0_LAYER${firstDrawableLayerIndex}\n`;
+    } else { 
+      code += `\n; WARNING: No valid pattern layers found for sprite ${index} 
+SPRITE_${index}_PATTERN: 
+    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0\n`; 
+    } 
+  }); 
 
   // Generate placeholder sprite pattern (white 16x16 square for missing sprites)
   code += `
@@ -271,33 +267,104 @@ SPRITE_PLACEHOLDER_PATTERN:
 
 `;
 
+  if (sprites.length === 0) { 
+    code += `; No sprite assets found - using placeholder pattern only 
+SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN\n`; 
+  } 
+
+  // Sprite animation metadata tables
+  code += `
+; ==================================================================
+; SPRITE ANIMATION METADATA TABLES
+; ==================================================================
+
+; Table: Sprite Asset Frame Counts
+; Format: db frame_count
+sprite_asset_frame_count:
+`;
+  sprites.forEach((sprite, index) => {
+    const frames = sprite.frames?.length || 1;
+    code += `    db ${frames} ; Sprite ${index}: ${sprite.name}\n`;
+  });
   if (sprites.length === 0) {
-    code += `; No sprite assets found - using placeholder pattern only
-SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN\n`;
+    code += `    db 1 ; Placeholder\n`;
   }
 
   code += `
-; ==================================================================
-; SPRITE CONFIGURATION TABLES
-; ==================================================================
-
-; Table: Entity Sprite Configuration
-; Format: db base_hw_sprite_index, layer_count
-entity_sprite_config:
+; Table: Sprite Asset Frame Pointer List Table
+; Format: dw SPRITE_<id>_FRAME_PTRS
+sprite_asset_frame_ptr_table:
 `;
+  sprites.forEach((_sprite, index) => {
+    code += `    dw SPRITE_${index}_FRAME_PTRS\n`;
+  });
+  if (sprites.length === 0) {
+    code += `    dw SPRITE_0_FRAME_PTRS\n`;
+  }
+
+  sprites.forEach((sprite, index) => {
+    const suffix = `_${index}`;
+    const uniqueName = sprite.name + suffix;
+    const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+    const palette: string[] = sprite.spritePalette || [];
+    const bg: string | undefined = sprite.backgroundColor;
+    const firstDrawableLayerIndex = palette.findIndex(c => c && (!bg || c !== bg));
+    const frames = sprite.frames?.length || 1;
+
+    code += `
+; Sprite ${index}: ${sprite.name} frame pointers
+SPRITE_${index}_FRAME_PTRS:
+`;
+    for (let f = 0; f < frames; f++) {
+      if (firstDrawableLayerIndex >= 0) {
+        code += `    dw ${safeSpriteName}_F${f}_LAYER${firstDrawableLayerIndex}\n`;
+      } else {
+        code += `    dw SPRITE_PLACEHOLDER_PATTERN\n`;
+      }
+    }
+  });
+  if (sprites.length === 0) {
+    code += `
+SPRITE_0_FRAME_PTRS:
+    dw SPRITE_PLACEHOLDER_PATTERN
+`;
+  }
+ 
+  code += ` 
+; ================================================================== 
+; SPRITE CONFIGURATION TABLES 
+; ================================================================== 
+
+; Table: Entity Sprite Configuration 
+; Format: db base_hw_sprite_index, layer_count 
+entity_sprite_config: 
+`; 
   entityAllocations.forEach(alloc => {
     const baseIndex = alloc.baseHwSpriteIndex >= 0 ? alloc.baseHwSpriteIndex : 0;
     code += `    db ${baseIndex}, ${alloc.layerCount} ; Entity ${alloc.entityIndex} (${alloc.spriteName})\n`;
   });
   // Fill for remaining entities (if any mismatch)
-  if (entityAllocations.length < 32) {
-    code += `    ds ${(32 - entityAllocations.length) * 2}, 0 ; Padding\n`;
-  }
+  if (entityAllocations.length < 32) { 
+    code += `    ds ${(32 - entityAllocations.length) * 2}, 0 ; Padding\n`; 
+  } 
 
   code += `
-; Table: Hardware Sprite Layer Colors
-; Format: db color_index
-sprite_layer_colors:
+; Table: Entity -> Sprite Asset Index
+; Format: db sprite_asset_index (#FF = none)
+entity_sprite_asset_index:
+`;
+  entityAllocations.forEach(alloc => {
+    const idx = alloc.spriteAssetIndex >= 0 ? alloc.spriteAssetIndex : 0xFF;
+    code += `    db #${idx.toString(16).toUpperCase().padStart(2, '0')} ; Entity ${alloc.entityIndex} (${alloc.spriteName})\n`;
+  });
+  if (entityAllocations.length < 32) {
+    code += `    ds ${32 - entityAllocations.length}, #FF ; Padding\n`;
+  }
+ 
+  code += ` 
+; Table: Hardware Sprite Layer Colors 
+; Format: db color_index 
+sprite_layer_colors: 
 `;
   let colorsWritten = 0;
   entityAllocations.forEach(alloc => {
