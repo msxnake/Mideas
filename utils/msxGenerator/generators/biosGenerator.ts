@@ -53,7 +53,6 @@ KILBUF  EQU #0156        ; Kill keyboard buffer
 ; Slot Management
 RSLREG  EQU #0138        ; Read slot register
 WSLREG  EQU #013B        ; Write slot register
-GETSLOT EQU #013B        ; Get current slot
 ENASLT  EQU #0024        ; Enable slot (H=page, A=slot)
 CALSLT  EQU #001C        ; Call routine in another slot
 

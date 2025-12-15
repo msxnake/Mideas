@@ -22,22 +22,9 @@ function generateTaskRegistration(analysis?: ProjectAnalysis): string {
   code += `    ld hl, task_update_input\n`;
   code += `    call enable_task\n\n`;
 
-  // Task 1: Physics (if has entities - they likely need movement)
-  if (analysis.hasEntities) {
-    code += `    ld a, 1\n`;
-    code += `    ld hl, task_update_physics\n`;
-    code += `    call enable_task\n\n`;
-  }
-
-  // Task 2: Collision (if has collisions)
-  if (analysis.hasCollisions) {
-    code += `    ld a, 2\n`;
-    code += `    ld hl, task_update_collision\n`;
-    code += `    call enable_task\n\n`;
-  }
-
-  // Task 3: Sprites - NOT auto-registered (heavy task)
-  // User should enable manually when needed
+  // NOTE: To keep gameplay deterministic and identical to Mideas' GameFlow update order,
+  // we do NOT auto-register gameplay-mutating tasks (physics/collision) here.
+  // Those updates should run in the main (GameFlow-driven) tick.
 
   return code;
 }
@@ -114,7 +101,6 @@ init_rom:
     ld a, #C9
     ld (HKEY), a
     ; NOTE: TIMI (H.TIMI) is now managed by init_interrupt_system
-    ei
 
     call SETPAGES32K
 
@@ -127,6 +113,9 @@ init_rom:
     ld (BAKCLR), a
     ld (BDRCLR), a
     call CHGCLR
+
+    ; Disable screen while switching modes / initializing VDP
+    call DISSCR
 
     ; Change screen mode to SCREEN 2
     ld a, 2
@@ -158,11 +147,37 @@ init_rom:
     
     ; Start execution from GameFlow Start node
     ; GameFlow is now the sole orchestrator
+    call ENASCR
     jp gameflow_start
 
 ; ==================================================================
 ; AUXILIARY FUNCTIONS
 ; ==================================================================
+
+; Helper: Get expanded slot value for ENASLT/CALSLT usage
+; Input:  A = slot number (0-3) in lower bits
+; Output: A = expanded slot value if needed
+GETSLOT:
+    and #03             ; Proteccion, nos aseguramos de que el valor esta en 0-3
+    ld  c,a             ; c = slot de la pagina
+    ld  b,0             ; bc = slot de la pagina
+    ld  hl,#fcc1        ; Tabla de slots expandidos
+    add hl,bc           ; hl -> variable que indica si este slot esta expandido
+    ld  a,(hl)          ; Tomamos el valor
+    and #80             ; Si el bit mas alto es cero...
+    jr  z,GETSLOT_EXIT  ; ...nos vamos a @@EXIT
+    ; --- El slot esta expandido ---
+    or  c               ; Slot basico en el lugar adecuado
+    ld  c,a             ; Guardamos el valor en c
+    inc hl              ; Incrementamos hl una...
+    inc hl              ; ...dos...
+    inc hl              ; ...tres...
+    inc hl              ; ...cuatro veces
+    ld  a,(hl)          ; a = valor del registro de subslot del slot donde estamos
+    and #0C             ; Nos quedamos con el valor donde esta nuestro cartucho
+GETSLOT_EXIT:
+    or  c
+    ret
 
 ; From: http://www.z80st.es/downloads/code/
 ; SETPAGES32K:  BIOS-ROM-YY-ZZ   -> BIOS-ROM-ROM-ZZ (SITUA PAGINA 2)

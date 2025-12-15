@@ -78,6 +78,7 @@ interrupt_system_enabled  EQU #C0A0   ; 0=disabled, 1=enabled (1 byte)
 old_htimi_hook           EQU #C0A1   ; Original H.TIMI hook (5 bytes: JP nnnn + padding)
 interrupt_counter        EQU #C0A6   ; Frame counter (16-bit, C0A6-C0A7)
 task_exec_time           EQU #C0A8   ; Cycles used by tasks - debug only (16-bit, C0A8-C0A9)
+vblank_flag              EQU #C0AA   ; Set to 1 on each VBlank (1 byte)
 
 ; End marker
 RAM_INTERRUPT_END        EQU #C0B0   ; End of interrupt system memory (32 bytes total)
@@ -123,6 +124,7 @@ init_interrupt_system:
     xor a
     ld (interrupt_counter), a
     ld (interrupt_counter+1), a
+    ld (vblank_flag), a
 
     ; --- STEP 5: Mark system as enabled ---
     ld a, 1
@@ -192,6 +194,10 @@ interrupt_dispatcher:
     inc hl
     ld (interrupt_counter), hl
 
+    ; --- STEP 3.5: Mark VBlank happened ---
+    ld a, 1
+    ld (vblank_flag), a
+
     ; --- STEP 4: Walk through task table ---
     ld hl, task_table           ; HL = pointer to task table
     ld b, 8                     ; 8 slots
@@ -240,10 +246,9 @@ interrupt_dispatcher:
     pop af                      ; 10 cycles
 
     ; --- STEP 6: Return from interrupt ---
-    ; NOTE: For H.TIMI we use RET, not RETI
-    ; RETI is only needed for IM 2 mode
-    ei                          ; Re-enable interrupts
-    ret                         ; Return from interrupt
+    ; For H.TIMI we should chain to the original hook (best compatibility)
+    ; and let the BIOS interrupt handler manage EI/RETI.
+    jp old_htimi_hook
 
 ; Helper for indirect call
 .call_task:
@@ -259,6 +264,24 @@ function generateTaskManagementFunctions(): string {
   return `; ==================================================================
 ; TASK MANAGEMENT FUNCTIONS
 ; ==================================================================
+
+; ==================================================================
+; WAIT_VBLANK - Wait for next VBlank tick from H.TIMI
+; ==================================================================
+; Safe alternative to plain HALT: ensures we advance exactly one tick.
+; Inputs: None
+; Outputs: None
+; Modifies: AF
+; ==================================================================
+wait_vblank:
+    xor a
+    ld (vblank_flag), a
+.loop:
+    halt
+    ld a, (vblank_flag)
+    or a
+    jr z, .loop
+    ret
 
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system

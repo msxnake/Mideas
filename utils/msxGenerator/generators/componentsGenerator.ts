@@ -1119,7 +1119,7 @@ function generateAnimationSystem(): string {
             add hl, de
             ld a, (hl)
             bit 0, a
-            jr z, .done_entity
+            jr z, anim_done_entity
 
             ; Only animate when moving?
             bit 2, a
@@ -1132,7 +1132,7 @@ function generateAnimationSystem(): string {
             ld hl, entity_vel_y
             add hl, de
             or (hl)
-            jr z, .done_entity
+            jr z, anim_done_entity
 
         .tick:
             ; tick++
@@ -1145,7 +1145,7 @@ function generateAnimationSystem(): string {
             ld hl, entity_anim_speed
             add hl, de
             cp (hl)
-            jr c, .done_entity
+            jr c, anim_done_entity
 
             ; tick = 0
             ld hl, entity_anim_tick
@@ -1157,7 +1157,7 @@ function generateAnimationSystem(): string {
             add hl, de
             ld a, (hl)
             cp #FF
-            jr z, .done_entity
+            jr z, anim_done_entity
             ld b, a                    ; B = sprite asset index
 
             ; frameCount = sprite_asset_frame_count[B]
@@ -1167,7 +1167,7 @@ function generateAnimationSystem(): string {
             add hl, de
             ld a, (hl)                 ; A = frameCount
             cp 2
-            jr c, .done_entity         ; 0/1 frames -> no animation
+            jr c, anim_done_entity     ; 0/1 frames -> no animation
             ld l, a                    ; L = frameCount
 
             ; Advance frame (entity_anim_frame++)
@@ -1235,7 +1235,7 @@ function generateAnimationSystem(): string {
 
             ld a, c
             or a
-            jr z, .done_entity         ; no layers for this entity
+            jr z, anim_done_entity     ; no layers for this entity
 
             ; BC = layerCount * 32
             ld a, c
@@ -1269,7 +1269,7 @@ function generateAnimationSystem(): string {
 
             call LDIRVM                ; copy pattern data to VRAM
 
-        .done_entity:
+anim_done_entity:
             pop hl
             pop bc
 
@@ -1374,10 +1374,10 @@ function generateJumpSystem(): string {
             ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
             ld a, (input_state)
             and #80
-            jr z, .done_entity            ; not pressed
+            jr z, jump_done_entity        ; not pressed
             ld a, (prev_input_state)
             and #80
-            jr nz, .done_entity           ; already held last frame
+            jr nz, jump_done_entity       ; already held last frame
 
             ; Check jump count < 2 OR grounded
             ld hl, entity_jump_count
@@ -1391,7 +1391,7 @@ function generateJumpSystem(): string {
             ld hl, entity_on_ground
             add hl, de
             bit 0, (hl)
-            jr z, .done_entity
+            jr z, jump_done_entity
 
         .do_jump:
             ; jump_count++
@@ -1410,7 +1410,7 @@ function generateJumpSystem(): string {
             push hl
             ld a, (hl)
             and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
-            jr z, .done_entity
+            jr z, jump_done_entity
 
             ld hl, entity_gravity_vel
             ld e, c
@@ -1421,7 +1421,7 @@ function generateJumpSystem(): string {
             inc hl
             ld (hl), #FE                  ; high byte (negative)
 
-        .done_entity:
+jump_done_entity:
             pop hl
             pop bc
 
@@ -2039,12 +2039,14 @@ update_all_entities:
     ; Update all entity components in proper order
     call update_input_component        ; 1. Input (player control) - uses input_state from hook
     call update_behavior_component     ; 2. Behavior/AI
-    ; Physics is executed by H.TIMI hook task_update_physics:
-    ;   update_jump_component, update_movement_component, update_gravity_component, update_position_component
-    call update_collision_component    ; 3. Collision detection
-    call update_health_component       ; 4. Health/Death
-    call update_animation_component    ; 5. Animation
-    call update_sprite_component       ; 6. Sprite rendering
+    call update_jump_component         ; 3. Jump impulse / grounded flags
+    call update_movement_component     ; 4. Movement (vx/vy changes)
+    call update_gravity_component      ; 5. Gravity acceleration
+    call update_position_component     ; 6. Apply velocity to position
+    call update_collision_component    ; 7. Collision detection / responses
+    call update_health_component       ; 8. Health/Death
+    call update_animation_component    ; 9. Animation
+    call update_sprite_component       ; 10. Sprite rendering + SAT->VRAM copy
     ret
 
 `;

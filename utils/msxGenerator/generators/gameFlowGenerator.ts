@@ -273,8 +273,8 @@ gameflow_world_game_loop:
     ; Update sprites to VRAM
     call update_sprites_to_vram
     
-    ; Wait for V-Blank
-    halt
+    ; Wait for V-Blank (from H.TIMI hook)
+    call wait_vblank
     
     ; Loop
     jp gameflow_world_game_loop
@@ -779,7 +779,7 @@ gameflow_world_game_loop:
     call update_all_entities
     call execute_all_state_machines
     call update_sprites_to_vram
-    halt
+    call wait_vblank
     jp gameflow_world_game_loop
 
 gameflow_exit_requested:    db 0
