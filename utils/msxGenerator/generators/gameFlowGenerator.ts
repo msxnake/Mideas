@@ -212,14 +212,13 @@ gameflow_get_connection_by_type:
     ld a, (hl)
     cp CONNECTION_END
     jr z, .not_found
-    
+
     cp d
     jr z, .found
-    
-    ; Skip this entry (type + address)
-    inc hl
-    inc hl
-    inc hl
+
+    ; OPTIMIZED: Skip this entry using ADD (11 cycles vs 3× INC = 18 cycles)
+    ld bc, 3        ; Entry size: 1 byte type + 2 bytes address
+    add hl, bc
     jr .search_loop
 
 .found:
@@ -358,8 +357,9 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
     ld l, a         ; HL = load_world_X address
     
     ; Call the load routine
-    push hl
-    ret             ; Tricky: call via push+ret
+    ld de, .after_load
+    push de
+    jp (hl)          ; Indirect call, returns to .after_load
     
 .after_load:
     ; Set game state

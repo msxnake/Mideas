@@ -124,7 +124,7 @@ init_rom:
     ; Configure 16x16 sprites
     ; VDP Register #01: activate sprites, generate interrupts, 16x16 sprites
     ld bc, #E201
-    call WRTVDP
+    call FAST_WRTVDP
 
     ; Detect 50Hz/60Hz
     call CheckIf60Hz
@@ -135,9 +135,11 @@ init_rom:
     ; ====================================================
     ; Initialize interrupt task system (hooks H.TIMI)
     call init_interrupt_system
+    di
 
     ; Register default tasks based on project needs
     ${generateTaskRegistration(analysis)}
+    ei
 
     ; ====================================================
     ; GAMEFLOW INITIALIZATION

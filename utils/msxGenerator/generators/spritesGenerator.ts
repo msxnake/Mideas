@@ -13,6 +13,15 @@ const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is sa
 const DEFAULT_DATA_FORMAT = 'hex';
 
 /**
+ * Mirror pixel data horizontally (same logic as GameFlowPreviewModal)
+ * @param pixelData - 2D array of pixel color hex values
+ * @returns Horizontally mirrored pixel data
+ */
+const mirrorPixelDataHorizontally = (pixelData: string[][]): string[][] => {
+  return pixelData.map(row => [...row].reverse());
+};
+
+/**
  * Generate sprite data file (sprites.asm)
  *
  * @param analysis - Project analysis with sprite assets
@@ -225,8 +234,8 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
 ; ==================================================================
 `;
 
-  // Generate sprite patterns (for all sprite assets) 
-  sprites.forEach((sprite, index) => { 
+  // Generate sprite patterns (for all sprite assets)
+  sprites.forEach((sprite, index) => {
     const suffix = `_${index}`;
     const uniqueName = sprite.name + suffix;
     const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
@@ -236,17 +245,48 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     const palette: string[] = sprite.spritePalette || [];
     const bg: string | undefined = sprite.backgroundColor;
     const firstDrawableLayerIndex = palette.findIndex(c => c && (!bg || c !== bg));
- 
-    code += `\n; Sprite Asset ${index}: ${sprite.name}\n${spriteASM}`; 
- 
+
+    code += `\n; Sprite Asset ${index}: ${sprite.name}\n${spriteASM}`;
+
     if (firstDrawableLayerIndex >= 0) {
-      code += `\n; Unified pattern label for sprite ${index} 
+      code += `\n; Unified pattern label for sprite ${index}
 SPRITE_${index}_PATTERN EQU ${safeSpriteName}_F0_LAYER${firstDrawableLayerIndex}\n`;
-    } else { 
-      code += `\n; WARNING: No valid pattern layers found for sprite ${index} 
-SPRITE_${index}_PATTERN: 
-    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0\n`; 
-    } 
+    } else {
+      code += `\n; WARNING: No valid pattern layers found for sprite ${index}
+SPRITE_${index}_PATTERN:
+    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0\n`;
+    }
+
+    // AUTO-GENERATE MIRRORED VERSION for sprites facing left/right
+    // (Same behavior as GameFlowPreviewModal.tsx)
+    const facingDirection = (sprite as any).facingDirection;
+    if (facingDirection === 'left' || facingDirection === 'right') {
+      code += `\n; Auto-generated mirrored version for ${sprite.name} (facing: ${facingDirection})\n`;
+
+      // Create mirrored sprite by reversing pixel data horizontally in each frame
+      const mirroredSprite = {
+        ...sprite,
+        name: `${sprite.name}_MIRRORED`,
+        frames: sprite.frames.map((frame: any) => ({
+          ...frame,
+          data: mirrorPixelDataHorizontally(frame.data)
+        }))
+      };
+
+      // Generate ASM for mirrored sprite (use same index to keep pattern names consistent)
+      const mirroredASM = generateSpriteASMCode(mirroredSprite, DEFAULT_DATA_FORMAT, index);
+      const mirroredSuffix = `_${index}`;
+      const mirroredUniqueName = mirroredSprite.name + mirroredSuffix;
+      const safeMirroredName = mirroredUniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+
+      code += mirroredASM;
+
+      if (firstDrawableLayerIndex >= 0) {
+        code += `\n; Unified pattern label for mirrored sprite ${index}
+SPRITE_${index}_PATTERN_MIRRORED EQU ${safeMirroredName}_F0_LAYER${firstDrawableLayerIndex}\n`;
+      }
+    }
+
   }); 
 
   // Generate placeholder sprite pattern (white 16x16 square for missing sprites)
@@ -414,7 +454,7 @@ load_sprite_patterns:
     ld hl, ${patternLabel}
     ld de, SPRPAT + (${alloc.baseHwSpriteIndex} * 32)
     ld bc, ${alloc.layerCount * 32} ; Load ${alloc.layerCount} layers (32 bytes each)
-    call LDIRVM
+    call FAST_LDIRVM
 `;
 
     patternsGenerated = true;
@@ -437,7 +477,7 @@ load_sprite_patterns:
     ld hl, SPRITE_${index}_PATTERN
     ld de, SPRPAT + (${fallbackPatternIndex} * 32)
     ld bc, ${bytesToCopy}
-    call LDIRVM
+    call FAST_LDIRVM
 `;
 
         fallbackPatternIndex += layerCount * frameCount;
@@ -487,13 +527,17 @@ show_sprite:
     ret
 
 ; Clear all sprites (set Y = SPRITE_INVISIBLE)
+; OPTIMIZED: Uses faster increment method instead of ADD HL,DE
 clear_all_sprites:
     ld hl, sprite_attributes
-    ld b, ${totalHardwareSprites + 4} ; Clear a bit more for safety
+    ld b, ${totalHardwareSprites}
+    ld a, SPRITE_INVISIBLE
 .clear_loop:
-    ld (hl), SPRITE_INVISIBLE
-    ld de, 4
-    add hl, de
+    ld (hl), a      ; Set Y = SPRITE_INVISIBLE
+    inc hl          ; Skip to X
+    inc hl          ; Skip to Pattern
+    inc hl          ; Skip to Color
+    inc hl          ; Next sprite (4× INC HL = 24 cycles vs ADD HL,DE = 35 cycles)
     djnz .clear_loop
     ret
 
@@ -513,7 +557,7 @@ update_sprites_to_vram:
     ld hl, sprite_attributes
     ld de, SPRATR
     ld bc, ${totalHardwareSprites * 4}  ; 4 bytes per sprite
-    call LDIRVM
+    call FAST_LDIRVM
     ret
 
 ; ==================================================================

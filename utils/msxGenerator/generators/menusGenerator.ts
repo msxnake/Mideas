@@ -124,7 +124,7 @@ update_menu_state:
     ; Set background color using VDP
     ld b, ${bgColorMSX * 16 + borderColorMSX} ; Background (high) | Border (low)
     ld c, 7                     ; VDP Register 7
-    call WRTVDP
+    call FAST_WRTVDP
 
     ; Set system color variables
     ld a, ${borderColorMSX}
@@ -179,7 +179,7 @@ handle_menu_${menuId}:
     ; Set background color using VDP
     ld b, ${bgColorMSX * 16 + borderColorMSX} ; Background (high) | Border (low)
     ld c, 7                     ; VDP Register 7
-    call WRTVDP
+    call FAST_WRTVDP
 
     ; Set system color variables
     ld a, ${borderColorMSX}
@@ -347,11 +347,11 @@ print_loop:
     or a
     ret z           ; End of string
 
-    ; WRTVRM expects: A = data, HL = VRAM address
+    ; FAST_WRTVRM expects: A = data, HL = VRAM address
     push hl         ; Save string pointer
     push de         ; Save VRAM address
-    pop hl          ; HL = VRAM address (for WRTVRM)
-    call WRTVRM     ; Write character to VRAM
+    pop hl          ; HL = VRAM address (for FAST_WRTVRM)
+    call FAST_WRTVRM ; Write character to VRAM (fast)
     pop hl          ; Restore string pointer
 
     inc hl          ; Next character in string

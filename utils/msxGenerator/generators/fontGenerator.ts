@@ -248,7 +248,7 @@ load_font_patterns_to_bank:
 
     ; Copy 8 bytes
     ld bc, 8
-    call LDIRVM                   ; Copy from HL(RAM) to DE(VRAM)
+    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)
 
     ; Advance source pointer
     ld bc, 8
@@ -311,7 +311,7 @@ load_font_colors_to_bank:
 
     ; Copy 8 bytes
     ld bc, 8
-    call LDIRVM                   ; Copy from HL(RAM) to DE(VRAM)
+    call FAST_LDIRVM              ; Copy from HL(RAM) to DE(VRAM)
 
     ; Advance source pointer
     ld bc, 8
@@ -338,12 +338,12 @@ print_string_loop:
     jr z, print_string_end         ; End if null
 
     ; Write character to VRAM Name Table
-    ; WRTVRM signature: A = data, HL = VRAM address
+    ; FAST_WRTVRM signature: A = data, HL = VRAM address
     ; A already has character, HL already has VRAM address
     push hl                        ; Save string pointer
     push de                        ; Save VRAM position
-    ex de, hl                      ; Swap: DE = string ptr, HL = VRAM address for WRTVRM
-    call WRTVRM                    ; Write character to VRAM
+    ex de, hl                      ; Swap: DE = string ptr, HL = VRAM address for FAST_WRTVRM
+    call FAST_WRTVRM               ; Write character to VRAM (fast)
     pop de                         ; Restore VRAM position
     pop hl                         ; Restore string pointer
 

@@ -35,6 +35,8 @@ export interface MSXModularConfig {
   generateUnified?: boolean;
   targetFormat?: 'konami' | 'ascii8' | 'ascii16';
   interruptDrivenComponents?: boolean;
+  hardwareMode?: 'bios' | 'direct' | 'hybrid'; // Hardware access mode
+  optimizeLevel?: 'safe' | 'aggressive'; // Optimization level for direct mode
 }
 
 /**
@@ -141,11 +143,14 @@ export function generateModularASM(
   }
 
   const interruptDrivenComponents = config.interruptDrivenComponents ?? true;
+  const hardwareMode = config.hardwareMode || 'hybrid'; // Default to hybrid mode
+  const optimizeLevel = config.optimizeLevel || 'safe';
 
   // Generate individual files
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
+  console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
   const files: GeneratedASMFiles = {
-    'bios.asm': generateBIOSFile(),
+    'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents }),
@@ -162,7 +167,7 @@ export function generateModularASM(
     'font.asm': generateFontFile(analysis),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
-    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines) : '; No State Machines\n',
+    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables) : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(projectName, analysis),
     'unitedFiles.asm': ''
@@ -211,10 +216,14 @@ export function generateModularASMFromSummary(
   }
 
   const interruptDrivenComponents = config.interruptDrivenComponents ?? true;
+  const hardwareMode = config.hardwareMode || 'hybrid'; // Default to hybrid mode
+  const optimizeLevel = config.optimizeLevel || 'safe';
+
+  console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
 
   // Generate files using same logic as generateModularASM
   const files: GeneratedASMFiles = {
-    'bios.asm': generateBIOSFile(),
+    'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents }),
@@ -231,7 +240,7 @@ export function generateModularASMFromSummary(
     'font.asm': generateFontFile(analysis),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
-    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines) : '; No State Machines\n',
+    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables) : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis),
     'unitedFiles.asm': ''

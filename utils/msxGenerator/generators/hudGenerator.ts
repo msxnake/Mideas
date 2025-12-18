@@ -291,14 +291,17 @@ hud_print_string:
     or a                        ; Check for null terminator
     jr z, .print_done
 
-    ; Convert ASCII to tile index (A-Z, 0-9, space, punctuation)
-    call hud_ascii_to_tile      ; A = tile/char code
+    ; OPTIMIZED: Inline ASCII validation (saves CALL/RET overhead = 27 cycles)
+    cp 32                       ; Check if >= 32 (printable ASCII)
+    jr nc, .valid_char          ; If valid, skip to write
+    ld a, 32                    ; Replace control chars with space
+.valid_char:
 
     ; Write tile to VRAM Name Table
     ; WRTVRM signature: A = data, HL = VRAM address
     ; A already has character, HL already has VRAM address
     push de                     ; Save string pointer
-    call WRTVRM                 ; Write A to VRAM at HL
+    call FAST_WRTVRM            ; Write A to VRAM at HL
     pop de                      ; Restore string pointer
 
     ; Move to next character
@@ -366,7 +369,7 @@ hud_draw_frame:
     
     ; Top-Left Corner
     ld a, 43            ; '+'
-    call WRTVRM
+    call FAST_WRTVRM
     inc hl
     
     ; Top Edge
@@ -377,14 +380,14 @@ hud_draw_frame:
     ld b, a
 .top_edge_loop:
     ld a, 45            ; '-'
-    call WRTVRM
+    call FAST_WRTVRM
     inc hl
     djnz .top_edge_loop
 .skip_top_edge:
     
     ; Top-Right Corner
     ld a, 43            ; '+'
-    call WRTVRM
+    call FAST_WRTVRM
     
     pop bc              ; Restore Dimensions
     pop hl              ; Restore Start Address
@@ -406,7 +409,7 @@ hud_draw_frame:
     
     ; Left Edge
     ld a, 124           ; '|'
-    call WRTVRM
+    call FAST_WRTVRM
     
     ; Skip Middle (Content Area)
     ld a, b
@@ -419,7 +422,7 @@ hud_draw_frame:
     
     ; Right Edge
     ld a, 124           ; '|'
-    call WRTVRM
+    call FAST_WRTVRM
     
     pop bc              ; Restore Counters
     pop hl              ; Restore Row Start
@@ -433,7 +436,7 @@ hud_draw_frame:
     ; Draw Bottom Row
     ; Bottom-Left Corner
     ld a, 43            ; '+'
-    call WRTVRM
+    call FAST_WRTVRM
     inc hl
     
     ; Bottom Edge
@@ -444,14 +447,14 @@ hud_draw_frame:
     ld b, a
 .bottom_edge_loop:
     ld a, 45            ; '-'
-    call WRTVRM
+    call FAST_WRTVRM
     inc hl
     djnz .bottom_edge_loop
 .skip_bottom_edge:
     
     ; Bottom-Right Corner
     ld a, 43            ; '+'
-    call WRTVRM
+    call FAST_WRTVRM
     
     pop hl
     pop de

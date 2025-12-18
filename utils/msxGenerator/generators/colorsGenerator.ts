@@ -51,7 +51,7 @@ ${analysis.tiles.map((tile, index) => {
 ; ==================================================================
 load_color_bank0:
     ; Load color bank 0 to VRAM (base colors)
-    ; BIOS LDIRVM handles timing automatically
+    ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -59,12 +59,12 @@ load_color_bank0:
     const charsHigh = Math.ceil(tile.height / 8);
     return total + (charsWide * charsHigh * 8);
   }, 0)}     ; Total color bytes for all tile characters
-    call LDIRVM                   ; BIOS handles safe VRAM access
+    call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
 load_color_bank1:
     ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
-    ; BIOS LDIRVM handles timing automatically
+    ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -72,12 +72,12 @@ load_color_bank1:
     const charsHigh = Math.ceil(tile.height / 8);
     return total + (charsWide * charsHigh * 8);
   }, 0)}     ; Total color bytes for all tile characters
-    call LDIRVM                   ; BIOS handles safe VRAM access
+    call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
 load_color_bank2:
     ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
-    ; BIOS LDIRVM handles timing automatically
+    ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -85,7 +85,7 @@ load_color_bank2:
     const charsHigh = Math.ceil(tile.height / 8);
     return total + (charsWide * charsHigh * 8);
   }, 0)}     ; Total color bytes for all tile characters
-    call LDIRVM                   ; BIOS handles safe VRAM access
+    call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
 load_colors_to_vram:

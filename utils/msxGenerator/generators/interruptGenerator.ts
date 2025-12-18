@@ -389,7 +389,13 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `    or a\n`;
   code += `    jr nz, .no_fire\n`;
   code += `    set 7, b                    ; Fire -> bit 7\n`;
+  code += `    ld a, 1                     ; Fire pressed\n`;
+  code += `    ld (input_fire), a\n`;
+  code += `    jr .fire_done\n`;
   code += `.no_fire:\n`;
+  code += `    xor a                       ; Fire not pressed\n`;
+  code += `    ld (input_fire), a\n`;
+  code += `.fire_done:\n`;
   code += `    ld a, b\n`;
   code += `    ld (input_state), a\n\n`;
   code += `    pop de\n`;

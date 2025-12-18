@@ -1,15 +1,24 @@
 /**
  * @fileoverview BIOS Generator - MSX BIOS functions and addresses
- * Generates bios.asm with standard MSX BIOS definitions
+ * Generates bios.asm with standard MSX BIOS definitions and optimized hardware access
  */
+
+import { generateDirectHardwareFile, type DirectHardwareOptions } from './directHardwareGenerator';
+
+export interface BIOSGeneratorOptions {
+  hardwareMode?: DirectHardwareOptions;
+}
 
 /**
  * Generate MSX BIOS functions and addresses file (bios.asm)
  *
+ * @param options - Configuration options for BIOS generation
  * @returns ASM code string with BIOS definitions and utility functions
  */
-export function generateBIOSFile(): string {
-  return `; ==================================================================
+export function generateBIOSFile(options: BIOSGeneratorOptions = {}): string {
+  const { hardwareMode } = options;
+
+  let code = `; ==================================================================
 ; MSX BIOS FUNCTIONS AND ADDRESSES
 ; File: bios.asm
 ; Description: Standard MSX BIOS function definitions
@@ -103,9 +112,21 @@ BAKCLR  EQU #F3E9        ; Background color
 BDRCLR  EQU #F3EA        ; Border color
 isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 
+; ==================================================================
+; NOTE: Fast hardware access routines (FAST_LDIRVM, FAST_WRTVRM, etc.)
+;       are provided by directHardwareGenerator.ts when hybrid/direct mode
+;       is enabled. See directHardwareGenerator.ts for implementations.
+; ==================================================================
 
 ; ==================================================================
 ; END OF BIOS DEFINITIONS
 ; ==================================================================
 `;
+
+  // Include direct hardware routines if mode is 'direct' or 'hybrid'
+  if (hardwareMode && (hardwareMode.mode === 'direct' || hardwareMode.mode === 'hybrid')) {
+    return code + '\n' + generateDirectHardwareFile(hardwareMode);
+  }
+
+  return code;
 }

@@ -33,6 +33,9 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `prev_input_state    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input state\n`;
   currentAddress++;
 
+  code += `input_fire          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Fire button state (0=released, 1=pressed)\n`;
+  currentAddress++;
+
   code += `current_flow_state  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current game flow state\n`;
   currentAddress++;
 
@@ -270,6 +273,21 @@ RAM_USAGE_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4,
 ;   #C000-#${currentAddress.toString(16).toUpperCase().padStart(4, '0')}: Project variables (${currentAddress - 0xC000} bytes)
 ;   #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}-#F37F: Free RAM (~${0xF380 - currentAddress} bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
+; ==================================================================
+
+; ==================================================================
+; VARIABLE SPACE RESERVATION
+; ==================================================================
+; Reserve actual RAM space for all variables
+; This section should be placed in RAM area (#C000+)
+; ==================================================================
+    ORG #C000
+
+; Reserve space for all variables defined above
+    DS ${currentAddress - 0xC000}   ; Reserve ${currentAddress - 0xC000} bytes for all variables
+
+; ==================================================================
+; END OF VARIABLE SPACE
 ; ==================================================================
 `;
 

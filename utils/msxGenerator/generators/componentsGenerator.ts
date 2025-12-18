@@ -44,11 +44,12 @@ update_position_component:
 
 position_update_loop:
     ld a, (hl)                 ; Get entity component mask
+    ld d, a                    ; OPTIMIZED: Save mask in D to avoid redundant memory read
     and COMP_MASK_POSITION     ; Check if has position component
     jr z, position_next_entity ; Skip if no position component
 
     ; Apply velocity to position (if has movement component)
-    ld a, (hl)
+    ld a, d                    ; OPTIMIZED: Reuse saved mask (saves 1 memory read)
     and COMP_MASK_MOVEMENT
     jr z, position_next_entity ; Skip velocity if no movement
 
@@ -439,72 +440,145 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
 
             init_collision_system:
     ; Initialize collision detection system
+    ; Clear deadly collision flags
+    ld hl, entity_deadly_collision
+    ld de, entity_deadly_collision + 1
+    ld bc, 31                     ; 32 bytes - 1
+    ld (hl), 0
+    ldir
     ret
 
     update_collision_component:
-    ; Check collisions between entities and environment
-    ld b, 32; Loop through all entities
-    ld hl, entity_comp_masks; Check component masks
-    ld c, 0; Entity index
+    ; Ground detection for entities with Collision or Gravity components
+    ; Sets entity_on_ground flag based on Y position
+    ld b, 32                      ; Loop through all entities
+    ld hl, entity_comp_masks_hi   ; Check high byte for Gravity component
+    ld de, entity_comp_masks      ; Low byte for Collision component
+    ld c, 0                       ; Entity index
 
     collision_update_loop:
-    ld a, (hl); Get entity component mask
-    and COMP_MASK_COLLISION; Check if has collision component
-    jr z, collision_next_entity; Skip if no collision component
+    ; Check if entity has Collision OR Gravity component
+    ld a, (de)                    ; Get low byte (Collision is bit 3)
+    and COMP_MASK_COLLISION
+    jr nz, .has_collision_comp    ; Has Collision component
 
-        ; Perform collision detection for this entity
+    ld a, (hl)                    ; Get high byte (Gravity is bit 1)
+    and #02                       ; COMP_MASK_GRAVITY high byte
+    jr z, collision_next_entity   ; Skip if no collision or gravity
+
+.has_collision_comp:
+    ; Get entity Y position
     push bc
     push hl
-
-        ; Get entity position
-    ld hl, entity_x_pos
-    ld e, c; Entity index
-    ld d, 0
-    add hl, de; HL points to entity X
-    ld a, (hl); A = X position
+    push de
 
     ld hl, entity_y_pos
-    add hl, de; HL points to entity Y
-    ld b, (hl); B = Y position
+    ld e, c                       ; Entity index
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = Y position
 
-        ; Check screen boundaries(256x192 with 16x16 sprites)
-    ; Left boundary
-    cp 0
-    jr z, collision_boundary_hit
-
-        ; Right boundary(256 - 16 = 240)
-    cp 240
-    jr nc, collision_boundary_hit
-
-        ; Top boundary
-    ld a, b
-    cp 0
-    jr z, collision_boundary_hit
-
-        ; Bottom boundary(192 - 16 = 176)
+    ; Ground detection: check if Y >= GROUND_LEVEL (176 for 16x16 sprites on 192px screen)
+    ; GROUND_LEVEL = 192 - 16 = 176
     cp 176
-    jr nc, collision_boundary_hit
+    jr c, .not_on_ground          ; Y < 176, entity is in air
 
-        ; Check tile collision(if screen maps exist)
-    call check_tile_collision
+.on_ground:
+    ; Clamp Y to ground level
+    ld (hl), 176
 
-        ; Check entity - to - entity collision
-    call check_entity_collision
+    ; Set entity_on_ground flag (bit 0)
+    ld hl, entity_on_ground
+    ld e, c
+    ld d, 0
+    add hl, de
+    set 0, (hl)                   ; Mark as on ground
+    jr .ground_check_done
 
-    jr collision_check_complete
+.not_on_ground:
+    ; Not on ground tiles, but check platform_id and grace frames
+    ; Entity is grounded if: on tiles OR on platform OR has grace frames
 
-    collision_boundary_hit:
-    ; Handle boundary collision
-    call handle_boundary_collision
+    ; Check if entity has platform reference
+    push hl
+    ld hl, entity_platform_id
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = platform_id
+    cp 255
+    jr nz, .grounded_by_platform  ; Has platform, mark grounded
 
-    collision_check_complete:
+    ; No platform, check grace frames
+    ld hl, entity_platform_grace
+    add hl, de
+    ld a, (hl)                    ; A = grace frames
+    or a
+    jr nz, .grounded_by_platform  ; Has grace, mark grounded
+
+    ; No tiles, no platform, no grace - entity is in air
+    pop hl
+    ld hl, entity_on_ground
+    ld e, c
+    ld d, 0
+    add hl, de
+    res 0, (hl)                   ; Mark as in air
+    jr .ground_check_done
+
+.grounded_by_platform:
+    ; Entity is grounded by platform or grace frames
+    pop hl
+    ld hl, entity_on_ground
+    ld e, c
+    ld d, 0
+    add hl, de
+    set 0, (hl)                   ; Mark as grounded
+
+.ground_check_done:
+    ; Check for deadly tile collision
+    ; TODO: Full implementation requires tile data lookup
+    ; For now: simple boundary check as placeholder
+    ld hl, entity_y_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = Y position
+
+    ; Placeholder: Check if entity is at dangerous Y positions
+    ; In full implementation, this would:
+    ; 1. Convert (x, y) to tile coordinates
+    ; 2. Look up tile at position in behavior map
+    ; 3. Check instanceId bit 2 (causesDamage)
+    ; For now: Bottom 8 pixels are "deadly" (Y >= 184)
+    cp 184
+    jr c, .no_deadly_tile         ; Y < 184, safe
+
+    ; Entity is touching deadly area - set flag
+    ld hl, entity_deadly_collision
+    ld e, c
+    ld d, 0
+    add hl, de
+    set 0, (hl)                   ; Mark as touching deadly tile
+    jr .deadly_check_done
+
+.no_deadly_tile:
+    ; Clear deadly tile flag
+    ld hl, entity_deadly_collision
+    ld e, c
+    ld d, 0
+    add hl, de
+    res 0, (hl)                   ; Clear deadly flag
+
+.deadly_check_done:
+    pop de
     pop hl
     pop bc
 
     collision_next_entity:
-    inc hl                     ; Next entity
-    inc c                      ; Next entity index
-    dec b                      ; Decrement loop counter
+    inc hl                        ; Next entity high mask
+    inc de                        ; Next entity low mask
+    inc c                         ; Next entity index
+    dec b                         ; Decrement loop counter
     jp nz, collision_update_loop
     ret
 
@@ -647,7 +721,71 @@ ${yDivisionCode}
 
     handle_entity_collision:
     ; Handle collision between entities
-        ; Implementation depends on game logic(damage, bouncing, etc.)
+    ; At entry:
+    ;   C = current entity index
+    ;   Stack top: DE (E = other entity index), HL, AF, BC
+    ; Check for platform riding: if current entity is above other entity and
+    ; other entity is a platform (collision_layer & 8), set platform reference
+
+    push bc
+    push de
+    push hl
+
+    ; Get other entity index from stack (it's at SP+6)
+    ld hl, 6
+    add hl, sp
+    ld a, (hl)              ; A = other entity index (E from pushed DE)
+    ld e, a                 ; E = other entity index
+
+    ; Get current entity Y position
+    ld hl, entity_y_pos
+    ld d, 0
+    ld b, c                 ; B = current entity index
+    add hl, bc              ; HL = &entity_y_pos[current]
+    ld b, (hl)              ; B = current Y
+
+    ; Get other entity Y position
+    ld hl, entity_y_pos
+    ld d, 0
+    add hl, de              ; HL = &entity_y_pos[other]
+    ld d, (hl)              ; D = other Y
+
+    ; Check if current entity is above other entity
+    ; Current is above if: current_Y + 16 is near other_Y (within 4 pixels)
+    ld a, b                 ; A = current Y
+    add a, 16               ; A = current Y + height
+    sub d                   ; A = (current Y + 16) - other Y
+    ; If result is 0-4, current is standing on other
+    cp 5
+    jr nc, .not_on_platform ; Not standing on platform
+
+    ; Current entity is above other entity
+    ; Check if other entity is a platform (collision_layer & 8)
+    ld hl, entity_collision_layer
+    ld d, 0
+    add hl, de              ; HL = &entity_collision_layer[other]
+    ld a, (hl)              ; A = other entity collision layer
+    and 8                   ; Check bit 3 (platform layer)
+    jr z, .not_on_platform  ; Not a platform
+
+    ; Other entity IS a platform - set platform reference
+    ld a, e                 ; A = other entity index
+    ld hl, entity_platform_id
+    ld d, 0
+    ld e, c                 ; E = current entity index
+    add hl, de              ; HL = &entity_platform_id[current]
+    ld (hl), a              ; Set platform reference
+
+    ; Reset grace frames to 0 (we're on a platform now)
+    ld hl, entity_platform_grace
+    ld e, c
+    add hl, de
+    ld (hl), 0
+
+.not_on_platform:
+    pop hl
+    pop de
+    pop bc
     ret
 
     get_behavior_tile:
@@ -1038,16 +1176,583 @@ gravity_next_entity:
 function generateHealthSystem(): string {
     return `
     ; ==================================================================
-        ; HEALTH COMPONENT SYSTEM
+    ; HEALTH COMPONENT SYSTEM
+    ; ==================================================================
+    ; Manages entity health/lives (current, max)
+    ; Detects death when current <= 0
+    ; Provides DECREASE_LIVES and INCREASE_LIVES functionality
     ; ==================================================================
 
-        init_health_system:
-            ; Initialize health system
-            ret
+init_health_system:
+    ; Initialize health for all entities with Health component
+    ; Default: current = 3, max = 3 (configurable per entity)
+    ld b, 32                      ; Loop all entities
+    ld hl, entity_comp_masks_hi   ; Check high byte for Health bit
+    ld c, 0                       ; Entity index
 
-        update_health_component:
-            ; Update health for entities
-            ; TODO: Implement health management
+.init_loop:
+    ld a, (hl)
+    and #04                       ; COMP_MASK_HEALTH (bit 2 in high byte = #0400)
+    jr z, .next_entity            ; Skip if no health component
+
+    ; Initialize current health (default: 3)
+    push bc
+    push hl
+    ld hl, entity_health_current
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), 3                    ; Default current = 3
+
+    ; Initialize max health (default: 3)
+    ld hl, entity_health_max
+    add hl, de
+    ld (hl), 3                    ; Default max = 3
+    pop hl
+    pop bc
+
+.next_entity:
+    inc hl
+    inc c
+    djnz .init_loop
+    ret
+
+update_health_component:
+    ; Check for death (current <= 0) and mark entities as dead
+    ; Entity death is detected by state machine via HEALTH_LESS_THAN condition
+    ld b, 32                      ; Loop all entities
+    ld hl, entity_comp_masks_hi   ; Check for Health component
+    ld c, 0                       ; Entity index
+
+.update_loop:
+    ld a, (hl)
+    and #04                       ; COMP_MASK_HEALTH
+    jr z, .next_entity
+
+    ; Check current health
+    push bc
+    push hl
+    ld hl, entity_health_current
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = current health
+
+    ; Check if dead (current <= 0)
+    or a                          ; Set flags
+    jr nz, .alive                 ; If != 0, entity is alive
+
+    ; Entity is dead (current = 0)
+    ; Could trigger death state here, but state machine handles it
+    ; via HEALTH_LESS_THAN or HEALTH_EQUALS conditions
+
+.alive:
+    pop hl
+    pop bc
+
+.next_entity:
+    inc hl
+    inc c
+    djnz .update_loop
+    ret
+
+; ==================================================================
+; HEALTH HELPER FUNCTIONS (called by State Machine actions)
+; ==================================================================
+
+decrease_entity_lives:
+    ; Decrease lives for entity in register C by amount in register A
+    ; Input: C = entity index, A = amount to decrease
+    ; Output: Updated entity_health_current
+    ; Destroys: AF, DE, HL
+    push bc
+    ld b, a                       ; Save amount in B
+    ld hl, entity_health_current
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = current health
+    sub b                         ; Subtract amount
+    jr nc, .store_health          ; If no carry (result >= 0), store
+    xor a                         ; Clamp to 0 if negative
+.store_health:
+    ld (hl), a                    ; Store new health
+    pop bc
+    ret
+
+increase_entity_lives:
+    ; Increase lives for entity in register C by amount in register A
+    ; Input: C = entity index, A = amount to increase
+    ; Output: Updated entity_health_current (clamped to max)
+    ; Destroys: AF, DE, HL
+    push bc
+    ld b, a                       ; Save amount in B
+
+    ; Get current health
+    ld hl, entity_health_current
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = current health
+
+    ; Add amount
+    add a, b
+    ld b, a                       ; Save result in B
+
+    ; Get max health
+    ld hl, entity_health_max
+    add hl, de
+    ld a, (hl)                    ; A = max health
+
+    ; Clamp to max
+    cp b                          ; Compare max with result
+    jr nc, .store_result          ; If max >= result, use result
+    ld b, a                       ; Otherwise clamp to max
+
+.store_result:
+    ld hl, entity_health_current
+    add hl, de
+    ld (hl), b                    ; Store clamped health
+    pop bc
+    ret
+    `;
+}
+
+/**
+ * Generate Damage Component System with Invincibility Frames
+ */
+function generateDamageSystem(): string {
+    return `
+    ; ==================================================================
+    ; DAMAGE COMPONENT SYSTEM
+    ; ==================================================================
+    ; Manages damage dealing and invincibility frames
+    ;
+    ; Components:
+    ; - entity_invincibility_frames: Countdown timer for invulnerability (32 bytes)
+    ; - entity_damage_amount: How much damage this entity deals (32 bytes)
+    ;
+    ; Invincibility frames prevent damage for ~1 second after being hit
+
+init_damage_system:
+    ; Initialize invincibility frames to 0 for all entities
+    ld hl, entity_invincibility_frames
+    ld de, entity_invincibility_frames + 1
+    ld bc, 31                     ; 32 bytes - 1
+    ld (hl), 0
+    ldir
+
+    ; Initialize damage amounts (default: 1 damage per entity)
+    ld hl, entity_damage_amount
+    ld de, entity_damage_amount + 1
+    ld bc, 31
+    ld (hl), 1
+    ldir
+    ret
+
+update_damage_component:
+    ; Update invincibility frames for all entities with Damage component
+    ; Decrements invincibility_frames counter each frame
+    ld b, 32                      ; Loop through all entities
+    ld hl, entity_comp_masks_hi   ; Check high byte for Damage component
+    ld c, 0                       ; Entity index
+
+.damage_update_loop:
+    ld a, (hl)
+    and #08                       ; COMP_MASK_DAMAGE (bit 3 in high byte = #0800)
+    jr z, .damage_next_entity     ; Skip if no damage component
+
+    ; Decrement invincibility frames if > 0
+    push bc
+    push hl
+
+    ld hl, entity_invincibility_frames
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = current invincibility frames
+    or a                          ; Check if 0
+    jr z, .damage_frames_done     ; Already 0, skip
+
+    dec a                         ; Decrement
+    ld (hl), a                    ; Store back
+
+.damage_frames_done:
+    pop hl
+    pop bc
+
+.damage_next_entity:
+    inc hl                        ; Next entity high mask
+    inc c                         ; Next entity index
+    djnz .damage_update_loop
+    ret
+
+; ==================================================================
+; DAMAGE HELPER FUNCTIONS
+; ==================================================================
+
+apply_damage_to_entity:
+    ; Apply damage to entity and set invincibility frames
+    ; Input: C = entity index, A = damage amount
+    ; Destroys: AF, DE, HL
+    push bc
+    ld b, a                       ; B = damage amount
+
+    ; Check if entity has invincibility frames active
+    ld hl, entity_invincibility_frames
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .damage_blocked        ; Still invincible, block damage
+
+    ; Apply damage using decrease_entity_lives
+    ld a, b                       ; A = damage amount
+    call decrease_entity_lives    ; C still holds entity index
+
+    ; Set invincibility frames (60 frames = 1 second @ 60 FPS)
+    ld hl, entity_invincibility_frames
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), 60                   ; 1 second of invincibility
+
+.damage_blocked:
+    pop bc
+    ret
+
+check_entity_invincible:
+    ; Check if entity is currently invincible
+    ; Input: C = entity index
+    ; Output: A = 1 if invincible, 0 if vulnerable
+    ; Destroys: DE, HL
+    ld hl, entity_invincibility_frames
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a                          ; Sets Z flag if 0
+    ret z                         ; Return 0 if vulnerable
+
+    ld a, 1                       ; Return 1 if invincible
+    ret
+    `;
+}
+
+/**
+ * Generate Shoot Component System
+ */
+function generateShootSystem(): string {
+    return `
+    ; ==================================================================
+    ; SHOOT COMPONENT SYSTEM
+    ; ==================================================================
+    ; Manages shooting/projectile spawning with cooldown
+    ;
+    ; Components:
+    ; - entity_shoot_cooldown: Frames until can shoot again (32 bytes)
+    ; - entity_shoot_sprite_id: Sprite ID for projectile (32 bytes)
+    ; - entity_shoot_speed: Projectile velocity (32 bytes)
+    ;
+    ; Fire button detection integrated with input system
+
+init_shoot_system:
+    ; Initialize cooldowns to 0 (can shoot immediately)
+    ld hl, entity_shoot_cooldown
+    ld de, entity_shoot_cooldown + 1
+    ld bc, 31                     ; 32 bytes - 1
+    ld (hl), 0
+    ldir
+
+    ; Initialize default projectile speed (3 pixels/frame)
+    ld hl, entity_shoot_speed
+    ld de, entity_shoot_speed + 1
+    ld bc, 31
+    ld (hl), 3
+    ldir
+
+    ; Initialize sprite IDs to 0 (will be set by template data)
+    ld hl, entity_shoot_sprite_id
+    ld de, entity_shoot_sprite_id + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ret
+
+update_shoot_component:
+    ; Update shooting for all entities with Shoot component
+    ; Decrements cooldown and spawns projectile if fire pressed
+    ld b, 32                      ; Loop through all entities
+    ld hl, entity_comp_masks_hi   ; Check high byte for Shoot component
+    ld c, 0                       ; Entity index
+
+.shoot_update_loop:
+    ld a, (hl)
+    and #10                       ; COMP_MASK_SHOOT (bit 4 in high byte = #1000)
+    jr z, .shoot_next_entity      ; Skip if no shoot component
+
+    ; Decrement cooldown if > 0
+    push bc
+    push hl
+
+    ld hl, entity_shoot_cooldown
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = current cooldown
+    or a                          ; Check if 0
+    jr z, .check_fire             ; Cooldown expired, check fire button
+
+    ; Decrement cooldown
+    dec a
+    ld (hl), a
+    jr .shoot_done                ; Still cooling down, skip
+
+.check_fire:
+    ; Check if fire button is pressed
+    ld a, (input_fire)
+    or a
+    jr z, .shoot_done             ; Fire not pressed, skip
+
+    ; Fire button pressed - spawn projectile
+    call .spawn_projectile
+    jr .shoot_done
+
+.spawn_projectile:
+    ; Spawn projectile entity
+    ; Input: C = shooter entity index
+    ; Destroys: AF, DE, HL
+    push bc
+    push de
+
+    ; Find free entity slot
+    ld hl, entity_comp_masks
+    ld b, 32                      ; Check up to 32 entities
+    ld d, 0                       ; Free slot index
+
+.find_free_slot:
+    ld a, (hl)                    ; Check low byte of mask
+    or a
+    jr z, .check_high_byte        ; Low byte is 0, check high byte
+
+.next_free_slot:
+    inc hl                        ; Next entity
+    inc d                         ; Increment slot index
+    djnz .find_free_slot          ; Loop for all entities
+
+    ; No free slot found - abort spawn
+    pop de
+    pop bc
+    ret
+
+.check_high_byte:
+    push hl
+    ld hl, entity_comp_masks_hi
+    ld e, d
+    add hl, de
+    ld a, (hl)                    ; Check high byte
+    pop hl
+    or a
+    jr nz, .next_free_slot        ; High byte not zero, keep searching
+
+.found_free_slot:
+    ; D = Free entity index for projectile
+    ; C = Shooter entity index
+    pop de                        ; Discard saved DE
+    push bc                       ; Save shooter index
+    push de                       ; Save for later
+
+    ; Get shooter position
+    ld hl, entity_x_pos
+    ld e, c
+    ld b, 0
+    ld c, b
+    add hl, bc
+    ld a, (hl)                    ; A = shooter X
+    add a, 8                      ; Offset to center (8 pixels)
+    ld b, a                       ; B = projectile X
+
+    ld hl, entity_y_pos
+    add hl, bc
+    ld a, (hl)                    ; A = shooter Y
+    add a, 8                      ; Offset to center
+    ld c, a                       ; C = projectile Y
+
+    ; Set projectile position
+    ld hl, entity_x_pos
+    ld e, d
+    push de
+    ld d, 0
+    add hl, de
+    ld (hl), b                    ; Set projectile X
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), c                    ; Set projectile Y
+
+    ; Activate projectile with Position + Sprite + Movement
+    ld hl, entity_comp_masks
+    add hl, de
+    ld (hl), #07                  ; POSITION | SPRITE | MOVEMENT (low byte)
+
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld (hl), 0                    ; High byte = 0
+
+    ; Set projectile velocity (horizontal, facing right for now)
+    ; TODO: Read shooter facing direction
+    pop de                        ; DE = projectile index
+    pop bc                        ; BC = shooter index
+    push bc
+    push de
+
+    ld hl, entity_shoot_speed
+    ld e, c                       ; Shooter index
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = projectile speed
+
+    pop de                        ; DE = projectile index
+    ld hl, entity_vel_x
+    push de
+    add hl, de
+    ld (hl), a                    ; Set velocity X = speed
+
+    ld hl, entity_vel_y
+    pop de
+    add hl, de
+    ld (hl), 0                    ; Set velocity Y = 0 (horizontal)
+
+    ; Set collision layer for player bullet (layer 4)
+    ld hl, entity_collision_layer
+    add hl, de
+    ld (hl), 4                    ; Player bullet layer
+
+    ; Set collides with mask (collides with enemies = layer 2)
+    ld hl, entity_collides_with
+    add hl, de
+    ld (hl), 2                    ; Collides with enemies
+
+    ; Set cooldown (15 frames @ 60fps ≈ 250ms)
+    pop bc                        ; BC = shooter index
+    ld hl, entity_shoot_cooldown
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), 15
+
+    pop de
+    pop bc
+    ret
+
+.shoot_done:
+    pop hl
+    pop bc
+
+.shoot_next_entity:
+    inc hl                        ; Next entity high mask
+    inc c                         ; Next entity index
+    djnz .shoot_update_loop
+    ret
+    `;
+}
+
+/**
+ * Generate Platform Riding System
+ */
+function generatePlatformRidingSystem(): string {
+    return `
+    ; ==================================================================
+    ; PLATFORM RIDING SYSTEM
+    ; ==================================================================
+    ; Detects when entities are standing on platforms and transfers velocity
+    ;
+    ; Platform detection: Entity A is on platform B if:
+    ; - A's bottom edge is at or near B's top edge
+    ; - A has horizontal overlap with B
+    ; - B has collision_layer bit 3 set (platform layer = 8)
+    ;
+    ; Grace frames: 6 frames tolerance when leaving platform
+
+init_platform_riding_system:
+    ; Initialize platform IDs to 255 (no platform)
+    ld hl, entity_platform_id
+    ld de, entity_platform_id + 1
+    ld bc, 31
+    ld (hl), 255
+    ldir
+
+    ; Initialize grace frames to 0
+    ld hl, entity_platform_grace
+    ld de, entity_platform_grace + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ret
+
+prepare_platform_detection:
+    ; PHASE 1 - Called BEFORE collision detection
+    ; Clear platform references from previous frame
+    ; Entities that were on platforms get grace frames
+    ; Collision detection will reset platform_id if still in contact
+
+    ld b, 32
+    ld hl, entity_platform_id
+    ld de, entity_platform_grace
+    ld c, 0
+
+.clear_loop:
+    ld a, (hl)              ; A = platform_id
+    cp 255                  ; Check if on a platform
+    jr z, .skip_clear       ; Already no platform, skip
+
+    ; Entity was on a platform last frame
+    ; Set grace frames to 6 (coyote time for leaving platform)
+    push hl
+    ld a, 6
+    ld (de), a              ; Set grace frames
+    pop hl
+
+    ; Clear platform reference (collision will reset if still touching)
+    ld (hl), 255
+
+.skip_clear:
+    inc hl                  ; Next platform_id
+    inc de                  ; Next grace counter
+    inc c
+    djnz .clear_loop
+    ret
+
+update_platform_riding:
+    ; PHASE 2 - Called AFTER collision detection
+    ; Decrement grace frames for entities not on platforms
+    ; (Entities on platforms have grace=0, set by handle_entity_collision)
+
+    ld b, 32
+    ld hl, entity_platform_grace
+    ld de, entity_platform_id
+    ld c, 0
+
+.grace_loop:
+    ; Check if entity has platform reference
+    ld a, (de)              ; A = platform_id
+    cp 255
+    jr nz, .grace_next      ; Has platform, skip grace decrement
+
+    ; No platform - decrement grace frames if > 0
+    ld a, (hl)              ; A = grace frames
+    or a
+    jr z, .grace_next       ; Already 0, skip
+
+    dec a                   ; Decrement grace
+    ld (hl), a
+
+.grace_next:
+    inc hl                  ; Next grace counter
+    inc de                  ; Next platform_id
+    inc c
+    djnz .grace_loop
     ret
     `;
 }
@@ -1088,7 +1793,7 @@ function generateAnimationSystem(): string {
             ld hl, entity_anim_flags
             ld de, entity_anim_flags+1
             ld bc, 31
-            ld (hl), (ANIM_FLAG_PLAYING | ANIM_FLAG_LOOP)
+            ld (hl), ANIM_FLAG_PLAYING | ANIM_FLAG_LOOP
             ldir
             ret
 
@@ -1103,11 +1808,11 @@ function generateAnimationSystem(): string {
         .anim_loop:
             ld a, (hl)
             and COMP_MASK_ANIMATION
-            jr z, .next_entity
+            jp z, .next_entity
 
             ld a, (hl)
             and COMP_MASK_SPRITE
-            jr z, .next_entity
+            jp z, .next_entity
 
             push bc
             push hl
@@ -1119,7 +1824,7 @@ function generateAnimationSystem(): string {
             add hl, de
             ld a, (hl)
             bit 0, a
-            jr z, anim_done_entity
+            jp z, anim_done_entity
 
             ; Only animate when moving?
             bit 2, a
@@ -1132,7 +1837,7 @@ function generateAnimationSystem(): string {
             ld hl, entity_vel_y
             add hl, de
             or (hl)
-            jr z, anim_done_entity
+            jp z, anim_done_entity
 
         .tick:
             ; tick++
@@ -1145,7 +1850,7 @@ function generateAnimationSystem(): string {
             ld hl, entity_anim_speed
             add hl, de
             cp (hl)
-            jr c, anim_done_entity
+            jp c, anim_done_entity
 
             ; tick = 0
             ld hl, entity_anim_tick
@@ -1157,7 +1862,7 @@ function generateAnimationSystem(): string {
             add hl, de
             ld a, (hl)
             cp #FF
-            jr z, anim_done_entity
+            jp z, anim_done_entity
             ld b, a                    ; B = sprite asset index
 
             ; frameCount = sprite_asset_frame_count[B]
@@ -1167,7 +1872,7 @@ function generateAnimationSystem(): string {
             add hl, de
             ld a, (hl)                 ; A = frameCount
             cp 2
-            jr c, anim_done_entity     ; 0/1 frames -> no animation
+            jp c, anim_done_entity     ; 0/1 frames -> no animation
             ld l, a                    ; L = frameCount
 
             ; Advance frame (entity_anim_frame++)
@@ -1235,7 +1940,7 @@ function generateAnimationSystem(): string {
 
             ld a, c
             or a
-            jr z, anim_done_entity     ; no layers for this entity
+            jp z, anim_done_entity     ; no layers for this entity
 
             ; BC = layerCount * 32
             ld a, c
@@ -1267,7 +1972,7 @@ function generateAnimationSystem(): string {
             ex de, hl                  ; DE = VRAM destination
             pop hl                     ; restore source
 
-            call LDIRVM                ; copy pattern data to VRAM
+            call FAST_LDIRVM           ; copy pattern data to VRAM
 
 anim_done_entity:
             pop hl
@@ -1276,7 +1981,8 @@ anim_done_entity:
         .next_entity:
             inc hl
             inc c
-            djnz .anim_loop
+            dec b
+            jp nz, .anim_loop
     ret
     `;
 }
@@ -1343,34 +2049,21 @@ function generateJumpSystem(): string {
             push bc
             push hl
 
-            ; --- Simple grounded check against bottom boundary (Y >= 176) ---
-            ld hl, entity_y_pos
+            ; Ground detection is now handled by update_collision_component
+            ; Just reset jump count if grounded
             ld e, c
             ld d, 0
-            add hl, de
-            ld a, (hl)
-            cp 176
-            jr c, .not_grounded
-
-            ; Clamp to ground and mark grounded
-            ld (hl), 176
-
             ld hl, entity_on_ground
             add hl, de
-            set 0, (hl)
+            bit 0, (hl)                   ; Check if on ground
+            jr z, .jump_check             ; Not grounded, skip reset
 
+            ; Entity is grounded - reset jump count
             ld hl, entity_jump_count
             add hl, de
             ld (hl), 0
 
-            jr .ground_done
-
-        .not_grounded:
-            ld hl, entity_on_ground
-            add hl, de
-            res 0, (hl)
-
-        .ground_done:
+        .jump_check:
             ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
             ld a, (input_state)
             and #80
@@ -1403,6 +2096,11 @@ function generateJumpSystem(): string {
             ld hl, entity_on_ground
             add hl, de
             res 0, (hl)
+
+            ; clear platform reference (prevent infinite jumps)
+            ld hl, entity_platform_id
+            add hl, de
+            ld (hl), 255
 
             ; If entity has Gravity, set gravity velocity to negative jump impulse
             ; Jump impulse default: -300 (8.8 fixed) => #FED4
@@ -1604,10 +2302,21 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     }
 
     if (usedComponents.has('Damage')) {
-        code += `    ; Initialize damage system (stub)
+        code += `    ; Initialize damage system
     call init_damage_system
     `;
     }
+
+    if (usedComponents.has('Shoot')) {
+        code += `    ; Initialize shoot system
+    call init_shoot_system
+    `;
+    }
+
+    // Platform riding always initialized (physics feature)
+    code += `    ; Initialize platform riding system
+    call init_platform_riding_system
+    `;
 
     if (usedComponents.has('WallCollision')) {
         code += `    ; Initialize wall collision system (stub)
@@ -1752,6 +2461,30 @@ entity_on_ground    EQU temp_byte_5; Ground contact flag(bit 0 = on ground)(32 b
 
     ; Gravity Component Data
 entity_gravity_vel  EQU temp_word_4; Accumulated gravity velocity(signed word, 64 bytes)
+
+    ; Health Component Data
+entity_health_current EQU temp_byte_6 ; Current health/lives (32 bytes)
+entity_health_max     EQU temp_byte_7 ; Maximum health/lives (32 bytes)
+
+    ; Deadly Tile Collision Data
+entity_deadly_collision EQU temp_byte_8 ; Flag: bit 0 = touching deadly tile (32 bytes)
+
+    ; Damage Component Data
+entity_invincibility_frames EQU temp_byte_9  ; Countdown timer for invulnerability (32 bytes)
+entity_damage_amount        EQU temp_byte_10 ; Damage dealt by this entity (32 bytes)
+
+    ; Shoot Component Data
+entity_shoot_cooldown   EQU temp_byte_11 ; Cooldown frames until can shoot (32 bytes)
+entity_shoot_sprite_id  EQU temp_byte_12 ; Projectile sprite ID (32 bytes)
+entity_shoot_speed      EQU temp_byte_13 ; Projectile velocity (32 bytes)
+
+    ; Collision Layer Data (for projectile and advanced collision)
+entity_collision_layer  EQU temp_byte_14 ; Which layer this entity is on (32 bytes)
+entity_collides_with    EQU temp_byte_15 ; Bitmask of layers this entity collides with (32 bytes)
+
+    ; Platform Riding Data
+entity_platform_id      EQU temp_byte_16 ; ID of platform underneath (255 = none) (32 bytes)
+entity_platform_grace   EQU temp_byte_17 ; Grace frames for platform (32 bytes)
 
 
     ; ==================================================================
@@ -1958,7 +2691,7 @@ update_carry_component:
     `;
     }
 
-    // Generate Damage System stub (if used)
+    // Generate Damage System (if used)
     if (!usedComponents.has('Damage')) {
         code += `
     ; Damage system filtered out(not used)
@@ -1969,15 +2702,25 @@ update_damage_component:
     ret
     `;
     } else {
+        code += generateDamageSystem();
+    }
+
+    // Generate Shoot System (if used)
+    if (!usedComponents.has('Shoot')) {
         code += `
-    ; Damage system (stub - TODO: implement)
-init_damage_system:
+    ; Shoot system filtered out(not used)
+init_shoot_system:
     ret
 
-update_damage_component:
+update_shoot_component:
     ret
     `;
+    } else {
+        code += generateShootSystem();
     }
+
+    // Generate Platform Riding System (always enabled for physics)
+    code += generatePlatformRidingSystem();
 
     // Generate WallCollision System stub (if used)
     if (!usedComponents.has('WallCollision')) {
@@ -2038,15 +2781,19 @@ update_collectible_component:
 update_all_entities:
     ; Update all entity components in proper order
     call update_input_component        ; 1. Input (player control) - uses input_state from hook
-    call update_behavior_component     ; 2. Behavior/AI
-    call update_jump_component         ; 3. Jump impulse / grounded flags
-    call update_movement_component     ; 4. Movement (vx/vy changes)
-    call update_gravity_component      ; 5. Gravity acceleration
-    call update_position_component     ; 6. Apply velocity to position
-    call update_collision_component    ; 7. Collision detection / responses
-    call update_health_component       ; 8. Health/Death
-    call update_animation_component    ; 9. Animation
-    call update_sprite_component       ; 10. Sprite rendering + SAT->VRAM copy
+    call update_shoot_component        ; 2. Shooting (cooldown + projectile spawn)
+    call update_behavior_component     ; 3. Behavior/AI
+    call update_jump_component         ; 4. Jump impulse / grounded flags
+    call update_movement_component     ; 5. Movement (vx/vy changes)
+    call update_gravity_component      ; 6. Gravity acceleration
+    call update_position_component     ; 7. Apply velocity to position
+    call prepare_platform_detection    ; 8. Clear platform refs (before collision)
+    call update_collision_component    ; 9. Collision detection / set platform refs
+    call update_platform_riding        ; 10. Platform riding / grace frames
+    call update_health_component       ; 11. Health/Death
+    call update_damage_component       ; 12. Damage/Invincibility
+    call update_animation_component    ; 13. Animation
+    call update_sprite_component       ; 14. Sprite rendering + SAT->VRAM copy
     ret
 
 `;
