@@ -505,6 +505,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
               currentScreenMode={currentScreenMode}
               selectedColor={selectedColor as MSX1ColorValue}
               dataOutputFormat={dataOutputFormat}
+              fontAssetName={activeAsset.name}
             />
           )}
           {currentEditor === EditorType.Font && activeAsset?.type === 'font' && (!activeAsset.data || !(activeAsset.data as MSXFontAsset).fontData) && (

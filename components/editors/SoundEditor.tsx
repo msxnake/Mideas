@@ -634,9 +634,8 @@ ${envelopeShapeCode}
   return (
     <Panel title={`Sound Editor: ${localSoundName}`} className="flex-grow flex flex-col bg-msx-bgcolor overflow-y-auto">
       <div className="p-2 border-b border-msx-border flex items-center space-x-2 flex-wrap gap-y-1">
-        <label htmlFor="soundName" className="text-xs pixel-font text-msx-textsecondary">Name:</label>
-        <input type="text" id="soundName" value={localSoundName} onChange={e => setLocalSoundName(e.target.value)} className="p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent flex-grow min-w-[100px]" />
-        <Button onClick={() => onUpdate({ name: localSoundName })} size="sm" variant="secondary">Set Name</Button>
+        <label className="text-xs pixel-font text-msx-textsecondary">Name:</label>
+        <span className="p-1 text-xs text-msx-textprimary flex-grow min-w-[100px]">{soundData.name}</span>
         
         <label htmlFor="tempoBPM" className="text-xs pixel-font text-msx-textsecondary ml-2">Tempo (BPM):</label>
         <input 

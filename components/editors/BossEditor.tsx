@@ -385,7 +385,7 @@ export const BossEditor: React.FC<BossEditorProps> = ({ boss, onUpdate, allAsset
                         <div className="space-y-2 text-xs">
                              <div>
                                 <label className="block text-msx-textsecondary">Boss Name:</label>
-                                <input type="text" value={boss.name} onChange={e => handleUpdateField('name', e.target.value)} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"/>
+                                <span className="block w-full p-1 text-msx-textprimary">{boss.name}</span>
                             </div>
                             <div>
                                 <label className="block text-msx-textsecondary">Total Health:</label>

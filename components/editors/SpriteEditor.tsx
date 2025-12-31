@@ -1194,8 +1194,8 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
   return (
     <Panel title={`Sprite Editor: ${localSpriteName}`} className="flex-grow flex flex-col bg-msx-bgcolor">
       <div className="p-2 border-b border-msx-border flex items-center space-x-2 flex-wrap gap-y-1">
-        <label htmlFor="spriteName" className="text-xs pixel-font text-msx-textsecondary">Name:</label>
-        <input type="text" id="spriteName" value={localSpriteName} onChange={e => setLocalSpriteName(e.target.value)} onBlur={() => onUpdate({name: localSpriteName})} className="p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent flex-grow min-w-[100px]" />
+        <label className="text-xs pixel-font text-msx-textsecondary">Name:</label>
+        <span className="p-1 text-xs text-msx-textprimary flex-grow min-w-[100px]">{sprite.name}</span>
 
         <label htmlFor="spriteWidth" className="text-xs pixel-font text-msx-textsecondary ml-2">Size:</label>
         <select value={sprite.size.width} onChange={e => handleResizeSprite(parseInt(e.target.value), sprite.size.height)} className="p-1 text-xs bg-msx-panelbg border-msx-border rounded">

@@ -1984,7 +1984,7 @@ export const TileEditor: React.FC<TileEditorProps> = ({
               <div className="space-y-2 text-xs">
                 <div>
                   <label>Tile Name:</label>
-                  <input type="text" value={tile.name} onChange={(e) => onUpdate({ name: e.target.value })} className="w-full p-1 bg-msx-bgcolor border-msx-border rounded" />
+                  <span className="block w-full p-1 text-msx-textprimary">{tile.name}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <label>Dimensions (px):</label>

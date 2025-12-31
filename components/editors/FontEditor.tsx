@@ -36,6 +36,8 @@ interface FontEditorProps {
   selectedColor: MSX1ColorValue;
   /** The data format for exporting to ASM. */
   dataOutputFormat: DataFormat;
+  /** The name of the font asset (for display and ASM label). */
+  fontAssetName?: string;
 }
 
 /**
@@ -245,7 +247,8 @@ const generateFontASMCode = (
 export const FontEditor: React.FC<FontEditorProps> = ({
   fontData, onUpdateFont,
   fontColorAttributes, onUpdateFontColorAttributes,
-  currentScreenMode, selectedColor, dataOutputFormat
+  currentScreenMode, selectedColor, dataOutputFormat,
+  fontAssetName
 }) => {
   const [selectedCharCode, setSelectedCharCode] = useState<number | null>(EDITABLE_CHAR_CODES_SUBSET[0]?.code || 32);
   const [zoom, setZoom] = useState(20);
@@ -254,7 +257,6 @@ export const FontEditor: React.FC<FontEditorProps> = ({
 
   const [isExportAsmModalOpen, setIsExportAsmModalOpen] = useState(false);
   const [asmCodeToExport, setAsmCodeToExport] = useState("");
-  const [fontNameToExport, setFontNameToExport] = useState("CustomMSXFont");
   const [filterEditableCharsOnly, setFilterEditableCharsOnly] = useState(true);
 
   const charCodesForSelector = filterEditableCharsOnly ? EDITABLE_CHAR_CODES_SUBSET : ALL_CHAR_CODES_FOR_SELECTOR;
@@ -591,7 +593,7 @@ export const FontEditor: React.FC<FontEditorProps> = ({
   };
 
   const handleOpenExportAsmModal = () => {
-    const nameForExport = fontNameToExport || "MSX_FONT";
+    const nameForExport = fontAssetName || "MSX_FONT";
     const asm = generateFontASMCode(fontData, fontColorAttributes, currentScreenMode, nameForExport, filterEditableCharsOnly, dataOutputFormat);
     setAsmCodeToExport(asm);
     setIsExportAsmModalOpen(true);
@@ -616,15 +618,8 @@ export const FontEditor: React.FC<FontEditorProps> = ({
           Filter Editable (Space, 0-9, A-Z)
         </label>
         <div className="flex items-center space-x-1 ml-auto">
-          <label htmlFor="fontExportName" className="text-xs pixel-font text-msx-textsecondary">ASM Label:</label>
-          <input
-            type="text"
-            id="fontExportName"
-            value={fontNameToExport}
-            onChange={(e) => setFontNameToExport(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-            placeholder="FontLabelForASM"
-            className="p-1 text-xs bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent w-32"
-          />
+          <label className="text-xs pixel-font text-msx-textsecondary">Name:</label>
+          <span className="p-1 text-xs text-msx-textprimary">{fontAssetName || 'CustomMSXFont'}</span>
         </div>
       </div>
       <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
@@ -769,7 +764,7 @@ export const FontEditor: React.FC<FontEditorProps> = ({
         <ExportFontASMModal
           isOpen={isExportAsmModalOpen}
           onClose={() => setIsExportAsmModalOpen(false)}
-          fontName={fontNameToExport || "CustomMSXFont"}
+          fontName={fontAssetName || "CustomMSXFont"}
           asmCode={asmCodeToExport}
           fontData={fontData}
           fontColorAttributes={fontColorAttributes}

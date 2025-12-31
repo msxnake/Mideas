@@ -309,14 +309,8 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
           ) : (
             <div className="space-y-3">
               <div>
-                <label htmlFor="compDefName" className="block text-sm font-medium text-msx-textsecondary">Component Name:</label>
-                <input
-                  type="text"
-                  id="compDefName"
-                  value={editingDefinition.name || ''}
-                  onChange={e => handleDefinitionChange('name', e.target.value)}
-                  className="w-full p-1.5 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
-                />
+                <label className="block text-sm font-medium text-msx-textsecondary">Component Name:</label>
+                <span className="block w-full p-1.5 text-sm text-msx-textprimary">{editingDefinition.name || ''}</span>
               </div>
               <div>
                 <label htmlFor="compDefDesc" className="block text-sm font-medium text-msx-textsecondary">Description:</label>
