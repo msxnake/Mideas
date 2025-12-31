@@ -22,6 +22,37 @@ const mirrorPixelDataHorizontally = (pixelData: string[][]): string[][] => {
 };
 
 /**
+ * Find the first palette layer that has actual pixel data in a sprite frame.
+ * This must match the logic in spriteUtils.ts which skips empty layers.
+ * @param sprite - Sprite object with frames and palette
+ * @returns Index of first layer with data, or -1 if none found
+ */
+const findFirstDrawableLayerIndex = (sprite: any): number => {
+  const palette: string[] = sprite.spritePalette || [];
+  const bg: string | undefined = sprite.backgroundColor;
+  const frame0 = sprite.frames?.[0];
+
+  if (!frame0?.data) return -1;
+
+  for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
+    const layerColor = palette[layerIdx];
+    // Skip background color
+    if (layerColor === bg) continue;
+
+    // Check if any pixel uses this color
+    for (let y = 0; y < (frame0.data.length || 0); y++) {
+      for (let x = 0; x < (frame0.data[y]?.length || 0); x++) {
+        if (frame0.data[y][x] === layerColor) {
+          return layerIdx; // Found a pixel with this color
+        }
+      }
+    }
+  }
+
+  return -1; // No drawable layer found
+};
+
+/**
  * Generate sprite data file (sprites.asm)
  *
  * @param analysis - Project analysis with sprite assets
@@ -241,10 +272,8 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
     const spriteASM = generateSpriteASMCode(sprite, DEFAULT_DATA_FORMAT, index);
 
-    // First drawable layer = first palette entry that isn't background.
-    const palette: string[] = sprite.spritePalette || [];
-    const bg: string | undefined = sprite.backgroundColor;
-    const firstDrawableLayerIndex = palette.findIndex(c => c && (!bg || c !== bg));
+    // Find first layer that actually has pixel data
+    const firstDrawableLayerIndex = findFirstDrawableLayerIndex(sprite);
 
     code += `\n; Sprite Asset ${index}: ${sprite.name}\n${spriteASM}`;
 
@@ -346,9 +375,7 @@ sprite_asset_frame_ptr_table:
     const suffix = `_${index}`;
     const uniqueName = sprite.name + suffix;
     const safeSpriteName = uniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-    const palette: string[] = sprite.spritePalette || [];
-    const bg: string | undefined = sprite.backgroundColor;
-    const firstDrawableLayerIndex = palette.findIndex(c => c && (!bg || c !== bg));
+    const firstDrawableLayerIndex = findFirstDrawableLayerIndex(sprite);
     const frames = sprite.frames?.length || 1;
 
     code += `
@@ -532,13 +559,13 @@ clear_all_sprites:
     ld hl, sprite_attributes
     ld b, ${totalHardwareSprites}
     ld a, SPRITE_INVISIBLE
-.clear_loop:
+.sprite_clear_loop:
     ld (hl), a      ; Set Y = SPRITE_INVISIBLE
     inc hl          ; Skip to X
     inc hl          ; Skip to Pattern
     inc hl          ; Skip to Color
     inc hl          ; Next sprite (4× INC HL = 24 cycles vs ADD HL,DE = 35 cycles)
-    djnz .clear_loop
+    djnz .sprite_clear_loop
     ret
 
 ; Hide specific sprite (A = hardware sprite index)

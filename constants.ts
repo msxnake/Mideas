@@ -799,6 +799,395 @@ export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
       },
     ],
   },
+  {
+    id: "gameflow",
+    title: "GameFlow System",
+    articles: [
+      {
+        id: "gameflow_intro",
+        title: "Introduction to GameFlow",
+        content: `
+          <h2>GameFlow System</h2>
+          <p><strong>GameFlow</strong> is the game flow control system in Mideas MSX. It allows you to create your game's logic using a visual system based on <strong>nodes</strong> and <strong>connections</strong>, without writing ASM code.</p>
+
+          <h3>What can you do with GameFlow?</h3>
+          <ul>
+            <li>Create main and in-game menus</li>
+            <li>Add victory, defeat, and credits screens</li>
+            <li>Implement conditional logic (if/then/else)</li>
+            <li>Display text and dialogues</li>
+            <li>Apply visual transition effects</li>
+            <li>Control music and sounds</li>
+            <li>Manage levels and worlds</li>
+            <li>Implement pause and wait systems</li>
+          </ul>
+
+          <h3>How does it work?</h3>
+          <p>The game starts at the <strong>Start</strong> node and flows from node to node following the <strong>connections</strong> you define. Each node executes a specific action and then proceeds to the next connected node.</p>
+          <pre>Start → Menu → WorldLink (Game Loop) → End</pre>
+
+          <h3>Basic Concepts</h3>
+          <h4>Nodes</h4>
+          <p>A <strong>node</strong> is a unit of game logic. Each node has:</p>
+          <ul>
+            <li><strong>Type</strong>: Defines what the node does (menu, text, game, etc.)</li>
+            <li><strong>Data</strong>: Node-specific configuration</li>
+            <li><strong>Connections</strong>: Links to other nodes</li>
+          </ul>
+
+          <h4>Connections</h4>
+          <p>Connections determine the game flow:</p>
+          <ul>
+            <li><strong>DEFAULT</strong>: Linear connection (next node)</li>
+            <li><strong>THEN/ELSE</strong>: Conditional connections</li>
+            <li><strong>OPTION_0 to OPTION_5</strong>: Menu options</li>
+          </ul>
+
+          <h4>Global Variables</h4>
+          <p>You can use variables to control flow:</p>
+          <ul>
+            <li><code>score</code>: Player score</li>
+            <li><code>lives</code>: Remaining lives</li>
+            <li><code>level</code>: Current level</li>
+            <li>Custom variables</li>
+          </ul>
+        `,
+        tags: ["gameflow", "introduction", "nodes"],
+      },
+      {
+        id: "gameflow_nodes_basic",
+        title: "Basic Node Types",
+        content: `
+          <h2>Basic Node Types</h2>
+
+          <h3>1. Start (Beginning)</h3>
+          <p><strong>Description</strong>: Initial game node. Must always be the first node.</p>
+          <p><strong>Properties</strong>: No data, only DEFAULT connection</p>
+          <pre>Start → (next node)</pre>
+
+          <h3>2. End (Finish)</h3>
+          <p><strong>Description</strong>: Shows an end screen and waits for player input.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>endType</code>: Screen type (0-3)
+              <ul>
+                <li>0: Victory (VICTORY!)</li>
+                <li>1: Defeat (GAME OVER)</li>
+                <li>2: Credits (CREDITS)</li>
+                <li>3: Custom message</li>
+              </ul>
+            </li>
+            <li><code>message</code>: Custom message (only if endType=3)</li>
+          </ul>
+          <p><strong>Behavior</strong>: Displays screen, waits for FIRE or ESC, game ends</p>
+
+          <h3>3. Restart</h3>
+          <p><strong>Description</strong>: Restarts the game from the beginning.</p>
+          <p><strong>Properties</strong>: No data, no connections (restarts directly)</p>
+          <p><strong>Behavior</strong>: Jumps to init_rom (complete reset)</p>
+
+          <h3>4. WorldLink (World/Level)</h3>
+          <p><strong>Description</strong>: Starts main gameplay. Executes the world's game loop.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>worldId</code>: ID of the world to load</li>
+            <li><code>screenId</code>: Initial screen ID</li>
+            <li>DEFAULT connection (executed when world ends)</li>
+          </ul>
+          <p><strong>Behavior</strong>:</p>
+          <ul>
+            <li>Loads world and entities</li>
+            <li>Executes game loop (ECS + State Machines)</li>
+            <li>Infinite loop until <code>gameflow_exit_requested = 1</code></li>
+            <li>When finished, continues to DEFAULT connection</li>
+          </ul>
+          <p><strong>How to exit</strong>: Use a component/behavior that sets <code>gameflow_exit_requested = 1</code></p>
+
+          <h3>5. SubMenu (Menu)</h3>
+          <p><strong>Description</strong>: Shows an interactive menu with options.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>title</code>: Menu title</li>
+            <li><code>options</code>: Array of strings (menu options)</li>
+            <li>OPTION_0 to OPTION_N connections (one per option)</li>
+          </ul>
+          <p><strong>Controls</strong>:</p>
+          <ul>
+            <li><strong>UP</strong>: Previous option</li>
+            <li><strong>DOWN</strong>: Next option</li>
+            <li><strong>FIRE</strong>: Select option</li>
+          </ul>
+          <p><strong>Behavior</strong>: Shows menu, player navigates, continues to node based on selected option</p>
+
+          <h3>6. Text</h3>
+          <p><strong>Description</strong>: Shows text in the bottom area of the screen.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>text</code>: Text to display</li>
+            <li><code>duration</code>: Duration in frames (60 frames = 1 second)
+              <ul>
+                <li>If 0: Waits for player input</li>
+                <li>If >0: Waits N frames</li>
+              </ul>
+            </li>
+            <li>DEFAULT connection (next node)</li>
+          </ul>
+          <p><strong>Behavior</strong>: Clears text area, shows centered text, waits duration OR input, continues to next node</p>
+        `,
+        tags: ["gameflow", "nodes", "basic"],
+      },
+      {
+        id: "gameflow_nodes_advanced",
+        title: "Advanced Node Types",
+        content: `
+          <h2>Advanced Node Types</h2>
+
+          <h3>7. IfThenElse (Conditional)</h3>
+          <p><strong>Description</strong>: Evaluates a condition and chooses between two paths.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>variable</code>: Variable to evaluate (e.g., "score", "lives")</li>
+            <li><code>value</code>: Value to compare</li>
+            <li><code>operator</code>: Comparison operator
+              <ul>
+                <li>"equals": Variable == Value</li>
+                <li>"greater": Variable > Value</li>
+                <li>"less": Variable < Value</li>
+                <li>"greaterOrEqual": Variable >= Value</li>
+                <li>"lessOrEqual": Variable <= Value</li>
+              </ul>
+            </li>
+            <li>THEN and ELSE connections</li>
+          </ul>
+          <p><strong>Behavior</strong>:</p>
+          <ul>
+            <li>Reads global variable</li>
+            <li>Compares with value using operator</li>
+            <li>If TRUE: Continues via THEN</li>
+            <li>If FALSE: Continues via ELSE</li>
+          </ul>
+
+          <h3>8. Transition</h3>
+          <p><strong>Description</strong>: Applies a visual transition effect.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>effectType</code>: Effect type (0-4)
+              <ul>
+                <li>0: Fade Out (~1.3s)</li>
+                <li>1: Fade In (~1.3s)</li>
+                <li>2: Flash (~0.5s)</li>
+                <li>3: Wipe Down (~0.8s)</li>
+                <li>4: Wipe Up (~0.8s)</li>
+              </ul>
+            </li>
+            <li>DEFAULT connection (next node)</li>
+          </ul>
+          <p><strong>Behavior</strong>: Executes visual effect, automatically continues to next node</p>
+
+          <h3>9. Music</h3>
+          <p><strong>Description</strong>: Controls music playback.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>command</code>: Music command (0-3)
+              <ul>
+                <li>0: Stop</li>
+                <li>1: Play</li>
+                <li>2: Pause</li>
+                <li>3: Resume</li>
+              </ul>
+            </li>
+            <li><code>trackId</code>: Track ID (only for Play)</li>
+            <li><code>loop</code>: Loop playback (only for Play)</li>
+            <li>DEFAULT connection (next node)</li>
+          </ul>
+          <p><strong>Behavior</strong>: Executes music command (PSG AY-3-8910), continues immediately, music plays in background</p>
+
+          <h3>10. Group (Nested Flow)</h3>
+          <p><strong>Description</strong>: Executes a nested GameFlow sub-flow.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>subFlowStartNode</code>: Start node ID of sub-flow</li>
+            <li>DEFAULT connection (next node after sub-flow)</li>
+          </ul>
+          <p><strong>Behavior</strong>: Saves current state on stack, executes complete sub-flow, restores state and continues</p>
+          <p><strong>Use cases</strong>: Cutscenes, complex sub-menus, dialogue sequences, mini-games</p>
+
+          <h3>11. Waypoint (Marker)</h3>
+          <p><strong>Description</strong>: Invisible node serving as a reference point.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>name</code>: Waypoint name</li>
+            <li>DEFAULT connection (next node)</li>
+          </ul>
+          <p><strong>Behavior</strong>: Does nothing visible, continues immediately to next node</p>
+          <p><strong>Use cases</strong>: Organize flow visually, return/save points, debugging</p>
+
+          <h3>12. Globals (Global Variables)</h3>
+          <p><strong>Description</strong>: Modifies global variables.</p>
+          <p><strong>Properties</strong>:</p>
+          <ul>
+            <li><code>variable</code>: Variable name</li>
+            <li><code>value</code>: Value to assign</li>
+            <li><code>operation</code>: Operation to perform
+              <ul>
+                <li>"set": Variable = Value</li>
+                <li>"add": Variable += Value</li>
+                <li>"subtract": Variable -= Value</li>
+              </ul>
+            </li>
+            <li>DEFAULT connection (next node)</li>
+          </ul>
+          <p><strong>Behavior</strong>: Modifies global variable, continues immediately to next node</p>
+        `,
+        tags: ["gameflow", "nodes", "advanced", "conditional"],
+      },
+      {
+        id: "gameflow_examples",
+        title: "Practical Examples",
+        content: `
+          <h2>Practical Examples</h2>
+
+          <h3>Example 1: Simple Game</h3>
+          <pre>
+Start
+  ↓
+SubMenu (Main Menu)
+  ├─ OPTION_0 (New Game) → Fade Out → WorldLink (Level 1) → Victory
+  ├─ OPTION_1 (Continue) → WorldLink (Level 1)
+  └─ OPTION_2 (Quit) → End (Thanks)
+          </pre>
+
+          <h3>Example 2: Lives System</h3>
+          <pre>
+WorldLink (Game)
+  ↓ (on death)
+IfThenElse (lives == 0?)
+  ├─ THEN → Game Over
+  └─ ELSE → Globals (lives -= 1) → Flash → Restart Level
+          </pre>
+
+          <h3>Example 3: Progressive Levels</h3>
+          <pre>
+Start
+  ↓
+Text ("LEVEL 1")
+  ↓
+WorldLink (Level 1)
+  ↓
+IfThenElse (score >= 500?)
+  ├─ THEN → Text ("LEVEL 2") → WorldLink (Level 2) → Victory
+  └─ ELSE → Game Over
+          </pre>
+
+          <h3>Example 4: Menu with Music</h3>
+          <pre>
+Start
+  ↓
+Music (Play menu theme)
+  ↓
+SubMenu (Main Menu)
+  ├─ New Game → Music (Stop) → Music (Play game theme) → WorldLink
+  ├─ Settings → Group (Settings Flow) → Main Menu
+  └─ Quit → Music (Stop) → End
+          </pre>
+
+          <h3>Tips</h3>
+          <ul>
+            <li><strong>Clear Flow</strong>: Keep your flow linear and understandable</li>
+            <li><strong>Smooth Transitions</strong>: Use transition effects between scenes</li>
+            <li><strong>Initialize Variables</strong>: Set initial values at the start</li>
+            <li><strong>Complete Connections</strong>: Always define both THEN and ELSE branches</li>
+            <li><strong>Music Management</strong>: Stop music before changing tracks</li>
+          </ul>
+        `,
+        tags: ["gameflow", "examples", "tutorial"],
+      },
+      {
+        id: "gameflow_troubleshooting",
+        title: "Troubleshooting",
+        content: `
+          <h2>Common Problems and Solutions</h2>
+
+          <h3>Problem 1: Menu doesn't respond</h3>
+          <p><strong>Symptoms</strong>: Menu shows but I can't navigate</p>
+          <p><strong>Possible causes</strong>:</p>
+          <ul>
+            <li>No connections defined for options</li>
+            <li>Joystick not connected correctly</li>
+          </ul>
+          <p><strong>Solution</strong>: Ensure all OPTION_N connections are defined in your SubMenu node</p>
+
+          <h3>Problem 2: WorldLink never ends</h3>
+          <p><strong>Symptoms</strong>: Game stuck in infinite loop</p>
+          <p><strong>Possible causes</strong>: <code>gameflow_exit_requested</code> is not set to 1</p>
+          <p><strong>Solution</strong>: Ensure your code/behavior sets the exit flag when level completes</p>
+
+          <h3>Problem 3: Transitions don't show</h3>
+          <p><strong>Symptoms</strong>: Transition effects don't appear</p>
+          <p><strong>Possible causes</strong>:</p>
+          <ul>
+            <li>Incorrect effectType (must be 0-4)</li>
+            <li>ASM code not compiled correctly</li>
+          </ul>
+          <p><strong>Solution</strong>: Verify effectType is within valid range (0-4)</p>
+
+          <h3>Problem 4: Music doesn't play</h3>
+          <p><strong>Symptoms</strong>: Music command produces no sound</p>
+          <p><strong>Possible causes</strong>:</p>
+          <ul>
+            <li>Incorrect trackId (track doesn't exist)</li>
+            <li>Stop command called before</li>
+          </ul>
+          <p><strong>Solution</strong>: Verify track exists and Play command is used correctly</p>
+
+          <h3>Problem 5: Variables don't update</h3>
+          <p><strong>Symptoms</strong>: Globals doesn't change variable values</p>
+          <p><strong>Possible causes</strong>:</p>
+          <ul>
+            <li>Incorrect variable name</li>
+            <li>Wrong operation</li>
+          </ul>
+          <p><strong>Solution</strong>: Use exact variable name and correct operation ("set", "add", or "subtract")</p>
+
+          <h3>Problem 6: IfThenElse always goes ELSE</h3>
+          <p><strong>Symptoms</strong>: Condition never met</p>
+          <p><strong>Possible causes</strong>:</p>
+          <ul>
+            <li>Wrong operator</li>
+            <li>Variable not initialized</li>
+            <li>Incorrect comparison value</li>
+          </ul>
+          <p><strong>Solution</strong>: Verify operator and variable initialization</p>
+          <p><strong>Valid operators</strong>: "equals", "greater", "less", "greaterOrEqual", "lessOrEqual"</p>
+
+          <h3>Problem 7: Text appears cut off</h3>
+          <p><strong>Symptoms</strong>: Text doesn't show completely</p>
+          <p><strong>Possible causes</strong>:</p>
+          <ul>
+            <li>Text too long (max ~30 characters)</li>
+            <li>Unsupported characters</li>
+          </ul>
+          <p><strong>Solution</strong>: Limit text to 30 characters max, use only standard ASCII (A-Z, 0-9, basic punctuation)</p>
+
+          <h3>Problem 8: ROM doesn't compile</h3>
+          <p><strong>Symptoms</strong>: glass.jar compilation error</p>
+          <p><strong>Possible causes</strong>:</p>
+          <ul>
+            <li>Nodes without required connections</li>
+            <li>Duplicate node IDs</li>
+            <li>References to non-existent nodes</li>
+          </ul>
+          <p><strong>Solution</strong>:</p>
+          <ul>
+            <li>Verify all nodes have required connections</li>
+            <li>Ensure unique IDs for each node</li>
+            <li>Verify targets exist in node list</li>
+          </ul>
+        `,
+        tags: ["gameflow", "troubleshooting", "problems"],
+      },
+    ],
+  },
 ];
 // --- End Help & Documentation Constants ---
 

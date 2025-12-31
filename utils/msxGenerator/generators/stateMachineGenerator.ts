@@ -692,36 +692,128 @@ Action_ApplyForce:
 
 
 Action_ChangeSprite:
-; Params: Sprite ID(1 byte)
-    ld e, (hl); E = Sprite ID
+    ; Params: Sprite Asset ID (1 byte)
+    ; Changes the sprite asset used by this entity
+    ; Also resets animation frame to 0
+    ld a, (hl)              ; A = Sprite Asset ID
     inc hl
-    
-    push hl; Save Params Ptr
-    
-    ld c, b; C = Entity Index
-    ld b, 0; BC = Entity Index
-    
-    ld hl, sprite_pattern
+
+    push hl                 ; Save Params Ptr
+    push af                 ; Save Sprite Asset ID
+
+    ; BC = Entity Index
+    ld c, b
+    ld b, 0
+
+    ; Set entity_sprite_asset_index
+    ld hl, entity_sprite_asset_index
     add hl, bc
-    ld (hl), e          ; Set Sprite Pattern
-    
-    pop hl          ; Restore Params Ptr
+    pop af                  ; Restore Sprite Asset ID
+    ld (hl), a              ; entity_sprite_asset_index[entity] = spriteId
+
+    ; Reset animation frame to 0 (start from first frame of new sprite)
+    ld hl, entity_anim_frame
+    add hl, bc
+    ld (hl), 0              ; entity_anim_frame[entity] = 0
+
+    ; Reset animation tick to 0
+    ld hl, entity_anim_tick
+    add hl, bc
+    ld (hl), 0              ; entity_anim_tick[entity] = 0
+
+    pop hl                  ; Restore Params Ptr
     ret
 
 Action_PlayAnimation:
-; Params: Animation Name(1 byte - ID ?)
-    ; TODO: Implement Animation System
-    inc hl
+    ; Params: Animation Name (1 byte - ignored in MSX, animations are frame-based)
+    ; Starts/restarts animation playback from frame 0
+    inc hl                  ; Skip animationName param (not used in MSX)
+
+    push hl                 ; Save Params Ptr
+
+    ; BC = Entity Index
+    ld c, b
+    ld b, 0
+
+    ; Set PLAYING flag in entity_anim_flags
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, (hl)
+    or ANIM_FLAG_PLAYING    ; Set bit 0 (PLAYING)
+    ld (hl), a
+
+    ; Reset animation to frame 0
+    ld hl, entity_anim_frame
+    add hl, bc
+    ld (hl), 0
+
+    ; Reset tick counter
+    ld hl, entity_anim_tick
+    add hl, bc
+    ld (hl), 0
+
+    pop hl                  ; Restore Params Ptr
     ret
 
 Action_SetAnimSpeed:
-; Params: Speed(1 byte)
+    ; Params: Speed (1 byte) - frames to wait between animation frames
+    ld a, (hl)              ; A = Speed
     inc hl
+
+    push hl                 ; Save Params Ptr
+
+    ; BC = Entity Index
+    ld c, b
+    ld b, 0
+
+    ; Set entity_anim_speed
+    ld hl, entity_anim_speed
+    add hl, bc
+    ld (hl), a              ; entity_anim_speed[entity] = speed
+
+    pop hl                  ; Restore Params Ptr
     ret
 
 Action_ToggleAnim:
-; Params: Playing(1 byte)
+    ; Params: Playing (1 byte) - 0 = pause, non-zero = play
+    ld a, (hl)              ; A = Playing flag
     inc hl
+
+    push hl                 ; Save Params Ptr
+    push af                 ; Save Playing flag
+
+    ; BC = Entity Index
+    ld c, b
+    ld b, 0
+
+    ; Get current flags
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, (hl)
+
+    pop de                  ; D = Playing flag (was in A)
+    ld e, a                 ; E = Current flags
+
+    ; Check if we should play or pause
+    ld a, d
+    or a
+    jr z, .pause_anim
+
+.play_anim:
+    ; Set PLAYING flag (bit 0)
+    ld a, e
+    or ANIM_FLAG_PLAYING
+    ld (hl), a
+    jr .done_toggle
+
+.pause_anim:
+    ; Clear PLAYING flag (bit 0)
+    ld a, e
+    and #FE                 ; AND with 11111110 to clear bit 0 (PLAYING flag)
+    ld (hl), a
+
+.done_toggle:
+    pop hl                  ; Restore Params Ptr
     ret
 
 Action_PlaySound:
@@ -1248,39 +1340,479 @@ Action_PointAt:
     inc hl
     ret
 
+; ==================================================================
+; HELPER: Read Variable Value
+; Input: A = VarID, B = Entity Index
+; Output: A = Variable Value
+; Destroys: DE, HL
+; ==================================================================
+SM_ReadVar:
+    cp 6
+    jr nc, .read_global
+
+    ; Entity variable (0-5) - use jump table for speed
+    push bc
+    ld e, b
+    ld d, 0                 ; DE = Entity Index
+
+    ; Jump table dispatch
+    ld l, a
+    ld h, 0
+    add hl, hl              ; HL = VarID * 2
+    ld bc, .read_entity_var_table
+    add hl, bc
+    ld c, (hl)
+    inc hl
+    ld b, (hl)
+    push bc
+    ret                     ; Jump to handler
+
+.read_entity_var_table:
+    DW .read_x              ; 0
+    DW .read_y              ; 1
+    DW .read_vx             ; 2
+    DW .read_vy             ; 3
+    DW .read_on_ground      ; 4
+    DW .read_health         ; 5
+
+.read_x:
+    ld hl, entity_x_pos
+    jr .do_read_entity
+.read_y:
+    ld hl, entity_y_pos
+    jr .do_read_entity
+.read_vx:
+    ld hl, entity_vel_x
+    jr .do_read_entity
+.read_vy:
+    ld hl, entity_vel_y
+    jr .do_read_entity
+.read_on_ground:
+    ld hl, entity_on_ground
+    add hl, de
+    ld a, (hl)
+    and #01
+    pop bc
+    ret
+.read_health:
+    ld hl, entity_health_current
+    ; Fall through to do_read_entity
+
+.do_read_entity:
+    add hl, de
+    ld a, (hl)
+    pop bc
+    ret
+
+.read_global:
+    ; Global variable (6+)
+    sub 6
+    ld l, a
+    ld h, 0
+    add hl, hl              ; HL = (VarID - 6) * 2
+
+    push de
+    ld de, SM_GlobalVarTable
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)              ; DE = address
+    ld a, (de)              ; A = value
+    pop de
+    ret
+
+; ==================================================================
+; HELPER: Write Variable Value
+; Input: A = VarID, C = Value, B = Entity Index
+; Destroys: DE, HL
+; ==================================================================
+SM_WriteVar:
+    cp 6
+    jr nc, .write_global
+
+    ; Entity variable (0-5) - use jump table for speed
+    push bc
+    ld e, b
+    ld d, 0                 ; DE = Entity Index
+
+    ; Jump table dispatch
+    ld l, a
+    ld h, 0
+    add hl, hl              ; HL = VarID * 2
+    ld bc, .write_entity_var_table
+    add hl, bc
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a
+    ld bc, .do_write
+    push bc
+    jp (hl)                 ; Jump to handler
+
+.write_entity_var_table:
+    DW .write_x             ; 0
+    DW .write_y             ; 1
+    DW .write_vx            ; 2
+    DW .write_vy            ; 3
+    DW .write_on_ground     ; 4
+    DW .write_health        ; 5
+
+.write_x:
+    ld hl, entity_x_pos
+    jr .do_write_entity
+.write_y:
+    ld hl, entity_y_pos
+    jr .do_write_entity
+.write_vx:
+    ld hl, entity_vel_x
+    jr .do_write_entity
+.write_vy:
+    ld hl, entity_vel_y
+    jr .do_write_entity
+.write_on_ground:
+    ld hl, entity_on_ground
+    jr .do_write_entity
+.write_health:
+    ld hl, entity_health_current
+    ; Fall through to do_write_entity
+
+.do_write_entity:
+    add hl, de
+    ld (hl), c
+.do_write:
+    pop bc
+    ret
+
+.write_global:
+    sub 6
+    ld l, a
+    ld h, 0
+    add hl, hl
+
+    push de
+    ld de, SM_GlobalVarTable
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, c
+    ld (de), a
+    pop de
+    ret
+
+; ==================================================================
+; MATHEMATICAL OPERATIONS
+; ==================================================================
+
 Action_AddVars:
-; Params: DestVar, Src1, Src2 (3 bytes)
+; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
+; DestVar = Src1 + Src2
+    ld c, (hl)              ; C = DestVarID
     inc hl
+    ld d, (hl)              ; D = Src1VarID
     inc hl
+    ld e, (hl)              ; E = Src2VarID
     inc hl
+
+    push hl                 ; Save params ptr
+    push bc                 ; Save DestVarID
+
+    ; Read Src1
+    ld a, d
+    call SM_ReadVar         ; A = Src1 value
+    ld d, a                 ; D = Src1 value
+
+    ; Read Src2
+    ld a, e
+    call SM_ReadVar         ; A = Src2 value
+
+    ; Add
+    add a, d                ; A = Src1 + Src2
+    ld c, a                 ; C = result
+
+    ; Write to Dest
+    pop de                  ; E = DestVarID
+    ld a, e
+    call SM_WriteVar
+
+    pop hl
     ret
 
 Action_SubVars:
-; Params: DestVar, Src1, Src2 (3 bytes)
+; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
+; DestVar = Src1 - Src2
+    ld c, (hl)              ; C = DestVarID
     inc hl
+    ld d, (hl)              ; D = Src1VarID
     inc hl
+    ld e, (hl)              ; E = Src2VarID
     inc hl
+
+    push hl
+    push bc
+
+    ; Read Src1
+    ld a, d
+    call SM_ReadVar
+    ld d, a
+
+    ; Read Src2
+    ld a, e
+    call SM_ReadVar
+
+    ; Subtract
+    ld e, a                 ; E = Src2
+    ld a, d                 ; A = Src1
+    sub e                   ; A = Src1 - Src2
+    ld c, a
+
+    ; Write to Dest
+    pop de
+    ld a, e
+    call SM_WriteVar
+
+    pop hl
     ret
 
 Action_MulVars:
-; Params: DestVar, Src1, Src2 (3 bytes)
+; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
+; DestVar = Src1 * Src2 (8-bit multiplication, optimized for powers of 2)
+    ld c, (hl)
     inc hl
+    ld d, (hl)
     inc hl
+    ld e, (hl)
     inc hl
+
+    push hl
+    push bc
+
+    ; Read Src1 (multiplicand)
+    ld a, d
+    call SM_ReadVar
+    ld d, a
+
+    ; Read Src2 (multiplier)
+    ld a, e
+    call SM_ReadVar
+    ld e, a
+
+    ; Optimize for special cases
+    or a
+    jr z, .mul_by_zero      ; multiplier == 0
+    cp 1
+    jr z, .mul_by_one       ; multiplier == 1
+
+    ; Check if multiplier is power of 2 (2,4,8,16,32,64,128)
+    ld b, a                 ; B = multiplier
+
+    ; Test for power of 2: (B & (B-1)) == 0
+    ld a, b
+    dec a
+    and b
+    jr nz, .mul_slow        ; Not power of 2, use slow method
+
+    ; Count shifts needed (find which power of 2)
+    ld a, d                 ; A = multiplicand
+
+    ; Power of 2 detected - use shifts
+    ld a, d                 ; A = multiplicand
+    ld c, b                 ; C = multiplier
+
+.mul_shift_loop:
+    cp 1
+    jr z, .mul_done
+    srl c                   ; Shift multiplier right
+    jr nc, .mul_shift_loop  ; If bit was 0, continue
+    sla a                   ; Shift result left (multiply by 2)
+    jr .mul_shift_loop
+
+.mul_slow:
+    ; Standard multiplication by repeated addition
+    ld a, 0
+    ld c, e                 ; C = multiplier
+
+.mul_loop:
+    add a, d
+    dec c
+    jr nz, .mul_loop
+    jr .mul_done
+
+.mul_by_zero:
+    ld a, 0
+    jr .mul_done
+
+.mul_by_one:
+    ld a, d                 ; result = multiplicand
+
+.mul_done:
+    ld c, a                 ; C = result
+
+    ; Write to Dest
+    pop de
+    ld a, e
+    call SM_WriteVar
+
+    pop hl
     ret
 
 Action_DivVars:
-; Params: DestVar, Src1, Src2 (3 bytes)
+; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
+; DestVar = Src1 / Src2 (integer division, optimized for powers of 2)
+    ld c, (hl)
     inc hl
+    ld d, (hl)
     inc hl
+    ld e, (hl)
     inc hl
+
+    push hl
+    push bc
+
+    ; Read Src1 (dividend)
+    ld a, d
+    call SM_ReadVar
+    ld d, a
+
+    ; Read Src2 (divisor)
+    ld a, e
+    call SM_ReadVar
+    ld e, a
+
+    ; Optimize for special cases
+    or a
+    jr z, .div_by_zero      ; divisor == 0
+    cp 1
+    jr z, .div_by_one       ; divisor == 1
+
+    ; Check if divisor is power of 2 (2,4,8,16,32,64,128)
+    ld b, a                 ; B = divisor
+
+    ; Test for power of 2: (B & (B-1)) == 0
+    ld a, b
+    dec a
+    and b
+    jr nz, .div_slow        ; Not power of 2, use slow method
+
+    ; Power of 2 detected - use shifts
+    ld a, d                 ; A = dividend
+    ld c, b                 ; C = divisor
+
+.div_shift_loop:
+    srl c                   ; Shift divisor right
+    jr z, .div_done         ; If divisor became 0, done
+    srl a                   ; Shift dividend right (divide by 2)
+    jr .div_shift_loop
+
+.div_slow:
+    ; Standard division by repeated subtraction
+    ld c, e                 ; C = divisor
+    ld a, d                 ; A = dividend
+    ld d, 0                 ; D = quotient
+
+.div_loop:
+    cp c
+    jr c, .div_done_slow    ; If A < divisor, done
+    sub c                   ; A -= divisor
+    inc d                   ; quotient++
+    jr .div_loop
+
+.div_done_slow:
+    ld a, d                 ; A = quotient
+    jr .div_done
+
+.div_by_zero:
+    ld a, 0                 ; Division by zero = 0
+    jr .div_done
+
+.div_by_one:
+    ld a, d                 ; result = dividend
+
+.div_done:
+    ld c, a                 ; C = result
+
+    ; Write to Dest
+    pop de
+    ld a, e
+    call SM_WriteVar
+
+    pop hl
     ret
 
 Action_ModVars:
-; Params: DestVar, Src1, Src2 (3 bytes)
+; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
+; DestVar = Src1 % Src2 (modulo/remainder, optimized for powers of 2)
+    ld c, (hl)
     inc hl
+    ld d, (hl)
     inc hl
+    ld e, (hl)
     inc hl
+
+    push hl
+    push bc
+
+    ; Read Src1 (dividend)
+    ld a, d
+    call SM_ReadVar
+    ld d, a
+
+    ; Read Src2 (divisor/modulo)
+    ld a, e
+    call SM_ReadVar
+    ld e, a
+
+    ; Optimize for special cases
+    or a
+    jr z, .mod_by_zero      ; modulo == 0
+    cp 1
+    jr z, .mod_by_one       ; modulo == 1 (always 0)
+
+    ; Check if modulo is power of 2 (2,4,8,16,32,64,128)
+    ld b, a                 ; B = modulo
+
+    ; Test for power of 2: (B & (B-1)) == 0
+    ld a, b
+    dec a
+    and b
+    jr nz, .mod_slow        ; Not power of 2, use slow method
+
+    ; Power of 2 detected - use AND mask
+    ; x % (2^n) = x & (2^n - 1)
+    ld a, b
+    dec a                   ; A = modulo - 1 (mask)
+    ld c, a
+    ld a, d                 ; A = dividend
+    and c                   ; A = dividend & (modulo - 1)
+    jr .mod_done
+
+.mod_slow:
+    ; Standard modulo by repeated subtraction
+    ld c, e                 ; C = modulo
+    ld a, d                 ; A = dividend
+
+.mod_loop:
+    cp c
+    jr c, .mod_done         ; If A < modulo, A is the remainder
+    sub c
+    jr .mod_loop
+
+.mod_by_zero:
+    ld a, 0                 ; Modulo by zero = 0
+    jr .mod_done
+
+.mod_by_one:
+    ld a, 0                 ; x % 1 = 0 always
+
+.mod_done:
+    ld c, a                 ; C = result
+
+    ; Write to Dest
+    pop de
+    ld a, e
+    call SM_WriteVar
+
+    pop hl
     ret
 
 
@@ -1344,7 +1876,7 @@ Condition_KeyPressed:
     inc hl                  ; Move past param
 
     cp 9                    ; Check if fire button
-    jr z, .check_fire
+    jr z, .ckp_fire
 
     ; For directional keys, check if direction is active
     ld d, a                 ; D = Desired key ID
@@ -1352,64 +1884,64 @@ Condition_KeyPressed:
 
     ; Simple direction check: match exact direction or diagonals
     cp d                    ; Check exact match
-    jr z, .key_pressed
+    jr z, .ckp_pressed
 
     ; Check for diagonal combinations
     ; If desired key is UP (1), also check UP+RIGHT (2) and UP+LEFT (8)
     ld a, d
     cp 1                    ; Desired = UP?
-    jr nz, .check_down
+    jr nz, .ckp_down
     ld a, (input_state)
     cp 2                    ; UP+RIGHT?
-    jr z, .key_pressed
+    jr z, .ckp_pressed
     cp 8                    ; UP+LEFT?
-    jr z, .key_pressed
-    jr .key_not_pressed
+    jr z, .ckp_pressed
+    jr .ckp_not_pressed
 
-.check_down:
+.ckp_down:
     ld a, d
     cp 5                    ; Desired = DOWN?
-    jr nz, .check_left
+    jr nz, .ckp_left
     ld a, (input_state)
     cp 4                    ; DOWN+RIGHT?
-    jr z, .key_pressed
+    jr z, .ckp_pressed
     cp 6                    ; DOWN+LEFT?
-    jr z, .key_pressed
-    jr .key_not_pressed
+    jr z, .ckp_pressed
+    jr .ckp_not_pressed
 
-.check_left:
+.ckp_left:
     ld a, d
     cp 7                    ; Desired = LEFT?
-    jr nz, .check_right
+    jr nz, .ckp_right
     ld a, (input_state)
     cp 6                    ; DOWN+LEFT?
-    jr z, .key_pressed
+    jr z, .ckp_pressed
     cp 8                    ; UP+LEFT?
-    jr z, .key_pressed
-    jr .key_not_pressed
+    jr z, .ckp_pressed
+    jr .ckp_not_pressed
 
-.check_right:
+.ckp_right:
     ld a, d
     cp 3                    ; Desired = RIGHT?
-    jr nz, .key_not_pressed
+    jr nz, .ckp_not_pressed
     ld a, (input_state)
     cp 2                    ; UP+RIGHT?
-    jr z, .key_pressed
+    jr z, .ckp_pressed
     cp 4                    ; DOWN+RIGHT?
-    jr z, .key_pressed
-    jr .key_not_pressed
+    jr z, .ckp_pressed
+    jr .ckp_not_pressed
 
-.check_fire:
+.ckp_fire:
     ; Fire button check - TODO: Requires input_fire flag or GTTRIG check
     ; For now, return false (fire not implemented yet)
     ld a, 0
     ret
 
-.key_pressed:
+.ckp_pressed:
     ld a, 1
     ret
 
-.key_not_pressed:
+.ckp_not_pressed:
     ld a, 0
     ret
 
@@ -1420,8 +1952,51 @@ Condition_KeyReleased:
     ret
 
 Condition_TimeOut:
-    ; TODO: Implement timeout check
-    ld a, 1
+    ; Params: Duration (1 byte) - frames to wait
+    ; Returns: A=1 if entity state timer >= duration, else A=0
+    ld a, (hl)              ; A = Duration threshold
+    inc hl
+
+    push hl                 ; Save Params Ptr
+    push af                 ; Save Duration
+
+    ; BC = Entity Index
+    ld c, b
+    ld b, 0
+
+    ; Read entity state timer (16-bit: entity_sm_timer_h:entity_sm_timer_l)
+    ld hl, entity_sm_timer_l
+    add hl, bc
+    ld e, (hl)              ; E = Timer Low
+
+    ld hl, entity_sm_timer_h
+    add hl, bc
+    ld d, (hl)              ; D = Timer High
+
+    ; Compare timer (DE) with duration (stored in stack)
+    pop af                  ; A = Duration threshold
+    ld b, a                 ; B = Duration
+
+    ; Since duration is 8-bit, compare low byte first
+    ; If timer_low >= duration, return true
+    ld a, e                 ; A = Timer Low
+    cp b
+    jr nc, .timeout_true    ; Timer Low >= Duration -> true
+
+    ; If timer_high > 0, definitely >= duration (since duration is 8-bit max 255)
+    ld a, d
+    or a
+    jr nz, .timeout_true
+
+    ; Timer < Duration
+.timeout_false:
+    xor a                   ; A = 0 (false)
+    pop hl
+    ret
+
+.timeout_true:
+    ld a, 1                 ; A = 1 (true)
+    pop hl
     ret
 
 Condition_CanMove:
@@ -1569,12 +2144,6 @@ Condition_VariableCompare:
     ld e, a                 ; E = 1 if on ground, 0 if in air
     jr .do_compare
 
-.get_health:
-    ld hl, entity_health_current
-    add hl, bc
-    ld e, (hl)              ; E = current health
-    ; Fall through to .do_compare
-
 .do_compare:
     ; E = Variable Value
     ; Stack: Compare Value (D), Operator (C in saved BC), Entity Index
@@ -1662,10 +2231,10 @@ export function generateStateMachineSystem(stateMachines: StateMachine[], global
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
 
     // Generate global variables table
+    asm += '; ==================================================================\n';
+    asm += '; GLOBAL VARIABLES TABLE\n';
+    asm += '; ==================================================================\n';
     if (globalVariables && globalVariables.length > 0) {
-        asm += '; ==================================================================\n';
-        asm += '; GLOBAL VARIABLES TABLE\n';
-        asm += '; ==================================================================\n';
         asm += '; Maps variable IDs (6+) to their RAM addresses\n';
         asm += 'SM_GlobalVarTable:\n';
 
@@ -1674,6 +2243,10 @@ export function generateStateMachineSystem(stateMachines: StateMachine[], global
             asm += `    DW ${variable.asmName}            ; ID ${varId}: ${variable.name}\n`;
         });
         asm += '\n';
+    } else {
+        asm += '; No global variables defined\n';
+        asm += 'SM_GlobalVarTable:\n';
+        asm += '    ; Empty table (no global variables)\n\n';
     }
 
     asm += '; ==================================================================\n';
@@ -1856,6 +2429,30 @@ function generateActionBytes(action: Action, smName: string = '', variableIdMap?
             const target = action.params?.target || 'self';
             const targetId = target === 'other' ? 1 : 0;
             bytes += `    DB ${targetId}          ; Target: ${target}\n`;
+            break;
+        }
+
+        case ActionTypes.ADD_VARIABLES:
+        case ActionTypes.SUBTRACT_VARIABLES:
+        case ActionTypes.MULTIPLY_VARIABLES:
+        case ActionTypes.DIVIDE_VARIABLES:
+        case ActionTypes.MODULO_VARIABLES: {
+            // Mathematical operations: DestVar = Src1 OP Src2
+            // Params: destination, source1, source2 (variable names)
+            const destName = action.params.destination || action.params.dest || action.params.result;
+            const src1Name = action.params.source1 || action.params.src1 || action.params.operand1;
+            const src2Name = action.params.source2 || action.params.src2 || action.params.operand2;
+
+            const destId = variableIdMap?.[destName] ?? 0;
+            const src1Id = variableIdMap?.[src1Name] ?? 0;
+            const src2Id = variableIdMap?.[src2Name] ?? 0;
+
+            const opName = action.type === ActionTypes.ADD_VARIABLES ? 'ADD' :
+                           action.type === ActionTypes.SUBTRACT_VARIABLES ? 'SUB' :
+                           action.type === ActionTypes.MULTIPLY_VARIABLES ? 'MUL' :
+                           action.type === ActionTypes.DIVIDE_VARIABLES ? 'DIV' : 'MOD';
+
+            bytes += `    DB ${destId}, ${src1Id}, ${src2Id}        ; ${destName} = ${src1Name} ${opName} ${src2Name}\n`;
             break;
         }
 

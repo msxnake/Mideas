@@ -44,7 +44,7 @@ const HelpSidebar: React.FC<HelpSidebarProps> = ({ sections, onSelectArticle, ac
   };
 
   return (
-    <div className="w-64 bg-msx-panelbg border-r border-msx-border p-2 overflow-y-auto flex-shrink-0">
+    <div className="w-64 bg-msx-panelbg border-r border-msx-border p-2 overflow-y-auto flex-shrink-0 h-full">
       <h3 className="text-md font-semibold text-msx-highlight mb-3 pixel-font">Contents</h3>
       {sections.map(section => (
         <div key={section.id} className="mb-2">

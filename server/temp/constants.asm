@@ -47,26 +47,6 @@ MSX_CHARS_PER_TILE_X EQU 2  ; MSX characters wide per tile
 MSX_CHARS_PER_TILE_Y EQU 2 ; MSX characters high per tile
 
 
-; Legacy compatibility
-SCREEN_WIDTH    EQU SCREEN_TILES_X
-SCREEN_HEIGHT   EQU SCREEN_TILES_Y
-TILE_SIZE       EQU 8    ; MSX character size (always 8x8)
-
-; ==================================================================
-; GAMEFLOW NODE TYPE CONSTANTS (Critical for Paridad)
-; ==================================================================
-NODE_TYPE_START        EQU 0    ; Start node (initial entry point)
-NODE_TYPE_WORLDLINK    EQU 1    ; World link node (loads world map)
-NODE_TYPE_SCREEN       EQU 2    ; Screen node (loads specific screen)
-NODE_TYPE_MENU         EQU 3    ; Menu node (shows menu interface)
-NODE_TYPE_UNKNOWN      EQU 255  ; Unknown/unsupported node type
-
-; ==================================================================
-; SPRITE CONSTANTS
-; ==================================================================
-MAX_SPRITES     EQU 32   ; Máximo sprites por pantalla
-SPRITE_SIZE     EQU 8    ; 8x8 o 16x16 (según modo)
-SPRITE_INVISIBLE EQU #D1 ; Y=209 (sprite fuera de pantalla)
 
 ; ==================================================================
 ; MSX COLORS
@@ -108,6 +88,36 @@ TRIG_A      EQU #10      ; Trigger A (Fire)
 TRIG_B      EQU #20      ; Trigger B (MSX2+)
 
 ; ==================================================================
+; TILE BEHAVIOR CONSTANTS (for collision detection)
+; ==================================================================
+
+; Tile Behavior Types (bitmask)
+TILE_PASSABLE       EQU #00    ; No collision (air, background)
+TILE_SOLID          EQU #01    ; Solid wall/floor (blocks all movement)
+TILE_PLATFORM       EQU #02    ; One-way platform (solid from above only)
+TILE_LADDER         EQU #04    ; Climbable (allows vertical movement)
+TILE_DEADLY         EQU #08    ; Damages/kills on contact (spikes, lava)
+TILE_WATER          EQU #10    ; Water (slows movement, swim logic)
+TILE_ICE            EQU #20    ; Slippery surface (reduced friction)
+TILE_BREAKABLE      EQU #40    ; Can be destroyed by player
+TILE_TRIGGER        EQU #80    ; Activates events on contact
+
+; Collision Directions (for platform logic)
+COLL_FROM_ABOVE     EQU #01    ; Entity approaching from above
+COLL_FROM_BELOW     EQU #02    ; Entity approaching from below
+COLL_FROM_LEFT      EQU #04    ; Entity approaching from left
+COLL_FROM_RIGHT     EQU #08    ; Entity approaching from right
+
+; ==================================================================
+; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
+; ==================================================================
+
+; Goal Variable Values (default)
+GOAL_FAILURE            EQU 0    ; Goal = "Failure"
+GOAL_COMPLETED          EQU 1    ; Goal = "Completed"
+
+
+; ==================================================================
 ; GAME FLOW STATES (PROJECT-SPECIFIC)
 ; ==================================================================
 
@@ -117,6 +127,19 @@ FLOW_STATE_GAME         EQU 1
 FLOW_STATE_PAUSE        EQU 2
 FLOW_STATE_GAME_OVER    EQU 3
 FLOW_STATE_CREDITS      EQU 4
+
+; GameFlow Node Types
+NODE_TYPE_START         EQU 0    ; Start node (initial entry point)
+NODE_TYPE_WORLDLINK     EQU 1    ; World link node (loads world map)
+NODE_TYPE_WORLD_LINK    EQU 1    ; Alias with underscore (for compatibility)
+NODE_TYPE_SCREEN        EQU 2    ; Screen node (loads specific screen)
+NODE_TYPE_MENU          EQU 3    ; Menu node (shows menu interface)
+NODE_TYPE_SUBMENU       EQU 3    ; Alias for menu node
+NODE_TYPE_SUB_MENU      EQU 3    ; Alias with underscore (for compatibility)
+NODE_TYPE_TEXT          EQU 4    ; Text node (displays text)
+NODE_TYPE_TRANSITION    EQU 5    ; Transition node
+NODE_TYPE_RESTART       EQU 6    ; Restart node (restart game/level)
+NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 
 ; Additional Game Flow States detected in project
 ; (Custom states would be added here if needed)

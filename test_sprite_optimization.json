@@ -1,0 +1,50 @@
+{
+  "projectName": "SpriteOptimizationTest",
+  "version": "1.0.0",
+  "sprites": [
+    {
+      "id": "sprite_white_only",
+      "name": "WhiteSprite",
+      "size": {
+        "width": 16,
+        "height": 16
+      },
+      "backgroundColor": "#000000",
+      "spritePalette": ["#000000", "#FFFFFF", "#FC584A", "#E7E474"],
+      "frames": [
+        {
+          "name": "frame0",
+          "data": [
+            ["#000000","#000000","#000000","#000000","#000000","#000000","#000000","#FFFFFF","#FFFFFF","#000000","#000000","#000000","#000000","#000000","#000000","#000000"],
+            ["#000000","#000000","#000000","#000000","#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000","#000000","#000000","#000000","#000000"],
+            ["#000000","#000000","#000000","#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000","#000000","#000000","#000000"],
+            ["#000000","#000000","#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000","#000000","#000000"],
+            ["#000000","#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000","#000000"],
+            ["#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000"],
+            ["#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000"],
+            ["#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF"],
+            ["#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF"],
+            ["#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000"],
+            ["#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000"],
+            ["#000000","#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000","#000000"],
+            ["#000000","#000000","#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000","#000000","#000000"],
+            ["#000000","#000000","#000000","#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000","#000000","#000000","#000000"],
+            ["#000000","#000000","#000000","#000000","#000000","#000000","#FFFFFF","#FFFFFF","#FFFFFF","#FFFFFF","#000000","#000000","#000000","#000000","#000000","#000000"],
+            ["#000000","#000000","#000000","#000000","#000000","#000000","#000000","#FFFFFF","#FFFFFF","#000000","#000000","#000000","#000000","#000000","#000000","#000000"]
+          ]
+        }
+      ]
+    }
+  ],
+  "tiles": [],
+  "screenMaps": [],
+  "worlds": [],
+  "entities": [],
+  "entityTemplates": [],
+  "components": [],
+  "gameFlowNodes": [],
+  "gameFlowConnections": [],
+  "hudConfig": {
+    "enabled": false
+  }
+}

@@ -98,7 +98,17 @@
       "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"c:\\Users\\salam\\Downloads\\test_diagnostic.rom\")",
       "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"c:\\Users\\salam\\Downloads\\test_diagnostic_v2.rom\")",
       "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"c:\\Users\\salam\\Downloads\\test_diagnostic_v3.rom\")",
-      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"c:\\Users\\salam\\Downloads\\test_diagnostic_v4.rom\")"
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"c:\\Users\\salam\\Downloads\\test_diagnostic_v4.rom\")",
+      "Bash(\"C:\\\\Program Files\\\\openMSX\\\\openmsx.exe\" -script \"c:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\automation\\\\openmsx\\\\test_BasicEnemy_FASE4.tcl\")",
+      "Bash(ping:*)",
+      "Bash(\"C:\\\\Program Files\\\\openMSX\\\\openmsx.exe\" -script \"c:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\automation\\\\openmsx\\\\test_BasicEnemy_auto.tcl\")",
+      "Bash(\"C:\\\\Program Files\\\\openMSX\\\\openmsx.exe\" \"c:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\server\\\\temp\\\\BasicEnemy.rom\")",
+      "Bash(for func in update_input_component update_shoot_component update_behavior_component update_jump_component update_movement_component update_gravity_component update_position_component prepare_platform_detection update_collision_component update_platform_riding update_health_component update_damage_component update_animation_component update_auto_destroy_component update_sprite_component)",
+      "Bash(do echo -n \"$func: \")",
+      "Bash(done)",
+      "Bash(\"C:\\\\Program Files\\\\openMSX\\\\openmsx.exe\" \"c:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\server\\\\codi.rom\")",
+      "Bash(\"C:\\\\Program Files\\\\openMSX\\\\openmsx.exe\" \"c:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\server\\\\simple1.rom\")",
+      "Bash(\"C:\\Program Files\\openMSX\\openmsx.exe\" \"C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\test_complete.rom\")"
     ],
     "deny": [],
     "ask": []

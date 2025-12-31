@@ -5,12 +5,13 @@ import {
   HUDConfiguration, TileBank, MSXFont, MSXFontColorAttributes,
   MSXFontAsset, DataFormat, Snippet, HistoryState, HistoryAction,
   CopiedScreenData, CopiedLayerData, CopiedTileData, WaypointPickerState,
-  GameFlowGraph, CopiedBossPhaseData
+  GameFlowGraph, CopiedBossPhaseData, HelpDocSection
 } from '../types';
 import {
   MSX_SCREEN5_PALETTE, DEFAULT_SCREEN_MODE, DEFAULT_MAIN_MENU_CONFIG,
   DEFAULT_SCREEN2_BG_COLOR, MSX1_PALETTE, Z80_SNIPPETS as DEFAULT_Z80_SNIPPETS,
-  Z80_BEHAVIOR_SNIPPETS, DEFAULT_TILE_BANK_DEFINITIONS, MAX_HISTORY_LENGTH
+  Z80_BEHAVIOR_SNIPPETS, DEFAULT_TILE_BANK_DEFINITIONS, MAX_HISTORY_LENGTH,
+  DEFAULT_HELP_DOCS_DATA
 } from '../constants';
 import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data/defaults';
 import { getVariedColorsForChar } from '../utils/colorUtils';
@@ -155,6 +156,9 @@ export const useAppState = () => {
     const allDefaultSnippets = [...DEFAULT_Z80_SNIPPETS, ...Z80_BEHAVIOR_SNIPPETS];
     return allDefaultSnippets;
   });
+
+  // Help & Documentation
+  const [helpDocsData, setHelpDocsData] = useState<HelpDocSection[]>(DEFAULT_HELP_DOCS_DATA);
 
   // IDE Configuration
   const [dataOutputFormat, setDataOutputFormat] = useState<DataFormat>(() => {
@@ -344,6 +348,10 @@ export const useAppState = () => {
     setMsxFontColors,
     userSnippets,
     setUserSnippets,
+
+    // Help & Documentation
+    helpDocsData,
+    setHelpDocsData,
 
     // IDE Configuration
     dataOutputFormat,

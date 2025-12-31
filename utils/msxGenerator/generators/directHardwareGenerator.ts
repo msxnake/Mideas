@@ -46,7 +46,8 @@ export function generateDirectHardwareFile(options: DirectHardwareOptions = { mo
   code += generateFastRDVRM();
   code += generateFastWRTVDP();
   code += generateFastGTSTCK();
-  code += generateWaitVBlank();
+  // Note: wait_vblank is generated in interruptGenerator.ts
+  // Removed generateWaitVBlank() to avoid duplicate function definition
 
   // Aggressive optimizations (optional)
   if (optimizeLevel === 'aggressive') {
@@ -394,58 +395,7 @@ joystick_direction_table_v2:
 `;
 }
 
-/**
- * Generate WAIT_VBLANK - Synchronize with vertical blank
- */
-function generateWaitVBlank(): string {
-  return `
-; ==================================================================
-; WAIT_VBLANK - Wait for Vertical Blank
-; ==================================================================
-; Synchronizes with screen refresh for smooth animation
-; More precise than BIOS H.TIMI hook method
-;
-; Input:
-;   None
-;
-; Output:
-;   None
-;
-; Destroys:
-;   AF
-;
-; Performance:
-;   ~30 cycles average (vs BIOS hook ~200+ cycles)
-;
-; Notes:
-;   - VBlank flag (bit 7) is set at start of vertical blank
-;   - Reading status register clears the flag
-;   - This routine waits for VBlank start, then waits for it to end
-;   - Prevents double-triggering if called during VBlank
-; ==================================================================
-WAIT_VBLANK:
-    ; Wait for VBlank to start
-.wait_vb_start:
-    in a, (#99)            ; Read VDP status register
-    and #80                ; Check VBlank flag (bit 7)
-    jr z, .wait_vb_start   ; Loop until VBlank starts
-
-    ; Wait for VBlank to end (prevents double-trigger)
-.wait_vb_end:
-    in a, (#99)            ; Read status again
-    and #80                ; Check VBlank flag
-    jr nz, .wait_vb_end    ; Loop until VBlank ends
-    ret
-
-; Alternative: Simple VBlank wait (faster but may double-trigger)
-WAIT_VBLANK_SIMPLE:
-    in a, (#99)            ; Read VDP status
-    and #80                ; Check VBlank flag
-    jr z, WAIT_VBLANK_SIMPLE
-    ret
-
-`;
-}
+// Note: generateWaitVBlank() removed - wait_vblank is generated in interruptGenerator.ts
 
 /**
  * Generate unrolled sprite copy (aggressive optimization)

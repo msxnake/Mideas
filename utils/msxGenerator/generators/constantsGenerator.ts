@@ -66,11 +66,13 @@ export function generateConstantsFile(analysis: ProjectAnalysis): string {
 ; ==================================================================
 
 ; Pattern Generator Table (PGT) - 3 Banks
+CHRTBL  EQU #0000        ; Pattern table base address (alias)
 CHRTBL2 EQU #0000        ; Pattern table base address (Bank 0)
 ; Bank 1: CHRTBL2 + #800   (#0800)
 ; Bank 2: CHRTBL2 + #1000  (#1000)
 
 ; Color Attribute Table (CAT) - 3 Banks
+CLRTBL  EQU #2000        ; Color table base address (alias)
 CLRTBL2 EQU #2000        ; Color table base address (Bank 0)
 ; Bank 1: CLRTBL2 + #800   (#2800)
 ; Bank 2: CLRTBL2 + #1000  (#3000)
@@ -153,6 +155,27 @@ TRIG_A      EQU #10      ; Trigger A (Fire)
 TRIG_B      EQU #20      ; Trigger B (MSX2+)
 
 ; ==================================================================
+; TILE BEHAVIOR CONSTANTS (for collision detection)
+; ==================================================================
+
+; Tile Behavior Types (bitmask)
+TILE_PASSABLE       EQU #00    ; No collision (air, background)
+TILE_SOLID          EQU #01    ; Solid wall/floor (blocks all movement)
+TILE_PLATFORM       EQU #02    ; One-way platform (solid from above only)
+TILE_LADDER         EQU #04    ; Climbable (allows vertical movement)
+TILE_DEADLY         EQU #08    ; Damages/kills on contact (spikes, lava)
+TILE_WATER          EQU #10    ; Water (slows movement, swim logic)
+TILE_ICE            EQU #20    ; Slippery surface (reduced friction)
+TILE_BREAKABLE      EQU #40    ; Can be destroyed by player
+TILE_TRIGGER        EQU #80    ; Activates events on contact
+
+; Collision Directions (for platform logic)
+COLL_FROM_ABOVE     EQU #01    ; Entity approaching from above
+COLL_FROM_BELOW     EQU #02    ; Entity approaching from below
+COLL_FROM_LEFT      EQU #04    ; Entity approaching from left
+COLL_FROM_RIGHT     EQU #08    ; Entity approaching from right
+
+; ==================================================================
 ; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
 ; ==================================================================
 
@@ -180,6 +203,7 @@ NODE_TYPE_SUB_MENU      EQU 3    ; Alias with underscore (for compatibility)
 NODE_TYPE_TEXT          EQU 4    ; Text node (displays text)
 NODE_TYPE_TRANSITION    EQU 5    ; Transition node
 NODE_TYPE_RESTART       EQU 6    ; Restart node (restart game/level)
+NODE_TYPE_END           EQU 7    ; End node (game over, victory, credits)
 NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ${analysis.gameFlow ? `
 ; Additional Game Flow States detected in project

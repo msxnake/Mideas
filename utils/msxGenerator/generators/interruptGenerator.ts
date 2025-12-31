@@ -6,6 +6,7 @@
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateComponentsFile } from './componentsGenerator';
+import { analyzeComponentUsage } from '../utils/componentAnalyzer';
 
 export interface InterruptGeneratorConfig {
   interruptDrivenComponents?: boolean;
@@ -194,9 +195,8 @@ interrupt_dispatcher:
     inc hl
     ld (interrupt_counter), hl
 
-    ; --- STEP 3.5: Mark VBlank happened ---
-    ld a, 1
-    ld (vblank_flag), a
+    ; --- STEP 3.5: Update VBlank flag (reads VDP status) ---
+    call update_vblank_flag
 
     ; --- STEP 4: Walk through task table ---
     ld hl, task_table           ; HL = pointer to task table
@@ -266,21 +266,61 @@ function generateTaskManagementFunctions(): string {
 ; ==================================================================
 
 ; ==================================================================
-; WAIT_VBLANK - Wait for next VBlank tick from H.TIMI
+; WAIT_VBLANK - Wait for VBlank synchronization with VDP
 ; ==================================================================
-; Safe alternative to plain HALT: ensures we advance exactly one tick.
+; Direct VDP reading method - works even with interrupts disabled
+; Safe and compatible with all MSX models
+; Inputs: None
+; Outputs: None
+; Modifies: AF, BC
+; ==================================================================
+wait_vblank:
+    push af
+    push bc
+
+    ; Wait for any active VBlank to finish
+    ; (prevents double synchronization)
+.no_vblank:
+    in a, (#99)                 ; Read VDP status register
+    bit 7, a                    ; Test bit 7 (VBlank flag)
+    jr nz, .no_vblank           ; If active, wait
+
+    ; Wait for VBlank to start
+.wait_start:
+    in a, (#99)                 ; Read VDP status register
+    bit 7, a                    ; Test bit 7 (VBlank flag)
+    jr z, .wait_start           ; Jump if not active
+
+    ; VBlank has started
+    ; Read register again to clear the flag
+    in a, (#99)
+
+    pop bc
+    pop af
+    ret
+
+; ==================================================================
+; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
+; ==================================================================
+; Updates vblank_flag only if we're actually in VBlank
+; Called from interrupt_dispatcher
 ; Inputs: None
 ; Outputs: None
 ; Modifies: AF
 ; ==================================================================
-wait_vblank:
+update_vblank_flag:
+    push af
+    in a, (#99)                 ; Read VDP status register
+    bit 7, a                    ; Are we in VBlank?
+    jr z, .not_in_vblank
+    ld a, 1
+    ld (vblank_flag), a
+    jr .uvf_done
+.not_in_vblank:
     xor a
     ld (vblank_flag), a
-.loop:
-    halt
-    ld a, (vblank_flag)
-    or a
-    jr z, .loop
+.uvf_done:
+    pop af
     ret
 
 ; ==================================================================
@@ -402,35 +442,56 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `    pop af\n`;
   code += `    ret\n\n`;
 
-  // Task 1: Physics Update (if has entities - they likely need movement)
+  // Task 1: Physics Update (OPTIMIZED - only generates calls for used components)
   if (analysis.hasEntities) {
-    code += `; ==================================================================\n`;
-    code += `; TASK_UPDATE_PHYSICS - Apply vx, vy -> X, Y\n`;
-    code += `; ==================================================================\n`;
-    code += `; Applies velocities to positions for all entities with Movement\n`;
-    code += `; component. Ensures physics runs at fixed 60Hz.\n`;
-    code += `; ==================================================================\n`;
-    code += `task_update_physics:\n`;
-    code += `    push af\n`;
-    code += `    push bc\n`;
-    code += `    push de\n`;
-    code += `    push hl\n\n`;
-    code += `    ; Physics pipeline (runs inside H.TIMI hook):\n`;
-    code += `    ; 1) Jump (sets gravity impulse)\n`;
-    code += `    ; 2) Movement (damping / velocity changes)\n`;
-    code += `    ; 3) Gravity (acceleration + applies to Y)\n`;
-    code += `    ; 4) Position (apply vel_x/vel_y -> x/y)\n`;
-    code += `    call update_jump_component\n`;
-    code += `    call update_movement_component\n`;
-    code += `    call update_gravity_component\n`;
-    code += `    call update_position_component\n\n`;
-    code += `    pop hl\n`;
-    code += `    pop de\n`;
-    code += `    pop bc\n`;
-    code += `    pop af\n`;
-    code += `    ret\n\n`;
+    // Analyze which physics components are actually used
+    const componentUsage = analyzeComponentUsage(analysis);
+    const usedComponents = componentUsage.usedComponents;
+
+    // Check which physics systems are needed
+    const hasJump = usedComponents.has('Jump');
+    const hasMovement = usedComponents.has('Movement') || usedComponents.has('Cursors');
+    const hasGravity = usedComponents.has('Gravity');
+    const needsPhysics = hasJump || hasMovement || hasGravity;
+
+    if (needsPhysics) {
+      code += `; ==================================================================\n`;
+      code += `; TASK_UPDATE_PHYSICS - Apply vx, vy -> X, Y (OPTIMIZED)\n`;
+      code += `; ==================================================================\n`;
+      code += `; Only calls physics systems that are actually used in this project\n`;
+      code += `; ==================================================================\n`;
+      code += `task_update_physics:\n`;
+      code += `    push af\n`;
+      code += `    push bc\n`;
+      code += `    push de\n`;
+      code += `    push hl\n\n`;
+
+      // Only generate calls for used components
+      if (hasJump) {
+        code += `    call update_jump_component      ; Jump impulse\n`;
+      }
+      if (hasMovement) {
+        code += `    call update_movement_component  ; Movement/velocity\n`;
+      }
+      if (hasGravity) {
+        code += `    call update_gravity_component   ; Gravity acceleration\n`;
+      }
+      // Position is always needed if any physics runs
+      code += `    call update_position_component  ; Apply velocity to position\n\n`;
+
+      code += `    pop hl\n`;
+      code += `    pop de\n`;
+      code += `    pop bc\n`;
+      code += `    pop af\n`;
+      code += `    ret\n\n`;
+    } else {
+      code += `; Task 1 (Physics): Minimal - only position update (no Jump/Movement/Gravity used)\n`;
+      code += `task_update_physics:\n`;
+      code += `    call update_position_component  ; Just apply any existing velocities\n`;
+      code += `    ret\n\n`;
+    }
   } else {
-    code += `; Task 1 (Physics): Not generated (no movement components detected)\n\n`;
+    code += `; Task 1 (Physics): Not generated (no entities detected)\n\n`;
   }
 
   // Task 2: Collision Detection (if has collisions)

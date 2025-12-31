@@ -18,29 +18,37 @@ tile_color_bank0:
 ; ==================================================================
 load_color_bank0:
     ; Load color bank 0 to VRAM (base colors)
-    ; BIOS LDIRVM handles timing automatically
+    ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0
-    ld de, CLRTBL2                ; VRAM color table bank 0
+    ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
     ld bc, 32     ; Total color bytes for all tile characters
-    call LDIRVM                   ; BIOS handles safe VRAM access
+    call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
 load_color_bank1:
     ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
-    ; BIOS LDIRVM handles timing automatically
+    ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0       ; Same source as Bank 0
-    ld de, CLRTBL2 + #800         ; VRAM color table bank 1 (+#800 offset)
+    ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
     ld bc, 32     ; Total color bytes for all tile characters
-    call LDIRVM                   ; BIOS handles safe VRAM access
+    call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
 load_color_bank2:
     ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
-    ; BIOS LDIRVM handles timing automatically
+    ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0       ; Same source as Bank 0
-    ld de, CLRTBL2 + #1000        ; VRAM color table bank 2 (+#1000 offset)
+    ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
     ld bc, 32     ; Total color bytes for all tile characters
-    call LDIRVM                   ; BIOS handles safe VRAM access
+    call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    ret
+
+load_colors_to_vram:
+    ; Load all color banks to VRAM (required for SCREEN 2)
+    ; This loads the same colors to all 3 banks (standard MSX Screen 2 setup)
+    call load_color_bank0
+    call load_color_bank1
+    call load_color_bank2
     ret
 
 ; ==================================================================

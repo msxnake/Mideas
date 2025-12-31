@@ -970,6 +970,23 @@ export interface GameFlowNode_Base {
 /** Represents the starting point of the game flow. */
 export interface GameFlowStartNode extends GameFlowNode_Base {
   type: 'Start';
+  /** Configuration for initializing global variables at game start */
+  initializeGlobals?: {
+    enabled: boolean;
+    /** Variables to initialize with their values. If empty, uses default values from GlobalVariables asset */
+    variables?: Array<{
+      variableName: string;
+      value: number | boolean;
+    }>;
+  };
+  /** Configuration for MSX system initialization */
+  systemConfig?: {
+    initPSG: boolean;          // Initialize PSG (silence all channels)
+    clearSprites: boolean;     // Clear sprite attribute table
+    resetVDP: boolean;         // Reset VDP registers to default
+    clearVRAM: boolean;        // Clear VRAM (patterns, colors, sprites)
+    initialDelayFrames?: number; // Initial delay before continuing (default: 0)
+  };
 }
 
 /** Represents a single option in a submenu node. */

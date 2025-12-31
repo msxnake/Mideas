@@ -77,6 +77,60 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
   currentAddress += 2;
 
+  // Screen map pointers
+  code += `
+; ==================================================================
+; SCREEN MAP POINTERS (Current active screen)
+; ==================================================================
+`;
+  code += `current_screen_layout   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pointer to current screen layout data (16-bit)\n`;
+  currentAddress += 2;
+  code += `current_behavior_map    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pointer to current behavior map data (16-bit)\n`;
+  currentAddress += 2;
+
+  // Viewport/Camera variables (for scroll system)
+  code += `
+; ==================================================================
+; VIEWPORT/CAMERA VARIABLES (for scroll system)
+; ==================================================================
+`;
+  code += `camera_x            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Camera X position in pixels (16-bit)\n`;
+  currentAddress += 2;
+  code += `camera_y            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Camera Y position in pixels (16-bit)\n`;
+  currentAddress += 2;
+  code += `camera_tile_x       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Camera tile X (column)\n`;
+  currentAddress++;
+  code += `camera_tile_y       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Camera tile Y (row)\n`;
+  currentAddress++;
+  code += `world_width_tiles   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; World width in tiles\n`;
+  currentAddress++;
+  code += `world_height_tiles  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; World height in tiles\n`;
+  currentAddress++;
+  code += `scroll_dirty_flag   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=viewport changed, needs redraw\n`;
+  currentAddress++;
+
+  // Animated tiles variables
+  code += `
+; ==================================================================
+; ANIMATED TILES VARIABLES
+; ==================================================================
+`;
+  code += `anim_tile_timer     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Animation frame timer\n`;
+  currentAddress++;
+  code += `anim_tile_frame     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current animation frame (0-3)\n`;
+  currentAddress++;
+  code += `anim_tile_speed     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames between animation updates\n`;
+  currentAddress++;
+
+  // Particle system variables
+  code += `
+; ==================================================================
+; PARTICLE SYSTEM VARIABLES
+; ==================================================================
+`;
+  code += `particle_pool       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Particle pool (8 particles * 8 bytes = 64 bytes)\n`;
+  currentAddress += 64;  // 8 particles * 8 bytes each
+
   // Entity system variables (MAX_ENTITIES = 32)
   code += `
 ; ==================================================================
@@ -84,6 +138,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
 ; ==================================================================
 MAX_ENTITIES        EQU 32
 `;
+
+  code += `entity_active       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity active flags (32 bytes, 0=inactive, 1=active)\n`;
+  currentAddress += 32;
+
   code += `entity_x_pos        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity X positions (32 bytes)\n`;
   currentAddress += 32;
 
@@ -137,6 +195,12 @@ MAX_ENTITIES        EQU 32
   currentAddress += 32;
 
   code += `entity_sm_wait_timer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity State Wait Timer (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `entity_lifetime     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)\n`;
+  currentAddress += 32;
+
+  code += `entity_carried_by   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity carrier ID (32 bytes, 255=not carried)\n`;
   currentAddress += 32;
 
   // State Machine Local Variables (8 vars per entity)
@@ -251,6 +315,36 @@ currentAddress++;
   currentAddress += 32;
 
   code += `temp_byte_7         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_8         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_9         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_10        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_11        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_12        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_13        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_14        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_15        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_16        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_17        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
 
   code += `temp_word_3         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage (64 bytes)\n`;

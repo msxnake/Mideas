@@ -27,6 +27,10 @@ import { generateWorldsFile } from './generators/worldGenerator';
 import { generateMenusFile } from './generators/menusGenerator';
 import { generateStateMachineSystem } from './generators/stateMachineGenerator';
 import { generateInterruptFile } from './generators/interruptGenerator';
+import { generateSoundFile } from './generators/soundGenerator';
+import { generateScrollFile } from './generators/scrollGenerator';
+import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
+import { generateParticlesFile } from './generators/particlesGenerator';
 
 /**
  * MSX Modular Configuration
@@ -167,6 +171,10 @@ export function generateModularASM(
     'font.asm': generateFontFile(analysis),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
+    'sound.asm': generateSoundFile(analysis),
+    'scroll.asm': generateScrollFile(analysis),
+    'animtiles.asm': generateAnimatedTilesFile(analysis),
+    'particles.asm': generateParticlesFile(analysis),
     'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables) : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(projectName, analysis),
@@ -240,6 +248,10 @@ export function generateModularASMFromSummary(
     'font.asm': generateFontFile(analysis),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
+    'sound.asm': generateSoundFile(analysis),
+    'scroll.asm': generateScrollFile(analysis),
+    'animtiles.asm': generateAnimatedTilesFile(analysis),
+    'particles.asm': generateParticlesFile(analysis),
     'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables) : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis),

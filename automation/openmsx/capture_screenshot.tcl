@@ -1,15 +1,15 @@
-# OpenMSX Screenshot Automation Script
-# Wait 3 seconds and capture screenshot
+# Simple screenshot capture script for OpenMSX
+# Usage: Run after ROM is loaded and running
 
-puts "Screenshot automation started..."
-puts "Waiting 3 seconds before capturing..."
+set timestamp [clock format [clock seconds] -format "%Y%m%d_%H%M%S"]
+set screenshot_name "BasicEnemy_FASE4_test_${timestamp}.png"
 
-after 4000 {
-    set screenshot_path "C:/Users/salam/Documents/Programacion/Mideas/screenshots/ejemplo1_rom_test.png"
-    puts "Capturing screenshot to: $screenshot_path"
-    screenshot $screenshot_path
-    puts "Screenshot captured successfully!"
-    after 1000 {
-        exit
-    }
-}
+# Save to current OpenMSX screenshot directory (default: openMSX user directory)
+screenshot $screenshot_name
+
+puts ""
+puts "========================================="
+puts "Screenshot captured: ${screenshot_name}"
+puts "Location: OpenMSX screenshots directory"
+puts "========================================="
+puts ""

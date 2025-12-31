@@ -51,6 +51,8 @@ const App: React.FC = () => {
     msxFontColors,
     userSnippets,
     setUserSnippets,
+    helpDocsData,
+    setHelpDocsData,
     dataOutputFormat,
     setDataOutputFormat,
     autosaveEnabled,
@@ -237,7 +239,7 @@ const App: React.FC = () => {
     snippetsEnabled,
     syntaxHighlightingEnabled,
     userSnippets,
-    helpDocsData: [] // Will be implemented
+    helpDocsData
   });
 
   // Initialize import/export handlers
@@ -610,8 +612,8 @@ const App: React.FC = () => {
     handleCopyTileData,
     setCurrentLoadedFontName: () => {},
     currentLoadedFontName: '',
-    helpDocsData: [],
-    setHelpDocsData: () => {},
+    helpDocsData,
+    setHelpDocsData,
     isSpriteSheetModalOpen,
     setIsSpriteSheetModalOpen,
     snippetToInsert: null,

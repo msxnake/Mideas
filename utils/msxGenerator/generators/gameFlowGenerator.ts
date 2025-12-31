@@ -245,6 +245,10 @@ CONNECTION_OPTION_4     EQU 14
 CONNECTION_OPTION_5     EQU 15
 CONNECTION_END          EQU 255
 
+; Shared data pointer for nodes without data
+gameflow_no_data:
+    db #C9                        ; RET instruction - returns immediately
+
 `;
 
   // ===================================================================
@@ -299,17 +303,240 @@ gameflow_world_game_loop:
   }
 
   // ===================================================================
-  // SECTION 7: VARIABLES
+  // SECTION 6.5: INITIALIZATION UTILITIES
   // ===================================================================
 
   code += `
 ; ==================================================================
+; INITIALIZATION UTILITY FUNCTIONS
+; ==================================================================
+
+; ------------------------------------------------------------------
+; init_psg_silence
+; Silence all PSG channels
+; ------------------------------------------------------------------
+init_psg_silence:
+    push af
+    push bc
+
+    ; Silence channel A
+    ld a, #08    ; Volume register channel A
+    out (#A0), a
+    ld a, 0      ; Volume = 0
+    out (#A1), a
+
+    ; Silence channel B
+    ld a, #09    ; Volume register channel B
+    out (#A0), a
+    ld a, 0
+    out (#A1), a
+
+    ; Silence channel C
+    ld a, #0A    ; Volume register channel C
+    out (#A0), a
+    ld a, 0
+    out (#A1), a
+
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; clear_sprite_table
+; Clear sprite attribute table in VRAM
+; ------------------------------------------------------------------
+clear_sprite_table:
+    push af
+    push bc
+    push de
+    push hl
+
+    ; Clear sprite attribute table (#1B00-#1B7F, 128 bytes)
+    ld hl, #1B00         ; Sprite attribute table base
+    ld bc, 128           ; 128 bytes (32 sprites × 4 bytes)
+    ld a, #D1            ; Y=209 (off-screen)
+.cst_loop:
+    push hl
+    ld c, a
+    call WRTVRM          ; Write to VRAM
+    pop hl
+    inc hl
+    dec bc
+    ld a, b
+    or c
+    jr nz, .cst_loop
+
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; clear_vram_areas
+; Clear VRAM pattern and color tables
+; ------------------------------------------------------------------
+clear_vram_areas:
+    push af
+    push bc
+    push de
+    push hl
+
+    ; Clear pattern table (#0000-#17FF, 6144 bytes)
+    ld hl, #0000
+    ld bc, 6144
+    ld a, 0
+.clear_patterns:
+    push hl
+    ld c, a
+    call WRTVRM
+    pop hl
+    inc hl
+    dec bc
+    ld a, b
+    or c
+    jr nz, .clear_patterns
+
+    ; Clear color table (#2000-#37FF, 6144 bytes)
+    ld hl, #2000
+    ld bc, 6144
+    ld a, #F0            ; White on black
+.clear_colors:
+    push hl
+    ld c, a
+    call WRTVRM
+    pop hl
+    inc hl
+    dec bc
+    ld a, b
+    or c
+    jr nz, .clear_colors
+
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; reset_vdp_registers
+; Reset VDP registers to Screen 2 defaults
+; ------------------------------------------------------------------
+reset_vdp_registers:
+    push af
+    push bc
+
+    ; Already configured in init_rom, this is a no-op for now
+    ; Could be extended to reset specific registers if needed
+
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; init_all_global_variables
+; Initialize all global variables to their default values
+; ------------------------------------------------------------------
+init_all_global_variables:
+`;
+
+  // Generate initialization for all global variables in the project
+  if (analysis.globalVariables && analysis.globalVariables.length > 0) {
+    code += `    ; Initialize global variables\n`;
+    analysis.globalVariables.forEach((v: any) => {
+      const varName = v.name;
+      const asmVarName = v.asmName || `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+
+      // Use first value from values array as initial value (or 0 if no values)
+      const initialValue = v.values && v.values.length > 0 ? v.values[0].value : 0;
+      const value = typeof initialValue === 'boolean' ? (initialValue ? 1 : 0) : initialValue;
+
+      code += `    ld a, ${value}\n`;
+      code += `    ld (${asmVarName}), a    ; ${varName} = ${initialValue}\n`;
+    });
+  }
+
+  code += `    ret
+
+`;
+
+  // ===================================================================
+  // SECTION 7: VARIABLES
+  // ===================================================================
+
+  code += `; ==================================================================
 ; GAMEFLOW VARIABLES
 ; ==================================================================
 
 gameflow_exit_requested:    db 0    ; Flag to exit current game loop
 gameflow_menu_selection:    db 0    ; Last menu selection
 gameflow_condition_result:  db 0    ; Result of last condition evaluation
+
+; ==================================================================
+; COMMON GAMEFLOW UTILITIES
+; ==================================================================
+
+; ------------------------------------------------------------------
+; Helper: Clear screen area for menus/end screens
+; ------------------------------------------------------------------
+clear_screen_area:
+    ; Clear center area of screen
+    ld b, 8                       ; 8 rows
+    ld c, 8                       ; Start at row 8
+
+.csa_loop:
+    push bc
+    ld a, c
+    call clear_screen_row
+    pop bc
+    inc c
+    djnz .csa_loop
+    ret
+
+; ------------------------------------------------------------------
+; Helper: Clear a screen row (fill with empty tile)
+; Input: A = Row number (0-23)
+; ------------------------------------------------------------------
+clear_screen_row:
+    push af
+    push bc
+    push de
+    push hl
+
+    ; Calculate row start in name table
+    ; Row address = #1800 + (row * 32)
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; * 2
+    add hl, hl                    ; * 4
+    add hl, hl                    ; * 8
+    add hl, hl                    ; * 16
+    add hl, hl                    ; * 32
+
+    ; Add base address (name table)
+    ld de, #1800                  ; Name table base (Screen 2)
+    add hl, de                    ; HL = VRAM address
+
+    ; Clear 32 tiles (one row)
+    ex de, hl                     ; DE = VRAM destination
+    ld hl, empty_row_data         ; HL = source (32 zeros)
+    ld bc, 32                     ; Copy 32 bytes
+    call LDIRVM
+
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; Data: Empty row (32 zero bytes)
+; ------------------------------------------------------------------
+empty_row_data:
+    db 0, 0, 0, 0, 0, 0, 0, 0
+    db 0, 0, 0, 0, 0, 0, 0, 0
+    db 0, 0, 0, 0, 0, 0, 0, 0
+    db 0, 0, 0, 0, 0, 0, 0, 0
 
 ; ==================================================================
 ; END OF GAMEFLOW
@@ -329,8 +556,37 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
     switch (nodeType) {
       case 'Start':
         code += `gameflow_handle_start:
-    ; Start node - simply transition to next node
+    ; Start node - Initialize game state and systems
+    ; DE = node data pointer (initialization config)
     ; BC = connection table
+
+    push bc         ; Save connection table
+
+    ; Execute initialization routine
+    ; DE points to start_init_data structure
+    ex de, hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)      ; DE = initialization routine address
+
+    ; Call initialization routine (if not null)
+    ld a, d
+    or e
+    jr z, .skip_init
+
+    ; Call the initialization routine
+    push de
+    ex de, hl
+    ld de, .after_init
+    push de
+    jp (hl)         ; Indirect call, returns to .after_init
+
+.after_init:
+    pop de
+
+.skip_init:
+    ; Continue to next node
+    pop bc
     call gameflow_get_default_connection
     ld a, h
     or l
@@ -385,9 +641,147 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
 
       case 'End':
         code += `gameflow_handle_end:
-    ; End node - stop execution
-    ; TODO: Show end screen based on node data
+    ; End node - stop execution and show end screen
+    ; DE = end screen data pointer (screen type, message pointer)
+    ; BC = connection table (unused, end stops execution)
+
+    push de
+
+    ; Get end screen type from data
+    ld a, (de)                    ; A = screen type (0=victory, 1=defeat, 2=credits, etc.)
+    push af                       ; Save screen type
+    inc de
+    ld a, (de)                    ; Get low byte of message pointer
+    ld l, a
+    inc de
+    ld a, (de)                    ; Get high byte of message pointer
+    ld h, a                       ; HL = message pointer (if any)
+    pop af                        ; Restore screen type
+
+    ; Display end screen based on type
+    call display_end_screen
+
+    pop de
+
+    ; End screen loop - wait for input or timeout
+.end_screen_loop:
+    halt                          ; Wait V-blank
+
+    ; Check for fire button to exit
+    call GTTRIG
+    or a
+    jr nz, .end_screen_exit
+
+    ; Check for ESC key to exit
+    ld a, 7                       ; ESC key row
+    call SNSMAT
+    bit 2, a                      ; ESC key
+    jr z, .end_screen_exit
+
+    jr .end_screen_loop
+
+.end_screen_exit:
     ret
+
+; ------------------------------------------------------------------
+; display_end_screen
+; Display end screen based on type
+; Input:  A = screen type (0=victory, 1=defeat, 2=credits, 3=custom)
+;         HL = message pointer (for custom messages)
+; ------------------------------------------------------------------
+display_end_screen:
+    push af
+    push hl
+
+    ; Clear screen first
+    call clear_screen_area
+
+    pop hl
+    pop af
+
+    ; Dispatch based on screen type
+    or a
+    jr z, .show_victory           ; 0 = Victory
+    dec a
+    jr z, .show_defeat            ; 1 = Defeat
+    dec a
+    jr z, .show_credits           ; 2 = Credits
+    jr .show_custom               ; 3+ = Custom message
+
+.show_victory:
+    ; Display "VICTORY!" message
+    ld hl, str_victory
+    ld de, #1800 + (10 * 32) + 12 ; Row 10, col 12
+    call print_string_vram
+    ret
+
+.show_defeat:
+    ; Display "GAME OVER" message
+    ld hl, str_game_over
+    ld de, #1800 + (10 * 32) + 11 ; Row 10, col 11
+    call print_string_vram
+    ret
+
+.show_credits:
+    ; Display "CREDITS" message
+    ld hl, str_credits
+    ld de, #1800 + (8 * 32) + 13  ; Row 8, col 13
+    call print_string_vram
+    ; Add more credits lines here if needed
+    ret
+
+.show_custom:
+    ; Display custom message from HL
+    ld de, #1800 + (10 * 32) + 8  ; Row 10, col 8
+    call print_string_vram
+    ret
+
+; ------------------------------------------------------------------
+; Helper: Print string to VRAM
+; Input: HL = string pointer (null-terminated)
+;        DE = VRAM destination
+; ------------------------------------------------------------------
+print_string_vram:
+    push bc
+    push de
+    push hl
+
+.psv_loop:
+    ld a, (hl)                    ; Get character
+    or a                          ; Check for null terminator
+    jr z, .psv_done
+
+    ; Write character to VRAM
+    push hl
+    push de
+    push af                       ; Save character
+    ex de, hl                     ; HL = VRAM address (from DE)
+    pop af                        ; Restore character to A
+    call WRTVRM                   ; Write A to VRAM at HL
+    pop de
+    pop hl
+
+    inc hl                        ; Next character
+    inc de                        ; Next VRAM position
+    jr .psv_loop
+
+.psv_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; End screen message strings
+; ------------------------------------------------------------------
+str_victory:
+    db "VICTORY!", 0
+
+str_game_over:
+    db "GAME OVER", 0
+
+str_credits:
+    db "CREDITS", 0
 
 `;
         break;
@@ -426,11 +820,123 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
     ret z
     jp gameflow_execute_node
 
+; ------------------------------------------------------------------
+; show_menu_placeholder
+; Display menu and get user selection
+; Input:  DE = menu data pointer (options count, option strings)
+; Output: gameflow_menu_selection = selected index (0-based)
+; ------------------------------------------------------------------
 show_menu_placeholder:
-    ; TODO: Implement via menusGenerator.ts
+    push bc
+    push de
+    push hl
+
+    ; Get number of options
+    ld a, (de)
+    inc de
+    ld b, a                       ; B = option count
+    push bc
+
+    ; Clear menu area
+    call clear_screen_area
+
+    ; Display menu title (if present)
+    ld hl, str_menu_title
+    ld de, #1800 + (6 * 32) + 10  ; Row 6, col 10
+    call print_string_vram
+
+    ; Display menu options
+    pop bc
+    push bc
+    ld c, 0                       ; C = current option index
+    ld de, #1800 + (8 * 32) + 8   ; Start at row 8, col 8
+
+.display_options:
+    push bc
+    push de
+
+    ; Display option text (placeholder: "Option N")
+    ld hl, str_option
+    call print_string_vram
+
+    ; Display option number
+    ld a, c
+    add a, '0'                    ; Convert to ASCII
+    ld (de), a                    ; Write to VRAM
+
+    pop de
+    ld a, e
+    add a, 32                     ; Next row
+    ld e, a
+    ld a, d
+    adc a, 0
+    ld d, a
+
+    pop bc
+    inc c
+    djnz .display_options
+
+    pop bc                        ; B = option count
     xor a
+    ld (gameflow_menu_selection), a ; Start at option 0
+
+    ; Menu input loop
+.menu_loop:
+    halt                          ; Wait V-blank
+
+    ; Check UP key
+    call GTSTCK
+    cp 1                          ; Up
+    jr nz, .smp_check_down
+
+    ld a, (gameflow_menu_selection)
+    or a
+    jr z, .menu_loop              ; Already at top
+    dec a
     ld (gameflow_menu_selection), a
+
+    ; Wait for key release
+    ld c, 10
+.smp_wait_up:
+    halt
+    dec c
+    jr nz, .smp_wait_up
+    jr .menu_loop
+
+.smp_check_down:
+    cp 5                          ; Down
+    jr nz, .smp_check_fire
+
+    ld a, (gameflow_menu_selection)
+    inc a
+    cp b                          ; Compare with option count
+    jr nc, .menu_loop             ; Already at bottom
+    ld (gameflow_menu_selection), a
+
+    ; Wait for key release
+    ld c, 10
+.smp_wait_down:
+    halt
+    dec c
+    jr nz, .smp_wait_down
+    jr .menu_loop
+
+.smp_check_fire:
+    call GTTRIG
+    or a
+    jr z, .menu_loop              ; No fire, continue loop
+
+    ; Fire pressed - exit with selection
+    pop hl
+    pop de
+    pop bc
     ret
+
+str_menu_title:
+    db "MENU", 0
+
+str_option:
+    db "Option ", 0
 
 `;
         break;
@@ -457,12 +963,91 @@ show_menu_placeholder:
     ret z
     jp gameflow_execute_node
 
+; ------------------------------------------------------------------
+; show_text_placeholder
+; Display text message on screen
+; Input: DE = text data pointer (text string, duration)
+; ------------------------------------------------------------------
 show_text_placeholder:
-    ; TODO: Implement text display
+    push bc
+    push de
+    push hl
+
+    ; Get text string pointer
+    ex de, hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = text string pointer
+    inc hl
+    ld a, (hl)                    ; A = display duration (frames, 0=wait for input)
+    push af
+
+    ; Clear text area (rows 18-20 for text box)
+    ld b, 3
+    ld c, 18
+
+.clear_text_area:
+    push bc
+    ld a, c
+    call clear_screen_row
+    pop bc
+    inc c
+    djnz .clear_text_area
+
+    ; Display text in text box area
+    ex de, hl                     ; HL = text string
+    ld de, #1800 + (19 * 32) + 2  ; Row 19, col 2 (centered)
+    call print_string_vram
+
+    pop af                        ; A = duration
+    or a
+    jr z, .wait_input             ; 0 = wait for input
+
+    ; Wait for specified duration
+    ld b, a
+.duration_wait:
+    halt
+    djnz .duration_wait
+    jr .text_done
+
+.wait_input:
+    ; Wait for fire button
+    call wait_for_fire
+
+.text_done:
+    pop hl
+    pop de
+    pop bc
     ret
 
+; ------------------------------------------------------------------
+; wait_for_fire
+; Wait for fire button press and release
+; ------------------------------------------------------------------
 wait_for_fire:
-    ; TODO: Implement input waiting
+    push bc
+
+    ; Wait for fire button press
+.wait_press:
+    halt
+    call GTTRIG
+    or a
+    jr z, .wait_press
+
+    ; Wait for fire button release
+.wait_release:
+    halt
+    call GTTRIG
+    or a
+    jr nz, .wait_release
+
+    ; Small delay after release
+    ld b, 5
+.delay_loop:
+    halt
+    djnz .delay_loop
+
+    pop bc
     ret
 
 `;
@@ -594,8 +1179,212 @@ wait_for_fire:
     ret z
     jp gameflow_execute_node
 
+; ------------------------------------------------------------------
+; execute_transition_effect
+; Execute visual transition effect
+; Input:  DE = Transition data pointer (effect type + parameters)
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
 execute_transition_effect:
-    ; TODO: Implement transition effects
+    ; Get transition effect type from data
+    ld a, (de)                    ; A = effect type
+    inc de                        ; DE now points to parameters
+
+    ; Dispatch to effect handler
+    or a
+    jr z, .trans_fade_out         ; 0 = Fade out
+    dec a
+    jr z, .trans_fade_in          ; 1 = Fade in
+    dec a
+    jr z, .trans_flash            ; 2 = Flash
+    dec a
+    jr z, .trans_wipe_down        ; 3 = Wipe down
+    dec a
+    jr z, .trans_wipe_up          ; 4 = Wipe up
+    ret                           ; Unknown effect, do nothing
+
+; ------------------------------------------------------------------
+; Fade Out Effect (darken screen gradually)
+; ------------------------------------------------------------------
+.trans_fade_out:
+    push de
+
+    ; MSX Screen 2 fade: Modify color table to darken colors
+    ; We'll do a simple version: set all colors to black in steps
+    ld b, 4                       ; 4 fade steps
+
+.fade_out_loop:
+    push bc
+
+    ; Darken one step (reduce brightness in color table)
+    ; For simplicity, we'll just wait and then blank screen
+    ld b, 20                      ; Wait frames
+.fade_out_wait:
+    halt                          ; Wait for V-blank
+    djnz .fade_out_wait
+
+    pop bc
+    djnz .fade_out_loop
+
+    ; Final step: blank screen
+    call blank_screen
+
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; Fade In Effect (brighten screen gradually)
+; ------------------------------------------------------------------
+.trans_fade_in:
+    push de
+
+    ; Restore screen from black
+    call restore_screen_colors
+
+    ld b, 4                       ; 4 fade steps
+
+.fade_in_loop:
+    push bc
+
+    ld b, 20                      ; Wait frames
+.fade_in_wait:
+    halt
+    djnz .fade_in_wait
+
+    pop bc
+    djnz .fade_in_loop
+
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; Flash Effect (quick screen flash)
+; ------------------------------------------------------------------
+.trans_flash:
+    push de
+
+    ld b, 3                       ; Flash 3 times
+
+.flash_loop:
+    push bc
+
+    ; Flash white
+    ld a, 7                       ; VDP R#7 - Text color (affects border/backdrop)
+    ld b, a
+    ld c, #F0                     ; White on white
+    call WRTVDP
+
+    ld b, 5
+.flash_white_wait:
+    halt
+    djnz .flash_white_wait
+
+    ; Flash black
+    ld a, 7
+    ld b, a
+    ld c, 0                       ; Black
+    call WRTVDP
+
+    ld b, 5
+.flash_black_wait:
+    halt
+    djnz .flash_black_wait
+
+    pop bc
+    djnz .flash_loop
+
+    ; Restore normal backdrop color
+    ld a, 7
+    ld b, a
+    ld c, 0
+    call WRTVDP
+
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; Wipe Down Effect (curtain wipe top to bottom)
+; ------------------------------------------------------------------
+.trans_wipe_down:
+    push de
+
+    ; Clear screen line by line from top to bottom
+    ld b, 24                      ; 24 rows
+    ld c, 0                       ; Start row
+
+.wipe_down_loop:
+    push bc
+
+    ; Clear row C (fill with pattern 0)
+    ld a, c
+    call clear_screen_row
+
+    ; Wait a bit
+    ld b, 2
+.wipe_down_wait:
+    halt
+    djnz .wipe_down_wait
+
+    pop bc
+    inc c                         ; Next row
+    djnz .wipe_down_loop
+
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; Wipe Up Effect (curtain wipe bottom to top)
+; ------------------------------------------------------------------
+.trans_wipe_up:
+    push de
+
+    ; Clear screen line by line from bottom to top
+    ld b, 24                      ; 24 rows
+    ld c, 23                      ; Start row (bottom)
+
+.wipe_up_loop:
+    push bc
+
+    ; Clear row C
+    ld a, c
+    call clear_screen_row
+
+    ; Wait a bit
+    ld b, 2
+.wipe_up_wait:
+    halt
+    djnz .wipe_up_wait
+
+    pop bc
+    dec c                         ; Previous row
+    djnz .wipe_up_loop
+
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; Helper: Blank entire screen (set all colors to black)
+; ------------------------------------------------------------------
+blank_screen:
+    ; Set VDP backdrop color to black
+    ld a, 7                       ; VDP R#7
+    ld b, a
+    ld c, 0                       ; Black backdrop
+    call WRTVDP
+
+    ; Optionally: Set all sprite colors to 0 (transparent)
+    ; For now, just backdrop is enough
+    ret
+
+; ------------------------------------------------------------------
+; Helper: Restore screen colors
+; ------------------------------------------------------------------
+restore_screen_colors:
+    ; Restore normal backdrop color
+    ld a, 7                       ; VDP R#7
+    ld b, a
+    ld c, #04                     ; Dark blue backdrop (MSX default)
+    call WRTVDP
     ret
 
 `;
@@ -603,8 +1392,32 @@ execute_transition_effect:
 
       case 'Group':
         code += `gameflow_handle_group:
-    ; Group node - nested GameFlow (placeholder)
-    ; TODO: Implement nested GameFlow execution
+    ; Group node - nested GameFlow execution
+    ; DE = group data pointer (nested GameFlow entry point)
+    ; BC = connection table
+
+    push bc                       ; Save parent connection table
+
+    ; Get nested GameFlow entry point
+    ex de, hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = nested GameFlow entry node pointer
+
+    ; Save current GameFlow state (stack-based)
+    ; In a full implementation, we'd push current node pointer
+    ; For now, we'll just execute the nested flow
+
+    ; Execute nested GameFlow
+    ex de, hl                     ; HL = nested entry node
+    push hl
+    call gameflow_execute_node    ; Execute nested flow
+    pop hl
+
+    ; Nested flow complete, return to parent
+    pop bc                        ; Restore parent connection table
+
+    ; Follow default connection to continue parent flow
     call gameflow_get_default_connection
     ld a, h
     or l
@@ -632,9 +1445,159 @@ execute_transition_effect:
     ret z
     jp gameflow_execute_node
 
+; ------------------------------------------------------------------
+; execute_music_command
+; Execute music playback command
+; Input: DE = music data (command, track ID, loop flag)
+; Commands: 0=stop, 1=play, 2=pause, 3=resume
+; ------------------------------------------------------------------
 execute_music_command:
-    ; TODO: Implement music control
+    push af
+    push bc
+    push de
+    push hl
+
+    ; Get music command
+    ld a, (de)
+    inc de
+    ld b, a                       ; B = command
+
+    ; Get track ID
+    ld a, (de)
+    inc de
+    ld c, a                       ; C = track ID
+
+    ; Get loop flag
+    ld a, (de)
+    ld (music_loop_flag), a
+
+    ; Dispatch based on command
+    ld a, b
+    or a
+    jr z, .music_stop             ; 0 = Stop
+    dec a
+    jr z, .music_play             ; 1 = Play
+    dec a
+    jr z, .music_pause            ; 2 = Pause
+    dec a
+    jr z, .music_resume           ; 3 = Resume
+    jr .music_done
+
+.music_stop:
+    ; Stop all music - silence PSG
+    call psg_silence_all
+    xor a
+    ld (music_playing), a
+    jr .music_done
+
+.music_play:
+    ; Play track C
+    ld a, c
+    ld (music_current_track), a
+    call psg_init_track
+    ld a, 1
+    ld (music_playing), a
+    jr .music_done
+
+.music_pause:
+    ; Pause current track
+    call psg_silence_all
+    xor a
+    ld (music_playing), a
+    jr .music_done
+
+.music_resume:
+    ; Resume current track
+    ld a, (music_current_track)
+    call psg_init_track
+    ld a, 1
+    ld (music_playing), a
+
+.music_done:
+    pop hl
+    pop de
+    pop bc
+    pop af
     ret
+
+; ------------------------------------------------------------------
+; PSG Helper Functions
+; ------------------------------------------------------------------
+
+; Silence all PSG channels
+psg_silence_all:
+    push af
+    push bc
+
+    ; Set volume to 0 for all 3 channels
+    ld a, #88                     ; Channel A volume
+    out (#A0), a
+    ld a, 0
+    out (#A1), a
+
+    ld a, #89                     ; Channel B volume
+    out (#A0), a
+    ld a, 0
+    out (#A1), a
+
+    ld a, #8A                     ; Channel C volume
+    out (#A0), a
+    ld a, 0
+    out (#A1), a
+
+    pop bc
+    pop af
+    ret
+
+; Initialize PSG track
+psg_init_track:
+    push af
+    push bc
+    push hl
+
+    ; A = track ID
+    ; For now, simple beep on channel A
+    ; Full implementation would load track data from music table
+
+    ; Set channel A frequency (440 Hz = A4 note)
+    ld a, #00                     ; Fine tune register
+    out (#A0), a
+    ld a, #FE                     ; Frequency low byte
+    out (#A1), a
+
+    ld a, #01                     ; Coarse tune register
+    out (#A0), a
+    ld a, #01                     ; Frequency high byte
+    out (#A1), a
+
+    ; Set channel A volume
+    ld a, #08                     ; Volume register
+    out (#A0), a
+    ld a, #0F                     ; Max volume
+    out (#A1), a
+
+    ; Enable tone on channel A
+    ld a, #07                     ; Mixer register
+    out (#A0), a
+    ld a, #3E                     ; Enable tone A, disable noise
+    out (#A1), a
+
+    pop hl
+    pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; Music system variables (should be in variables section)
+; ------------------------------------------------------------------
+music_playing:
+    db 0                          ; 0=stopped, 1=playing
+
+music_current_track:
+    db 0                          ; Current track ID
+
+music_loop_flag:
+    db 0                          ; 0=no loop, 1=loop
 
 `;
         break;
@@ -661,8 +1624,13 @@ execute_music_command:
  */
 function generateNodeStructure(node: any, gameFlow: any, analysis: ProjectAnalysis): string {
   const nodeLabel = `gameflow_node_${sanitizeId(node.id)}`;
-  const dataLabel = `${nodeLabel}_data`;
   const connLabel = `${nodeLabel}_conn`;
+
+  // Check if node has data
+  const hasData = ['Start', 'WorldLink', 'SubMenu', 'Text', 'IfThenElse', 'Globals'].includes(node.type) ||
+                  (node.type === 'Globals' && node.variables && node.variables.length > 0);
+
+  const dataLabel = hasData ? `${nodeLabel}_data` : 'gameflow_no_data';
 
   let code = `; Node: ${node.type} - "${node.title || node.name || node.id}"
 ${nodeLabel}:
@@ -672,54 +1640,60 @@ ${nodeLabel}:
 
 `;
 
-  // Generate node-specific data
-  code += `${dataLabel}:
+  // Generate node-specific data only if needed
+  if (hasData) {
+    code += `${nodeLabel}_data:
 `;
 
-  switch (node.type) {
-    case 'WorldLink':
-      const worldAssetId = node.worldAssetId || 'default';
-      code += `    dw load_world_${sanitizeId(worldAssetId)}\n`;
-      break;
+    switch (node.type) {
+      case 'Start':
+        // Generate Start node initialization data
+        code += `    dw ${nodeLabel}_init    ; Initialization routine address\n`;
 
-    case 'SubMenu':
-      code += `    db ${node.options?.length || 0}    ; Number of options\n`;
-      break;
+        // Generate initialization routine after the data structure
+        // This will be appended after the switch
+        break;
 
-    case 'Text':
-      code += `    dw text_${sanitizeId(node.id)}    ; Text content pointer\n`;
-      break;
+      case 'WorldLink':
+        const worldAssetId = node.worldAssetId || 'default';
+        code += `    dw load_world_${sanitizeId(worldAssetId)}\n`;
+        break;
 
-    case 'IfThenElse':
-      const varName = node.variableName || 'unknown';
-      const asmVarName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
-      const compareValue = node.compareValue || 0;
-      code += `    dw ${asmVarName}    ; Variable to check\n`;
-      code += `    db ${compareValue}   ; Compare value\n`;
-      code += `    db 0                 ; Operator (0=equals)\n`;
-      break;
+      case 'SubMenu':
+        code += `    db ${node.options?.length || 0}    ; Number of options\n`;
+        break;
 
-    case 'Globals':
-      if (node.variables && node.variables.length > 0) {
-        code += `    db ${node.variables.length}    ; Number of assignments\n`;
-        node.variables.forEach((v: any) => {
-          const vName = v.variableName || v.name || 'unknown';
-          const vAsmName = `global_var_${vName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
-          const vValue = v.value || 0;
-          code += `    dw ${vAsmName}\n`;
-          code += `    db ${vValue}\n`;
-        });
-      } else {
-        code += `    db 0    ; No assignments\n`;
-      }
-      break;
+      case 'Text':
+        code += `    dw text_${sanitizeId(node.id)}    ; Text content pointer\n`;
+        break;
 
-    default:
-      code += `    ; No additional data\n`;
-      break;
+      case 'IfThenElse':
+        const varName = node.variableName || 'unknown';
+        const asmVarName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+        const compareValue = node.compareValue || 0;
+        code += `    dw ${asmVarName}    ; Variable to check\n`;
+        code += `    db ${compareValue}   ; Compare value\n`;
+        code += `    db 0                 ; Operator (0=equals)\n`;
+        break;
+
+      case 'Globals':
+        if (node.variables && node.variables.length > 0) {
+          code += `    db ${node.variables.length}    ; Number of assignments\n`;
+          node.variables.forEach((v: any) => {
+            const vName = v.variableName || v.name || 'unknown';
+            const vAsmName = `global_var_${vName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+            const vValue = v.value || 0;
+            code += `    dw ${vAsmName}\n`;
+            code += `    db ${vValue}\n`;
+          });
+        } else {
+          code += `    db 0    ; No assignments\n`;
+        }
+        break;
+    }
+
+    code += `\n`;
   }
-
-  code += `\n`;
 
   // Generate connection table
   code += `${connLabel}:
@@ -753,6 +1727,88 @@ ${nodeLabel}:
   }
 
   code += `    db CONNECTION_END\n\n`;
+
+  // Generate initialization routine for Start nodes
+  if (node.type === 'Start') {
+    code += generateStartNodeInitRoutine(node, nodeLabel, analysis);
+  }
+
+  return code;
+}
+
+/**
+ * Generate initialization routine for Start node
+ */
+function generateStartNodeInitRoutine(node: any, nodeLabel: string, analysis: ProjectAnalysis): string {
+  let code = `; ------------------------------------------------------------------
+; ${nodeLabel}_init
+; Initialization routine for Start node
+; Initializes global variables and MSX systems
+; ------------------------------------------------------------------
+${nodeLabel}_init:
+`;
+
+  const initGlobals = node.initializeGlobals;
+  const systemConfig = node.systemConfig;
+
+  // 1. Initialize MSX Systems (if configured)
+  if (systemConfig) {
+    code += `    ; === MSX System Initialization ===\n`;
+
+    if (systemConfig.initPSG) {
+      code += `    ; Initialize PSG (silence all channels)\n`;
+      code += `    call init_psg_silence\n\n`;
+    }
+
+    if (systemConfig.clearSprites) {
+      code += `    ; Clear sprite attribute table\n`;
+      code += `    call clear_sprite_table\n\n`;
+    }
+
+    if (systemConfig.clearVRAM) {
+      code += `    ; Clear VRAM areas\n`;
+      code += `    call clear_vram_areas\n\n`;
+    }
+
+    if (systemConfig.resetVDP) {
+      code += `    ; Reset VDP registers to default\n`;
+      code += `    call reset_vdp_registers\n\n`;
+    }
+  }
+
+  // 2. Initialize Global Variables (if configured)
+  if (initGlobals && initGlobals.enabled) {
+    code += `    ; === Global Variables Initialization ===\n`;
+
+    if (initGlobals.variables && initGlobals.variables.length > 0) {
+      // Use specified variables
+      initGlobals.variables.forEach((v: any) => {
+        const varName = v.variableName;
+        const asmVarName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+        const value = typeof v.value === 'boolean' ? (v.value ? 1 : 0) : v.value;
+
+        code += `    ld a, ${value}\n`;
+        code += `    ld (${asmVarName}), a    ; ${varName} = ${v.value}\n`;
+      });
+    } else {
+      // Initialize all global variables to their default values
+      code += `    ; Initialize all global variables to default values\n`;
+      code += `    call init_all_global_variables\n`;
+    }
+
+    code += `\n`;
+  }
+
+  // 3. Initial delay (if configured)
+  if (systemConfig && systemConfig.initialDelayFrames && systemConfig.initialDelayFrames > 0) {
+    code += `    ; Initial delay\n`;
+    code += `    ld b, ${systemConfig.initialDelayFrames}\n`;
+    code += `.delay_loop:\n`;
+    code += `    halt    ; Wait for V-blank\n`;
+    code += `    djnz .delay_loop\n\n`;
+  }
+
+  code += `    ret\n\n`;
 
   return code;
 }

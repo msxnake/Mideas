@@ -173,13 +173,8 @@ export const generateSingleFrameASMCode = (
       continue;
     }
 
-    layersGenerated += 1;
-    asmString += `${safeFrameName}_LAYER${layerIndex}: ; Brush Color Index ${layerIndex} (Actual Color: ${layerColor})\n`;
-
+    // First, generate layer bytes to check if layer is empty
     const layerBytes: number[] = [];
-    if (spriteWidth % 8 !== 0) {
-      asmString += `;; WARNING: Sprite width ${spriteWidth} is not a multiple of 8. Bitmask generation might be problematic for standard VDP.\n`;
-    }
 
     // MSX VDP 16x16 sprite format:
     // For 16x16 sprites, the VDP expects data in a specific column-major order:
@@ -255,6 +250,20 @@ export const generateSingleFrameASMCode = (
           layerBytes.push(byteValue);
         }
       }
+    }
+
+    // Check if layer is completely empty (all bytes are 0)
+    // Skip empty layers to save ROM space
+    if (layerBytes.every(byte => byte === 0)) {
+      continue; // Don't generate this empty layer at all
+    }
+
+    // Layer has data, so write the label and data
+    layersGenerated += 1;
+    asmString += `${safeFrameName}_LAYER${layerIndex}: ; Brush Color Index ${layerIndex} (Actual Color: ${layerColor})\n`;
+
+    if (spriteWidth % 8 !== 0) {
+      asmString += `;; WARNING: Sprite width ${spriteWidth} is not a multiple of 8. Bitmask generation might be problematic for standard VDP.\n`;
     }
 
     for (let i = 0; i < layerBytes.length; i += ASM_BYTES_PER_LINE) {

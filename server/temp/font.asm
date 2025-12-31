@@ -1,9 +1,9 @@
 ; ==================================================================
-; MSX FONT DATA (SKIPPED - NO TEXT/MENUS DETECTED)
+; MSX FONT DATA (SKIPPED - NO TEXT/MENUS/HUD DETECTED)
 ; File: font.asm
 ; ==================================================================
 
-; No text or menus detected in project - font system not needed
+; No text, menus, or HUD detected in project - font system not needed
 ; This saves ~250 lines of unused font data
 
 ; Minimal stub functions for compatibility

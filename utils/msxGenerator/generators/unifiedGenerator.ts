@@ -30,6 +30,10 @@ export interface GeneratedASMFiles {
     'font.asm': string;
     'hud.asm': string;
     'menus.asm': string;
+    'sound.asm': string;
+    'scroll.asm': string;
+    'animtiles.asm': string;
+    'particles.asm': string;
     'statemachine.asm': string;
     'gameflow.asm': string;
     'worlds.asm': string;
@@ -72,15 +76,15 @@ export function generateUnifiedFile(files: GeneratedASMFiles, projectName: strin
 ; State Machines: ${analysis.stateMachines?.length || 0}
 ; ==================================================================
 
-; CRITICAL: bios.asm and constants.asm must come BEFORE header.asm
-; because header.asm uses WRTVDP (defined in bios.asm) and constants
+; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
+; for the ROM to work correctly. EQUs can go after ORG.
+${files['header.asm']}
+
 ${files['bios.asm']}
 
 ${files['constants.asm']}
 
 ${files['variables.asm']}
-
-${files['header.asm']}
 
 ${files['interrupt.asm']}
 
@@ -102,7 +106,15 @@ ${needsFont ? files['font.asm'] : '; [font.asm skipped - no text/menus]\n'}
 
 ${hasHud ? files['hud.asm'] : '; [hud.asm skipped - no HUD elements]\n'}
 
-${analysis.stateMachines && analysis.stateMachines.length > 0 ? files['statemachine.asm'] : '; [statemachine.asm skipped - no state machines]\n'}
+${files['sound.asm']}
+
+${files['scroll.asm']}
+
+${files['animtiles.asm']}
+
+${files['particles.asm']}
+
+${files['statemachine.asm'] && files['statemachine.asm'].trim() !== '; No State Machines' ? files['statemachine.asm'] : '; [statemachine.asm skipped - no state machines]\n'}
 
 ${analysis.gameFlow ? files['gameflow.asm'] : '; [gameflow.asm skipped - no GameFlow]\n'}
 
@@ -285,13 +297,8 @@ update_main_menu_state:
     ret
 
 update_game_state:
-    ; Main gameplay logic - update all component systems in correct order
-${analysis.entities && analysis.entities.length > 0 ? `    call update_input_component     ; Read input
-    call update_behavior_component  ; AI/Logic decisions
-    call update_movement_component  ; Apply physics/movement
-    call update_position_component  ; Update positions
-    call update_collision_component ; Check collisions
-    call update_sprite_component    ; Update sprite rendering
+    ; Main gameplay logic - update all entity components (OPTIMIZED)
+${analysis.entities && analysis.entities.length > 0 ? `    call update_all_entities        ; All component systems (optimized - only calls used systems)
 
     ; Check for pause input (SELECT key or P)
     ld a, (input_state)
@@ -370,8 +377,8 @@ start_game_from_menu:
     ; Re-initialize graphics for SCREEN 2 (CLS doesn't work properly in SCREEN 2)
     call DISSCR                     ; Hide screen while reloading VRAM assets
     call clear_all_sprites           ; Clear sprite attributes
-    call load_patterns_to_vram       ; Reload tile patterns
-    call load_colors_to_vram         ; Reload tile colors
+${analysis.tiles && analysis.tiles.length > 0 ? `    call load_patterns_to_vram       ; Reload tile patterns
+    call load_colors_to_vram         ; Reload tile colors` : `    ; [No tiles in project - pattern loading skipped]`}
     call load_game_screen
     call ENASCR                     ; Show screen again after reload
     ret
@@ -543,14 +550,14 @@ ${hasMenus ? `    ; Menu system detected - render menu
     ; Avoid re-initialization by checking if this is first frame
     ld a, (prev_flow_state)
     cp FLOW_STATE_MAIN_MENU
-    jr nz, .skip_init          ; Already changed state, skip init
-    
+    jr nz, .rmm_skip_init       ; Already changed state, skip init
+
     ; First frame in menu state - start game
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
     call init_game_entities
     call load_game_screen
-.skip_init:
+.rmm_skip_init:
 `}    ret
 
 render_game:

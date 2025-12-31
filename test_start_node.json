@@ -1,0 +1,83 @@
+{
+  "assets": [
+    {
+      "id": "gv_001",
+      "type": "globalvariables",
+      "name": "Game Variables",
+      "variables": [
+        {
+          "name": "score",
+          "asmName": "global_var_score",
+          "constantPrefix": "SCORE_",
+          "type": "byte",
+          "description": "Player score",
+          "values": [
+            { "label": "Zero", "value": 0, "asmConstant": "SCORE_ZERO" },
+            { "label": "Low", "value": 100, "asmConstant": "SCORE_LOW" },
+            { "label": "High", "value": 255, "asmConstant": "SCORE_HIGH" }
+          ],
+          "category": "score"
+        },
+        {
+          "name": "lives",
+          "asmName": "global_var_lives",
+          "constantPrefix": "LIVES_",
+          "type": "byte",
+          "description": "Player lives",
+          "values": [
+            { "label": "None", "value": 0, "asmConstant": "LIVES_NONE" },
+            { "label": "Starting", "value": 3, "asmConstant": "LIVES_STARTING" },
+            { "label": "Max", "value": 9, "asmConstant": "LIVES_MAX" }
+          ],
+          "category": "player"
+        }
+      ]
+    },
+    {
+      "id": "gf_001",
+      "type": "gameflow",
+      "name": "Main Game Flow",
+      "data": {
+        "name": "Main",
+        "startNodeId": "start_001",
+        "nodes": [
+          {
+            "id": "start_001",
+            "type": "Start",
+            "position": { "x": 100, "y": 100 },
+            "initializeGlobals": {
+              "enabled": true,
+              "variables": [
+                { "variableName": "score", "value": 0 },
+                { "variableName": "lives", "value": 3 }
+              ]
+            },
+            "systemConfig": {
+              "initPSG": true,
+              "clearSprites": true,
+              "clearVRAM": false,
+              "resetVDP": false,
+              "initialDelayFrames": 30
+            }
+          },
+          {
+            "id": "end_001",
+            "type": "End",
+            "position": { "x": 300, "y": 100 },
+            "endType": "Victory",
+            "message": "Test Complete!"
+          }
+        ],
+        "connections": [
+          {
+            "id": "conn_001",
+            "from": { "nodeId": "start_001" },
+            "to": { "nodeId": "end_001" }
+          }
+        ]
+      }
+    }
+  ],
+  "currentScreenMode": "screen2",
+  "selectedAssetId": "gf_001"
+}

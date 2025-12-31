@@ -18,7 +18,10 @@ include "constants.asm"
 ; 3. Variables (depends on constants)
 include "variables.asm"
 
-; 4. ROM Header (depends on variables)
+; 3.5. Interrupt System (Konami-style task system)
+include "interrupt.asm"
+
+; 4. ROM Header (depends on variables and interrupt system)
 include "header.asm"
 
 ; 5. Pattern Data (if tiles exist)
@@ -32,224 +35,171 @@ include "colors.asm"
 include "sprites.asm"
 
 
-; 8. Screen Maps (if screens exist)
+; 8. Components (game logic)
+include "components.asm"
+
+; 9. Entities (game objects)
+include "entities.asm"
+
+; 10. Worlds (world maps)
+include "worlds.asm"
+
+
+; 11. Screen Maps (if screens exist)
 include "screens.asm"
 
 
-; 9. Font Data (custom font for Screen 2 text)
+; 12. Font Data (custom font for Screen 2 text)
 include "font.asm"
 
-; 10. Components (game logic)
-include "components.asm"
+; 13. HUD System (heads-up display)
+include "hud.asm"
 
-; 11. Entities (game objects)
-include "entities.asm"
-
-; 12. Menus (user interface)
+; 14. Menus (user interface)
 include "menus.asm"
 
-; ==================================================================
-; MAIN PROGRAM ENTRY POINT
-; ==================================================================
-main_program:
-    ; Initialize game systems
-    call init_game_systems
 
-    ; Initialize font system for Screen 2 text
-    call init_font_system
 
-    ; Initialize Game Flow system
+; 16. GameFlow (game flow state machine)
+include "gameflow.asm"
+
+; ==================================================================
+; MAIN PROGRAM - UTILITY FUNCTIONS ONLY
+; ==================================================================
+;
+; NOTE: The main game loop and execution flow are now handled
+; exclusively by GameFlow (see gameflow.asm).
+;
+; This section only contains utility functions used throughout
+; the game code.
+; ==================================================================
+
+;-----------------------------------------------
+; Calls a function from page 1
+; input:
+; ix: function to call from page 1
+call_from_page1:
+    ld a,(ROM_slot)
+    ld iyh,a    ; slot #
+    jp CALSLT
+
+
+;-----------------------------------------------
+; Source: http://wikiti.brandonw.net/index.php?title=Z80_Routines:Math:Random
+;-----> Generate a random number
+; ouput a=answer 0<=a<=255
+; all registers are preserved except: af
+; random:
+;     push    hl
+;     push    de
+;         ld      hl,(randData)
+;         ld      a,r
+;         ld      d,a
+;         ld      e,(hl)
+;         add     hl,de
+;         add     a,l
+;         xor     h
+;         ld      (randData),hl
+;     pop     de
+;     pop     hl
+;     ret
+
+
+; Source: http://wikiti.brandonw.net/index.php?title=Z80_Routines:Math:Random
+; 16-bit xorshift pseudorandom number generator by John Metcalf
+; 20 bytes, 86 cycles (excluding ret)
+; returns   a = pseudorandom number
+; generates 16-bit pseudorandom numbers with a period of 65535
+; using the xorshift method:
+; hl ^= hl << 7
+; hl ^= hl >> 9
+; hl ^= hl << 8
+; some alternative shift triplets which also perform well are:
+; 6, 7, 13; 7, 9, 13; 9, 7, 13.
+
+random:
+    push hl
+        ld hl,(randData)
+        ld a,h
+        rra
+        ld a,l
+        rra
+        xor h
+        ld h,a
+        ld a,l
+        rra
+        ld a,h
+        rra
+        xor l
+        ld l,a
+        xor h
+        ld h,a
+        ld (randData),hl
+    pop hl
+    ret
+
+
+; only modifies af, and hl
+randomSeedUpdate:
+    ld hl,randSeedIndex
+    ld a,(hl)
+    inc (hl)
+    and #01
+    jr z,randomSeedUpdate2
+    ld a,r
+    xor #66
+    ld (randData),a
+    ret
+randomSeedUpdate2:
+    ld a,r
+    xor #66
+    ld (randData+1),a
+    ret
+
+
+;-----------------------------------------------
+; Divide "hl" by "d", output is:
+; - division result in "hl"
+; - remainder in "a"
+; Code borrowed from: //sgate.emt.bme.hu/patai/publications/z80guide/part4.html
+Div8:                            ; this routine performs the operation HL=HL/D
+    push bc
+    xor a                          ; clearing the upper 8 bits of AHL
+    ld b,16                        ; the length of the dividend (16 bits)
+Div8Loop:
+    add hl,hl                      ; advancing a bit
+    rla
+    cp d                           ; checking if the divisor divides the digits chosen (in A)
+    jp c,Div8NextBit               ; if not, advancing without subtraction
+    sub d                          ; subtracting the divisor
+    inc l                          ; and setting the next digit of the quotient
+Div8NextBit:
+    djnz Div8Loop
+    pop bc
+    ret    
+
+
+;-----------------------------------------------
+; waits a given number of "halts"
+; b - number of halts
+wait_b_halts:
+    halt
+    djnz wait_b_halts
+    ret
+
+
+;-----------------------------------------------
+; hl: memory to clear
+; bc: bytes to clear-1
+clear_memory:
     xor a
-    ld (current_flow_state), a
-    ld (prev_flow_state), a
-
-    ; Load initial screen based on GameFlow (Critical for Paridad)
-    call load_game_screen
-
-    ; Main game loop
-main_loop:
-    halt                 ; Wait for V-Blank
-
-    ; Update current game state
-    call update_current_state
-
-    ; Render current frame
-    call render_frame
-
-    ; Loop forever
-    jp main_loop
-
-; ==================================================================
-; GAME SYSTEM FUNCTIONS (implemented in components.asm)
-; ==================================================================
-init_game_systems:
-    ; Initialize all game systems
-    ; This function is implemented in the unified assembly
-    ; and calls component initialization functions
-    call init_components
-    call init_sprites
+clear_memory_a:
+    ld d,h
+    ld e,l
+    inc de
+    ld (hl),a
+    ldir
     ret
-
-update_current_state:
-    ; Update game logic based on current state
-    ; This function is implemented in the unified assembly
-    ; and updates all component systems
-    call update_input_component
-    call update_position_component
-    call update_movement_component
-    call update_collision_component
-    call update_sprite_component
-    ret
-
-render_frame:
-    ; Render current frame
-    ; This function is implemented in the unified assembly
-    ; Game rendering is handled by component systems
-    ret
-
-; ==================================================================
-; GAMEFLOW SYSTEM FUNCTIONS (Critical for Paridad)
-; ==================================================================
-
-load_game_screen:
-    ; Load game screen based on GameFlow execution path
-    ; This follows the exact same flow as Play mode for PARIDAD
-
-    ; GameFlow detected - follow node execution path
-    ; Start node: gf_start_1757846301679
-    ; Nodes: 2 total
-    ; Node 0: gf_start_1757846301679 (Start) 
-    ; Node 1: gfn_1757846312799 (WorldLink) 
-
-    ; Execute first GameFlow transition (matches Play mode behavior)
-    call execute_gameflow_start
-    ret
-
-; ==================================================================
-; GAMEFLOW EXECUTION FUNCTIONS (Critical for Paridad)
-; ==================================================================
-
-execute_gameflow_start:
-
-    ; Execute the GameFlow start node exactly as Play mode does
-    ; Start node ID: gf_start_1757846301679
-
-    ; Find and execute start node
-    ld hl, gameflow_node_gf_start_1757846301679
-    call execute_gameflow_node
-    ret
-
-execute_gameflow_node:
-    ; Execute a single GameFlow node (matches Play mode execution)
-    ; HL = pointer to node data structure
-
-    ; Get node type and execute appropriate handler
-    ld a, (hl)                    ; Load node type
-    cp NODE_TYPE_START
-    jp z, execute_start_node
-    cp NODE_TYPE_WORLDLINK
-    jp z, execute_world_link_node
-    cp NODE_TYPE_SCREEN
-    jp z, execute_screen_node
-    cp NODE_TYPE_MENU
-    jp z, execute_menu_node
-
-    ; Unknown node type - skip
-    ret
-
-execute_start_node:
-    ; Start node - typically just transitions to next node
-    ; Find next connected node and execute it
-    call find_next_gameflow_node
-    jp execute_gameflow_node
-
-execute_world_link_node:
-    ; World link node - load the referenced world map
-
-
-    ; Node gfn_1757846312799: Links to world unknown
-    ; Load world map and execute its start screen
-    call load_world________
-    ret
-
-execute_screen_node:
-    ; Screen node - load the specific screen
-    ; Extract screen reference from node data
-    call load_referenced_screen
-    ret
-
-execute_menu_node:
-    ; Menu node - show menu interface
-    call show_menu_interface
-    ret
-
-load_default_screen:
-    ; Fallback: load first available screen
-
-    call load_screen_________1
-    ret
-
-find_next_gameflow_node:
-    ; Find the next node in GameFlow connections
-    ; Implementation depends on connection data structure
-    ; For now, use first connection if available
-    ret
-
-load_referenced_screen:
-    ; Load screen referenced by current node
-    ; Implementation needs node data parsing
-    call load_default_screen
-    ret
-
-show_menu_interface:
-    ; Show menu defined in GameFlow node
-    ; Implementation needs menu data parsing
-    ret
-
-show_no_content_message:
-    ; Show message when no content is available
-    ret
-
-; ==================================================================
-; GAMEFLOW NODE DATA STRUCTURES (Generated State Machine)
-; ==================================================================
-
-
-; GameFlow: main
-; Nodes: 2
-; Connections: 1
-
-
-gameflow_node_gf_start_1757846301679:
-    ; Start Node - transition to first connected node
-    ld hl, gameflow_node_gfn_1757846312799
-    jp execute_gameflow_node
-
-gameflow_node_gfn_1757846312799:
-    ; WorldLink Node - Load world: worldmap_1757846280079
-    call init_sprites
-    call init_components
-    call init_entities
-    call load_world_worldmap_1757846280079
-    jp game_loop
-
-; End of GameFlow State Machine
-
-
-
-; Node: gf_start_1757846301679 (Start)
-gameflow_node_gf_start_1757846301679:
-    db NODE_TYPE_START
-    dw 0
-    ; Additional node data would go here
-
-
-; Node: gfn_1757846312799 (WorldLink)
-gameflow_node_gfn_1757846312799:
-    db NODE_TYPE_WORLDLINK
-    dw 0
-    ; Additional node data would go here
-
 
 ; ==================================================================
 ; END OF MAIN PROGRAM

@@ -141,16 +141,23 @@ init_rom:
     ${generateTaskRegistration(analysis)}
     ei
 
-    ; ====================================================
+${analysis.hasGameFlow ? `    ; ====================================================
     ; GAMEFLOW INITIALIZATION
     ; ====================================================
     ; Initialize GameFlow system
     call gameflow_init
-    
+
     ; Start execution from GameFlow Start node
     ; GameFlow is now the sole orchestrator
     call ENASCR
-    jp gameflow_start
+    jp gameflow_start` : `    ; ====================================================
+    ; SIMPLE GAME LOOP (No GameFlow)
+    ; ====================================================
+    ; Initialize game entities
+    call init_game_entities
+    call load_game_screen
+    call ENASCR
+    jp main_loop`}
 
 ; ==================================================================
 ; AUXILIARY FUNCTIONS

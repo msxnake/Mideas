@@ -26,54 +26,54 @@ SCREEN_PANTALLA1_0_HEIGHT    EQU 24
 SCREEN_PANTALLA1_0_SIZE      EQU 768
 
 SCREEN_PANTALLA1_0_LAYOUT:
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03
-    DB #02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03
-    DB #02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03
-    DB #02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03
-    DB #02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03,#02,#03
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
-    DB #00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01,#00,#01
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
 
 ;; BEHAVIOR MAP: pantalla1_0 (32x24 tiles)
 ;; Total size: 768 bytes (Map IDs 0-255)
@@ -139,19 +139,160 @@ BEHAVIOR_PANTALLA1_0_DATA:
 ; SCREEN LOADING FUNCTIONS
 ; ==================================================================
 
+; Color shift lookup table (0-15 shifted to high nibble)
+; OPTIMIZED: Table lookup is faster than 4× RLCA (11 cycles vs 16 cycles)
+color_shift_table:
+    db #00, #10, #20, #30, #40, #50, #60, #70
+    db #80, #90, #A0, #B0, #C0, #D0, #E0, #F0
+
+; Helper function to set VDP background and border colors
+; Input: A = background color (0-15), B = border color (0-15)
+set_screen_colors:
+    push af
+    push bc
+    push hl
+
+    ; Set VDP Register 7: [Background Color (4-7) | Border Color (0-3)]
+
+    ; OPTIMIZED: Use lookup table instead of 4× RLCA
+    ; Process Background Color (in A) -> High Nibble
+    and #0F                    ; Ensure 0-15 range
+    ld hl, color_shift_table
+    add a, l                   ; Add offset to table base
+    ld l, a
+    adc a, h                   ; Handle carry
+    sub l
+    ld h, a
+    ld a, (hl)                 ; A = background color << 4
+    ld c, a                    ; Save shifted background in C
+
+    ; Process Border Color (in B) -> Low Nibble
+    ld a, b                    ; Get border color
+    and #0F                    ; Ensure 0-15 range
+
+    ; Combine
+    or c                       ; Combine: background << 4 | border
+
+    ld b, a                    ; Value for VDP R#7
+    ld c, 7                    ; VDP Register 7
+    call FAST_WRTVDP           ; BIOS call to write VDP register
+
+    pop hl
+    pop bc
+    pop af
+    ret
+
+; Helper function to initialize character 0 (empty cell) with background color
+; Input: A = background color (0-15)
+; This ensures empty cells show the correct background color instead of BIOS default (blue)
+init_char0_color:
+    push af
+    push bc
+    push de
+    push hl
+    
+    ; Calculate color byte: (bg_color << 4) | bg_color
+    ; This makes both foreground and background the same color
+    and #0F                    ; Ensure 0-15 range
+    ld b, a                    ; Save in B
+    rlca                       ; Shift to high nibble
+    rlca
+    rlca
+    rlca
+    or b                       ; Combine: bg_color in both nibbles
+    ld b, a                    ; B = color byte to write
+    
+    ; Write color to character 0 in all 3 banks (8 bytes each)
+    ; Bank 0: CLRTBL2 + (0 * 8)
+    ld hl, CLRTBL2
+    ld c, 8                    ; 8 bytes per character
+init_char0_bank0_loop:
+    ld a, b                    ; Get color byte
+    call FAST_WRTVRM                ; Write to VRAM
+    inc hl
+    dec c
+    jr nz, init_char0_bank0_loop
+    
+    ; Bank 1: CLRTBL2 + #800 + (0 * 8)
+    ld hl, CLRTBL2 + #800
+    ld c, 8
+init_char0_bank1_loop:
+    ld a, b
+    call FAST_WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_bank1_loop
+    
+    ; Bank 2: CLRTBL2 + #1000 + (0 * 8)
+    ld hl, CLRTBL2 + #1000
+    ld c, 8
+init_char0_bank2_loop:
+    ld a, b
+    call FAST_WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_bank2_loop
+    
+    ; Also clear pattern for character 0 (all zeros = blank)
+    ; Bank 0: CHRTBL2 + (0 * 8)
+    ld hl, CHRTBL2
+    ld c, 8
+    xor a                      ; A = 0 (blank pattern)
+init_char0_pattern_bank0_loop:
+    call FAST_WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_pattern_bank0_loop
+    
+    ; Bank 1: CHRTBL2 + #800 + (0 * 8)
+    ld hl, CHRTBL2 + #800
+    ld c, 8
+    xor a
+init_char0_pattern_bank1_loop:
+    call FAST_WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_pattern_bank1_loop
+    
+    ; Bank 2: CHRTBL2 + #1000 + (0 * 8)
+    ld hl, CHRTBL2 + #1000
+    ld c, 8
+    xor a
+init_char0_pattern_bank2_loop:
+    call FAST_WRTVRM
+    inc hl
+    dec c
+    jr nz, init_char0_pattern_bank2_loop
+    
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
 load_screen:
+
     ; Load screen (A = screen ID)
     ; TODO: Implement screen loading logic
     ret
 
-load_screen_pantalla1:
-    ; Load pantalla1 screen (BIOS LDIRVM handles timing)
+load_screen_pantalla1_757845666799:
+    ; Load pantalla1 screen (fast direct port access)
+    ; Set VDP colors FIRST (before loading screen data)
+    ld a, 1           ; Background color
+    ld b, 1       ; Border color
+    call set_screen_colors
+    ; Initialize character 0 (empty cells) with background color
+    ld a, 1           ; Background color for char 0
+    call init_char0_color
+    ; Now load screen layout
     ld hl, SCREEN_PANTALLA1_0_LAYOUT
     ld de, NAMETBL
     ld bc, SCREEN_PANTALLA1_0_SIZE
-    call LDIRVM                ; BIOS handles safe VRAM access
+    call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     ret
 
+
 ; ==================================================================
-; END OF SCREEN MAPS
+; END OF SCREENS
 ; ==================================================================

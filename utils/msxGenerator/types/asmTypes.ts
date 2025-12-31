@@ -103,6 +103,10 @@ export interface GeneratedASMFiles {
   'screens.asm': string;
   'components.asm': string;
   'entities.asm': string;
+  'sound.asm': string;
+  'scroll.asm': string;
+  'animtiles.asm': string;
+  'particles.asm': string;
   'gameflow.asm': string;
   'menus.asm': string;
   'statemachine.asm': string;

@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, LineColorAttribute, 
+import {
+    ProjectAsset, Sprite, Tile, ScreenMap, PixelData, MSX1ColorValue, LineColorAttribute,
     EditorType, EntityInstance, BehaviorScript, TileBank, SpriteFrame,
-    ComponentDefinition, EntityTemplate, EffectZone, EffectZoneFlagKey, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode
+    ComponentDefinition, EntityTemplate, EffectZone, EffectZoneFlagKey, ScreenEditorLayerName, ComponentPropertyDefinition, GameFlowNode, GameFlowSubMenuNode, GameFlowEndNode, GameFlowStartNode
 } from '../../types';
 import { Panel } from '../common/Panel';
-import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP, EDITOR_BASE_TILE_DIM_S2, EFFECT_ZONE_FLAGS } from '../../constants'; 
-import { Button } from '../common/Button'; 
-import { TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons'; 
+import { SCREEN2_PIXELS_PER_COLOR_SEGMENT, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP, EDITOR_BASE_TILE_DIM_S2, EFFECT_ZONE_FLAGS } from '../../constants';
+import { Button } from '../common/Button';
+import { TrashIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
+import { StartNodeEditor } from '../editors/StartNodeEditor';
 
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
 
@@ -1061,6 +1062,28 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 </div>
             </div>
         );
+    }
+    if (gameFlowNode.type === 'Start') {
+      const node = gameFlowNode as GameFlowStartNode;
+      return (
+        <StartNodeEditor
+          node={node}
+          onNodeChange={(updatedNode: GameFlowStartNode) => {
+            // Extract only the changed properties
+            const changes: Partial<GameFlowStartNode> = {};
+            if (updatedNode.initializeGlobals !== node.initializeGlobals) {
+              changes.initializeGlobals = updatedNode.initializeGlobals;
+            }
+            if (updatedNode.systemConfig !== node.systemConfig) {
+              changes.systemConfig = updatedNode.systemConfig;
+            }
+            if (Object.keys(changes).length > 0) {
+              onUpdateGameFlowNode(node.id, changes);
+            }
+          }}
+          allAssets={allAssets}
+        />
+      );
     }
     return <p className="text-msx-textsecondary">Selected node type: {gameFlowNode.type}</p>;
   };

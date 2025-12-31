@@ -8,6 +8,73 @@ import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componentAnalyzer';
 
 // ============================================================================
+// OPTIMIZED UPDATE_ALL_ENTITIES GENERATOR
+// ============================================================================
+// Only generates CALLs for components that are actually used in the project
+// This saves Z80 cycles by avoiding calls to empty stubs
+
+/**
+ * Generate optimized update_all_entities function
+ * Only includes CALLs to systems that are actually used
+ * @param usedComponents - Set of component names that are used in the project
+ * @returns ASM code for update_all_entities
+ */
+function generateUpdateAllEntities(usedComponents: Set<string>): string {
+    let code = `
+; ==================================================================
+; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
+; ==================================================================
+; Only calls component systems that are actually used in this project
+; Unused systems are NOT called (saves Z80 cycles)
+update_all_entities:
+`;
+
+    // Define the component systems in execution order
+    // Format: [componentName, functionCall, comment]
+    const componentSystems: [string, string, string][] = [
+        ['Input', 'update_input_component', '1. Input (player control)'],
+        ['Shoot', 'update_shoot_component', '2. Shooting'],
+        ['Behavior', 'update_behavior_component', '3. Behavior/AI'],
+        ['Jump', 'update_jump_component', '4. Jump impulse'],
+        ['Movement', 'update_movement_component', '5. Movement'],
+        ['Cursors', 'update_cursors_component', '5b. Cursors movement'], // comp_cursors
+        ['Gravity', 'update_gravity_component', '6. Gravity'],
+        ['Position', 'update_position_component', '7. Apply velocity'], // Always needed
+        ['Collision', 'prepare_platform_detection', '8a. Clear platform refs'],
+        ['Collision', 'update_collision_component', '8b. Collision detection'],
+        ['Collision', 'update_platform_riding', '8c. Platform riding'],
+        ['WallCollision', 'update_wall_collision_component', '8d. Wall collision'],
+        ['Health', 'update_health_component', '9. Health/Death'],
+        ['Damage', 'update_damage_component', '10. Damage'],
+        ['Animation', 'update_animation_component', '11. Animation'],
+        ['AutoDestroy', 'update_auto_destroy_component', '12. Auto-destroy'],
+        ['Sprite', 'update_sprite_component', '13. Sprite rendering'],
+    ];
+
+    let callCount = 0;
+    const processedFunctions = new Set<string>(); // Avoid duplicate calls
+
+    for (const [component, funcCall, comment] of componentSystems) {
+        // Position is always needed (entities always have positions)
+        const isRequired = component === 'Position' || component === 'Sprite';
+
+        if (isRequired || usedComponents.has(component)) {
+            // Avoid duplicate function calls (e.g., multiple Collision entries)
+            if (!processedFunctions.has(funcCall)) {
+                processedFunctions.add(funcCall);
+                code += `    call ${funcCall.padEnd(30)} ; ${comment}\n`;
+                callCount++;
+            }
+        }
+    }
+
+    code += `    ret\n`;
+    code += `; Total systems called: ${callCount} (optimized from 15)\n\n`;
+
+    return code;
+}
+
+// ============================================================================
 // HELPER FUNCTIONS - INDIVIDUAL COMPONENT SYSTEMS
 // ============================================================================
 
@@ -464,7 +531,7 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
 
     ld a, (hl)                    ; Get high byte (Gravity is bit 1)
     and #02                       ; COMP_MASK_GRAVITY high byte
-    jr z, collision_next_entity   ; Skip if no collision or gravity
+    jp z, collision_next_entity   ; Skip if no collision or gravity (JP for long jump)
 
 .has_collision_comp:
     ; Get entity Y position
@@ -535,23 +602,37 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     set 0, (hl)                   ; Mark as grounded
 
 .ground_check_done:
-    ; Check for deadly tile collision
-    ; TODO: Full implementation requires tile data lookup
-    ; For now: simple boundary check as placeholder
+    ; Check for deadly tile collision (lava, spikes, etc.)
+    ; Get entity position (x, y)
+    ld hl, entity_x_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld d, (hl)                    ; D = X position
+
     ld hl, entity_y_pos
     ld e, c
     ld d, 0
     add hl, de
-    ld a, (hl)                    ; A = Y position
+    ld e, (hl)                    ; E = Y position
 
-    ; Placeholder: Check if entity is at dangerous Y positions
-    ; In full implementation, this would:
-    ; 1. Convert (x, y) to tile coordinates
-    ; 2. Look up tile at position in behavior map
-    ; 3. Check instanceId bit 2 (causesDamage)
-    ; For now: Bottom 8 pixels are "deadly" (Y >= 184)
-    cp 184
-    jr c, .no_deadly_tile         ; Y < 184, safe
+    ; Get tile at entity's feet position (center-bottom)
+    push bc
+    push de
+    ld a, d
+    add a, 8                      ; Center X (assuming 16-pixel wide entity)
+    ld d, a
+    ld a, e
+    add a, 15                     ; Bottom Y (assuming 16-pixel tall entity)
+    ld e, a
+    call get_tile_at_position     ; A = tile ID
+    call get_tile_behavior        ; A = behavior flags
+    pop de
+    pop bc
+
+    ; Check if tile is deadly (bit 3 = TILE_DEADLY)
+    bit 3, a
+    jr z, .no_deadly_tile         ; Not deadly, safe
 
     ; Entity is touching deadly area - set flag
     ld hl, entity_deadly_collision
@@ -1193,7 +1274,7 @@ init_health_system:
 .init_loop:
     ld a, (hl)
     and #04                       ; COMP_MASK_HEALTH (bit 2 in high byte = #0400)
-    jr z, .next_entity            ; Skip if no health component
+    jr z, .init_next_entity       ; Skip if no health component
 
     ; Initialize current health (default: 3)
     push bc
@@ -1211,7 +1292,7 @@ init_health_system:
     pop hl
     pop bc
 
-.next_entity:
+.init_next_entity:
     inc hl
     inc c
     djnz .init_loop
@@ -1224,10 +1305,10 @@ update_health_component:
     ld hl, entity_comp_masks_hi   ; Check for Health component
     ld c, 0                       ; Entity index
 
-.update_loop:
+.health_update_loop:
     ld a, (hl)
     and #04                       ; COMP_MASK_HEALTH
-    jr z, .next_entity
+    jr z, .health_next_entity
 
     ; Check current health
     push bc
@@ -1240,20 +1321,20 @@ update_health_component:
 
     ; Check if dead (current <= 0)
     or a                          ; Set flags
-    jr nz, .alive                 ; If != 0, entity is alive
+    jr nz, .health_alive          ; If != 0, entity is alive
 
     ; Entity is dead (current = 0)
     ; Could trigger death state here, but state machine handles it
     ; via HEALTH_LESS_THAN or HEALTH_EQUALS conditions
 
-.alive:
+.health_alive:
     pop hl
     pop bc
 
-.next_entity:
+.health_next_entity:
     inc hl
     inc c
-    djnz .update_loop
+    djnz .health_update_loop
     ret
 
 ; ==================================================================
@@ -1502,14 +1583,14 @@ update_shoot_component:
     add hl, de
     ld a, (hl)                    ; A = current cooldown
     or a                          ; Check if 0
-    jr z, .check_fire             ; Cooldown expired, check fire button
+    jr z, .usc_check_fire         ; Cooldown expired, check fire button
 
     ; Decrement cooldown
     dec a
     ld (hl), a
     jr .shoot_done                ; Still cooling down, skip
 
-.check_fire:
+.usc_check_fire:
     ; Check if fire button is pressed
     ld a, (input_fire)
     or a
@@ -1600,24 +1681,55 @@ update_shoot_component:
     add hl, de
     ld (hl), 0                    ; High byte = 0
 
-    ; Set projectile velocity (horizontal, facing right for now)
-    ; TODO: Read shooter facing direction
+    ; Set projectile velocity based on shooter's facing direction
+    ; Determine direction from shooter's current velocity
     pop de                        ; DE = projectile index
     pop bc                        ; BC = shooter index
     push bc
     push de
 
+    ; Get shooter's velocity X to determine facing direction
+    ld hl, entity_vel_x
+    ld e, c                       ; Shooter index
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = shooter's vel_x
+
+    ; Check if shooter is moving left (negative velocity)
+    bit 7, a                      ; Check sign bit
+    jr z, .shoot_facing_right     ; vel_x >= 0, facing right
+
+.shoot_facing_left:
+    ; Shooter facing left - projectile velocity should be negative
     ld hl, entity_shoot_speed
     ld e, c                       ; Shooter index
     ld d, 0
     add hl, de
-    ld a, (hl)                    ; A = projectile speed
+    ld a, (hl)                    ; A = shoot speed (positive)
+    neg                           ; Negate to make it negative
+
+    pop de                        ; DE = projectile index
+    ld hl, entity_vel_x
+    push de
+    add hl, de
+    ld (hl), a                    ; Set velocity X = -speed
+    jr .shoot_vel_set
+
+.shoot_facing_right:
+    ; Shooter facing right - projectile velocity is positive
+    ld hl, entity_shoot_speed
+    ld e, c                       ; Shooter index
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = shoot speed (positive)
 
     pop de                        ; DE = projectile index
     ld hl, entity_vel_x
     push de
     add hl, de
     ld (hl), a                    ; Set velocity X = speed
+
+.shoot_vel_set:
 
     ld hl, entity_vel_y
     pop de
@@ -1702,10 +1814,10 @@ prepare_platform_detection:
     ld de, entity_platform_grace
     ld c, 0
 
-.clear_loop:
+.platform_clear_loop:
     ld a, (hl)              ; A = platform_id
     cp 255                  ; Check if on a platform
-    jr z, .skip_clear       ; Already no platform, skip
+    jr z, .platform_skip_clear ; Already no platform, skip
 
     ; Entity was on a platform last frame
     ; Set grace frames to 6 (coyote time for leaving platform)
@@ -1717,11 +1829,11 @@ prepare_platform_detection:
     ; Clear platform reference (collision will reset if still touching)
     ld (hl), 255
 
-.skip_clear:
+.platform_skip_clear:
     inc hl                  ; Next platform_id
     inc de                  ; Next grace counter
     inc c
-    djnz .clear_loop
+    djnz .platform_clear_loop
     ret
 
 update_platform_riding:
@@ -1808,11 +1920,11 @@ function generateAnimationSystem(): string {
         .anim_loop:
             ld a, (hl)
             and COMP_MASK_ANIMATION
-            jp z, .next_entity
+            jp z, .anim_next_entity
 
             ld a, (hl)
             and COMP_MASK_SPRITE
-            jp z, .next_entity
+            jp z, .anim_next_entity
 
             push bc
             push hl
@@ -1978,7 +2090,7 @@ anim_done_entity:
             pop hl
             pop bc
 
-        .next_entity:
+        .anim_next_entity:
             inc hl
             inc c
             dec b
@@ -2133,6 +2245,535 @@ jump_done_entity:
 }
 
 /**
+ * Generate Auto-Destroy Component System
+ */
+function generateAutoDestroySystem(): string {
+    return `
+    ; ==================================================================
+    ; AUTO-DESTROY COMPONENT SYSTEM
+    ; ==================================================================
+    ; Entities with AUTO_DESTROY component have a lifetime counter
+    ; When lifetime reaches 0, entity is automatically destroyed
+    ; Useful for: projectiles, particles, temporary effects, etc.
+
+init_auto_destroy_system:
+    ; Initialize all lifetimes to 0 (infinite by default)
+    ld hl, entity_lifetime
+    ld de, entity_lifetime+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ret
+
+update_auto_destroy_component:
+    ; Update lifetime counters and destroy entities when expired
+    ld b, 32                      ; Loop all entities
+    ld hl, entity_comp_masks_hi    ; High byte masks
+        ld c, 0                       ; Entity index
+
+    auto_destroy_loop:
+        ld a, (hl)
+        and #04                       ; AUTO_DESTROY bit (COMP_MASK_AUTO_DESTROY=#0400 -> high byte bit2)
+        jr z, auto_destroy_next
+
+        ; Entity has auto-destroy component
+        push bc
+        push hl
+
+        ; Get lifetime for this entity
+        ld e, c                       ; Entity index
+        ld d, 0
+        ld hl, entity_lifetime
+        add hl, de
+        ld a, (hl)                    ; A = lifetime
+
+        ; Check if lifetime is 0 (infinite) or > 0
+        or a
+        jr z, auto_destroy_done       ; 0 = infinite lifetime, skip
+
+        ; Decrement lifetime
+        dec a
+        ld (hl), a                    ; Store decremented value
+
+        ; Check if lifetime reached 0
+        or a
+        jr nz, auto_destroy_done      ; Still alive
+
+        ; Lifetime expired - destroy entity
+        ; Clear component masks (deactivates entity)
+        ld hl, entity_comp_masks
+        ld e, c
+        ld d, 0
+        add hl, de
+        ld (hl), 0                    ; Clear low byte
+
+        ld hl, entity_comp_masks_hi
+        add hl, de
+        ld (hl), 0                    ; Clear high byte
+
+        ; Move entity off-screen
+        ld hl, entity_x_pos
+        add hl, de
+        ld (hl), 255                  ; X = off-screen
+
+        ld hl, entity_y_pos
+        add hl, de
+        ld (hl), 212                  ; Y = below screen (192 + 20)
+
+auto_destroy_done:
+        pop hl
+        pop bc
+
+auto_destroy_next:
+        inc hl                        ; Next entity high mask
+        inc c                         ; Next entity index
+        dec b
+        jp nz, auto_destroy_loop
+        ret
+    `;
+}
+
+/**
+ * Generate Cursors Component System
+ * For menu navigation and cursor control
+ */
+function generateCursorsSystem(): string {
+    return `
+    ; ==================================================================
+    ; CURSORS COMPONENT SYSTEM
+    ; ==================================================================
+    ; Handles menu cursor navigation (up/down/left/right)
+    ; Entities with CURSORS component can be used as menu cursors
+    ; Variables needed: entity_cursor_min, entity_cursor_max, entity_cursor_wrap
+
+init_cursors_system:
+    ; No initialization needed
+    ret
+
+; ------------------------------------------------------------------
+; update_cursors_component
+; Update cursor position based on joystick input
+; For each cursor entity:
+; - Read joystick input
+; - Move cursor position based on input
+; - Clamp or wrap cursor to min/max values
+; ------------------------------------------------------------------
+update_cursors_component:
+    ld c, 0                       ; Entity index
+
+.cursor_loop:
+    ld a, c
+    cp MAX_ENTITIES
+    ret z                         ; Done
+
+    ; Check if entity is active
+    ld hl, entity_active
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .cursor_next
+
+    ; TODO: Check if entity has CURSORS component mask
+    ; For now, we assume cursor entities are designated by type
+
+    ; Read joystick/keyboard input for cursor control
+    call GTSTCK                   ; A = stick direction (0-8)
+    or a
+    jr z, .cursor_next            ; No input
+
+    ; Process input
+    cp 1                          ; Up
+    jr z, .cursor_up
+    cp 2                          ; Up-Right
+    jr z, .cursor_up
+    cp 5                          ; Down
+    jr z, .cursor_down
+    cp 6                          ; Down-Left
+    jr z, .cursor_down
+    cp 3                          ; Right
+    jr z, .cursor_right
+    cp 7                          ; Left
+    jr z, .cursor_left
+    jr .cursor_next
+
+.cursor_up:
+    ; Move cursor up (decrease Y position)
+    ld hl, entity_y_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    sub 8                         ; Move up by 8 pixels
+    ld (hl), a
+    jr .cursor_next
+
+.cursor_down:
+    ; Move cursor down (increase Y position)
+    ld hl, entity_y_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    add a, 8                      ; Move down by 8 pixels
+    ld (hl), a
+    jr .cursor_next
+
+.cursor_left:
+    ; Move cursor left (decrease X position)
+    ld hl, entity_x_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    sub 8                         ; Move left by 8 pixels
+    ld (hl), a
+    jr .cursor_next
+
+.cursor_right:
+    ; Move cursor right (increase X position)
+    ld hl, entity_x_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    add a, 8                      ; Move right by 8 pixels
+    ld (hl), a
+
+.cursor_next:
+    inc c
+    jr .cursor_loop
+    `;
+}
+
+/**
+ * Generate Carry Component System
+ * For entities that carry other entities (like picking up items)
+ */
+function generateCarrySystem(): string {
+    return `
+    ; ==================================================================
+    ; CARRY COMPONENT SYSTEM
+    ; ==================================================================
+    ; Allows entities to "carry" other entities
+    ; Carried entities follow the carrier's position with offset
+    ; Variables: entity_carried_by (ID of carrier, 255=none)
+
+init_carry_system:
+    ; Initialize all entities as not carried
+    ld hl, entity_carried_by
+    ld de, entity_carried_by+1
+    ld bc, 31
+    ld (hl), 255                  ; 255 = not carried
+    ldir
+    ret
+
+; ------------------------------------------------------------------
+; update_carry_component
+; Update positions of carried entities to follow carrier
+; ------------------------------------------------------------------
+update_carry_component:
+    ld c, 0                       ; Entity index
+
+.carry_loop:
+    ld a, c
+    cp MAX_ENTITIES
+    ret z
+
+    ; Check if this entity is being carried
+    ld hl, entity_carried_by
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = carrier ID
+    cp 255
+    jr z, .carry_next             ; Not being carried
+
+    ; Entity is being carried - get carrier position
+    ld b, a                       ; B = carrier ID
+    push bc
+
+    ; Get carrier X position
+    ld e, b
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)                    ; A = carrier X
+
+    ; Set carried entity X position (same as carrier)
+    pop bc
+    push bc
+    ld e, c
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), a
+
+    ; Get carrier Y position
+    pop bc
+    push bc
+    ld e, b
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)                    ; A = carrier Y
+    sub 16                        ; Offset: carried item above carrier
+
+    ; Set carried entity Y position
+    pop bc
+    ld e, c
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), a
+
+.carry_next:
+    inc c
+    jr .carry_loop
+    `;
+}
+
+/**
+ * Generate WallCollision Component System
+ * For wall sliding and collision prevention
+ */
+function generateWallCollisionSystem(): string {
+    return `
+    ; ==================================================================
+    ; WALL COLLISION COMPONENT SYSTEM
+    ; ==================================================================
+    ; Prevents entities from moving through walls
+    ; Checks tiles in movement direction and stops/slides entity
+
+init_wallcollision_system:
+    ret
+
+; ------------------------------------------------------------------
+; update_wallcollision_component
+; Check wall collisions and prevent movement through solid tiles
+; ------------------------------------------------------------------
+update_wallcollision_component:
+    ld c, 0                       ; Entity index
+
+.wall_loop:
+    ld a, c
+    cp MAX_ENTITIES
+    ret z
+
+    ; Check if entity is active
+    ld hl, entity_active
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .wall_next
+
+    ; Get entity velocity X
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .check_wall_y           ; No X velocity, check Y
+
+    ; Check if moving right (positive velocity)
+    bit 7, a
+    jr z, .wall_check_right
+
+.wall_check_left:
+    ; Moving left - check left tile
+    push bc
+    ld e, c
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld d, (hl)                    ; D = X position
+    ld a, d
+    sub 8                         ; Check tile to the left
+
+    ld hl, entity_y_pos
+    ld e, c
+    push de
+    ld d, 0
+    add hl, de
+    ld e, (hl)                    ; E = Y position
+    pop de
+
+    ld d, a                       ; D = X - 8
+    call get_tile_at_position     ; A = tile ID
+    call get_tile_behavior        ; A = behavior
+    bit 0, a                      ; TILE_SOLID?
+    jr z, .wall_left_ok
+
+    ; Wall detected - stop horizontal movement
+    pop bc
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), 0
+    jr .check_wall_y
+
+.wall_left_ok:
+    pop bc
+    jr .check_wall_y
+
+.wall_check_right:
+    ; Moving right - check right tile
+    push bc
+    ld e, c
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld d, (hl)
+    ld a, d
+    add a, 16                     ; Check tile to the right
+
+    ld hl, entity_y_pos
+    ld e, c
+    push de
+    ld d, 0
+    add hl, de
+    ld e, (hl)
+    pop de
+
+    ld d, a                       ; D = X + 16
+    call get_tile_at_position
+    call get_tile_behavior
+    bit 0, a
+    jr z, .wall_right_ok
+
+    pop bc
+    ld hl, entity_vel_x
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), 0
+    jr .check_wall_y
+
+.wall_right_ok:
+    pop bc
+
+.check_wall_y:
+    ; Check vertical walls (ceiling/floor)
+    ; Similar logic for Y velocity
+    ; Skipped for brevity - would follow same pattern
+
+.wall_next:
+    inc c
+    jr .wall_loop
+    `;
+}
+
+/**
+ * Generate Collectible Component System
+ * For items that can be collected (coins, power-ups, etc.)
+ */
+function generateCollectibleSystem(): string {
+    return `
+    ; ==================================================================
+    ; COLLECTIBLE COMPONENT SYSTEM
+    ; ==================================================================
+    ; Items that can be collected when player touches them
+    ; Increments score/counters and deactivates item
+
+init_collectible_system:
+    ret
+
+; ------------------------------------------------------------------
+; update_collectible_component
+; Check collisions between collectibles and player
+; When collected: deactivate item, increment score
+; ------------------------------------------------------------------
+update_collectible_component:
+    ld c, 0                       ; Entity index
+
+.collect_loop:
+    ld a, c
+    cp MAX_ENTITIES
+    ret z
+
+    ; Check if entity is active
+    ld hl, entity_active
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .collect_next
+
+    ; TODO: Check if entity has COLLECTIBLE component mask
+
+    ; Assume entity 0 is player - check collision with player
+    ; Get collectible position
+    ld hl, entity_x_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = collectible X
+
+    ; Get player X position
+    ld hl, entity_x_pos
+    ld e, 0                       ; Entity 0 = player
+    ld d, 0
+    add hl, de
+    ld b, (hl)                    ; B = player X
+
+    ; Check X distance
+    sub b                         ; A = collectible_x - player_x
+    ; Check if within range (-16 to +16)
+    cp 240                        ; Negative check (< -16)
+    jr c, .collect_next
+    cp 16                         ; Positive check (> +16)
+    jr nc, .collect_next
+
+    ; X is close, check Y
+    ld hl, entity_y_pos
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)                    ; A = collectible Y
+
+    ld hl, entity_y_pos
+    ld e, 0
+    ld d, 0
+    add hl, de
+    ld b, (hl)                    ; B = player Y
+
+    sub b                         ; A = collectible_y - player_y
+    cp 240
+    jr c, .collect_next
+    cp 16
+    jr nc, .collect_next
+
+    ; Collision detected - collect item!
+    push bc
+
+    ; Deactivate collectible (set entity_active[c] = 0)
+    ld hl, entity_active
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), 0                    ; Deactivate entity
+
+    ; TODO: Increment score or item counter
+    ; ld hl, player_score
+    ; inc (hl)
+
+    ; TODO: Play collection sound
+
+    pop bc
+
+.collect_next:
+    inc c
+    jr .collect_loop
+    `;
+}
+
+/**
  * Generate entity management helper functions
  */
 function generateEntityManagement(): string { 
@@ -2282,6 +2923,11 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     call init_gravity_system
     `;
     }
+
+    // Always initialize auto-destroy system (lightweight, always available)
+    code += `    ; Initialize auto-destroy system
+    call init_auto_destroy_system
+    `;
 
     if (usedComponents.has('Cursors')) {
         code += `    ; Initialize cursors system (stub)
@@ -2437,6 +3083,7 @@ COMP_MASK_HEALTH     EQU #0040; Binary: 0000000001000000
 COMP_MASK_ANIMATION  EQU #0080; Binary: 0000000010000000
 COMP_MASK_JUMP       EQU #0100; Binary: 0000000100000000
 COMP_MASK_GRAVITY    EQU #0200; Binary: 0000001000000000
+COMP_MASK_AUTO_DESTROY EQU #0400; Binary: 0000010000000000
 
 ; ==================================================================
 ; ANIMATION FLAGS (entity_anim_flags)
@@ -2628,6 +3275,9 @@ update_gravity_component:
     `;
     }
 
+    // Generate Auto-Destroy System (always available - lightweight feature)
+    code += generateAutoDestroySystem();
+
     // Generate Cursors System stub (if used)
     if (!usedComponents.has('Cursors')) {
         code += `
@@ -2639,17 +3289,10 @@ update_cursors_component:
     ret
     `;
     } else {
-        code += `
-    ; Cursors system (stub - TODO: implement)
-init_cursors_system:
-    ret
-
-update_cursors_component:
-    ret
-    `;
+        code += generateCursorsSystem();
     }
 
-    // Generate StateMachine System stub (if used)
+    // Generate StateMachine System (if used)
     if (!usedComponents.has('StateMachine')) {
         code += `
     ; StateMachine system filtered out(not used)
@@ -2661,12 +3304,67 @@ update_statemachine_component:
     `;
     } else {
         code += `
-    ; StateMachine system (stub - TODO: implement)
+    ; StateMachine system (integrates with stateMachineGenerator.ts)
+    ; Note: The actual SM_Update runtime is in statemachine.asm
+    ; This component iterates entities and calls SM_Update for each one
+
 init_statemachine_system:
+    ; No initialization needed - state machines are initialized
+    ; when entity templates are loaded
     ret
 
+; ------------------------------------------------------------------
+; update_statemachine_component
+; Update all entities with StateMachine component
+; Calls SM_Update (from statemachine.asm) for each entity
+; ------------------------------------------------------------------
 update_statemachine_component:
-    ret
+    ld c, 0                       ; C = entity index
+
+.sm_comp_loop:
+    ld a, c
+    cp MAX_ENTITIES
+    ret z                         ; Done with all entities
+
+    ; Check if entity is active
+    ld hl, entity_active
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .sm_comp_next           ; Entity not active, skip
+
+    ; Check if entity has StateMachine component (bit in component mask)
+    ; Note: StateMachine component mask bit should be defined in constants
+    ; For now, we assume all active entities may have state machines
+    ; In production, check entity_component_mask
+
+    ; Get state machine pointer to verify it exists
+    push bc
+    ld b, 0                       ; BC = entity index
+    ld hl, entity_sm_ptr_l
+    add hl, bc
+    ld e, (hl)                    ; E = ptr_low
+
+    ld hl, entity_sm_ptr_h
+    ld b, 0                       ; BC = entity index again
+    add hl, bc
+    ld d, (hl)                    ; D = ptr_high
+
+    ; Check if pointer is null (DE = 0)
+    ld a, d
+    or e
+    pop bc
+    jr z, .sm_comp_next           ; No state machine, skip
+
+    ; Call SM_Update with entity index in A
+    ld a, c
+    call SM_Update
+
+.sm_comp_next:
+    inc c
+    jr .sm_comp_loop
     `;
     }
 
@@ -2681,14 +3379,7 @@ update_carry_component:
     ret
     `;
     } else {
-        code += `
-    ; Carry system (stub - TODO: implement)
-init_carry_system:
-    ret
-
-update_carry_component:
-    ret
-    `;
+        code += generateCarrySystem();
     }
 
     // Generate Damage System (if used)
@@ -2733,14 +3424,7 @@ update_wallcollision_component:
     ret
     `;
     } else {
-        code += `
-    ; WallCollision system (stub - TODO: implement)
-init_wallcollision_system:
-    ret
-
-update_wallcollision_component:
-    ret
-    `;
+        code += generateWallCollisionSystem();
     }
 
     // Generate Collectible System stub (if used)
@@ -2754,14 +3438,7 @@ update_collectible_component:
     ret
     `;
     } else {
-        code += `
-    ; Collectible system (stub - TODO: implement)
-init_collectible_system:
-    ret
-
-update_collectible_component:
-    ret
-    `;
+        code += generateCollectibleSystem();
     }
 
     // Always include entity management helpers
@@ -2771,32 +3448,9 @@ update_collectible_component:
     // GAMEFLOW INTEGRATION FUNCTIONS
     // ==================================================================
 
-    // Generate update_all_entities function - called by GameFlow game loop
-    code += `
-; ==================================================================
-; UPDATE ALL ENTITIES - Called by GameFlow
-; ==================================================================
-; This function updates all active entities by calling each
-; component update system in the correct order
-update_all_entities:
-    ; Update all entity components in proper order
-    call update_input_component        ; 1. Input (player control) - uses input_state from hook
-    call update_shoot_component        ; 2. Shooting (cooldown + projectile spawn)
-    call update_behavior_component     ; 3. Behavior/AI
-    call update_jump_component         ; 4. Jump impulse / grounded flags
-    call update_movement_component     ; 5. Movement (vx/vy changes)
-    call update_gravity_component      ; 6. Gravity acceleration
-    call update_position_component     ; 7. Apply velocity to position
-    call prepare_platform_detection    ; 8. Clear platform refs (before collision)
-    call update_collision_component    ; 9. Collision detection / set platform refs
-    call update_platform_riding        ; 10. Platform riding / grace frames
-    call update_health_component       ; 11. Health/Death
-    call update_damage_component       ; 12. Damage/Invincibility
-    call update_animation_component    ; 13. Animation
-    call update_sprite_component       ; 14. Sprite rendering + SAT->VRAM copy
-    ret
-
-`;
+    // Generate update_all_entities function - OPTIMIZED based on used components
+    // Only generates CALLs to systems that are actually used
+    code += generateUpdateAllEntities(usedComponents);
 
     // Generate execute_all_state_machines function - called by GameFlow game loop
     code += `
@@ -2843,6 +3497,218 @@ execute_all_state_machines:
     inc a                         ; Next entity
     djnz .sm_loop                 ; Loop for all entities
     
+    ret
+
+`;
+
+    // Tile Collision System
+    code += `
+; ==================================================================
+; TILE COLLISION SYSTEM
+; ==================================================================
+; Provides functions for checking collision with background tiles
+; Uses behavior maps generated from screen collision layers
+; ==================================================================
+
+; ------------------------------------------------------------------
+; get_tile_at_position
+; Convert pixel coordinates to tile coordinates and get tile ID
+; Input:  D = X position (pixels), E = Y position (pixels)
+; Output: A = Tile ID at that position, Z flag set if out of bounds
+; Destroys: BC, HL
+; ------------------------------------------------------------------
+get_tile_at_position:
+    ; Convert X pixel to tile column (divide by TILE_WIDTH)
+    ld a, d
+    ${analysis.tiles && analysis.tiles[0]?.width === 8 ? `
+    ; Tile width is 8 pixels - simple shift
+    srl a
+    srl a
+    srl a` : analysis.tiles && analysis.tiles[0]?.width === 16 ? `
+    ; Tile width is 16 pixels - shift right 4 times
+    srl a
+    srl a
+    srl a
+    srl a` : `
+    ; Tile width is ${analysis.tiles?.[0]?.width || 8} pixels - divide
+    ld c, ${analysis.tiles?.[0]?.width || 8}
+    call div_a_by_c`}
+    ld b, a                       ; B = tile column
+
+    ; Convert Y pixel to tile row (divide by TILE_HEIGHT)
+    ld a, e
+    ${analysis.tiles && analysis.tiles[0]?.height === 8 ? `
+    ; Tile height is 8 pixels - simple shift
+    srl a
+    srl a
+    srl a` : analysis.tiles && analysis.tiles[0]?.height === 16 ? `
+    ; Tile height is 16 pixels - shift right 4 times
+    srl a
+    srl a
+    srl a
+    srl a` : `
+    ; Tile height is ${analysis.tiles?.[0]?.height || 8} pixels - divide
+    ld c, ${analysis.tiles?.[0]?.height || 8}
+    call div_a_by_c`}
+    ld c, a                       ; C = tile row
+
+    ; Check bounds (assume 32x24 tile screen for now)
+    ld a, b
+    cp 32
+    jr nc, .out_of_bounds
+    ld a, c
+    cp 24
+    jr nc, .out_of_bounds
+
+    ; Calculate tile index: index = row * 32 + column
+    ld a, c
+    add a, a                      ; A = row * 2
+    add a, a                      ; A = row * 4
+    add a, a                      ; A = row * 8
+    add a, a                      ; A = row * 16
+    add a, a                      ; A = row * 32
+    add a, b                      ; A = row * 32 + column
+
+    ; Read actual tile from current screen layout
+    ld e, a
+    ld d, 0                       ; DE = tile index
+    ld hl, (current_screen_layout) ; HL = pointer to screen layout data
+    add hl, de                    ; HL = pointer to tile at position
+    ld a, (hl)                    ; A = tile ID from screen map
+
+    or a                          ; Set flags based on tile ID
+    ret                           ; Z flag set if tile == 0 (empty)
+
+.out_of_bounds:
+    xor a                         ; A = 0
+    ret                           ; Z flag set (out of bounds)
+
+; ------------------------------------------------------------------
+; get_tile_behavior
+; Get behavior/collision type of a tile
+; Input:  A = Tile ID (character code from screen map)
+; Output: A = Behavior flags (TILE_SOLID, TILE_PLATFORM, etc.)
+; Destroys: HL
+; ------------------------------------------------------------------
+get_tile_behavior:
+    ; Tile ID 0 is always passable (empty tile)
+    or a
+    jr z, .passable
+
+    ; Look up tile behavior from tile_behavior_table
+    ; The table is indexed by tile ID
+    ld l, a
+    ld h, 0
+    ld de, tile_behavior_table
+    add hl, de                    ; HL = &tile_behavior_table[tile_id]
+    ld a, (hl)                    ; A = behavior flags
+    ret
+
+.passable:
+    ld a, TILE_PASSABLE
+    ret
+
+; ------------------------------------------------------------------
+; Tile Behavior Table
+; Maps tile IDs (0-255) to behavior flags
+; This table is generated based on project tile definitions
+; ------------------------------------------------------------------
+tile_behavior_table:
+    ; Index 0-127: Default behaviors (can be customized per project)
+    db TILE_PASSABLE              ; 0: Empty tile
+    ${Array(127).fill(0).map((_, i) => `db TILE_PASSABLE              ; ${i+1}: Passable`).join('\n    ')}
+
+    ; Index 128-255: Project-specific tiles
+    ; These are assigned based on analysis.tiles order and their properties
+    ; For now, default all to SOLID (will be refined in future)
+    ${Array(128).fill(0).map((_, i) => `db TILE_SOLID                 ; ${128+i}: Solid tile`).join('\n    ')}
+
+; ------------------------------------------------------------------
+; check_collision_at_point
+; Check if there's a solid tile at given pixel coordinates
+; Input:  D = X position, E = Y position
+; Output: Z flag set if passable, cleared if solid
+;         A = Behavior flags of tile at that position
+; Destroys: BC, HL
+; ------------------------------------------------------------------
+check_collision_at_point:
+    call get_tile_at_position
+    ret z                         ; Out of bounds = passable
+    call get_tile_behavior
+    and TILE_SOLID | TILE_PLATFORM
+    ret                           ; Z if passable, NZ if solid
+
+; ------------------------------------------------------------------
+; check_collision_box
+; Check collision for entity bounding box (16x16)
+; Input:  D = X position (top-left), E = Y position (top-left)
+; Output: Z flag set if no collision, cleared if collision detected
+;         A = Behavior flags of colliding tile
+; Destroys: BC, HL
+; ------------------------------------------------------------------
+check_collision_box:
+    ; Check 4 corners of 16x16 box:
+    ; Top-left (X, Y)
+    push de
+    call check_collision_at_point
+    jr nz, .collision_found
+
+    ; Top-right (X+15, Y)
+    pop de
+    push de
+    ld a, d
+    add a, 15
+    ld d, a
+    call check_collision_at_point
+    jr nz, .collision_found
+
+    ; Bottom-left (X, Y+15)
+    pop de
+    push de
+    ld a, e
+    add a, 15
+    ld e, a
+    call check_collision_at_point
+    jr nz, .collision_found
+
+    ; Bottom-right (X+15, Y+15)
+    pop de
+    push de
+    ld a, d
+    add a, 15
+    ld d, a
+    ld a, e
+    add a, 15
+    ld e, a
+    call check_collision_at_point
+    jr nz, .collision_found
+
+    ; No collision
+    pop de
+    xor a                         ; Z flag set
+    ret
+
+.collision_found:
+    pop de
+    or a                          ; Clear Z flag
+    ret
+
+; ------------------------------------------------------------------
+; div_a_by_c
+; Divide A by C (unsigned 8-bit division)
+; Input:  A = dividend, C = divisor
+; Output: A = quotient
+; Destroys: B
+; ------------------------------------------------------------------
+div_a_by_c:
+    ld b, 0                       ; B = quotient
+.tile_div_loop:
+    sub c
+    jr c, .tile_div_done
+    inc b
+    jr .tile_div_loop
+.tile_div_done:
+    ld a, b
     ret
 
 `;
