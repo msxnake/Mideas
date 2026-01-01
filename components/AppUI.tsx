@@ -52,7 +52,7 @@ import { SaveAsModal } from './modals/SaveAsModal';
 import { NewProjectModal } from './modals/NewProjectModal';
 import { AboutModal } from './modals/AboutModal'; 
 import { ConfirmationModal } from './modals/ConfirmationModal';
-import { CompressDataModal } from './modals/CompressDataModal';
+// OBSOLETO: import { CompressDataModal } from './modals/CompressDataModal';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ConfigTabModal } from './theme_config/ConfigTabModal';
 import { Panel } from './common/Panel';
@@ -90,7 +90,8 @@ interface AppUIProps {
   isSaveAsModalOpen: boolean;
   isNewProjectModalOpen: boolean;
   isAboutModalOpen: boolean;
-  isCompressDataModalOpen: boolean;
+  /** @deprecated OBSOLETO - eliminado junto con menú Run en v0.267 */
+  isCompressDataModalOpen?: boolean;
   isCodeExportModalOpen: boolean;
   isConfirmModalOpen: boolean;
   confirmModalProps: { title: string; message: string | React.ReactNode; onConfirm: () => void; confirmText?: string; cancelText?: string; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null;
@@ -149,7 +150,8 @@ interface AppUIProps {
   setIsSaveAsModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsNewProjectModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsAboutModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsCompressDataModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  /** @deprecated OBSOLETO - eliminado junto con menú Run en v0.267 */
+  setIsCompressDataModalOpen?: React.Dispatch<React.SetStateAction<boolean>>;
   setIsCodeExportModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsConfirmModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setConfirmModalProps: React.Dispatch<React.SetStateAction<{ title: string; message: string | React.ReactNode; onConfirm: () => void; confirmText?: string; cancelText?: string; confirmButtonVariant?: 'primary' | 'secondary' | 'danger' | 'ghost'; } | null>>;
@@ -203,7 +205,8 @@ interface AppUIProps {
   handleShowMapFile: () => void;
   handleUndo: () => void;
   handleRedo: () => void;
-  handleExportAllCodeFiles: () => void;
+  /** @deprecated OBSOLETO - eliminado junto con menú Run en v0.267 */
+  handleExportAllCodeFiles?: () => void;
   handleExportIntermediateGameJson: () => void;
   handleCopyTileData: (tileToCopy: Tile) => void;
   handleGenerateTemplatesAsm: () => void;
@@ -251,6 +254,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   const isUndoDisabled = history.undoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
   const isRedoDisabled = history.redoStack.length === 0 || [EditorType.HelpDocs, EditorType.WorldView].includes(currentEditor);
 
+  /* OBSOLETO: handleCompile - eliminado junto con menú Run en v0.267
   const handleCompile = async () => {
     if (currentEditor !== EditorType.Code || !activeAsset || typeof activeAsset.data !== 'string') {
       setStatusBarMessage("No code editor active or no code to compile.");
@@ -284,6 +288,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       alert("Could not connect to the compiler backend. Is it running?");
     }
   };
+  */
 
   const allWorldMapGraphs = React.useMemo(() => assets
     .filter(a => a.type === 'worldmap' && a.data)
@@ -402,12 +407,9 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onSaveProjectAs={handleOpenSaveAsModal} 
         onLoadProject={() => fileLoadInputRef.current?.click()}
         onOpenRecentProject={handleOpenRecentProject}
-        onExportAllCodeFiles={handleExportAllCodeFiles}
         onExportZ80Code={() => setIsCodeExportModalOpen(true)}
         onExportGameStructureJson={handleExportIntermediateGameJson}
-        onCompile={handleCompile}
         onDebug={() => setStatusBarMessage("Debug: Mock action. Implement debugger.")}
-        onRun={() => setStatusBarMessage("Run: Mock action. Implement emulator integration.")}
         onOpenHelpDocs={() => onSelectAsset(HELP_DOCS_SYSTEM_ASSET_ID, EditorType.HelpDocs)}
         onOpenThemeSettings={() => setIsConfigModalOpen(true)}
         dataOutputFormat={dataOutputFormat}
@@ -425,9 +427,6 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenComponentDefEditor={() => onSelectAsset(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, EditorType.ComponentDefinitionEditor)}
         onOpenEntityTemplateEditor={() => onSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
-        onCompressAllDataFiles={() => setIsCompressDataModalOpen(true)}
-        onCompileAndRun={() => setStatusBarMessage("Compile and Run: Mock Action")}
-        onCompressExportCompileRun={() => setStatusBarMessage("Compress, Export, Compile, Run: Mock Action")}
         onConfigureASM={() => alert("Configure ASM Compiler: Mock Action")}
         onConfigureEmulator={() => alert("Configure MSX Emulator: Mock Action")}
         onToggleEditor={onToggleEditor}
@@ -687,6 +686,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             spriteAsset={spriteForFramesModal}
         />
       )}
+      {/* OBSOLETO: CompressDataModal - eliminado junto con menú Run en v0.267
       {isCompressDataModalOpen && (
         <CompressDataModal
           isOpen={isCompressDataModalOpen}
@@ -698,6 +698,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           }}
         />
       )}
+      */}
       {isCodeExportModalOpen && (
         <CodeExportModal
           isOpen={isCodeExportModalOpen}

@@ -1,10 +1,15 @@
+/**
+ * @deprecated OBSOLETO - Este componente fue eliminado junto con el menú Run en v0.267
+ * Se mantiene por compatibilidad pero no debe usarse.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '../common/Button';
 import { ProjectAsset } from '../../types';
 import ZX0CompressorUI from '../../src/components/compression/ZX0CompressorUI';
 
 /**
- * Props for the CompressDataModal component.
+ * @deprecated OBSOLETO - Props for the CompressDataModal component.
  */
 interface CompressDataModalProps {
   /** Whether the modal is currently open. */

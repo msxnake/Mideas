@@ -437,6 +437,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     const currentFile = generatedFiles[activeFileIndex];
     const filename = currentFile ? currentFile.name : `${exportType}_code_${new Date().toISOString().split('T')[0]}.asm`;
 
+    // Save the ASM file
     const blob = new Blob([generatedCode], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -446,6 +447,25 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    // If generateSymbols is enabled, handle .sym file download
+    if (options.generateSymbols) {
+      if (compilationResult?.success && (compilationResult as any).symbolFile) {
+        // Download the .sym file too
+        setTimeout(() => {
+          const downloadUrl = `http://localhost:3001${(compilationResult as any).symbolDownloadUrl}`;
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = (compilationResult as any).symbolFile;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }, 100); // Small delay to avoid browser blocking multiple downloads
+      } else {
+        // Warn user that they need to compile first to get .sym
+        alert('ASM file saved.\n\nNote: To also download the .sym file, you need to click "Compile with Glass" first.');
+      }
+    }
   };
 
   const handleCreateProjectCopy = () => {

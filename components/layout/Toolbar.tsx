@@ -23,18 +23,18 @@ interface ToolbarProps {
   onSaveProjectAs: () => void;
   /** Callback to open the file dialog to load a project. */
   onLoadProject: () => void;
-  /** Callback to export all code files. */
-  onExportAllCodeFiles: () => void;
+  /** @deprecated OBSOLETO - Callback to export all code files. */
+  onExportAllCodeFiles?: () => void;
   /** Callback to export Z80 code. */
   onExportZ80Code: () => void;
   /** Callback to export an intermediate JSON representation of the game structure. */
   onExportGameStructureJson: () => void;
-  /** Callback to compile the current code. */
-  onCompile: () => void;
+  /** @deprecated OBSOLETO - Callback to compile the current code. */
+  onCompile?: () => void;
   /** Callback for the debug action. */
   onDebug: () => void;
-  /** Callback to run the compiled project. */
-  onRun: () => void;
+  /** @deprecated OBSOLETO - Callback to run the compiled project. */
+  onRun?: () => void;
   /** Callback to open the help documentation viewer. */
   onOpenHelpDocs: () => void;
   /** Callback to open the theme settings modal. */
@@ -69,12 +69,12 @@ interface ToolbarProps {
   onOpenEntityTemplateEditor: () => void;
   /** Callback to open the world view editor. */
   onOpenWorldView: () => void;
-  /** Callback to open the data compression modal. */
-  onCompressAllDataFiles: () => void;
-  /** Callback for the "Compile and Run" action. */
-  onCompileAndRun: () => void;
-  /** Callback for the "Compress, Export, Compile, Run" action. */
-  onCompressExportCompileRun: () => void;
+  /** @deprecated OBSOLETO - Callback to open the data compression modal. */
+  onCompressAllDataFiles?: () => void;
+  /** @deprecated OBSOLETO - Callback for the "Compile and Run" action. */
+  onCompileAndRun?: () => void;
+  /** @deprecated OBSOLETO - Callback for the "Compress, Export, Compile, Run" action. */
+  onCompressExportCompileRun?: () => void;
   /** Callback to configure the ASM compiler. */
   onConfigureASM: () => void;
   /** Callback to configure the emulator. */
@@ -376,17 +376,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         Mode: <span className="text-msx-highlight">{currentScreenMode}</span> (locked)
       </div>
 
-      {/* Run Menu */}
-      <DropdownMenu label="Run">
-        <DropdownItem onClick={onExportAllCodeFiles}>Export all Code Files</DropdownItem>
-        <DropdownItem onClick={onCompressAllDataFiles}>Compress all Data Files</DropdownItem>
-        <DropdownSeparator />
-        <DropdownItem onClick={onCompile}>Compile</DropdownItem>
-        <DropdownItem onClick={onRun} icon={<PlayIcon />}>Run</DropdownItem>
-        <DropdownItem onClick={onCompileAndRun}>Compile and Run</DropdownItem>
-        <DropdownSeparator />
-        <DropdownItem onClick={onCompressExportCompileRun} icon={<PlayIcon />}>Compress, Export, Compile, Run</DropdownItem>
-      </DropdownMenu>
+      {/* Run Menu - OBSOLETO: Eliminado en v0.267 */}
 
       {/* Configure Menu */}
       <DropdownMenu label="Configure">

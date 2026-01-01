@@ -419,8 +419,8 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
           ) : (
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-msx-textsecondary">Template Name:</label>
-                <span className="block w-full p-1.5 text-sm text-msx-textprimary">{editingTemplate.name || ''}</span>
+                <label htmlFor="tplName" className="block text-sm font-medium text-msx-textsecondary">Template Name:</label>
+                <input type="text" id="tplName" value={editingTemplate.name || ''} onChange={e => handleTemplateChange('name', e.target.value)} className="w-full p-1.5 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"/>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>

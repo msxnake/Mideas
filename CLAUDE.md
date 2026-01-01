@@ -1,3 +1,48 @@
+## Reglas de Comunicación
+
+- **Cuando tengas dudas sobre lo que te pido que programes, PREGUNTA antes de implementar.** No asumas, consulta primero.
+
+## Z80 ASM - Errores Comunes a Evitar
+
+**LEER**: `docs/msx/Z80_INSTRUCTIONS_REFERENCE.md` para referencia completa.
+
+| INCORRECTO | CORRECTO |
+|------------|----------|
+| `ld hl,de` | `push de` / `pop hl` o `ld h,d` / `ld l,e` |
+| `ld de,hl` | `ld d,h` / `ld e,l` |
+| `ld bc,hl` | `ld b,h` / `ld c,l` |
+| `add hl,a` | `ld e,a` / `ld d,0` / `add hl,de` |
+| `sub hl,de` | `or a` / `sbc hl,de` |
+
+### JR vs JP - Saltos
+
+| Instrucción | Rango | Cuándo usar |
+|-------------|-------|-------------|
+| `jr label` | -128 a +127 bytes | Solo para saltos cortos y cercanos |
+| `jp label` | Cualquier dirección | **USAR SIEMPRE si hay duda sobre la distancia** |
+
+**REGLA**: Si el código entre el salto y la etiqueta puede crecer o es largo, usar **`jp`** en lugar de `jr`.
+- `jr` = 2 bytes, pero limitado a ±127 bytes
+- `jp` = 3 bytes, pero sin límite de distancia
+
+### MSX1 Screen 2 - Estructura de 3 Bancos
+
+La pantalla se divide en 3 bancos verticales (cada uno cubre 8 filas de tiles):
+
+| Banco | Filas | Pattern Table | Color Table |
+|-------|-------|---------------|-------------|
+| 0 | 0-7 | #0000-#07FF (2048 bytes) | #2000-#27FF |
+| 1 | 8-15 | #0800-#0FFF (2048 bytes) | #2800-#2FFF |
+| 2 | 16-23 | #1000-#17FF (2048 bytes) | #3000-#37FF |
+
+- **256 chars x 8 bytes = 2048 bytes por banco**
+- **Total: 768 caracteres únicos (256 x 3 bancos)**
+- **Name Table**: #1800-#1AFF (768 bytes, 32x24)
+
+**IMPORTANTE**: Para redefinir un tile en toda la pantalla, hay que escribirlo en los 3 bancos.
+
+---
+
 cuando pida incrementar version, o diga nueva version, lee archivo ubicado en docs/project/VERSION\_LOCATIONS.md y sigue las instrucciones.
 
 # MSX Memory Map
