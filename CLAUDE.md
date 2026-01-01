@@ -41,6 +41,25 @@ La pantalla se divide en 3 bancos verticales (cada uno cubre 8 filas de tiles):
 
 **IMPORTANTE**: Para redefinir un tile en toda la pantalla, hay que escribirlo en los 3 bancos.
 
+### Variables RAM en ROMs de Cartucho - NO usar ORG #C000
+
+En ROMs de cartucho Konami (#4000), las variables RAM se definen **SOLO con EQU**:
+
+```asm
+; CORRECTO - Solo asigna dirección, no genera código
+player_x    EQU #C000
+player_y    EQU #C001
+score       EQU #C002
+
+; INCORRECTO - Intenta escribir en ROM, causa bug
+    ORG #C000
+    DS 100    ; NUNCA hacer esto en ROM de cartucho!
+```
+
+**Razón**: El compilador glass.jar genera un archivo ROM lineal. Si usas `ORG #C000` en medio del código, intentará poner datos en esa dirección dentro del archivo ROM, corrompiendo la estructura.
+
+**Regla**: En cartuchos, la RAM (#C000+) se usa en **runtime**, no se "reserva" en la ROM.
+
 ---
 
 cuando pida incrementar version, o diga nueva version, lee archivo ubicado en docs/project/VERSION\_LOCATIONS.md y sigue las instrucciones.

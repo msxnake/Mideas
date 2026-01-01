@@ -361,27 +361,16 @@ currentAddress++;
 RAM_USAGE_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of project variables (${currentAddress - 0xC000} bytes used)
 
 ; ==================================================================
-; MEMORY SAFETY CHECK
+; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
 ;   #C000-#${currentAddress.toString(16).toUpperCase().padStart(4, '0')}: Project variables (${currentAddress - 0xC000} bytes)
 ;   #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}-#F37F: Free RAM (~${0xF380 - currentAddress} bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
-; ==================================================================
-
-; ==================================================================
-; VARIABLE SPACE RESERVATION
-; ==================================================================
-; Reserve actual RAM space for all variables
-; This section should be placed in RAM area (#C000+)
-; ==================================================================
-    ORG #C000
-
-; Reserve space for all variables defined above
-    DS ${currentAddress - 0xC000}   ; Reserve ${currentAddress - 0xC000} bytes for all variables
-
-; ==================================================================
-; END OF VARIABLE SPACE
+;
+; NOTE: Variables are defined using EQU (address labels only).
+;       RAM space is used at runtime, NOT reserved in ROM.
+;       Do NOT use ORG #C000 in cartridge ROMs!
 ; ==================================================================
 `;
 

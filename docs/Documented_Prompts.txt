@@ -1,0 +1,124 @@
+================================================================================
+DOCUMENTED PROMPTS - Mideas MSX Project
+================================================================================
+Archivo para guardar prompts bien redactados que dan resultados satisfactorios.
+Referencia para futuros proyectos y mejora continua.
+================================================================================
+
+--------------------------------------------------------------------------------
+CATEGORIA: UI/UX - Campos de formulario
+--------------------------------------------------------------------------------
+
+PROMPT:
+"los editores de Mideas tienen una seccion para cambiar nombre en la seccion
+Game Assets (columna 1) eso esta bien, pero tambien algunos tienen otro campo
+para cambiar nombre, Editor Sprites, Editor tiles, Editor de Bosses, Editor de
+etc, El tiles , junto con los otros editores , el campo para editar nombre en
+el propio editor en la columna central no deberia ser editable porque crea
+inconsistencias, solo deberia ser visualizable. Portanto, busca en esos
+editores esos campos y actualizalos."
+
+RESULTADO: Cambio de <input> a <span> en 5 editores de assets.
+TAGS: UI, formularios, consistencia, refactoring
+
+--------------------------------------------------------------------------------
+CATEGORIA: Documentacion tecnica
+--------------------------------------------------------------------------------
+
+PROMPT:
+"me esta fallando la conversion a MSX, igual necesito un documento que explique
+las instrucciones permitidas de asm z80, crear una tabla para no realizar
+errores, a veces has hecho esto: ld hl,de -> que no es permitido"
+
+RESULTADO: Creacion de docs/msx/Z80_INSTRUCTIONS_REFERENCE.md con tablas
+completas de instrucciones validas y errores comunes.
+TAGS: documentacion, Z80, ASM, referencia
+
+--------------------------------------------------------------------------------
+
+PROMPT:
+"otro caso para documentar es el modo en MSX1 screen 2 , para redefinir los
+char de la pantalla hay 3 bancos de 256 bytes cada uno, con la tabla de
+colores lo mismo."
+
+RESULTADO: Documentacion de estructura de 3 bancos de Screen 2 en CLAUDE.md
+TAGS: documentacion, MSX, Screen2, VRAM
+
+--------------------------------------------------------------------------------
+CATEGORIA: Correccion de bugs ASM
+--------------------------------------------------------------------------------
+
+PROMPT:
+"uno de los errores que sueles cometer es el salto relativo "jr" lo que pasa
+es que cuando el codigo se extiende demasiado el salto relativo no llega a la
+direccion requerida y debe usarse jp."
+
+RESULTADO: Documentacion de JR vs JP en CLAUDE.md y Z80_INSTRUCTIONS_REFERENCE.md
+TAGS: bug, ASM, Z80, saltos
+
+--------------------------------------------------------------------------------
+
+PROMPT:
+"hay un bug muy grande en estas lineas, y es que no puede haber 2 inst org en
+el mismo proyecto (bueno en teoria si) pero lo que pasa es que parte del
+codigo rom se instala en parte ram y eso no es correcto -> investiga pero creo
+que deberias eliminar esta parte de org"
+
+RESULTADO: Eliminacion de ORG #C000 + DS en variablesGenerator.ts,
+documentacion del problema en CLAUDE.md
+TAGS: bug, ASM, ROM, variables, critico
+
+--------------------------------------------------------------------------------
+CATEGORIA: Funcionalidad de exportacion
+--------------------------------------------------------------------------------
+
+PROMPT:
+"observar imagen flechas rojas, cuando hay activada la opcion del switch
+'Generate .sym', y cuando click en 'Save Assembly file' tendrias que salvar
+2 archivos el normal asm de ahora y ademas otro .sym"
+
+RESULTADO: Modificacion de handleSaveCode en CodeExportModal.tsx para
+descargar ambos archivos automaticamente.
+TAGS: feature, exportacion, symbols, UX
+
+--------------------------------------------------------------------------------
+CATEGORIA: Limpieza de codigo
+--------------------------------------------------------------------------------
+
+PROMPT:
+"este menu Run esta obsoleto, eliminalo, verifica que ninguna otra funcion
+hace uso de sus funciones , elimina la pestaña Run y marca el codigo que no
+puedas eliminar con el texto 'Obsoleto' para que no te lies al hacer
+modificaciones"
+
+RESULTADO: Eliminacion del menu Run, marcado de codigo obsoleto con
+@deprecated y comentarios, limpieza de props no usadas.
+TAGS: refactoring, limpieza, obsoleto, UI
+
+--------------------------------------------------------------------------------
+CATEGORIA: Gestion de memoria
+--------------------------------------------------------------------------------
+
+PROMPT:
+"cuando tengas dudas en lo que te pido que programes, me preguntas"
+
+RESULTADO: Regla guardada en CLAUDE.md para preguntar antes de implementar.
+TAGS: comunicacion, reglas, workflow
+
+--------------------------------------------------------------------------------
+
+PROMPT:
+"guarda este concepto en tu memoria"
+
+RESULTADO: Concepto guardado en CLAUDE.md para persistencia entre sesiones.
+TAGS: memoria, persistencia, CLAUDE.md
+
+================================================================================
+NOTAS DE USO:
+================================================================================
+- Incluir contexto visual (imagenes, flechas) mejora la precision
+- Indicar el problema Y la solucion esperada acelera el trabajo
+- Pedir documentacion junto con la correccion evita repetir errores
+- Usar "busca", "verifica", "investiga" cuando no se sabe la ubicacion exacta
+- Marcar codigo como "obsoleto" en lugar de eliminar directamente es mas seguro
+================================================================================

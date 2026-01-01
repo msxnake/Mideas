@@ -1,3 +1,27 @@
+## v0.267
+
+Released: 2026-01-01
+
+### Bug Fixes
+
+- **Critical: Fixed ROM corruption from ORG #C000**: Removed `ORG #C000` + `DS` directives from `variablesGenerator.ts` that were placing code in RAM section, corrupting Konami cartridge ROMs. Variables now use `EQU` only.
+
+### Features
+
+- **Download .sym with .asm**: When "Generate .sym" option is enabled in CodeExportModal, clicking "Save Assembly File" now downloads both the .asm and .sym files automatically.
+
+### UI/UX Improvements
+
+- **Removed obsolete Run menu**: The Run menu in Toolbar was obsolete and has been removed. Related props marked as `@deprecated`.
+
+### Documentation
+
+- **Z80 Instructions Reference**: Created `docs/msx/Z80_INSTRUCTIONS_REFERENCE.md` with complete valid instruction tables and common errors to avoid.
+- **Documented Prompts**: Created `docs/Documented_Prompts.txt` to save effective prompts for future reference.
+- **CLAUDE.md updates**: Added Z80 common errors table, JR vs JP rules, Screen 2 three-bank structure, and ORG #C000 warning.
+
+---
+
 ## v0.266
 
 Released: 2025-12-31
