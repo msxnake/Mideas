@@ -266,38 +266,9 @@ function generateTaskManagementFunctions(): string {
 ; ==================================================================
 
 ; ==================================================================
-; WAIT_VBLANK - Wait for VBlank synchronization with VDP
+; NOTE: wait_vblank function removed - use HALT directly in game loop
+; HALT is more efficient (no call/ret overhead)
 ; ==================================================================
-; Direct VDP reading method - works even with interrupts disabled
-; Safe and compatible with all MSX models
-; Inputs: None
-; Outputs: None
-; Modifies: AF, BC
-; ==================================================================
-wait_vblank:
-    push af
-    push bc
-
-    ; Wait for any active VBlank to finish
-    ; (prevents double synchronization)
-.no_vblank:
-    in a, (#99)                 ; Read VDP status register
-    bit 7, a                    ; Test bit 7 (VBlank flag)
-    jr nz, .no_vblank           ; If active, wait
-
-    ; Wait for VBlank to start
-.wait_start:
-    in a, (#99)                 ; Read VDP status register
-    bit 7, a                    ; Test bit 7 (VBlank flag)
-    jr z, .wait_start           ; Jump if not active
-
-    ; VBlank has started
-    ; Read register again to clear the flag
-    in a, (#99)
-
-    pop bc
-    pop af
-    ret
 
 ; ==================================================================
 ; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only

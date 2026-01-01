@@ -382,7 +382,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         },
         body: JSON.stringify({
           code: generatedCode,
-          generateSymbols: options.generateSymbols || false
+          generateSymbols: options.generateSymbols || false,
+          projectName: currentProjectName || 'MSX_Game'
         }),
       });
 

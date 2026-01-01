@@ -82,6 +82,32 @@ descargar ambos archivos automaticamente.
 TAGS: feature, exportacion, symbols, UX
 
 --------------------------------------------------------------------------------
+
+PROMPT:
+"el nombre generado del archivo .sym tanto el openmsx como el sym normal
+deberia ser con este formato -> nombre_proyecto_mideas.sym ->
+nombre_proyecto_mideas_openMSX.sym , sustituyendo nombre_proyecto_mideas
+con el respectivo"
+
+RESULTADO: Modificacion de server.js para aceptar projectName y usarlo en
+nombres de archivos. CodeExportModal.tsx envia projectName al compilar.
+Archivos generados: proyecto.sym, proyecto_openMSX.sym
+TAGS: feature, exportacion, symbols, naming, servidor
+
+--------------------------------------------------------------------------------
+CATEGORIA: Optimizacion ASM
+--------------------------------------------------------------------------------
+
+PROMPT:
+"cuando el codigo ha llegado a wait_vblank el sistema se ha colgado"
+
+RESULTADO: Detectado bug en wait_vblank - leer puerto #99 borra el flag VBlank,
+causando loop infinito. Solucion: reemplazar call wait_vblank por HALT directo.
+Archivos modificados: gameFlowGenerator.ts, interruptGenerator.ts,
+directHardwareGenerator.ts
+TAGS: bug, ASM, VBlank, optimizacion, HALT
+
+--------------------------------------------------------------------------------
 CATEGORIA: Limpieza de codigo
 --------------------------------------------------------------------------------
 

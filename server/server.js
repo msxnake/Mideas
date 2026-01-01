@@ -35,9 +35,10 @@ app.get('/', (req, res) => {
  * @function
  */
 app.post('/compile', (req, res) => {
-  const { code, generateSymbols } = req.body;
+  const { code, generateSymbols, projectName } = req.body;
 
   console.log('📨 Compilation request received');
+  console.log('  projectName:', projectName);
   console.log('  generateSymbols parameter:', generateSymbols);
   console.log('  Code length:', code?.length || 0);
 
@@ -50,10 +51,14 @@ app.post('/compile', (req, res) => {
     fs.mkdirSync(tempDir);
   }
 
-  const timestamp = Date.now();
-  const tempFilePath = path.join(tempDir, `source_${timestamp}.asm`);
-  const outputFilePath = tempFilePath.replace('.asm', '.rom');
-  const symbolFilePath = generateSymbols ? tempFilePath.replace('.asm', '.sym') : null;
+  // Use project name for file naming, fallback to timestamp if not provided
+  const sanitizedProjectName = projectName
+    ? projectName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_')
+    : `source_${Date.now()}`;
+
+  const tempFilePath = path.join(tempDir, `${sanitizedProjectName}.asm`);
+  const outputFilePath = path.join(tempDir, `${sanitizedProjectName}.rom`);
+  const symbolFilePath = generateSymbols ? path.join(tempDir, `${sanitizedProjectName}.sym`) : null;
 
   fs.writeFile(tempFilePath, code, (err) => {
     if (err) {
@@ -141,7 +146,7 @@ app.post('/compile', (req, res) => {
           const symbolFileName = path.basename(symbolFilePath);
 
           // Convert Glass .sym format to OpenMSX format
-          const openmsxSymFilePath = symbolFilePath.replace('.sym', '_openmsx.sym');
+          const openmsxSymFilePath = symbolFilePath.replace('.sym', '_openMSX.sym');
           try {
             const symbolContent = fs.readFileSync(symbolFilePath, 'utf-8');
             const lines = symbolContent.split('\n');

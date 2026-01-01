@@ -46,8 +46,7 @@ export function generateDirectHardwareFile(options: DirectHardwareOptions = { mo
   code += generateFastRDVRM();
   code += generateFastWRTVDP();
   code += generateFastGTSTCK();
-  // Note: wait_vblank is generated in interruptGenerator.ts
-  // Removed generateWaitVBlank() to avoid duplicate function definition
+  // Note: wait_vblank removed - use HALT directly in game loop (more efficient)
 
   // Aggressive optimizations (optional)
   if (optimizeLevel === 'aggressive') {
@@ -395,7 +394,7 @@ joystick_direction_table_v2:
 `;
 }
 
-// Note: generateWaitVBlank() removed - wait_vblank is generated in interruptGenerator.ts
+// Note: generateWaitVBlank() removed - use HALT directly in game loop (more efficient)
 
 /**
  * Generate unrolled sprite copy (aggressive optimization)
