@@ -203,9 +203,10 @@ render_hud:
     
     ; Restore original X, Y, Width, Height for text rendering
     pop de                      ; DE = X, Y (pixels)
-    pop bc                      ; BC = Width, Height (tiles, not used for text but we pop for stack balance)
-    push de                     ; Save X, Y again
-    push bc                     ; Save Width, Height again (for stack cleanup)
+    pop bc                      ; BC = Width, Height (tiles)
+    ; Re-push in same order as original (BC bottom, DE top)
+    push bc                     ; Save Width, Height (bottom)
+    push de                     ; Save X, Y (top)
 
 .no_border:
     ; ---------------------------------------------------------

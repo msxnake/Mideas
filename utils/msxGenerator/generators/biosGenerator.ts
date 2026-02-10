@@ -80,9 +80,9 @@ LDIRMV  EQU #0059        ; Block transfer from VRAM to CPU
 WRTVDP  EQU #0047        ; Write to VDP register
 WRTVRM  EQU #004D        ; Write data to VRAM (A=data, HL=address)
 
-; File I/O (Disk BIOS)
-DSKIO   EQU #004A        ; Disk I/O
-DSKCHF  EQU #004D        ; Disk change flag
+; File I/O (Disk BIOS) - Not used in cartridge ROMs
+; DSKIO   EQU #004A      ; Disk I/O (conflicts with WRTVRM, not available in cartridge)
+; DSKCHF  EQU #004D      ; Disk change flag (same address as WRTVRM, not used)
 
 ; Math
 GETYPR  EQU #0053        ; Get type of variable

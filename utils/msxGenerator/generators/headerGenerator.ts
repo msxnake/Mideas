@@ -125,6 +125,10 @@ init_rom:
     ; VDP Register #01: activate sprites, generate interrupts, 16x16 sprites
     ld bc, #E201
     call FAST_WRTVDP
+    ; CRITICAL: Update BIOS system variable RG1SAV to match
+    ; Without this, DISSCR/ENASCR will overwrite VDP R1 losing 16x16 sprite config
+    ld a, #E2
+    ld (#F3E0), a       ; RG1SAV = #E2 (preserves 16x16 sprite bit)
 
     ; Detect 50Hz/60Hz
     call CheckIf60Hz

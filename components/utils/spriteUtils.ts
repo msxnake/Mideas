@@ -252,11 +252,9 @@ export const generateSingleFrameASMCode = (
       }
     }
 
-    // Check if layer is completely empty (all bytes are 0)
-    // Skip empty layers to save ROM space
-    if (layerBytes.every(byte => byte === 0)) {
-      continue; // Don't generate this empty layer at all
-    }
+    // Always generate the label even if layer is empty (all zeros).
+    // This ensures every frame has consistent LAYER labels required
+    // by the frame pointer table in spritesGenerator.ts.
 
     // Layer has data, so write the label and data
     layersGenerated += 1;

@@ -1751,6 +1751,12 @@ ${nodeLabel}_init:
   const initGlobals = node.initializeGlobals;
   const systemConfig = node.systemConfig;
 
+  // CRITICAL: Always call init_game_systems to initialize ECS components,
+  // entities, and load game assets. Without this, the screen stays black
+  // because no patterns, sprites, or entities are set up.
+  code += `    ; === Core Game Systems Initialization (ALWAYS required) ===\n`;
+  code += `    call init_game_systems\n\n`;
+
   // 1. Initialize MSX Systems (if configured)
   if (systemConfig) {
     code += `    ; === MSX System Initialization ===\n`;

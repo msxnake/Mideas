@@ -353,6 +353,36 @@ currentAddress++;
   code += `temp_word_4         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage (64 bytes)\n`;
   currentAddress += 64;
 
+  // Interrupt system variables (dynamically allocated to avoid RAM overlap)
+  code += `
+; ==================================================================
+; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
+; ==================================================================
+`;
+  code += `task_table              EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Task table base (8 slots x 2 bytes = 16 bytes)\n`;
+  // Also define individual slots as aliases
+  for (let i = 0; i < 8; i++) {
+    code += `task_${i}_ptr              EQU #${(currentAddress + i * 2).toString(16).toUpperCase().padStart(4, '0')}   ; Slot ${i} pointer (2 bytes)\n`;
+  }
+  currentAddress += 16;  // 8 slots x 2 bytes
+
+  code += `interrupt_system_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=disabled, 1=enabled (1 byte)\n`;
+  currentAddress++;
+
+  code += `old_htimi_hook          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Original H.TIMI hook (5 bytes)\n`;
+  currentAddress += 5;
+
+  code += `interrupt_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
+  currentAddress += 2;
+
+  code += `task_exec_time          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cycles used by tasks (16-bit, debug)\n`;
+  currentAddress += 2;
+
+  code += `vblank_flag             EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Set to 1 on each VBlank (1 byte)\n`;
+  currentAddress++;
+
+  code += `RAM_INTERRUPT_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of interrupt system\n`;
+
   // End marker
   code += `
 ; ==================================================================

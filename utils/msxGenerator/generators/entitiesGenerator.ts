@@ -84,7 +84,8 @@ ENTITY_${entityName}_COMP_MASK EQU #${componentMask.toString(16).toUpperCase().p
 `;
 
       if (entity.entityTemplateId) {
-        code += `ENTITY_${entityName}_TEMPLATE EQU "${entity.entityTemplateId}"
+        // Use a comment instead of EQU with string (invalid Z80 syntax)
+        code += `; Template: ${entity.entityTemplateId}
 `;
       }
 
@@ -104,18 +105,30 @@ ENTITY_${entityName}_Y EQU ${entity.position.y}
 
 init_entities:
     ; Initialize all active game entities (${activeEntities.length} entities)
-    
+
     ; Ensure sprite system is reset whenever entities are initialized
     call init_sprites
-    
-    ; CRITICAL: Clear entity screen IDs to prevent ghost entities on restart
-    ; This ensures all entities start with screen ID 0, even if they were
-    ; moved to different screens in a previous game session
+
+    ; CRITICAL: Clear ALL entity component masks to prevent ghost entities
+    ; RAM may contain random data - entities 0..N will be set by create_entity
+    ld hl, entity_comp_masks
+    ld de, entity_comp_masks+1
+    ld bc, 31                  ; Clear 32 bytes (32-1 for LDIR)
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_comp_masks_hi
+    ld de, entity_comp_masks_hi+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear entity screen IDs to prevent ghost entities on restart
     ld hl, entity_screen_id
     ld de, entity_screen_id+1
-    ld bc, 31                  ; Clear 32 entities (32-1 for LDIR)
-    ld (hl), 0                 ; Set first byte to 0
-    ldir                       ; Copy to rest of array
+    ld bc, 31
+    ld (hl), 0
+    ldir
     
     ; Initialize State Machine variables (Clear to 0)
     ld hl, entity_sm_ptr_l

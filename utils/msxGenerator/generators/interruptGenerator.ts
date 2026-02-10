@@ -60,29 +60,13 @@ export function generateInterruptFile(analysis: ProjectAnalysis, config: Interru
 function generateInterruptMemoryLayout(): string {
   return `; ==================================================================
 ; INTERRUPT SYSTEM MEMORY LAYOUT
-; Location: C090h-C0B0h (32 bytes)
+; Variables are defined in variables.asm (dynamically allocated)
+; This avoids RAM overlap with entity system arrays
 ; ==================================================================
-
-; Task table: 8 slots Ç- 2 bytes (addresses) = 16 bytes
-task_table              EQU #C090   ; Base address of task table
-task_0_ptr              EQU #C090   ; Slot 0: Input polling (2 bytes)
-task_1_ptr              EQU #C092   ; Slot 1: Physics update (2 bytes)
-task_2_ptr              EQU #C094   ; Slot 2: Collision check (2 bytes)
-task_3_ptr              EQU #C096   ; Slot 3: Sprite rendering (2 bytes)
-task_4_ptr              EQU #C098   ; Slot 4: Frame counter (2 bytes)
-task_5_ptr              EQU #C09A   ; Slot 5: User custom slot 1 (2 bytes)
-task_6_ptr              EQU #C09C   ; Slot 6: User custom slot 2 (2 bytes)
-task_7_ptr              EQU #C09E   ; Slot 7: User custom slot 3 (2 bytes)
-
-; System state variables
-interrupt_system_enabled  EQU #C0A0   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook           EQU #C0A1   ; Original H.TIMI hook (5 bytes: JP nnnn + padding)
-interrupt_counter        EQU #C0A6   ; Frame counter (16-bit, C0A6-C0A7)
-task_exec_time           EQU #C0A8   ; Cycles used by tasks - debug only (16-bit, C0A8-C0A9)
-vblank_flag              EQU #C0AA   ; Set to 1 on each VBlank (1 byte)
-
-; End marker
-RAM_INTERRUPT_END        EQU #C0B0   ; End of interrupt system memory (32 bytes total)
+; Slots: task_table (8 slots x 2 bytes), task_0_ptr..task_7_ptr
+; State: interrupt_system_enabled, old_htimi_hook, interrupt_counter,
+;        task_exec_time, vblank_flag
+; ==================================================================
 
 `;
 }
@@ -396,9 +380,9 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `    call GTSTCK                 ; BIOS call: A = direction\n`;
   code += `    ld b, a                     ; B = direction\n`;
   code += `    xor a                       ; Joystick 0\n`;
-  code += `    call GTTRIG                 ; A = trigger status (0 = pressed)\n`;
+  code += `    call GTTRIG                 ; A = #FF if pressed, 0 if not\n`;
   code += `    or a\n`;
-  code += `    jr nz, .no_fire\n`;
+  code += `    jr z, .no_fire             ; Jump if NOT pressed (A=0)\n`;
   code += `    set 7, b                    ; Fire -> bit 7\n`;
   code += `    ld a, 1                     ; Fire pressed\n`;
   code += `    ld (input_fire), a\n`;

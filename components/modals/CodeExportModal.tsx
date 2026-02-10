@@ -979,7 +979,33 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                         const { generateModularASM } = await import('../../utils/msxGenerator');
 
-                        const modularFiles = generateModularASM(projectName, assets, {
+                        // CRITICAL FIX: Add entityTemplates and componentDefinitions to assets
+                        // (same as the preview path above)
+                        const compileAssets = [...assets];
+                        if (projectData?.entityTemplates && Array.isArray(projectData.entityTemplates)) {
+                          projectData.entityTemplates.forEach((template: any) => {
+                            compileAssets.push({
+                              id: template.id,
+                              type: 'entitytemplate',
+                              name: template.name || template.id,
+                              data: template
+                            });
+                          });
+                        }
+                        if (projectData?.componentDefinitions && Array.isArray(projectData.componentDefinitions)) {
+                          projectData.componentDefinitions.forEach((compDef: any) => {
+                            if (!compileAssets.find(a => a.id === compDef.id && a.type === 'componentdefinition')) {
+                              compileAssets.push({
+                                id: compDef.id,
+                                type: 'componentdefinition',
+                                name: compDef.name || compDef.id,
+                                data: compDef
+                              });
+                            }
+                          });
+                        }
+
+                        const modularFiles = generateModularASM(projectName, compileAssets, {
                           projectName,
                           targetMSX: options.msxModel as any,
                           generateUnified: true,

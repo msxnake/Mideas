@@ -240,11 +240,13 @@ sprite_update_loop:
 sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
-    
-    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
+
+    ; Calculate Pattern: Pattern = HW Sprite Index * 4 (for 16x16 sprites)
     ld a, l
-    ld d, a                    ; D = Pattern (direct index, not *4)
-    
+    sla a                      ; * 2
+    sla a                      ; * 4
+    ld d, a                    ; D = Pattern (HW index * 4 for 16x16)
+
     ; Get Color from sprite_layer_colors table
     ; Table is indexed by HW Sprite Index (L)
     push de
@@ -356,11 +358,13 @@ force_update_entity_sprite:
 force_sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
-    
-    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
+
+    ; Calculate Pattern: Pattern = HW Sprite Index * 4 (for 16x16 sprites)
     ld a, l
-    ld d, a                    ; D = Pattern (direct index, not *4)
-    
+    sla a                      ; * 2
+    sla a                      ; * 4
+    ld d, a                    ; D = Pattern (HW index * 4 for 16x16)
+
     ; Get Color
     push de
     ld de, sprite_layer_colors
@@ -400,10 +404,18 @@ function generateMovementSystem(): string {
 
         init_movement_system:
             ; Initialize movement / physics system
-            ; Clear velocities
-            ld a, 0
-            ld (entity_vel_x), a
-            ld (entity_vel_y), a
+            ; Clear all entity velocities (32 entries each)
+            ld hl, entity_vel_x
+            ld de, entity_vel_x + 1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ld hl, entity_vel_y
+            ld de, entity_vel_y + 1
+            ld bc, 31
+            ld (hl), 0
+            ldir
     ret
 
         update_movement_component:
@@ -477,28 +489,23 @@ function generateMovementSystem(): string {
  * Generate Collision Component System
  */
 function generateCollisionSystem(analysis: ProjectAnalysis): string {
-    // Detect tile size from analysis
-    const tileWidth = analysis.tiles && analysis.tiles.length > 0 ? analysis.tiles[0].width : 16;
-    const tileHeight = analysis.tiles && analysis.tiles.length > 0 ? analysis.tiles[0].height : 16;
-    const tilesPerRow = Math.floor(256 / tileWidth);
-    const tilesPerColumn = Math.floor(192 / tileHeight);
+    // MSX Screen 2 ALWAYS uses 8x8 character cells for the Name Table (32x24 grid)
+    // The behavior map maps 1:1 to the Name Table, so pixel-to-tile conversion
+    // must ALWAYS divide by 8, regardless of the project's visual tile dimensions.
+    const msxCharSize = 8;     // MSX character cell is always 8x8 pixels
+    const tilesPerRow = 32;    // 256 / 8 = 32 columns
+    const tilesPerColumn = 24; // 192 / 8 = 24 rows
+    const shiftAmount = 3;     // 8 = 2^3, so 3 shifts to divide by 8
 
-    // Calculate shift amount for division (only if power of 2)
-    const xShiftAmount = Number.isInteger(Math.log2(tileWidth)) ? Math.log2(tileWidth) : 4;
-    const yShiftAmount = Number.isInteger(Math.log2(tileHeight)) ? Math.log2(tileHeight) : 4;
+    const xDivisionCode = Array.from({ length: shiftAmount },
+        (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i + 1)}`).join('\n');
 
-    const xDivisionCode = Array.from({ length: xShiftAmount },
-        (_, i) => `    srl a; A = X / ${Math.pow(2, i + 1)} `).join('\n');
+    const yDivisionCode = Array.from({ length: shiftAmount },
+        (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i + 1)}`).join('\n');
 
-    const yDivisionCode = Array.from({ length: yShiftAmount },
-        (_, i) => `    srl a; A = Y / ${Math.pow(2, i + 1)} `).join('\n');
-
-    const tileInfo = analysis.tiles && analysis.tiles.length > 0
-        ? `; Project tile analysis: ${analysis.tiles.map(t => `${t.width}x${t.height}`).join(', ')}
-    ; Using first tile as reference: ${tileWidth}x${tileHeight}
-    ; Convert X to tile column(divide by ${tileWidth})`
-        : `; No tiles detected - using default 16x16
-        ; Convert X to tile column(divide by 16)`;
+    const tileInfo = `; MSX Screen 2: behavior map is 32x24 (one entry per 8x8 character cell)
+    ; Always divide by 8 to convert pixels to character column/row
+    ; Convert X to tile column (divide by 8)`;
 
     return `
         ; ==================================================================
@@ -682,7 +689,7 @@ ${tileInfo}
 ${xDivisionCode}
     ld c, a; C = tile column
 
-        ; Convert Y to tile row(divide by ${tileHeight})
+        ; Convert Y to tile row (divide by ${msxCharSize})
     ld a, b
 ${yDivisionCode}
     ld b, a; B = tile row
@@ -739,9 +746,13 @@ ${yDivisionCode}
     add hl, de; HL points to other entity X
     ld d, (hl); D = other X
 
+    push de; Save D=otherX, E=otherIndex
+    ld d, 0; Reset D for correct address calculation
     ld hl, entity_y_pos
     add hl, de; HL points to other entity Y
-    ld e, (hl); E = other Y
+    ld a, (hl); A = other Y
+    pop de; Restore D=otherX, E=otherIndex
+    ld e, a; E = other Y
 
         ; Check if entities overlap(16x16 sprites)
             ; Current entity: A = X, B = Y
@@ -786,18 +797,38 @@ ${yDivisionCode}
 
     handle_boundary_collision:
     ; Handle collision with screen boundaries
-        ; Stop movement in the collision direction
-    ld a, 0
-    ld (entity_vel_x), a; Stop X movement
-    ld (entity_vel_y), a; Stop Y movement
+    ; C = entity index (from collision loop)
+    push de
+    push hl
+    ld e, c
+    ld d, 0
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a              ; Stop X movement for this entity
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a              ; Stop Y movement for this entity
+    pop hl
+    pop de
     ret
 
     handle_tile_collision:
     ; Handle collision with solid tiles
-        ; Prevent movement into the tile
-    ld a, 0
-    ld (entity_vel_x), a; Stop X movement
-    ld (entity_vel_y), a; Stop Y movement
+    ; C = entity index (from collision loop)
+    push de
+    push hl
+    ld e, c
+    ld d, 0
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a              ; Stop X movement for this entity
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a              ; Stop Y movement for this entity
+    pop hl
+    pop de
     ret
 
     handle_entity_collision:
@@ -1086,13 +1117,15 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
 
         input_apply_velocity:
             ; Apply calculated velocity to entity
-            ; Store X velocity (entity_vel_x is temp storage for now)
-            ld a, b
-            ld (entity_vel_x), a       ; Store calculated X velocity
+            ; B = X velocity, C = Y velocity, E = entity index (preserved from earlier)
+            ld d, 0
+            ld hl, entity_vel_x
+            add hl, de
+            ld (hl), b                 ; entity_vel_x[entity_index] = X velocity
 
-            ; Store Y velocity
-            ld a, c
-            ld (entity_vel_y), a       ; Store calculated Y velocity
+            ld hl, entity_vel_y
+            add hl, de
+            ld (hl), c                 ; entity_vel_y[entity_index] = Y velocity
 
             pop hl
             pop bc
@@ -1216,14 +1249,15 @@ gravity_store_vel:
             ld (hl), d
 
     ; Apply gravity velocity to Y position
+            push de                ; Save gravity velocity (D=integer part)
             ld hl, entity_y_pos
-            ld a, c
-            ld l, a
-            ld h, 0
-            add hl, de
-            ld a, (hl); Current Y
-            add a, d; Add velocity high byte(integer part)
-            ld (hl), a; Store new Y
+            ld e, c                ; E = entity index
+            ld d, 0
+            add hl, de             ; HL = &entity_y_pos[entity]
+            pop de                 ; Restore gravity velocity
+            ld a, (hl)             ; Current Y
+            add a, d               ; Add velocity high byte (integer part)
+            ld (hl), a             ; Store new Y
 
             jr gravity_done
 
@@ -1985,19 +2019,23 @@ function generateAnimationSystem(): string {
             ld a, (hl)                 ; A = frameCount
             cp 2
             jp c, anim_done_entity     ; 0/1 frames -> no animation
-            ld l, a                    ; L = frameCount
+            push af                    ; Save frameCount on stack
 
             ; Advance frame (entity_anim_frame++)
             ld e, c
             ld d, 0
             ld hl, entity_anim_frame
             add hl, de
-            ld a, (hl)
-            inc a
-            cp l
+            ld a, (hl)                 ; A = current frame
+            inc a                      ; A = next frame
+            pop de                     ; D = frameCount (was pushed as A)
+            push de                    ; Keep frameCount on stack for .clamp_last
+            cp d                       ; Compare frame with frameCount
             jr c, .store_frame
 
             ; Overflow: loop?
+            ld e, c
+            ld d, 0
             ld hl, entity_anim_flags
             add hl, de
             bit 1, (hl)                ; loop flag
@@ -2006,10 +2044,13 @@ function generateAnimationSystem(): string {
             jr .store_frame
 
         .clamp_last:
-            ld a, l
+            pop de                     ; D = frameCount
+            push de                    ; Keep balanced
+            ld a, d
             dec a                      ; frame = frameCount-1
 
         .store_frame:
+            pop de                     ; Clean stack (discard frameCount)
             ld e, c
             ld d, 0
             ld hl, entity_anim_frame
@@ -3560,19 +3601,20 @@ get_tile_at_position:
     cp 24
     jr nc, .out_of_bounds
 
-    ; Calculate tile index: index = row * 32 + column
-    ld a, c
-    add a, a                      ; A = row * 2
-    add a, a                      ; A = row * 4
-    add a, a                      ; A = row * 8
-    add a, a                      ; A = row * 16
-    add a, a                      ; A = row * 32
-    add a, b                      ; A = row * 32 + column
+    ; Calculate tile index: index = row * 32 + column (16-bit to avoid overflow)
+    ld l, c
+    ld h, 0                       ; HL = row (16-bit)
+    add hl, hl                    ; HL = row * 2
+    add hl, hl                    ; HL = row * 4
+    add hl, hl                    ; HL = row * 8
+    add hl, hl                    ; HL = row * 16
+    add hl, hl                    ; HL = row * 32
+    ld e, b
+    ld d, 0
+    add hl, de                    ; HL = row * 32 + column
 
     ; Read actual tile from current screen layout
-    ld e, a
-    ld d, 0                       ; DE = tile index
-    ld hl, (current_screen_layout) ; HL = pointer to screen layout data
+    ld de, (current_screen_layout) ; DE = pointer to screen layout data
     add hl, de                    ; HL = pointer to tile at position
     ld a, (hl)                    ; A = tile ID from screen map
 

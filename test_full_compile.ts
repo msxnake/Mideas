@@ -100,8 +100,32 @@ async function main(): Promise<void> {
   // Read project JSON
   console.log('1. Reading project JSON...');
   const projectData = JSON.parse(readFileSync(projectPath, 'utf-8'));
-  const assets: ProjectAsset[] = projectData.assets || [];
-  console.log(`   Found ${assets.length} assets`);
+  const assets: ProjectAsset[] = [...(projectData.assets || [])];
+
+  // CRITICAL: Add entityTemplates and componentDefinitions to assets
+  if (projectData.entityTemplates && Array.isArray(projectData.entityTemplates)) {
+    projectData.entityTemplates.forEach((template: any) => {
+      assets.push({
+        id: template.id,
+        type: 'entitytemplate',
+        name: template.name || template.id,
+        data: template
+      });
+    });
+  }
+  if (projectData.componentDefinitions && Array.isArray(projectData.componentDefinitions)) {
+    projectData.componentDefinitions.forEach((compDef: any) => {
+      if (!assets.find(a => a.id === compDef.id && a.type === 'componentdefinition')) {
+        assets.push({
+          id: compDef.id,
+          type: 'componentdefinition',
+          name: compDef.name || compDef.id,
+          data: compDef
+        });
+      }
+    });
+  }
+  console.log(`   Found ${assets.length} assets (including templates & components)`);
 
   // Analyze project
   console.log('\n2. Analyzing project...');

@@ -71,29 +71,74 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
 
   console.log(`  - activeEntities.length: ${activeEntities.length}`);
 
-  // Helper to get MSX1 color index from hex
+  // Helper to parse hex color to RGB
+  const hexToRGB = (hex: string): { r: number; g: number; b: number } | null => {
+    if (!hex || hex.startsWith('rgba')) return null;
+    const clean = hex.replace('#', '');
+    if (clean.length !== 6) return null;
+    return {
+      r: parseInt(clean.substring(0, 2), 16),
+      g: parseInt(clean.substring(2, 4), 16),
+      b: parseInt(clean.substring(4, 6), 16)
+    };
+  };
+
+  // Helper to get MSX1 color index from hex (nearest color match)
   const hexToMSX1Index = (hex: string): number => {
     if (!hex) return 0;
-    const color = MSX1_PALETTE.find(c => c.hex.toUpperCase() === hex.toUpperCase());
-    return color ? color.index : 15; // Default to White
+    // Try exact match first
+    const exact = MSX1_PALETTE.find(c => c.hex.toUpperCase() === hex.toUpperCase());
+    if (exact) return exact.index;
+    // Nearest color match (Euclidean distance in RGB space)
+    const rgb = hexToRGB(hex);
+    if (!rgb) return 15;
+    let bestIndex = 15;
+    let bestDist = Infinity;
+    for (const c of MSX1_PALETTE) {
+      if (c.index === 0) continue; // Skip transparent
+      const cRGB = hexToRGB(c.hex);
+      if (!cRGB) continue;
+      const dist = (rgb.r - cRGB.r) ** 2 + (rgb.g - cRGB.g) ** 2 + (rgb.b - cRGB.b) ** 2;
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIndex = c.index;
+      }
+    }
+    return bestIndex;
   };
 
   // Helper to analyze sprite layers/colors
+  // Only counts palette colors that actually have pixel data in ANY frame
   const getSpriteLayerColors = (sprite: any): number[] => {
     if (!sprite) return [15]; // Default white
 
-    // IMPORTANT: Use the sprite palette, not per-frame pixel usage.
-    // We need a stable layer layout across all frames so runtime animation can
-    // copy complete frames reliably.
     const palette: string[] = sprite.spritePalette || [];
     const bg: string | undefined = sprite.backgroundColor;
+    const frames = sprite.frames || [];
 
     const colors: number[] = [];
     const seen = new Set<number>();
 
-    for (const hex of palette) {
+    for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
+      const hex = palette[layerIdx];
       if (!hex) continue;
       if (bg && hex === bg) continue;
+
+      // Check if this color has actual pixel data in ANY frame
+      let hasPixels = false;
+      for (const frame of frames) {
+        if (!frame?.data) continue;
+        for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
+          for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
+            if (frame.data[y][x] === hex) {
+              hasPixels = true;
+            }
+          }
+        }
+        if (hasPixels) break;
+      }
+
+      if (!hasPixels) continue; // Skip colors with no pixel data
 
       const msxIndex = hexToMSX1Index(hex);
       if (seen.has(msxIndex)) continue;
@@ -533,6 +578,9 @@ show_sprite:
 .y_ok:
     pop af
 
+    ; Save pattern (D) and color (E) before calculating address
+    push de
+
     ; Calculate base address for sprite: index * 4
     ld l, a
     ld h, 0
@@ -541,6 +589,9 @@ show_sprite:
     ; Add base of the attribute table
     ld de, sprite_attributes
     add hl, de      ; HL = &sprite_attributes[index * 4]
+
+    ; Restore pattern and color
+    pop de
 
     ; Write attributes
     ld (hl), c      ; Y

@@ -6,9 +6,9 @@
 ;
 ; OPTIMIZED: Only includes necessary code for this project
 ; Tiles: 0
-; Sprites: 3
+; Sprites: 2
 ; Screens: 1
-; Entities: 4
+; Entities: 3
 ; Menus: No
 ; HUD: No
 ; State Machines: 0
@@ -693,7 +693,7 @@ NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ; ==================================================================
 
 ; Detected Assets
-TOTAL_SPRITES           EQU 3
+TOTAL_SPRITES           EQU 2
 TOTAL_TILES             EQU 0
 TOTAL_SCREENS           EQU 1
 
@@ -1277,9 +1277,9 @@ task_frame_counter:
     ; ==================================================================
 ;
 ; INTELLIGENT FILTERING ACTIVE:
-;   Active entities: 4
-;   Used components: Position, Sprite, Animation
-;   Filtered out: 5 unused component systems
+;   Active entities: 3
+;   Used components: 
+;   Filtered out: 8 unused component systems
     ;
 ; ==================================================================
 
@@ -1367,7 +1367,7 @@ entity_platform_grace   EQU temp_byte_17 ; Grace frames for platform (32 bytes)
 
         init_components: 
 ; Initialize component systems(OPTIMIZED - only used components) 
-    ; Used: Position, Sprite, Animation 
+    ; Used:  
  
 ; Initialize current screen ID(multi - screen support) 
         ld a, 0; Start at screen 0 
@@ -1389,10 +1389,6 @@ entity_platform_grace   EQU temp_byte_17 ; Grace frames for platform (32 bytes)
  
         ; Initialize position system (always)
     call init_position_system
-        ; Initialize sprite system
-    call init_sprite_system
-        ; Initialize animation system
-    call init_animation_system
         ; Initialize auto-destroy system
     call init_auto_destroy_system
         ; Initialize platform riding system
@@ -1551,13 +1547,11 @@ sprite_update_loop:
 sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
-
-    ; Calculate Pattern: Pattern = HW Sprite Index * 4 (for 16x16 sprites)
+    
+    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
     ld a, l
-    sla a                      ; * 2
-    sla a                      ; * 4
-    ld d, a                    ; D = Pattern (HW index * 4 for 16x16)
-
+    ld d, a                    ; D = Pattern (direct index, not *4)
+    
     ; Get Color from sprite_layer_colors table
     ; Table is indexed by HW Sprite Index (L)
     push de
@@ -1669,13 +1663,11 @@ force_update_entity_sprite:
 force_sprite_layer_loop:
     push hl                    ; Save counters
     push bc                    ; Save Position
-
-    ; Calculate Pattern: Pattern = HW Sprite Index * 4 (for 16x16 sprites)
+    
+    ; Calculate Pattern: Pattern = HW Sprite Index (0-31)
     ld a, l
-    sla a                      ; * 2
-    sla a                      ; * 4
-    ld d, a                    ; D = Pattern (HW index * 4 for 16x16)
-
+    ld d, a                    ; D = Pattern (direct index, not *4)
+    
     ; Get Color
     push de
     ld de, sprite_layer_colors
@@ -1741,234 +1733,11 @@ init_health_system:
 update_health_component:
     ret
     
-    ; ==================================================================
-        ; ANIMATION COMPONENT SYSTEM
-    ; ==================================================================
+    ; Animation system filtered out(not used)
+init_animation_system:
+    ret
 
-        init_animation_system:
-            ; Initialize animation component data
-            ; Clear frames
-            ld hl, entity_anim_frame
-            ld de, entity_anim_frame+1
-            ld bc, 31
-            ld (hl), 0
-            ldir
-
-            ; Clear ticks
-            ld hl, entity_anim_tick
-            ld de, entity_anim_tick+1
-            ld bc, 31
-            ld (hl), 0
-            ldir
-
-            ; Default speed = ANIM_DEFAULT_SPEED
-            ld hl, entity_anim_speed
-            ld de, entity_anim_speed+1
-            ld bc, 31
-            ld (hl), ANIM_DEFAULT_SPEED
-            ldir
-
-            ; Default flags = playing + loop
-            ld hl, entity_anim_flags
-            ld de, entity_anim_flags+1
-            ld bc, 31
-            ld (hl), ANIM_FLAG_PLAYING | ANIM_FLAG_LOOP
-            ldir
-            ret
-
-        update_animation_component:
-            ; Update animations for entities
-            ; - Advances entity_anim_frame using entity_anim_tick/entity_anim_speed
-            ; - Copies the selected frame's patterns to VRAM for this entity
-            ld b, 32
-            ld c, 0
-            ld hl, entity_comp_masks
-
-        .anim_loop:
-            ld a, (hl)
-            and COMP_MASK_ANIMATION
-            jp z, .anim_next_entity
-
-            ld a, (hl)
-            and COMP_MASK_SPRITE
-            jp z, .anim_next_entity
-
-            push bc
-            push hl
-
-            ; Check flags (playing?)
-            ld e, c
-            ld d, 0
-            ld hl, entity_anim_flags
-            add hl, de
-            ld a, (hl)
-            bit 0, a
-            jp z, anim_done_entity
-
-            ; Only animate when moving?
-            bit 2, a
-            jr z, .tick
-
-            ; vel_x != 0 || vel_y != 0
-            ld hl, entity_vel_x
-            add hl, de
-            ld a, (hl)
-            ld hl, entity_vel_y
-            add hl, de
-            or (hl)
-            jp z, anim_done_entity
-
-        .tick:
-            ; tick++
-            ld hl, entity_anim_tick
-            add hl, de
-            inc (hl)
-
-            ; if tick < speed -> done
-            ld a, (hl)
-            ld hl, entity_anim_speed
-            add hl, de
-            cp (hl)
-            jp c, anim_done_entity
-
-            ; tick = 0
-            ld hl, entity_anim_tick
-            add hl, de
-            ld (hl), 0
-
-            ; Sprite asset index for this entity (#FF = none)
-            ld hl, entity_sprite_asset_index
-            add hl, de
-            ld a, (hl)
-            cp #FF
-            jp z, anim_done_entity
-            ld b, a                    ; B = sprite asset index
-
-            ; frameCount = sprite_asset_frame_count[B]
-            ld hl, sprite_asset_frame_count
-            ld e, b
-            ld d, 0
-            add hl, de
-            ld a, (hl)                 ; A = frameCount
-            cp 2
-            jp c, anim_done_entity     ; 0/1 frames -> no animation
-            push af                    ; Save frameCount on stack
-
-            ; Advance frame (entity_anim_frame++)
-            ld e, c
-            ld d, 0
-            ld hl, entity_anim_frame
-            add hl, de
-            ld a, (hl)                 ; A = current frame
-            inc a                      ; A = next frame
-            pop de                     ; D = frameCount (was pushed as A)
-            push de                    ; Keep frameCount on stack for .clamp_last
-            cp d                       ; Compare frame with frameCount
-            jr c, .store_frame
-
-            ; Overflow: loop?
-            ld e, c
-            ld d, 0
-            ld hl, entity_anim_flags
-            add hl, de
-            bit 1, (hl)                ; loop flag
-            jr z, .clamp_last
-            xor a                      ; frame = 0
-            jr .store_frame
-
-        .clamp_last:
-            pop de                     ; D = frameCount
-            push de                    ; Keep balanced
-            ld a, d
-            dec a                      ; frame = frameCount-1
-
-        .store_frame:
-            pop de                     ; Clean stack (discard frameCount)
-            ld e, c
-            ld d, 0
-            ld hl, entity_anim_frame
-            add hl, de
-            ld (hl), a                 ; store new frame index
-
-            ; Get pointer to this sprite asset's frame pointer list
-            ld l, b
-            ld h, 0
-            add hl, hl                 ; index * 2
-            ld de, sprite_asset_frame_ptr_table
-            add hl, de
-            ld e, (hl)
-            inc hl
-            ld d, (hl)
-            ex de, hl                  ; HL = frame pointer list base
-
-            ; HL = &frame_ptrs[frame]
-            ld e, a
-            ld d, 0
-            add hl, de
-            add hl, de                 ; + frame*2
-            ld e, (hl)
-            inc hl
-            ld d, (hl)
-            ex de, hl                  ; HL = source pattern data
-
-            ; Get entity sprite config (base HW sprite + layer count)
-            push hl                    ; save source
-            ld e, c
-            ld d, 0
-            ld hl, entity_sprite_config
-            add hl, de
-            add hl, de                 ; entityIndex * 2
-            ld a, (hl)                 ; base HW sprite
-            inc hl
-            ld c, (hl)                 ; layer count
-            ld d, a                    ; D = base HW sprite (save)
-            pop hl                     ; restore source
-
-            ld a, c
-            or a
-            jp z, anim_done_entity     ; no layers for this entity
-
-            ; BC = layerCount * 32
-            ld a, c
-            ld b, 0
-            ld c, a
-            sla c
-            rl b
-            sla c
-            rl b
-            sla c
-            rl b
-            sla c
-            rl b
-            sla c
-            rl b
-
-            ; DE = SPRPAT + baseHwSprite*32
-            push hl                    ; save source
-            ld a, d
-            ld l, a
-            ld h, 0
-            add hl, hl
-            add hl, hl
-            add hl, hl
-            add hl, hl
-            add hl, hl                 ; HL = base * 32
-            ld de, SPRPAT
-            add hl, de
-            ex de, hl                  ; DE = VRAM destination
-            pop hl                     ; restore source
-
-            call FAST_LDIRVM           ; copy pattern data to VRAM
-
-anim_done_entity:
-            pop hl
-            pop bc
-
-        .anim_next_entity:
-            inc hl
-            inc c
-            dec b
-            jp nz, .anim_loop
+update_animation_component:
     ret
     
     ; Jump system filtered out(not used)
@@ -2270,10 +2039,9 @@ update_collectible_component:
 ; Unused systems are NOT called (saves Z80 cycles)
 update_all_entities:
     call update_position_component      ; 7. Apply velocity
-    call update_animation_component     ; 11. Animation
     call update_sprite_component        ; 13. Sprite rendering
     ret
-; Total systems called: 3 (optimized from 15)
+; Total systems called: 2 (optimized from 15)
 
 
 ; ==================================================================
@@ -2787,7 +2555,7 @@ div_a_by_c:
 ; SPRITE DATA
 ; File: sprites.asm
 ; Description: Sprite pattern and animation data
-; Entities: 4
+; Entities: 3
 ; Total Hardware Sprites (Layers): 32
 ; ==================================================================
 
@@ -2873,53 +2641,6 @@ LLAVE_1_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 ; Unified pattern label for sprite 1
 SPRITE_1_PATTERN EQU LLAVE_1_F0_LAYER1
 
-; Sprite Asset 2: nino
-;; Sprite: nino
-;; Total Frames: 2
-;; Size: 16x16
-;; Background Color (not exported as a layer): rgba(0,0,0,0)
-;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#FF0000, C3=#00FF00
-
-SPRITE_NINO_2_WIDTH     EQU 16
-SPRITE_NINO_2_HEIGHT    EQU 16
-SPRITE_NINO_2_FRAMES    EQU 2
-
-;; ---- Sprite Frame: nino_2_F0 ----
-;; Size: 16x16
-NINO_2_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#03,#02,#03,#01,#0F,#01,#01,#02,#04,#08,#0C,#00,#00
-    DB #00,#00,#00,#80,#80,#80,#00,#E0,#00,#00,#80,#40,#20,#30,#00,#00
-
-NINO_2_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NINO_2_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: nino_2_F0 ----
-
-;; ---- Sprite Frame: nino_2_F1 ----
-;; Size: 16x16
-NINO_2_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#03,#02,#03,#01,#03,#05,#05,#02,#01,#01,#01,#00,#00
-    DB #00,#00,#00,#80,#80,#80,#00,#80,#40,#20,#80,#00,#00,#80,#00,#00
-
-NINO_2_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NINO_2_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: nino_2_F1 ----
-
-
-; Unified pattern label for sprite 2
-SPRITE_2_PATTERN EQU NINO_2_F0_LAYER1
-
 ; ==================================================================
 ; PLACEHOLDER SPRITE PATTERN (for entities with missing sprite assets)
 ; ==================================================================
@@ -2944,14 +2665,12 @@ SPRITE_PLACEHOLDER_PATTERN:
 sprite_asset_frame_count:
     db 1 ; Sprite 0: New Sprite
     db 2 ; Sprite 1: llave
-    db 2 ; Sprite 2: nino
 
 ; Table: Sprite Asset Frame Pointer List Table
 ; Format: dw SPRITE_<id>_FRAME_PTRS
 sprite_asset_frame_ptr_table:
     dw SPRITE_0_FRAME_PTRS
     dw SPRITE_1_FRAME_PTRS
-    dw SPRITE_2_FRAME_PTRS
 
 ; Sprite 0: New Sprite frame pointers
 SPRITE_0_FRAME_PTRS:
@@ -2961,11 +2680,6 @@ SPRITE_0_FRAME_PTRS:
 SPRITE_1_FRAME_PTRS:
     dw LLAVE_1_F0_LAYER1
     dw LLAVE_1_F1_LAYER1
-
-; Sprite 2: nino frame pointers
-SPRITE_2_FRAME_PTRS:
-    dw NINO_2_F0_LAYER1
-    dw NINO_2_F1_LAYER1
  
 ; ================================================================== 
 ; SPRITE CONFIGURATION TABLES 
@@ -2974,35 +2688,29 @@ SPRITE_2_FRAME_PTRS:
 ; Table: Entity Sprite Configuration 
 ; Format: db base_hw_sprite_index, layer_count 
 entity_sprite_config: 
-    db 0, 1 ; Entity 0 (New Sprite)
-    db 1, 2 ; Entity 1 (llave)
-    db 3, 2 ; Entity 2 (llave)
-    db 5, 1 ; Entity 3 (nino)
-    ds 56, 0 ; Padding
+    db 0, 1 ; Entity 0 (PLACEHOLDER)
+    db 1, 1 ; Entity 1 (PLACEHOLDER)
+    db 2, 1 ; Entity 2 (PLACEHOLDER)
+    ds 58, 0 ; Padding
 
 ; Table: Entity -> Sprite Asset Index
 ; Format: db sprite_asset_index (#FF = none)
 entity_sprite_asset_index:
-    db #00 ; Entity 0 (New Sprite)
-    db #01 ; Entity 1 (llave)
-    db #01 ; Entity 2 (llave)
-    db #02 ; Entity 3 (nino)
-    ds 28, #FF ; Padding
+    db #FF ; Entity 0 (PLACEHOLDER)
+    db #FF ; Entity 1 (PLACEHOLDER)
+    db #FF ; Entity 2 (PLACEHOLDER)
+    ds 29, #FF ; Padding
  
 ; Table: Hardware Sprite Layer Colors 
 ; Format: db color_index 
 sprite_layer_colors: 
-    ; Entity 0 (New Sprite) layers:
+    ; Entity 0 (PLACEHOLDER) layers:
     db 15 ; Layer 0
-    ; Entity 1 (llave) layers:
+    ; Entity 1 (PLACEHOLDER) layers:
     db 15 ; Layer 0
-    db 8 ; Layer 1
-    ; Entity 2 (llave) layers:
+    ; Entity 2 (PLACEHOLDER) layers:
     db 15 ; Layer 0
-    db 8 ; Layer 1
-    ; Entity 3 (nino) layers:
-    db 15 ; Layer 0
-    ds 26, 0 ; Padding
+    ds 29, 0 ; Padding
 
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
@@ -3017,28 +2725,22 @@ init_sprites:
 
 load_sprite_patterns:
     ; Load patterns for all active entities
-    ; Entity 0: New Sprite (1 layers)
+    ; Entity 0: PLACEHOLDER (1 layers)
     ; Base HW Sprite: 0
-    ld hl, SPRITE_0_PATTERN
+    ld hl, SPRITE_PLACEHOLDER_PATTERN
     ld de, SPRPAT + (0 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
-    ; Entity 1: llave (2 layers)
+    ; Entity 1: PLACEHOLDER (1 layers)
     ; Base HW Sprite: 1
-    ld hl, SPRITE_1_PATTERN
+    ld hl, SPRITE_PLACEHOLDER_PATTERN
     ld de, SPRPAT + (1 * 32)
-    ld bc, 64 ; Load 2 layers (32 bytes each)
+    ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
-    ; Entity 2: llave (2 layers)
-    ; Base HW Sprite: 3
-    ld hl, SPRITE_1_PATTERN
-    ld de, SPRPAT + (3 * 32)
-    ld bc, 64 ; Load 2 layers (32 bytes each)
-    call FAST_LDIRVM
-    ; Entity 3: nino (1 layers)
-    ; Base HW Sprite: 5
-    ld hl, SPRITE_2_PATTERN
-    ld de, SPRPAT + (5 * 32)
+    ; Entity 2: PLACEHOLDER (1 layers)
+    ; Base HW Sprite: 2
+    ld hl, SPRITE_PLACEHOLDER_PATTERN
+    ld de, SPRPAT + (2 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
     ret
@@ -3444,9 +3146,9 @@ load_screen_new_screenmap_770642624476:
 ; ==================================================================
 ;
 ; INTELLIGENT FILTERING ACTIVE:
-;   Entity templates in project: 10
-;   Actually instantiated: 4
-;   Filtered out: 6 unused templates
+;   Entity templates in project: 0
+;   Actually instantiated: 3
+;   Filtered out: -3 unused templates
 ;
 ; ==================================================================
 
@@ -3470,48 +3172,29 @@ ENTITY_PLAYER_2_Y EQU 11
 
 ; Entity: Key Item 1 (instance from template: tpl_item_key)
 ENTITY_KEY_ITEM_1_ID EQU 2
-ENTITY_KEY_ITEM_1_COMP_MASK EQU #83  ; Component mask: 10000011b
+ENTITY_KEY_ITEM_1_COMP_MASK EQU #03  ; Component mask: 00000011b
 ; Template: tpl_item_key
 ENTITY_KEY_ITEM_1_X EQU 10
 ENTITY_KEY_ITEM_1_Y EQU 11
-
-; Entity: Key Item 2 (instance from template: tpl_item_key)
-ENTITY_KEY_ITEM_2_ID EQU 3
-ENTITY_KEY_ITEM_2_COMP_MASK EQU #83  ; Component mask: 10000011b
-; Template: tpl_item_key
-ENTITY_KEY_ITEM_2_X EQU 24
-ENTITY_KEY_ITEM_2_Y EQU 11
 
 ; ==================================================================
 ; ENTITY MANAGEMENT FUNCTIONS
 ; ==================================================================
 
 init_entities:
-    ; Initialize all active game entities (4 entities)
-
+    ; Initialize all active game entities (3 entities)
+    
     ; Ensure sprite system is reset whenever entities are initialized
     call init_sprites
-
-    ; CRITICAL: Clear ALL entity component masks to prevent ghost entities
-    ; RAM may contain random data - entities 0..N will be set by create_entity
-    ld hl, entity_comp_masks
-    ld de, entity_comp_masks+1
-    ld bc, 31                  ; Clear 32 bytes (32-1 for LDIR)
-    ld (hl), 0
-    ldir
-
-    ld hl, entity_comp_masks_hi
-    ld de, entity_comp_masks_hi+1
-    ld bc, 31
-    ld (hl), 0
-    ldir
-
-    ; Clear entity screen IDs to prevent ghost entities on restart
+    
+    ; CRITICAL: Clear entity screen IDs to prevent ghost entities on restart
+    ; This ensures all entities start with screen ID 0, even if they were
+    ; moved to different screens in a previous game session
     ld hl, entity_screen_id
     ld de, entity_screen_id+1
-    ld bc, 31
-    ld (hl), 0
-    ldir
+    ld bc, 31                  ; Clear 32 entities (32-1 for LDIR)
+    ld (hl), 0                 ; Set first byte to 0
+    ldir                       ; Copy to rest of array
     
     ; Initialize State Machine variables (Clear to 0)
     ld hl, entity_sm_ptr_l
@@ -3541,15 +3224,13 @@ init_entities:
     call init_player_1
     call init_player_2
     call init_key_item_1
-    call init_key_item_2
     ret
 
 update_entities:
-    ; Update all active entities (4 entities)
+    ; Update all active entities (3 entities)
     call update_player_1
     call update_player_2
     call update_key_item_1
-    call update_key_item_2
     ret
 
 init_player_1:
@@ -3702,13 +3383,13 @@ init_key_item_1:
     ; Initialize Key Item 1 at real position from JSON
     ; JSON position: (10, 11) tiles = (80, 88) pixels
     ; Template: tpl_item_key
-    ; Components: Position, Sprite, Animation
+    ; Components: Position, Sprite
     ; Direction mask: #0F (1111b) = All directions
 
     ; Set entity ID and component mask (DYNAMIC - based on template)
     ; Mask is 16-bit: B=low byte, C=high byte
     ld a, 2             ; Entity ID
-    ld b, #83              ; Mask low byte
+    ld b, #03              ; Mask low byte
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
@@ -3728,23 +3409,6 @@ init_key_item_1:
     add hl, de
     ld (hl), 0                 ; Screen ID (calculated from project data)
 
-
-    ; Initialize Animation component
-    ld hl, entity_anim_frame
-    add hl, de
-    ld (hl), #00           ; currentFrameIndex
-
-    ld hl, entity_anim_tick
-    add hl, de
-    ld (hl), 0                ; tick counter
-
-    ld hl, entity_anim_speed
-    add hl, de
-    ld (hl), #0F           ; animationSpeed
-
-    ld hl, entity_anim_flags
-    add hl, de
-    ld (hl), #03           ; flags (playing/loop/onlyWhenMoving)
 
     ; Set sprite pattern and color (renderable entity)
     ld hl, sprite_pattern
@@ -3775,96 +3439,6 @@ update_key_item_1:
     ; Update Key Item 1 logic with real behavior
     ; Check if entity has input component (player entities)
     ld a, 2
-    ld hl, entity_comp_masks
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    and COMP_MASK_INPUT
-    ret z                      ; Skip if no input component
-
-    ; This is a player entity - update based on input
-    ; Input velocity is already calculated in UPDATE_INPUT_COMPONENT
-    ; Position update happens in UPDATE_POSITION_COMPONENT
-    ret
-
-init_key_item_2:
-    ; Initialize Key Item 2 at real position from JSON
-    ; JSON position: (24, 11) tiles = (192, 88) pixels
-    ; Template: tpl_item_key
-    ; Components: Position, Sprite, Animation
-    ; Direction mask: #0F (1111b) = All directions
-
-    ; Set entity ID and component mask (DYNAMIC - based on template)
-    ; Mask is 16-bit: B=low byte, C=high byte
-    ld a, 3             ; Entity ID
-    ld b, #83              ; Mask low byte
-    ld c, #00              ; Mask high byte
-    call create_entity         ; Create with actual components from template
-
-    ; Set real position from JSON data
-    ld hl, entity_x_pos
-    ld e, 3             ; Entity index
-    ld d, 0
-    add hl, de
-    ld (hl), 192         ; Set real X position from JSON
-
-    ld hl, entity_y_pos
-    add hl, de
-    ld (hl), 40         ; Set real Y position (MOVED UP to avoid 4-sprite-per-line limit)
-
-    ; Set entity screen ID (for multi-screen support)
-    ld hl, entity_screen_id
-    add hl, de
-    ld (hl), 0                 ; Screen ID (calculated from project data)
-
-
-    ; Initialize Animation component
-    ld hl, entity_anim_frame
-    add hl, de
-    ld (hl), #00           ; currentFrameIndex
-
-    ld hl, entity_anim_tick
-    add hl, de
-    ld (hl), 0                ; tick counter
-
-    ld hl, entity_anim_speed
-    add hl, de
-    ld (hl), #0F           ; animationSpeed
-
-    ld hl, entity_anim_flags
-    add hl, de
-    ld (hl), #03           ; flags (playing/loop/onlyWhenMoving)
-
-    ; Set sprite pattern and color (renderable entity)
-    ld hl, sprite_pattern
-    add hl, de
-    ld (hl), 12          ; Use entity index * 4 for 16x16 sprites
-
-    ld hl, sprite_color
-    add hl, de
-    ld (hl), 5                ; Distinct color for debugging
-
-
-    ; Set direction mask for Cursors component (if entity has Input component)
-    ld hl, entity_dir_mask
-    add hl, de
-    ld (hl), #0F            ; Direction restrictions: All directions
-
-    ; Force update sprite attributes immediately
-
-    ; Force update sprite attributes (using correct multi-layer config)
-    ld c, 3             ; Entity Index
-    call force_update_entity_sprite
-
-
-
-    ret
-
-update_key_item_2:
-    ; Update Key Item 2 logic with real behavior
-    ; Check if entity has input component (player entities)
-    ld a, 3
     ld hl, entity_comp_masks
     ld e, a
     ld d, 0

@@ -345,35 +345,13 @@ FAST_GTSTCK:
     ret
 
 ; Direction lookup table (16 entries for all 4-bit combinations)
-; Index: UDLR bits (Up, Down, Left, Right)
-; Value: Direction code (0-8)
-joystick_direction_table:
-    db 0  ; 0000 = ---- = Center
-    db 1  ; 0001 = ---R = Invalid (Right only handled below)
-    db 7  ; 0010 = --L- = Left
-    db 0  ; 0011 = --LR = Invalid (Left + Right)
-    db 5  ; 0100 = -D-- = Down
-    db 4  ; 0101 = -D-R = Down + Right
-    db 6  ; 0110 = -DL- = Down + Left
-    db 0  ; 0111 = -DLR = Invalid
-    db 1  ; 1000 = U--- = Up
-    db 2  ; 1001 = U--R = Up + Right
-    db 8  ; 1010 = U-L- = Up + Left
-    db 0  ; 1011 = U-LR = Invalid
-    db 0  ; 1100 = UD-- = Invalid (Up + Down)
-    db 0  ; 1101 = UD-R = Invalid
-    db 0  ; 1110 = UDL- = Invalid
-    db 0  ; 1111 = UDLR = Invalid
-
-; NOTE: Entry 0001 (Right only) is placed at index 1, not 3
-; This is correct per MSX joystick bit mapping:
+; MSX PSG register 14 joystick bit order:
 ;   Bit 0 = Up    (0001)
 ;   Bit 1 = Down  (0010)
 ;   Bit 2 = Left  (0100)
 ;   Bit 3 = Right (1000)
-
-; Corrected table (actual MSX bit order):
-joystick_direction_table_v2:
+; Value: GTSTCK-compatible direction code (0-8)
+joystick_direction_table:
     db 0  ; 0000 = Center
     db 1  ; 0001 = Up
     db 5  ; 0010 = Down
