@@ -113,7 +113,9 @@
       "Bash(\"C:\\\\Program Files\\\\openMSX\\\\openmsx.exe\" -cart \"C:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\test\\\\game1.rom\")",
       "Bash(cmd.exe /c \"openmsx-screenshot-corrected.bat \"\"C:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\test\\\\game1.rom\"\" 5\")",
       "Bash(\"C:\\\\Program Files\\\\openMSX\\\\openmsx.exe\" -cart \"C:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\test\\\\game1.rom\" -script \"C:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\automation\\\\openmsx\\\\test_game1.tcl\")",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(git status:*)"
     ],
     "deny": [],
     "ask": []
