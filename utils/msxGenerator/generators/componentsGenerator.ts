@@ -2817,7 +2817,7 @@ update_collectible_component:
 /**
  * Generate entity management helper functions
  */
-function generateEntityManagement(): string { 
+function generateEntityManagement(): string {
     return ` 
     ; ================================================================== 
         ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system) 
@@ -2879,9 +2879,9 @@ function generateEntityManagement(): string {
 /**
  * Generate init_components function with conditional initialization
  */
-function generateInitComponents(usage: ComponentUsageAnalysis): string { 
-    const usedComponents = usage.usedComponents; 
- 
+function generateInitComponents(usage: ComponentUsageAnalysis): string {
+    const usedComponents = usage.usedComponents;
+
     let code = `init_components: 
 ; Initialize component systems(OPTIMIZED - only used components) 
     ; Used: ${Array.from(usedComponents).join(', ')} 
@@ -2904,7 +2904,7 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
         ld (hl), 0
         ldir 
  
-    `; 
+    `;
 
     code += `    ; Initialize position system (always)
     call init_position_system
@@ -3048,24 +3048,146 @@ export function generateComponentsFile(analysis: ProjectAnalysis): string {
 ; No entities detected in project - ECS system not needed
     ; This saves ~650 lines of unused component management code
 
+; Constants required by state machine action handlers
+ANIM_FLAG_PLAYING            EQU #01
+ANIM_FLAG_LOOP               EQU #02
+ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
+ANIM_DEFAULT_SPEED           EQU 8
+
+COMP_POSITION   EQU 0
+COMP_SPRITE     EQU 1
+COMP_MOVEMENT   EQU 2
+COMP_COLLISION  EQU 3
+COMP_INPUT      EQU 4
+COMP_BEHAVIOR   EQU 5
+COMP_HEALTH     EQU 6
+COMP_ANIMATION  EQU 7
+COMP_JUMP       EQU 8
+COMP_GRAVITY    EQU 9
+
+COMP_MASK_POSITION   EQU #0001
+COMP_MASK_SPRITE     EQU #0002
+COMP_MASK_MOVEMENT   EQU #0004
+COMP_MASK_COLLISION  EQU #0008
+COMP_MASK_INPUT      EQU #0010
+COMP_MASK_BEHAVIOR   EQU #0020
+COMP_MASK_HEALTH     EQU #0040
+COMP_MASK_ANIMATION  EQU #0080
+COMP_MASK_JUMP       EQU #0100
+COMP_MASK_GRAVITY    EQU #0200
+COMP_MASK_AUTO_DESTROY EQU #0400
+
     ; Minimal stub functions for compatibility
 init_components:
     ret
+init_entities:
+    ret
+update_all_entities:
+    ret
+execute_all_state_machines:
+    ret
+create_entity:
+    ret
+force_update_entity_sprite:
+    ret
 
 update_input_component:
-ret
-
+    ret
 update_position_component:
-ret
-
+    ret
 update_movement_component:
-ret
-
+    ret
 update_collision_component:
-ret
-
+    ret
 update_sprite_component:
-ret
+    ret
+update_behavior_component:
+    ret
+update_health_component:
+    ret
+update_animation_component:
+    ret
+update_jump_component:
+    ret
+update_gravity_component:
+    ret
+update_auto_destroy_component:
+    ret
+update_cursors_component:
+    ret
+update_statemachine_component:
+    ret
+update_carry_component:
+    ret
+update_damage_component:
+    ret
+update_shoot_component:
+    ret
+update_wallcollision_component:
+    ret
+update_collectible_component:
+    ret
+
+init_position_system:
+    ret
+init_sprite_system:
+    ret
+init_movement_system:
+    ret
+init_collision_system:
+    ret
+init_input_system:
+    ret
+init_behavior_system:
+    ret
+init_health_system:
+    ret
+init_animation_system:
+    ret
+init_jump_system:
+    ret
+init_gravity_system:
+    ret
+init_auto_destroy_system:
+    ret
+init_cursors_system:
+    ret
+init_statemachine_system:
+    ret
+init_carry_system:
+    ret
+init_damage_system:
+    ret
+init_shoot_system:
+    ret
+init_platform_riding_system:
+    ret
+init_wallcollision_system:
+    ret
+init_collectible_system:
+    ret
+init_entity_position:
+    ret
+init_entity_sprite:
+    ret
+
+    ; Component Data Structure EQUs (referenced by state machine actions)
+entity_jump_vel_y   EQU temp_word_3
+entity_jump_count   EQU temp_byte_4
+entity_on_ground    EQU temp_byte_5
+entity_gravity_vel  EQU temp_word_4
+entity_health_current EQU temp_byte_6
+entity_health_max     EQU temp_byte_7
+entity_deadly_collision EQU temp_byte_8
+entity_invincibility_frames EQU temp_byte_9
+entity_damage_amount        EQU temp_byte_10
+entity_shoot_cooldown   EQU temp_byte_11
+entity_shoot_sprite_id  EQU temp_byte_12
+entity_shoot_speed      EQU temp_byte_13
+entity_collision_layer  EQU temp_byte_14
+entity_collides_with    EQU temp_byte_15
+entity_platform_id      EQU temp_byte_16
+entity_platform_grace   EQU temp_byte_17
 
     ; ==================================================================
 ; END OF COMPONENTS(MINIMAL VERSION)
@@ -3658,12 +3780,12 @@ get_tile_behavior:
 tile_behavior_table:
     ; Index 0-127: Default behaviors (can be customized per project)
     db TILE_PASSABLE              ; 0: Empty tile
-    ${Array(127).fill(0).map((_, i) => `db TILE_PASSABLE              ; ${i+1}: Passable`).join('\n    ')}
+    ${Array(127).fill(0).map((_, i) => `db TILE_PASSABLE              ; ${i + 1}: Passable`).join('\n    ')}
 
     ; Index 128-255: Project-specific tiles
     ; These are assigned based on analysis.tiles order and their properties
     ; For now, default all to SOLID (will be refined in future)
-    ${Array(128).fill(0).map((_, i) => `db TILE_SOLID                 ; ${128+i}: Solid tile`).join('\n    ')}
+    ${Array(128).fill(0).map((_, i) => `db TILE_SOLID                 ; ${128 + i}: Solid tile`).join('\n    ')}
 
 ; ------------------------------------------------------------------
 ; check_collision_at_point

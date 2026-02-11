@@ -109,6 +109,9 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `scroll_dirty_flag   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=viewport changed, needs redraw\n`;
   currentAddress++;
 
+  code += `hud_dirty_flag      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=HUD needs redraw, 0=clean\n`;
+  currentAddress++;
+
   // Animated tiles variables
   code += `
 ; ==================================================================
@@ -280,7 +283,7 @@ MAX_ENTITIES        EQU 32
 ; AUXILIARY VARIABLES 
 ; ==================================================================
 deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Deterministic mode flag\n`;
-currentAddress++;
+  currentAddress++;
 
 
 

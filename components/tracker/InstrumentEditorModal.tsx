@@ -43,56 +43,88 @@ interface InstrumentEditorModalProps {
  * The types of predefined instruments available as templates.
  * @internal
  */
-type PredefinedInstrumentType = "Custom" | "Piano" | "Soft Piano" | "Banjo" | "Violin" | "Synth Lead" | "Bass" | "Random";
+type PredefinedInstrumentType = "Custom" | "Piano" | "Soft Piano" | "Banjo" | "Violin" | "Strings" | "Synth Lead" | "Bass" | "Drum" | "Hihat" | "Random";
 
 /**
  * A record of predefined instrument templates.
+ * Volume envelope values are in 0-127 range (normalized to 0-15 by the synthesizer).
+ * Tone envelope values are pitch offsets in semitones.
  * @constant
  */
 const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<InstrumentModalBuffer>> = {
     "Custom": {},
     "Piano": {
-        volumeEnvelope: "127,90,60,0",
-        toneEnvelope: "0,0,0",
+        volumeEnvelope: "127,100,70,45,25,10,0",
+        toneEnvelope: "0,0,0,0",
         ayEnvelopeShape: 0,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Soft Piano": {
-        volumeEnvelope: "0,60,100,127,100,60,0",
+        volumeEnvelope: "0,30,60,100,127,110,90,65,40,15,0",
         toneEnvelope: "0,0,0",
         ayEnvelopeShape: 0,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Banjo": {
-        volumeEnvelope: "127,30,0",
-        toneEnvelope: "0,5,0,-5",
+        volumeEnvelope: "127,50,15,0",
+        toneEnvelope: "0,12,0,-12",
         toneLoop: 0,
         ayEnvelopeShape: 8,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Violin": {
-        volumeEnvelope: "0,60,100,127,120,110",
-        volumeLoop: 2,
-        toneEnvelope: PT3_DEFAULT_VIBRATO_TABLE.slice(0, 16).join(','),
+        // MSX "buzz" technique: hardware envelope tracks tone frequency
+        // Shape 14 = continuous sawtooth-triangle (attack, alternate, repeat)
+        // Ratio 1.0 = envelope period = tone period / 16, creating rich harmonics
+        // This is how PT3 trackers create the classic MSX violin/bowed string sound
+        volumeEnvelope: "",
+        toneEnvelope: "0,0,0.3,0.5,0.3,0,-0.3,-0.5,-0.3,0",
         toneLoop: 0,
-        ayEnvelopeShape: 13,
+        ayEnvelopeShape: 14,
+        hardwareEnvelopeRatio: 1.0,
+        ayToneEnabled: true, ayNoiseEnabled: false,
+    },
+    "Strings": {
+        // Smoother string variant: shape 10 = continuous triangle
+        // Ratio 2.0 = higher harmonics, brighter timbre
+        volumeEnvelope: "",
+        toneEnvelope: "0,0,0.2,0,-0.2,0",
+        toneLoop: 0,
+        ayEnvelopeShape: 10,
+        hardwareEnvelopeRatio: 2.0,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Synth Lead": {
-        volumeEnvelope: "127,100,80,60,80,100,127",
+        volumeEnvelope: "127,127,110,90,100,120,127",
         volumeLoop: 0,
-        toneEnvelope: "0,0,0",
+        toneEnvelope: "0,0,1,0,0,-1",
+        toneLoop: 0,
         ayEnvelopeShape: 8,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Bass": {
-        volumeEnvelope: "127,60,30,0",
-        toneEnvelope: "0,0,0,-3",
+        volumeEnvelope: "127,95,60,30,10,0",
+        toneEnvelope: "0,0,0,-12",
         ayEnvelopeShape: 8,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
+    "Drum": {
+        volumeEnvelope: "127,80,40,15,0",
+        toneEnvelope: "0,0,0",
+        ayEnvelopeShape: 0,
+        ayToneEnabled: true, ayNoiseEnabled: true,
+        noiseBaseFrequency: 8,
+    },
+    "Hihat": {
+        volumeEnvelope: "110,50,10,0",
+        toneEnvelope: "0",
+        ayEnvelopeShape: 0,
+        ayToneEnabled: false, ayNoiseEnabled: true,
+        noiseBaseFrequency: 2,
+    },
     "Random": {}
 };
+
 
 /**
  * Generates a set of random properties for a PT3 instrument.

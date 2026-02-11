@@ -14,19 +14,29 @@ export function generateHudFile(analysis: ProjectAnalysis): string {
     const allHudElements: HUDElement[] = [];
     const screenHudMap = new Map<string, HUDElement[]>();
 
+    // Diagnostic logging to help debug HUD element detection
+    console.log(`🎯 [HUD Generator] Total screens: ${analysis.screenMaps?.length || 0}`);
     analysis.screenMaps?.forEach(screen => {
+        const hasHudConfig = !!screen.hudConfiguration;
         const hudElements = screen.hudConfiguration?.elements || [];
+        console.log(`  📺 Screen "${screen.name}" (${screen.id}): hudConfiguration=${hasHudConfig}, elements=${hudElements.length}`);
         if (hudElements.length > 0) {
+            hudElements.forEach((el, i) => console.log(`    📝 Element[${i}]: type=${el.type}, name="${el.name}", text="${el.text || ''}" pos=(${el.position.x},${el.position.y}) visible=${el.visible}`));
             allHudElements.push(...hudElements);
             screenHudMap.set(screen.id, hudElements);
         }
     });
+    console.log(`🎯 [HUD Generator] Total HUD elements found: ${allHudElements.length}`);
 
     if (allHudElements.length === 0) {
         return `; ==================================================================
 ; HUD SYSTEM (EMPTY - No HUD elements defined)
 ; ==================================================================
 render_hud:
+    ret
+update_hud_score:
+    ret
+update_hud_lives:
     ret
 `;
     }
@@ -50,7 +60,7 @@ render_hud:
     asm += generateRenderHudFunction(allHudElements);
 
     // Generate helper functions
-    asm += generateHudHelperFunctions();
+    asm += generateHudHelperFunctions(allHudElements);
 
     return asm;
 }
@@ -137,9 +147,14 @@ function generateRenderHudFunction(hudElements: HUDElement[]): string {
     return `; ------------------------------------------------------------------
 ; render_hud
 ; Main HUD rendering function
-; Called once per frame to update all HUD elements
+; Only redraws when hud_dirty_flag is set
 ; ------------------------------------------------------------------
 render_hud:
+    ld a, (hud_dirty_flag)
+    or a
+    ret z                       ; Skip if HUD hasn't changed
+    xor a
+    ld (hud_dirty_flag), a      ; Clear flag after rendering
     push af
     push bc
     push de
@@ -275,7 +290,13 @@ render_hud:
 /**
  * Generate HUD helper functions
  */
-function generateHudHelperFunctions(): string {
+function generateHudHelperFunctions(hudElements: HUDElement[]): string {
+    // Find the actual element indices for Score and Lives
+    const scoreIndex = hudElements.findIndex(el => el.type === HUDElementType.Score);
+    const livesIndex = hudElements.findIndex(el => el.type === HUDElementType.Lives);
+    const scoreLabel = scoreIndex >= 0 ? `hud_text_${scoreIndex}` : null;
+    const livesLabel = livesIndex >= 0 ? `hud_text_${livesIndex}` : null;
+
     return `; ------------------------------------------------------------------
 ; hud_print_string
 ; Print a null-terminated string to Screen 2 Name Table
@@ -466,20 +487,89 @@ hud_draw_frame:
 ; ------------------------------------------------------------------
 ; update_hud_score
 ; Update score HUD element with current score value
-; Input: HL = Score value (16-bit BCD)
+; Input: HL = Score value (16-bit binary, 0-65535)
+; Writes 5 ASCII digits to score text buffer
 ; ------------------------------------------------------------------
 update_hud_score:
-    ; TODO: Implement score update
-    ; Convert 16-bit BCD to ASCII digits and update text
+${scoreLabel ? `    push af
+    push bc
+    push de
+    push hl
+
+    ; Set dirty flag
+    ld a, 1
+    ld (hud_dirty_flag), a
+
+    ; 16-bit binary to 5 decimal digits
+    ld de, ${scoreLabel}           ; DE = output buffer pointer
+
+    ; Digit 0: ten-thousands (HL / 10000)
+    ld bc, 10000
+    call .div16
+    add a, '0'
+    ld (de), a
+    inc de
+
+    ; Digit 1: thousands (HL / 1000)
+    ld bc, 1000
+    call .div16
+    add a, '0'
+    ld (de), a
+    inc de
+
+    ; Digit 2: hundreds (HL / 100)
+    ld bc, 100
+    call .div16
+    add a, '0'
+    ld (de), a
+    inc de
+
+    ; Digit 3: tens (HL / 10)
+    ld bc, 10
+    call .div16
+    add a, '0'
+    ld (de), a
+    inc de
+
+    ; Digit 4: ones (remainder)
+    ld a, l
+    add a, '0'
+    ld (de), a
+
+    pop hl
+    pop de
+    pop bc
+    pop af` : `    ; No Score element defined in HUD`}
     ret
 
+${scoreLabel ? `; Helper: HL = HL / BC, A = quotient, HL = remainder
+.div16:
+    xor a                       ; Quotient = 0
+.div16_loop:
+    or a                        ; Clear carry
+    sbc hl, bc                  ; HL -= BC
+    jr c, .div16_done           ; If underflow, done
+    inc a                       ; Quotient++
+    jr .div16_loop
+.div16_done:
+    add hl, bc                  ; Restore remainder
+    ret
+` : ``}
 ; ------------------------------------------------------------------
 ; update_hud_lives
 ; Update lives HUD element
-; Input: A = Number of lives
+; Input: A = Number of lives (0-9)
 ; ------------------------------------------------------------------
 update_hud_lives:
-    ; TODO: Implement lives counter update
+${livesLabel ? `    push af
+
+    ; Set dirty flag + convert to ASCII
+    add a, '0'                  ; Convert to ASCII
+    ld (${livesLabel}), a          ; Write to lives text buffer
+    ld a, 1
+    ld (hud_dirty_flag), a
+
+    pop af` : `    ; No Lives element defined in HUD`}
     ret
 
 `;

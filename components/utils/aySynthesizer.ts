@@ -6,6 +6,31 @@ import { PT3_NOTE_NAMES } from '../../constants';
 const AY_CLOCK_FREQUENCY = 3579545 / 2; // Approx 1.7897725 MHz for MSX
 
 /**
+ * AY-3-8910 logarithmic DAC volume table.
+ * Maps the 16 volume levels (0-15) to normalized amplitude values (0.0-1.0).
+ * Based on measurements of the actual chip's resistor ladder DAC.
+ * The logarithmic curve creates the characteristic "thin" MSX sound.
+ */
+const AY_DAC_TABLE: readonly number[] = [
+    0.0000,  // 0 - silent
+    0.0137,  // 1
+    0.0205,  // 2
+    0.0291,  // 3
+    0.0423,  // 4
+    0.0618,  // 5
+    0.0847,  // 6
+    0.1369,  // 7
+    0.1691,  // 8
+    0.2647,  // 9
+    0.3527,  // 10
+    0.4499,  // 11
+    0.5765,  // 12
+    0.6873,  // 13
+    0.8482,  // 14
+    1.0000   // 15
+];
+
+/**
  * Represents the state of a hardware envelope for a channel.
  */
 interface HardwareEnvelopeState {
@@ -48,6 +73,18 @@ interface OrnamentState {
     tickCounter: number;
 }
 
+/**
+ * Represents the state of a software tone (pitch) envelope for a channel.
+ */
+interface SoftwareToneEnvelopeState {
+    /** The tone envelope data points (pitch offsets in semitones). */
+    envelope: number[];
+    /** The loop position in the envelope. */
+    loopPosition?: number;
+    /** The current step in the envelope. */
+    currentStep: number;
+}
+
 
 /**
  * Emulates the AY-3-8910 sound chip to play tracker music in the browser.
@@ -77,10 +114,12 @@ export class AYSynthesizer {
 
     private channelHardwareEnvelopeState: (HardwareEnvelopeState | null)[] = [null, null, null];
     private channelSoftwareVolumeEnvelopeState: (SoftwareVolumeEnvelopeState | null)[] = [null, null, null];
+    private channelSoftwareToneEnvelopeState: (SoftwareToneEnvelopeState | null)[] = [null, null, null];
     private channelOrnamentState: (OrnamentState | null)[] = [null, null, null];
 
     private channelBaseVolumeForEffects: number[] = [15, 15, 15]; // Default full volume
     private channelActiveInstrument: (PT3Instrument | null)[] = [null, null, null]; // Tracks the last set instrument
+    private envelopeTickCounters: number[] = [0, 0, 0]; // Tick-based counters for envelope speed
 
     /**
      * Creates an instance of the AYSynthesizer.
@@ -135,10 +174,29 @@ export class AYSynthesizer {
                 this.masterGain.gain.setValueAtTime(this.currentMasterVolume, this.audioContext.currentTime);
                 this.masterGain.connect(this.audioContext.destination);
 
-                const bufferSize = this.audioContext.sampleRate * 0.5;
+                // Generate AY-3-8910 authentic LFSR noise buffer
+                // The real chip uses a 17-bit LFSR with polynomial: new_bit = bit0 XOR bit3
+                const bufferSize = Math.floor(this.audioContext.sampleRate * 2);
                 this.noiseBuffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
                 const output = this.noiseBuffer.getChannelData(0);
-                for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
+                let lfsr = 1; // Initial seed (must be non-zero)
+                // The AY noise generator runs at AY_CLOCK / 16
+                const ayNoiseClockRate = AY_CLOCK_FREQUENCY / 16;
+                const samplesPerNoiseClockTick = this.audioContext.sampleRate / ayNoiseClockRate;
+                let clockAccumulator = 0;
+                let currentOutputBit = 1;
+
+                for (let i = 0; i < bufferSize; i++) {
+                    clockAccumulator += 1;
+                    if (clockAccumulator >= samplesPerNoiseClockTick) {
+                        clockAccumulator -= samplesPerNoiseClockTick;
+                        // AY-3-8910 LFSR: feedback = bit0 XOR bit3
+                        const feedback = ((lfsr >> 0) ^ (lfsr >> 3)) & 1;
+                        lfsr = (lfsr >> 1) | (feedback << 16);
+                        currentOutputBit = lfsr & 1;
+                    }
+                    output[i] = currentOutputBit ? 1.0 : -1.0;
+                }
                 this.isInitialized = true;
 
                 if (this.effectsUpdateIntervalId === null) {
@@ -199,9 +257,12 @@ export class AYSynthesizer {
     private initializeEnvelopesForInstrument(channel: 0 | 1 | 2, instrument: PT3Instrument) {
         this.channelHardwareEnvelopeState[channel] = null;
         this.channelSoftwareVolumeEnvelopeState[channel] = null;
+        this.channelSoftwareToneEnvelopeState[channel] = null;
+        this.envelopeTickCounters[channel] = 0;
 
         const useHardwareEnv = instrument.ayEnvelopeShape !== undefined && instrument.ayEnvelopeShape >= 0 && instrument.ayEnvelopeShape <= 15;
         const useSoftwareEnv = instrument.volumeEnvelope && instrument.volumeEnvelope.length > 0;
+        const useToneEnv = instrument.toneEnvelope && instrument.toneEnvelope.length > 0;
 
         if (useHardwareEnv && this.songDataRef) {
             const shape = instrument.ayEnvelopeShape!;
@@ -221,6 +282,16 @@ export class AYSynthesizer {
             this.channelSoftwareVolumeEnvelopeState[channel] = {
                 envelope: instrument.volumeEnvelope!,
                 loopPosition: (volLoop !== undefined && volLoop >= 0 && volLoop < instrument.volumeEnvelope!.length) ? volLoop : undefined,
+                currentStep: 0,
+            };
+        }
+
+        // Initialize tone envelope (pitch modulation)
+        if (useToneEnv) {
+            const toneLoop = instrument.toneLoop;
+            this.channelSoftwareToneEnvelopeState[channel] = {
+                envelope: instrument.toneEnvelope!,
+                loopPosition: (toneLoop !== undefined && toneLoop >= 0 && toneLoop < instrument.toneEnvelope!.length) ? toneLoop : undefined,
                 currentStep: 0,
             };
         }
@@ -256,42 +327,25 @@ export class AYSynthesizer {
         if (!this.audioContext || !this.noiseBuffer || !this.channelMainGains[channel]) return;
         this.stopNoiseSource(channel);
 
-        // Create bandpass filter for noise (similar to SoundEditor)
-        const noiseFilter = this.audioContext.createBiquadFilter();
-        noiseFilter.type = 'bandpass';
-        noiseFilter.Q.value = 1.0;
-
-        // Calculate noise frequency: use note frequency if provided (for tonal noise),
-        // otherwise use global ayNoisePeriod (for pure noise)
-        let frequency: number;
-        if (noteFrequency && noteFrequency > 0) {
-            // Use the note's frequency to create tonal noise that follows the pitch
-            frequency = noteFrequency;
-        } else {
-            // Fall back to instrument noise period or global noise period
-            const currentInstrument = this.channelActiveInstrument[channel];
-            const noisePeriod = currentInstrument?.noiseBaseFrequency ?? this.songDataRef?.ayNoisePeriod ?? 16;
-            frequency = this.getFrequencyFromNoisePeriod(noisePeriod);
-        }
-
-        const maxFilterFreq = this.audioContext.sampleRate / 2;
-        frequency = Math.min(Math.max(20, frequency), maxFilterFreq);
-        if (isFinite(frequency)) {
-            noiseFilter.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-        }
-
-        // Create noise source
+        // Create noise source using AY LFSR buffer
         const noiseSourceNode = this.audioContext.createBufferSource();
         noiseSourceNode.buffer = this.noiseBuffer;
         noiseSourceNode.loop = true;
 
-        // Connect: source -> filter -> channel gain
-        noiseSourceNode.connect(noiseFilter);
-        noiseFilter.connect(this.channelMainGains[channel]!);
+        // Adjust playback rate based on noise period to simulate AY noise frequency control
+        const currentInstrument = this.channelActiveInstrument[channel];
+        const noisePeriod = currentInstrument?.noiseBaseFrequency ?? this.songDataRef?.ayNoisePeriod ?? 16;
+        // The AY noise period divides the noise clock further. Period 1 = fastest, 31 = slowest.
+        // We baked the base noise clock into the buffer, so adjust playback rate by the period.
+        const effectivePeriod = Math.max(1, noisePeriod & 0x1F);
+        noiseSourceNode.playbackRate.setValueAtTime(1.0 / effectivePeriod, this.audioContext.currentTime);
+
+        // Connect directly to channel gain (no bandpass filter - preserves AY digital noise character)
+        noiseSourceNode.connect(this.channelMainGains[channel]!);
 
         try { noiseSourceNode.start(); } catch (e) { console.error("Error starting noise source:", e); }
         this.noiseSources[channel] = noiseSourceNode;
-        this.noiseFilters[channel] = noiseFilter;
+        this.noiseFilters[channel] = null; // No filter used
     }
 
     /**
@@ -328,8 +382,10 @@ export class AYSynthesizer {
             this.channelActiveInstrument[channel] = null;
             this.channelHardwareEnvelopeState[channel] = null;
             this.channelSoftwareVolumeEnvelopeState[channel] = null;
+            this.channelSoftwareToneEnvelopeState[channel] = null;
             this.channelOrnamentState[channel] = null;
             this.channelBaseVolumeForEffects[channel] = 0;
+            this.envelopeTickCounters[channel] = 0;
             if (this.channelMainGains[channel]) {
                 this.channelMainGains[channel]!.gain.cancelScheduledValues(this.audioContext.currentTime);
                 this.channelMainGains[channel]!.gain.setValueAtTime(0, this.audioContext.currentTime);
@@ -359,7 +415,9 @@ export class AYSynthesizer {
             // Envelopes and ornament state reset for new note, will be re-initialized if applicable
             this.channelHardwareEnvelopeState[channel] = null;
             this.channelSoftwareVolumeEnvelopeState[channel] = null;
+            this.channelSoftwareToneEnvelopeState[channel] = null;
             this.channelOrnamentState[channel] = null;
+            this.envelopeTickCounters[channel] = 0;
         }
 
         // 4. Update Base Volume (if specified in cell or new note with active instrument)
@@ -447,6 +505,44 @@ export class AYSynthesizer {
         let periodForFrequencyUpdate = this.channelCurrentPeriod[channel];
         const baseFundamentalPeriod = this.channelBasePeriod[channel];
 
+        // Calculate tick-based envelope advancement rate
+        // This ties envelope speed to the song's speed/BPM rather than a fixed 30ms interval
+        const songSpeed = this.songDataRef?.speed || 6;
+        const bpm = this.songDataRef?.bpm || 125;
+        const msPerTick = (60000 / bpm) / songSpeed;
+        const ticksPerUpdate = this.effectsUpdateIntervalMs / msPerTick;
+        this.envelopeTickCounters[channel] += ticksPerUpdate;
+        const shouldAdvanceEnvelope = this.envelopeTickCounters[channel] >= 1.0;
+        if (shouldAdvanceEnvelope) {
+            this.envelopeTickCounters[channel] -= 1.0;
+        }
+
+        // Process tone envelope (pitch modulation from instrument) — BEFORE ornament
+        if (this.channelSoftwareToneEnvelopeState[channel] && baseFundamentalPeriod !== null && shouldAdvanceEnvelope) {
+            const toneEnvState = this.channelSoftwareToneEnvelopeState[channel]!;
+            if (toneEnvState.currentStep < toneEnvState.envelope.length) {
+                const pitchOffset = toneEnvState.envelope[toneEnvState.currentStep];
+                if (pitchOffset !== 0) {
+                    const baseFreq = this.getFrequencyFromPeriod(baseFundamentalPeriod);
+                    if (baseFreq && baseFreq > 0) {
+                        const modulatedFreq = baseFreq * Math.pow(2, pitchOffset / 12.0);
+                        periodForFrequencyUpdate = Math.max(1, Math.min(4095,
+                            Math.round(AY_CLOCK_FREQUENCY / (16 * modulatedFreq))));
+                    }
+                } else {
+                    periodForFrequencyUpdate = baseFundamentalPeriod;
+                }
+                toneEnvState.currentStep++;
+                if (toneEnvState.currentStep >= toneEnvState.envelope.length) {
+                    if (toneEnvState.loopPosition !== undefined && toneEnvState.loopPosition >= 0 && toneEnvState.loopPosition < toneEnvState.envelope.length) {
+                        toneEnvState.currentStep = toneEnvState.loopPosition;
+                    }
+                    // else: stays finished, no more pitch modulation
+                }
+            }
+        }
+
+        // Process ornament (pitch offset table)
         if (this.channelOrnamentState[channel] && baseFundamentalPeriod !== null) {
             const ornState = this.channelOrnamentState[channel]!;
             ornState.tickCounter++;
@@ -457,12 +553,14 @@ export class AYSynthesizer {
                 const ornamentData = ornState.ornament.data;
                 const pitchOffsetHalfSteps = ornamentData[ornState.currentStep];
 
-                const baseFreq = this.getFrequencyFromPeriod(baseFundamentalPeriod);
+                // Use periodForFrequencyUpdate as base (may already have tone envelope applied)
+                const effectiveBasePeriod = periodForFrequencyUpdate ?? baseFundamentalPeriod;
+                const baseFreq = this.getFrequencyFromPeriod(effectiveBasePeriod);
                 if (baseFreq && baseFreq > 0) {
                     const ornamentedFreq = baseFreq * Math.pow(2, pitchOffsetHalfSteps / 12.0);
                     periodForFrequencyUpdate = Math.max(1, Math.min(4095, Math.round(AY_CLOCK_FREQUENCY / (16 * ornamentedFreq))));
                 } else {
-                    periodForFrequencyUpdate = baseFundamentalPeriod;
+                    periodForFrequencyUpdate = effectiveBasePeriod;
                 }
 
                 ornState.currentStep++;
@@ -477,7 +575,7 @@ export class AYSynthesizer {
             } else {
                 periodForFrequencyUpdate = this.channelCurrentPeriod[channel]; // Use last calculated period if ornament not ticking
             }
-        } else if (baseFundamentalPeriod !== null) {
+        } else if (baseFundamentalPeriod !== null && !this.channelSoftwareToneEnvelopeState[channel]) {
             periodForFrequencyUpdate = baseFundamentalPeriod;
         }
 
@@ -495,22 +593,13 @@ export class AYSynthesizer {
             }
         }
 
-        // Update noise filter frequency to follow the note pitch (for tonal noise)
-        if (this.noiseFilters[channel] && this.channelCurrentPeriod[channel] !== null) {
-            const currentInstrument = this.channelActiveInstrument[channel];
-            const useTone = currentInstrument?.ayToneEnabled === undefined ? true : currentInstrument.ayToneEnabled;
-
-            // Only adjust noise filter to note frequency if tone is also enabled (tonal noise)
-            if (useTone) {
-                const freqToPlay = this.getFrequencyFromPeriod(this.channelCurrentPeriod[channel]);
-                if (freqToPlay && freqToPlay > 0) {
-                    const maxFilterFreq = this.audioContext.sampleRate / 2;
-                    const frequency = Math.min(Math.max(20, freqToPlay), maxFilterFreq);
-                    this.noiseFilters[channel]!.frequency.setTargetAtTime(frequency, this.audioContext.currentTime, 0.001);
-                }
-            }
+        // Update noise playback rate based on noise period (no filter, period controls rate)
+        if (this.noiseSources[channel] && this.channelCurrentPeriod[channel] !== null) {
+            // Noise playback rate is already set based on instrument noise period.
+            // No filter frequency tracking needed with the LFSR approach.
         }
 
+        // --- Volume processing ---
         let finalVolume15: number;
         if (this.channelHardwareEnvelopeState[channel]) {
             const hwEnv = this.channelHardwareEnvelopeState[channel]!;
@@ -549,13 +638,21 @@ export class AYSynthesizer {
         } else if (this.channelSoftwareVolumeEnvelopeState[channel]) {
             const swEnvState = this.channelSoftwareVolumeEnvelopeState[channel]!;
             if (swEnvState.currentStep < swEnvState.envelope.length) {
-                finalVolume15 = swEnvState.envelope[swEnvState.currentStep];
-                swEnvState.currentStep++;
-                if (swEnvState.currentStep >= swEnvState.envelope.length) {
-                    if (swEnvState.loopPosition !== undefined && swEnvState.loopPosition >= 0 && swEnvState.loopPosition < swEnvState.envelope.length) {
-                        swEnvState.currentStep = swEnvState.loopPosition;
+                if (shouldAdvanceEnvelope) {
+                    // Normalize 0-127 range to 0-15 (AY hardware volume range)
+                    const rawEnvValue = swEnvState.envelope[swEnvState.currentStep];
+                    finalVolume15 = Math.round((Math.max(0, rawEnvValue) / 127) * 15);
+                    swEnvState.currentStep++;
+                    if (swEnvState.currentStep >= swEnvState.envelope.length) {
+                        if (swEnvState.loopPosition !== undefined && swEnvState.loopPosition >= 0 && swEnvState.loopPosition < swEnvState.envelope.length) {
+                            swEnvState.currentStep = swEnvState.loopPosition;
+                        }
+                        // If no loop, envelope will finish and volume will go to 0 on next update
                     }
-                    // If no loop, envelope will finish and volume will go to 0 on next update
+                } else {
+                    // Not time to advance yet, use current step's value
+                    const rawEnvValue = swEnvState.envelope[Math.max(0, swEnvState.currentStep - 1)];
+                    finalVolume15 = Math.round((Math.max(0, rawEnvValue) / 127) * 15);
                 }
             } else {
                 // Envelope has finished and there's no loop (or loop is invalid)
@@ -566,7 +663,8 @@ export class AYSynthesizer {
         }
 
         finalVolume15 = Math.max(0, Math.min(15, Math.round(finalVolume15)));
-        const finalGainRatio = finalVolume15 / 15.0;
+        // Use AY-3-8910 logarithmic DAC table for authentic volume curve
+        const finalGainRatio = AY_DAC_TABLE[finalVolume15];
         this.channelMainGains[channel]!.gain.setTargetAtTime(Math.max(0, Math.min(finalGainRatio, 1.0)), this.audioContext.currentTime, 0.005);
     }
 
@@ -593,8 +691,10 @@ export class AYSynthesizer {
             this.channelActiveInstrument[ch] = null;
             this.channelHardwareEnvelopeState[ch] = null;
             this.channelSoftwareVolumeEnvelopeState[ch] = null;
+            this.channelSoftwareToneEnvelopeState[ch] = null;
             this.channelOrnamentState[ch] = null;
             this.channelBaseVolumeForEffects[ch] = 15;
+            this.envelopeTickCounters[ch] = 0;
             if (this.channelMainGains[ch] && this.audioContext) {
                 this.channelMainGains[ch]!.gain.cancelScheduledValues(this.audioContext.currentTime);
                 this.channelMainGains[ch]!.gain.setValueAtTime(0, this.audioContext.currentTime);

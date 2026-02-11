@@ -92,11 +92,11 @@ ${analysis.tiles && analysis.tiles.length > 0 ? files['patterns.asm'] : '; [patt
 
 ${analysis.tiles && analysis.tiles.length > 0 ? files['colors.asm'] : '; [colors.asm skipped - no tiles]\n'}
 
-${analysis.sprites && analysis.sprites.length > 0 ? files['sprites.asm'] : '; [sprites.asm skipped - no sprites]\n'}
+${files['sprites.asm']}
 
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? files['screens.asm'] : '; [screens.asm skipped - no screens]\n'}
 
-${analysis.entities && analysis.entities.length > 0 ? files['components.asm'] : '; [components.asm skipped - no entities]\n'}
+${files['components.asm']}
 
 ${analysis.entities && analysis.entities.length > 0 ? files['entities.asm'] : '; [entities.asm skipped - no entities]\n'}
 
@@ -243,8 +243,11 @@ ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load the first 
 ${needsFont ? `    ; Initialize font system
     call init_font_system
 ` : `    ; No text/menus - skip font initialization
-`}
-    call ENASCR               ; Re-enable screen after VRAM updates
+`}${hasHud ? `    ; Set HUD dirty flag for initial render
+    ld a, 1
+    ld (hud_dirty_flag), a
+    call render_hud
+` : ``}    call ENASCR               ; Re-enable screen after VRAM updates
     ret
 
 update_current_state:
