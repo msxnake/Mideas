@@ -161,61 +161,7 @@ handle_menu_${menuId}:
 `;
         });
 
-        // Generate Text node display functions
-        const textNodes = analysis.gameFlow.nodes.filter(node => node.type === 'Text');
-        textNodes.forEach((textNode: any) => {
-            const textId = textNode.id.replace(/[^a-zA-Z0-9]/g, '_');
-
-            // Get background and border colors (MSX Screen 2 compatible)
-            const bgColor = textNode.appearance?.colors?.background || '#000000';
-            const borderColor = textNode.appearance?.colors?.border || '#FFFFFF';
-
-            // Convert hex colors to MSX color codes (0-15)
-            const bgColorMSX = hexToMSXColor(bgColor);
-            const borderColorMSX = hexToMSXColor(borderColor);
-
-            code += `show_text_${textId}:
-    ; Display ${textNode.title || textNode.id} text
-    ; Set background color using VDP
-    ld b, ${bgColorMSX * 16 + borderColorMSX} ; Background (high) | Border (low)
-    ld c, 7                     ; VDP Register 7
-    call FAST_WRTVDP
-
-    ; Set system color variables
-    ld a, ${borderColorMSX}
-    ld (BDRCLR), a
-
-    ld a, ${bgColorMSX}
-    ld (BAKCLR), a
-
-    ld a, 15                    ; Default text color (White)
-    ld (FORCLR), a
-
-    ; Clear screen with background color
-    call cls
-
-    ; Display text title
-    ld hl, text_${textId}_title
-    ld de, NAMETBL + (3 * 32) + 10
-    call print_string_screen2
-
-    ; Display text message
-    ld hl, text_${textId}_message
-    ld de, NAMETBL + (6 * 32) + 5
-    call print_string_screen2
-
-    ; Wait for user input
-    call wait_for_fire
-    ret
-
-text_${textId}_title:
-    db "${(textNode.title || 'Text').replace(/"/g, '\\"')}", 0
-
-text_${textId}_message:
-    db "${(textNode.message || '').replace(/"/g, '\\"')}", 0
-
-`;
-        });
+        // Text node display is now handled by gameFlowGenerator (show_text_screen)
     } else {
         code += `; ==================================================================
 ; DEFAULT MENU SYSTEM

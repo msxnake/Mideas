@@ -35,6 +35,7 @@ update_all_entities:
         ['Input', 'update_input_component', '1. Input (player control)'],
         ['Shoot', 'update_shoot_component', '2. Shooting'],
         ['Behavior', 'update_behavior_component', '3. Behavior/AI'],
+        ['Patrol', 'update_entities', '3b. Patrol/per-entity update'],
         ['Jump', 'update_jump_component', '4. Jump impulse'],
         ['Movement', 'update_movement_component', '5. Movement'],
         ['Cursors', 'update_cursors_component', '5b. Cursors movement'], // comp_cursors

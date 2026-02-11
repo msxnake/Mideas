@@ -307,6 +307,180 @@ update_entities:
 `;
       }
 
+      // === Patrol component detection and initialization ===
+      let patrolInitAsm = '';
+      let hasPatrol = false;
+      let patrolWp1x = 0, patrolWp1y = 0, patrolWp2x = 0, patrolWp2y = 0;
+      let patrolVx = 0, patrolVy = 0;
+
+      const patrolTemplateComp = template?.components?.find((c: any) =>
+        c.definitionId === 'comp_patrol'
+      );
+      if (patrolTemplateComp) {
+        hasPatrol = true;
+        const patrolDefaults = patrolTemplateComp.defaultValues || {};
+        const patrolOverrides = entity.componentOverrides?.['comp_patrol'] || {};
+        const patrolValues = { ...patrolDefaults, ...patrolOverrides };
+
+        patrolWp1x = Math.max(0, Math.min(255, Number(patrolValues.waypoint1_x) || 0));
+        patrolWp1y = Math.max(0, Math.min(191, Number(patrolValues.waypoint1_y) || 0));
+        patrolWp2x = Math.max(0, Math.min(255, Number(patrolValues.waypoint2_x ?? patrolWp1x)));
+        patrolWp2y = Math.max(0, Math.min(191, Number(patrolValues.waypoint2_y ?? patrolWp1y)));
+
+        // Calculate velocity direction (same as JS preview: normalize direction * speed)
+        const dx = patrolWp2x - patrolWp1x;
+        const dy = patrolWp2y - patrolWp1y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const speed = Number(patrolValues.speed) || 1;
+
+        if (dist > 0) {
+          patrolVx = Math.round((dx / dist) * speed);
+          patrolVy = Math.round((dy / dist) * speed);
+          // Ensure at least ±1 for non-zero axes
+          if (dx !== 0 && patrolVx === 0) patrolVx = dx > 0 ? 1 : -1;
+          if (dy !== 0 && patrolVy === 0) patrolVy = dy > 0 ? 1 : -1;
+        }
+
+        const velXByte = patrolVx >= 0 ? patrolVx : (256 + patrolVx);
+        const velYByte = patrolVy >= 0 ? patrolVy : (256 + patrolVy);
+
+        patrolInitAsm = `
+    ; === Patrol Component Init ===
+    ; Waypoints: (${patrolWp1x}, ${patrolWp1y}) -> (${patrolWp2x}, ${patrolWp2y})
+    ; Override position with waypoint1
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), ${patrolWp1x}         ; Start X = waypoint1_x
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), ${patrolWp1y}         ; Start Y = waypoint1_y
+
+    ; Set patrol velocity
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), ${velXByte}           ; VelX = ${patrolVx >= 0 ? '+' : ''}${patrolVx}
+
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), ${velYByte}           ; VelY = ${patrolVy >= 0 ? '+' : ''}${patrolVy}
+`;
+      }
+
+      // === Generate entity update function (patrol bounce or standard input check) ===
+      let updateEntityAsm = '';
+      if (hasPatrol) {
+        const minX = Math.min(patrolWp1x, patrolWp2x);
+        const maxX = Math.max(patrolWp1x, patrolWp2x);
+        const minY = Math.min(patrolWp1y, patrolWp2y);
+        const maxY = Math.max(patrolWp1y, patrolWp2y);
+        const hasXPatrol = patrolWp1x !== patrolWp2x;
+        const hasYPatrol = patrolWp1y !== patrolWp2y;
+        const xSkipLabel = hasYPatrol ? `.patrol_check_y_${index}` : `.patrol_end_${index}`;
+
+        updateEntityAsm = `update_${entityName.toLowerCase()}:\n`;
+        updateEntityAsm += `    ; Update ${entity.name} - Patrol bounce\n`;
+        updateEntityAsm += `    ; Waypoints: (${patrolWp1x}, ${patrolWp1y}) -> (${patrolWp2x}, ${patrolWp2y})\n`;
+        updateEntityAsm += `    ld e, ${index}             ; Entity index\n`;
+        updateEntityAsm += `    ld d, 0\n`;
+
+        if (hasXPatrol) {
+          updateEntityAsm += `\n    ; --- X axis bounce ---\n`;
+          updateEntityAsm += `    ld hl, entity_vel_x\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    or a\n`;
+          updateEntityAsm += `    jp z, ${xSkipLabel}\n`;
+          updateEntityAsm += `    bit 7, a\n`;
+          updateEntityAsm += `    jp nz, .patrol_chk_min_x_${index}\n`;
+          updateEntityAsm += `\n    ; Moving right: x >= ${maxX}?\n`;
+          updateEntityAsm += `    ld hl, entity_x_pos\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    cp ${maxX}\n`;
+          updateEntityAsm += `    jp c, ${xSkipLabel}\n`;
+          updateEntityAsm += `    ; Bounce: negate vel_x\n`;
+          updateEntityAsm += `    ld hl, entity_vel_x\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    neg\n`;
+          updateEntityAsm += `    ld (hl), a\n`;
+          updateEntityAsm += `    jp ${xSkipLabel}\n`;
+          updateEntityAsm += `\n.patrol_chk_min_x_${index}:\n`;
+          updateEntityAsm += `    ; Moving left: x <= ${minX}?\n`;
+          updateEntityAsm += `    ld hl, entity_x_pos\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    cp ${minX + 1}\n`;
+          updateEntityAsm += `    jp nc, ${xSkipLabel}\n`;
+          updateEntityAsm += `    ; Bounce: negate vel_x\n`;
+          updateEntityAsm += `    ld hl, entity_vel_x\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    neg\n`;
+          updateEntityAsm += `    ld (hl), a\n`;
+        }
+
+        if (hasYPatrol) {
+          if (hasXPatrol) {
+            updateEntityAsm += `\n.patrol_check_y_${index}:\n`;
+          }
+          updateEntityAsm += `\n    ; --- Y axis bounce ---\n`;
+          updateEntityAsm += `    ld hl, entity_vel_y\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    or a\n`;
+          updateEntityAsm += `    jp z, .patrol_end_${index}\n`;
+          updateEntityAsm += `    bit 7, a\n`;
+          updateEntityAsm += `    jp nz, .patrol_chk_min_y_${index}\n`;
+          updateEntityAsm += `\n    ; Moving down: y >= ${maxY}?\n`;
+          updateEntityAsm += `    ld hl, entity_y_pos\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    cp ${maxY}\n`;
+          updateEntityAsm += `    jp c, .patrol_end_${index}\n`;
+          updateEntityAsm += `    ; Bounce: negate vel_y\n`;
+          updateEntityAsm += `    ld hl, entity_vel_y\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    neg\n`;
+          updateEntityAsm += `    ld (hl), a\n`;
+          updateEntityAsm += `    jp .patrol_end_${index}\n`;
+          updateEntityAsm += `\n.patrol_chk_min_y_${index}:\n`;
+          updateEntityAsm += `    ; Moving up: y <= ${minY}?\n`;
+          updateEntityAsm += `    ld hl, entity_y_pos\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    cp ${minY + 1}\n`;
+          updateEntityAsm += `    jp nc, .patrol_end_${index}\n`;
+          updateEntityAsm += `    ; Bounce: negate vel_y\n`;
+          updateEntityAsm += `    ld hl, entity_vel_y\n`;
+          updateEntityAsm += `    add hl, de\n`;
+          updateEntityAsm += `    ld a, (hl)\n`;
+          updateEntityAsm += `    neg\n`;
+          updateEntityAsm += `    ld (hl), a\n`;
+        }
+
+        updateEntityAsm += `\n.patrol_end_${index}:\n`;
+        updateEntityAsm += `    ret\n`;
+      } else {
+        updateEntityAsm = `update_${entityName.toLowerCase()}:\n`;
+        updateEntityAsm += `    ; Update ${entity.name} logic with real behavior\n`;
+        updateEntityAsm += `    ; Check if entity has input component (player entities)\n`;
+        updateEntityAsm += `    ld a, ${index}\n`;
+        updateEntityAsm += `    ld hl, entity_comp_masks\n`;
+        updateEntityAsm += `    ld e, a\n`;
+        updateEntityAsm += `    ld d, 0\n`;
+        updateEntityAsm += `    add hl, de\n`;
+        updateEntityAsm += `    ld a, (hl)\n`;
+        updateEntityAsm += `    and COMP_MASK_INPUT\n`;
+        updateEntityAsm += `    ret z                      ; Skip if no input component\n\n`;
+        updateEntityAsm += `    ; This is a player entity - update based on input\n`;
+        updateEntityAsm += `    ; Input velocity is already calculated in UPDATE_INPUT_COMPONENT\n`;
+        updateEntityAsm += `    ; Position update happens in UPDATE_POSITION_COMPONENT\n`;
+        updateEntityAsm += `    ret\n`;
+      }
+
       code += `init_${entityName.toLowerCase()}:
     ; Initialize ${entity.name} at real position from JSON
     ; JSON position: (${realX}, ${realY}) tiles = (${validX}, ${validY}) pixels
@@ -349,6 +523,7 @@ update_entities:
         })()}                 ; Screen ID (calculated from project data)
 
 ${animationInitAsm}
+${patrolInitAsm}
 ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     ld hl, sprite_pattern
     add hl, de
@@ -374,23 +549,7 @@ ${hasSprite ? `    ; Force update sprite attributes immediately
 ` : '    ; No sprite to show for this entity\n'}
     ret
 
-update_${entityName.toLowerCase()}:
-    ; Update ${entity.name} logic with real behavior
-    ; Check if entity has input component (player entities)
-    ld a, ${index}
-    ld hl, entity_comp_masks
-    ld e, a
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    and COMP_MASK_INPUT
-    ret z                      ; Skip if no input component
-
-    ; This is a player entity - update based on input
-    ; Input velocity is already calculated in UPDATE_INPUT_COMPONENT
-    ; Position update happens in UPDATE_POSITION_COMPONENT
-    ret
-
+${updateEntityAsm}
 `;
     });
   } else {

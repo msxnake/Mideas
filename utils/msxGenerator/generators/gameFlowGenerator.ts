@@ -960,18 +960,18 @@ str_option:
 
       case 'Text':
         code += `gameflow_handle_text:
-    ; Text node - show text and wait for input
-    ; DE = text data pointer
+    ; Text node - show text screen and wait for fire
+    ; DE = text data pointer (pre-computed lines table)
     ; BC = connection table
-    
+
     push bc
-    
-    ; Show text (placeholder)
-    call show_text_placeholder
-    
+
+    ; Show text screen (full screen with title, message, prompt)
+    call show_text_screen
+
     ; Wait for fire button
     call wait_for_fire
-    
+
     ; Continue to next node
     pop bc
     call gameflow_get_default_connection
@@ -981,57 +981,104 @@ str_option:
     jp gameflow_execute_node
 
 ; ------------------------------------------------------------------
-; show_text_placeholder
-; Display text message on screen
-; Input: DE = text data pointer (text string, duration)
+; show_text_screen
+; Display full text screen: black bg, title, word-wrapped message, prompt
+; Input: DE = text data pointer
+;   Format: DB bgColor, DB numLines
+;           Per line: DB row, DB col, DW string_ptr
 ; ------------------------------------------------------------------
-show_text_placeholder:
+show_text_screen:
     push bc
     push de
     push hl
 
-    ; Get text string pointer
-    ex de, hl
-    ld e, (hl)
+    ; Save data pointer
+    ex de, hl                     ; HL = data pointer
+
+    ; Read background color
+    ld a, (hl)                    ; A = bgColor (MSX color index)
     inc hl
-    ld d, (hl)                    ; DE = text string pointer
-    inc hl
-    ld a, (hl)                    ; A = display duration (frames, 0=wait for input)
+    push hl                       ; Save pointer to numLines
+
+    ; Disable screen to avoid flicker
+    push af                       ; Save bgColor
+    call DISSCR
+    pop af                        ; A = bgColor
+
+    ; Set background and border colors (A=bg, B=border)
+    ld b, a                       ; B = border color (same as bg)
+    push af                       ; Save bgColor again
+    call set_screen_colors
+    pop af                        ; A = bgColor
+
+    ; Initialize char 0 color to background
+    call init_char0_color
+
+    ; Clear entire screen (24 rows)
+    ld a, 0
+    ld b, 24
+.sts_clear_loop:
     push af
-
-    ; Clear text area (rows 18-20 for text box)
-    ld b, 3
-    ld c, 18
-
-.clear_text_area:
     push bc
-    ld a, c
     call clear_screen_row
     pop bc
-    inc c
-    djnz .clear_text_area
+    pop af
+    inc a
+    djnz .sts_clear_loop
 
-    ; Display text in text box area
-    ex de, hl                     ; HL = text string
-    ld de, #1800 + (19 * 32) + 2  ; Row 19, col 2 (centered)
+    ; Now render each line
+    pop hl                        ; HL = pointer to numLines
+    ld a, (hl)                    ; A = numLines
+    inc hl                        ; HL = first line entry
+    or a
+    jp z, .sts_enable             ; No lines? just enable screen
+
+    ld b, a                       ; B = line counter
+
+.sts_line_loop:
+    push bc
+
+    ; Read row
+    ld a, (hl)                    ; A = row
+    inc hl
+    ; Read col
+    ld c, (hl)                    ; C = col
+    inc hl
+    ; Read string pointer
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = string pointer
+    inc hl
+
+    push hl                       ; Save data pointer
+
+    ; Calculate VRAM address: #1800 + row*32 + col
+    push de                       ; Save string pointer
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; * 2
+    add hl, hl                    ; * 4
+    add hl, hl                    ; * 8
+    add hl, hl                    ; * 16
+    add hl, hl                    ; * 32
+    ld e, c
+    ld d, 0
+    add hl, de                    ; + col
+    ld de, #1800
+    add hl, de                    ; + name table base
+    ex de, hl                     ; DE = VRAM address
+    pop hl                        ; HL = string pointer
+
     call print_string_vram
 
-    pop af                        ; A = duration
-    or a
-    jr z, .wait_input             ; 0 = wait for input
+    pop hl                        ; Restore data pointer
+    pop bc
+    djnz .sts_line_loop
 
-    ; Wait for specified duration
-    ld b, a
-.duration_wait:
-    halt
-    djnz .duration_wait
-    jr .text_done
+.sts_enable:
+    ; Enable screen
+    call ENASCR
 
-.wait_input:
-    ; Wait for fire button
-    call wait_for_fire
-
-.text_done:
     pop hl
     pop de
     pop bc
@@ -1047,6 +1094,7 @@ wait_for_fire:
     ; Wait for fire button press
 .wait_press:
     halt
+    ld a, 0                       ; Trigger 0 = space bar
     call GTTRIG
     or a
     jr z, .wait_press
@@ -1054,6 +1102,7 @@ wait_for_fire:
     ; Wait for fire button release
 .wait_release:
     halt
+    ld a, 0
     call GTTRIG
     or a
     jr nz, .wait_release
@@ -1680,9 +1729,63 @@ ${nodeLabel}:
         code += `    db ${node.options?.length || 0}    ; Number of options\n`;
         break;
 
-      case 'Text':
-        code += `    dw text_${sanitizeId(node.id)}    ; Text content pointer\n`;
+      case 'Text': {
+        const nodeId = sanitizeId(node.id);
+        const title = (node.title || node.name || 'TEXT').replace(/"/g, '').toUpperCase();
+        const message = (node.message || '').replace(/"/g, '');
+        const bgColor = 1; // MSX color 1 = black (default for Text nodes)
+
+        // Word-wrap message to 28 chars per line (leaving 2-char margin each side)
+        const maxLineWidth = 28;
+        const words = message.split(' ');
+        const messageLines: string[] = [];
+        let currentLine = '';
+        for (const word of words) {
+          const upperWord = word.toUpperCase();
+          const testLine = currentLine ? currentLine + ' ' + upperWord : upperWord;
+          if (testLine.length > maxLineWidth && currentLine) {
+            messageLines.push(currentLine);
+            currentLine = upperWord;
+          } else {
+            currentLine = testLine;
+          }
+        }
+        if (currentLine.trim()) messageLines.push(currentLine);
+
+        const promptText = 'PRESS FIRE TO CONTINUE';
+
+        // Build lines array: title + message lines + prompt
+        const allLines: { row: number; text: string; label: string }[] = [];
+
+        // Title at row 3
+        allLines.push({ row: 3, text: title, label: `text_${nodeId}_title` });
+
+        // Message lines starting at row 7
+        messageLines.forEach((line, i) => {
+          allLines.push({ row: 7 + i, text: line, label: `text_${nodeId}_msg${i}` });
+        });
+
+        // Prompt at row 20
+        allLines.push({ row: 20, text: promptText, label: `text_${nodeId}_prompt` });
+
+        // Generate data table: bgColor, numLines, then per line: row, col, DW string_ptr
+        code += `    DB ${bgColor}                  ; Background color (MSX: 1=black)\n`;
+        code += `    DB ${allLines.length}                  ; Number of lines\n`;
+
+        for (const line of allLines) {
+          const col = Math.max(0, Math.floor((32 - line.text.length) / 2));
+          code += `    DB ${line.row}, ${col}              ; Row ${line.row}, Col ${col}\n`;
+          code += `    DW ${line.label}          ; -> "${line.text}"\n`;
+        }
+
+        // Generate string data labels
+        code += `\n`;
+        for (const line of allLines) {
+          code += `${line.label}:\n`;
+          code += `    DB "${line.text}", 0\n`;
+        }
         break;
+      }
 
       case 'IfThenElse':
         const varName = node.variableName || 'unknown';

@@ -39,7 +39,8 @@ const STANDARD_COMPONENT_IDS: Record<string, string> = {
   'comp_statemachine': 'StateMachine',
   'comp_cursors': 'Cursors',
   'comp_carry': 'Carry',
-  'comp_collectible': 'Collectible'
+  'comp_collectible': 'Collectible',
+  'comp_patrol': 'Patrol'
 };
 
 /**
@@ -208,6 +209,11 @@ export function generateEntityComponentMask(entity: any, template: any, analysis
         if (standardName === 'Sprite') {
           hasSpriteComponent = true;
         }
+      }
+
+      // Patrol requires Movement to be active (update_position_component moves the entity)
+      if (standardName === 'Patrol') {
+        mask |= (1 << COMP_BIT_POSITION['Movement']);
       }
     });
   }
