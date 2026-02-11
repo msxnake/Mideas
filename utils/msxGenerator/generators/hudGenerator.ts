@@ -56,8 +56,15 @@ update_hud_lives:
     // Generate HUD data structures
     asm += generateHudDataStructures(allHudElements);
 
+    // Determine HUD row count from activeAreaY
+    let hudRows = 0;
+    analysis.screenMaps?.forEach(screen => {
+        const areaY = screen.activeAreaY ?? 0;
+        if (areaY > hudRows) hudRows = areaY;
+    });
+
     // Generate main render_hud function
-    asm += generateRenderHudFunction(allHudElements);
+    asm += generateRenderHudFunction(allHudElements, hudRows);
 
     // Generate helper functions
     asm += generateHudHelperFunctions(allHudElements);
@@ -143,7 +150,24 @@ function generateHudDataStructures(hudElements: HUDElement[]): string {
 /**
  * Generate main render_hud function
  */
-function generateRenderHudFunction(hudElements: HUDElement[]): string {
+function generateRenderHudFunction(hudElements: HUDElement[], hudRows: number): string {
+    const hudBytes = hudRows * 32; // Each row = 32 tiles in Name Table
+    const clearHudArea = hudRows > 0 ? `
+    ; Clear HUD rows in Name Table (fill with tile 0 = blank)
+    ; This removes leftover tile indices from CHGMOD initialization
+    ld hl, #1800                ; Name Table start
+    ld b, ${hudBytes}           ; ${hudRows} rows x 32 tiles
+    xor a                       ; Fill with tile 0
+.clear_hud_loop:
+    push bc
+    push af
+    call FAST_WRTVRM            ; Write A (0) to VRAM at HL
+    pop af
+    pop bc
+    inc hl
+    djnz .clear_hud_loop
+` : '';
+
     return `; ------------------------------------------------------------------
 ; render_hud
 ; Main HUD rendering function
@@ -160,7 +184,7 @@ render_hud:
     push de
     push hl
     push ix
-
+${clearHudArea}
     ld b, HUD_ELEMENT_COUNT
     ld ix, hud_element_data
 

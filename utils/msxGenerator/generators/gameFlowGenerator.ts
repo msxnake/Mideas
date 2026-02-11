@@ -255,6 +255,11 @@ gameflow_no_data:
   // SECTION 5: GAME LOOP (for WorldLink nodes)
   // ===================================================================
 
+  // Check if project has HUD elements
+  const hasHud = analysis.screenMaps?.some(screen =>
+    screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
+  );
+
   code += `; ==================================================================
 ; GAME LOOP (WorldLink nodes only)
 ; ==================================================================
@@ -269,16 +274,19 @@ gameflow_world_game_loop:
 
     ; Update all entities
     call update_all_entities
-    
+
     ; Execute all state machines
     call execute_all_state_machines
-    
+
     ; Update sprites to VRAM
     call update_sprites_to_vram
-    
+${hasHud ? `
+    ; Render HUD elements
+    call render_hud
+` : ``}
     ; Wait for V-Blank
     halt
-    
+
     ; Loop
     jp gameflow_world_game_loop
 
@@ -552,6 +560,10 @@ empty_row_data:
 function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): string {
   let code = '';
 
+  const hasHud = analysis.screenMaps?.some(screen =>
+    screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
+  );
+
   nodeTypes.forEach((nodeType: string) => {
     switch (nodeType) {
       case 'Start':
@@ -601,9 +613,9 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
     ; WorldLink node - load world and enter game loop
     ; DE = world data pointer (contains load_world_X routine address)
     ; BC = connection table (for exit)
-    
+
     push bc         ; Save connection table
-    
+
     ; Load the world
     ; DE points to: dw load_world_X
     ex de, hl
@@ -611,23 +623,28 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
     inc hl
     ld h, (hl)
     ld l, a         ; HL = load_world_X address
-    
+
     ; Call the load routine
     ld de, .after_load
     push de
     jp (hl)          ; Indirect call, returns to .after_load
-    
+
 .after_load:
     ; Set game state
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
-    
+
     ; Update sprites
     call update_sprites_to_vram
-    
+${hasHud ? `
+    ; Set HUD dirty flag so it renders on first frame after screen load
+    ld a, 1
+    ld (hud_dirty_flag), a
+    call render_hud
+` : ``}
     ; Enter game loop
     call gameflow_world_game_loop
-    
+
     ; Exited loop - continue to next node
     pop bc          ; Restore connection table
     call gameflow_get_default_connection
@@ -1823,6 +1840,10 @@ ${nodeLabel}_init:
  * Generate default GameFlow when none exists
  */
 function generateDefaultGameFlow(analysis: ProjectAnalysis): string {
+  const defaultHasHud = analysis.screenMaps?.some(screen =>
+    screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
+  );
+
   return `; ==================================================================
 ; DEFAULT GAMEFLOW (No GameFlow defined in project)
 ; ==================================================================
@@ -1835,13 +1856,18 @@ gameflow_start:
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ?
       `    call ${getScreenLoadRoutineName(analysis.screenMaps[0])}` :
       `    ; No screens available`}
-    ret
+${defaultHasHud ? `    ; Set HUD dirty flag after screen load
+    ld a, 1
+    ld (hud_dirty_flag), a
+    call render_hud
+` : ``}    ret
 
 gameflow_world_game_loop:
     call update_all_entities
     call execute_all_state_machines
     call update_sprites_to_vram
-    halt                            ; Wait for V-Blank
+${defaultHasHud ? `    call render_hud
+` : ``}    halt                            ; Wait for V-Blank
     jp gameflow_world_game_loop
 
 gameflow_exit_requested:    db 0

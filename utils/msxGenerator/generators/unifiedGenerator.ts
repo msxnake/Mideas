@@ -243,10 +243,9 @@ ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load the first 
 ${needsFont ? `    ; Initialize font system
     call init_font_system
 ` : `    ; No text/menus - skip font initialization
-`}${hasHud ? `    ; Set HUD dirty flag for initial render
+`}${hasHud ? `    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
     ld a, 1
     ld (hud_dirty_flag), a
-    call render_hud
 ` : ``}    call ENASCR               ; Re-enable screen after VRAM updates
     ret
 
