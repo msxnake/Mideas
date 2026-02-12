@@ -907,11 +907,38 @@ ${yDivisionCode}
     ret
 
     get_behavior_tile:
-    ; Get behavior value for tile at(B, C)
-        ; Returns A = behavior value(0 = passable, 1 = solid, etc.)
-        ; This would read from the behavior map data
-        ; For now, return 0(all passable)
-    ld a, 0
+    ; Get behavior value for tile at (B=row, C=column)
+    ; Returns A = behavior value (0 = passable, non-zero = solid)
+    ; Uses current_behavior_map pointer set by load_screen
+    ; Bounds check: row must be 0-23, column must be 0-31
+    ld a, b
+    cp 24
+    jr nc, .bt_out_of_bounds      ; Row >= 24: treat as passable
+    ld a, c
+    cp 32
+    jr nc, .bt_out_of_bounds      ; Column >= 32: treat as passable
+    push hl
+    push de
+    ; Calculate index = row * 32 + column
+    ld a, b
+    ld l, a
+    ld h, 0                       ; HL = row
+    add hl, hl                    ; HL = row * 2
+    add hl, hl                    ; HL = row * 4
+    add hl, hl                    ; HL = row * 8
+    add hl, hl                    ; HL = row * 16
+    add hl, hl                    ; HL = row * 32
+    ld e, c
+    ld d, 0
+    add hl, de                    ; HL = row * 32 + column
+    ld de, (current_behavior_map) ; DE = pointer to behavior map
+    add hl, de                    ; HL = address of behavior byte
+    ld a, (hl)                    ; A = behavior value
+    pop de
+    pop hl
+    ret
+.bt_out_of_bounds:
+    xor a                         ; A = 0 (passable)
     ret
         `;
 }
@@ -1257,16 +1284,16 @@ gravity_store_vel:
             inc hl
             ld (hl), d
 
-    ; Apply gravity velocity to Y position
+    ; Set entity_vel_y to gravity integer part
+    ; Position component will apply vel_y to Y position
+    ; Wall collision can then detect vertical movement and snap back
             push de                ; Save gravity velocity (D=integer part)
-            ld hl, entity_y_pos
+            ld hl, entity_vel_y
             ld e, c                ; E = entity index
             ld d, 0
-            add hl, de             ; HL = &entity_y_pos[entity]
+            add hl, de             ; HL = &entity_vel_y[entity]
             pop de                 ; Restore gravity velocity
-            ld a, (hl)             ; Current Y
-            add a, d               ; Add velocity high byte (integer part)
-            ld (hl), a             ; Store new Y
+            ld (hl), d             ; vel_y = gravity velocity integer part
 
             jr gravity_done
 
@@ -2265,7 +2292,7 @@ function generateJumpSystem(): string {
             ld (hl), 255
 
             ; If entity has Gravity, set gravity velocity to negative jump impulse
-            ; Jump impulse default: -300 (8.8 fixed) => #FED4
+            ; Jump impulse: -1024 (8.8 fixed) => #FC00 (~4 tiles height with gravity #40)
             pop hl                        ; restore hl pointer to high mask for this entity
             push hl
             ld a, (hl)
@@ -2277,9 +2304,9 @@ function generateJumpSystem(): string {
             ld d, 0
             add hl, de
             add hl, de                    ; word index
-            ld (hl), #D4                  ; low byte
+            ld (hl), #00                  ; low byte
             inc hl
-            ld (hl), #FE                  ; high byte (negative)
+            ld (hl), #FC                  ; high byte (negative)
 
 jump_done_entity:
             pop hl
@@ -2587,6 +2614,8 @@ update_carry_component:
 /**
  * Generate WallCollision Component System
  * For wall sliding and collision prevention
+ * Uses 2-point checks per direction for robust collision
+ * Snaps entity position to wall edge (not just zero velocity)
  */
 function generateWallCollisionSystem(): string {
     return `
@@ -2594,7 +2623,8 @@ function generateWallCollisionSystem(): string {
     ; WALL COLLISION COMPONENT SYSTEM
     ; ==================================================================
     ; Prevents entities from moving through walls
-    ; Checks tiles in movement direction and stops/slides entity
+    ; Checks 2 points per direction for robust collision
+    ; Snaps entity position to wall edge AND zeros velocity
 
 init_wallcollision_system:
     ret
@@ -2602,119 +2632,361 @@ init_wallcollision_system:
 ; ------------------------------------------------------------------
 ; update_wallcollision_component
 ; Check wall collisions and prevent movement through solid tiles
+; Uses behavior map (current_behavior_map) for collision detection
+; Entity position is cached in wall_temp_x/y to avoid register issues
 ; ------------------------------------------------------------------
 update_wallcollision_component:
-    ld c, 0                       ; Entity index
+    xor a
+    ld (wall_entity_idx), a       ; Entity index = 0
 
 .wall_loop:
-    ld a, c
+    ld a, (wall_entity_idx)
     cp MAX_ENTITIES
     ret z
 
     ; Check if entity is active
+    ld e, a
+    ld d, 0
     ld hl, entity_active
-    ld e, c
-    ld d, 0
     add hl, de
     ld a, (hl)
     or a
-    jr z, .wall_next
+    jp z, .wall_next
 
-    ; Get entity velocity X
+    ; Only process entities with movement capability (Input or Movement)
+    ; Static entities (Nucleo etc.) have no velocity sources - skip them
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
+    jp z, .wall_next
+
+    ; Cache entity position
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_x), a          ; Cache X
+
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_y), a          ; Cache Y
+
+    ; Clear on_ground flag - will be re-set by .wall_down_blocked if floor found
+    ; This ensures entity correctly detects walking off platform edges
+    ld hl, entity_on_ground
+    add hl, de                        ; DE still = entity index from above
+    res 0, (hl)
+
+    ; ---- CHECK HORIZONTAL VELOCITY ----
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
     ld hl, entity_vel_x
-    ld e, c
-    ld d, 0
     add hl, de
     ld a, (hl)
     or a
-    jr z, .check_wall_y           ; No X velocity, check Y
+    jp z, .check_wall_y           ; No X velocity, check Y
 
-    ; Check if moving right (positive velocity)
     bit 7, a
-    jr z, .wall_check_right
+    jp z, .wall_check_right
 
 .wall_check_left:
-    ; Moving left - check left tile
-    push bc
-    ld e, c
+    ; Moving left - check left edge at 2 Y points
+    ld a, (wall_temp_x)
+    or a
+    jp z, .check_wall_y           ; X=0, already at left edge
+    sub 1
+    srl a
+    srl a
+    srl a                         ; Column = (X-1) / 8
+    ld c, a
+
+    ; Check point 1: upper portion (Y+2)
+    ld a, (wall_temp_y)
+    add a, 2
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; Row = (Y+2) / 8
+    call get_behavior_tile
+    or a
+    jp nz, .wall_left_blocked
+
+    ; Check point 2: lower portion (Y+13)
+    ld a, (wall_temp_y)
+    add a, 13
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; Row = (Y+13) / 8
+    call get_behavior_tile
+    or a
+    jp z, .check_wall_y           ; Both passable
+
+.wall_left_blocked:
+    ; Snap X to right edge of wall tile: X = (column+1) * 8
+    ld a, c
+    inc a
+    add a, a
+    add a, a
+    add a, a                      ; A = (column+1) * 8
+    ld (wall_temp_x), a          ; Update cache
+    push af
+    ld a, (wall_entity_idx)
+    ld e, a
     ld d, 0
     ld hl, entity_x_pos
     add hl, de
-    ld d, (hl)                    ; D = X position
-    ld a, d
-    sub 8                         ; Check tile to the left
+    pop af
+    ld (hl), a                    ; Snap entity X position
 
-    ld hl, entity_y_pos
-    ld e, c
-    push de
+    ; Zero X velocity
+    ld a, (wall_entity_idx)
+    ld e, a
     ld d, 0
-    add hl, de
-    ld e, (hl)                    ; E = Y position
-    pop de
-
-    ld d, a                       ; D = X - 8
-    call get_tile_at_position     ; A = tile ID
-    call get_tile_behavior        ; A = behavior
-    bit 0, a                      ; TILE_SOLID?
-    jr z, .wall_left_ok
-
-    ; Wall detected - stop horizontal movement
-    pop bc
     ld hl, entity_vel_x
-    ld e, c
-    ld d, 0
     add hl, de
     ld (hl), 0
-    jr .check_wall_y
-
-.wall_left_ok:
-    pop bc
-    jr .check_wall_y
+    jp .check_wall_y
 
 .wall_check_right:
-    ; Moving right - check right tile
-    push bc
-    ld e, c
+    ; Moving right - check right edge at 2 Y points
+    ld a, (wall_temp_x)
+    add a, 16                     ; Right edge (16px wide sprite)
+    jp c, .check_wall_y           ; Overflow (X+16 > 255), skip
+    srl a
+    srl a
+    srl a                         ; Column = (X+16) / 8
+    ld c, a
+
+    ; Check point 1: upper portion (Y+2)
+    ld a, (wall_temp_y)
+    add a, 2
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; Row = (Y+2) / 8
+    call get_behavior_tile
+    or a
+    jp nz, .wall_right_blocked
+
+    ; Check point 2: lower portion (Y+13)
+    ld a, (wall_temp_y)
+    add a, 13
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; Row = (Y+13) / 8
+    call get_behavior_tile
+    or a
+    jp z, .check_wall_y           ; Both passable
+
+.wall_right_blocked:
+    ; Snap X so right edge touches left of wall: X = column*8 - 16
+    ld a, c
+    add a, a
+    add a, a
+    add a, a                      ; A = column * 8
+    sub 16                        ; A = column*8 - 16
+    ld (wall_temp_x), a          ; Update cache
+    push af
+    ld a, (wall_entity_idx)
+    ld e, a
     ld d, 0
     ld hl, entity_x_pos
     add hl, de
-    ld d, (hl)
-    ld a, d
-    add a, 16                     ; Check tile to the right
+    pop af
+    ld (hl), a                    ; Snap entity X position
 
-    ld hl, entity_y_pos
-    ld e, c
-    push de
+    ; Zero X velocity
+    ld a, (wall_entity_idx)
+    ld e, a
     ld d, 0
-    add hl, de
-    ld e, (hl)
-    pop de
-
-    ld d, a                       ; D = X + 16
-    call get_tile_at_position
-    call get_tile_behavior
-    bit 0, a
-    jr z, .wall_right_ok
-
-    pop bc
     ld hl, entity_vel_x
-    ld e, c
-    ld d, 0
     add hl, de
     ld (hl), 0
-    jr .check_wall_y
-
-.wall_right_ok:
-    pop bc
 
 .check_wall_y:
-    ; Check vertical walls (ceiling/floor)
-    ; Similar logic for Y velocity
-    ; Skipped for brevity - would follow same pattern
+    ; ---- CHECK VERTICAL VELOCITY ----
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .check_wall_y_gravity   ; vel_y=0, but check floor for gravity entities
 
+    bit 7, a
+    jp z, .wall_check_down
+
+.wall_check_up:
+    ; Moving up - check top edge at 2 X points
+    ld a, (wall_temp_y)
+    or a
+    jp z, .wall_next              ; Y=0, at top edge
+    sub 1
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; Row = (Y-1) / 8
+
+    ; Check point 1: left portion (X+2)
+    ld a, (wall_temp_x)
+    add a, 2
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; Column = (X+2) / 8
+    call get_behavior_tile
+    or a
+    jp nz, .wall_up_blocked
+
+    ; Check point 2: right portion (X+13)
+    ld a, (wall_temp_x)
+    add a, 13
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; Column = (X+13) / 8
+    call get_behavior_tile
+    or a
+    jp z, .wall_next              ; Both passable
+
+.wall_up_blocked:
+    ; Snap Y below ceiling: Y = (row+1) * 8
+    ld a, b
+    inc a
+    add a, a
+    add a, a
+    add a, a                      ; A = (row+1) * 8
+    ld (wall_temp_y), a          ; Update cache
+    push af
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    pop af
+    ld (hl), a                    ; Snap entity Y position
+
+    ; Zero Y velocity
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+
+    ; Also zero gravity_vel to stop upward momentum (ceiling bonk)
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de                        ; word index
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+    jp .wall_next
+
+.wall_check_down:
+    ; Moving down - check bottom edge at 2 X points
+    ld a, (wall_temp_y)
+    add a, 16                     ; Bottom of entity (16px tall)
+    jp c, .wall_next              ; Overflow, skip
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; Row = (Y+16) / 8
+
+    ; Check point 1: left portion (X+2)
+    ld a, (wall_temp_x)
+    add a, 2
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; Column = (X+2) / 8
+    call get_behavior_tile
+    or a
+    jp nz, .wall_down_blocked
+
+    ; Check point 2: right portion (X+13)
+    ld a, (wall_temp_x)
+    add a, 13
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; Column = (X+13) / 8
+    call get_behavior_tile
+    or a
+    jp z, .wall_next              ; Both passable
+
+.wall_down_blocked:
+    ; Snap Y so bottom touches top of floor: Y = row*8 - 16
+    ld a, b
+    add a, a
+    add a, a
+    add a, a                      ; A = row * 8
+    sub 16                        ; A = row*8 - 16
+    ld (wall_temp_y), a          ; Update cache
+    push af
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    pop af
+    ld (hl), a                    ; Snap entity Y position
+
+    ; Zero Y velocity and gravity velocity (landing)
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de                        ; word index
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+
+    ; Set entity_on_ground flag (floor detected)
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_on_ground
+    add hl, de
+    set 0, (hl)
+    jp .wall_next                     ; Floor collision handled, move to next entity
+
+.check_wall_y_gravity:
+    ; vel_y is 0, but entity might have gravity component
+    ; Check floor anyway to keep entity_on_ground flag correct (prevents jitter)
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02                       ; COMP_MASK_GRAVITY high byte bit 1
+    jp nz, .wall_check_down       ; Has gravity, check floor
+    ; No gravity, skip vertical check
 .wall_next:
-    inc c
-    jr .wall_loop
+    ld a, (wall_entity_idx)
+    inc a
+    ld (wall_entity_idx), a
+    jp .wall_loop
     `;
 }
 
@@ -2833,27 +3105,30 @@ function generateEntityManagement(): string {
     ; ================================================================== 
 
         ; Create entity with components(A = entity ID, B = mask low byte, C = mask high byte) 
-        create_entity: 
-; Set component mask for entity 
-            ld hl, entity_comp_masks 
-            ld e, a; Entity index 
-            ld d, 0 
-            add hl, de; HL points to entity mask 
+        create_entity:
+; Set component mask for entity
+            ld hl, entity_comp_masks
+            ld e, a; Entity index
+            ld d, 0
+            add hl, de; HL points to entity mask
             ld (hl), b; Set component mask low byte
 
             ld hl, entity_comp_masks_hi
             add hl, de
-            ld (hl), c; Set component mask high byte 
- 
-    ; Initialize component data based on mask 
+            ld (hl), c; Set component mask high byte
+
+    ; Mark entity as active
+            ld hl, entity_active
+            add hl, de
+            ld (hl), 1                    ; entity_active[entity] = 1
+
+    ; Initialize component data based on mask
             bit 0, b; Check COMP_MASK_POSITION (low byte)
-            call nz, init_entity_position 
- 
+            call nz, init_entity_position
+
             bit 1, b; Check COMP_MASK_SPRITE (low byte)
-            call nz, init_entity_sprite 
- 
-    ; TODO: Initialize other components based on mask bits 
- 
+            call nz, init_entity_sprite
+
     ret 
 
     ; Initialize position component for entity(A = entity ID)
@@ -3690,38 +3965,19 @@ execute_all_state_machines:
 ; Destroys: BC, HL
 ; ------------------------------------------------------------------
 get_tile_at_position:
-    ; Convert X pixel to tile column (divide by TILE_WIDTH)
+    ; Convert X pixel to tile column (divide by 8 - MSX Screen 2 character cell)
+    ; Screen layout is ALWAYS 32x24 grid of 8x8 cells regardless of project tile size
     ld a, d
-    ${analysis.tiles && analysis.tiles[0]?.width === 8 ? `
-    ; Tile width is 8 pixels - simple shift
     srl a
     srl a
-    srl a` : analysis.tiles && analysis.tiles[0]?.width === 16 ? `
-    ; Tile width is 16 pixels - shift right 4 times
-    srl a
-    srl a
-    srl a
-    srl a` : `
-    ; Tile width is ${analysis.tiles?.[0]?.width || 8} pixels - divide
-    ld c, ${analysis.tiles?.[0]?.width || 8}
-    call div_a_by_c`}
+    srl a                         ; A = X / 8 = tile column
     ld b, a                       ; B = tile column
 
-    ; Convert Y pixel to tile row (divide by TILE_HEIGHT)
+    ; Convert Y pixel to tile row (divide by 8 - MSX Screen 2 character cell)
     ld a, e
-    ${analysis.tiles && analysis.tiles[0]?.height === 8 ? `
-    ; Tile height is 8 pixels - simple shift
     srl a
     srl a
-    srl a` : analysis.tiles && analysis.tiles[0]?.height === 16 ? `
-    ; Tile height is 16 pixels - shift right 4 times
-    srl a
-    srl a
-    srl a
-    srl a` : `
-    ; Tile height is ${analysis.tiles?.[0]?.height || 8} pixels - divide
-    ld c, ${analysis.tiles?.[0]?.height || 8}
-    call div_a_by_c`}
+    srl a                         ; A = Y / 8 = tile row
     ld c, a                       ; C = tile row
 
     ; Check bounds (assume 32x24 tile screen for now)
@@ -3783,18 +4039,19 @@ get_tile_behavior:
 
 ; ------------------------------------------------------------------
 ; Tile Behavior Table
-; Maps tile IDs (0-255) to behavior flags
-; This table is generated based on project tile definitions
+; Maps character IDs (0-255) to behavior flags
+; NOTE: Wall collision uses behavior map directly (get_behavior_tile).
+; This table is used by check_collision_at_point and deadly tile checks.
+; Character 0 = empty (passable). Characters >= 128 = project tiles (solid).
 ; ------------------------------------------------------------------
 tile_behavior_table:
-    ; Index 0-127: Default behaviors (can be customized per project)
+    ; Index 0-127: Default passable (background, empty space)
     db TILE_PASSABLE              ; 0: Empty tile
     ${Array(127).fill(0).map((_, i) => `db TILE_PASSABLE              ; ${i + 1}: Passable`).join('\n    ')}
 
-    ; Index 128-255: Project-specific tiles
-    ; These are assigned based on analysis.tiles order and their properties
-    ; For now, default all to SOLID (will be refined in future)
-    ${Array(128).fill(0).map((_, i) => `db TILE_SOLID                 ; ${128 + i}: Solid tile`).join('\n    ')}
+    ; Index 128-255: Project tile characters (solid by default)
+    ; MSX Screen 2 assigns character IDs >= 128 to project tiles
+    ${Array(128).fill(0).map((_, i) => `db TILE_SOLID                 ; ${128 + i}: Solid`).join('\n    ')}
 
 ; ------------------------------------------------------------------
 ; check_collision_at_point

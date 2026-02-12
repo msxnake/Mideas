@@ -226,11 +226,10 @@ load_screen_default:
           collisionLayer.forEach(row => {
             row.forEach(tile => {
               if (tile.tileId) {
-                // Find the tile asset to get its logical properties
-                const tileAsset = analysis.tiles.find(t => t.id === tile.tileId);
-                const mapId = tileAsset?.logicalProperties?.mapId || 0;
-                behaviorMapData.push(mapId);
+                // Tile exists in collision layer = solid (TILE_SOLID = 1)
+                behaviorMapData.push(1);
               } else {
+                // No tile in collision layer = passable (TILE_PASSABLE = 0)
                 behaviorMapData.push(0);
               }
             });
@@ -435,6 +434,11 @@ load_screen:
     ld de, NAMETBL + ${hudSkipBytes}            ; VRAM destination: start at row ${activeAreaY}
     ld bc, ${gameAreaBytes}                      ; Only ${24 - activeAreaY} rows
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    ; Initialize collision system pointers for this screen
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld (current_screen_layout), hl
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld (current_behavior_map), hl
     ret
 
 `;
@@ -453,6 +457,11 @@ load_screen:
     ld de, NAMETBL
     ld bc, SCREEN_${screenName}_${index}_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    ; Initialize collision system pointers for this screen
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld (current_screen_layout), hl
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld (current_behavior_map), hl
     ret
 
 `;

@@ -360,6 +360,15 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   code += `temp_word_4         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage (64 bytes)\n`;
   currentAddress += 64;
 
+  // Wall collision scratch variables
+  code += `\n; Wall collision temporary variables\n`;
+  code += `wall_temp_x         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached entity X for wall checks\n`;
+  currentAddress++;
+  code += `wall_temp_y         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached entity Y for wall checks\n`;
+  currentAddress++;
+  code += `wall_entity_idx     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current entity index in wall loop\n`;
+  currentAddress++;
+
   // Interrupt system variables (dynamically allocated to avoid RAM overlap)
   code += `
 ; ==================================================================

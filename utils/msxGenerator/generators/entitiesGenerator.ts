@@ -376,8 +376,12 @@ update_entities:
       if (smAssetId && analysis.stateMachines) {
         const sm = analysis.stateMachines.find((s: any) => s.id === smAssetId);
         if (sm && sm.states && sm.states.length > 0) {
-          // Initial state = first state in the array
-          const initialState = sm.states[0];
+          // Use initialStateId if available, otherwise fall back to first state
+          let initialState = sm.states[0];
+          if (sm.initialStateId) {
+            const found = sm.states.find((s: any) => s.id === sm.initialStateId);
+            if (found) initialState = found;
+          }
           const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
           const stateLabel = `SM_${safeName}_${initialState.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
 

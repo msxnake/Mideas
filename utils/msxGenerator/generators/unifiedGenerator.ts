@@ -301,6 +301,7 @@ update_main_menu_state:
 update_game_state:
     ; Main gameplay logic - update all entity components (OPTIMIZED)
 ${analysis.entities && analysis.entities.length > 0 ? `    call update_all_entities        ; All component systems (optimized - only calls used systems)
+    call execute_all_state_machines ; Update state machines (sprite changes, AI transitions)
 
     ; Check for pause input (SELECT key or P)
     ld a, (input_state)
