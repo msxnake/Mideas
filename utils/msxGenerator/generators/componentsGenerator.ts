@@ -44,7 +44,7 @@ update_all_entities:
         ['Collision', 'prepare_platform_detection', '8a. Clear platform refs'],
         ['Collision', 'update_collision_component', '8b. Collision detection'],
         ['Collision', 'update_platform_riding', '8c. Platform riding'],
-        ['WallCollision', 'update_wall_collision_component', '8d. Wall collision'],
+        ['WallCollision', 'update_wallcollision_component', '8d. Wall collision'],
         ['Health', 'update_health_component', '9. Health/Death'],
         ['Damage', 'update_damage_component', '10. Damage'],
         ['Animation', 'update_animation_component', '11. Animation'],
@@ -116,10 +116,10 @@ position_update_loop:
     and COMP_MASK_POSITION     ; Check if has position component
     jr z, position_next_entity ; Skip if no position component
 
-    ; Apply velocity to position (if has movement component)
+    ; Apply velocity to position (if has movement OR input component)
     ld a, d                    ; OPTIMIZED: Reuse saved mask (saves 1 memory read)
-    and COMP_MASK_MOVEMENT
-    jr z, position_next_entity ; Skip velocity if no movement
+    and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
+    jr z, position_next_entity ; Skip velocity if no movement/input source
 
     push bc
     push hl
@@ -176,6 +176,11 @@ init_sprite_system:
     ; Initialize sprite rendering system
     ; Clear all sprite attributes
     call clear_all_sprites
+    ; Copy entity_sprite_asset_index from ROM to RAM (so CHANGE_SPRITE can modify it)
+    ld hl, entity_sprite_asset_index_init
+    ld de, entity_sprite_asset_index
+    ld bc, 32
+    ldir
     ret
 
 update_sprite_component:
@@ -1237,8 +1242,11 @@ gravity_update_loop:
             ld d, a
 
     ; Check terminal velocity(1024 = max fall speed)
+    ; Skip cap if velocity is negative (entity is moving UP / jumping)
             ld a, d
-            cp #04; Check if >= 1024
+            bit 7, a; Check sign bit - negative means going up
+            jr nz, gravity_store_vel; Skip cap for upward velocity
+            cp #04; Check if >= 1024 (unsigned, only for positive/downward)
             jr c, gravity_store_vel; If < 1024, continue
             ld de, #0400; Cap at terminal velocity
 

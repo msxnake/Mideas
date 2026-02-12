@@ -2227,8 +2227,17 @@ Condition_VariableCompare:
 /**
  * Generates the complete ASM file content for the State Machine system
  */
-export function generateStateMachineSystem(stateMachines: StateMachine[], globalVariables?: any[]): string {
+export function generateStateMachineSystem(stateMachines: StateMachine[], globalVariables?: any[], sprites?: any[]): string {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
+
+    // Build sprite name -> asset index map for CHANGE_SPRITE actions
+    const spriteNameToIndex: Record<string, number> = {};
+    if (sprites) {
+        sprites.forEach((sprite: any, index: number) => {
+            if (sprite.name) spriteNameToIndex[sprite.name] = index;
+            if (sprite.id) spriteNameToIndex[sprite.id] = index;
+        });
+    }
 
     // Generate global variables table
     asm += '; ==================================================================\n';
@@ -2257,13 +2266,13 @@ export function generateStateMachineSystem(stateMachines: StateMachine[], global
     const variableIdMap = buildVariableIdMap(globalVariables);
 
     for (const sm of stateMachines) {
-        asm += generateStateMachineData(sm, variableIdMap);
+        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex);
     }
 
     return asm;
 }
 
-function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string, number>): string {
+function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string, number>, spriteNameToIndex?: Record<string, number>): string {
     let asm = `; State Machine: ${sm.name} (${sm.id}) \n`;
     const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
     const isAnyStateId = (value?: string | null) => {
@@ -2293,7 +2302,7 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
         if (state.onEnter && state.onEnter.length > 0) {
             asm += `${onEnterLabel}: \n`;
             for (const action of state.onEnter) {
-                asm += generateActionBytes(action, sm.name, variableIdMap);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex);
             }
             asm += `    DB 0xFF; END\n`;
         }
@@ -2301,7 +2310,7 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
         if (state.onExit && state.onExit.length > 0) {
             asm += `${onExitLabel}: \n`;
             for (const action of state.onExit) {
-                asm += generateActionBytes(action, sm.name, variableIdMap);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex);
             }
             asm += `    DB 0xFF; END\n`;
         }
@@ -2331,7 +2340,7 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
                 if (actionLabel !== '0') {
                     asm += `${actionLabel}: \n`;
                     for (const action of t.actions || []) {
-                        asm += generateActionBytes(action, sm.name, variableIdMap);
+                        asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex);
                     }
                     asm += `    DB 0xFF; END\n`;
                 }
@@ -2362,7 +2371,7 @@ function serializeValue(value: any): string {
     return '0';
 }
 
-function generateActionBytes(action: Action, smName: string = '', variableIdMap?: Record<string, number>): string {
+function generateActionBytes(action: Action, smName: string = '', variableIdMap?: Record<string, number>, spriteNameToIndex?: Record<string, number>): string {
     const id = ACTION_IDS[action.type];
     if (!id) return `; Unknown Action: ${action.type} \n`;
 
@@ -2376,9 +2385,18 @@ function generateActionBytes(action: Action, smName: string = '', variableIdMap?
             bytes += `    DB ${serializeValue(action.params.x)}, ${serializeValue(action.params.y)} \n`;
             break;
 
-        case ActionTypes.CHANGE_SPRITE:
-            bytes += `    DB ${serializeValue(action.params.spriteId)} \n`;
+        case ActionTypes.CHANGE_SPRITE: {
+            // JSON uses "sprite" (name/id), convert to asset index
+            const spriteName = action.params.sprite || action.params.spriteId || '';
+            let spriteIndex = 0;
+            if (spriteNameToIndex && typeof spriteName === 'string' && spriteName in spriteNameToIndex) {
+                spriteIndex = spriteNameToIndex[spriteName];
+            } else {
+                spriteIndex = serializeValue(spriteName) === '0' ? 0 : parseInt(serializeValue(spriteName), 10) || 0;
+            }
+            bytes += `    DB ${spriteIndex}; sprite: ${spriteName} \n`;
             break;
+        }
 
         case ActionTypes.PLAY_ANIMATION:
             bytes += `    DB ${serializeValue(action.params.animationName)} \n`;

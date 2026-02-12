@@ -461,9 +461,10 @@ entity_sprite_config:
   } 
 
   code += `
-; Table: Entity -> Sprite Asset Index
+; Table: Entity -> Sprite Asset Index (ROM initial values)
+; Copied to RAM entity_sprite_asset_index at init
 ; Format: db sprite_asset_index (#FF = none)
-entity_sprite_asset_index:
+entity_sprite_asset_index_init:
 `;
   entityAllocations.forEach(alloc => {
     const idx = alloc.spriteAssetIndex >= 0 ? alloc.spriteAssetIndex : 0xFF;

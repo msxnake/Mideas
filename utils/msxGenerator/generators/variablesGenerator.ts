@@ -219,6 +219,10 @@ MAX_ENTITIES        EQU 32
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
 `;
+  // entity_sprite_asset_index must be in RAM (writable) for CHANGE_SPRITE action
+  code += `entity_sprite_asset_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite asset index - RAM copy (32 bytes)\n`;
+  currentAddress += 32;
+
   code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
   currentAddress++;
 

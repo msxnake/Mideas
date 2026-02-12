@@ -175,7 +175,7 @@ export function generateModularASM(
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
     'particles.asm': generateParticlesFile(analysis),
-    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables) : '; No State Machines\n',
+    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites) : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(projectName, analysis),
     'unitedFiles.asm': ''
@@ -252,7 +252,7 @@ export function generateModularASMFromSummary(
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
     'particles.asm': generateParticlesFile(analysis),
-    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables) : '; No State Machines\n',
+    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites) : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis),
     'unitedFiles.asm': ''

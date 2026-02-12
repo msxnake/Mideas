@@ -367,6 +367,31 @@ update_entities:
 `;
       }
 
+      // === State Machine initialization (if entity has comp_statemachine) ===
+      let smInitAsm = '';
+      const smOverride = entity.componentOverrides?.['comp_statemachine'];
+      const smTemplateComp = template?.components?.find((c: any) => c.definitionId === 'comp_statemachine');
+      const smAssetId = smOverride?.stateMachineAssetId || smTemplateComp?.defaultValues?.stateMachineAssetId;
+
+      if (smAssetId && analysis.stateMachines) {
+        const sm = analysis.stateMachines.find((s: any) => s.id === smAssetId);
+        if (sm && sm.states && sm.states.length > 0) {
+          // Initial state = first state in the array
+          const initialState = sm.states[0];
+          const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
+          const stateLabel = `SM_${safeName}_${initialState.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+          smInitAsm = `
+    ; Initialize State Machine pointer to initial state (${sm.name})
+    ld hl, ${stateLabel}          ; HL = initial state address
+    ld a, l
+    ld (entity_sm_ptr_l + ${index}), a   ; SM ptr low byte
+    ld a, h
+    ld (entity_sm_ptr_h + ${index}), a   ; SM ptr high byte
+`;
+        }
+      }
+
       // === Generate entity update function (patrol bounce or standard input check) ===
       let updateEntityAsm = '';
       if (hasPatrol) {
@@ -547,6 +572,7 @@ ${hasSprite ? `    ; Force update sprite attributes immediately
 
 
 ` : '    ; No sprite to show for this entity\n'}
+${smInitAsm}
     ret
 
 ${updateEntityAsm}
