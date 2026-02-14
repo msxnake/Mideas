@@ -151,22 +151,9 @@ function generateHudDataStructures(hudElements: HUDElement[]): string {
  * Generate main render_hud function
  */
 function generateRenderHudFunction(hudElements: HUDElement[], hudRows: number): string {
-    const hudBytes = hudRows * 32; // Each row = 32 tiles in Name Table
-    const clearHudArea = hudRows > 0 ? `
-    ; Clear HUD rows in Name Table (fill with tile 0 = blank)
-    ; This removes leftover tile indices from CHGMOD initialization
-    ld hl, #1800                ; Name Table start
-    ld b, ${hudBytes}           ; ${hudRows} rows x 32 tiles
-    xor a                       ; Fill with tile 0
-.clear_hud_loop:
-    push bc
-    push af
-    call FAST_WRTVRM            ; Write A (0) to VRAM at HL
-    pop af
-    pop bc
-    inc hl
-    djnz .clear_hud_loop
-` : '';
+    // Don't clear the entire HUD area to preserve decorative tiles/frame from screenmap
+    // Only the text elements will be overwritten with their content
+    const clearHudArea = '';
 
     return `; ------------------------------------------------------------------
 ; render_hud
