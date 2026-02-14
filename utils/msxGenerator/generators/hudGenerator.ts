@@ -63,6 +63,9 @@ update_hud_lives:
         if (areaY > hudRows) hudRows = areaY;
     });
 
+    // Generate imprimir_marco function (prints frame once at screen load)
+    asm += generateImprimirMarcoFunction(allHudElements);
+
     // Generate main render_hud function
     asm += generateRenderHudFunction(allHudElements, hudRows);
 
@@ -148,11 +151,95 @@ function generateHudDataStructures(hudElements: HUDElement[]): string {
 }
 
 /**
+ * Generate imprimir_marco function (prints HUD frame once at screen load)
+ * This function should be called ONCE when loading a screen, not every frame
+ */
+function generateImprimirMarcoFunction(hudElements: HUDElement[]): string {
+    let asm = `; ------------------------------------------------------------------
+; imprimir_marco
+; Draw HUD frame borders (called once per screen load)
+; ------------------------------------------------------------------
+imprimir_marco:
+    push af
+    push bc
+    push de
+    push hl
+    push ix
+
+    ld b, HUD_ELEMENT_COUNT
+    ld ix, hud_element_data
+
+.marco_loop:
+    push bc                     ; Save counter
+
+    ; Check visible flag first (offset 8)
+    ld a, (ix+8)                ; A = Visible
+    or a
+    jr z, .skip_marco           ; Skip if not visible
+
+    ; Read element fields
+    ld d, (ix+1)                ; D = X position (pixels)
+    ld e, (ix+2)                ; E = Y position (pixels)
+    ld b, (ix+3)                ; B = Width (tiles)
+    ld c, (ix+4)                ; C = Height (tiles)
+    ld a, (ix+5)                ; A = Flags
+
+    ; Check if border flag is set (bit 0)
+    bit 0, a
+    jr z, .skip_marco           ; Skip if no border
+
+    ; Convert X,Y pixels to Tile coordinates
+    ; TileX = X/8, TileY = Y/8
+    ld a, d
+    srl a
+    srl a
+    srl a
+    ld d, a                     ; D = Tile X
+
+    ld a, e
+    srl a
+    srl a
+    srl a
+    ld e, a                     ; E = Tile Y
+
+    ; Adjust for padding: Frame is 1 tile larger on all sides
+    dec d                       ; Frame X = Content X - 1
+    dec e                       ; Frame Y = Content Y - 1
+
+    ; Frame Width = Content Width + 2
+    inc b
+    inc b                       ; Width += 2
+
+    inc c
+    inc c                       ; Height += 2
+
+    call hud_draw_frame
+
+.skip_marco:
+    ; Move to next element
+    ld bc, 9                    ; Size of each element entry
+    add ix, bc                  ; IX points to next element
+
+    pop bc                      ; Restore counter
+    djnz .marco_loop
+
+    pop ix
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
+
+`;
+    return asm;
+}
+
+/**
  * Generate main render_hud function
  */
 function generateRenderHudFunction(hudElements: HUDElement[], hudRows: number): string {
-    // Don't clear the entire HUD area to preserve decorative tiles/frame from screenmap
-    // Only the text elements will be overwritten with their content
+    // NOTE: imprimir_marco should be called once per screen load to draw frames
+    // render_hud only updates text, NOT the frame
     const clearHudArea = '';
 
     return `; ------------------------------------------------------------------

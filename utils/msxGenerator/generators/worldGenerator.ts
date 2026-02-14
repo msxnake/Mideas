@@ -140,6 +140,9 @@ load_world_${toRoutineLabel(worldId)}:
     code += `    ; Load start screen: ${screenAsset?.name || 'unknown'} (${startScreenAssetId})
     call load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}
 
+    ; Draw HUD frame (if HUD exists)
+    call imprimir_marco
+
     ; Initialize world state
     ld a, WORLD_${toConstantName(world.name || 'unnamed')}_ID
     ld (current_world_id), a
@@ -201,6 +204,9 @@ load_world_${toRoutineLabel(worldId)}:
       code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
 transition_${toRoutineLabel(worldId)}_${connIndex}:
     call load_screen_${toScreenName.toLowerCase()}${toScreenIdSuffix.toLowerCase()}
+
+    ; Draw HUD frame (if HUD exists)
+    call imprimir_marco
     ret
 
 `;
