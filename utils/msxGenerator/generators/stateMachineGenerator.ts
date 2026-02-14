@@ -90,11 +90,16 @@ const OPERATOR_IDS: Record<string, number> = {
 // Key IDs for KEY_PRESSED condition
 // Maps key names to their corresponding input state values
 const KEY_IDS: Record<string, number> = {
-    'up': 1,      // Up direction
-    'down': 5,    // Down direction
-    'left': 7,    // Left direction
-    'right': 3,   // Right direction
-    'fire': 9,    // Fire button (special check)
+    'up': 1,          // Up direction
+    'arrowup': 1,     // DOM key name alias
+    'down': 5,        // Down direction
+    'arrowdown': 5,   // DOM key name alias
+    'left': 7,        // Left direction
+    'arrowleft': 7,   // DOM key name alias
+    'right': 3,       // Right direction
+    'arrowright': 3,  // DOM key name alias
+    'fire': 9,        // Fire button (special check)
+    'space': 9,       // Space as fire alias
 };
 
 /**
@@ -1851,18 +1856,89 @@ Condition_Nop:
     ret
 
 Condition_And:
-    ; TODO: Implement AND logic
-    ld a, 1
+    ; AND compound condition
+    ; Data format: DB subcondition_count, then N subconditions inline
+    ; Evaluates all subconditions; returns true only if ALL are true
+    ; Input: B = Entity Index, HL = Params (points to count byte)
+    ; Output: A = 1 (all true) or 0 (any false), HL = past all subcondition data
+    ld c, (hl)              ; C = subcondition count
+    inc hl
+    ld d, 1                 ; D = result accumulator (1 = all true so far)
+
+.and_loop:
+    ld a, c
+    or a
+    jr z, .and_done         ; No more subconditions
+
+    push bc                 ; Save count (C) and entity index (implicitly)
+    push de                 ; Save result accumulator (D)
+
+    ld a, b                 ; A = Entity Index
+    call SM_EvaluateCondition ; A = subcondition result, HL advanced
+
+    pop de                  ; Restore result accumulator
+    and d                   ; Combine: D = D AND result
+    ld d, a
+
+    pop bc                  ; Restore count and entity index
+    dec c
+    jr .and_loop
+
+.and_done:
+    ld a, d                 ; A = AND result
     ret
 
 Condition_Or:
-    ; TODO: Implement OR logic
-    ld a, 1
+    ; OR compound condition
+    ; Data format: DB subcondition_count, then N subconditions inline
+    ; Evaluates all subconditions; returns true if ANY is true
+    ; Input: B = Entity Index, HL = Params (points to count byte)
+    ; Output: A = 1 (any true) or 0 (all false), HL = past all subcondition data
+    ld c, (hl)              ; C = subcondition count
+    inc hl
+    ld d, 0                 ; D = result accumulator (0 = all false so far)
+
+.or_loop:
+    ld a, c
+    or a
+    jr z, .or_done          ; No more subconditions
+
+    push bc                 ; Save count (C) and entity index
+    push de                 ; Save result accumulator (D)
+
+    ld a, b                 ; A = Entity Index
+    call SM_EvaluateCondition ; A = subcondition result, HL advanced
+
+    pop de                  ; Restore result accumulator
+    or d                    ; Combine: D = D OR result
+    ld d, a
+
+    pop bc                  ; Restore count and entity index
+    dec c
+    jr .or_loop
+
+.or_done:
+    ld a, d                 ; A = OR result
     ret
 
 Condition_Not:
-    ; TODO: Implement NOT logic
-    ld a, 1
+    ; NOT compound condition
+    ; Data format: DB 1 (always 1 subcondition), then 1 subcondition inline
+    ; Evaluates the single subcondition and inverts the result
+    ; Input: B = Entity Index, HL = Params (points to count byte)
+    ; Output: A = inverted result, HL = past subcondition data
+    inc hl                  ; Skip count byte (always 1)
+
+    ld a, b                 ; A = Entity Index
+    call SM_EvaluateCondition ; A = subcondition result, HL advanced
+
+    ; Invert: 0 -> 1, non-zero -> 0
+    or a
+    jr z, .not_was_false
+    xor a                   ; Was true -> return false
+    ret
+.not_was_false:
+    ld a, 1                 ; Was false -> return true
     ret
 
 Condition_KeyPressed:
@@ -1946,9 +2022,92 @@ Condition_KeyPressed:
     ret
 
 Condition_KeyReleased:
-    ; TODO: Implement key release check
-    inc hl                  ; Skip key param
+    ; Edge-based key release detection
+    ; Returns true ONLY if the direction WAS active last frame but is NOT active this frame
+    ; Uses helper subroutine to check if a direction is active in a given input byte
+    ; Input: B = Entity Index, HL = Params Ptr
+    ; Params: Key ID (1 byte) - 1=Up, 5=Down, 7=Left, 3=Right, 9=Fire
+    ; Output: A = 1 (just released) or 0 (not released), HL = Updated Ptr
+
+    ld a, (hl)              ; A = Key ID
+    inc hl                  ; Advance past param
+    ld d, a                 ; D = desired key ID
+
+    ; Step 1: Check if key is currently active in input_state
+    ld a, (input_state)
+    call .ckr_match_dir     ; A = 1 if direction D is active in A
+    or a
+    jp nz, .ckr_not_released ; Key still pressed -> not released
+
+    ; Step 2: Key is NOT pressed now. Check if it WAS pressed last frame
+    ld a, (prev_input_state)
+    call .ckr_match_dir     ; A = 1 if direction D was active last frame
+    or a
+    jp z, .ckr_not_released ; Wasn't pressed last frame either -> not a release event
+
+    ; Was pressed last frame, not pressed now -> RELEASED
     ld a, 1
+    ret
+
+.ckr_not_released:
+    xor a
+    ret
+
+    ; Helper: Check if direction D is active in input value A
+    ; Input: A = input value, D = desired direction (1=Up,3=Right,5=Down,7=Left)
+    ; Output: A = 1 if match, 0 if no match
+    ; Destroys: E
+.ckr_match_dir:
+    ld e, a                 ; E = input value
+    cp d                    ; Exact match?
+    jr z, .ckr_match_yes
+
+    ; Check diagonals based on desired direction
+    ld a, d
+    cp 1                    ; UP?
+    jr nz, .ckr_md_not_up
+    ld a, e
+    cp 2                    ; UP+RIGHT?
+    jr z, .ckr_match_yes
+    cp 8                    ; UP+LEFT?
+    jr z, .ckr_match_yes
+    jr .ckr_match_no
+
+.ckr_md_not_up:
+    cp 5                    ; DOWN?
+    jr nz, .ckr_md_not_down
+    ld a, e
+    cp 4                    ; DOWN+RIGHT?
+    jr z, .ckr_match_yes
+    cp 6                    ; DOWN+LEFT?
+    jr z, .ckr_match_yes
+    jr .ckr_match_no
+
+.ckr_md_not_down:
+    cp 7                    ; LEFT?
+    jr nz, .ckr_md_not_left
+    ld a, e
+    cp 6                    ; DOWN+LEFT?
+    jr z, .ckr_match_yes
+    cp 8                    ; UP+LEFT?
+    jr z, .ckr_match_yes
+    jr .ckr_match_no
+
+.ckr_md_not_left:
+    cp 3                    ; RIGHT?
+    jr nz, .ckr_match_no
+    ld a, e
+    cp 2                    ; UP+RIGHT?
+    jr z, .ckr_match_yes
+    cp 4                    ; DOWN+RIGHT?
+    jr z, .ckr_match_yes
+
+.ckr_match_no:
+    xor a                   ; A = 0
+    ret
+
+.ckr_match_yes:
+    ld a, 1                 ; A = 1
     ret
 
 Condition_TimeOut:
@@ -2466,9 +2625,9 @@ function generateActionBytes(action: Action, smName: string = '', variableIdMap?
             const src2Id = variableIdMap?.[src2Name] ?? 0;
 
             const opName = action.type === ActionTypes.ADD_VARIABLES ? 'ADD' :
-                           action.type === ActionTypes.SUBTRACT_VARIABLES ? 'SUB' :
-                           action.type === ActionTypes.MULTIPLY_VARIABLES ? 'MUL' :
-                           action.type === ActionTypes.DIVIDE_VARIABLES ? 'DIV' : 'MOD';
+                action.type === ActionTypes.SUBTRACT_VARIABLES ? 'SUB' :
+                    action.type === ActionTypes.MULTIPLY_VARIABLES ? 'MUL' :
+                        action.type === ActionTypes.DIVIDE_VARIABLES ? 'DIV' : 'MOD';
 
             bytes += `    DB ${destId}, ${src1Id}, ${src2Id}        ; ${destName} = ${src1Name} ${opName} ${src2Name}\n`;
             break;
