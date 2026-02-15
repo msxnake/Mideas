@@ -115,28 +115,19 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
     switch (condition.type) {
       case ConditionTypes.KEY_PRESSED:
       case ConditionTypes.KEY_RELEASED:
-        const rawKey = String(condition.params?.key || '').toLowerCase();
-        const canonicalKey = (() => {
-          if (rawKey === 'arrowup') return 'up';
-          if (rawKey === 'arrowdown') return 'down';
-          if (rawKey === 'arrowleft') return 'left';
-          if (rawKey === 'arrowright') return 'right';
-          if (rawKey === 'fire') return 'space';
-          if (rawKey === 'up' || rawKey === 'down' || rawKey === 'left' || rawKey === 'right' || rawKey === 'space') return rawKey;
-          return 'right';
-        })();
         return (
-          <select
-            value={canonicalKey}
-            onChange={(e) => handleParamChange('key', e.target.value)}
-            className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-          >
-            <option value="up">Up</option>
-            <option value="down">Down</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-            <option value="space">Space (Fire)</option>
-          </select>
+          <div className="space-y-1">
+            <input
+              type="text"
+              placeholder="Key (e.g. ArrowRight, right, space, fire)"
+              value={condition.params?.key || ''}
+              onChange={(e) => handleParamChange('key', e.target.value)}
+              className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+            />
+            <div className="text-xs text-msx-textsecondary">
+              You can type aliases manually: `ArrowUp`, `ArrowDown`, `ArrowLeft`, `ArrowRight`, `space`, `fire`.
+            </div>
+          </div>
         );
       case ConditionTypes.TIME_OUT:
         return (
