@@ -116,10 +116,10 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
     // Choose color based on multi-screen status
     if (isMultiScreen || isAutoMultiScreen) {
       ctx.strokeStyle = '#00FF00'; // Green for multi-screen
-      ctx.lineWidth = 3 * gridZoom;
+      ctx.lineWidth = 1;
     } else {
       ctx.strokeStyle = '#FF00FF'; // Magenta for single-screen
-      ctx.lineWidth = 2 * gridZoom;
+      ctx.lineWidth = 1;
     }
     ctx.setLineDash([5, 3]);
 
@@ -131,7 +131,7 @@ export const PatrolPathLayer: React.FC<PatrolPathLayerProps> = ({
 
     // Draw waypoint markers
     ctx.fillStyle = ctx.strokeStyle;
-    const markerSize = 6 * gridZoom;
+    const markerSize = 4;
     ctx.fillRect(pixelStartX - markerSize / 2, pixelStartY - markerSize / 2, markerSize, markerSize);
     ctx.fillRect(pixelEndX - markerSize / 2, pixelEndY - markerSize / 2, markerSize, markerSize);
 

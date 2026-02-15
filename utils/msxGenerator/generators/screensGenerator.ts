@@ -396,6 +396,46 @@ init_char0_pattern_bank2_loop:
     pop af
     ret
 
+; Helper: Copy rectangular area from screen layout (RAM) to Name Table (VRAM)
+; Input: HL = source in RAM
+;        DE = destination in VRAM
+;        A  = number of rows
+;        C  = bytes per row (width)
+copy_layout_rect_to_vram:
+    or a
+    ret z
+    ld b, a
+    ld a, c
+    or a
+    ret z
+    ld a, b
+
+.copy_rect_row_loop:
+    push af
+    push bc
+    push hl
+    push de
+    ld b, 0
+    call FAST_LDIRVM
+    pop de
+    pop hl
+    pop bc
+    pop af
+
+    ; Advance source and destination to next Name Table row (+32)
+    push bc
+    ld b, 0
+    ld c, 32
+    add hl, bc
+    ex de, hl
+    add hl, bc
+    ex de, hl
+    pop bc
+
+    dec a
+    jr nz, .copy_rect_row_loop
+    ret
+
 load_screen:
 
     ; Load screen (A = screen ID)
@@ -411,17 +451,81 @@ load_screen:
       // Use screen ID suffix to make function name unique (handles same name in different worlds)
       const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
 
-      // Check if screen has HUD (activeAreaY > 0 means top rows reserved for HUD)
-      const activeAreaY = screen.activeAreaY ?? 0;
-      const hasHudRows = activeAreaY > 0 && screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0;
-      const hudSkipBytes = activeAreaY * 32; // Bytes to skip (HUD rows)
-      const gameAreaBytes = (24 - activeAreaY) * 32; // Bytes for game area only
+      const rawActiveAreaX = screen.activeAreaX ?? 0;
+      const rawActiveAreaY = screen.activeAreaY ?? 0;
+      const rawActiveAreaWidth = screen.activeAreaWidth ?? screen.width ?? 32;
+      const rawActiveAreaHeight = screen.activeAreaHeight ?? screen.height ?? 24;
 
-      if (hasHudRows) {
+      // Clamp Active Area to valid Screen 2 bounds (32x24)
+      const activeAreaX = Math.max(0, Math.min(31, rawActiveAreaX));
+      const activeAreaY = Math.max(0, Math.min(23, rawActiveAreaY));
+      const activeAreaWidth = Math.max(0, Math.min(32 - activeAreaX, rawActiveAreaWidth));
+      const activeAreaHeight = Math.max(0, Math.min(24 - activeAreaY, rawActiveAreaHeight));
+
+      const hasHudElements = !!(screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
+      const hasHudFrameArea = activeAreaX > 0 || activeAreaY > 0 || activeAreaWidth < 32 || activeAreaHeight < 24;
+      const shouldUseFrameHud = hasHudElements && hasHudFrameArea && activeAreaWidth > 0 && activeAreaHeight > 0;
+
+      const activeAreaOffset = (activeAreaY * 32) + activeAreaX;
+      const activeAreaBytes = activeAreaWidth * activeAreaHeight;
+
+      const topRows = activeAreaY;
+      const bottomStartRow = activeAreaY + activeAreaHeight;
+      const bottomRows = Math.max(0, 24 - bottomStartRow);
+      const leftCols = activeAreaX;
+      const rightStartCol = activeAreaX + activeAreaWidth;
+      const rightCols = Math.max(0, 32 - rightStartCol);
+
+      if (shouldUseFrameHud) {
+        code += `frame_hud_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}:
+    ; Frame_Hud: reconstruct HUD frame from non-active area using Active Area
+`;
+
+        if (topRows > 0) {
+          code += `    ; Top HUD strip (rows 0-${topRows - 1})
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, NAMETBL
+    ld bc, ${topRows * 32}
+    call FAST_LDIRVM
+`;
+        }
+
+        if (bottomRows > 0) {
+          code += `    ; Bottom HUD strip (rows ${bottomStartRow}-23)
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${bottomStartRow * 32}
+    ld de, NAMETBL + ${bottomStartRow * 32}
+    ld bc, ${bottomRows * 32}
+    call FAST_LDIRVM
+`;
+        }
+
+        if (leftCols > 0 && activeAreaHeight > 0) {
+          code += `    ; Left HUD strip (cols 0-${leftCols - 1}, rows ${activeAreaY}-${bottomStartRow - 1})
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaY * 32}
+    ld de, NAMETBL + ${activeAreaY * 32}
+    ld a, ${activeAreaHeight}
+    ld c, ${leftCols}
+    call copy_layout_rect_to_vram
+`;
+        }
+
+        if (rightCols > 0 && activeAreaHeight > 0) {
+          code += `    ; Right HUD strip (cols ${rightStartCol}-31, rows ${activeAreaY}-${bottomStartRow - 1})
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${(activeAreaY * 32) + rightStartCol}
+    ld de, NAMETBL + ${(activeAreaY * 32) + rightStartCol}
+    ld a, ${activeAreaHeight}
+    ld c, ${rightCols}
+    call copy_layout_rect_to_vram
+`;
+        }
+
+        code += `    ret
+
+`;
+
         code += `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}:
     ; Load ${screen.name} screen (fast direct port access)
-    ; HUD occupies rows 0-${activeAreaY - 1} (${activeAreaY} rows = ${hudSkipBytes} bytes)
-    ; Game area: rows ${activeAreaY}-23 (${24 - activeAreaY} rows = ${gameAreaBytes} bytes)
+    ; Active Area: X=${activeAreaX}, Y=${activeAreaY}, W=${activeAreaWidth}, H=${activeAreaHeight}
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color
@@ -429,11 +533,27 @@ load_screen:
     ; Initialize character 0 (empty cells) with background color
     ld a, ${bgColor}           ; Background color for char 0
     call init_char0_color
-    ; Load ONLY game area (skip HUD rows to preserve HUD content)
-    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${hudSkipBytes}  ; Skip first ${activeAreaY} rows
-    ld de, NAMETBL + ${hudSkipBytes}            ; VRAM destination: start at row ${activeAreaY}
-    ld bc, ${gameAreaBytes}                      ; Only ${24 - activeAreaY} rows
-    call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+`;
+
+        if (activeAreaWidth === 32) {
+          code += `    ; Load active game area (contiguous rows)
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
+    ld de, NAMETBL + ${activeAreaOffset}
+    ld bc, ${activeAreaBytes}
+    call FAST_LDIRVM
+`;
+        } else {
+          code += `    ; Load active game area (rectangular copy by rows)
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
+    ld de, NAMETBL + ${activeAreaOffset}
+    ld a, ${activeAreaHeight}
+    ld c, ${activeAreaWidth}
+    call copy_layout_rect_to_vram
+`;
+        }
+
+        code += `    ; Rebuild HUD frame strips from layout
+    call frame_hud_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}
     ; Initialize collision system pointers for this screen
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld (current_screen_layout), hl
