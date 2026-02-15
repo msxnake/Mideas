@@ -4,22 +4,13 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
-import { generateSpriteASMCode } from '../../../components/utils/spriteUtils';
+import { buildMSXDirectionalSpriteCatalog, generateSpriteASMCode } from '../../../components/utils/spriteUtils';
 import { analyzeComponentUsage } from '../utils/componentAnalyzer';
 import { MSX1_PALETTE } from '../../../constants';
 
 // Constants
 const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is safer off-screen
 const DEFAULT_DATA_FORMAT = 'hex';
-
-/**
- * Mirror pixel data horizontally (same logic as GameFlowPreviewModal)
- * @param pixelData - 2D array of pixel color hex values
- * @returns Horizontally mirrored pixel data
- */
-const mirrorPixelDataHorizontally = (pixelData: string[][]): string[][] => {
-  return pixelData.map(row => [...row].reverse());
-};
 
 /**
  * Find the first palette layer that has actual pixel data in a sprite frame.
@@ -59,10 +50,19 @@ const findFirstDrawableLayerIndex = (sprite: any): number => {
  * @returns ASM code string with sprite data and functions
  */
 export function generateSpritesFile(analysis: ProjectAnalysis): string {
-  const sprites = analysis.sprites || [];
+  const sourceSprites = analysis.sprites || [];
+  const spriteCatalog = buildMSXDirectionalSpriteCatalog(sourceSprites);
+  const sprites = spriteCatalog.sprites;
+  const spriteNameToIndex = spriteCatalog.nameToIndex;
+  const directionalLookupTables = spriteCatalog.directionalLookupTables;
+
+  spriteCatalog.warnings.forEach(warning => {
+    console.warn(`[Sprites Generator] ${warning}`);
+  });
 
   console.log('🎨 generateSpritesFile() called:');
-  console.log(`  - analysis.sprites.length: ${sprites.length}`);
+  console.log(`  - analysis.sprites.length: ${sourceSprites.length}`);
+  console.log(`  - expandedSprites.length: ${sprites.length}`);
   console.log(`  - analysis.entities.length: ${analysis.entities?.length || 0}`);
   console.log(`  - analysis.templates.length: ${analysis.templates?.length || 0}`);
 
@@ -149,8 +149,19 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     return colors.length > 0 ? colors : [15];
   };
 
-  const resolveSpriteIdFromProps = (props: any): string | undefined => {
-    return props?.spriteId || props?.spriteAssetId || props?.sprite || props?.spriteName;
+  const emitDirectionTable = (label: string, values: number[]): string => {
+    let table = `${label}:\n`;
+    if (values.length === 0) {
+      table += `    db 0\n`;
+      return table;
+    }
+
+    const bytesPerLine = 16;
+    for (let i = 0; i < values.length; i += bytesPerLine) {
+      const chunk = values.slice(i, i + bytesPerLine);
+      table += `    db ${chunk.join(', ')}\n`;
+    }
+    return table;
   };
 
   const getEntitySpriteInfo = (entity: any): { spriteAssetIndex: number; spriteName: string; colors: number[] } | null => {
@@ -215,16 +226,14 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
       return null;
     }
 
-    // Find sprite by ID
-    let foundIndex = sprites.findIndex(s => s.id === spriteAssetId);
-
-    // If not found by ID, try by name
-    if (foundIndex < 0) {
-      foundIndex = sprites.findIndex(s => s.name === spriteAssetId);
+    // Find sprite by ID/name alias map (includes auto-generated directional aliases)
+    let foundIndex = spriteNameToIndex[spriteAssetId];
+    if (foundIndex === undefined) {
+      foundIndex = spriteNameToIndex[spriteAssetId.toLowerCase()];
     }
 
     // If still not found, try partial name match
-    if (foundIndex < 0) {
+    if (foundIndex === undefined) {
       const spriteIdLower = spriteAssetId.toLowerCase();
       foundIndex = sprites.findIndex(s =>
         s.name?.toLowerCase().includes(spriteIdLower) ||
@@ -232,7 +241,7 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
       );
     }
 
-    if (foundIndex >= 0) {
+    if (foundIndex !== undefined && foundIndex >= 0) {
       console.log(`   ✅ Found sprite "${sprites[foundIndex].name}" at index ${foundIndex}`);
       return {
         spriteAssetIndex: foundIndex,
@@ -331,36 +340,6 @@ SPRITE_${index}_PATTERN:
     db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0\n`;
     }
 
-    // AUTO-GENERATE MIRRORED VERSION for sprites facing left/right
-    // (Same behavior as GameFlowPreviewModal.tsx)
-    const facingDirection = (sprite as any).facingDirection;
-    if (facingDirection === 'left' || facingDirection === 'right') {
-      code += `\n; Auto-generated mirrored version for ${sprite.name} (facing: ${facingDirection})\n`;
-
-      // Create mirrored sprite by reversing pixel data horizontally in each frame
-      const mirroredSprite = {
-        ...sprite,
-        name: `${sprite.name}_MIRRORED`,
-        frames: sprite.frames.map((frame: any) => ({
-          ...frame,
-          data: mirrorPixelDataHorizontally(frame.data)
-        }))
-      };
-
-      // Generate ASM for mirrored sprite (use same index to keep pattern names consistent)
-      const mirroredASM = generateSpriteASMCode(mirroredSprite, DEFAULT_DATA_FORMAT, index);
-      const mirroredSuffix = `_${index}`;
-      const mirroredUniqueName = mirroredSprite.name + mirroredSuffix;
-      const safeMirroredName = mirroredUniqueName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
-
-      code += mirroredASM;
-
-      if (firstDrawableLayerIndex >= 0) {
-        code += `\n; Unified pattern label for mirrored sprite ${index}
-SPRITE_${index}_PATTERN_MIRRORED EQU ${safeMirroredName}_F0_LAYER${firstDrawableLayerIndex}\n`;
-      }
-    }
-
   }); 
 
   // Generate placeholder sprite pattern (white 16x16 square for missing sprites)
@@ -441,6 +420,22 @@ SPRITE_0_FRAME_PTRS:
     dw SPRITE_PLACEHOLDER_PATTERN
 `;
   }
+
+  code += `
+; ==================================================================
+; DIRECTIONAL SPRITE LOOKUP TABLES
+; Maps any sprite asset index to its directional variant index.
+; If no directional variant exists, table points back to same index.
+; ==================================================================
+`;
+  code += emitDirectionTable('sprite_dir_left_table', directionalLookupTables.left);
+  code += '\n';
+  code += emitDirectionTable('sprite_dir_right_table', directionalLookupTables.right);
+  code += '\n';
+  code += emitDirectionTable('sprite_dir_up_table', directionalLookupTables.up);
+  code += '\n';
+  code += emitDirectionTable('sprite_dir_down_table', directionalLookupTables.down);
+  code += '\n';
  
   code += ` 
 ; ================================================================== 

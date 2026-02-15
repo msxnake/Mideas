@@ -4,7 +4,7 @@
  */
 
 import { StateMachine, StateMachineState, Action, Condition, ActionTypes, ConditionTypes } from '../../../statemachine.types';
-import { ProjectAsset } from '../../../types';
+import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
 
 // =============================================================================
 // CONSTANTS & MAPPINGS
@@ -2636,14 +2636,13 @@ Condition_VariableCompare:
 export function generateStateMachineSystem(stateMachines: StateMachine[], globalVariables?: any[], sprites?: any[]): string {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
 
-    // Build sprite name -> asset index map for CHANGE_SPRITE actions
-    const spriteNameToIndex: Record<string, number> = {};
-    if (sprites) {
-        sprites.forEach((sprite: any, index: number) => {
-            if (sprite.name) spriteNameToIndex[sprite.name] = index;
-            if (sprite.id) spriteNameToIndex[sprite.id] = index;
-        });
-    }
+    // Build sprite name -> asset index map for CHANGE_SPRITE actions.
+    // Must match spritesGenerator directional expansion to keep indexes aligned.
+    const spriteCatalog = buildMSXDirectionalSpriteCatalog((sprites || []) as any[]);
+    const spriteNameToIndex: Record<string, number> = spriteCatalog.nameToIndex;
+    spriteCatalog.warnings.forEach(warning => {
+        console.warn(`[State Machine Generator] ${warning}`);
+    });
 
     // Generate global variables table
     asm += '; ==================================================================\n';
@@ -2795,8 +2794,16 @@ function generateActionBytes(action: Action, smName: string = '', variableIdMap?
             // JSON uses "sprite" (name/id), convert to asset index
             const spriteName = action.params.sprite || action.params.spriteId || '';
             let spriteIndex = 0;
-            if (spriteNameToIndex && typeof spriteName === 'string' && spriteName in spriteNameToIndex) {
-                spriteIndex = spriteNameToIndex[spriteName];
+            if (spriteNameToIndex && typeof spriteName === 'string') {
+                const directIndex = spriteNameToIndex[spriteName];
+                const lowerIndex = spriteNameToIndex[spriteName.toLowerCase()];
+                if (directIndex !== undefined) {
+                    spriteIndex = directIndex;
+                } else if (lowerIndex !== undefined) {
+                    spriteIndex = lowerIndex;
+                } else {
+                    spriteIndex = serializeValue(spriteName) === '0' ? 0 : parseInt(serializeValue(spriteName), 10) || 0;
+                }
             } else {
                 spriteIndex = serializeValue(spriteName) === '0' ? 0 : parseInt(serializeValue(spriteName), 10) || 0;
             }

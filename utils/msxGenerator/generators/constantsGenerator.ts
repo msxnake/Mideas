@@ -4,6 +4,7 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
 
 /**
  * Generate constants for GlobalVariables values
@@ -55,6 +56,8 @@ function generateGlobalVariablesConstants(analysis: ProjectAnalysis): string {
  * @returns ASM code string with system and project constants
  */
 export function generateConstantsFile(analysis: ProjectAnalysis): string {
+  const totalSprites = buildMSXDirectionalSpriteCatalog(analysis.sprites || []).sprites.length;
+
   return `; ==================================================================
 ; MSX SYSTEM CONSTANTS
 ; File: constants.asm
@@ -220,7 +223,7 @@ ${analysis.gameFlow ? `
 ; ==================================================================
 
 ; Detected Assets
-TOTAL_SPRITES           EQU ${analysis.sprites?.length || 0}
+TOTAL_SPRITES           EQU ${totalSprites}
 TOTAL_TILES             EQU ${analysis.tiles?.length || 0}
 TOTAL_SCREENS           EQU ${analysis.screenMaps?.length || 0}
 

@@ -1,5 +1,26 @@
 import { PixelData, Sprite, MSXColorValue, DataFormat } from '../../types';
 
+type DirectionalFacing = 'left' | 'right' | 'up' | 'down';
+
+interface DirectionalSpriteEntry {
+  sprite: Sprite;
+  baseName: string;
+  direction?: DirectionalFacing;
+  aliases: Set<string>;
+}
+
+export interface MSXDirectionalSpriteCatalog {
+  sprites: Sprite[];
+  nameToIndex: Record<string, number>;
+  directionalLookupTables: {
+    left: number[];
+    right: number[];
+    up: number[];
+    down: number[];
+  };
+  warnings: string[];
+}
+
 /**
  * Generates a raw byte array for a sprite asset.
  * It processes each frame, creating a separate byte layer for each color in the sprite's palette
@@ -125,6 +146,235 @@ export const mirrorPixelDataHorizontally = (pixelData: PixelData): PixelData => 
  */
 export const mirrorPixelDataVertically = (pixelData: PixelData): PixelData => {
   return [...pixelData].reverse();
+};
+
+const DIRECTION_SUFFIX_REGEX = /_(left|right|up|down)$/i;
+
+const normalizeDirection = (value?: string | null): DirectionalFacing | undefined => {
+  if (!value) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'left' || normalized === 'right' || normalized === 'up' || normalized === 'down') {
+    return normalized;
+  }
+  return undefined;
+};
+
+const parseDirectionalSuffix = (name: string): { baseName: string; suffixDirection?: DirectionalFacing } => {
+  const match = name.match(DIRECTION_SUFFIX_REGEX);
+  if (!match) {
+    return { baseName: name };
+  }
+
+  return {
+    baseName: name.slice(0, -match[0].length),
+    suffixDirection: normalizeDirection(match[1])
+  };
+};
+
+const createAutoDirectionalSprite = (
+  source: Sprite,
+  targetName: string,
+  targetDirection: DirectionalFacing,
+  transform: (data: PixelData) => PixelData
+): Sprite => {
+  return {
+    ...source,
+    id: `${source.id}__auto_${targetDirection}`,
+    name: targetName,
+    facingDirection: targetDirection,
+    frames: source.frames.map((frame, frameIndex) => ({
+      ...frame,
+      id: `${frame.id || `f${frameIndex}`}_${targetDirection}_auto`,
+      data: transform(frame.data)
+    }))
+  };
+};
+
+const addNameMapping = (
+  nameToIndex: Record<string, number>,
+  key: string,
+  index: number,
+  warnings: string[]
+) => {
+  if (!key) return;
+
+  const keys = key === key.toLowerCase() ? [key] : [key, key.toLowerCase()];
+
+  keys.forEach(candidate => {
+    const existing = nameToIndex[candidate];
+    if (existing === undefined) {
+      nameToIndex[candidate] = index;
+      return;
+    }
+
+    if (existing !== index) {
+      warnings.push(`Name alias collision for "${candidate}" between indexes ${existing} and ${index}. Keeping first mapping.`);
+    }
+  });
+};
+
+/**
+ * Builds a deterministic sprite catalog for MSX generation:
+ * - Canonical directional names (<base>_<dir>)
+ * - Missing directional variants via mirror transforms
+ * - Backward-compatible aliases (old names and IDs)
+ */
+export const buildMSXDirectionalSpriteCatalog = (sourceSprites: Sprite[]): MSXDirectionalSpriteCatalog => {
+  const warnings: string[] = [];
+  const usedNames = new Set<string>();
+  const entries: DirectionalSpriteEntry[] = [];
+  const directionalFamilies = new Map<string, Partial<Record<DirectionalFacing, number>>>();
+
+  const ensureUniqueName = (preferred: string, fallback: string, context: string): string => {
+    if (!usedNames.has(preferred)) return preferred;
+    if (!usedNames.has(fallback)) {
+      warnings.push(`Name "${preferred}" already exists. Using fallback "${fallback}" for ${context}.`);
+      return fallback;
+    }
+
+    let suffix = 1;
+    let candidate = `${preferred}_${suffix}`;
+    while (usedNames.has(candidate)) {
+      suffix += 1;
+      candidate = `${preferred}_${suffix}`;
+    }
+    warnings.push(`Name "${preferred}" already exists. Using "${candidate}" for ${context}.`);
+    return candidate;
+  };
+
+  sourceSprites.forEach((sourceSprite, sourceIndex) => {
+    const originalName = sourceSprite.name || `sprite_${sourceIndex}`;
+    const { baseName: suffixBaseName, suffixDirection } = parseDirectionalSuffix(originalName);
+    const facingDirection = normalizeDirection(sourceSprite.facingDirection);
+
+    if (facingDirection && suffixDirection && facingDirection !== suffixDirection) {
+      warnings.push(
+        `Sprite "${originalName}" has suffix "${suffixDirection}" but facing "${facingDirection}". Using facing direction.`
+      );
+    }
+
+    const effectiveDirection = facingDirection || suffixDirection;
+    const canonicalBaseName = suffixDirection ? suffixBaseName : originalName;
+    const desiredName = effectiveDirection ? `${canonicalBaseName}_${effectiveDirection}` : originalName;
+    const finalName = ensureUniqueName(desiredName, originalName, `sprite "${originalName}"`);
+
+    const aliases = new Set<string>();
+    if (originalName !== finalName) aliases.add(originalName);
+
+    const normalizedSprite: Sprite = {
+      ...sourceSprite,
+      name: finalName,
+      facingDirection: effectiveDirection || sourceSprite.facingDirection
+    };
+
+    const entry: DirectionalSpriteEntry = {
+      sprite: normalizedSprite,
+      baseName: canonicalBaseName,
+      direction: effectiveDirection,
+      aliases
+    };
+
+    entries.push(entry);
+    usedNames.add(finalName);
+
+    if (effectiveDirection) {
+      const family = directionalFamilies.get(canonicalBaseName) || {};
+      if (family[effectiveDirection] === undefined) {
+        family[effectiveDirection] = entries.length - 1;
+        directionalFamilies.set(canonicalBaseName, family);
+      } else {
+        warnings.push(
+          `Duplicate directional sprite for "${canonicalBaseName}_${effectiveDirection}". Keeping first occurrence.`
+        );
+      }
+    }
+  });
+
+  directionalFamilies.forEach((family, baseName) => {
+    const addGeneratedVariant = (
+      targetDirection: DirectionalFacing,
+      sourceIndex: number | undefined,
+      transform: (data: PixelData) => PixelData,
+      transformName: string
+    ) => {
+      if (sourceIndex === undefined) return;
+      if (family[targetDirection] !== undefined) return;
+
+      const targetName = `${baseName}_${targetDirection}`;
+      if (usedNames.has(targetName)) {
+        warnings.push(`Cannot auto-generate "${targetName}" because the name already exists.`);
+        return;
+      }
+
+      const sourceEntry = entries[sourceIndex];
+      const generatedSprite = createAutoDirectionalSprite(
+        sourceEntry.sprite,
+        targetName,
+        targetDirection,
+        transform
+      );
+
+      const generatedEntry: DirectionalSpriteEntry = {
+        sprite: generatedSprite,
+        baseName,
+        direction: targetDirection,
+        aliases: new Set<string>()
+      };
+
+      entries.push(generatedEntry);
+      family[targetDirection] = entries.length - 1;
+      usedNames.add(targetName);
+      warnings.push(`Auto-generated "${targetName}" from "${sourceEntry.sprite.name}" using ${transformName}.`);
+    };
+
+    if (family.right !== undefined && family.left === undefined) {
+      addGeneratedVariant('left', family.right, mirrorPixelDataHorizontally, 'horizontal mirror');
+    } else if (family.left !== undefined && family.right === undefined) {
+      addGeneratedVariant('right', family.left, mirrorPixelDataHorizontally, 'horizontal mirror');
+    }
+
+    if (family.up !== undefined && family.down === undefined) {
+      addGeneratedVariant('down', family.up, mirrorPixelDataVertically, 'vertical mirror');
+    } else if (family.down !== undefined && family.up === undefined) {
+      addGeneratedVariant('up', family.down, mirrorPixelDataVertically, 'vertical mirror');
+    }
+  });
+
+  const nameToIndex: Record<string, number> = {};
+  entries.forEach((entry, index) => {
+    addNameMapping(nameToIndex, entry.sprite.name, index, warnings);
+    addNameMapping(nameToIndex, entry.sprite.id, index, warnings);
+  });
+  entries.forEach((entry, index) => {
+    entry.aliases.forEach(alias => addNameMapping(nameToIndex, alias, index, warnings));
+  });
+
+  const lookupLeft = entries.map((_entry, index) => index);
+  const lookupRight = entries.map((_entry, index) => index);
+  const lookupUp = entries.map((_entry, index) => index);
+  const lookupDown = entries.map((_entry, index) => index);
+
+  entries.forEach((entry, index) => {
+    const family = directionalFamilies.get(entry.baseName);
+    if (!family) return;
+
+    if (family.left !== undefined) lookupLeft[index] = family.left;
+    if (family.right !== undefined) lookupRight[index] = family.right;
+    if (family.up !== undefined) lookupUp[index] = family.up;
+    if (family.down !== undefined) lookupDown[index] = family.down;
+  });
+
+  return {
+    sprites: entries.map(entry => entry.sprite),
+    nameToIndex,
+    directionalLookupTables: {
+      left: lookupLeft,
+      right: lookupRight,
+      up: lookupUp,
+      down: lookupDown
+    },
+    warnings
+  };
 };
 
 // Helper function to ensure two-digit uppercase hex representation

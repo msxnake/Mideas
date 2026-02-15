@@ -190,6 +190,7 @@ update_entities:
 `;
 
     // Generate individual entity functions ONLY for active entities with REAL POSITIONS
+    let needsPatrolFacingHelper = false;
     activeEntities.forEach((entity, index) => {
       const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
 
@@ -399,6 +400,9 @@ update_entities:
       // === Generate entity update function (patrol bounce or standard input check) ===
       let updateEntityAsm = '';
       if (hasPatrol) {
+        if (hasSprite) {
+          needsPatrolFacingHelper = true;
+        }
         const minX = Math.min(patrolWp1x, patrolWp2x);
         const maxX = Math.max(patrolWp1x, patrolWp2x);
         const minY = Math.min(patrolWp1y, patrolWp2y);
@@ -491,6 +495,10 @@ update_entities:
         }
 
         updateEntityAsm += `\n.patrol_end_${index}:\n`;
+        if (hasSprite) {
+          updateEntityAsm += `    ; Sync sprite facing with current patrol velocity\n`;
+          updateEntityAsm += `    call update_entity_patrol_facing\n`;
+        }
         updateEntityAsm += `    ret\n`;
       } else {
         updateEntityAsm = `update_${entityName.toLowerCase()}:\n`;
@@ -582,6 +590,73 @@ ${smInitAsm}
 ${updateEntityAsm}
 `;
     });
+
+    if (needsPatrolFacingHelper) {
+      code += `
+; ------------------------------------------------------------------
+; update_entity_patrol_facing
+; Input: DE = entity index
+; Updates entity_sprite_asset_index using directional lookup tables.
+; ------------------------------------------------------------------
+update_entity_patrol_facing:
+    push af
+    push bc
+    push hl
+
+    ; Read current sprite asset index
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    ld a, (hl)
+    cp #FF
+    jp z, .patrol_facing_done
+    ld c, a
+    ld b, 0
+
+    ; Prefer horizontal facing when vel_x != 0
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .check_vertical
+    bit 7, a
+    jr nz, .use_left
+    ld hl, sprite_dir_right_table
+    jr .apply_lookup
+
+.use_left:
+    ld hl, sprite_dir_left_table
+    jr .apply_lookup
+
+.check_vertical:
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .patrol_facing_done
+    bit 7, a
+    jr nz, .use_up
+    ld hl, sprite_dir_down_table
+    jr .apply_lookup
+
+.use_up:
+    ld hl, sprite_dir_up_table
+
+.apply_lookup:
+    add hl, bc
+    ld a, (hl)
+
+    ld hl, entity_sprite_asset_index
+    add hl, de
+    ld (hl), a
+
+.patrol_facing_done:
+    pop hl
+    pop bc
+    pop af
+    ret
+
+`;
+    }
   } else {
     code += `; ==================================================================
 ; DEFAULT ENTITY SYSTEM
