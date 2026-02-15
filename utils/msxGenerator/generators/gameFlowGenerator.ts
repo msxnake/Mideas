@@ -272,6 +272,9 @@ gameflow_world_game_loop:
     or a
     ret nz
 
+    ; Handle world screen edge transitions (Preview parity)
+    call check_world_screen_transition
+
     ; Update all entities
     call update_all_entities
 
@@ -1966,6 +1969,7 @@ ${defaultHasHud ? `    ; Set HUD dirty flag after screen load
 ` : ``}    ret
 
 gameflow_world_game_loop:
+    call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
     call update_sprites_to_vram

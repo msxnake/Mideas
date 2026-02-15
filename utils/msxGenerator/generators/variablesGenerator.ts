@@ -256,6 +256,9 @@ MAX_ENTITIES        EQU 32
     code += `screen_dirty_flag   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen needs redraw flag\n`;
     currentAddress++;
 
+    code += `screen_transition_cooldown EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cooldown frames after screen transition\n`;
+    currentAddress++;
+
     // WorldMap system variables
     code += `current_world_id    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current world ID (for multi-world support)\n`;
     currentAddress++;

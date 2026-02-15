@@ -906,10 +906,22 @@ ${yDivisionCode}
     pop bc
     ret
 
-    get_behavior_tile:
+        `;
+}
+
+/**
+ * Generate get_behavior_tile function (shared by Collision and WallCollision systems)
+ * Returns behavior value for a tile at (B=row, C=column) using current_behavior_map
+ */
+function generateGetBehaviorTile(): string {
+    return `
+    ; ------------------------------------------------------------------
+    ; get_behavior_tile
     ; Get behavior value for tile at (B=row, C=column)
     ; Returns A = behavior value (0 = passable, non-zero = solid)
     ; Uses current_behavior_map pointer set by load_screen
+    ; ------------------------------------------------------------------
+get_behavior_tile:
     ; Bounds check: row must be 0-23, column must be 0-31
     ld a, b
     cp 24
@@ -940,7 +952,7 @@ ${yDivisionCode}
 .bt_out_of_bounds:
     xor a                         ; A = 0 (passable)
     ret
-        `;
+    `;
 }
 
 /**
@@ -3657,6 +3669,11 @@ init_collision_system:
 update_collision_component:
     ret
     `;
+    }
+
+    // Generate get_behavior_tile (shared utility for Collision and WallCollision)
+    if (usedComponents.has('Collision') || usedComponents.has('WallCollision')) {
+        code += generateGetBehaviorTile();
     }
 
     // Generate Input System (if used)

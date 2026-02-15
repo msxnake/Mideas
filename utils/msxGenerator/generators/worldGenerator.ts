@@ -5,6 +5,8 @@
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 
+type WorldDirection = 'north' | 'south' | 'east' | 'west';
+
 /**
  * Convert name to valid ASM label (lowercase)
  */
@@ -17,6 +19,203 @@ function toRoutineLabel(name: string): string {
  */
 function toConstantName(name: string): string {
   return name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+}
+
+/**
+ * Normalize world direction aliases to canonical values.
+ */
+function normalizeDirection(raw: unknown): WorldDirection | null {
+  const value = String(raw ?? '').trim().toLowerCase();
+  switch (value) {
+    case 'north':
+    case 'up':
+      return 'north';
+    case 'south':
+    case 'down':
+      return 'south';
+    case 'east':
+    case 'right':
+      return 'east';
+    case 'west':
+    case 'left':
+      return 'west';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Extract node id from world connection endpoint.
+ * Supports both modern and legacy forms:
+ * - fromNodeId / toNodeId
+ * - from: "nodeId"
+ * - from: { nodeId: "..." }
+ */
+function extractConnectionNodeId(conn: any, side: 'from' | 'to'): string | null {
+  const directKey = side === 'from' ? 'fromNodeId' : 'toNodeId';
+  const directValue = conn?.[directKey];
+  if (typeof directValue === 'string' && directValue.length > 0) return directValue;
+
+  const endpoint = conn?.[side];
+  if (typeof endpoint === 'string' && endpoint.length > 0) return endpoint;
+  if (endpoint && typeof endpoint.nodeId === 'string' && endpoint.nodeId.length > 0) return endpoint.nodeId;
+
+  return null;
+}
+
+/**
+ * Get canonical direction from connection side.
+ */
+function extractConnectionDirection(conn: any, side: 'from' | 'to'): WorldDirection | null {
+  const directKey = side === 'from' ? 'fromDirection' : 'toDirection';
+  const directValue = conn?.[directKey];
+  const normalizedDirect = normalizeDirection(directValue);
+  if (normalizedDirect) return normalizedDirect;
+
+  const endpoint = conn?.[side];
+  return normalizeDirection(endpoint?.direction);
+}
+
+/**
+ * Get the generated load_screen routine name for a screen asset id.
+ */
+function getScreenLoadRoutineName(screenAssetId: string, analysis: ProjectAnalysis): string {
+  const screenAsset = analysis.screens?.find((s: any) => s.id === screenAssetId);
+  const screenName = screenAsset?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'UNKNOWN';
+  const screenIdSuffix = screenAssetId
+    ? `_${screenAssetId.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}`
+    : '';
+  return `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
+}
+
+/**
+ * Emit transition runtime snippet for one exit direction.
+ */
+function emitDirectionalTransitionCode(
+  worldLabel: string,
+  screenIndex: number,
+  direction: WorldDirection,
+  targetScreenIndex: number,
+  targetLoadRoutine: string
+): string {
+  const skipLabel = `check_transition_${worldLabel}_s${screenIndex}_skip_${direction}`;
+  const applyLabel = `check_transition_${worldLabel}_s${screenIndex}_apply_${direction}`;
+
+  let conditionCode = '';
+  let repositionCode = '';
+
+  if (direction === 'east') {
+    conditionCode = `    ; East exit: X near right edge and rightward input
+    ld a, (input_state)
+    cp STICK_RIGHT
+    jr z, .dir_ok_${skipLabel}
+    cp STICK_UPRIGHT
+    jr z, .dir_ok_${skipLabel}
+    cp STICK_DOWNRIGHT
+    jp nz, ${skipLabel}
+.dir_ok_${skipLabel}:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 240
+    jp c, ${skipLabel}
+`;
+    repositionCode = `    ; Enter from west edge
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 2
+`;
+  } else if (direction === 'west') {
+    conditionCode = `    ; West exit: X near left edge and leftward input
+    ld a, (input_state)
+    cp STICK_LEFT
+    jr z, .dir_ok_${skipLabel}
+    cp STICK_UPLEFT
+    jr z, .dir_ok_${skipLabel}
+    cp STICK_DOWNLEFT
+    jp nz, ${skipLabel}
+.dir_ok_${skipLabel}:
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    cp 2
+    jp nc, ${skipLabel}
+`;
+    repositionCode = `    ; Enter from east edge (256 - 16 - 2 = 238)
+    ld hl, entity_x_pos
+    add hl, de
+    ld (hl), 238
+`;
+  } else if (direction === 'south') {
+    conditionCode = `    ; South exit: Y near bottom edge and downward input
+    ld a, (input_state)
+    cp STICK_DOWN
+    jr z, .dir_ok_${skipLabel}
+    cp STICK_DOWNLEFT
+    jr z, .dir_ok_${skipLabel}
+    cp STICK_DOWNRIGHT
+    jp nz, ${skipLabel}
+.dir_ok_${skipLabel}:
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp 176
+    jp c, ${skipLabel}
+`;
+    repositionCode = `    ; Enter from north edge
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 2
+`;
+  } else {
+    conditionCode = `    ; North exit: Y near top edge and upward input
+    ld a, (input_state)
+    cp STICK_UP
+    jr z, .dir_ok_${skipLabel}
+    cp STICK_UPLEFT
+    jr z, .dir_ok_${skipLabel}
+    cp STICK_UPRIGHT
+    jp nz, ${skipLabel}
+.dir_ok_${skipLabel}:
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    cp 2
+    jp nc, ${skipLabel}
+`;
+    repositionCode = `    ; Enter from south edge (192 - 16 - 2 = 174)
+    ld hl, entity_y_pos
+    add hl, de
+    ld (hl), 174
+`;
+  }
+
+  return `${conditionCode}${applyLabel}:
+    push de
+    call ${targetLoadRoutine}
+    pop de
+    ld a, ${targetScreenIndex}
+    ld (current_screen_index), a
+    ld (current_screen_id), a
+    ld hl, entity_screen_id
+    add hl, de
+    ld (hl), a
+${repositionCode}    ; Reset player velocity after transition
+    xor a
+    ld hl, entity_vel_x
+    add hl, de
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), a
+
+    ; Debounce immediate re-trigger
+    ld a, 8
+    ld (screen_transition_cooldown), a
+    ret
+
+${skipLabel}:
+`;
 }
 
 /**
@@ -45,6 +244,9 @@ export function generateWorldsFile(analysis: ProjectAnalysis): string {
 
 ; Minimal stub functions for compatibility
 load_world_default:
+    ret
+
+check_world_screen_transition:
     ret
 
 ; ==================================================================
@@ -97,7 +299,6 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
 `;
 
   worldMaps.forEach((world: any) => {
-    const worldName = toRoutineLabel(world.name || 'unnamed');
     const worldId = world.id || 'unknown';
     const startScreenNodeId = world.startScreenNodeId;
     const nodes = world.nodes || [];
@@ -121,6 +322,7 @@ load_world_${toRoutineLabel(worldId)}:
 
     // Find the start screen node
     const startNode = nodes.find((n: any) => n.id === startScreenNodeId) || nodes[0];
+    const startNodeIndex = Math.max(0, nodes.findIndex((n: any) => n.id === startNode.id));
     const startScreenAssetId = startNode.screenAssetId;
 
     if (!startScreenAssetId) {
@@ -131,14 +333,10 @@ load_world_${toRoutineLabel(worldId)}:
       return;
     }
 
-    // Find the screen asset - use name + ID suffix for function call (matches screensGenerator.ts)
-    const screenAsset = analysis.screens?.find((s: any) => s.id === startScreenAssetId);
-    const screenName = screenAsset?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'UNKNOWN';
-    // Use screen ID suffix to match the load_screen function name
-    const screenIdSuffix = startScreenAssetId ? `_${startScreenAssetId.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+    const loadRoutine = getScreenLoadRoutineName(startScreenAssetId, analysis);
 
-    code += `    ; Load start screen: ${screenAsset?.name || 'unknown'} (${startScreenAssetId})
-    call load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}
+    code += `    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
+    call ${loadRoutine}
 
     ; Draw HUD frame (if HUD exists)
     call imprimir_marco
@@ -147,8 +345,12 @@ load_world_${toRoutineLabel(worldId)}:
     ld a, WORLD_${toConstantName(world.name || 'unnamed')}_ID
     ld (current_world_id), a
 
-    ld a, ${nodes.findIndex((n: any) => n.id === startScreenNodeId)}
+    ld a, ${startNodeIndex}
     ld (current_screen_index), a
+    ld (current_screen_id), a
+
+    xor a
+    ld (screen_transition_cooldown), a
 
     ret
 
@@ -182,8 +384,18 @@ load_world_${toRoutineLabel(worldId)}:
 `;
 
     connections.forEach((conn: any, connIndex: number) => {
-      const fromNode = nodes.find((n: any) => n.id === conn.from || conn.fromNodeId);
-      const toNode = nodes.find((n: any) => n.id === conn.to || conn.toNodeId);
+      const fromNodeId = extractConnectionNodeId(conn, 'from');
+      const toNodeId = extractConnectionNodeId(conn, 'to');
+
+      if (!fromNodeId || !toNodeId) {
+        code += `; Invalid connection ${connIndex}: missing endpoint IDs
+
+`;
+        return;
+      }
+
+      const fromNode = nodes.find((n: any) => n.id === fromNodeId);
+      const toNode = nodes.find((n: any) => n.id === toNodeId);
 
       if (!fromNode || !toNode) {
         code += `; Invalid connection ${connIndex}: missing nodes
@@ -192,24 +404,185 @@ load_world_${toRoutineLabel(worldId)}:
         return;
       }
 
-      const fromScreenId = fromNode.screenAssetId;
       const toScreenId = toNode.screenAssetId;
-
-      // Find screen assets to get their names (matches screensGenerator.ts naming)
-      const toScreenAsset = analysis.screens?.find((s: any) => s.id === toScreenId);
-      const toScreenName = toScreenAsset?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'UNKNOWN';
-      // Use screen ID suffix to match the load_screen function name
-      const toScreenIdSuffix = toScreenId ? `_${toScreenId.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+      const toScreenIndex = nodes.findIndex((n: any) => n.id === toNode.id);
+      const toLoadRoutine = getScreenLoadRoutineName(toScreenId, analysis);
 
       code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
 transition_${toRoutineLabel(worldId)}_${connIndex}:
-    call load_screen_${toScreenName.toLowerCase()}${toScreenIdSuffix.toLowerCase()}
+    call ${toLoadRoutine}
+
+    ld a, ${toScreenIndex}
+    ld (current_screen_index), a
+    ld (current_screen_id), a
 
     ; Draw HUD frame (if HUD exists)
     call imprimir_marco
     ret
 
 `;
+    });
+  });
+
+  // Generate runtime edge transition checker (Preview parity)
+  code += `; ==================================================================
+; SCREEN EDGE TRANSITION RUNTIME
+; ==================================================================
+; Checks controllable entity exits and transitions world screen.
+; Prevents X/Y byte wrap from keeping player in same screen.
+; ==================================================================
+
+check_world_screen_transition:
+    ; Debounce to prevent immediate re-trigger after crossing
+    ld a, (screen_transition_cooldown)
+    or a
+    jr z, .find_player_start
+    dec a
+    ld (screen_transition_cooldown), a
+    ret
+
+    ; Find first ACTIVE entity with Input component in current screen
+.find_player_start:
+    ld b, MAX_ENTITIES
+    ld e, 0
+    ld d, 0
+.find_player_loop:
+    ; Check entity active flag
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .find_player_next
+
+    ; Check Input component mask
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jr z, .find_player_next
+
+    ; Check entity belongs to current screen
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr z, .player_found
+
+.find_player_next:
+    inc e
+    djnz .find_player_loop
+    ret                        ; No controllable entity found
+
+.player_found:
+    ld d, 0                    ; DE = player entity index
+
+.dispatch_world:
+    ld a, (current_world_id)
+`;
+
+  worldMaps.forEach((world: any, worldIndex: number) => {
+    const worldName = toConstantName(world.name || `world_${worldIndex}`);
+    const worldId = world.id || `world_${worldIndex}`;
+    const worldRoutine = `check_transition_world_${toRoutineLabel(worldId)}`;
+    code += `    cp WORLD_${worldName}_ID
+    jp z, ${worldRoutine}
+`;
+  });
+
+  code += `    ret
+
+`;
+
+  worldMaps.forEach((world: any, worldIndex: number) => {
+    const worldId = world.id || `world_${worldIndex}`;
+    const worldLabel = toRoutineLabel(worldId);
+    const nodes = world.nodes || [];
+    const connections = world.connections || [];
+
+    code += `check_transition_world_${worldLabel}:
+`;
+
+    if (nodes.length === 0 || connections.length === 0) {
+      code += `    ret
+
+`;
+      return;
+    }
+
+    // Build node index lookup
+    const nodeIndexById = new Map<string, number>();
+    nodes.forEach((node: any, idx: number) => nodeIndexById.set(node.id, idx));
+
+    // Build transition map: screen index -> direction -> target screen index
+    const transitionMap = new Map<number, Partial<Record<WorldDirection, number>>>();
+    nodes.forEach((_: any, idx: number) => transitionMap.set(idx, {}));
+
+    connections.forEach((conn: any) => {
+      const fromNodeId = extractConnectionNodeId(conn, 'from');
+      const toNodeId = extractConnectionNodeId(conn, 'to');
+      const fromDir = extractConnectionDirection(conn, 'from');
+      const toDir = extractConnectionDirection(conn, 'to');
+
+      if (!fromNodeId || !toNodeId) return;
+      const fromIndex = nodeIndexById.get(fromNodeId);
+      const toIndex = nodeIndexById.get(toNodeId);
+      if (fromIndex === undefined || toIndex === undefined) return;
+
+      if (fromDir) {
+        const mapEntry = transitionMap.get(fromIndex);
+        if (mapEntry && mapEntry[fromDir] === undefined) {
+          mapEntry[fromDir] = toIndex;
+        }
+      }
+
+      if (toDir) {
+        const mapEntry = transitionMap.get(toIndex);
+        if (mapEntry && mapEntry[toDir] === undefined) {
+          mapEntry[toDir] = fromIndex;
+        }
+      }
+    });
+
+    code += `    ld a, (current_screen_index)
+`;
+    nodes.forEach((_: any, idx: number) => {
+      code += `    cp ${idx}
+    jp z, .screen_${idx}
+`;
+    });
+    code += `    ret
+
+`;
+
+    nodes.forEach((node: any, idx: number) => {
+      const transitions = transitionMap.get(idx) || {};
+      code += `.screen_${idx}:
+`;
+
+      const directions: WorldDirection[] = ['east', 'west', 'south', 'north'];
+      let emittedAny = false;
+
+      directions.forEach((direction) => {
+        const targetIndex = transitions[direction];
+        if (targetIndex === undefined) return;
+        const targetNode = nodes[targetIndex];
+        if (!targetNode?.screenAssetId) return;
+
+        const targetLoadRoutine = getScreenLoadRoutineName(targetNode.screenAssetId, analysis);
+        code += emitDirectionalTransitionCode(worldLabel, idx, direction, targetIndex, targetLoadRoutine);
+        emittedAny = true;
+      });
+
+      if (!emittedAny) {
+        code += `    ret
+
+`;
+      } else {
+        code += `    ret
+
+`;
+      }
     });
   });
 
@@ -234,6 +607,7 @@ get_current_screen_index:
 ; Input: A = screen index
 set_current_screen:
     ld (current_screen_index), a
+    ld (current_screen_id), a
     ret
 
 ; ==================================================================
