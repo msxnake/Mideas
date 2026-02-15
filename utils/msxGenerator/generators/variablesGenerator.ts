@@ -27,10 +27,16 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   let currentAddress = 0xC000;
 
   // Core variables (always needed)
-  code += `input_state         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current joystick/keyboard state\n`;
+  code += `input_state         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current direction state (0-8)\n`;
   currentAddress++;
 
-  code += `prev_input_state    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input state\n`;
+  code += `prev_input_state    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous direction state (0-8)\n`;
+  currentAddress++;
+
+  code += `input_btn_curr      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current input buttons bitmask (bit0=fire)\n`;
+  currentAddress++;
+
+  code += `input_btn_prev      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous input buttons bitmask (bit0=fire)\n`;
   currentAddress++;
 
   code += `input_fire          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Fire button state (0=released, 1=pressed)\n`;
@@ -352,6 +358,9 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   currentAddress += 32;
 
   code += `temp_byte_17        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `temp_byte_18        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
 
   code += `temp_word_3         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage (64 bytes)\n`;

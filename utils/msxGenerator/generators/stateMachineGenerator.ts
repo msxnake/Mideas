@@ -102,6 +102,28 @@ const KEY_IDS: Record<string, number> = {
     'space': 9,       // Space as fire alias
 };
 
+const DIRECTION_IDS: Record<string, number> = {
+    'up': 1,
+    'down': 5,
+    'left': 7,
+    'right': 3,
+};
+
+const WALL_DIRECTION_IDS: Record<string, number> = {
+    'any': 0,
+    'up': 1,
+    'down': 5,
+    'left': 7,
+    'right': 3,
+};
+
+const COLLISION_TYPE_IDS: Record<string, number> = {
+    'any': 0,
+    'wall': 1,
+    'enemy': 2,
+    'item': 3,
+};
+
 /**
  * Build complete variable ID map including global variables
  * @param globalVariables - Array of global variables from project
@@ -276,7 +298,12 @@ SM_CheckTransitions_Loop:
     or a
     jr nz, SM_TransitionTriggered
 
-    ; Condition False: Skip Target State Ptr and continue to next transition
+    ; Condition False: Skip Transition Tail and continue to next transition
+    ; Transition tail layout after condition payload:
+    ;   [0-1] Target State Ptr
+    ;   [2-3] Actions Ptr
+    inc hl
+    inc hl
     inc hl
     inc hl
     
@@ -1941,173 +1968,258 @@ Condition_Not:
     ld a, 1                 ; Was false -> return true
     ret
 
-Condition_KeyPressed:
-    ; Check if specified key/direction is currently pressed
-    ; Input: B = Entity Index, HL = Params Ptr
-    ; Params: Key ID (1 byte) - 1=Up, 5=Down, 7=Left, 3=Right, 9=Fire
-    ; Output: A = 1 (pressed) or 0 (not pressed), HL = Updated Ptr
-    ; Destroys: AF, DE
+; ------------------------------------------------------------------
+; HELPER: Match directional key against one input direction value
+; Input: D = Desired key (1/3/5/7), A = direction (0-8)
+; Output: A = 1 if active, 0 if inactive
+; ------------------------------------------------------------------
+SM_MatchDirection:
+    ld e, a
+    cp d
+    jr z, .smd_match_yes
 
-    ld a, (hl)              ; A = Key ID
-    inc hl                  ; Move past param
-
-    cp 9                    ; Check if fire button
-    jr z, .ckp_fire
-
-    ; For directional keys, check if direction is active
-    ld d, a                 ; D = Desired key ID
-    ld a, (input_state)     ; A = Current direction (0-8)
-
-    ; Simple direction check: match exact direction or diagonals
-    cp d                    ; Check exact match
-    jr z, .ckp_pressed
-
-    ; Check for diagonal combinations
-    ; If desired key is UP (1), also check UP+RIGHT (2) and UP+LEFT (8)
     ld a, d
-    cp 1                    ; Desired = UP?
-    jr nz, .ckp_down
-    ld a, (input_state)
-    cp 2                    ; UP+RIGHT?
-    jr z, .ckp_pressed
-    cp 8                    ; UP+LEFT?
-    jr z, .ckp_pressed
-    jr .ckp_not_pressed
+    cp 1                    ; UP
+    jr nz, .smd_not_up
+    ld a, e
+    cp 2                    ; UP+RIGHT
+    jr z, .smd_match_yes
+    cp 8                    ; UP+LEFT
+    jr z, .smd_match_yes
+    jr .smd_match_no
 
-.ckp_down:
-    ld a, d
-    cp 5                    ; Desired = DOWN?
-    jr nz, .ckp_left
-    ld a, (input_state)
-    cp 4                    ; DOWN+RIGHT?
-    jr z, .ckp_pressed
-    cp 6                    ; DOWN+LEFT?
-    jr z, .ckp_pressed
-    jr .ckp_not_pressed
+.smd_not_up:
+    cp 5                    ; DOWN
+    jr nz, .smd_not_down
+    ld a, e
+    cp 4                    ; DOWN+RIGHT
+    jr z, .smd_match_yes
+    cp 6                    ; DOWN+LEFT
+    jr z, .smd_match_yes
+    jr .smd_match_no
 
-.ckp_left:
-    ld a, d
-    cp 7                    ; Desired = LEFT?
-    jr nz, .ckp_right
-    ld a, (input_state)
-    cp 6                    ; DOWN+LEFT?
-    jr z, .ckp_pressed
-    cp 8                    ; UP+LEFT?
-    jr z, .ckp_pressed
-    jr .ckp_not_pressed
+.smd_not_down:
+    cp 7                    ; LEFT
+    jr nz, .smd_not_left
+    ld a, e
+    cp 6                    ; DOWN+LEFT
+    jr z, .smd_match_yes
+    cp 8                    ; UP+LEFT
+    jr z, .smd_match_yes
+    jr .smd_match_no
 
-.ckp_right:
-    ld a, d
-    cp 3                    ; Desired = RIGHT?
-    jr nz, .ckp_not_pressed
-    ld a, (input_state)
-    cp 2                    ; UP+RIGHT?
-    jr z, .ckp_pressed
-    cp 4                    ; DOWN+RIGHT?
-    jr z, .ckp_pressed
-    jr .ckp_not_pressed
+.smd_not_left:
+    cp 3                    ; RIGHT
+    jr nz, .smd_match_no
+    ld a, e
+    cp 2                    ; UP+RIGHT
+    jr z, .smd_match_yes
+    cp 4                    ; DOWN+RIGHT
+    jr z, .smd_match_yes
 
-.ckp_fire:
-    ; Fire button check - TODO: Requires input_fire flag or GTTRIG check
-    ; For now, return false (fire not implemented yet)
-    ld a, 0
+.smd_match_no:
+    xor a
     ret
 
-.ckp_pressed:
+.smd_match_yes:
+    ld a, 1
+    ret
+
+; ------------------------------------------------------------------
+; HELPER: Deduce movement direction from entity velocity
+; Input: B = Entity Index
+; Output: A = direction key id (1/3/5/7) or 0 if idle
+; ------------------------------------------------------------------
+SM_DeduceDirectionFromVelocity:
+    push de
+    push hl
+
+    ld e, b
+    ld d, 0
+
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .sddv_check_y
+    bit 7, a
+    jr z, .sddv_right
+    ld a, 7
+    jr .sddv_done
+
+.sddv_right:
+    ld a, 3
+    jr .sddv_done
+
+.sddv_check_y:
+    ld hl, entity_vel_y
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .sddv_idle
+    bit 7, a
+    jr z, .sddv_down
+    ld a, 1
+    jr .sddv_done
+
+.sddv_down:
+    ld a, 5
+    jr .sddv_done
+
+.sddv_idle:
+    xor a
+
+.sddv_done:
+    pop hl
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; HELPER: Check if an entity can move one pixel in a direction
+; Input: B = Entity Index, A = direction key id (1/3/5/7)
+; Output: A = 1 if path is clear, 0 if blocked
+; ------------------------------------------------------------------
+SM_TestMoveDirection:
+    push bc
+    push de
+    push hl
+
+    ld c, a                 ; C = direction
+
+    ; Unknown/neutral direction -> treat as clear
+    cp 1
+    jr z, .smtmd_load_pos
+    cp 3
+    jr z, .smtmd_load_pos
+    cp 5
+    jr z, .smtmd_load_pos
+    cp 7
+    jr z, .smtmd_load_pos
+    ld a, 1
+    jr .smtmd_done
+
+.smtmd_load_pos:
+    ld e, b
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld d, (hl)              ; D = X
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld e, (hl)              ; E = Y
+
+    ld a, c
+    cp 1
+    jr nz, .smtmd_not_up
+    dec e
+    jr .smtmd_check
+
+.smtmd_not_up:
+    cp 5
+    jr nz, .smtmd_not_down
+    inc e
+    jr .smtmd_check
+
+.smtmd_not_down:
+    cp 7
+    jr nz, .smtmd_not_left
+    dec d
+    jr .smtmd_check
+
+.smtmd_not_left:
+    inc d                   ; RIGHT (3)
+
+.smtmd_check:
+    call check_collision_box
+    jr z, .smtmd_clear
+    xor a
+    jr .smtmd_done
+
+.smtmd_clear:
+    ld a, 1
+
+.smtmd_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+Condition_KeyPressed:
+    ; Edge keydown: active now and inactive previous frame
+    ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
+    ld d, (hl)
+    inc hl
+
+    ld a, d
+    cp 9
+    jr z, .ckp_fire
+
+    ; Directional edge: current active, previous inactive
+    ld a, (input_state)
+    call SM_MatchDirection
+    or a
+    jr z, .ckp_not_pressed
+
+    ld a, (prev_input_state)
+    call SM_MatchDirection
+    or a
+    jr nz, .ckp_not_pressed
+
+    ld a, 1
+    ret
+
+.ckp_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jr z, .ckp_not_pressed
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jr nz, .ckp_not_pressed
     ld a, 1
     ret
 
 .ckp_not_pressed:
-    ld a, 0
+    xor a
     ret
 
 Condition_KeyReleased:
-    ; Edge-based key release detection
-    ; Returns true ONLY if the direction WAS active last frame but is NOT active this frame
-    ; Uses helper subroutine to check if a direction is active in a given input byte
-    ; Input: B = Entity Index, HL = Params Ptr
-    ; Params: Key ID (1 byte) - 1=Up, 5=Down, 7=Left, 3=Right, 9=Fire
-    ; Output: A = 1 (just released) or 0 (not released), HL = Updated Ptr
+    ; Edge keyup: inactive now and active previous frame
+    ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
+    ld d, (hl)
+    inc hl
 
-    ld a, (hl)              ; A = Key ID
-    inc hl                  ; Advance past param
-    ld d, a                 ; D = desired key ID
+    ld a, d
+    cp 9
+    jr z, .ckr_fire
 
-    ; Step 1: Check if key is currently active in input_state
+    ; Directional edge: current inactive, previous active
     ld a, (input_state)
-    call .ckr_match_dir     ; A = 1 if direction D is active in A
+    call SM_MatchDirection
     or a
-    jp nz, .ckr_not_released ; Key still pressed -> not released
+    jr nz, .ckr_not_released
 
-    ; Step 2: Key is NOT pressed now. Check if it WAS pressed last frame
     ld a, (prev_input_state)
-    call .ckr_match_dir     ; A = 1 if direction D was active last frame
+    call SM_MatchDirection
     or a
-    jp z, .ckr_not_released ; Wasn't pressed last frame either -> not a release event
+    jr z, .ckr_not_released
 
-    ; Was pressed last frame, not pressed now -> RELEASED
+    ld a, 1
+    ret
+
+.ckr_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jr nz, .ckr_not_released
+    ld a, (input_btn_prev)
+    and INPUT_BTN_FIRE
+    jr z, .ckr_not_released
     ld a, 1
     ret
 
 .ckr_not_released:
     xor a
-    ret
-
-    ; Helper: Check if direction D is active in input value A
-    ; Input: A = input value, D = desired direction (1=Up,3=Right,5=Down,7=Left)
-    ; Output: A = 1 if match, 0 if no match
-    ; Destroys: E
-.ckr_match_dir:
-    ld e, a                 ; E = input value
-    cp d                    ; Exact match?
-    jr z, .ckr_match_yes
-
-    ; Check diagonals based on desired direction
-    ld a, d
-    cp 1                    ; UP?
-    jr nz, .ckr_md_not_up
-    ld a, e
-    cp 2                    ; UP+RIGHT?
-    jr z, .ckr_match_yes
-    cp 8                    ; UP+LEFT?
-    jr z, .ckr_match_yes
-    jr .ckr_match_no
-
-.ckr_md_not_up:
-    cp 5                    ; DOWN?
-    jr nz, .ckr_md_not_down
-    ld a, e
-    cp 4                    ; DOWN+RIGHT?
-    jr z, .ckr_match_yes
-    cp 6                    ; DOWN+LEFT?
-    jr z, .ckr_match_yes
-    jr .ckr_match_no
-
-.ckr_md_not_down:
-    cp 7                    ; LEFT?
-    jr nz, .ckr_md_not_left
-    ld a, e
-    cp 6                    ; DOWN+LEFT?
-    jr z, .ckr_match_yes
-    cp 8                    ; UP+LEFT?
-    jr z, .ckr_match_yes
-    jr .ckr_match_no
-
-.ckr_md_not_left:
-    cp 3                    ; RIGHT?
-    jr nz, .ckr_match_no
-    ld a, e
-    cp 2                    ; UP+RIGHT?
-    jr z, .ckr_match_yes
-    cp 4                    ; DOWN+RIGHT?
-    jr z, .ckr_match_yes
-
-.ckr_match_no:
-    xor a                   ; A = 0
-    ret
-
-.ckr_match_yes:
-    ld a, 1                 ; A = 1
     ret
 
 Condition_TimeOut:
@@ -2159,25 +2271,119 @@ Condition_TimeOut:
     ret
 
 Condition_CanMove:
-    ; TODO: Implement movement check
-    inc hl                  ; Skip direction param
-    ld a, 1
+    ; Params: direction key id (1/3/5/7)
+    ld a, (hl)
+    inc hl
+    call SM_TestMoveDirection
     ret
 
 Condition_HasCollision:
-    ; TODO: Implement collision check
+    ; Params: collisionType (0=any, 1=wall, 2=enemy[reserved], 3=item[reserved])
+    ld a, (hl)
+    inc hl
+
+    push hl
+    push de
+    ld hl, entity_wall_collision_flags
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    or a
+    jr z, .chc_none
     ld a, 1
+    ret
+
+.chc_none:
+    xor a
     ret
 
 Condition_PathClear:
-    ; TODO: Implement path clear check
-    ld a, 1
+    ; Params: direction key id (1/3/5/7), 0 = deduce from velocity
+    ld a, (hl)
+    inc hl
+    or a
+    jr nz, .cpc_have_direction
+    call SM_DeduceDirectionFromVelocity
+    or a
+    jr z, .cpc_idle
+
+.cpc_have_direction:
+    call SM_TestMoveDirection
+    ret
+
+.cpc_idle:
+    ld a, 1                 ; Idle has clear path by definition
     ret
 
 Condition_OnWallCollision:
-    ; TODO: Implement wall collision check
-    inc hl                  ; Skip direction param
+    ; Params: direction key id (0=any, 1=up, 5=down, 7=left, 3=right)
+    ld a, (hl)
+    inc hl
+    ld c, a
+
+    push hl
+    ld hl, entity_wall_collision_flags
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ld e, a                 ; E = flags
+    pop hl
+
+    ld a, c
+    or a
+    jr z, .cowc_any
+    cp 1
+    jr z, .cowc_up
+    cp 5
+    jr z, .cowc_down
+    cp 7
+    jr z, .cowc_left
+    cp 3
+    jr z, .cowc_right
+    xor a
+    ret
+
+.cowc_any:
+    ld a, e
+    or a
+    jr z, .cowc_no
     ld a, 1
+    ret
+
+.cowc_up:
+    ld a, e
+    and #01
+    jr z, .cowc_no
+    ld a, 1
+    ret
+
+.cowc_down:
+    ld a, e
+    and #02
+    jr z, .cowc_no
+    ld a, 1
+    ret
+
+.cowc_left:
+    ld a, e
+    and #04
+    jr z, .cowc_no
+    ld a, 1
+    ret
+
+.cowc_right:
+    ld a, e
+    and #08
+    jr z, .cowc_no
+    ld a, 1
+    ret
+
+.cowc_no:
+    xor a
     ret
 
 Condition_DeadlyTile:
@@ -2201,8 +2407,49 @@ Condition_AnimComplete:
     ret
 
 Condition_KeyAndMove:
-    ; TODO: Implement key and movement check
-    ld a, 1
+    ; Params: keyId, directionId (0 means derive from key/velocity)
+    ld d, (hl)              ; keyId
+    inc hl
+    ld c, (hl)              ; directionId
+    inc hl
+
+    ; First: key active (level check)
+    ld a, d
+    cp 9
+    jr z, .ckam_fire
+    ld a, (input_state)
+    call SM_MatchDirection
+    or a
+    jr z, .ckam_false
+    jr .ckam_check_move
+
+.ckam_fire:
+    ld a, (input_btn_curr)
+    and INPUT_BTN_FIRE
+    jr z, .ckam_false
+
+.ckam_check_move:
+    ld a, c
+    or a
+    jr nz, .ckam_have_dir
+
+    ld a, d
+    cp 9
+    jr z, .ckam_from_velocity
+    ld a, d
+    jr .ckam_have_dir
+
+.ckam_from_velocity:
+    call SM_DeduceDirectionFromVelocity
+    or a
+    jr z, .ckam_false
+
+.ckam_have_dir:
+    call SM_TestMoveDirection
+    ret
+
+.ckam_false:
+    xor a
     ret
 
 Condition_VariableCompare:
@@ -2643,7 +2890,10 @@ function generateActionBytes(action: Action, smName: string = '', variableIdMap?
 
 function generateConditionBytes(condition: Condition, variableIdMap?: Record<string, number>): string {
     const id = CONDITION_IDS[condition.type];
-    if (!id) return `; Unknown Condition: ${condition.type} \n`;
+    if (!id) {
+        console.warn(`[State Machine Generator] Unknown condition "${condition.type}". Falling back to NOP condition.`);
+        return `    DB 0; FALLBACK NOP for unknown condition ${condition.type}\n`;
+    }
 
     let bytes = `    DB ${id}; ${condition.type} \n`;
 
@@ -2660,6 +2910,74 @@ function generateConditionBytes(condition: Condition, variableIdMap?: Record<str
             bytes += `    DB ${serializeValue(condition.params?.duration)} \n`;
             break;
 
+        case ConditionTypes.CAN_MOVE_DIRECTION: {
+            const directionName = String(condition.params?.direction || '').toLowerCase();
+            const directionId = DIRECTION_IDS[directionName] ?? 0;
+            if (directionName && directionId === 0) {
+                console.warn(`[State Machine Generator] Unknown direction "${directionName}" in CAN_MOVE_DIRECTION. Using 0 (no direction).`);
+            }
+            bytes += `    DB ${directionId}          ; Direction: ${directionName || 'none'}\n`;
+            break;
+        }
+
+        case ConditionTypes.ON_WALL_COLLISION: {
+            const directionName = String(condition.params?.direction || 'any').toLowerCase();
+            const directionId = WALL_DIRECTION_IDS[directionName] ?? 0;
+            if (!(directionName in WALL_DIRECTION_IDS)) {
+                console.warn(`[State Machine Generator] Unknown direction "${directionName}" in ON_WALL_COLLISION. Using any.`);
+            }
+            bytes += `    DB ${directionId}          ; Wall direction: ${directionName}\n`;
+            break;
+        }
+
+        case ConditionTypes.HAS_COLLISION: {
+            const collisionType = String(condition.params?.collisionType || 'any').toLowerCase();
+            let collisionId = COLLISION_TYPE_IDS[collisionType];
+
+            if (collisionId === undefined) {
+                console.warn(`[State Machine Generator] Unknown collisionType "${collisionType}" in HAS_COLLISION. Using any.`);
+                collisionId = COLLISION_TYPE_IDS.any;
+            }
+
+            if (collisionType === 'enemy' || collisionType === 'item') {
+                console.warn(`[State Machine Generator] collisionType "${collisionType}" not implemented in MSX runtime yet. Falling back to any.`);
+                collisionId = COLLISION_TYPE_IDS.any;
+            }
+
+            bytes += `    DB ${collisionId}          ; collisionType: ${collisionType}\n`;
+            break;
+        }
+
+        case ConditionTypes.PATH_CLEAR: {
+            const directionName = String(condition.params?.direction || '').toLowerCase();
+            const directionId = DIRECTION_IDS[directionName] ?? 0;
+            if (directionName && directionId === 0) {
+                console.warn(`[State Machine Generator] Unknown direction "${directionName}" in PATH_CLEAR. Using auto-deduce (0).`);
+            }
+            bytes += `    DB ${directionId}          ; Direction (0=auto): ${directionName || 'auto'}\n`;
+            break;
+        }
+
+        case ConditionTypes.KEY_AND_MOVEMENT: {
+            const keyName = String(condition.params?.key || '').toLowerCase();
+            const keyId = KEY_IDS[keyName] ?? 0;
+
+            const directionName = String(condition.params?.direction || '').toLowerCase();
+            let directionId = DIRECTION_IDS[directionName] ?? 0;
+
+            if (!directionName && keyId !== 9) {
+                // If movement key is directional and no explicit direction was provided, use same direction
+                directionId = keyId;
+            }
+
+            if (directionName && directionId === 0) {
+                console.warn(`[State Machine Generator] Unknown direction "${directionName}" in KEY_AND_MOVEMENT. Using 0.`);
+            }
+
+            bytes += `    DB ${keyId}, ${directionId}          ; key=${keyName || 'unknown'}, dir=${directionName || 'auto'}\n`;
+            break;
+        }
+
         case ConditionTypes.AND:
         case ConditionTypes.OR:
             if (condition.conditions) {
@@ -2669,6 +2987,16 @@ function generateConditionBytes(condition: Condition, variableIdMap?: Record<str
                 }
             } else {
                 bytes += `    DB 0\n`;
+            }
+            break;
+
+        case ConditionTypes.NOT:
+            if (condition.conditions && condition.conditions.length > 0) {
+                bytes += `    DB 1 \n`;
+                bytes += generateConditionBytes(condition.conditions[0], variableIdMap);
+            } else {
+                bytes += `    DB 1 \n`;
+                bytes += `    DB 0; Fallback NOP subcondition for NOT\n`;
             }
             break;
 

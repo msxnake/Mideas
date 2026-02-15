@@ -963,6 +963,9 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             xor a
             ld (input_state), a
             ld (prev_input_state), a
+            ld (input_btn_curr), a
+            ld (input_btn_prev), a
+            ld (input_fire), a
 
             ; Initialize direction masks for all entities (default: all directions allowed)
             ld hl, entity_dir_mask
@@ -2213,7 +2216,7 @@ function generateJumpSystem(): string {
             ; Update jump logic for entities
             ; Fire button edge triggers jump for entities with Jump+Input
             ; Uses: entity_jump_count, entity_on_ground, entity_gravity_vel
-            ; Tracks per-entity fire edge in entity_on_ground bit 7 (latch)
+            ; Uses global input_btn_curr/input_btn_prev edge detection
 
             ld b, 32                      ; Loop all entities
             ld hl, entity_comp_masks_hi    ; High byte masks (Jump/Gravity)
@@ -2254,11 +2257,11 @@ function generateJumpSystem(): string {
 
         .jump_check:
             ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
-            ld a, (input_state)
-            and #80
+            ld a, (input_btn_curr)
+            and INPUT_BTN_FIRE
             jr z, jump_done_entity        ; not pressed
-            ld a, (prev_input_state)
-            and #80
+            ld a, (input_btn_prev)
+            and INPUT_BTN_FIRE
             jr nz, jump_done_entity       ; already held last frame
 
             ; Check jump count < 2 OR grounded
@@ -2683,6 +2686,10 @@ update_wallcollision_component:
 
     ; Clear on_ground flag - will be re-set by .wall_down_blocked if floor found
     ; This ensures entity correctly detects walking off platform edges
+    ld hl, entity_wall_collision_flags
+    add hl, de                        ; DE still = entity index from above
+    ld (hl), 0                        ; Clear directional wall flags
+
     ld hl, entity_on_ground
     add hl, de                        ; DE still = entity index from above
     res 0, (hl)
@@ -2757,6 +2764,9 @@ update_wallcollision_component:
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 2, (hl)                       ; LEFT wall collision
     jp .check_wall_y
 
 .wall_check_right:
@@ -2815,6 +2825,9 @@ update_wallcollision_component:
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 3, (hl)                       ; RIGHT wall collision
 
 .check_wall_y:
     ; ---- CHECK VERTICAL VELOCITY ----
@@ -2895,6 +2908,9 @@ update_wallcollision_component:
     ld (hl), 0
     inc hl
     ld (hl), 0
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 0, (hl)                       ; UP wall collision
     jp .wall_next
 
 .wall_check_down:
@@ -2968,6 +2984,9 @@ update_wallcollision_component:
     ld hl, entity_on_ground
     add hl, de
     set 0, (hl)
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 1, (hl)                       ; DOWN wall collision
     jp .wall_next                     ; Floor collision handled, move to next entity
 
 .check_wall_y_gravity:
@@ -3472,6 +3491,7 @@ entity_collision_layer  EQU temp_byte_14
 entity_collides_with    EQU temp_byte_15
 entity_platform_id      EQU temp_byte_16
 entity_platform_grace   EQU temp_byte_17
+entity_wall_collision_flags EQU temp_byte_18
 
     ; ==================================================================
 ; END OF COMPONENTS(MINIMAL VERSION)
@@ -3579,6 +3599,7 @@ entity_collides_with    EQU temp_byte_15 ; Bitmask of layers this entity collide
     ; Platform Riding Data
 entity_platform_id      EQU temp_byte_16 ; ID of platform underneath (255 = none) (32 bytes)
 entity_platform_grace   EQU temp_byte_17 ; Grace frames for platform (32 bytes)
+entity_wall_collision_flags EQU temp_byte_18 ; Directional wall collision bits (32 bytes)
 
 
     ; ==================================================================

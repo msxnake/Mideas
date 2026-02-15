@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Condition, ConditionType, ConditionTypes } from '../../../statemachine.types';
-import { ProjectAsset, EntityTemplate, ScreenMap, EntityInstance, ComponentDefinition } from '../../../types';
+import { ProjectAsset, EntityTemplate } from '../../../types';
 import { Button } from '../../common/Button';
 import { getAllGlobalVariables } from '../../../utils/globalVariablesUtils';
 
@@ -12,9 +12,7 @@ interface ConditionBuilderProps {
   entityTemplates?: EntityTemplate[];
 }
 
-export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, condition, level = 0, allAssets = [], entityTemplates = [] }) => {
-  // Local refresh flag to force re-scan of assets for dropdowns
-  const [refreshTick, setRefreshTick] = useState(0);
+export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, condition, level = 0, allAssets = [] }) => {
 
   // Get all variables (default + custom + entity properties)
   const allVariables = useMemo(() => {
@@ -117,14 +115,28 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
     switch (condition.type) {
       case ConditionTypes.KEY_PRESSED:
       case ConditionTypes.KEY_RELEASED:
+        const rawKey = String(condition.params?.key || '').toLowerCase();
+        const canonicalKey = (() => {
+          if (rawKey === 'arrowup') return 'up';
+          if (rawKey === 'arrowdown') return 'down';
+          if (rawKey === 'arrowleft') return 'left';
+          if (rawKey === 'arrowright') return 'right';
+          if (rawKey === 'fire') return 'space';
+          if (rawKey === 'up' || rawKey === 'down' || rawKey === 'left' || rawKey === 'right' || rawKey === 'space') return rawKey;
+          return 'right';
+        })();
         return (
-          <input
-            type="text"
-            placeholder="Key (e.g. 'ArrowUp')"
-            value={condition.params?.key || ''}
+          <select
+            value={canonicalKey}
             onChange={(e) => handleParamChange('key', e.target.value)}
             className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-          />
+          >
+            <option value="up">Up</option>
+            <option value="down">Down</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+            <option value="space">Space (Fire)</option>
+          </select>
         );
       case ConditionTypes.TIME_OUT:
         return (
@@ -194,132 +206,61 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
           </select>
         );
       case ConditionTypes.HAS_COLLISION:
-        // Build dropdown options for collectibles (no memo to avoid stale caches)
-        // First, identify all collectible component definitions by checking for 'itemType' property
-        const componentDefinitions = (allAssets || [])
-          .filter(a => a.type === 'componentdefinition')
-          .map(a => a.data as ComponentDefinition);
-
-        // Find all component definition IDs that have an 'itemType' property (these are collectible components)
-        const collectibleComponentIds = new Set<string>();
-        componentDefinitions.forEach(compDef => {
-          if (compDef?.properties?.some(prop => prop.name === 'itemType')) {
-            collectibleComponentIds.add(compDef.id);
-          }
-        });
-
-        // Merge templates from assets and from explicit entityTemplates prop
-        const templateMapById = new Map<string, EntityTemplate>();
-        // From allAssets (if some templates are registered as assets)
-        (allAssets || []).forEach(a => {
-          if (a.type === 'entitytemplate' && a.data) {
-            const t = a.data as EntityTemplate;
-            // Check if template has ANY collectible component (not just comp_collectible)
-            if (t?.components?.some(c => collectibleComponentIds.has(c.definitionId))) templateMapById.set(t.id, t);
-          }
-        });
-        // From prop entityTemplates (global project templates)
-        (entityTemplates || []).forEach(t => {
-          // Check if template has ANY collectible component (not just comp_collectible)
-          if (t?.components?.some(c => collectibleComponentIds.has(c.definitionId))) templateMapById.set(t.id, t);
-        });
-        const collectibleTemplates: EntityTemplate[] = Array.from(templateMapById.values());
-
-        const itemTypeSet = new Set<string>();
-        // From collectible templates defaultValues
-        collectibleTemplates.forEach(t => {
-          // Find ANY collectible component (not just comp_collectible)
-          const comp = t.components?.find(c => collectibleComponentIds.has(c.definitionId));
-          const it = (comp?.defaultValues as any)?.itemType;
-          if (it) itemTypeSet.add(String(it));
-        });
-        // From screenmap instances overrides
-        (allAssets || []).filter(a => a.type === 'screenmap').forEach(a => {
-          const sm = a.data as ScreenMap;
-          sm?.layers?.entities?.forEach((inst: EntityInstance) => {
-            // Check overrides for ANY collectible component
-            collectibleComponentIds.forEach(compId => {
-              const over = inst?.componentOverrides?.[compId] as any;
-              const it = over?.itemType;
-              if (it) itemTypeSet.add(String(it));
-            });
-          });
-        });
-        const itemTypeOptions = Array.from(itemTypeSet.values()).sort();
-
-        const templateMap = new Map<string, { id: string; name: string }>();
-        collectibleTemplates.forEach(t => { templateMap.set(t.id, { id: t.id, name: t.name }); });
-        // From screenmaps instances (resolve to template asset when possible)
-        (allAssets || []).filter(a => a.type === 'screenmap').forEach(a => {
-          const sm = a.data as ScreenMap;
-          sm?.layers?.entities?.forEach((inst: EntityInstance) => {
-            const tplId = inst?.entityTemplateId;
-            if (tplId && !templateMap.has(tplId)) {
-              const tplAsset = (allAssets || []).find(ax => ax.type === 'entitytemplate' && ax.id === tplId);
-              if (tplAsset) {
-                const t = tplAsset.data as EntityTemplate;
-                templateMap.set(t.id, { id: t.id, name: t.name });
-              }
-            }
-          });
-        });
-        const templateOptions = Array.from(templateMap.values()).sort((a, b) => a.name.localeCompare(b.name));
         return (
           <div className="space-y-2">
             <select
-              value={condition.params?.collisionType || 'any'}
+              value={condition.params?.collisionType === 'wall' ? 'wall' : 'any'}
               onChange={(e) => handleParamChange('collisionType', e.target.value)}
               className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
             >
               <option value="any">Any collision</option>
-              <option value="enemy">Enemy collision</option>
-              <option value="item">Item collision</option>
               <option value="wall">Wall collision</option>
             </select>
             <div className="text-xs text-msx-textsecondary">
-              {condition.params?.collisionType === 'enemy' && '💥 Triggers when colliding with enemies (entities with comp_damage or comp_ai_behavior)'}
-              {condition.params?.collisionType === 'item' && '✨ Triggers when colliding with collectibles (entities with collectible components)'}
-              {condition.params?.collisionType === 'wall' && '🧱 Triggers when colliding with solid walls'}
-              {(!condition.params?.collisionType || condition.params?.collisionType === 'any') && 'Triggers on any type of collision'}
+              MSX runtime actual en esta fase soporta `any` y `wall`.
             </div>
-            {condition.params?.collisionType === 'item' && (
-              <div className="grid grid-cols-1 gap-2">
-                <div className="flex items-center space-x-2">
-                  <label className="text-xs text-msx-textsecondary w-28">itemType</label>
-                  {itemTypeOptions.length > 0 ? (
-                    <select
-                      value={condition.params?.itemType || ''}
-                      onChange={(e) => handleParamChange('itemType', e.target.value)}
-                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-                    >
-                      <option value="">-- Any --</option>
-                      {itemTypeOptions.map(it => (<option key={it} value={it}>{it}</option>))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      placeholder="Filter by itemType (optional)"
-                      value={condition.params?.itemType || ''}
-                      onChange={(e) => handleParamChange('itemType', e.target.value)}
-                      className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-                    />
-                  )}
-                </div>
-                {/* Removed templateId/templateName filters intentionally */}
-                <div className="text-xs text-msx-textsecondary">Use filters to restrict which item triggers the transition.</div>
-              </div>
-            )}
           </div>
         );
       case ConditionTypes.PATH_CLEAR:
         return (
-          <input
-            type="text"
-            placeholder="Collision layer or type (optional)"
-            value={condition.params?.layer || ''}
-            onChange={(e) => handleParamChange('layer', e.target.value)}
+          <select
+            value={condition.params?.direction || ''}
+            onChange={(e) => handleParamChange('direction', e.target.value)}
             className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
-          />
+          >
+            <option value="">Auto (from velocity)</option>
+            <option value="up">Up</option>
+            <option value="down">Down</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        );
+      case ConditionTypes.KEY_AND_MOVEMENT:
+        return (
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={condition.params?.key || 'right'}
+              onChange={(e) => handleParamChange('key', e.target.value)}
+              className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="up">Up</option>
+              <option value="down">Down</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="space">Space (Fire)</option>
+            </select>
+            <select
+              value={condition.params?.direction || ''}
+              onChange={(e) => handleParamChange('direction', e.target.value)}
+              className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="">Auto direction</option>
+              <option value="up">Up</option>
+              <option value="down">Down</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
         );
       case ConditionTypes.ON_WALL_COLLISION:
         return (
@@ -592,3 +533,4 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
     </div>
   );
 };
+

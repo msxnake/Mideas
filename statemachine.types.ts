@@ -128,6 +128,11 @@ export const ConditionTypes = {
   VARIABLE_COMPARE: 'VARIABLE_COMPARE'
 } as const;
 
+export type StateMachineCanonicalKey = 'up' | 'down' | 'left' | 'right' | 'space';
+export type StateMachineDirection = 'up' | 'down' | 'left' | 'right';
+export type StateMachineWallDirection = 'any' | StateMachineDirection;
+export type StateMachineCollisionType = 'any' | 'wall' | 'enemy' | 'item';
+
 // Note: VARIABLE_EQUALS and VARIABLE_GREATER have been removed
 // Use TransitionGuard for variable comparisons instead of Condition
 

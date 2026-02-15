@@ -154,6 +154,9 @@ STICK_CENTER EQU 0
 TRIG_A      EQU #10      ; Trigger A (Fire)
 TRIG_B      EQU #20      ; Trigger B (MSX2+)
 
+; Input Button Bitmask
+INPUT_BTN_FIRE EQU #01   ; Fire/Space button bit in input_btn_curr/input_btn_prev
+
 ; ==================================================================
 ; TILE BEHAVIOR CONSTANTS (for collision detection)
 ; ==================================================================
