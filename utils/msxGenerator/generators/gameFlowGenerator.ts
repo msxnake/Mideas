@@ -36,6 +36,21 @@ function getScreenLoadRoutineName(screen: { name?: string; id?: string }): strin
 }
 
 /**
+ * Get imported HUD frame draw routine name for a screen.
+ * Returns null when screen has no imported HUD frame snapshot.
+ */
+function getImportedHudFrameDrawRoutineName(screen: { name?: string; id?: string; hudConfiguration?: any }): string | null {
+  const importedCells = screen?.hudConfiguration?.importedFrame?.cells;
+  if (!Array.isArray(importedCells) || importedCells.length === 0) {
+    return null;
+  }
+
+  const screenName = (screen.name || 'DEFAULT').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+  const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+  return `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_draw`;
+}
+
+/**
  * Generate complete GameFlow file (gameflow.asm)
  * 
  * This is the CORE of the new architecture. It generates:
@@ -1949,6 +1964,11 @@ function generateDefaultGameFlow(analysis: ProjectAnalysis): string {
   const defaultHasHud = analysis.screenMaps?.some(screen =>
     screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
   );
+  const firstScreen = analysis.screenMaps && analysis.screenMaps.length > 0 ? analysis.screenMaps[0] : null;
+  const firstImportedHudFrameDrawRoutine = firstScreen ? getImportedHudFrameDrawRoutineName(firstScreen as any) : null;
+  const firstScreenLoadCode = firstScreen
+    ? `    call ${getScreenLoadRoutineName(firstScreen)}\n`
+    : `    ; No screens available\n`;
 
   return `; ==================================================================
 ; DEFAULT GAMEFLOW (No GameFlow defined in project)
@@ -1959,9 +1979,9 @@ gameflow_init:
 
 gameflow_start:
     ; Load first available screen/world
-${analysis.screenMaps && analysis.screenMaps.length > 0 ?
-      `    call ${getScreenLoadRoutineName(analysis.screenMaps[0])}` :
-      `    ; No screens available`}
+${firstScreenLoadCode}${firstImportedHudFrameDrawRoutine ? `    ; Draw imported HUD frame once at game start
+    call ${firstImportedHudFrameDrawRoutine}
+` : ``}
 ${defaultHasHud ? `    ; Set HUD dirty flag after screen load
     ld a, 1
     ld (hud_dirty_flag), a

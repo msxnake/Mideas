@@ -89,6 +89,51 @@ function getScreenLoadRoutineName(screenAssetId: string, analysis: ProjectAnalys
 }
 
 /**
+ * Get the generated imported HUD frame draw routine name for a screen asset id.
+ * Returns null when screen has no imported HUD frame snapshot.
+ */
+function getImportedHudFrameDrawRoutineName(screenAssetId: string, analysis: ProjectAnalysis): string | null {
+  const screenAsset = analysis.screens?.find((s: any) => s.id === screenAssetId);
+  const importedCells = screenAsset?.hudConfiguration?.importedFrame?.cells;
+  if (!Array.isArray(importedCells) || importedCells.length === 0) {
+    return null;
+  }
+
+  const screenName = screenAsset?.name?.toUpperCase().replace(/[^A-Z0-9]/g, '_') || 'UNKNOWN';
+  const screenIdSuffix = screenAssetId
+    ? `_${screenAssetId.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}`
+    : '';
+
+  return `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_draw`;
+}
+
+/**
+ * Resolve one imported HUD frame draw routine for the whole world.
+ * Priority: start screen first, then remaining screens in world order.
+ */
+function getWorldImportedHudFrameDrawRoutineName(world: any, analysis: ProjectAnalysis): string | null {
+  const nodes = Array.isArray(world?.nodes) ? world.nodes : [];
+  if (nodes.length === 0) return null;
+
+  const orderedNodes: any[] = [];
+  const startScreenNodeId = world?.startScreenNodeId;
+  const startNode = nodes.find((n: any) => n?.id === startScreenNodeId);
+  if (startNode) orderedNodes.push(startNode);
+  nodes.forEach((n: any) => {
+    if (!startNode || n?.id !== startNode.id) orderedNodes.push(n);
+  });
+
+  for (const node of orderedNodes) {
+    const screenAssetId = node?.screenAssetId;
+    if (!screenAssetId) continue;
+    const routine = getImportedHudFrameDrawRoutineName(screenAssetId, analysis);
+    if (routine) return routine;
+  }
+
+  return null;
+}
+
+/**
  * Emit transition runtime snippet for one exit direction.
  */
 function emitDirectionalTransitionCode(
@@ -232,6 +277,9 @@ ${skipLabel}:
 export function generateWorldsFile(analysis: ProjectAnalysis): string {
   // Check if we have world maps in the analysis
   const worldMaps = (analysis as any).worldmaps || [];
+  const hasHudElements = !!analysis.screenMaps?.some((screen: any) =>
+    Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0
+  );
 
   // Skip world system if no worlds in project
   if (worldMaps.length === 0) {
@@ -334,14 +382,26 @@ load_world_${toRoutineLabel(worldId)}:
     }
 
     const loadRoutine = getScreenLoadRoutineName(startScreenAssetId, analysis);
+    const worldImportedHudFrameDrawRoutine = getWorldImportedHudFrameDrawRoutineName(world, analysis);
 
     code += `    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
     call ${loadRoutine}
 
-    ; Draw HUD frame (if HUD exists)
+`;
+    if (worldImportedHudFrameDrawRoutine) {
+      code += `    ; Draw imported HUD frame once at world start
+    call ${worldImportedHudFrameDrawRoutine}
+
+`;
+    }
+    if (hasHudElements) {
+      code += `    ; Draw HUD frame once at world start
     call imprimir_marco
 
-    ; Initialize world state
+`;
+    }
+
+    code += `    ; Initialize world state
     ld a, WORLD_${toConstantName(world.name || 'unnamed')}_ID
     ld (current_world_id), a
 
@@ -415,9 +475,6 @@ transition_${toRoutineLabel(worldId)}_${connIndex}:
     ld a, ${toScreenIndex}
     ld (current_screen_index), a
     ld (current_screen_id), a
-
-    ; Draw HUD frame (if HUD exists)
-    call imprimir_marco
     ret
 
 `;

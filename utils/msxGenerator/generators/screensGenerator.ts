@@ -18,6 +18,7 @@ import { TileBank } from '../../../types';
  * @returns ASM code string with screen layout data and loading functions
  */
 export function generateScreensFile(analysis: ProjectAnalysis): string {
+  const hasSpriteAssets = !!analysis.sprites && analysis.sprites.length > 0;
   // Skip screen system if no screens in project
   if (!analysis.screenMaps || analysis.screenMaps.length === 0) {
     return `; ==================================================================
@@ -544,6 +545,12 @@ ${importedHudFrameLabelBase}_draw:
     ld a, ${bgColor}           ; Background color for char 0
     call init_char0_color
 `;
+        if (hasSpriteAssets) {
+          code += `    ; Clear hardware sprites on screen switch to avoid visual carry-over
+    call clear_all_sprites
+    call update_sprites_to_vram
+`;
+        }
 
         if (activeAreaWidth === 32) {
           code += `    ; Load active game area (contiguous rows)
@@ -563,8 +570,7 @@ ${importedHudFrameLabelBase}_draw:
         }
 
         if (hasImportedHudFrame) {
-          code += `    ; Restore imported HUD frame snapshot
-    call ${importedHudFrameLabelBase}_draw
+          code += `    ; Imported HUD frame is drawn on world/game start only
 `;
         }
 
@@ -586,15 +592,21 @@ ${importedHudFrameLabelBase}_draw:
     ; Initialize character 0 (empty cells) with background color
     ld a, ${bgColor}           ; Background color for char 0
     call init_char0_color
-    ; Now load screen layout (full 32x24)
+`;
+        if (hasSpriteAssets) {
+          code += `    ; Clear hardware sprites on screen switch to avoid visual carry-over
+    call clear_all_sprites
+    call update_sprites_to_vram
+`;
+        }
+        code += `    ; Now load screen layout (full 32x24)
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld de, NAMETBL
     ld bc, SCREEN_${screenName}_${index}_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
 `;
         if (hasImportedHudFrame) {
-          code += `    ; Restore imported HUD frame snapshot
-    call ${importedHudFrameLabelBase}_draw
+          code += `    ; Imported HUD frame is drawn on world/game start only
 `;
         }
         code += `    ; Initialize collision system pointers for this screen

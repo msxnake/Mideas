@@ -121,6 +121,19 @@ position_update_loop:
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jr z, position_next_entity ; Skip velocity if no movement/input source
 
+    ; Skip entities that are not in the currently active screen
+    ; Preserve HL because it is the entity_comp_masks loop pointer.
+    push hl
+    ld hl, entity_screen_id
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    pop hl
+    jp nz, position_next_entity
+
     push bc
     push hl
 
@@ -1001,6 +1014,19 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and COMP_MASK_INPUT        ; Check if has input component
             jp z, input_next_entity    ; Skip if no input component
 
+            ; Skip entities that are not in the currently active screen
+            ; Preserve HL because it is the entity_comp_masks loop pointer.
+            push hl
+            ld hl, entity_screen_id
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            ld hl, current_screen_id
+            cp (hl)
+            pop hl
+            jp nz, input_next_entity
+
             ; Apply input to entity movement (real implementation)
             push bc
             push hl
@@ -1250,6 +1276,19 @@ gravity_update_loop:
             ld a, (hl); Get entity component mask high byte
             and #02; Check COMP_MASK_GRAVITY(#0200) => bit 1 in high byte
             jr z, gravity_next_entity; Skip if no gravity component
+
+    ; Skip entities that are not in the currently active screen
+    ; Preserve HL because it is the entity_comp_masks_hi loop pointer.
+            push hl
+            ld hl, entity_screen_id
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            ld hl, current_screen_id
+            cp (hl)
+            pop hl
+            jp nz, gravity_next_entity
 
     ; Entity has gravity - apply acceleration
             push bc
@@ -2011,6 +2050,19 @@ function generateAnimationSystem(): string {
             and COMP_MASK_SPRITE
             jp z, .anim_next_entity
 
+            ; Skip entities that are not in the currently active screen
+            ; Preserve HL because it is the entity_comp_masks loop pointer.
+            push hl
+            ld hl, entity_screen_id
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            ld hl, current_screen_id
+            cp (hl)
+            pop hl
+            jp nz, .anim_next_entity
+
             push bc
             push hl
 
@@ -2434,9 +2486,10 @@ function generateCursorsSystem(): string {
     ; ==================================================================
     ; CURSORS COMPONENT SYSTEM
     ; ==================================================================
-    ; Handles menu cursor navigation (up/down/left/right)
-    ; Entities with CURSORS component can be used as menu cursors
-    ; Variables needed: entity_cursor_min, entity_cursor_max, entity_cursor_wrap
+    ; NOTE:
+    ; This system is intentionally disabled in runtime gameplay.
+    ; Directional movement is already handled by update_input_component.
+    ; Keeping cursor movement here causes double movement/jitter.
 
 init_cursors_system:
     ; No initialization needed
@@ -2444,98 +2497,10 @@ init_cursors_system:
 
 ; ------------------------------------------------------------------
 ; update_cursors_component
-; Update cursor position based on joystick input
-; For each cursor entity:
-; - Read joystick input
-; - Move cursor position based on input
-; - Clamp or wrap cursor to min/max values
+; Disabled no-op (reserved for future menu-only cursor implementation)
 ; ------------------------------------------------------------------
 update_cursors_component:
-    ld c, 0                       ; Entity index
-
-.cursor_loop:
-    ld a, c
-    cp MAX_ENTITIES
-    ret z                         ; Done
-
-    ; Check if entity is active
-    ld hl, entity_active
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    or a
-    jr z, .cursor_next
-
-    ; TODO: Check if entity has CURSORS component mask
-    ; For now, we assume cursor entities are designated by type
-
-    ; Read joystick/keyboard input for cursor control
-    call GTSTCK                   ; A = stick direction (0-8)
-    or a
-    jr z, .cursor_next            ; No input
-
-    ; Process input
-    cp 1                          ; Up
-    jr z, .cursor_up
-    cp 2                          ; Up-Right
-    jr z, .cursor_up
-    cp 5                          ; Down
-    jr z, .cursor_down
-    cp 6                          ; Down-Left
-    jr z, .cursor_down
-    cp 3                          ; Right
-    jr z, .cursor_right
-    cp 7                          ; Left
-    jr z, .cursor_left
-    jr .cursor_next
-
-.cursor_up:
-    ; Move cursor up (decrease Y position)
-    ld hl, entity_y_pos
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    sub 8                         ; Move up by 8 pixels
-    ld (hl), a
-    jr .cursor_next
-
-.cursor_down:
-    ; Move cursor down (increase Y position)
-    ld hl, entity_y_pos
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    add a, 8                      ; Move down by 8 pixels
-    ld (hl), a
-    jr .cursor_next
-
-.cursor_left:
-    ; Move cursor left (decrease X position)
-    ld hl, entity_x_pos
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    sub 8                         ; Move left by 8 pixels
-    ld (hl), a
-    jr .cursor_next
-
-.cursor_right:
-    ; Move cursor right (increase X position)
-    ld hl, entity_x_pos
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    add a, 8                      ; Move right by 8 pixels
-    ld (hl), a
-
-.cursor_next:
-    inc c
-    jr .cursor_loop
+    ret
     `;
 }
 
@@ -2678,6 +2643,17 @@ update_wallcollision_component:
     ld a, (hl)
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jp z, .wall_next
+
+    ; Skip entities that are not in the currently active screen
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jp nz, .wall_next
 
     ; Cache entity position
     ld a, (wall_entity_idx)

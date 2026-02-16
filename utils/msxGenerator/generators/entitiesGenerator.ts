@@ -175,9 +175,16 @@ update_entities:
 `;
 
     if (activeEntities.length > 0) {
-      activeEntities.forEach((entity) => {
+      activeEntities.forEach((entity, index) => {
         const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
-        code += `    call update_${entityName.toLowerCase()}
+        code += `    ; Skip entity update if entity belongs to another screen
+    ld hl, entity_screen_id + ${index}
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr nz, .skip_update_${index}
+    call update_${entityName.toLowerCase()}
+.skip_update_${index}:
 `;
       });
     } else {
