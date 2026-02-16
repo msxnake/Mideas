@@ -36,3 +36,13 @@ Ejemplos
 - Actualizar y commitear: `node bumpVersionCodex.cjs --commit`
 - Fijar versión y publicar: `node bumpVersionCodex.cjs 0.260 --package --commit --push`
 
+
+Memoria Codex - uso de archivos .md en raiz (sin subcarpetas)
+- `README.md`: documentacion principal del proyecto (descripcion, features, instalacion y ejecucion).
+- `CHANGELOG.md`: historial de versiones y cambios por release.
+- `CODEX.md`: reglas operativas de Codex para tareas de version/release.
+- `CLAUDE.md`: guia de trabajo para asistentes IA y reglas tecnicas Z80/MSX.
+- `GAMEFLOW_BEHAVIOR.md`: especificacion tecnica del flujo de nodos GameFlow en ASM.
+- `memoria_Rom_Ram_MSX.md`: referencia sobre organizacion ROM/RAM en MSX y variables ASM.
+- `SPRITE_MOVEMENT_SOLUTION.md`: reporte tecnico de problema/solucion de movimiento de sprites.
+- `TILE_COLLISION_BUG_REPORT.md`: informe de bug de colisiones con analisis de causa raiz.

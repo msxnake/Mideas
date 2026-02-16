@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { HUDConfiguration, HUDElement, HUDElementType, HUDElementProperties_Base, MSXColorValue, MSX1ColorValue, MSXFont, MSXFontColorAttributes, TileBank, Tile, ProjectAsset } from '../../types';
+import { HUDConfiguration, HUDElement, HUDElementType, HUDElementProperties_Base, MSXColorValue, MSX1ColorValue, MSXFont, MSXFontColorAttributes, TileBank, Tile, ProjectAsset, ScreenMap, ScreenTile, HUDImportedFrameCell } from '../../types';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon } from '../icons/MsxIcons';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR } from '../../constants';
@@ -164,6 +164,31 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
   const [activeTab, setActiveTab] = useState<HudTab>("Basic Stats");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [localHudConfig, setLocalHudConfig] = useState<HUDConfiguration>(hudConfiguration);
+  const [importSourceScreenAssetId, setImportSourceScreenAssetId] = useState<string>('');
+  const [importTileBankAssetId, setImportTileBankAssetId] = useState<string>('');
+  const [importFrameMessage, setImportFrameMessage] = useState<string>('');
+
+  const screenMapAssets = useMemo(
+    () => (allAssets || []).filter(asset => asset.type === 'screenmap'),
+    [allAssets]
+  );
+
+  const tileBankAssets = useMemo(
+    () => (allAssets || []).filter(asset => asset.type === 'tilebank'),
+    [allAssets]
+  );
+
+  const tileAssetMap = useMemo(() => {
+    const map = new Map<string, Tile>();
+    (allAssets || [])
+      .filter(asset => asset.type === 'tile')
+      .forEach(asset => {
+        if (asset.data) {
+          map.set(asset.id, asset.data as Tile);
+        }
+      });
+    return map;
+  }, [allAssets]);
 
   const tileBankDefinitions = useMemo(() => {
     if (currentScreenMode !== "SCREEN 2 (Graphics I)" || !tileBanks) {
@@ -175,6 +200,21 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
   useEffect(() => {
     setLocalHudConfig(hudConfiguration);
   }, [hudConfiguration]);
+
+  useEffect(() => {
+    const imported = hudConfiguration.importedFrame;
+    if (imported?.sourceScreenAssetId) {
+      setImportSourceScreenAssetId(imported.sourceScreenAssetId);
+    } else if (screenMapAssets.length > 0 && !importSourceScreenAssetId) {
+      setImportSourceScreenAssetId(screenMapAssets[0].id);
+    }
+
+    if (imported?.sourceTileBankAssetId) {
+      setImportTileBankAssetId(imported.sourceTileBankAssetId);
+    } else if (tileBankAssets.length > 0 && !importTileBankAssetId) {
+      setImportTileBankAssetId(tileBankAssets[0].id);
+    }
+  }, [hudConfiguration, screenMapAssets, tileBankAssets, importSourceScreenAssetId, importTileBankAssetId]);
 
   useEffect(() => {
     if (localHudConfig.elements.length > 0) {
@@ -288,6 +328,130 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
 
     setLocalHudConfig(updatedConfig);
     onUpdateHUDConfiguration(updatedConfig);
+  };
+
+  const resolveHudCharCodeFromTile = (screenTile: ScreenTile | undefined, row: number, selectedTileBank: TileBank): number => {
+    if (!screenTile?.tileId) {
+      return 0;
+    }
+
+    const bankIndex = Math.max(0, Math.min(2, Math.floor(row / 8)));
+    const bank = selectedTileBank.banks?.[bankIndex] || selectedTileBank.banks?.[0];
+    if (!bank) {
+      return 0;
+    }
+
+    const assignment = bank.assignedTiles?.[screenTile.tileId] as { charCode?: number } | undefined;
+    if (!assignment || typeof assignment.charCode !== 'number') {
+      return 0;
+    }
+
+    const tileAsset = tileAssetMap.get(screenTile.tileId);
+    if (!tileAsset) {
+      return 0;
+    }
+
+    const widthInChars = Math.max(1, Math.ceil(tileAsset.width / baseCellDimension));
+    const subX = screenTile.subTileX || 0;
+    const subY = screenTile.subTileY || 0;
+    const charCode = assignment.charCode + (subY * widthInChars) + subX;
+    if (charCode < bank.charsetRangeStart || charCode > bank.charsetRangeEnd) {
+      return 0;
+    }
+
+    return charCode & 0xFF;
+  };
+
+  const handleImportHudFrame = () => {
+    if (!importSourceScreenAssetId) {
+      setImportFrameMessage('Selecciona una Screen Asset de origen.');
+      return;
+    }
+
+    if (!importTileBankAssetId) {
+      setImportFrameMessage('Selecciona un TileBank para resolver chars del marco.');
+      return;
+    }
+
+    const sourceScreenAsset = screenMapAssets.find(asset => asset.id === importSourceScreenAssetId);
+    const sourceScreen = sourceScreenAsset?.data as ScreenMap | undefined;
+    if (!sourceScreen || !sourceScreen.layers?.background) {
+      setImportFrameMessage('La Screen Asset seleccionada no tiene capa background valida.');
+      return;
+    }
+
+    const selectedTileBankAsset = tileBankAssets.find(asset => asset.id === importTileBankAssetId);
+    const selectedTileBank = selectedTileBankAsset?.data as TileBank | undefined;
+    if (!selectedTileBank || !Array.isArray(selectedTileBank.banks) || selectedTileBank.banks.length === 0) {
+      setImportFrameMessage('El TileBank seleccionado no es valido.');
+      return;
+    }
+
+    const sourceWidth = sourceScreen.width || 32;
+    const sourceHeight = sourceScreen.height || 24;
+    const activeX = sourceScreen.activeAreaX ?? 0;
+    const activeY = sourceScreen.activeAreaY ?? 0;
+    const activeW = sourceScreen.activeAreaWidth ?? sourceWidth;
+    const activeH = sourceScreen.activeAreaHeight ?? sourceHeight;
+
+    const importedCells: HUDImportedFrameCell[] = [];
+    let unresolvedChars = 0;
+
+    for (let y = 0; y < sourceHeight; y++) {
+      for (let x = 0; x < sourceWidth; x++) {
+        const inActiveArea = x >= activeX && x < (activeX + activeW) && y >= activeY && y < (activeY + activeH);
+        if (inActiveArea) {
+          continue;
+        }
+
+        const screenTile = sourceScreen.layers.background?.[y]?.[x];
+        const tileId = screenTile?.tileId || undefined;
+        const charCode = resolveHudCharCodeFromTile(screenTile, y, selectedTileBank);
+        if (tileId && charCode === 0) {
+          unresolvedChars++;
+        }
+
+        importedCells.push({
+          x,
+          y,
+          charCode,
+          tileId,
+          subTileX: screenTile?.subTileX,
+          subTileY: screenTile?.subTileY
+        });
+      }
+    }
+
+    const updatedConfig: HUDConfiguration = {
+      ...localHudConfig,
+      importedFrame: {
+        sourceScreenAssetId: sourceScreenAsset.id,
+        sourceScreenName: sourceScreenAsset.name,
+        sourceTileBankAssetId: selectedTileBankAsset.id,
+        width: sourceWidth,
+        height: sourceHeight,
+        activeAreaX: activeX,
+        activeAreaY: activeY,
+        activeAreaWidth: activeW,
+        activeAreaHeight: activeH,
+        importedAt: Date.now(),
+        cells: importedCells
+      }
+    };
+
+    setLocalHudConfig(updatedConfig);
+    onUpdateHUDConfiguration(updatedConfig);
+    setImportFrameMessage(`Marco HUD importado: ${importedCells.length} celdas (${unresolvedChars} sin char asignado en TileBank).`);
+  };
+
+  const handleClearImportedFrame = () => {
+    const updatedConfig: HUDConfiguration = {
+      ...localHudConfig,
+      importedFrame: undefined
+    };
+    setLocalHudConfig(updatedConfig);
+    onUpdateHUDConfiguration(updatedConfig);
+    setImportFrameMessage('Marco HUD importado eliminado.');
   };
 
   const selectedElement = localHudConfig.elements.find(el => el.id === selectedElementId);
@@ -467,12 +631,12 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
         </div>
       );
     } else if (typeof value === 'number' || 
-               ( (key.endsWith('Value') && propertyPath.startsWith('details.')) ||
-                    (key.endsWith('Width') && propertyPath.startsWith('details.')) ||
-                    (key.endsWith('Height') && propertyPath.startsWith('details.')) ||
-                    (key.endsWith('Thickness') && propertyPath.startsWith('details.')) ||
-                    (key.endsWith('Spacing') && propertyPath.startsWith('details.')) ||
-                    (key.endsWith('Digits') && propertyPath.startsWith('details.')) ||
+               ( (key.endsWith('Value') && fullPath.startsWith('details.')) ||
+                    (key.endsWith('Width') && fullPath.startsWith('details.')) ||
+                    (key.endsWith('Height') && fullPath.startsWith('details.')) ||
+                    (key.endsWith('Thickness') && fullPath.startsWith('details.')) ||
+                    (key.endsWith('Spacing') && fullPath.startsWith('details.')) ||
+                    (key.endsWith('Digits') && fullPath.startsWith('details.')) ||
                      key === 'itemIconSize' ||
                      key === 'spacing' ||
                      key === 'criticalThresholdPercent'
@@ -708,6 +872,41 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
   const scaledTileW = baseCellDimension * finalPreviewScale;
   const scaledTileH = baseCellDimension * finalPreviewScale;
 
+  const importedFrameTilePreviewUrls = useMemo(() => {
+    const urls = new Map<string, string>();
+    const importedCells = localHudConfig.importedFrame?.cells || [];
+    const previewW = Math.max(1, Math.round(scaledTileW));
+    const previewH = Math.max(1, Math.round(scaledTileH));
+
+    importedCells.forEach(cell => {
+      if (!cell.tileId) {
+        return;
+      }
+      const key = `${cell.tileId}:${cell.subTileX || 0}:${cell.subTileY || 0}`;
+      if (urls.has(key)) {
+        return;
+      }
+      const tileAsset = tileAssetMap.get(cell.tileId);
+      if (!tileAsset) {
+        return;
+      }
+      urls.set(
+        key,
+        createTileDataURL(
+          tileAsset,
+          cell.subTileX,
+          cell.subTileY,
+          previewW,
+          previewH,
+          baseCellDimension,
+          currentScreenMode
+        )
+      );
+    });
+
+    return urls;
+  }, [localHudConfig.importedFrame, tileAssetMap, scaledTileW, scaledTileH, baseCellDimension, currentScreenMode]);
+
 
   const renderHudPreview = () => {
     const previewElements: React.ReactNode[] = [];
@@ -730,6 +929,64 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                 />
             );
         }
+    }
+
+    const importedFrame = localHudConfig.importedFrame;
+    if (importedFrame?.cells && importedFrame.cells.length > 0) {
+      importedFrame.cells.forEach((cell, index) => {
+        if (cell.x < 0 || cell.y < 0 || cell.x >= screenMapWidth || cell.y >= screenMapHeight) {
+          return;
+        }
+        if (cell.tileId) {
+          const key = `${cell.tileId}:${cell.subTileX || 0}:${cell.subTileY || 0}`;
+          const tileSrc = importedFrameTilePreviewUrls.get(key);
+          if (tileSrc) {
+            previewElements.push(
+              <img
+                key={`preview-imported-frame-${index}`}
+                src={tileSrc}
+                alt="Imported HUD frame tile"
+                style={{
+                  position: 'absolute',
+                  left: cell.x * scaledTileW,
+                  top: cell.y * scaledTileH,
+                  width: scaledTileW,
+                  height: scaledTileH,
+                  imageRendering: 'pixelated',
+                  pointerEvents: 'none'
+                }}
+                title={`Imported frame tile (${cell.x},${cell.y})`}
+              />
+            );
+            return;
+          }
+        }
+
+        if (cell.charCode > 0) {
+          previewElements.push(
+            <div
+              key={`preview-imported-char-${index}`}
+              style={{
+                position: 'absolute',
+                left: cell.x * scaledTileW,
+                top: cell.y * scaledTileH,
+                width: scaledTileW,
+                height: scaledTileH,
+                backgroundColor: 'rgba(255, 220, 120, 0.4)',
+                color: '#111',
+                fontSize: `${Math.max(5, 6 * finalPreviewScale)}px`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'none'
+              }}
+              title={`Imported char #${cell.charCode} at (${cell.x},${cell.y})`}
+            >
+              {cell.charCode}
+            </div>
+          );
+        }
+      });
     }
 
     localHudConfig.elements.forEach(el => {
@@ -1001,7 +1258,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
 
         <div className="flex flex-grow overflow-hidden" style={{ userSelect: 'none' }}>
           {/* Left Panel: Element List and Add Buttons per Tab */}
-          <div className="w-1/4 border-r-2 border-msx-lightyellow flex flex-col">
+          <div className="w-1/4 border-r-2 border-msx-lightyellow flex flex-col min-h-0 overflow-y-auto">
             <div className="flex border-b-2 border-msx-lightyellow select-none">
               {(Object.keys(hudElementTemplates) as HudTab[]).map(tabName => (
                 <button
@@ -1013,7 +1270,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                 </button>
               ))}
             </div>
-            <div className="p-2 space-y-1 overflow-y-auto flex-shrink-0 border-b-2 border-msx-lightyellow/50">
+            <div className="p-2 space-y-1 flex-shrink-0 border-b-2 border-msx-lightyellow/50">
               <h3 className="text-sm text-msx-highlight mb-1 select-none">Add New ({activeTab}):</h3>
               {hudElementTemplates[activeTab].map(template => (
                 <Button
@@ -1032,7 +1289,7 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
             </div>
 
             {/* MSX Screen 2 Sector Configuration */}
-            <div className="p-2 border-b-2 border-msx-lightyellow/50 overflow-y-auto flex-shrink-0" style={{ maxHeight: '300px' }}>
+            <div className="p-2 border-b-2 border-msx-lightyellow/50 flex-shrink-0" style={{ maxHeight: '220px', overflowY: 'auto' }}>
               <h3 className="text-sm text-msx-highlight mb-2 select-none">MSX Screen 2 Sectors:</h3>
               <div className="text-xs text-msx-textsecondary mb-2 italic">
                 Fonts are automatically extracted from TileBank character definitions (A-Z, 0-9)
@@ -1069,10 +1326,62 @@ export const HUDEditorModal: React.FC<HUDEditorModalProps> = ({
                   </div>
                 );
               })}
-            </div>
+	            </div>
 
-            <div className="p-2 flex-grow overflow-y-auto">
-              <h3 className="text-sm text-msx-highlight mb-1 select-none">Screen HUD Elements:</h3>
+	            {/* Imported HUD Frame */}
+	            <div className="p-2 border-b-2 border-msx-lightyellow/50 flex-shrink-0">
+	              <h3 className="text-sm text-msx-highlight mb-2 select-none">Import HUD Frame:</h3>
+	              <div className="text-xs text-msx-textsecondary mb-2">
+	                Importa el descarte del Active Area de otra Screen como marco estatico HUD.
+	              </div>
+	              <div className="space-y-2 text-xs">
+	                <div>
+	                  <label className="block text-msx-textsecondary mb-1">Screen Asset origen:</label>
+	                  <select
+	                    value={importSourceScreenAssetId}
+	                    onChange={(e) => setImportSourceScreenAssetId(e.target.value)}
+	                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+	                  >
+	                    <option value="">Seleccionar screen...</option>
+	                    {screenMapAssets.map(asset => (
+	                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+	                    ))}
+	                  </select>
+	                </div>
+	                <div>
+	                  <label className="block text-msx-textsecondary mb-1">TileBank para chars:</label>
+	                  <select
+	                    value={importTileBankAssetId}
+	                    onChange={(e) => setImportTileBankAssetId(e.target.value)}
+	                    className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded text-msx-textprimary focus:ring-msx-accent focus:border-msx-accent"
+	                  >
+	                    <option value="">Seleccionar TileBank...</option>
+	                    {tileBankAssets.map(asset => (
+	                      <option key={asset.id} value={asset.id}>{asset.name}</option>
+	                    ))}
+	                  </select>
+	                </div>
+	                <div className="flex gap-1">
+	                  <Button onClick={handleImportHudFrame} variant="secondary" size="sm" className="flex-1 text-xs">
+	                    Import Frame
+	                  </Button>
+	                  <Button onClick={handleClearImportedFrame} variant="ghost" size="sm" className="text-xs">
+	                    Clear
+	                  </Button>
+	                </div>
+	                {localHudConfig.importedFrame && (
+	                  <div className="text-[0.65rem] text-msx-cyan">
+	                    Snapshot: {localHudConfig.importedFrame.cells.length} celdas ({localHudConfig.importedFrame.sourceScreenName || localHudConfig.importedFrame.sourceScreenAssetId})
+	                  </div>
+	                )}
+	                {importFrameMessage && (
+	                  <div className="text-[0.65rem] text-msx-textsecondary">{importFrameMessage}</div>
+	                )}
+	              </div>
+	            </div>
+	
+	            <div className="p-2 flex-grow min-h-0 overflow-y-auto">
+	              <h3 className="text-sm text-msx-highlight mb-1 select-none">Screen HUD Elements:</h3>
               {localHudConfig.elements.length === 0 && <p className="text-xs text-msx-textsecondary italic">No HUD elements added yet.</p>}
               <ul className="space-y-1">
                 {localHudConfig.elements.map(el => (

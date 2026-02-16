@@ -462,70 +462,80 @@ load_screen:
       const activeAreaWidth = Math.max(0, Math.min(32 - activeAreaX, rawActiveAreaWidth));
       const activeAreaHeight = Math.max(0, Math.min(24 - activeAreaY, rawActiveAreaHeight));
 
-      const hasHudElements = !!(screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
       const hasHudFrameArea = activeAreaX > 0 || activeAreaY > 0 || activeAreaWidth < 32 || activeAreaHeight < 24;
-      const shouldUseFrameHud = hasHudElements && hasHudFrameArea && activeAreaWidth > 0 && activeAreaHeight > 0;
+      const shouldPreserveHudArea = hasHudFrameArea && activeAreaWidth > 0 && activeAreaHeight > 0;
 
       const activeAreaOffset = (activeAreaY * 32) + activeAreaX;
       const activeAreaBytes = activeAreaWidth * activeAreaHeight;
 
-      const topRows = activeAreaY;
-      const bottomStartRow = activeAreaY + activeAreaHeight;
-      const bottomRows = Math.max(0, 24 - bottomStartRow);
-      const leftCols = activeAreaX;
-      const rightStartCol = activeAreaX + activeAreaWidth;
-      const rightCols = Math.max(0, 32 - rightStartCol);
+      const importedHudFrameCells = (screen.hudConfiguration?.importedFrame?.cells || [])
+        .filter((cell: any) =>
+          typeof cell?.x === 'number' &&
+          typeof cell?.y === 'number' &&
+          typeof cell?.charCode === 'number' &&
+          cell.x >= 0 && cell.x < 32 &&
+          cell.y >= 0 && cell.y < 24
+        )
+        .map((cell: any) => ({
+          x: cell.x | 0,
+          y: cell.y | 0,
+          charCode: cell.charCode & 0xFF
+        }));
 
-      if (shouldUseFrameHud) {
-        code += `frame_hud_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}:
-    ; Frame_Hud: reconstruct HUD frame from non-active area using Active Area
+      const hasImportedHudFrame = importedHudFrameCells.length > 0;
+      const importedHudFrameLabelBase = `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
+
+      if (hasImportedHudFrame) {
+        code += `${importedHudFrameLabelBase}_data:
+    ; Imported HUD frame snapshot for ${screen.name} (${importedHudFrameCells.length} cells)
 `;
 
-        if (topRows > 0) {
-          code += `    ; Top HUD strip (rows 0-${topRows - 1})
-    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+        importedHudFrameCells.forEach((cell: { x: number; y: number; charCode: number }) => {
+          const offset = (cell.y * 32) + cell.x;
+          const low = offset & 0xFF;
+          const high = (offset >> 8) & 0xFF;
+          const charCode = cell.charCode & 0xFF;
+          code += `    DB #${low.toString(16).padStart(2, '0').toUpperCase()},#${high.toString(16).padStart(2, '0').toUpperCase()},#${charCode.toString(16).padStart(2, '0').toUpperCase()}
+`;
+        });
+
+        code += `
+${importedHudFrameLabelBase}_draw:
+    ; Draw imported HUD frame chars into Name Table
+    ld hl, ${importedHudFrameLabelBase}_data
+    ld bc, ${importedHudFrameCells.length}
+
+.draw_loop:
+    ld a, b
+    or c
+    ret z
+
+    ld e, (hl)                ; DE = Name Table offset
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld a, (hl)                ; A = char code
+    inc hl
+
+    push hl
+    ld h, d
+    ld l, e
     ld de, NAMETBL
-    ld bc, ${topRows * 32}
-    call FAST_LDIRVM
-`;
-        }
+    add hl, de                ; HL = VRAM address
+    call FAST_WRTVRM
+    pop hl
 
-        if (bottomRows > 0) {
-          code += `    ; Bottom HUD strip (rows ${bottomStartRow}-23)
-    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${bottomStartRow * 32}
-    ld de, NAMETBL + ${bottomStartRow * 32}
-    ld bc, ${bottomRows * 32}
-    call FAST_LDIRVM
-`;
-        }
-
-        if (leftCols > 0 && activeAreaHeight > 0) {
-          code += `    ; Left HUD strip (cols 0-${leftCols - 1}, rows ${activeAreaY}-${bottomStartRow - 1})
-    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaY * 32}
-    ld de, NAMETBL + ${activeAreaY * 32}
-    ld a, ${activeAreaHeight}
-    ld c, ${leftCols}
-    call copy_layout_rect_to_vram
-`;
-        }
-
-        if (rightCols > 0 && activeAreaHeight > 0) {
-          code += `    ; Right HUD strip (cols ${rightStartCol}-31, rows ${activeAreaY}-${bottomStartRow - 1})
-    ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${(activeAreaY * 32) + rightStartCol}
-    ld de, NAMETBL + ${(activeAreaY * 32) + rightStartCol}
-    ld a, ${activeAreaHeight}
-    ld c, ${rightCols}
-    call copy_layout_rect_to_vram
-`;
-        }
-
-        code += `    ret
+    dec bc
+    jr .draw_loop
 
 `;
+      }
 
+      if (shouldPreserveHudArea) {
         code += `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}:
     ; Load ${screen.name} screen (fast direct port access)
     ; Active Area: X=${activeAreaX}, Y=${activeAreaY}, W=${activeAreaWidth}, H=${activeAreaHeight}
+    ; Preserve HUD/non-active area: only overwrite active game area
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${bgColor}           ; Background color
     ld b, ${borderColor}       ; Border color
@@ -552,9 +562,13 @@ load_screen:
 `;
         }
 
-        code += `    ; Rebuild HUD frame strips from layout
-    call frame_hud_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}
-    ; Initialize collision system pointers for this screen
+        if (hasImportedHudFrame) {
+          code += `    ; Restore imported HUD frame snapshot
+    call ${importedHudFrameLabelBase}_draw
+`;
+        }
+
+        code += `    ; Initialize collision system pointers for this screen
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld (current_screen_layout), hl
     ld hl, BEHAVIOR_${screenName}_${index}_DATA
@@ -577,7 +591,13 @@ load_screen:
     ld de, NAMETBL
     ld bc, SCREEN_${screenName}_${index}_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
-    ; Initialize collision system pointers for this screen
+`;
+        if (hasImportedHudFrame) {
+          code += `    ; Restore imported HUD frame snapshot
+    call ${importedHudFrameLabelBase}_draw
+`;
+        }
+        code += `    ; Initialize collision system pointers for this screen
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld (current_screen_layout), hl
     ld hl, BEHAVIOR_${screenName}_${index}_DATA

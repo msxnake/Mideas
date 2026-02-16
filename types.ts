@@ -247,12 +247,52 @@ export interface HUDScreenSector {
   tileBankAssetId?: string;
 }
 
+/** Snapshot cell for an imported HUD frame region. */
+export interface HUDImportedFrameCell {
+  /** Tile X coordinate in screen grid units (0-31 in SCREEN 2). */
+  x: number;
+  /** Tile Y coordinate in screen grid units (0-23 in SCREEN 2). */
+  y: number;
+  /** Character code resolved from the selected TileBank at import time. */
+  charCode: number;
+  /** Optional original tile reference for editor preview. */
+  tileId?: string;
+  /** Optional sub-tile X for meta-tiles. */
+  subTileX?: number;
+  /** Optional sub-tile Y for meta-tiles. */
+  subTileY?: number;
+}
+
+/** Snapshot metadata for a HUD frame imported from a screen asset. */
+export interface HUDImportedFrame {
+  /** Source screen asset ID used to import the frame. */
+  sourceScreenAssetId: string;
+  /** Optional source screen name for editor display. */
+  sourceScreenName?: string;
+  /** TileBank asset ID used to resolve char codes during import. */
+  sourceTileBankAssetId?: string;
+  /** Source screen dimensions captured at import time. */
+  width: number;
+  height: number;
+  /** Source active area used to detect HUD/discard zone. */
+  activeAreaX: number;
+  activeAreaY: number;
+  activeAreaWidth: number;
+  activeAreaHeight: number;
+  /** Timestamp for traceability. */
+  importedAt: number;
+  /** Imported HUD cells (outside active area). */
+  cells: HUDImportedFrameCell[];
+}
+
 /**
  * Represents the HUD configuration with proper MSX Screen 2 sector management.
  */
 export interface HUDConfiguration {
   /** An array of all HUD elements. */
   elements: HUDElement[];
+  /** Optional imported HUD frame snapshot from a source screen. */
+  importedFrame?: HUDImportedFrame;
   /** TileBank and Font assignments per screen sector (MSX Screen 2 compatible). */
   screenSectors?: {
     /** Sector 0: Lines 0-7 (Y: 0-63 pixels) - VRAM Bank 0 */
