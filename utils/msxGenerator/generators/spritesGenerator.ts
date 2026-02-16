@@ -13,34 +13,50 @@ const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is sa
 const DEFAULT_DATA_FORMAT = 'hex';
 
 /**
- * Find the first palette layer that has actual pixel data in a sprite frame.
- * This must match the logic in spriteUtils.ts which skips empty layers.
- * @param sprite - Sprite object with frames and palette
- * @returns Index of first layer with data, or -1 if none found
+ * Analyze drawable palette layers for a sprite across ALL frames.
+ *
+ * Runtime animation copies contiguous blocks of layer bytes from the first
+ * drawable layer, so we need a contiguous layer range [first..last].
  */
-const findFirstDrawableLayerIndex = (sprite: any): number => {
-  const palette: string[] = sprite.spritePalette || [];
-  const bg: string | undefined = sprite.backgroundColor;
-  const frame0 = sprite.frames?.[0];
+const analyzeDrawableLayerRange = (sprite: any): { first: number; last: number } | null => {
+  const palette: string[] = sprite?.spritePalette || [];
+  const bg: string | undefined = sprite?.backgroundColor;
+  const frames = sprite?.frames || [];
 
-  if (!frame0?.data) return -1;
+  if (!palette.length || !frames.length) return null;
+
+  let first = -1;
+  let last = -1;
 
   for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
     const layerColor = palette[layerIdx];
-    // Skip background color
-    if (layerColor === bg) continue;
+    if (!layerColor || layerColor === bg) continue;
 
-    // Check if any pixel uses this color
-    for (let y = 0; y < (frame0.data.length || 0); y++) {
-      for (let x = 0; x < (frame0.data[y]?.length || 0); x++) {
-        if (frame0.data[y][x] === layerColor) {
-          return layerIdx; // Found a pixel with this color
+    let hasPixels = false;
+    for (const frame of frames) {
+      if (!frame?.data) continue;
+      for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
+        for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
+          if (frame.data[y][x] === layerColor) {
+            hasPixels = true;
+          }
         }
       }
+      if (hasPixels) break;
     }
+
+    if (!hasPixels) continue;
+    if (first === -1) first = layerIdx;
+    last = layerIdx;
   }
 
-  return -1; // No drawable layer found
+  if (first === -1 || last === -1) return null;
+  return { first, last };
+};
+
+const findFirstDrawableLayerIndex = (sprite: any): number => {
+  const range = analyzeDrawableLayerRange(sprite);
+  return range ? range.first : -1;
 };
 
 /**
@@ -107,43 +123,25 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
     return bestIndex;
   };
 
-  // Helper to analyze sprite layers/colors
-  // Only counts palette colors that actually have pixel data in ANY frame
+  // Helper to analyze sprite layers/colors.
+  // IMPORTANT: preserve contiguous range from first..last used layer so
+  // runtime VRAM copies (layerCount * 32 from first layer) keep alignment.
   const getSpriteLayerColors = (sprite: any): number[] => {
     if (!sprite) return [15]; // Default white
 
     const palette: string[] = sprite.spritePalette || [];
     const bg: string | undefined = sprite.backgroundColor;
-    const frames = sprite.frames || [];
+    const range = analyzeDrawableLayerRange(sprite);
+    if (!range) return [15];
 
     const colors: number[] = [];
-    const seen = new Set<number>();
-
-    for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
+    for (let layerIdx = range.first; layerIdx <= range.last; layerIdx++) {
       const hex = palette[layerIdx];
-      if (!hex) continue;
-      if (bg && hex === bg) continue;
-
-      // Check if this color has actual pixel data in ANY frame
-      let hasPixels = false;
-      for (const frame of frames) {
-        if (!frame?.data) continue;
-        for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
-          for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
-            if (frame.data[y][x] === hex) {
-              hasPixels = true;
-            }
-          }
-        }
-        if (hasPixels) break;
+      if (!hex || (bg && hex === bg)) {
+        colors.push(0);
+      } else {
+        colors.push(hexToMSX1Index(hex));
       }
-
-      if (!hasPixels) continue; // Skip colors with no pixel data
-
-      const msxIndex = hexToMSX1Index(hex);
-      if (seen.has(msxIndex)) continue;
-      seen.add(msxIndex);
-      colors.push(msxIndex);
     }
 
     return colors.length > 0 ? colors : [15];
@@ -617,6 +615,8 @@ clear_all_sprites:
 
 ; Hide specific sprite (A = hardware sprite index)
 hide_sprite:
+    cp 32
+    ret nc
     ld l, a
     ld h, 0
     add hl, hl

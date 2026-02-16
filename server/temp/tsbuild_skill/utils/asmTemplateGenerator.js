@@ -1,188 +1,130 @@
+"use strict";
 /**
  * @fileoverview ASM Template Generator with Hot Spots
  * Generates dynamic ASM code from templates with replaceable sections
  */
-
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph } from '../types';
-import { StateMachine } from '../statemachine.types';
-import { getUsedGlobalVariables } from './globalVariablesUtils';
-
-/**
- * Hot spot marker interface
- */
-export interface HotSpot {
-  marker: string;           // The marker to find in template (e.g., "{{ENTITY_UPDATES}}")
-  generator: (data: ProjectAnalysis) => string; // Function that generates the replacement code
-  description: string;      // Human readable description
-}
-
-/**
- * Project analysis data structure
- */
-export interface ProjectAnalysis {
-  projectName: string;
-  components: ComponentDefinition[];
-  templates: EntityTemplate[];
-  sprites: Sprite[];
-  tiles: Tile[];
-  screenMaps: ScreenMap[];
-  screens: ScreenMap[];   // Added alias for compatibility
-  worldmaps?: any[];  // Worldmap data for GameFlow WorldLink nodes
-  entities?: EntityInstance[];
-  fonts?: any[];
-  gameFlow?: GameFlowGraph;
-  stateMachines?: StateMachine[]; // Added State Machines
-  hasECS: boolean;
-  hasMultipleScreens: boolean;
-  hasSprites: boolean;
-  hasTiles: boolean;      // Added
-  hasScreens: boolean;    // Added
-  hasEntities: boolean;   // Added
-  hasComponents: boolean; // Added
-  hasGameFlow: boolean;   // Added
-  hasMenus: boolean;      // Added
-  hasFonts: boolean;      // Added
-  hasAnimations: boolean;
-  hasCollisions: boolean;
-  hasMenuSystem: boolean; // Keep for backward compatibility
-  customStates: string[];
-  globalVariables: any[];  // Global variables (defaults + custom from getAllGlobalVariables)
-}
-
-/**
- * Template configuration
- */
-export interface TemplateConfig {
-  baseTemplate: string;     // Path to base template or template content
-  hotSpots: HotSpot[];     // Array of hot spots to process
-  outputFilename?: string;  // Optional custom filename
-}
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.DEFAULT_HOT_SPOTS = void 0;
+exports.analyzeProject = analyzeProject;
+exports.processTemplate = processTemplate;
+exports.createDynamicStateMachineTemplate = createDynamicStateMachineTemplate;
+exports.generateProjectSpecificASM = generateProjectSpecificASM;
+const globalVariablesUtils_1 = require("./globalVariablesUtils");
 /**
  * Analyze project assets to extract useful information
  */
-export function analyzeProject(projectName: string, assets: ProjectAsset[]): ProjectAnalysis {
-  const components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data as ComponentDefinition);
-  const templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data as EntityTemplate);
-  const sprites = assets.filter(a => a.type === 'sprite').map(a => a.data as Sprite);
-  const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
-  const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
-  const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
-  const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data as StateMachine);
-
-  // CRITICAL: Extract entities from screenmaps
-  // Deduplicate entities across possible storage formats
-  // (layers.entities and legacy screen.entities) to avoid ghost duplicates.
-  const entities: any[] = [];
-  const seenEntityKeys = new Set<string>();
-
-  const buildEntityKey = (entity: any, screenMap: any, screenIndex: number): string => {
-    if (entity?.id) return String(entity.id);
-    const posX = entity?.position?.x ?? '';
-    const posY = entity?.position?.y ?? '';
-    const tpl = entity?.entityTemplateId ?? '';
-    const name = entity?.name ?? '';
-    const screenId = screenMap?.id ?? `screen_${screenIndex}`;
-    return `${screenId}|${tpl}|${name}|${posX}|${posY}`;
-  };
-
-  const addEntityFromScreen = (entity: any, screenMap: any, screenIndex: number) => {
-    if (!entity || typeof entity !== 'object') return;
-    const key = buildEntityKey(entity, screenMap, screenIndex);
-    if (seenEntityKeys.has(key)) return;
-    seenEntityKeys.add(key);
-
-    entities.push({
-      ...entity,
-      // Normalize screen ownership metadata for downstream generators.
-      screenAssetId: entity.screenAssetId || screenMap?.id,
-      screenIndex: typeof entity.screenIndex === 'number' ? entity.screenIndex : screenIndex
+function analyzeProject(projectName, assets) {
+    const components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data);
+    const templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data);
+    const sprites = assets.filter(a => a.type === 'sprite').map(a => a.data);
+    const tiles = assets.filter(a => a.type === 'tile').map(a => a.data);
+    const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data);
+    const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
+    const stateMachines = assets.filter(a => a.type === 'statemachine').map(a => a.data);
+    // CRITICAL: Extract entities from screenmaps
+    // Deduplicate entities across possible storage formats
+    // (layers.entities and legacy screen.entities) to avoid ghost duplicates.
+    const entities = [];
+    const seenEntityKeys = new Set();
+    const buildEntityKey = (entity, screenMap, screenIndex) => {
+        if (entity?.id)
+            return String(entity.id);
+        const posX = entity?.position?.x ?? '';
+        const posY = entity?.position?.y ?? '';
+        const tpl = entity?.entityTemplateId ?? '';
+        const name = entity?.name ?? '';
+        const screenId = screenMap?.id ?? `screen_${screenIndex}`;
+        return `${screenId}|${tpl}|${name}|${posX}|${posY}`;
+    };
+    const addEntityFromScreen = (entity, screenMap, screenIndex) => {
+        if (!entity || typeof entity !== 'object')
+            return;
+        const key = buildEntityKey(entity, screenMap, screenIndex);
+        if (seenEntityKeys.has(key))
+            return;
+        seenEntityKeys.add(key);
+        entities.push({
+            ...entity,
+            // Normalize screen ownership metadata for downstream generators.
+            screenAssetId: entity.screenAssetId || screenMap?.id,
+            screenIndex: typeof entity.screenIndex === 'number' ? entity.screenIndex : screenIndex
+        });
+    };
+    screenMaps.forEach((screenMap, screenIndex) => {
+        // Check layers.entities (current format)
+        if (screenMap.layers?.entities && Array.isArray(screenMap.layers.entities)) {
+            screenMap.layers.entities.forEach((entity) => addEntityFromScreen(entity, screenMap, screenIndex));
+        }
+        // Check direct entities array (legacy format, if any)
+        if (screenMap.entities && Array.isArray(screenMap.entities)) {
+            screenMap.entities.forEach((entity) => addEntityFromScreen(entity, screenMap, screenIndex));
+        }
     });
-  };
-
-  screenMaps.forEach((screenMap, screenIndex) => {
-    // Check layers.entities (current format)
-    if ((screenMap as any).layers?.entities && Array.isArray((screenMap as any).layers.entities)) {
-      (screenMap as any).layers.entities.forEach((entity: any) => addEntityFromScreen(entity, screenMap, screenIndex));
-    }
-    // Check direct entities array (legacy format, if any)
-    if ((screenMap as any).entities && Array.isArray((screenMap as any).entities)) {
-      (screenMap as any).entities.forEach((entity: any) => addEntityFromScreen(entity, screenMap, screenIndex));
-    }
-  });
-
-  // CRITICAL: Detect GameFlow for ASM generation control
-  const gameFlowAsset = assets.find(a => a.type === 'gameflow');
-  const gameFlow = gameFlowAsset?.data as GameFlowGraph | undefined;
-
-  // Detect various features
-  const hasEntities = entities.length > 0;
-  const hasECS = components.length > 0 || hasEntities;
-  const hasMultipleScreens = screenMaps.length > 1;
-  const hasSprites = sprites.length > 0;
-  const hasTiles = tiles.length > 0;
-  const hasScreens = screenMaps.length > 0;
-  const hasComponents = components.length > 0;
-  const hasGameFlowBool = !!gameFlow;
-  const hasFonts = assets.some(a => a.type === 'font');
-  const hasAnimations = sprites.some(s => s.frames.length > 1);
-  const hasCollisions = screenMaps.some(s => s.layers.collision.some(row => row.some(cell => cell !== null)));
-  const hasMenuSystem = templates.some(t => t.name.toLowerCase().includes('menu'));
-
-  // Detect custom states from component names and templates
-  const customStates: string[] = [];
-  components.forEach(comp => {
-    if (comp.name.toLowerCase().includes('state')) {
-      customStates.push(comp.name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase());
-    }
-  });
-
-  // CRITICAL: Extract only USED GlobalVariables (filter unused ones)
-  const globalVariables = getUsedGlobalVariables(assets);
-
-  return {
-    projectName,
-    components,
-    templates,
-    sprites,
-    tiles,
-    screenMaps,
-    screens: screenMaps, // Added alias
-    worldmaps,  // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
-    entities,  // CRITICAL: Include entities extracted from screenmaps
-    fonts: assets.filter(a => a.type === 'font'), // CRITICAL: Include fonts for fontGenerator
-    gameFlow,  // CRITICAL: Include GameFlow for MSX ASM generation
-    stateMachines, // CRITICAL: Include State Machines
-    hasECS,
-    hasMultipleScreens,
-    hasSprites,
-    hasTiles,
-    hasScreens,
-    hasEntities,
-    hasComponents,
-    hasGameFlow: hasGameFlowBool,
-    hasMenus: hasMenuSystem,
-    hasFonts,
-    hasAnimations,
-    hasCollisions,
-    hasMenuSystem,
-    customStates,
-    globalVariables  // CRITICAL: Include GlobalVariables for ASM generation
-  };
+    // CRITICAL: Detect GameFlow for ASM generation control
+    const gameFlowAsset = assets.find(a => a.type === 'gameflow');
+    const gameFlow = gameFlowAsset?.data;
+    // Detect various features
+    const hasEntities = entities.length > 0;
+    const hasECS = components.length > 0 || hasEntities;
+    const hasMultipleScreens = screenMaps.length > 1;
+    const hasSprites = sprites.length > 0;
+    const hasTiles = tiles.length > 0;
+    const hasScreens = screenMaps.length > 0;
+    const hasComponents = components.length > 0;
+    const hasGameFlowBool = !!gameFlow;
+    const hasFonts = assets.some(a => a.type === 'font');
+    const hasAnimations = sprites.some(s => s.frames.length > 1);
+    const hasCollisions = screenMaps.some(s => s.layers.collision.some(row => row.some(cell => cell !== null)));
+    const hasMenuSystem = templates.some(t => t.name.toLowerCase().includes('menu'));
+    // Detect custom states from component names and templates
+    const customStates = [];
+    components.forEach(comp => {
+        if (comp.name.toLowerCase().includes('state')) {
+            customStates.push(comp.name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase());
+        }
+    });
+    // CRITICAL: Extract only USED GlobalVariables (filter unused ones)
+    const globalVariables = (0, globalVariablesUtils_1.getUsedGlobalVariables)(assets);
+    return {
+        projectName,
+        components,
+        templates,
+        sprites,
+        tiles,
+        screenMaps,
+        screens: screenMaps, // Added alias
+        worldmaps, // CRITICAL: Include worldmaps for GameFlow WorldLink nodes
+        entities, // CRITICAL: Include entities extracted from screenmaps
+        fonts: assets.filter(a => a.type === 'font'), // CRITICAL: Include fonts for fontGenerator
+        gameFlow, // CRITICAL: Include GameFlow for MSX ASM generation
+        stateMachines, // CRITICAL: Include State Machines
+        hasECS,
+        hasMultipleScreens,
+        hasSprites,
+        hasTiles,
+        hasScreens,
+        hasEntities,
+        hasComponents,
+        hasGameFlow: hasGameFlowBool,
+        hasMenus: hasMenuSystem,
+        hasFonts,
+        hasAnimations,
+        hasCollisions,
+        hasMenuSystem,
+        customStates,
+        globalVariables // CRITICAL: Include GlobalVariables for ASM generation
+    };
 }
-
 /**
  * Hot spot generators
  */
-
 // Generate entity update code based on ECS components
-const generateEntityUpdates = (data: ProjectAnalysis): string => {
-  if (!data.hasECS) {
-    return `    ; No ECS system - basic entity updates
+const generateEntityUpdates = (data) => {
+    if (!data.hasECS) {
+        return `    ; No ECS system - basic entity updates
     RET`;
-  }
-
-  let code = `    ; ECS-based entity updates
+    }
+    let code = `    ; ECS-based entity updates
     ; Update all active entities with their components
     LD HL, ENTITY_BUFFER
     LD B, MAX_ENTITIES
@@ -197,14 +139,12 @@ entity_update_loop:
     JR Z, entity_update_skip
     
     ; Update entity based on components`;
-
-  // Add specific component update calls
-  data.components.forEach((comp, index) => {
-    code += `\n    ; Update ${comp.name} component
+    // Add specific component update calls
+    data.components.forEach((comp, index) => {
+        code += `\n    ; Update ${comp.name} component
     CALL UPDATE_${comp.name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
-  });
-
-  code += `\n    
+    });
+    code += `\n    
 entity_update_skip:
     POP HL
     LD DE, 16           ; Entity structure size
@@ -212,18 +152,15 @@ entity_update_skip:
     POP BC
     DJNZ entity_update_loop
     RET`;
-
-  return code;
+    return code;
 };
-
 // Generate sprite animation updates
-const generateSpriteUpdates = (data: ProjectAnalysis): string => {
-  if (!data.hasSprites) {
-    return `    ; No sprites to update
+const generateSpriteUpdates = (data) => {
+    if (!data.hasSprites) {
+        return `    ; No sprites to update
     RET`;
-  }
-
-  let code = `    ; Update sprite animations and positions
+    }
+    let code = `    ; Update sprite animations and positions
     LD B, ${data.sprites.length}    ; Number of sprites
     LD HL, SPRITE_DATA_TABLE
     
@@ -259,9 +196,8 @@ sprite_frame_ok:
     LD (HL), A
     
 sprite_no_frame_advance:`;
-
-  if (data.hasAnimations) {
-    code += `\n    ; Update sprite position based on movement component
+    if (data.hasAnimations) {
+        code += `\n    ; Update sprite position based on movement component
     INC HL
     INC HL
     INC HL
@@ -270,27 +206,23 @@ sprite_no_frame_advance:`;
     LD B, (HL)          ; Y position
     ; Apply movement logic here
     ; CALL APPLY_SPRITE_MOVEMENT`;
-  }
-
-  code += `\n    
+    }
+    code += `\n    
     POP HL
     LD DE, 8            ; Sprite data structure size
     ADD HL, DE
     POP BC
     DJNZ sprite_update_loop
     RET`;
-
-  return code;
+    return code;
 };
-
 // Generate collision detection code
-const generateCollisionCheck = (data: ProjectAnalysis): string => {
-  if (!data.hasCollisions) {
-    return `    ; No collision system needed
+const generateCollisionCheck = (data) => {
+    if (!data.hasCollisions) {
+        return `    ; No collision system needed
     RET`;
-  }
-
-  return `    ; Check player collision with environment
+    }
+    return `    ; Check player collision with environment
     LD A, (player_x)
     LD B, A
     LD A, (player_y) 
@@ -330,10 +262,9 @@ const generateCollisionCheck = (data: ProjectAnalysis): string => {
     LD (current_game_state), A
     RET`;
 };
-
 // Generate input handling code
-const generateInputHandling = (data: ProjectAnalysis): string => {
-  let code = `    ; Read MSX joystick/keyboard input
+const generateInputHandling = (data) => {
+    let code = `    ; Read MSX joystick/keyboard input
     ; Store previous state
     LD A, (input_state)
     LD (prev_input_state), A
@@ -393,9 +324,8 @@ input_check_right:
     LD (input_state), A
     
 input_no_fire1:`;
-
-  if (data.hasMenuSystem) {
-    code += `\n    ; Check for pause/menu button (Space)
+    if (data.hasMenuSystem) {
+        code += `\n    ; Check for pause/menu button (Space)
     LD A, 6             ; Row 6
     CALL SNSMAT
     BIT 0, A            ; Space key
@@ -405,21 +335,17 @@ input_no_fire1:`;
     LD (input_state), A
     
 input_no_pause:`;
-  }
-
-  code += `\n    RET`;
-
-  return code;
+    }
+    code += `\n    RET`;
+    return code;
 };
-
 // Generate menu system code
-const generateMenuSystem = (data: ProjectAnalysis): string => {
-  if (!data.hasMenuSystem) {
-    return `    ; No menu system
+const generateMenuSystem = (data) => {
+    if (!data.hasMenuSystem) {
+        return `    ; No menu system
     RET`;
-  }
-
-  return `    ; Update menu graphics and cursor
+    }
+    return `    ; Update menu graphics and cursor
     LD A, (menu_cursor_position)
     LD B, A
     
@@ -455,98 +381,79 @@ menu_draw_cursor:
     
     RET`;
 };
-
 // Generate custom state handling
-const generateCustomStates = (data: ProjectAnalysis): string => {
-  if (data.customStates.length === 0) {
-    return `; No custom states detected`;
-  }
-
-  let code = `; Custom state handlers for project-specific logic\n`;
-
-  data.customStates.forEach(state => {
-    code += `\nlogic_${state.toLowerCase()}:
+const generateCustomStates = (data) => {
+    if (data.customStates.length === 0) {
+        return `; No custom states detected`;
+    }
+    let code = `; Custom state handlers for project-specific logic\n`;
+    data.customStates.forEach(state => {
+        code += `\nlogic_${state.toLowerCase()}:
     ; Custom logic for ${state} state
     ; TODO: Implement ${state} specific logic
     RET\n`;
-  });
-
-  return code;
+    });
+    return code;
 };
-
 /**
  * Default hot spots for state machine template
  */
-export const DEFAULT_HOT_SPOTS: HotSpot[] = [
-  {
-    marker: '{{ENTITY_UPDATES}}',
-    generator: generateEntityUpdates,
-    description: 'Entity update system based on ECS components'
-  },
-  {
-    marker: '{{SPRITE_UPDATES}}',
-    generator: generateSpriteUpdates,
-    description: 'Sprite animation and movement updates'
-  },
-  {
-    marker: '{{COLLISION_CHECK}}',
-    generator: generateCollisionCheck,
-    description: 'Collision detection system'
-  },
-  {
-    marker: '{{INPUT_HANDLING}}',
-    generator: generateInputHandling,
-    description: 'Input handling with project-specific controls'
-  },
-  {
-    marker: '{{MENU_SYSTEM}}',
-    generator: generateMenuSystem,
-    description: 'Menu system updates and rendering'
-  },
-  {
-    marker: '{{CUSTOM_STATES}}',
-    generator: generateCustomStates,
-    description: 'Custom state handlers detected from project'
-  }
+exports.DEFAULT_HOT_SPOTS = [
+    {
+        marker: '{{ENTITY_UPDATES}}',
+        generator: generateEntityUpdates,
+        description: 'Entity update system based on ECS components'
+    },
+    {
+        marker: '{{SPRITE_UPDATES}}',
+        generator: generateSpriteUpdates,
+        description: 'Sprite animation and movement updates'
+    },
+    {
+        marker: '{{COLLISION_CHECK}}',
+        generator: generateCollisionCheck,
+        description: 'Collision detection system'
+    },
+    {
+        marker: '{{INPUT_HANDLING}}',
+        generator: generateInputHandling,
+        description: 'Input handling with project-specific controls'
+    },
+    {
+        marker: '{{MENU_SYSTEM}}',
+        generator: generateMenuSystem,
+        description: 'Menu system updates and rendering'
+    },
+    {
+        marker: '{{CUSTOM_STATES}}',
+        generator: generateCustomStates,
+        description: 'Custom state handlers detected from project'
+    }
 ];
-
 /**
  * Process template with hot spots
  */
-export function processTemplate(
-  template: string,
-  projectName: string,
-  assets: ProjectAsset[],
-  hotSpots: HotSpot[] = DEFAULT_HOT_SPOTS
-): string {
-  const analysis = analyzeProject(projectName, assets);
-
-  let processedTemplate = template;
-
-  // Replace basic project info
-  processedTemplate = processedTemplate.replace(/{{PROJECT_NAME}}/g, projectName.toUpperCase());
-  processedTemplate = processedTemplate.replace(/{{PROJECT_NAME_LOWER}}/g, projectName.toLowerCase());
-  processedTemplate = processedTemplate.replace(/{{GENERATION_DATE}}/g, new Date().toISOString());
-
-  // Process each hot spot
-  hotSpots.forEach(hotSpot => {
-    if (processedTemplate.includes(hotSpot.marker)) {
-      const generatedCode = hotSpot.generator(analysis);
-      processedTemplate = processedTemplate.replace(
-        new RegExp(escapeRegExp(hotSpot.marker), 'g'),
-        generatedCode
-      );
-    }
-  });
-
-  return processedTemplate;
+function processTemplate(template, projectName, assets, hotSpots = exports.DEFAULT_HOT_SPOTS) {
+    const analysis = analyzeProject(projectName, assets);
+    let processedTemplate = template;
+    // Replace basic project info
+    processedTemplate = processedTemplate.replace(/{{PROJECT_NAME}}/g, projectName.toUpperCase());
+    processedTemplate = processedTemplate.replace(/{{PROJECT_NAME_LOWER}}/g, projectName.toLowerCase());
+    processedTemplate = processedTemplate.replace(/{{GENERATION_DATE}}/g, new Date().toISOString());
+    // Process each hot spot
+    hotSpots.forEach(hotSpot => {
+        if (processedTemplate.includes(hotSpot.marker)) {
+            const generatedCode = hotSpot.generator(analysis);
+            processedTemplate = processedTemplate.replace(new RegExp(escapeRegExp(hotSpot.marker), 'g'), generatedCode);
+        }
+    });
+    return processedTemplate;
 }
-
 /**
  * Create dynamic state machine template
  */
-export function createDynamicStateMachineTemplate(): string {
-  return `;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function createDynamicStateMachineTemplate() {
+    return `;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Dynamic State Machine System for {{PROJECT_NAME}}
 ;; Generated by MSX Retro Game IDE on {{GENERATION_DATE}}
 ;;
@@ -1037,32 +944,24 @@ COLLISION_MAP_DATA:
     DS 1024                     ; 32x32 collision map
 `;
 }
-
 /**
  * Utility function to escape regex special characters
  */
-function escapeRegExp(string: string): string {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
-
 /**
  * Generate complete project-specific ASM file
  */
-export function generateProjectSpecificASM(
-  projectName: string,
-  assets: ProjectAsset[]
-): { filename: string; content: string; analysis: ProjectAnalysis } {
-  const template = createDynamicStateMachineTemplate();
-  const processedContent = processTemplate(template, projectName, assets);
-
-  const sanitizedProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-  const filename = `${sanitizedProjectName}_dynamic_system.asm`;
-
-  const analysis = analyzeProject(projectName, assets);
-
-  return {
-    filename,
-    content: processedContent,
-    analysis
-  };
+function generateProjectSpecificASM(projectName, assets) {
+    const template = createDynamicStateMachineTemplate();
+    const processedContent = processTemplate(template, projectName, assets);
+    const sanitizedProjectName = projectName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const filename = `${sanitizedProjectName}_dynamic_system.asm`;
+    const analysis = analyzeProject(projectName, assets);
+    return {
+        filename,
+        content: processedContent,
+        analysis
+    };
 }

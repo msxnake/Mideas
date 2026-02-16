@@ -1,25 +1,24 @@
+"use strict";
 /**
  * @fileoverview Components Generator - ECS component systems
  * Generates components.asm with Position, Sprite, Movement, Collision, Input, and Behavior systems
  * NOW WITH INTELLIGENT FILTERING - Only generates code for components actually used
  */
-
-import { ProjectAnalysis } from '../../asmTemplateGenerator';
-import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componentAnalyzer';
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateComponentsFile = generateComponentsFile;
+const componentAnalyzer_1 = require("../utils/componentAnalyzer");
 // ============================================================================
 // OPTIMIZED UPDATE_ALL_ENTITIES GENERATOR
 // ============================================================================
 // Only generates CALLs for components that are actually used in the project
 // This saves Z80 cycles by avoiding calls to empty stubs
-
 /**
  * Generate optimized update_all_entities function
  * Only includes CALLs to systems that are actually used
  * @param usedComponents - Set of component names that are used in the project
  * @returns ASM code for update_all_entities
  */
-function generateUpdateAllEntities(usedComponents: Set<string>): string {
+function generateUpdateAllEntities(usedComponents) {
     let code = `
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
@@ -28,10 +27,9 @@ function generateUpdateAllEntities(usedComponents: Set<string>): string {
 ; Unused systems are NOT called (saves Z80 cycles)
 update_all_entities:
 `;
-
     // Define the component systems in execution order
     // Format: [componentName, functionCall, comment]
-    const componentSystems: [string, string, string][] = [
+    const componentSystems = [
         ['Input', 'update_input_component', '1. Input (player control)'],
         ['Shoot', 'update_shoot_component', '2. Shooting'],
         ['Behavior', 'update_behavior_component', '3. Behavior/AI'],
@@ -51,14 +49,11 @@ update_all_entities:
         ['AutoDestroy', 'update_auto_destroy_component', '12. Auto-destroy'],
         ['Sprite', 'update_sprite_component', '13. Sprite rendering'],
     ];
-
     let callCount = 0;
-    const processedFunctions = new Set<string>(); // Avoid duplicate calls
-
+    const processedFunctions = new Set(); // Avoid duplicate calls
     for (const [component, funcCall, comment] of componentSystems) {
         // Position is always needed (entities always have positions)
         const isRequired = component === 'Position' || component === 'Sprite';
-
         if (isRequired || usedComponents.has(component)) {
             // Avoid duplicate function calls (e.g., multiple Collision entries)
             if (!processedFunctions.has(funcCall)) {
@@ -68,21 +63,17 @@ update_all_entities:
             }
         }
     }
-
     code += `    ret\n`;
     code += `; Total systems called: ${callCount} (optimized from 15)\n\n`;
-
     return code;
 }
-
 // ============================================================================
 // HELPER FUNCTIONS - INDIVIDUAL COMPONENT SYSTEMS
 // ============================================================================
-
 /**
  * Generate Position Component System
  */
-function generatePositionSystem(): string {
+function generatePositionSystem() {
     return `
 ; ==================================================================
 ; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
@@ -175,11 +166,10 @@ position_next_entity:
     ret
 `;
 }
-
 /**
  * Generate Sprite Component System
  */
-function generateSpriteSystem(analysis: ProjectAnalysis): string {
+function generateSpriteSystem(analysis) {
     return `
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
@@ -309,26 +299,25 @@ sprite_hide:
     ; We must hide ALL layers for this entity
     ; E contains Entity Index (from line 129)
     ; D = 0 (from line 130)
-
+    
     ld hl, entity_sprite_config
     add hl, de
     add hl, de
-
-    inc hl                     ; Point to Layer Count first
-    ld b, (hl)                 ; B = Layer Count
-    dec hl                     ; Back to Base HW Sprite
+    
+    ld a, (hl)                 ; Base HW Sprite
+    inc hl
+    ld b, (hl)                 ; Layer Count
     ld a, b
     or a
     jr z, sprite_continue      ; Nothing to hide for anchor entities
-    ld a, (hl)                 ; A = Base HW Sprite (read AFTER zero check)
-
+    
 sprite_hide_loop:
     push bc
     push af
-    call hide_sprite           ; A = HW Sprite (correct base index)
+    call hide_sprite           ; A = HW Sprite
     pop af
     pop bc
-
+    
     inc a                      ; Next HW Sprite
     djnz sprite_hide_loop
 
@@ -427,7 +416,7 @@ force_sprite_done:
     ret
 `;
 }
-function generateMovementSystem(): string {
+function generateMovementSystem() {
     return `
         ; ==================================================================
         ; MOVEMENT COMPONENT SYSTEM (Based on movement physics)
@@ -515,29 +504,22 @@ function generateMovementSystem(): string {
     ret
     `;
 }
-
 /**
  * Generate Collision Component System
  */
-function generateCollisionSystem(analysis: ProjectAnalysis): string {
+function generateCollisionSystem(analysis) {
     // MSX Screen 2 ALWAYS uses 8x8 character cells for the Name Table (32x24 grid)
     // The behavior map maps 1:1 to the Name Table, so pixel-to-tile conversion
     // must ALWAYS divide by 8, regardless of the project's visual tile dimensions.
-    const msxCharSize = 8;     // MSX character cell is always 8x8 pixels
-    const tilesPerRow = 32;    // 256 / 8 = 32 columns
+    const msxCharSize = 8; // MSX character cell is always 8x8 pixels
+    const tilesPerRow = 32; // 256 / 8 = 32 columns
     const tilesPerColumn = 24; // 192 / 8 = 24 rows
-    const shiftAmount = 3;     // 8 = 2^3, so 3 shifts to divide by 8
-
-    const xDivisionCode = Array.from({ length: shiftAmount },
-        (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i + 1)}`).join('\n');
-
-    const yDivisionCode = Array.from({ length: shiftAmount },
-        (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i + 1)}`).join('\n');
-
+    const shiftAmount = 3; // 8 = 2^3, so 3 shifts to divide by 8
+    const xDivisionCode = Array.from({ length: shiftAmount }, (_, i) => `    srl a                      ; A = X / ${Math.pow(2, i + 1)}`).join('\n');
+    const yDivisionCode = Array.from({ length: shiftAmount }, (_, i) => `    srl a                      ; A = Y / ${Math.pow(2, i + 1)}`).join('\n');
     const tileInfo = `; MSX Screen 2: behavior map is 32x24 (one entry per 8x8 character cell)
     ; Always divide by 8 to convert pixels to character column/row
     ; Convert X to tile column (divide by 8)`;
-
     return `
         ; ==================================================================
 ; COLLISION COMPONENT SYSTEM(Based on ScreenEditor collision detection)
@@ -933,12 +915,11 @@ ${yDivisionCode}
 
         `;
 }
-
 /**
  * Generate get_behavior_tile function (shared by Collision and WallCollision systems)
  * Returns behavior value for a tile at (B=row, C=column) using current_behavior_map
  */
-function generateGetBehaviorTile(): string {
+function generateGetBehaviorTile() {
     return `
     ; ------------------------------------------------------------------
     ; get_behavior_tile
@@ -979,11 +960,10 @@ get_behavior_tile:
     ret
     `;
 }
-
 /**
  * Generate Input Component System with direction restrictions (Cursors component)
  */
-function generateInputSystem(): string {
+function generateInputSystem() {
     return `
         ; ==================================================================
         ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
@@ -1224,11 +1204,10 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ret
     `;
 }
-
 /**
  * Generate Behavior Component System
  */
-function generateBehaviorSystem(): string {
+function generateBehaviorSystem() {
     return `
     ; ==================================================================
         ; BEHAVIOR COMPONENT SYSTEM(Based on BehaviorEditor logic)
@@ -1258,11 +1237,10 @@ behavior_next_entity:
             ret
     `;
 }
-
 /**
  * Generate Gravity Component System
  */
-function generateGravitySystem(): string {
+function generateGravitySystem() {
     return `
     ; ==================================================================
         ; GRAVITY COMPONENT SYSTEM(Constant downward acceleration)
@@ -1386,11 +1364,10 @@ gravity_next_entity:
     ret
     `;
 }
-
 /**
  * Generate Health Component System
  */
-function generateHealthSystem(): string {
+function generateHealthSystem() {
     return `
     ; ==================================================================
     ; HEALTH COMPONENT SYSTEM
@@ -1534,11 +1511,10 @@ increase_entity_lives:
     ret
     `;
 }
-
 /**
  * Generate Damage Component System with Invincibility Frames
  */
-function generateDamageSystem(): string {
+function generateDamageSystem() {
     return `
     ; ==================================================================
     ; DAMAGE COMPONENT SYSTEM
@@ -1656,11 +1632,10 @@ check_entity_invincible:
     ret
     `;
 }
-
 /**
  * Generate Shoot Component System
  */
-function generateShootSystem(): string {
+function generateShootSystem() {
     return `
     ; ==================================================================
     ; SHOOT COMPONENT SYSTEM
@@ -1905,11 +1880,10 @@ update_shoot_component:
     ret
     `;
 }
-
 /**
  * Generate Platform Riding System
  */
-function generatePlatformRidingSystem(): string {
+function generatePlatformRidingSystem() {
     return `
     ; ==================================================================
     ; PLATFORM RIDING SYSTEM
@@ -2004,11 +1978,10 @@ update_platform_riding:
     ret
     `;
 }
-
 /**
  * Generate Animation Component System
  */
-function generateAnimationSystem(): string {
+function generateAnimationSystem() {
     return `
     ; ==================================================================
         ; ANIMATION COMPONENT SYSTEM
@@ -2265,11 +2238,10 @@ anim_done_entity:
     ret
     `;
 }
-
 /**
  * Generate Jump Component System
  */
-function generateJumpSystem(): string {
+function generateJumpSystem() {
     return `
     ; ==================================================================
         ; JUMP COMPONENT SYSTEM
@@ -2410,11 +2382,10 @@ jump_done_entity:
     ret
     `;
 }
-
 /**
  * Generate Auto-Destroy Component System
  */
-function generateAutoDestroySystem(): string {
+function generateAutoDestroySystem() {
     return `
     ; ==================================================================
     ; AUTO-DESTROY COMPONENT SYSTEM
@@ -2499,12 +2470,11 @@ auto_destroy_next:
         ret
     `;
 }
-
 /**
  * Generate Cursors Component System
  * For menu navigation and cursor control
  */
-function generateCursorsSystem(): string {
+function generateCursorsSystem() {
     return `
     ; ==================================================================
     ; CURSORS COMPONENT SYSTEM
@@ -2526,12 +2496,11 @@ update_cursors_component:
     ret
     `;
 }
-
 /**
  * Generate Carry Component System
  * For entities that carry other entities (like picking up items)
  */
-function generateCarrySystem(): string {
+function generateCarrySystem() {
     return `
     ; ==================================================================
     ; CARRY COMPONENT SYSTEM
@@ -2613,14 +2582,13 @@ update_carry_component:
     jr .carry_loop
     `;
 }
-
 /**
  * Generate WallCollision Component System
  * For wall sliding and collision prevention
  * Uses 2-point checks per direction for robust collision
  * Snaps entity position to wall edge (not just zero velocity)
  */
-function generateWallCollisionSystem(): string {
+function generateWallCollisionSystem() {
     return `
     ; ==================================================================
     ; WALL COLLISION COMPONENT SYSTEM
@@ -3019,12 +2987,11 @@ update_wallcollision_component:
     jp .wall_loop
     `;
 }
-
 /**
  * Generate Collectible Component System
  * For items that can be collected (coins, power-ups, etc.)
  */
-function generateCollectibleSystem(): string {
+function generateCollectibleSystem() {
     return `
     ; ==================================================================
     ; COLLECTIBLE COMPONENT SYSTEM
@@ -3124,11 +3091,10 @@ update_collectible_component:
     jr .collect_loop
     `;
 }
-
 /**
  * Generate entity management helper functions
  */
-function generateEntityManagement(): string {
+function generateEntityManagement() {
     return ` 
     ; ================================================================== 
         ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system) 
@@ -3189,13 +3155,11 @@ function generateEntityManagement(): string {
     ret
     `;
 }
-
 /**
  * Generate init_components function with conditional initialization
  */
-function generateInitComponents(usage: ComponentUsageAnalysis): string {
+function generateInitComponents(usage) {
     const usedComponents = usage.usedComponents;
-
     let code = `init_components: 
 ; Initialize component systems(OPTIMIZED - only used components) 
     ; Used: ${Array.from(usedComponents).join(', ')} 
@@ -3219,129 +3183,105 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
         ldir 
  
     `;
-
     code += `    ; Initialize position system (always)
     call init_position_system
     `;
-
-
     if (usedComponents.has('Sprite')) {
         code += `    ; Initialize sprite system
     call init_sprite_system
     `;
     }
-
     if (usedComponents.has('Movement')) {
         code += `    ; Initialize movement system
     call init_movement_system
     `;
     }
-
     if (usedComponents.has('Collision')) {
         code += `    ; Initialize collision system
     call init_collision_system
     `;
     }
-
     if (usedComponents.has('Input')) {
         code += `    ; Initialize input system
     call init_input_system
     `;
     }
-
     if (usedComponents.has('Behavior')) {
         code += `    ; Initialize behavior system
     call init_behavior_system
     `;
     }
-
     if (usedComponents.has('Health')) {
         code += `    ; Initialize health system
     call init_health_system
     `;
     }
-
     if (usedComponents.has('Animation')) {
         code += `    ; Initialize animation system
     call init_animation_system
     `;
     }
-
     if (usedComponents.has('Jump')) {
         code += `    ; Initialize jump system
     call init_jump_system
     `;
     }
-
     if (usedComponents.has('Gravity')) {
         code += `    ; Initialize gravity system
     call init_gravity_system
     `;
     }
-
     // Always initialize auto-destroy system (lightweight, always available)
     code += `    ; Initialize auto-destroy system
     call init_auto_destroy_system
     `;
-
     if (usedComponents.has('Cursors')) {
         code += `    ; Initialize cursors system (stub)
     call init_cursors_system
     `;
     }
-
     if (usedComponents.has('StateMachine')) {
         code += `    ; Initialize state machine system (stub)
     call init_statemachine_system
     `;
     }
-
     if (usedComponents.has('Carry')) {
         code += `    ; Initialize carry system (stub)
     call init_carry_system
     `;
     }
-
     if (usedComponents.has('Damage')) {
         code += `    ; Initialize damage system
     call init_damage_system
     `;
     }
-
     if (usedComponents.has('Shoot')) {
         code += `    ; Initialize shoot system
     call init_shoot_system
     `;
     }
-
     // Platform riding always initialized (physics feature)
     code += `    ; Initialize platform riding system
     call init_platform_riding_system
     `;
-
     if (usedComponents.has('WallCollision')) {
         code += `    ; Initialize wall collision system (stub)
     call init_wallcollision_system
     `;
     }
-
     if (usedComponents.has('Collectible')) {
         code += `    ; Initialize collectible system (stub)
     call init_collectible_system
     `;
     }
-
     code += `
     ret
     `;
-
     return code;
 }
-
 // ============================================================================
 // MAIN GENERATOR FUNCTION
 // ============================================================================
-
 /**
  * Generate ECS component systems file (components.asm)
  *
@@ -3351,7 +3291,7 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
  * @param analysis - Project analysis with entities and tiles
  * @returns ASM code string with ECS component systems
  */
-export function generateComponentsFile(analysis: ProjectAnalysis): string {
+function generateComponentsFile(analysis) {
     // Skip ECS system if no entities in project
     if (!analysis.entities || analysis.entities.length === 0) {
         return `; ==================================================================
@@ -3509,16 +3449,13 @@ entity_wall_collision_flags EQU temp_byte_18
     ; ==================================================================
         `;
     }
-
     // INTELLIGENT FILTERING: Analyze which components are actually used
-    const componentUsage: ComponentUsageAnalysis = analyzeComponentUsage(analysis);
+    const componentUsage = (0, componentAnalyzer_1.analyzeComponentUsage)(analysis);
     const usedComponents = componentUsage.usedComponents;
-
     console.log('🎯 Generating optimized components.asm...');
     console.log(`  - Active entities: ${componentUsage.activeEntities.length} `);
     console.log(`  - Used components: ${Array.from(usedComponents).join(', ')} `);
     console.log(`  - Filtered out: ${8 - usedComponents.size} unused components`);
-
     // Build the complete ASM file
     let code = `; ==================================================================
 ; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
@@ -3619,16 +3556,15 @@ entity_wall_collision_flags EQU temp_byte_18 ; Directional wall collision bits (
 
         ${generateInitComponents(componentUsage)}
 `;
-
     // Generate Position System (always needed for entity coords)
     code += generatePositionSystem();
-
     // Generate Sprite System (if used OR if project has sprites)
     // CRITICAL FIX: Always generate when sprites exist, even if component analysis fails
     const hasSprites = analysis.sprites && analysis.sprites.length > 0;
     if (usedComponents.has('Sprite') || hasSprites) {
         code += generateSpriteSystem(analysis);
-    } else {
+    }
+    else {
         code += `
     ; Sprite system filtered out(not used)
 init_sprite_system:
@@ -3641,11 +3577,11 @@ force_update_entity_sprite:
     ret
     `;
     }
-
     // Generate Movement System (if used)
     if (usedComponents.has('Movement')) {
         code += generateMovementSystem();
-    } else {
+    }
+    else {
         code += `
     ; Movement system filtered out(not used)
 init_movement_system:
@@ -3655,11 +3591,11 @@ update_movement_component:
     ret
     `;
     }
-
     // Generate Collision System (if used)
     if (usedComponents.has('Collision')) {
         code += generateCollisionSystem(analysis);
-    } else {
+    }
+    else {
         code += `
     ; Collision system filtered out(not used)
 init_collision_system:
@@ -3669,16 +3605,15 @@ update_collision_component:
     ret
     `;
     }
-
     // Generate get_behavior_tile (shared utility for Collision and WallCollision)
     if (usedComponents.has('Collision') || usedComponents.has('WallCollision')) {
         code += generateGetBehaviorTile();
     }
-
     // Generate Input System (if used)
     if (usedComponents.has('Input')) {
         code += generateInputSystem();
-    } else {
+    }
+    else {
         code += `
     ; Input system filtered out(not used)
 init_input_system:
@@ -3688,11 +3623,11 @@ update_input_component:
     ret
     `;
     }
-
     // Generate Behavior System (if used)
     if (usedComponents.has('Behavior')) {
         code += generateBehaviorSystem();
-    } else {
+    }
+    else {
         code += `
     ; Behavior system filtered out(not used)
 init_behavior_system:
@@ -3702,11 +3637,11 @@ update_behavior_component:
     ret
     `;
     }
-
     // Generate Health System (if used)
     if (usedComponents.has('Health')) {
         code += generateHealthSystem();
-    } else {
+    }
+    else {
         code += `
     ; Health system filtered out(not used)
 init_health_system:
@@ -3716,11 +3651,11 @@ update_health_component:
     ret
     `;
     }
-
     // Generate Animation System (if used)
     if (usedComponents.has('Animation')) {
         code += generateAnimationSystem();
-    } else {
+    }
+    else {
         code += `
     ; Animation system filtered out(not used)
 init_animation_system:
@@ -3730,11 +3665,11 @@ update_animation_component:
     ret
     `;
     }
-
     // Generate Jump System (if used)
     if (usedComponents.has('Jump')) {
         code += generateJumpSystem();
-    } else {
+    }
+    else {
         code += `
     ; Jump system filtered out(not used)
 init_jump_system:
@@ -3744,11 +3679,11 @@ update_jump_component:
     ret
     `;
     }
-
     // Generate Gravity System (if used)
     if (usedComponents.has('Gravity')) {
         code += generateGravitySystem();
-    } else {
+    }
+    else {
         code += `
     ; Gravity system filtered out(not used)
 init_gravity_system:
@@ -3758,10 +3693,8 @@ update_gravity_component:
     ret
     `;
     }
-
     // Generate Auto-Destroy System (always available - lightweight feature)
     code += generateAutoDestroySystem();
-
     // Generate Cursors System stub (if used)
     if (!usedComponents.has('Cursors')) {
         code += `
@@ -3772,10 +3705,10 @@ init_cursors_system:
 update_cursors_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateCursorsSystem();
     }
-
     // Generate StateMachine System (if used)
     if (!usedComponents.has('StateMachine')) {
         code += `
@@ -3786,7 +3719,8 @@ init_statemachine_system:
 update_statemachine_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += `
     ; StateMachine system (integrates with stateMachineGenerator.ts)
     ; Note: The actual SM_Update runtime is in statemachine.asm
@@ -3851,7 +3785,6 @@ update_statemachine_component:
     jr .sm_comp_loop
     `;
     }
-
     // Generate Carry System stub (if used)
     if (!usedComponents.has('Carry')) {
         code += `
@@ -3862,10 +3795,10 @@ init_carry_system:
 update_carry_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateCarrySystem();
     }
-
     // Generate Damage System (if used)
     if (!usedComponents.has('Damage')) {
         code += `
@@ -3876,10 +3809,10 @@ init_damage_system:
 update_damage_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateDamageSystem();
     }
-
     // Generate Shoot System (if used)
     if (!usedComponents.has('Shoot')) {
         code += `
@@ -3890,13 +3823,12 @@ init_shoot_system:
 update_shoot_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateShootSystem();
     }
-
     // Generate Platform Riding System (always enabled for physics)
     code += generatePlatformRidingSystem();
-
     // Generate WallCollision System stub (if used)
     if (!usedComponents.has('WallCollision')) {
         code += `
@@ -3907,10 +3839,10 @@ init_wallcollision_system:
 update_wallcollision_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateWallCollisionSystem();
     }
-
     // Generate Collectible System stub (if used)
     if (!usedComponents.has('Collectible')) {
         code += `
@@ -3921,21 +3853,18 @@ init_collectible_system:
 update_collectible_component:
     ret
     `;
-    } else {
+    }
+    else {
         code += generateCollectibleSystem();
     }
-
     // Always include entity management helpers
     code += generateEntityManagement();
-
     // ==================================================================
     // GAMEFLOW INTEGRATION FUNCTIONS
     // ==================================================================
-
     // Generate update_all_entities function - OPTIMIZED based on used components
     // Only generates CALLs to systems that are actually used
     code += generateUpdateAllEntities(usedComponents);
-
     // Generate execute_all_state_machines function - called by GameFlow game loop
     code += `
 ; ==================================================================
@@ -3984,7 +3913,6 @@ execute_all_state_machines:
     ret
 
 `;
-
     // Tile Collision System
     code += `
 ; ==================================================================
@@ -4179,13 +4107,11 @@ div_a_by_c:
     ret
 
 `;
-
     // End of file
     code += `
     ; ==================================================================
 ; END OF COMPONENT SYSTEMS
     ; ==================================================================
         `;
-
     return code;
 }

@@ -37,10 +37,71 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
     return Math.max(0, Math.min(255, num | 0));
   };
 
+  const resolveEntityScreenId = (entity: any): number => {
+    const directScreenAssetId = entity?.screenAssetId || entity?.screenId || entity?.screenMapId;
+    if (directScreenAssetId) {
+      const worldMaps = ((analysis as any).worldmaps || []) as any[];
+      for (const world of worldMaps) {
+        const nodes = world?.nodes || [];
+        const nodeIndex = nodes.findIndex((n: any) => n?.screenAssetId === directScreenAssetId);
+        if (nodeIndex >= 0) return nodeIndex;
+      }
+    }
+
+    if (typeof entity?.screenIndex === 'number' && entity.screenIndex >= 0) {
+      return entity.screenIndex;
+    }
+
+    let fallbackScreenIndex = 0;
+    let entityScreenAssetId: string | null = null;
+
+    if (analysis.screenMaps) {
+      analysis.screenMaps.forEach((screen, sIndex) => {
+        const screenEntities = screen?.layers?.entities || [];
+        if (screenEntities.some((e: any) => e.id === entity.id)) {
+          fallbackScreenIndex = sIndex;
+          entityScreenAssetId = screen.id || null;
+        }
+      });
+    }
+
+    if (!entityScreenAssetId) {
+      return fallbackScreenIndex;
+    }
+
+    const worldMaps = ((analysis as any).worldmaps || []) as any[];
+    for (const world of worldMaps) {
+      const nodes = world?.nodes || [];
+      const nodeIndex = nodes.findIndex((n: any) => n?.screenAssetId === entityScreenAssetId);
+      if (nodeIndex >= 0) {
+        return nodeIndex;
+      }
+    }
+
+    return fallbackScreenIndex;
+  };
+
   // INTELLIGENT FILTERING: Analyze which entities are actually used
   const componentUsage = analyzeComponentUsage(analysis);
   const activeEntities = componentUsage.activeEntities;
   const COMP_MASK_SPRITE = 0x02; // Bit used for sprite component
+
+  const sanitizeEntityName = (rawName: any): string => {
+    const safe = String(rawName ?? 'entity')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return safe || 'ENTITY';
+  };
+
+  // Build unique ASM-safe symbol names per entity instance.
+  const entityNameCounts = new Map<string, number>();
+  const entityLabelNames = activeEntities.map((entity: any, index: number) => {
+    const base = sanitizeEntityName(entity?.name || `ENTITY_${index}`);
+    const seen = (entityNameCounts.get(base) || 0) + 1;
+    entityNameCounts.set(base, seen);
+    return seen === 1 ? base : `${base}_${seen}`;
+  });
 
   console.log('🎯 Generating optimized entities.asm...');
   console.log(`  - Total entity templates in JSON: ${analysis.templates?.length || 0}`);
@@ -71,7 +132,7 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
 
     // Generate definitions ONLY for active entities (not all templates)
     activeEntities.forEach((entity, index) => {
-      const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+      const entityName = entityLabelNames[index];
 
       // Get template for component mask calculation
       const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
@@ -158,8 +219,8 @@ init_entities:
 `;
 
     if (activeEntities.length > 0) {
-      activeEntities.forEach((entity) => {
-        const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+      activeEntities.forEach((entity, index) => {
+        const entityName = entityLabelNames[index];
         code += `    call init_${entityName.toLowerCase()}
 `;
       });
@@ -176,7 +237,7 @@ update_entities:
 
     if (activeEntities.length > 0) {
       activeEntities.forEach((entity, index) => {
-        const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+        const entityName = entityLabelNames[index];
         code += `    ; Skip entity update if entity belongs to another screen
     ld hl, entity_screen_id + ${index}
     ld a, (hl)
@@ -199,7 +260,7 @@ update_entities:
     // Generate individual entity functions ONLY for active entities with REAL POSITIONS
     let needsPatrolFacingHelper = false;
     activeEntities.forEach((entity, index) => {
-      const entityName = entity.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+      const entityName = entityLabelNames[index];
 
       // Get template for component mask calculation
       const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
@@ -525,6 +586,8 @@ update_entities:
         updateEntityAsm += `    ret\n`;
       }
 
+      const entityScreenId = resolveEntityScreenId(entity);
+
       code += `init_${entityName.toLowerCase()}:
     ; Initialize ${entity.name} at real position from JSON
     ; JSON position: (${realX}, ${realY}) tiles = (${validX}, ${validY}) pixels
@@ -553,18 +616,7 @@ update_entities:
     ; Set entity screen ID (for multi-screen support)
     ld hl, entity_screen_id
     add hl, de
-    ld (hl), ${(() => {
-          // Find which screen this entity belongs to
-          let screenIndex = 0;
-          if (analysis.screenMaps) {
-            analysis.screenMaps.forEach((screen, sIndex) => {
-              if (screen.layers.entities.some(e => e.id === entity.id)) {
-                screenIndex = sIndex;
-              }
-            });
-          }
-          return screenIndex;
-        })()}                 ; Screen ID (calculated from project data)
+    ld (hl), ${entityScreenId}                 ; Screen ID (world node index / fallback screen index)
 
 ${animationInitAsm}
 ${patrolInitAsm}
@@ -583,12 +635,17 @@ ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     add hl, de
     ld (hl), #${directionMask.toString(16).toUpperCase().padStart(2, '0')}            ; Direction restrictions: ${directionDesc}
 
-${hasSprite ? `    ; Force update sprite attributes immediately
+${hasSprite ? `    ; Force update sprite attributes only if entity is in current screen
+    ld hl, entity_screen_id + ${index}
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr nz, .skip_force_show_${index}
 
     ; Force update sprite attributes (using correct multi-layer config)
     ld c, ${index}             ; Entity Index
     call force_update_entity_sprite
-
+.skip_force_show_${index}:
 
 ` : '    ; No sprite to show for this entity\n'}
 ${smInitAsm}
@@ -610,8 +667,10 @@ update_entity_patrol_facing:
     push bc
     push hl
 
-    ; Read current sprite asset index
-    ld hl, entity_sprite_asset_index
+    ; Read base sprite asset index from ROM init table.
+    ; This keeps patrol facing within the entity's directional family
+    ; and avoids getting stuck in an unrelated 1-layer sprite asset.
+    ld hl, entity_sprite_asset_index_init
     add hl, de
     ld a, (hl)
     cp #FF
