@@ -62,12 +62,13 @@ print_string_screen2:
     const fontPatterns = new Map<number, number[]>();
     const fontColors = new Map<number, number[]>();
 
-    // Default border characters (if missing from font)
-    // 43 (+), 45 (-), 124 (|)
+    // Default utility characters (if missing from font)
+    // 43 (+), 45 (-), 62 (>), 124 (|)
     const defaults = [
         { code: 32, pattern: [0, 0, 0, 0, 0, 0, 0, 0] }, // Space
         { code: 43, pattern: [0x00, 0x10, 0x10, 0x7C, 0x10, 0x10, 0x00, 0x00] }, // +
         { code: 45, pattern: [0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00] }, // -
+        { code: 62, pattern: [0x00, 0x30, 0x18, 0x0C, 0x18, 0x30, 0x00, 0x00] }, // >
         { code: 124, pattern: [0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18] } // | (Thick vertical)
     ];
 

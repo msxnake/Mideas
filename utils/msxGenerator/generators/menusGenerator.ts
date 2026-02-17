@@ -137,7 +137,7 @@ update_menu_state:
     ld (FORCLR), a
 
     ; Clear screen with background color
-    call cls
+    call CLS
 
     ; Display menu title
     ld hl, menu_${menuId}_title
@@ -194,7 +194,7 @@ init_menus:
 
 show_main_menu:
     ; Display main menu with custom font
-    call cls
+    call CLS
 
     ; Make sure custom font is loaded
     call init_font_system

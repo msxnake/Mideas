@@ -6282,7 +6282,25 @@ useEffect(() => {
 }, []);
 
 const subMenuNode = currentNode?.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
-const cursorAsset = subMenuNode?.appearance?.cursorSpriteAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId) : null;
+const subMenuSelectorModeRaw =
+    (subMenuNode as any)?.appearance?.selectorType ??
+    (subMenuNode as any)?.appearance?.cursorType ??
+    (subMenuNode as any)?.appearance?.cursorMode ??
+    (subMenuNode as any)?.selectorType ??
+    (subMenuNode as any)?.cursorType ??
+    (subMenuNode as any)?.cursorMode ??
+    'auto';
+const subMenuSelectorMode = String(subMenuSelectorModeRaw).trim().toLowerCase();
+const selectorForcesChar = ['char', 'character', 'text', 'glyph'].includes(subMenuSelectorMode);
+const selectorForcesSprite = ['sprite', 'image'].includes(subMenuSelectorMode);
+const shouldUseSpriteCursor = selectorForcesChar
+    ? false
+    : selectorForcesSprite
+        ? !!subMenuNode?.appearance?.cursorSpriteAssetId
+        : !!subMenuNode?.appearance?.cursorSpriteAssetId;
+const cursorAsset = shouldUseSpriteCursor && subMenuNode?.appearance?.cursorSpriteAssetId
+    ? allAssets.find(a => a.id === subMenuNode.appearance.cursorSpriteAssetId)
+    : null;
 const canvasBackgroundColor = subMenuNode?.appearance?.colors?.background || '#000000';
 const computedCanvasCursor = useMemo(() => {
     if (hoverExitDirection && cursorBlinkOn) {

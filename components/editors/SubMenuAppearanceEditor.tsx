@@ -43,6 +43,7 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
   const bgAsset = allAssets.find(a => a.id === appearance.backgroundScreenAssetId);
   const cursorAsset = allAssets.find(a => a.id === appearance.cursorSpriteAssetId);
   const fontAsset = allAssets.find(a => a.id === (appearance as any).fontAssetId);
+  const selectorType = (appearance as any).selectorType || (appearance as any).cursorType || (appearance as any).cursorMode || 'auto';
 
   return (
     <div className="space-y-3 p-4">
@@ -62,6 +63,25 @@ export const SubMenuAppearanceEditor: React.FC<SubMenuAppearanceEditorProps> = (
               {bgAsset ? `${bgAsset.name}` : 'None'}
             </span>
           </div>
+        </div>
+
+        <div className="mb-3">
+          <label className="block text-msx-textprimary text-sm mb-1">Selector Type</label>
+          <select
+            value={selectorType}
+            onChange={(e) => {
+              const value = e.target.value;
+              onAppearanceChange({
+                ...(appearance as any),
+                selectorType: value === 'auto' ? undefined : value,
+              });
+            }}
+            className="w-full max-w-xs px-2 py-1 rounded bg-msx-bgcolor border border-msx-border text-msx-textprimary"
+          >
+            <option value="auto">Auto (sprite if selected, else char)</option>
+            <option value="char">Char ('&gt;')</option>
+            <option value="sprite">Sprite</option>
+          </select>
         </div>
 
         <div className="mb-3">

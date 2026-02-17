@@ -299,25 +299,26 @@ sprite_hide:
     ; We must hide ALL layers for this entity
     ; E contains Entity Index (from line 129)
     ; D = 0 (from line 130)
-    
+
     ld hl, entity_sprite_config
     add hl, de
     add hl, de
-    
-    ld a, (hl)                 ; Base HW Sprite
-    inc hl
-    ld b, (hl)                 ; Layer Count
+
+    inc hl                     ; Point to Layer Count first
+    ld b, (hl)                 ; B = Layer Count
+    dec hl                     ; Back to Base HW Sprite
     ld a, b
     or a
     jr z, sprite_continue      ; Nothing to hide for anchor entities
-    
+    ld a, (hl)                 ; A = Base HW Sprite (read AFTER zero check)
+
 sprite_hide_loop:
     push bc
     push af
-    call hide_sprite           ; A = HW Sprite
+    call hide_sprite           ; A = HW Sprite (correct base index)
     pop af
     pop bc
-    
+
     inc a                      ; Next HW Sprite
     djnz sprite_hide_loop
 

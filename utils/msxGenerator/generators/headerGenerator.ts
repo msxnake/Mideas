@@ -95,14 +95,24 @@ init_rom:
     
     ; Initialize stack
     ld sp, #F380
-    
+
+    ; Cold boot path: ensure cartridge pages are mapped.
+    call SETPAGES32K
+    jp restart_rom_continue
+
+; Restart entry point for GameFlow Restart node.
+; Reinitializes runtime safely without remapping cartridge pages.
+restart_rom:
+    di
+    im 1
+    ld sp, #F380
+
+restart_rom_continue:
     ; Reset some interrupts to ensure compatibility
     ; with MSX computers with disk controllers
     ld a, #C9
     ld (HKEY), a
     ; NOTE: TIMI (H.TIMI) is now managed by init_interrupt_system
-
-    call SETPAGES32K
 
     ; Silence click, init keyboard, clear config
     xor a

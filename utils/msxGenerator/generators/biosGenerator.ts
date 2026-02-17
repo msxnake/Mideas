@@ -108,6 +108,7 @@ VDP_R7  EQU 7            ; Text/border color
 ; System Variables
 HKEY    EQU #F3DB        ; Hook function key (system variable)
 CLIKSW  EQU #F3DC        ; Key click switch
+FORCLR  EQU #F3E8        ; Foreground color
 BAKCLR  EQU #F3E9        ; Background color
 BDRCLR  EQU #F3EA        ; Border color
 isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag

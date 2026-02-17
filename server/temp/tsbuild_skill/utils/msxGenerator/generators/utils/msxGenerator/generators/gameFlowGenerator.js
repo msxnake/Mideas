@@ -979,8 +979,8 @@ str_credits:
                 break;
             case 'Restart':
                 code += `gameflow_handle_restart:
-    ; Restart node - safe runtime reinit entry (no cold page remap).
-    jp restart_rom
+    ; Restart node - reset game
+    jp init_rom
 
 `;
                 break;
@@ -1121,9 +1121,6 @@ show_menu_placeholder:
 
 .smp_exit:
     call submenu_hide_cursor_sprite
-    ; Ensure no gameplay/menu sprite remains resident after leaving submenu.
-    call clear_all_sprites
-    call update_sprites_to_vram
     pop hl
     pop de
     pop bc
@@ -1298,18 +1295,15 @@ submenu_calc_vram_addr:
 ; ------------------------------------------------------------------
 submenu_string_length:
     push hl
-    push bc
-    ld c, 0                       ; C = length counter
+    xor a
 .ssl_loop:
-    ld a, (hl)
-    or a                          ; test char for null terminator
+    ld b, (hl)
+    or b
     jr z, .ssl_done
-    inc c
+    inc a
     inc hl
     jr .ssl_loop
 .ssl_done:
-    ld a, c                       ; A = string length
-    pop bc
     pop hl
     ret
 
@@ -1392,12 +1386,11 @@ submenu_prepare_cursor_sprite:
     ld a, b
     or a
     jr z, .sps_enable_cursor
-    push bc                       ; [1] save B=remaining, C=dest_index
-    push hl                       ; [2] save offset byte ptr
-    ; DE = base pattern ptr (preserved across iterations)
+    push bc
+    push hl
+    push de
 
     ld a, (hl)                    ; source offset from base pattern
-    push de                       ; [3] save base ptr for next iteration
     ld l, a
     ld h, 0
     add hl, hl                    ; *2
@@ -1405,9 +1398,9 @@ submenu_prepare_cursor_sprite:
     add hl, hl                    ; *8
     add hl, hl                    ; *16
     add hl, hl                    ; *32
-    add hl, de                    ; HL = source layer ptr (base + offset*32)
-
-    push hl                       ; [4] save source ptr
+    pop de                        ; base source pointer
+    add hl, de                    ; HL = source layer ptr
+    push hl
 
     ld a, c
     add a, SUBMENU_CURSOR_BASE_SPRITE
@@ -1421,15 +1414,14 @@ submenu_prepare_cursor_sprite:
     ld de, SPRPAT
     add hl, de
     ex de, hl                     ; DE = destination VRAM
-    pop hl                        ; [4] HL = source layer ptr
+    pop hl                        ; HL = source layer ptr
 
     ld bc, 32
-    call FAST_LDIRVM              ; clobbers HL, DE, BC
+    call FAST_LDIRVM
 
-    pop de                        ; [3] restore base ptr for next iteration!
-    pop hl                        ; [2] restore offset byte ptr
+    pop hl
     inc hl                        ; next source offset byte
-    pop bc                        ; [1] restore remaining/index
+    pop bc
     dec b
     inc c
     jr .sps_copy_layer_loop

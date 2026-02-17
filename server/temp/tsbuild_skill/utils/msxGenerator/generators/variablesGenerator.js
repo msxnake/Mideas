@@ -39,6 +39,21 @@ function generateVariablesFile(analysis) {
     currentAddress++;
     code += `prev_flow_state     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Previous game flow state\n`;
     currentAddress++;
+    // GameFlow runtime variables (must live in RAM)
+    code += `gameflow_exit_requested EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Exit flag for WorldLink loop\n`;
+    currentAddress++;
+    code += `gameflow_menu_selection EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current/last submenu selection\n`;
+    currentAddress++;
+    code += `gameflow_submenu_data_ptr EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pointer to active submenu data (16-bit)\n`;
+    currentAddress += 2;
+    code += `gameflow_submenu_option_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached submenu option count\n`;
+    currentAddress++;
+    code += `gameflow_submenu_cursor_enabled EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when submenu uses sprite cursor\n`;
+    currentAddress++;
+    code += `gameflow_submenu_cursor_layer_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cursor sprite layer count (1..4)\n`;
+    currentAddress++;
+    code += `gameflow_condition_result EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Result of last condition evaluation\n`;
+    currentAddress++;
     // Mideas Global Variables Dictionary (from project + defaults)
     code += `
 ; ==================================================================

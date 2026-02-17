@@ -1046,6 +1046,11 @@ export interface GameFlowSubMenuNode extends GameFlowNode_Base {
   appearance?: {
     backgroundScreenAssetId?: string;
     cursorSpriteAssetId?: string;
+    /** Selector rendering mode for submenu option marker. */
+    selectorType?: 'char' | 'sprite';
+    /** Backward/alternate aliases accepted by generator. */
+    cursorType?: 'char' | 'sprite';
+    cursorMode?: 'char' | 'sprite';
     fontAssetId?: string;
     colors: {
       text: string;

@@ -8,12 +8,219 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { MSX1_PALETTE } from '../../../constants';
 
 /**
  * Sanitize node ID for use in ASM labels
  */
 function sanitizeId(id: string): string {
   return id.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+/**
+ * Normalize text for ASM string literals used in generated labels/data.
+ */
+function sanitizeAsmText(value: any): string {
+  return String(value || '')
+    .replace(/"/g, '')
+    .replace(/\r?\n/g, ' ')
+    .trim();
+}
+
+/**
+ * Convert hex color to MSX color code (0-15).
+ * Matches the mapping strategy used by menusGenerator.
+ */
+function hexToRGB(hex: string): { r: number; g: number; b: number } | null {
+  const clean = String(hex || '').trim();
+  if (!clean || clean.toLowerCase().startsWith('rgba(0,0,0,0')) return null;
+  const normalized = clean.replace('#', '');
+  if (normalized.length !== 6) return null;
+
+  const r = parseInt(normalized.substring(0, 2), 16);
+  const g = parseInt(normalized.substring(2, 4), 16);
+  const b = parseInt(normalized.substring(4, 6), 16);
+  if ([r, g, b].some((v) => Number.isNaN(v))) return null;
+
+  return { r, g, b };
+}
+
+function hexToMSX1Index(hex: string, allowTransparent = true): number {
+  const raw = String(hex || '').trim();
+  if (!raw) return allowTransparent ? 0 : 1;
+  if (raw.toLowerCase().startsWith('rgba(0,0,0,0')) return allowTransparent ? 0 : 1;
+
+  const upper = raw.toUpperCase();
+  const exact = MSX1_PALETTE.find((c) => c.hex.toUpperCase() === upper);
+  if (exact) return exact.index;
+
+  const rgb = hexToRGB(raw);
+  if (!rgb) return allowTransparent ? 0 : 1;
+
+  let bestIndex = allowTransparent ? 0 : 1;
+  let bestDist = Infinity;
+  for (const c of MSX1_PALETTE) {
+    if (!allowTransparent && c.index === 0) continue;
+    const cRgb = hexToRGB(c.hex);
+    if (!cRgb) continue;
+    const dist = (rgb.r - cRgb.r) ** 2 + (rgb.g - cRgb.g) ** 2 + (rgb.b - cRgb.b) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIndex = c.index;
+    }
+  }
+
+  return bestIndex;
+}
+
+function hexToMSXColor(hex: string): number {
+  const idx = hexToMSX1Index(hex, false);
+  return idx === 0 ? 1 : idx;
+}
+
+/**
+ * Find sprite asset index by id in analysis.sprites.
+ */
+function findSpriteAssetIndex(analysis: ProjectAnalysis, spriteAssetId: any): number {
+  const id = String(spriteAssetId || '').trim();
+  if (!id) return -1;
+  const sprites = Array.isArray(analysis.sprites) ? analysis.sprites : [];
+  return sprites.findIndex((s: any) => String(s?.id || '').trim() === id);
+}
+
+/**
+ * Analyze first..last drawable layer range in a sprite.
+ */
+function analyzeDrawableLayerRange(sprite: any): { first: number; last: number } | null {
+  const palette: string[] = sprite?.spritePalette || [];
+  const bg: string | undefined = sprite?.backgroundColor;
+  const frames = sprite?.frames || [];
+
+  if (!palette.length || !frames.length) return null;
+
+  let first = -1;
+  let last = -1;
+
+  for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
+    const layerColor = palette[layerIdx];
+    if (!layerColor || layerColor === bg) continue;
+
+    let hasPixels = false;
+    for (const frame of frames) {
+      if (!frame?.data) continue;
+      for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
+        for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
+          if (frame.data[y][x] === layerColor) {
+            hasPixels = true;
+          }
+        }
+      }
+      if (hasPixels) break;
+    }
+
+    if (!hasPixels) continue;
+    if (first === -1) first = layerIdx;
+    last = layerIdx;
+  }
+
+  if (first === -1 || last === -1) return null;
+  return { first, last };
+}
+
+/**
+ * Build submenu cursor layer config (source pattern offsets + colors).
+ * Keeps only drawable colors and clamps to 4 hardware sprite layers.
+ */
+function getSpriteLayerConfigForSubmenuCursor(sprite: any): { layerOffsets: number[]; layerColors: number[] } {
+  const palette: string[] = sprite?.spritePalette || [];
+  const bg: string | undefined = sprite?.backgroundColor;
+  const frames = sprite?.frames || [];
+  const range = analyzeDrawableLayerRange(sprite);
+  if (!range) {
+    return { layerOffsets: [0], layerColors: [15] };
+  }
+
+  const usedLayerIndexes: number[] = [];
+  for (let i = range.first; i <= range.last; i++) {
+    const layerColor = palette[i];
+    if (!layerColor || (bg && layerColor === bg)) continue;
+
+    let hasPixels = false;
+    for (const frame of frames) {
+      if (!frame?.data) continue;
+      for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
+        for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
+          if (frame.data[y][x] === layerColor) {
+            hasPixels = true;
+          }
+        }
+      }
+      if (hasPixels) break;
+    }
+
+    if (hasPixels) {
+      usedLayerIndexes.push(i);
+    }
+  }
+
+  const selectedLayers = usedLayerIndexes.slice(0, 4);
+  if (selectedLayers.length === 0) {
+    return { layerOffsets: [0], layerColors: [15] };
+  }
+
+  const layerOffsets = selectedLayers.map((idx) => Math.max(0, idx - range.first));
+  const layerColors = selectedLayers.map((idx) => {
+    const hex = palette[idx];
+    return hex ? hexToMSX1Index(hex, true) : 15;
+  });
+
+  return { layerOffsets, layerColors };
+}
+
+/**
+ * Resolve submenu selector mode from JSON appearance.
+ * Supports aliases for backward/forward compatibility.
+ */
+function getSubMenuSelectorMode(node: any): 'auto' | 'char' | 'sprite' {
+  const raw =
+    node?.appearance?.selectorType ??
+    node?.appearance?.cursorType ??
+    node?.appearance?.cursorMode ??
+    node?.selectorType ??
+    node?.cursorType ??
+    node?.cursorMode;
+
+  const mode = String(raw || '')
+    .trim()
+    .toLowerCase();
+
+  if (mode === 'char' || mode === 'character' || mode === 'text' || mode === 'glyph') {
+    return 'char';
+  }
+  if (mode === 'sprite' || mode === 'image') {
+    return 'sprite';
+  }
+  return 'auto';
+}
+
+/**
+ * Choose initial option index for SubMenu nodes.
+ * Preview defaults to option 0 unless an explicit index exists.
+ */
+function getSubMenuInitialOptionIndex(node: any): number {
+  const options = Array.isArray(node?.options) ? node.options : [];
+  if (options.length === 0) return 0;
+
+  const explicitRaw =
+    node?.initialSelection ??
+    node?.initialSelectedOption ??
+    node?.appearance?.initialSelection ??
+    0;
+  const explicit = Number(explicitRaw);
+  if (!Number.isFinite(explicit)) return 0;
+  if (explicit < 0) return 0;
+  if (explicit >= options.length) return 0;
+  return Math.floor(explicit);
 }
 
 /**
@@ -494,9 +701,11 @@ init_all_global_variables:
 ; GAMEFLOW VARIABLES
 ; ==================================================================
 
-gameflow_exit_requested:    db 0    ; Flag to exit current game loop
-gameflow_menu_selection:    db 0    ; Last menu selection
-gameflow_condition_result:  db 0    ; Result of last condition evaluation
+; Runtime GameFlow variables are allocated in variables.asm (RAM EQUs):
+; gameflow_exit_requested, gameflow_menu_selection,
+; gameflow_submenu_data_ptr, gameflow_submenu_option_count,
+; gameflow_submenu_cursor_enabled, gameflow_submenu_cursor_layer_count,
+; gameflow_condition_result
 
 ; ==================================================================
 ; COMMON GAMEFLOW UTILITIES
@@ -823,33 +1032,36 @@ str_credits:
 
       case 'Restart':
         code += `gameflow_handle_restart:
-    ; Restart node - reset game
-    jp init_rom
+    ; Restart node - safe runtime reinit entry (no cold page remap).
+    jp restart_rom
 
 `;
         break;
 
       case 'SubMenu':
+        {
+          const submenuCursorPatternCount = Math.max((analysis.sprites?.length || 0), 1);
+          let submenuCursorPatternTable = '';
+          for (let i = 0; i < submenuCursorPatternCount; i++) {
+            submenuCursorPatternTable += `    dw SPRITE_${i}_PATTERN\n`;
+          }
+
         code += `gameflow_handle_submenu:
-    ; SubMenu node - show menu and follow selected option
-    ; DE = menu data pointer
-    ; BC = connection table
-    
-    push bc         ; Save connection table
-    
-    ; Show menu (implementation in menusGenerator.ts)
-    ; For now, placeholder
+    ; SubMenu node - interactive navigation
+    ; DE points to SubMenu data:
+    ;   [bg_color][cursor_sprite_idx][cursor_layer_count]
+    ;   [cursor_layer_offsets x4][cursor_colors x4]
+    ;   [option_count][initial_selection][title_ptr][option_ptr_0]...
+    push bc
     call show_menu_placeholder
-    
-    ; Get selection (0-based index)
     ld a, (gameflow_menu_selection)
-    
-    ; Calculate connection type (CONNECTION_OPTION_0 + index)
+    cp 6
+    jr c, .submenu_idx_ok
+    ld a, 5                       ; Max supported connection option
+.submenu_idx_ok:
     add a, CONNECTION_OPTION_0
-    
-    pop bc          ; Restore connection table
+    pop bc
     call gameflow_get_connection_by_type
-    
     ld a, h
     or l
     ret z
@@ -857,124 +1069,616 @@ str_credits:
 
 ; ------------------------------------------------------------------
 ; show_menu_placeholder
-; Display menu and get user selection
-; Input:  DE = menu data pointer (options count, option strings)
-; Output: gameflow_menu_selection = selected index (0-based)
+; Runtime GameFlow submenu renderer + input
+; Input:  DE = menu data pointer
+;   Format: DB bg_color, DB cursor_sprite_idx, DB cursor_layer_count,
+;           DB cursor_src_off0..cursor_src_off3,
+;           DB cursor_color0..cursor_color3,
+;           DB option_count, DB initial_selection,
+;           DW title_ptr, DW option_ptr[n]
+; Output: gameflow_menu_selection = selected index (0..5)
 ; ------------------------------------------------------------------
 show_menu_placeholder:
     push bc
     push de
     push hl
 
-    ; Get number of options
-    ld a, (de)
-    inc de
-    ld b, a                       ; B = option count
-    push bc
+    ; Cache menu data pointer
+    ld h, d
+    ld l, e
+    ld (gameflow_submenu_data_ptr), hl
 
-    ; Clear menu area
-    call clear_screen_area
+    ; Cache option count (clamped to supported range)
+    ; option_count is at offset +11 in submenu header
+    ld bc, 11
+    add hl, bc
+    ld a, (hl)
+    cp 6
+    jr c, .smp_count_ok
+    ld a, 6
+.smp_count_ok:
+    ld (gameflow_submenu_option_count), a
 
-    ; Display menu title (if present)
-    ld hl, str_menu_title
-    ld de, #1800 + (6 * 32) + 10  ; Row 6, col 10
-    call print_string_vram
-
-    ; Display menu options
-    pop bc
-    push bc
-    ld c, 0                       ; C = current option index
-    ld de, #1800 + (8 * 32) + 8   ; Start at row 8, col 8
-
-.display_options:
-    push bc
-    push de
-
-    ; Display option text (placeholder: "Option N")
-    ld hl, str_option
-    call print_string_vram
-
-    ; Display option number
-    ld a, c
-    add a, '0'                    ; Convert to ASCII
-    ld (de), a                    ; Write to VRAM
-
-    pop de
-    ld a, e
-    add a, 32                     ; Next row
-    ld e, a
-    ld a, d
-    adc a, 0
-    ld d, a
-
-    pop bc
-    inc c
-    djnz .display_options
-
-    pop bc                        ; B = option count
+    ; Initialize selected option
+    or a
+    jr nz, .smp_has_options
     xor a
-    ld (gameflow_menu_selection), a ; Start at option 0
+    ld (gameflow_menu_selection), a
+    call submenu_prepare_cursor_sprite
+    call render_submenu_screen
+    jr .smp_exit
 
-    ; Menu input loop
-.menu_loop:
-    halt                          ; Wait V-blank
+.smp_has_options:
+    ld b, a
+    inc hl
+    ld a, (hl)                    ; initial_selection
+    cp b
+    jr c, .smp_sel_ok
+    xor a
+.smp_sel_ok:
+    ld (gameflow_menu_selection), a
 
-    ; Check UP key
+    call submenu_prepare_cursor_sprite
+    call render_submenu_screen
+
+.smp_loop:
+    halt
+    ld a, 0
     call GTSTCK
     cp 1                          ; Up
     jr nz, .smp_check_down
 
     ld a, (gameflow_menu_selection)
     or a
-    jr z, .menu_loop              ; Already at top
+    jr z, .smp_wait_neutral
     dec a
     ld (gameflow_menu_selection), a
-
-    ; Wait for key release
-    ld c, 10
-.smp_wait_up:
-    halt
-    dec c
-    jr nz, .smp_wait_up
-    jr .menu_loop
+    call render_submenu_screen
+    jr .smp_wait_neutral
 
 .smp_check_down:
     cp 5                          ; Down
     jr nz, .smp_check_fire
 
+    ld a, (gameflow_submenu_option_count)
+    dec a                         ; max index
+    ld b, a
     ld a, (gameflow_menu_selection)
+    cp b
+    jr nc, .smp_wait_neutral
     inc a
-    cp b                          ; Compare with option count
-    jr nc, .menu_loop             ; Already at bottom
     ld (gameflow_menu_selection), a
-
-    ; Wait for key release
-    ld c, 10
-.smp_wait_down:
-    halt
-    dec c
-    jr nz, .smp_wait_down
-    jr .menu_loop
+    call render_submenu_screen
+    jr .smp_wait_neutral
 
 .smp_check_fire:
+    ld a, 0
     call GTTRIG
     or a
-    jr z, .menu_loop              ; No fire, continue loop
+    jr z, .smp_loop
 
-    ; Fire pressed - exit with selection
+.smp_wait_fire_release:
+    halt
+    ld a, 0
+    call GTTRIG
+    or a
+    jr nz, .smp_wait_fire_release
+    jr .smp_exit
+
+.smp_wait_neutral:
+.smp_wait_neutral_loop:
+    halt
+    ld a, 0
+    call GTSTCK
+    or a
+    jr nz, .smp_wait_neutral_loop
+    jr .smp_loop
+
+.smp_exit:
+    call submenu_hide_cursor_sprite
+    ; Ensure no gameplay/menu sprite remains resident after leaving submenu.
+    call clear_all_sprites
+    call update_sprites_to_vram
     pop hl
     pop de
     pop bc
     ret
 
-str_menu_title:
-    db "MENU", 0
+; ------------------------------------------------------------------
+; render_submenu_screen
+; Draw title, options, and selection marker ('>').
+; Uses cached pointer/count variables set by show_menu_placeholder.
+; ------------------------------------------------------------------
+render_submenu_screen:
+    push bc
+    push de
+    push hl
 
-str_option:
-    db "Option ", 0
+    ; Apply submenu background/border colors from node config.
+    ld hl, (gameflow_submenu_data_ptr)
+    ld a, (hl)                    ; bg_color
+    ld b, a                       ; border = bg
+    push af
+    call set_screen_colors
+    pop af
+    call init_char0_color
+
+    ; Clear full visible screen (24 rows) before drawing menu.
+    ; clear_screen_area only clears the center and leaves HUD/map artifacts.
+    ld a, 0
+    ld b, 24
+.rss_clear_loop:
+    push af
+    push bc
+    call clear_screen_row
+    pop bc
+    pop af
+    inc a
+    djnz .rss_clear_loop
+
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 11                     ; offset to option_count
+    add hl, bc
+    ld a, (hl)                    ; option_count
+    cp 6
+    jr c, .rss_count_ok
+    ld a, 6
+.rss_count_ok:
+    ld b, a
+    or a
+    jr z, .rss_done
+
+    inc hl                        ; skip option_count
+    inc hl                        ; skip initial_selection
+
+    ; Print title at row 5, horizontally centered (match PC preview Y=40)
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = title pointer
+    inc hl                        ; HL = first option pointer
+    push hl
+    ex de, hl                     ; HL = title string
+    call submenu_compute_center_col
+    ld c, a                       ; C = centered col
+    ld a, 5                       ; A = row 5 (5*8=40px)
+    call submenu_calc_vram_addr   ; DE = VRAM addr
+    call print_string_vram
+    pop hl
+
+    ; Print options from row 10, spaced 2 rows apart (match PC preview Y=80+idx*12)
+    ld c, 0
+.rss_option_loop:
+    ld a, c
+    cp b
+    jr nc, .rss_done
+
+    ; Read option string pointer
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    push hl                        ; Save option pointer cursor
+    push de                        ; Save option string pointer
+    push bc                        ; Save option_count/index
+    ex de, hl                      ; HL = option string
+
+    ; Marker at (centered text col - 2)
+    ld a, (gameflow_menu_selection)
+    cp c
+    ld a, ' '
+    jr nz, .rss_marker_ready
+    ld a, (gameflow_submenu_cursor_enabled)
+    or a
+    jr nz, .rss_marker_ready      ; sprite cursor active -> keep blank marker
+    ld a, '>'
+.rss_marker_ready:
+    push af
+    push bc
+    ld a, c
+    add a, a                       ; *2 (2 rows per option)
+    add a, 10                      ; start at row 10
+    ld b, a                        ; B = row for current option
+    call submenu_compute_center_col
+    sub 2
+    jr nc, .rss_marker_col_ok
+    xor a
+.rss_marker_col_ok:
+    ld c, a
+    ld a, b
+    call submenu_calc_vram_addr
+    pop bc
+    pop af
+    ex de, hl
+    call WRTVRM
+
+    pop bc                        ; Restore option_count/index
+    pop hl                        ; HL = option string pointer
+
+    ; Option text at centered column
+    push bc
+    ld a, c
+    add a, a                       ; *2 (2 rows per option)
+    add a, 10                      ; start at row 10
+    ld b, a                        ; B = row for current option
+    call submenu_compute_center_col
+    ld c, a
+    ld a, b
+    call submenu_calc_vram_addr
+    pop bc
+    call print_string_vram
+
+    pop hl                        ; Restore option pointer cursor
+    inc c
+    jr .rss_option_loop
+
+.rss_done:
+    call submenu_update_cursor_sprite
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_calc_vram_addr
+; Convert row/col to name table VRAM address.
+; Input:  A = row (0-23), C = col (0-31)
+; Output: DE = VRAM address (#1800 + row*32 + col)
+; ------------------------------------------------------------------
+submenu_calc_vram_addr:
+    push hl
+    push bc
+
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    add hl, hl                    ; *16
+    add hl, hl                    ; *32
+    ld b, 0
+    add hl, bc                    ; +col
+    ld bc, #1800
+    add hl, bc                    ; +name table base
+    ex de, hl
+
+    pop bc
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; submenu_string_length
+; Input: HL = null-terminated string
+; Output: A = length in characters (0..255)
+; Preserves: HL
+; ------------------------------------------------------------------
+submenu_string_length:
+    push hl
+    push bc
+    ld c, 0                       ; C = length counter
+.ssl_loop:
+    ld a, (hl)
+    or a                          ; test char for null terminator
+    jr z, .ssl_done
+    inc c
+    inc hl
+    jr .ssl_loop
+.ssl_done:
+    ld a, c                       ; A = string length
+    pop bc
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; submenu_compute_center_col
+; Input: HL = null-terminated string
+; Output: A = centered start column (0..31)
+; Preserves: HL
+; ------------------------------------------------------------------
+submenu_compute_center_col:
+    push bc
+    call submenu_string_length
+    cp 32
+    jr c, .scc_len_ok
+    xor a
+    jr .scc_done
+.scc_len_ok:
+    ld b, a
+    ld a, 32
+    sub b
+    srl a
+.scc_done:
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_prepare_cursor_sprite
+; Load cursor sprite patterns and initialize cursor state.
+; Uses sprite slots SUBMENU_CURSOR_BASE_SPRITE..+3.
+; ------------------------------------------------------------------
+submenu_prepare_cursor_sprite:
+    push bc
+    push de
+    push hl
+
+    ; Default: no sprite cursor
+    xor a
+    ld (gameflow_submenu_cursor_enabled), a
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Clear SAT buffer once to avoid stale sprite garbage in menus
+    call clear_all_sprites
+
+    ld hl, (gameflow_submenu_data_ptr)
+    inc hl                        ; +1 cursor_sprite_idx
+    ld a, (hl)
+    cp #FF
+    jr z, .sps_done               ; no sprite cursor configured
+
+    ; Resolve pattern pointer from sprite asset index
+    call submenu_get_cursor_pattern_ptr
+    jr c, .sps_done               ; invalid index -> fallback to char marker
+    push hl                       ; save pattern ptr
+
+    ; Read and clamp layer count (+2)
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 2
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .sps_restore_no_cursor
+    cp 5
+    jr c, .sps_layer_ok
+    ld a, 4
+.sps_layer_ok:
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Copy selected source layers to reserved cursor slots.
+    ; Header offsets:
+    ;   +3..+6 = source layer offsets (from SPRITE_n_PATTERN base)
+    ;   +7..+10 = layer colors
+    pop de                        ; DE = source pattern base
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 3
+    add hl, bc                    ; HL = first source layer offset
+    ld a, (gameflow_submenu_cursor_layer_count)
+    ld b, a                       ; B = remaining layers
+    ld c, 0                       ; C = destination layer index
+.sps_copy_layer_loop:
+    ld a, b
+    or a
+    jr z, .sps_enable_cursor
+    push bc                       ; [1] save B=remaining, C=dest_index
+    push hl                       ; [2] save offset byte ptr
+    ; DE = base pattern ptr (preserved across iterations)
+
+    ld a, (hl)                    ; source offset from base pattern
+    push de                       ; [3] save base ptr for next iteration
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    add hl, hl                    ; *16
+    add hl, hl                    ; *32
+    add hl, de                    ; HL = source layer ptr (base + offset*32)
+
+    push hl                       ; [4] save source ptr
+
+    ld a, c
+    add a, SUBMENU_CURSOR_BASE_SPRITE
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    add hl, hl                    ; *16
+    add hl, hl                    ; *32
+    ld de, SPRPAT
+    add hl, de
+    ex de, hl                     ; DE = destination VRAM
+    pop hl                        ; [4] HL = source layer ptr
+
+    ld bc, 32
+    call FAST_LDIRVM              ; clobbers HL, DE, BC
+
+    pop de                        ; [3] restore base ptr for next iteration!
+    pop hl                        ; [2] restore offset byte ptr
+    inc hl                        ; next source offset byte
+    pop bc                        ; [1] restore remaining/index
+    dec b
+    inc c
+    jr .sps_copy_layer_loop
+
+.sps_enable_cursor:
+
+    ld a, 1
+    ld (gameflow_submenu_cursor_enabled), a
+    jr .sps_done
+
+.sps_restore_no_cursor:
+    pop hl
+
+.sps_done:
+    call submenu_update_cursor_sprite
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_update_cursor_sprite
+; Draw or hide submenu cursor sprite according to current selection.
+; ------------------------------------------------------------------
+submenu_update_cursor_sprite:
+    push bc
+    push de
+    push hl
+
+    ld a, (gameflow_submenu_cursor_enabled)
+    or a
+    jr z, .sus_hide
+
+    ; Compute cursor Y from selected option row (row = 10 + selection*2)
+    ; Y = (10 + selection*2) * 8 - 4 to match PC preview placement.
+    ld a, (gameflow_menu_selection)
+    add a, a                      ; selection * 2
+    add a, 10                     ; + 10 (start row)
+    add a, a                      ; *2
+    add a, a                      ; *4
+    add a, a                      ; *8
+    sub 4
+    jr nc, .sus_y_ok
+    xor a
+.sus_y_ok:
+    ld c, a                       ; C = Y (pixels)
+
+    ; Resolve selected option pointer and centered text start column.
+    ; Header layout:
+    ; +15 = first option DW pointer
+    ld hl, (gameflow_submenu_data_ptr)
+    ld de, 15
+    add hl, de
+    ld a, (gameflow_menu_selection)
+    add a, a                      ; *2 (DW stride)
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl                     ; HL = selected option string
+    call submenu_compute_center_col
+
+    ; X = (start_col * 8) - 16 (sprite width)
+    add a, a                      ; *2
+    add a, a                      ; *4
+    add a, a                      ; *8
+    sub 16
+    jr nc, .sus_x_ok
+    xor a
+.sus_x_ok:
+    ld b, a                       ; B = X (pixels)
+
+    ; HL -> first cursor color byte (+7)
+    ld hl, (gameflow_submenu_data_ptr)
+    ld de, 7
+    add hl, de
+
+    ld a, (gameflow_submenu_cursor_layer_count)
+    or a
+    jr z, .sus_hide
+
+    ld d, SUBMENU_CURSOR_BASE_SPRITE
+.sus_draw_loop:
+    push af                       ; [1] save remaining layer count
+    ld e, (hl)                    ; E = color for this layer
+    push hl                       ; [2] save color pointer
+    push de                       ; [3] save D=sprite index, E=color
+    ld a, d                       ; A = sprite index (for show_sprite param)
+    push af                       ; [4] save A=sprite index
+    add a, a
+    add a, a
+    ld d, a                       ; D = pattern = sprite_index * 4
+    pop af                        ; [4] restore A=sprite index
+    call show_sprite              ; A=index, B=X, C=Y, D=pattern, E=color
+    pop de                        ; [3] restore D=sprite index (E=old color, ignore)
+    inc d                         ; next sprite slot
+    pop hl                        ; [2] restore color pointer
+    inc hl                        ; advance to next layer color
+    pop af                        ; [1] restore remaining layer count
+    dec a
+    jr nz, .sus_draw_loop
+
+    ; Hide unused reserved cursor sprite slots
+    ld a, (gameflow_submenu_cursor_layer_count)
+    ld e, a
+    ld a, SUBMENU_CURSOR_MAX_LAYERS
+    sub e
+    ld b, a                       ; B = remaining to hide
+    ld a, SUBMENU_CURSOR_BASE_SPRITE
+    add a, e
+    ld d, a                       ; D = first unused sprite slot
+    jr .sus_hide_remaining_check
+
+.sus_hide_remaining:
+    ld a, d
+    call hide_sprite
+    inc d
+    djnz .sus_hide_remaining
+
+.sus_hide_remaining_check:
+    ld a, b
+    or a
+    jr nz, .sus_hide_remaining
+    jr .sus_flush
+
+.sus_hide:
+    call submenu_hide_cursor_sprite
+    jr .sus_done
+
+.sus_flush:
+    call update_sprites_to_vram
+
+.sus_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_hide_cursor_sprite
+; Hide reserved cursor sprite slots.
+; ------------------------------------------------------------------
+submenu_hide_cursor_sprite:
+    push bc
+    push de
+
+    ld d, SUBMENU_CURSOR_BASE_SPRITE
+    ld b, SUBMENU_CURSOR_MAX_LAYERS
+.shc_loop:
+    ld a, d
+    call hide_sprite
+    inc d
+    djnz .shc_loop
+    call update_sprites_to_vram
+
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_get_cursor_pattern_ptr
+; Input: A = sprite asset index
+; Output: HL = SPRITE_<index>_PATTERN, CF=1 on invalid index
+; ------------------------------------------------------------------
+submenu_get_cursor_pattern_ptr:
+    cp SUBMENU_CURSOR_PATTERN_COUNT
+    jr nc, .sgcpp_invalid
+    ld l, a
+    ld h, 0
+    add hl, hl
+    ld de, submenu_cursor_sprite_pattern_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+    or a                          ; clear carry
+    ret
+.sgcpp_invalid:
+    scf
+    ret
+
+SUBMENU_CURSOR_BASE_SPRITE EQU 28
+SUBMENU_CURSOR_MAX_LAYERS  EQU 4
+SUBMENU_CURSOR_PATTERN_COUNT EQU ${submenuCursorPatternCount}
+
+submenu_cursor_sprite_pattern_table:
+${submenuCursorPatternTable}
 
 `;
-        break;
+          break;
+        }
 
       case 'Text':
         code += `gameflow_handle_text:
@@ -1744,7 +2448,61 @@ ${nodeLabel}:
         break;
 
       case 'SubMenu':
-        code += `    db ${node.options?.length || 0}    ; Number of options\n`;
+        {
+          const nodeId = sanitizeId(node.id);
+          const options = (Array.isArray(node.options) ? node.options : []).slice(0, 6);
+          const optionCount = options.length;
+          const fallbackRaw = getSubMenuInitialOptionIndex(node);
+          const fallbackIndex = optionCount > 0 ? Math.min(fallbackRaw, optionCount - 1) : 0;
+          const titleText = sanitizeAsmText(node.title || node.name || 'MENU').toUpperCase();
+          const submenuBgHex = node?.appearance?.colors?.background || '#000000';
+          const submenuBgColor = hexToMSXColor(submenuBgHex);
+          const selectorMode = getSubMenuSelectorMode(node);
+          const cursorSpriteAssetId = node?.appearance?.cursorSpriteAssetId;
+          const cursorSpriteIndexRaw = findSpriteAssetIndex(analysis, cursorSpriteAssetId);
+          const cursorSprite = cursorSpriteIndexRaw >= 0 ? analysis.sprites?.[cursorSpriteIndexRaw] : null;
+          const useSpriteCursor =
+            selectorMode === 'char'
+              ? false
+              : selectorMode === 'sprite'
+                ? cursorSpriteIndexRaw >= 0
+                : cursorSpriteIndexRaw >= 0;
+          const cursorSpriteIndex = useSpriteCursor ? cursorSpriteIndexRaw : 0xFF;
+          const layerConfig = useSpriteCursor && cursorSprite
+            ? getSpriteLayerConfigForSubmenuCursor(cursorSprite)
+            : { layerOffsets: [] as number[], layerColors: [] as number[] };
+          const cursorLayerOffsets = layerConfig.layerOffsets.slice(0, 4);
+          const cursorLayerColors = layerConfig.layerColors.slice(0, 4);
+          const cursorLayerCount = Math.min(cursorLayerColors.length, 4);
+          while (cursorLayerOffsets.length < 4) {
+            cursorLayerOffsets.push(0);
+          }
+          while (cursorLayerColors.length < 4) {
+            cursorLayerColors.push(0);
+          }
+
+          code += `    db ${submenuBgColor}    ; Background color (MSX index)\n`;
+          code += `    db ${cursorSpriteIndex}    ; Cursor sprite asset index (#FF = use text marker)\n`;
+          code += `    db ${cursorLayerCount}    ; Cursor sprite layer count (max 4)\n`;
+          code += `    db ${cursorLayerOffsets[0]}, ${cursorLayerOffsets[1]}, ${cursorLayerOffsets[2]}, ${cursorLayerOffsets[3]}    ; Cursor source layer offsets\n`;
+          code += `    db ${cursorLayerColors[0]}, ${cursorLayerColors[1]}, ${cursorLayerColors[2]}, ${cursorLayerColors[3]}    ; Cursor layer colors\n`;
+          code += `    db ${optionCount}    ; Number of options (max 6)\n`;
+          code += `    db ${fallbackIndex}    ; Initial selected option\n`;
+          code += `    dw submenu_${nodeId}_title\n`;
+          options.forEach((_: any, idx: number) => {
+            code += `    dw submenu_${nodeId}_opt${idx}\n`;
+          });
+
+          code += `\nsubmenu_${nodeId}_title:\n`;
+          code += `    db "${titleText}", 0\n`;
+          options.forEach((option: any, idx: number) => {
+            const optionText = sanitizeAsmText(
+              option?.text || option?.label || option?.name || option?.id || `OPTION ${idx + 1}`
+            ).toUpperCase();
+            code += `submenu_${nodeId}_opt${idx}:\n`;
+            code += `    db "${optionText}", 0\n`;
+          });
+        }
         break;
 
       case 'Text': {
@@ -1852,7 +2610,8 @@ ${nodeLabel}:
     code += `    dw ${elseConn ? `gameflow_node_${sanitizeId(elseConn.to?.nodeId || elseConn.to)}` : '0'}\n`;
   } else if (node.type === 'SubMenu') {
     // Option connections
-    node.options?.forEach((option: any, idx: number) => {
+    const options = (Array.isArray(node.options) ? node.options : []).slice(0, 6);
+    options.forEach((option: any, idx: number) => {
       const optConn = connections.find((c: any) => c.from?.sourceId === option.id);
       code += `    db CONNECTION_OPTION_${idx}\n`;
       code += `    dw ${optConn ? `gameflow_node_${sanitizeId(optConn.to?.nodeId || optConn.to)}` : '0'}\n`;
@@ -1997,7 +2756,7 @@ ${defaultHasHud ? `    call render_hud
 ` : ``}    halt                            ; Wait for V-Blank
     jp gameflow_world_game_loop
 
-gameflow_exit_requested:    db 0
+; gameflow_exit_requested is allocated in variables.asm (RAM EQU)
 
 ; ==================================================================
 ; END OF DEFAULT GAMEFLOW
