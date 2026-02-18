@@ -3338,7 +3338,9 @@ useEffect(() => {
 
     // --- Nuevo: Pre-renderizado de Tiles ---
     const subMenuNode = currentNode.type === 'SubMenu' ? currentNode as GameFlowSubMenuNode : null;
-    const bgAsset = subMenuNode?.appearance?.backgroundScreenAssetId ? allAssets.find(a => a.id === subMenuNode.appearance.backgroundScreenAssetId) : null;
+    const textNodeForBg = currentNode.type === 'Text' ? currentNode as GameFlowTextNode : null;
+    const bgScreenAssetId = subMenuNode?.appearance?.backgroundScreenAssetId || textNodeForBg?.appearance?.backgroundScreenAssetId;
+    const bgAsset = bgScreenAssetId ? allAssets.find(a => a.id === bgScreenAssetId) : null;
     const screenMapToRender = currentScreenMap || (bgAsset?.data as ScreenMap);
     const tileset = allAssets.filter(a => a.type === 'tile').map(a => a.data as Tile);
 
@@ -3915,15 +3917,7 @@ useEffect(() => {
                 }
                 const promptText = 'PRESS FIRE TO CONTINUE';
                 const promptDims = getTextDimensionsMSX1(promptText, 1);
-                const baseColorAttrs = textNodeFontColorAttrs || msxFontColorAttributes;
-                const promptColorAttrs = JSON.parse(JSON.stringify(baseColorAttrs));
-                for (let i = 0; i < promptText.length; i++) {
-                    promptColorAttrs[promptText.charCodeAt(i)] = Array(8).fill({
-                        fg: textNode.appearance?.colors?.promptText || '#F3F3F3',
-                        bg: textNode.appearance?.colors?.background || '#000000'
-                    });
-                }
-                await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, promptColorAttrs, textNodeFont, promptColorAttrs);
+                await drawTextAsync(promptText, (PREVIEW_WIDTH - promptDims.width) / 2, PREVIEW_HEIGHT - 30, msxFontColorAttributes, textNodeFont, textNodeFontColorAttrs);
                 break;
             case 'Globals':
                 try {

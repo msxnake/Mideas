@@ -1704,36 +1704,60 @@ ${submenuCursorPatternTable}
 
 ; ------------------------------------------------------------------
 ; show_text_screen
-; Display full text screen: black bg, title, word-wrapped message, prompt
+; Display full text screen with optional background screen asset
 ; Input: DE = text data pointer
-;   Format: DB bgColor, DB numLines
+;   Format: DB bgColor, DW screen_load_ptr (0=none), DB numLines
 ;           Per line: DB row, DB col, DW string_ptr
+; If screen_load_ptr != 0: calls that function to load background screen
+; (the load_screen function sets VDP colors and name table from screen asset)
+; If screen_load_ptr == 0: sets bgColor, clears screen, renders text on solid bg
 ; ------------------------------------------------------------------
 show_text_screen:
     push bc
     push de
     push hl
 
-    ; Save data pointer
     ex de, hl                     ; HL = data pointer
 
-    ; Read background color
-    ld a, (hl)                    ; A = bgColor (MSX color index)
+    ; Read bgColor and screen load function pointer
+    ld a, (hl)                    ; A = bgColor
     inc hl
-    push hl                       ; Save pointer to numLines
+    ld c, (hl)                    ; C = screen_load_ptr low
+    inc hl
+    ld b, (hl)                    ; B = screen_load_ptr high
+    inc hl                        ; BC = load function ptr (0 = no bg screen)
 
-    ; Disable screen to avoid flicker
-    push af                       ; Save bgColor
+    push hl                       ; (1) Save pointer to numLines
+    push af                       ; (2) Save bgColor
+    push bc                       ; (3) Save function pointer
+
+    ; Disable screen before any VRAM write
     call DISSCR
-    pop af                        ; A = bgColor
 
-    ; Set background and border colors (A=bg, B=border)
+    ; Check if we have a background screen to load
+    pop bc                        ; (3) Restore function pointer
+    ld a, b
+    or c
+    jr z, .sts_no_bg_screen
+
+    ; Has background screen: call load_screen_X via HL
+    ; (load_screen sets VDP colors + writes name table)
+    ld h, b
+    ld l, c                       ; HL = function address
+    ld de, .sts_after_bg
+    push de                       ; push return address
+    jp (hl)                       ; call load_screen_X; returns to .sts_after_bg
+.sts_after_bg:
+    pop af                        ; (2) Discard saved bgColor (screen set its own colors)
+    jp .sts_render
+
+.sts_no_bg_screen:
+    ; No background screen: set solid color and clear
+    pop af                        ; (2) Restore bgColor
     ld b, a                       ; B = border color (same as bg)
-    push af                       ; Save bgColor again
+    push af
     call set_screen_colors
-    pop af                        ; A = bgColor
-
-    ; Initialize char 0 color to background
+    pop af
     call init_char0_color
 
     ; Clear entire screen (24 rows)
@@ -1748,8 +1772,9 @@ show_text_screen:
     inc a
     djnz .sts_clear_loop
 
-    ; Now render each line
-    pop hl                        ; HL = pointer to numLines
+.sts_render:
+    ; Now render each text line
+    pop hl                        ; (1) HL = pointer to numLines
     ld a, (hl)                    ; A = numLines
     inc hl                        ; HL = first line entry
     or a
@@ -1798,7 +1823,6 @@ show_text_screen:
     djnz .sts_line_loop
 
 .sts_enable:
-    ; Enable screen
     call ENASCR
 
     pop hl
@@ -2507,9 +2531,10 @@ ${nodeLabel}:
 
       case 'Text': {
         const nodeId = sanitizeId(node.id);
-        const title = (node.title || node.name || 'TEXT').replace(/"/g, '').toUpperCase();
-        const message = (node.message || '').replace(/"/g, '');
-        const bgColor = 1; // MSX color 1 = black (default for Text nodes)
+        const title = (node.title || node.name || '').replace(/"/g, '').replace(/\r?\n/g, ' ').trim().toUpperCase() || 'TEXT';
+        const message = (node.message || '').replace(/"/g, '').replace(/\r?\n/g, ' ');
+        const bgHex = (node as any).appearance?.colors?.background || '#000000';
+        const bgColor = hexToMSXColor(bgHex);
 
         // Word-wrap message to 28 chars per line (leaving 2-char margin each side)
         const maxLineWidth = 28;
@@ -2544,8 +2569,21 @@ ${nodeLabel}:
         // Prompt at row 20
         allLines.push({ row: 20, text: promptText, label: `text_${nodeId}_prompt` });
 
-        // Generate data table: bgColor, numLines, then per line: row, col, DW string_ptr
-        code += `    DB ${bgColor}                  ; Background color (MSX: 1=black)\n`;
+        // Resolve background screen load function pointer
+        const bgScreenId = (node as any).appearance?.backgroundScreenAssetId;
+        let bgScreenLabel = '0';
+        if (bgScreenId && analysis.screenMaps) {
+          const bgScreen = analysis.screenMaps.find((s: any) => s.id === bgScreenId);
+          if (bgScreen) {
+            const sName = (bgScreen.name as string).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+            const sIdSuffix = bgScreen.id ? `_${(bgScreen.id as string).replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+            bgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+          }
+        }
+
+        // Generate data table: bgColor, DW screen_load_ptr, numLines, then per line: row, col, DW string_ptr
+        code += `    DB ${bgColor}                  ; Background color (MSX index from ${bgHex})\n`;
+        code += `    DW ${bgScreenLabel}            ; Background screen load function (0=none)\n`;
         code += `    DB ${allLines.length}                  ; Number of lines\n`;
 
         for (const line of allLines) {
