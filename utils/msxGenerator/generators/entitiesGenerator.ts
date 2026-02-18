@@ -37,6 +37,19 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
     return Math.max(0, Math.min(255, num | 0));
   };
 
+  const parseOffsetByte = (value: any, defaultValue: number): number => {
+    const num = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+    if (Number.isNaN(num)) return defaultValue & 0xFF;
+    if (num < 0) {
+      const signed = Math.max(-128, Math.min(-1, num | 0));
+      return (256 + signed) & 0xFF;
+    }
+    return Math.max(0, Math.min(255, num | 0));
+  };
+
+  const toHexByte = (value: number): string =>
+    (value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+
   const resolveEntityScreenId = (entity: any): number => {
     const directScreenAssetId = entity?.screenAssetId || entity?.screenId || entity?.screenMapId;
     if (directScreenAssetId) {
@@ -436,6 +449,53 @@ update_entities:
 `;
       }
 
+      // Collision component initialization (hitbox/layer/masks)
+      let collisionInitAsm = '';
+      if (componentMask & 0x08) { // COMP_MASK_COLLISION
+        const collisionTemplateComp = template?.components?.find((c: any) =>
+          c.definitionId === 'comp_collision' || c.definitionName === 'Collision'
+        );
+        const collisionDefaults = collisionTemplateComp?.defaultValues || {};
+        const collisionOverrides = entity.componentOverrides?.['comp_collision'] || {};
+        const collisionValues = { ...collisionDefaults, ...collisionOverrides };
+
+        const hitboxWidth = parseByte(collisionValues.hitboxWidth, 16);
+        const hitboxHeight = parseByte(collisionValues.hitboxHeight, 16);
+        const offsetXByte = parseOffsetByte(collisionValues.offsetX, 0);
+        const offsetYByte = parseOffsetByte(collisionValues.offsetY, 0);
+        const offsetXSigned = offsetXByte >= 128 ? offsetXByte - 256 : offsetXByte;
+        const offsetYSigned = offsetYByte >= 128 ? offsetYByte - 256 : offsetYByte;
+        const collisionLayer = parseByte(collisionValues.collisionLayer, 1);
+        const collidesWith = parseByte(collisionValues.collidesWith, 255);
+
+        collisionInitAsm = `
+    ; Initialize Collision component (hitbox + layer masks)
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld (hl), #${toHexByte(hitboxWidth)}      ; hitboxWidth
+
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld (hl), #${toHexByte(hitboxHeight)}      ; hitboxHeight
+
+    ld hl, entity_collision_offset_x
+    add hl, de
+    ld (hl), #${toHexByte(offsetXByte)}      ; offsetX (${offsetXSigned})
+
+    ld hl, entity_collision_offset_y
+    add hl, de
+    ld (hl), #${toHexByte(offsetYByte)}      ; offsetY (${offsetYSigned})
+
+    ld hl, entity_collision_layer
+    add hl, de
+    ld (hl), #${toHexByte(collisionLayer)}      ; collisionLayer
+
+    ld hl, entity_collides_with
+    add hl, de
+    ld (hl), #${toHexByte(collidesWith)}      ; collidesWith
+`;
+      }
+
       // === State Machine initialization (if entity has comp_statemachine) ===
       let smInitAsm = '';
       const smOverride = entity.componentOverrides?.['comp_statemachine'];
@@ -620,6 +680,7 @@ update_entities:
 
 ${animationInitAsm}
 ${patrolInitAsm}
+${collisionInitAsm}
 ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     ld hl, sprite_pattern
     add hl, de

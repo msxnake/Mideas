@@ -1203,15 +1203,22 @@ Action_DestroyEntity:
     jr z, .destroy_self
 
 .destroy_other:
-    ; TODO: Destroy entity we last collided with
-    ; Requires entity_last_collision variable to be implemented
-    ; For now, do nothing
-    pop hl
-    ret
+    ; Destroy the last entity collided with by this source entity
+    ld hl, entity_last_collision_entity
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)          ; A = last collided entity index (255 = none)
+    cp 255
+    jr z, .destroy_done ; No collision target latched
+    ld c, a             ; C = target entity index
+    jr .destroy_apply
 
 .destroy_self:
-    ld c, b             ; C = Entity Index
-    ld b, 0             ; BC = Entity Index
+    ld c, b             ; C = self entity index
+
+.destroy_apply:
+    ld b, 0             ; BC = target entity index
 
     ; Clear component mask (deactivates entity)
     ld hl, entity_comp_masks
@@ -1222,6 +1229,11 @@ Action_DestroyEntity:
     add hl, bc
     ld (hl), 0          ; Clear high byte
 
+    ; Mark entity as inactive
+    ld hl, entity_active
+    add hl, bc
+    ld (hl), 0
+
     ; Clear position to move off-screen
     ld hl, entity_x_pos
     add hl, bc
@@ -1231,6 +1243,7 @@ Action_DestroyEntity:
     add hl, bc
     ld (hl), 212        ; Y = below screen (192 + 20)
 
+.destroy_done:
     pop hl              ; Restore Params Ptr
     ret
 
@@ -2278,26 +2291,66 @@ Condition_CanMove:
     ret
 
 Condition_HasCollision:
-    ; Params: collisionType (0=any, 1=wall, 2=enemy[reserved], 3=item[reserved])
+    ; Params: collisionType (0=any, 1=wall, 2=enemy, 3=item)
     ld a, (hl)
     inc hl
+    ld c, a                 ; C = collision type
 
     push hl
-    push de
-    ld hl, entity_wall_collision_flags
     ld e, b
     ld d, 0
+
+    ; D = wall collision flags for entity
+    ld hl, entity_wall_collision_flags
     add hl, de
-    ld a, (hl)
-    pop de
+    ld d, (hl)
+
+    ; E = entity-entity collision flags for entity
+    ld hl, entity_entity_collision_flags
+    add hl, de
+    ld e, (hl)
     pop hl
+
+    ld a, c
+    or a
+    jr z, .chc_any
+    cp 1
+    jr z, .chc_wall
+    cp 2
+    jr z, .chc_enemy
+    cp 3
+    jr z, .chc_item
+
+.chc_none:
+    xor a
+    ret
+
+.chc_any:
+    ld a, d
+    or e
+    jr z, .chc_none
+    ld a, 1
+    ret
+
+.chc_wall:
+    ld a, d
     or a
     jr z, .chc_none
     ld a, 1
     ret
 
-.chc_none:
-    xor a
+.chc_enemy:
+    ld a, e
+    and #02
+    jr z, .chc_none
+    ld a, 1
+    ret
+
+.chc_item:
+    ld a, e
+    and #04
+    jr z, .chc_none
+    ld a, 1
     ret
 
 Condition_PathClear:
@@ -2943,11 +2996,6 @@ function generateConditionBytes(condition: Condition, variableIdMap?: Record<str
 
             if (collisionId === undefined) {
                 console.warn(`[State Machine Generator] Unknown collisionType "${collisionType}" in HAS_COLLISION. Using any.`);
-                collisionId = COLLISION_TYPE_IDS.any;
-            }
-
-            if (collisionType === 'enemy' || collisionType === 'item') {
-                console.warn(`[State Machine Generator] collisionType "${collisionType}" not implemented in MSX runtime yet. Falling back to any.`);
                 collisionId = COLLISION_TYPE_IDS.any;
             }
 

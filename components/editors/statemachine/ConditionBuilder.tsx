@@ -200,15 +200,17 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
         return (
           <div className="space-y-2">
             <select
-              value={condition.params?.collisionType === 'wall' ? 'wall' : 'any'}
+              value={condition.params?.collisionType || 'any'}
               onChange={(e) => handleParamChange('collisionType', e.target.value)}
               className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
             >
               <option value="any">Any collision</option>
+              <option value="enemy">Enemy collision</option>
+              <option value="item">Item collision</option>
               <option value="wall">Wall collision</option>
             </select>
             <div className="text-xs text-msx-textsecondary">
-              MSX runtime actual en esta fase soporta `any` y `wall`.
+              ROM ASM: `enemy` usa layer 2 y `item` usa layer 16. Preview mantiene su criterio actual y puede diferir.
             </div>
           </div>
         );
