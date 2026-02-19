@@ -534,6 +534,45 @@ function generateCollisionSystem(analysis) {
     ld bc, 31                     ; 32 bytes - 1
     ld (hl), 0
     ldir
+
+    ; Clear entity-entity collision flags
+    ld hl, entity_entity_collision_flags
+    ld de, entity_entity_collision_flags + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Initialize last collided entity to "none"
+    ld hl, entity_last_collision_entity
+    ld de, entity_last_collision_entity + 1
+    ld bc, 31
+    ld (hl), 255
+    ldir
+
+    ; Default collision hitboxes: 16x16 with no offset
+    ld hl, entity_collision_hitbox_w
+    ld de, entity_collision_hitbox_w + 1
+    ld bc, 31
+    ld (hl), 16
+    ldir
+
+    ld hl, entity_collision_hitbox_h
+    ld de, entity_collision_hitbox_h + 1
+    ld bc, 31
+    ld (hl), 16
+    ldir
+
+    ld hl, entity_collision_offset_x
+    ld de, entity_collision_offset_x + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_collision_offset_y
+    ld de, entity_collision_offset_y + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
     ret
 
     update_collision_component:
@@ -682,7 +721,254 @@ function generateCollisionSystem(analysis) {
     inc c                         ; Next entity index
     dec b                         ; Decrement loop counter
     jp nz, collision_update_loop
+
+    ; Run lightweight entity-entity collision pass for all collidable entities
+    call update_entity_collision_fast
     ret
+
+update_entity_collision_fast:
+    ; Update every 2 frames using interrupt counter bit0.
+    ; Latching policy: skipped frame keeps previous collision result.
+    ld hl, interrupt_counter
+    ld a, (hl)
+    and 1
+    ret nz
+
+    ld c, 0                       ; C = source entity index
+
+uecf_source_loop:
+    ld a, c
+    cp 32
+    ret z
+
+    ; Source must be active
+    ld hl, entity_active
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, uecf_next_source
+
+    ; Source must have Collision component
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_COLLISION
+    jp z, uecf_next_source
+
+    ; Source must be in current screen
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jp nz, uecf_next_source
+
+    ; Clear source collision latch before recomputing this frame
+    ld hl, entity_entity_collision_flags
+    add hl, de
+    ld (hl), 0
+    ld hl, entity_last_collision_entity
+    add hl, de
+    ld (hl), 255
+
+    ; Cache source AABB in scratch bytes
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    add a, (hl)
+    ld (temp_byte_1), a           ; source left
+
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    add a, (hl)
+    ld (temp_byte_2), a           ; source right
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    add a, (hl)
+    ld (wall_temp_x), a           ; source top
+
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    add a, (hl)
+    ld (wall_temp_y), a           ; source bottom
+
+    ld b, 0                       ; B = target entity index
+
+uecf_target_loop:
+    ld a, b
+    cp 32
+    jp z, uecf_next_source
+
+    ; Skip self
+    ld a, b
+    cp c
+    jp z, uecf_next_target
+
+    ; Target must be active
+    ld hl, entity_active
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, uecf_next_target
+
+    ; Target must have Collision component
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_COLLISION
+    jp z, uecf_next_target
+
+    ; Target must be in current screen
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jp nz, uecf_next_target
+
+    ; Mutual layer mask check:
+    ; source.collidesWith includes target.layer
+    ld hl, entity_collides_with
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_layer
+    ld e, b
+    ld d, 0
+    add hl, de
+    and (hl)
+    jp z, uecf_next_target
+
+    ; target.collidesWith includes source.layer
+    ld hl, entity_collides_with
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_layer
+    ld e, c
+    ld d, 0
+    add hl, de
+    and (hl)
+    jp z, uecf_next_target
+
+    ; --- AABB overlap test with per-entity hitboxes ---
+    ; target left
+    ld hl, entity_x_pos
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    add a, (hl)
+    ld (wall_entity_idx), a
+
+    ; source.right <= target.left => no overlap
+    ld a, (temp_byte_2)
+    ld hl, wall_entity_idx
+    cp (hl)
+    jp c, uecf_next_target
+    jp z, uecf_next_target
+
+    ; target right
+    ld a, (wall_entity_idx)
+    ld hl, entity_collision_hitbox_w
+    ld e, b
+    ld d, 0
+    add hl, de
+    add a, (hl)
+    ld (wall_entity_idx), a
+
+    ; source.left >= target.right => no overlap
+    ld a, (temp_byte_1)
+    ld hl, wall_entity_idx
+    cp (hl)
+    jp nc, uecf_next_target
+
+    ; target top
+    ld hl, entity_y_pos
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    add a, (hl)
+    ld (wall_entity_idx), a
+
+    ; source.bottom <= target.top => no overlap
+    ld a, (wall_temp_y)
+    ld hl, wall_entity_idx
+    cp (hl)
+    jp c, uecf_next_target
+    jp z, uecf_next_target
+
+    ; target bottom
+    ld a, (wall_entity_idx)
+    ld hl, entity_collision_hitbox_h
+    ld e, b
+    ld d, 0
+    add hl, de
+    add a, (hl)
+    ld (wall_entity_idx), a
+
+    ; source.top >= target.bottom => no overlap
+    ld a, (wall_temp_x)
+    ld hl, wall_entity_idx
+    cp (hl)
+    jp nc, uecf_next_target
+
+    ; First hit latch: store target and classify flags
+    ld hl, entity_last_collision_entity
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, b
+    ld (hl), a
+
+    ld hl, entity_collision_layer
+    ld e, b
+    ld d, 0
+    add hl, de
+    ld d, (hl)                    ; D = target layer bitmask
+
+    ld a, 1                       ; bit0: any
+    bit 1, d                      ; enemy layer mask = 2
+    jr z, .uecf_no_enemy
+    or 2                          ; bit1: enemy
+.uecf_no_enemy:
+    bit 4, d                      ; item layer mask = 16
+    jr z, .uecf_no_item
+    or 4                          ; bit2: item
+.uecf_no_item:
+    ld hl, entity_entity_collision_flags
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), a
+
+    ; First hit only per source entity
+    jp uecf_next_source
+
+uecf_next_target:
+    inc b
+    jp uecf_target_loop
+
+uecf_next_source:
+    inc c
+    jp uecf_source_loop
 
         ; ==================================================================
 ; COLLISION HELPER FUNCTIONS(Critical for Gameplay Parity)
@@ -3444,6 +3730,12 @@ entity_collides_with    EQU temp_byte_15
 entity_platform_id      EQU temp_byte_16
 entity_platform_grace   EQU temp_byte_17
 entity_wall_collision_flags EQU temp_byte_18
+entity_collision_hitbox_w EQU temp_byte_19
+entity_collision_hitbox_h EQU temp_byte_20
+entity_collision_offset_x EQU temp_byte_21
+entity_collision_offset_y EQU temp_byte_22
+entity_entity_collision_flags EQU temp_byte_23
+entity_last_collision_entity EQU temp_byte_24
 
     ; ==================================================================
 ; END OF COMPONENTS(MINIMAL VERSION)
@@ -3453,6 +3745,29 @@ entity_wall_collision_flags EQU temp_byte_18
     // INTELLIGENT FILTERING: Analyze which components are actually used
     const componentUsage = (0, componentAnalyzer_1.analyzeComponentUsage)(analysis);
     const usedComponents = componentUsage.usedComponents;
+    const conditionTreeHas = (condition, types) => {
+        if (!condition || typeof condition !== 'object')
+            return false;
+        const conditionType = String(condition.type || '').toUpperCase();
+        if (types.has(conditionType))
+            return true;
+        const nested = Array.isArray(condition.conditions) ? condition.conditions : [];
+        for (const subCondition of nested) {
+            if (conditionTreeHas(subCondition, types))
+                return true;
+        }
+        return false;
+    };
+    const stateMachines = Array.isArray(analysis.stateMachines) ? analysis.stateMachines : [];
+    const collisionConditionTypes = new Set(['HAS_COLLISION', 'HAS_DEADLY_TILE_COLLISION']);
+    const needsCollisionFromStateMachine = stateMachines.some((stateMachine) => {
+        const transitions = Array.isArray(stateMachine?.transitions) ? stateMachine.transitions : [];
+        return transitions.some((transition) => conditionTreeHas(transition?.conditions, collisionConditionTypes));
+    });
+    if (needsCollisionFromStateMachine && !usedComponents.has('Collision')) {
+        console.log('  - Forcing Collision system: required by state machine conditions');
+        usedComponents.add('Collision');
+    }
     console.log('🎯 Generating optimized components.asm...');
     console.log(`  - Active entities: ${componentUsage.activeEntities.length} `);
     console.log(`  - Used components: ${Array.from(usedComponents).join(', ')} `);
@@ -3549,6 +3864,12 @@ entity_collides_with    EQU temp_byte_15 ; Bitmask of layers this entity collide
 entity_platform_id      EQU temp_byte_16 ; ID of platform underneath (255 = none) (32 bytes)
 entity_platform_grace   EQU temp_byte_17 ; Grace frames for platform (32 bytes)
 entity_wall_collision_flags EQU temp_byte_18 ; Directional wall collision bits (32 bytes)
+entity_collision_hitbox_w EQU temp_byte_19 ; Entity collision hitbox width (32 bytes)
+entity_collision_hitbox_h EQU temp_byte_20 ; Entity collision hitbox height (32 bytes)
+entity_collision_offset_x EQU temp_byte_21 ; Entity collision hitbox X offset (32 bytes)
+entity_collision_offset_y EQU temp_byte_22 ; Entity collision hitbox Y offset (32 bytes)
+entity_entity_collision_flags EQU temp_byte_23 ; bit0 entity(any), bit1 enemy, bit2 item (32 bytes)
+entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=none) (32 bytes)
 
 
     ; ==================================================================

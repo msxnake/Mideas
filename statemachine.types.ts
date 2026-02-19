@@ -38,6 +38,7 @@ export type StateMachineEventName =
   | 'collision_floor'
   | 'collision_enemy'
   | 'collision_item'
+  | 'collision_entity'
   | 'timer_expired'
   | 'animation_finished'
   // Movement Validation Events
@@ -131,7 +132,7 @@ export const ConditionTypes = {
 export type StateMachineCanonicalKey = 'up' | 'down' | 'left' | 'right' | 'space';
 export type StateMachineDirection = 'up' | 'down' | 'left' | 'right';
 export type StateMachineWallDirection = 'any' | StateMachineDirection;
-export type StateMachineCollisionType = 'any' | 'wall' | 'enemy' | 'item';
+export type StateMachineCollisionType = 'any' | 'wall' | 'enemy' | 'item' | 'entity';
 
 // Note: VARIABLE_EQUALS and VARIABLE_GREATER have been removed
 // Use TransitionGuard for variable comparisons instead of Condition

@@ -186,10 +186,11 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
       usedVariables.push({
         name: varName,
         asmName: asmName,
+        constantPrefix: `${varName.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}_`,
         type: '8bit',
-        defaultValue: 0,
         description: `Auto-generated variable from Globals node`,
-        category: 'custom'
+        values: [{ label: '0', value: 0 }],
+        category: 'special'
       });
       usedVariableNames.add(varName);
     }
@@ -203,10 +204,11 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
       usedVariables.push({
         name: varName,
         asmName: asmName,
+        constantPrefix: `${varName.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}_`,
         type: '8bit',
-        defaultValue: 0,
         description: `Auto-generated variable from IfThenElse node`,
-        category: 'custom'
+        values: [{ label: '0', value: 0 }],
+        category: 'special'
       });
       usedVariableNames.add(varName);
     }

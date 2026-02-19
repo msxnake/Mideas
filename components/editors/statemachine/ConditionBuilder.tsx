@@ -205,12 +205,13 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
               className="w-full p-1 bg-msx-bgcolor border-msx-border rounded"
             >
               <option value="any">Any collision</option>
+              <option value="entity">Entity collision</option>
               <option value="enemy">Enemy collision</option>
               <option value="item">Item collision</option>
               <option value="wall">Wall collision</option>
             </select>
             <div className="text-xs text-msx-textsecondary">
-              ROM ASM: `enemy` usa layer 2 y `item` usa layer 16. Preview mantiene su criterio actual y puede diferir.
+              ROM ASM: `entity` usa colision entidad-entidad, `enemy` usa layer 2 y `item` usa layer 16.
             </div>
           </div>
         );

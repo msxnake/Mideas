@@ -1008,12 +1008,15 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             }
 
             case 'HAS_COLLISION':
-                // Verificar tipo especfico de colisin (enemy, item, wall, any)
+                // Verificar tipo especfico de colisin (entity, enemy, item, wall, any)
                 const collisionType = condition.params?.collisionType || 'any';
 
                 switch (collisionType) {
                     case 'enemy':
                         return entityEvents.has('collision_enemy');
+
+                    case 'entity':
+                        return entityEvents.has('collision_entity');
 
                     case 'item': {
                         // Permite filtrar por tipo de item o plantilla concreta
@@ -1068,7 +1071,8 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                     case 'any':
                     default:
-                        return entityEvents.has('collision_enemy') ||
+                        return entityEvents.has('collision_entity') ||
+                            entityEvents.has('collision_enemy') ||
                             entityEvents.has('collision_item') ||
                             entityEvents.has('collision_wall');
                 }
@@ -5542,6 +5546,7 @@ useEffect(() => {
                                     }
                                     collisionItemFrameGuardRef.current.add(key);
                                 }
+                                triggerEvent(entityA.instance.id, 'collision_entity');
                                 triggerEvent(entityA.instance.id, eventNameA);
                                 // Store reference to the other entity for DESTROY_ENTITY action
                                 (entityA as any).lastCollidedEntity = entityB;
@@ -5559,6 +5564,7 @@ useEffect(() => {
                                     }
                                     collisionItemFrameGuardRef.current.add(key);
                                 }
+                                triggerEvent(entityB.instance.id, 'collision_entity');
                                 triggerEvent(entityB.instance.id, eventNameB);
                                 // Store reference to the other entity for DESTROY_ENTITY action
                                 (entityB as any).lastCollidedEntity = entityA;
@@ -5604,12 +5610,14 @@ useEffect(() => {
                                 // Only trigger collision events if not invulnerable
                                 if (!isAInvulnerable) {
                                     const eventNameA = getCollisionEventType(entityB, layerB); // What A collided with
+                                    triggerEvent(entityA.instance.id, 'collision_entity');
                                     triggerEvent(entityA.instance.id, eventNameA);
                                     // Store reference to the other entity for DESTROY_ENTITY action
                                     (entityA as any).lastCollidedEntity = entityB;
                                 }
                                 if (!isBInvulnerable) {
                                     const eventNameB = getCollisionEventType(entityA, layerA); // What B collided with
+                                    triggerEvent(entityB.instance.id, 'collision_entity');
                                     triggerEvent(entityB.instance.id, eventNameB);
                                     // Store reference to the other entity for DESTROY_ENTITY action
                                     (entityB as any).lastCollidedEntity = entityA;

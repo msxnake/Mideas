@@ -54,6 +54,8 @@ function generateVariablesFile(analysis) {
     currentAddress++;
     code += `gameflow_condition_result EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Result of last condition evaluation\n`;
     currentAddress++;
+    code += `transition_delay_var    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames per step for active transition effect\n`;
+    currentAddress++;
     // Mideas Global Variables Dictionary (from project + defaults)
     code += `
 ; ==================================================================
@@ -299,6 +301,18 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     code += `temp_byte_17        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
     currentAddress += 32;
     code += `temp_byte_18        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
+    code += `temp_byte_19        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
+    code += `temp_byte_20        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
+    code += `temp_byte_21        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
+    code += `temp_byte_22        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
+    code += `temp_byte_23        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
+    code += `temp_byte_24        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
     currentAddress += 32;
     code += `temp_word_3         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage (64 bytes)\n`;
     currentAddress += 64;

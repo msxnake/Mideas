@@ -342,8 +342,6 @@ sprite_next_entity:
     dec b                      ; Decrement loop counter
     jp nz, sprite_update_loop  ; Jump if not zero (djnz replacement for long jumps)
 
-    ; Update all sprites to VRAM
-    call update_sprites_to_vram
     ret
 
 ; ==================================================================
@@ -616,31 +614,8 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     push hl
     push de
 
-    ld hl, entity_y_pos
-    ld e, c                       ; Entity index
-    ld d, 0
-    add hl, de
-    ld a, (hl)                    ; A = Y position
-
-    ; Ground detection: check if Y >= GROUND_LEVEL (176 for 16x16 sprites on 192px screen)
-    ; GROUND_LEVEL = 192 - 16 = 176
-    cp 176
-    jr c, .not_on_ground          ; Y < 176, entity is in air
-
-.on_ground:
-    ; Clamp Y to ground level
-    ld (hl), 176
-
-    ; Set entity_on_ground flag (bit 0)
-    ld hl, entity_on_ground
-    ld e, c
-    ld d, 0
-    add hl, de
-    set 0, (hl)                   ; Mark as on ground
-    jr .ground_check_done
-
-.not_on_ground:
-    ; Not on ground tiles, but check platform_id and grace frames
+    ; Ground detection is handled exclusively by update_wallcollision_component (tile-based)
+    ; Check only platform_id and grace frames for platform-riding entities
     ; Entity is grounded if: on tiles OR on platform OR has grace frames
 
     ; Check if entity has platform reference
@@ -739,7 +714,7 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     dec b                         ; Decrement loop counter
     jp nz, collision_update_loop
 
-    ; Run lightweight entity-entity collision pass (player sources only)
+    ; Run lightweight entity-entity collision pass for all collidable entities
     call update_entity_collision_fast
     ret
 
@@ -781,13 +756,6 @@ uecf_source_loop:
     ld hl, current_screen_id
     cp (hl)
     jp nz, uecf_next_source
-
-    ; Source filter: only entities with collisionLayer bit0 set (player layer mask = 1)
-    ld hl, entity_collision_layer
-    add hl, de
-    ld a, (hl)
-    and 1
-    jp z, uecf_next_source
 
     ; Clear source collision latch before recomputing this frame
     ld hl, entity_entity_collision_flags
@@ -3813,6 +3781,29 @@ entity_last_collision_entity EQU temp_byte_24
     const componentUsage: ComponentUsageAnalysis = analyzeComponentUsage(analysis);
     const usedComponents = componentUsage.usedComponents;
 
+    const conditionTreeHas = (condition: any, types: Set<string>): boolean => {
+        if (!condition || typeof condition !== 'object') return false;
+        const conditionType = String(condition.type || '').toUpperCase();
+        if (types.has(conditionType)) return true;
+        const nested = Array.isArray(condition.conditions) ? condition.conditions : [];
+        for (const subCondition of nested) {
+            if (conditionTreeHas(subCondition, types)) return true;
+        }
+        return false;
+    };
+
+    const stateMachines = Array.isArray((analysis as any).stateMachines) ? (analysis as any).stateMachines : [];
+    const collisionConditionTypes = new Set<string>(['HAS_COLLISION', 'HAS_DEADLY_TILE_COLLISION']);
+    const needsCollisionFromStateMachine = stateMachines.some((stateMachine: any) => {
+        const transitions = Array.isArray(stateMachine?.transitions) ? stateMachine.transitions : [];
+        return transitions.some((transition: any) => conditionTreeHas(transition?.conditions, collisionConditionTypes));
+    });
+
+    if (needsCollisionFromStateMachine && !usedComponents.has('Collision')) {
+        console.log('  - Forcing Collision system: required by state machine conditions');
+        usedComponents.add('Collision');
+    }
+
     console.log('🎯 Generating optimized components.asm...');
     console.log(`  - Active entities: ${componentUsage.activeEntities.length} `);
     console.log(`  - Used components: ${Array.from(usedComponents).join(', ')} `);
@@ -3914,7 +3905,7 @@ entity_collision_hitbox_w EQU temp_byte_19 ; Entity collision hitbox width (32 b
 entity_collision_hitbox_h EQU temp_byte_20 ; Entity collision hitbox height (32 bytes)
 entity_collision_offset_x EQU temp_byte_21 ; Entity collision hitbox X offset (32 bytes)
 entity_collision_offset_y EQU temp_byte_22 ; Entity collision hitbox Y offset (32 bytes)
-entity_entity_collision_flags EQU temp_byte_23 ; bit0 any, bit1 enemy, bit2 item (32 bytes)
+entity_entity_collision_flags EQU temp_byte_23 ; bit0 entity(any), bit1 enemy, bit2 item (32 bytes)
 entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=none) (32 bytes)
 
 

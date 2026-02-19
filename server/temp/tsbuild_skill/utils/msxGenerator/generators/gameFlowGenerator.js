@@ -1034,8 +1034,8 @@ show_menu_placeholder:
     ld (gameflow_submenu_data_ptr), hl
 
     ; Cache option count (clamped to supported range)
-    ; option_count is at offset +11 in submenu header
-    ld bc, 11
+    ; option_count is at offset +13 in submenu header (+11-12 = bg_screen_fn DW)
+    ld bc, 13
     add hl, bc
     ld a, (hl)
     cp 6
@@ -1148,8 +1148,29 @@ render_submenu_screen:
     pop af
     call init_char0_color
 
-    ; Clear full visible screen (24 rows) before drawing menu.
-    ; clear_screen_area only clears the center and leaves HUD/map artifacts.
+    ; Load background screen (if configured) or clear solid background.
+    ; bg_screen_fn DW is at offset +11; option_count is at offset +13.
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 11
+    add hl, bc
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                       ; HL = bg_screen_fn (0 if none)
+    ld a, h
+    or l
+    jr z, .rss_clear_screen       ; no bg screen → solid clear
+
+    ; Call background screen loader (loads tiles + screen map).
+    ; Returns here when done.
+    ld de, .rss_bg_done
+    push de
+    jp (hl)                       ; indirect call to load_screen_X
+.rss_bg_done:
+    jr .rss_read_count
+
+.rss_clear_screen:
+    ; Clear full visible screen (24 rows) with tile 0 (solid background).
     ld a, 0
     ld b, 24
 .rss_clear_loop:
@@ -1161,8 +1182,9 @@ render_submenu_screen:
     inc a
     djnz .rss_clear_loop
 
+.rss_read_count:
     ld hl, (gameflow_submenu_data_ptr)
-    ld bc, 11                     ; offset to option_count
+    ld bc, 13                     ; offset to option_count (+11-12 = bg_screen_fn)
     add hl, bc
     ld a, (hl)                    ; option_count
     cp 6
@@ -1478,10 +1500,10 @@ submenu_update_cursor_sprite:
     ld c, a                       ; C = Y (pixels)
 
     ; Resolve selected option pointer and centered text start column.
-    ; Header layout:
-    ; +15 = first option DW pointer
+    ; Header layout (with bg_screen_fn DW at +11-12):
+    ; +17 = first option DW pointer
     ld hl, (gameflow_submenu_data_ptr)
-    ld de, 15
+    ld de, 17
     add hl, de
     ld a, (gameflow_menu_selection)
     add a, a                      ; *2 (DW stride)
@@ -1648,36 +1670,60 @@ ${submenuCursorPatternTable}
 
 ; ------------------------------------------------------------------
 ; show_text_screen
-; Display full text screen: black bg, title, word-wrapped message, prompt
+; Display full text screen with optional background screen asset
 ; Input: DE = text data pointer
-;   Format: DB bgColor, DB numLines
+;   Format: DB bgColor, DW screen_load_ptr (0=none), DB numLines
 ;           Per line: DB row, DB col, DW string_ptr
+; If screen_load_ptr != 0: calls that function to load background screen
+; (the load_screen function sets VDP colors and name table from screen asset)
+; If screen_load_ptr == 0: sets bgColor, clears screen, renders text on solid bg
 ; ------------------------------------------------------------------
 show_text_screen:
     push bc
     push de
     push hl
 
-    ; Save data pointer
     ex de, hl                     ; HL = data pointer
 
-    ; Read background color
-    ld a, (hl)                    ; A = bgColor (MSX color index)
+    ; Read bgColor and screen load function pointer
+    ld a, (hl)                    ; A = bgColor
     inc hl
-    push hl                       ; Save pointer to numLines
+    ld c, (hl)                    ; C = screen_load_ptr low
+    inc hl
+    ld b, (hl)                    ; B = screen_load_ptr high
+    inc hl                        ; BC = load function ptr (0 = no bg screen)
 
-    ; Disable screen to avoid flicker
-    push af                       ; Save bgColor
+    push hl                       ; (1) Save pointer to numLines
+    push af                       ; (2) Save bgColor
+    push bc                       ; (3) Save function pointer
+
+    ; Disable screen before any VRAM write
     call DISSCR
-    pop af                        ; A = bgColor
 
-    ; Set background and border colors (A=bg, B=border)
+    ; Check if we have a background screen to load
+    pop bc                        ; (3) Restore function pointer
+    ld a, b
+    or c
+    jr z, .sts_no_bg_screen
+
+    ; Has background screen: call load_screen_X via HL
+    ; (load_screen sets VDP colors + writes name table)
+    ld h, b
+    ld l, c                       ; HL = function address
+    ld de, .sts_after_bg
+    push de                       ; push return address
+    jp (hl)                       ; call load_screen_X; returns to .sts_after_bg
+.sts_after_bg:
+    pop af                        ; (2) Discard saved bgColor (screen set its own colors)
+    jp .sts_render
+
+.sts_no_bg_screen:
+    ; No background screen: set solid color and clear
+    pop af                        ; (2) Restore bgColor
     ld b, a                       ; B = border color (same as bg)
-    push af                       ; Save bgColor again
+    push af
     call set_screen_colors
-    pop af                        ; A = bgColor
-
-    ; Initialize char 0 color to background
+    pop af
     call init_char0_color
 
     ; Clear entire screen (24 rows)
@@ -1692,8 +1738,9 @@ show_text_screen:
     inc a
     djnz .sts_clear_loop
 
-    ; Now render each line
-    pop hl                        ; HL = pointer to numLines
+.sts_render:
+    ; Now render each text line
+    pop hl                        ; (1) HL = pointer to numLines
     ld a, (hl)                    ; A = numLines
     inc hl                        ; HL = first line entry
     or a
@@ -1742,7 +1789,6 @@ show_text_screen:
     djnz .sts_line_loop
 
 .sts_enable:
-    ; Enable screen
     call ENASCR
 
     pop hl
@@ -1891,228 +1937,417 @@ wait_for_fire:
                 break;
             case 'Transition':
                 code += `gameflow_handle_transition:
-    ; Transition node - visual transition effect
-    ; DE = transition data (effect type)
+    ; Transition node - visual screen wipe/fade effect
+    ; DE = transition data pointer (db effect_id)
     ; BC = connection table
-    
     push bc
-    
-    ; Execute transition effect (placeholder)
     call execute_transition_effect
-    
-    pop bc
+    ; Restore VRAM after transition:
+    ; 1. Tile colors (chars 128+) — corrupted by color-table effects (#11 = black)
+    call load_colors_to_vram
+    ; 2. Font patterns + colors (chars 0-127) — also zeroed by color-table effects.
+    ;    init_font_system reloads both pattern bytes and color attributes for all
+    ;    font characters.  If no font is used in the project this is a no-op (ret).
+    call init_font_system
+    pop bc                        ; Restore connection table AFTER VRAM restore
     call gameflow_get_default_connection
     ld a, h
     or l
     ret z
     jp gameflow_execute_node
 
-; ------------------------------------------------------------------
+; ==================================================================
 ; execute_transition_effect
-; Execute visual transition effect
-; Input:  DE = Transition data pointer (effect type + parameters)
+; Execute visual screen transition by clearing the Name Table
+; in different patterns. All effects write tile 0 (blank/black)
+; to Name Table (#1800-#1AFF, 768 bytes = 32x24 tiles).
+;
+; Input:  DE = Transition data pointer
+;         (DE) = effect id: 0=cls, 1=dissolve_pixels, 2=dissolve_chars,
+;                           3=vertical_lines, 4=horizontal_lines,
+;                           5=spiral, 6=fill_white_squares
 ; Destroys: AF, BC, DE, HL
-; ------------------------------------------------------------------
+; ==================================================================
 execute_transition_effect:
-    ; Get transition effect type from data
-    ld a, (de)                    ; A = effect type
-    inc de                        ; DE now points to parameters
-
-    ; Dispatch to effect handler
+    ld a, (de)                    ; A = effect id (0-6)
+    inc de
+    push af                       ; Save effect id
+    ld a, (de)                    ; A = frames per step (from node data)
+    ld (transition_delay_var), a  ; Store for trans_wait_frames
+    pop af                        ; Restore effect id
     or a
-    jr z, .trans_fade_out         ; 0 = Fade out
+    jp z, .trans_cls
     dec a
-    jr z, .trans_fade_in          ; 1 = Fade in
+    jp z, .trans_dissolve_pixels
     dec a
-    jr z, .trans_flash            ; 2 = Flash
+    jp z, .trans_dissolve_chars
     dec a
-    jr z, .trans_wipe_down        ; 3 = Wipe down
+    jp z, .trans_vertical_lines
     dec a
-    jr z, .trans_wipe_up          ; 4 = Wipe up
-    ret                           ; Unknown effect, do nothing
+    jp z, .trans_horizontal_lines
+    dec a
+    jp z, .trans_spiral
+    dec a
+    jp z, .trans_fill_white_squares
+    ret                           ; Unknown id - do nothing
 
 ; ------------------------------------------------------------------
-; Fade Out Effect (darken screen gradually)
+; EFFECT 0: CLS - Instant clear + hold black for configured duration
 ; ------------------------------------------------------------------
-.trans_fade_out:
-    push de
-
-    ; MSX Screen 2 fade: Modify color table to darken colors
-    ; We'll do a simple version: set all colors to black in steps
-    ld b, 4                       ; 4 fade steps
-
-.fade_out_loop:
-    push bc
-
-    ; Darken one step (reduce brightness in color table)
-    ; For simplicity, we'll just wait and then blank screen
-    ld b, 20                      ; Wait frames
-.fade_out_wait:
-    halt                          ; Wait for V-blank
-    djnz .fade_out_wait
-
-    pop bc
-    djnz .fade_out_loop
-
-    ; Final step: blank screen
-    call blank_screen
-
-    pop de
+.trans_cls:
+    ld hl, #1800
+    ld bc, 768
+    xor a                         ; Tile 0 = blank
+    call trans_fast_filvrm
+    call trans_wait_frames        ; Hold black screen for configured time
     ret
 
 ; ------------------------------------------------------------------
-; Fade In Effect (brighten screen gradually)
+; EFFECT 1: DISSOLVE_PIXELS - Column-interleaved dissolve (8 passes)
+; Each pass clears cols D, D+8, D+16, D+24 with 1 HALT delay
 ; ------------------------------------------------------------------
-.trans_fade_in:
-    push de
-
-    ; Restore screen from black
-    call restore_screen_colors
-
-    ld b, 4                       ; 4 fade steps
-
-.fade_in_loop:
-    push bc
-
-    ld b, 20                      ; Wait frames
-.fade_in_wait:
-    halt
-    djnz .fade_in_wait
-
-    pop bc
-    djnz .fade_in_loop
-
-    pop de
+.trans_dissolve_pixels:
+    ld d, 0                       ; D = pass counter (0-7)
+.tdp_loop:
+    ld a, d
+    call trans_clear_column       ; col D
+    ld a, d
+    add a, 8
+    call trans_clear_column       ; col D+8
+    ld a, d
+    add a, 16
+    call trans_clear_column       ; col D+16
+    ld a, d
+    add a, 24
+    call trans_clear_column       ; col D+24
+    call trans_wait_frames        ; timed delay between passes
+    inc d
+    ld a, d
+    cp 8
+    jr c, .tdp_loop
     ret
 
 ; ------------------------------------------------------------------
-; Flash Effect (quick screen flash)
+; EFFECT 2: DISSOLVE_CHARS - Pixel-row interleaved dissolve (8 passes)
+; Pass D clears pixel rows D, D+8, D+16, ..., D+184 (24 rows per pass)
+; Uses color table manipulation for 1-pixel-row granularity (8x finer
+; than tile-row approach).
 ; ------------------------------------------------------------------
-.trans_flash:
-    push de
-
-    ld b, 3                       ; Flash 3 times
-
-.flash_loop:
-    push bc
-
-    ; Flash white
-    ld a, 7                       ; VDP R#7 - Text color (affects border/backdrop)
+.trans_dissolve_chars:
+    ld d, 0                       ; D = pass counter (0-7)
+.tdc_loop:
+    ld b, d                       ; B = starting pixel row for this pass
+    ld e, 24                      ; E = 24 pixel rows per pass (192/8)
+.tdc_inner:
+    ld a, b
+    call trans_clear_pixel_row_colors   ; clear pixel row B (color table)
+    ; trans_clear_pixel_row_colors preserves BC,DE,HL via push/pop
+    ld a, b
+    add a, 8                      ; next pixel row in this pass (step +8)
     ld b, a
-    ld c, #F0                     ; White on white
-    call WRTVDP
-
-    ld b, 5
-.flash_white_wait:
-    halt
-    djnz .flash_white_wait
-
-    ; Flash black
-    ld a, 7
-    ld b, a
-    ld c, 0                       ; Black
-    call WRTVDP
-
-    ld b, 5
-.flash_black_wait:
-    halt
-    djnz .flash_black_wait
-
-    pop bc
-    djnz .flash_loop
-
-    ; Restore normal backdrop color
-    ld a, 7
-    ld b, a
-    ld c, 0
-    call WRTVDP
-
-    pop de
+    dec e
+    jr nz, .tdc_inner
+    call trans_wait_frames
+    inc d
+    ld a, d
+    cp 8
+    jr c, .tdc_loop
     ret
 
 ; ------------------------------------------------------------------
-; Wipe Down Effect (curtain wipe top to bottom)
+; EFFECT 3: VERTICAL_LINES - Left-to-right column wipe (2 cols/frame)
 ; ------------------------------------------------------------------
-.trans_wipe_down:
-    push de
-
-    ; Clear screen line by line from top to bottom
-    ld b, 24                      ; 24 rows
-    ld c, 0                       ; Start row
-
-.wipe_down_loop:
-    push bc
-
-    ; Clear row C (fill with pattern 0)
+.trans_vertical_lines:
+    ld c, 0                       ; C = current column
+.tvl_loop:
     ld a, c
-    call clear_screen_row
-
-    ; Wait a bit
-    ld b, 2
-.wipe_down_wait:
-    halt
-    djnz .wipe_down_wait
-
-    pop bc
-    inc c                         ; Next row
-    djnz .wipe_down_loop
-
-    pop de
-    ret
-
-; ------------------------------------------------------------------
-; Wipe Up Effect (curtain wipe bottom to top)
-; ------------------------------------------------------------------
-.trans_wipe_up:
-    push de
-
-    ; Clear screen line by line from bottom to top
-    ld b, 24                      ; 24 rows
-    ld c, 23                      ; Start row (bottom)
-
-.wipe_up_loop:
-    push bc
-
-    ; Clear row C
+    call trans_clear_column       ; clear col C
+    inc c
     ld a, c
-    call clear_screen_row
+    call trans_clear_column       ; clear col C+1
+    inc c
+    call trans_wait_frames
+    ld a, c
+    cp 32
+    jr c, .tvl_loop
+    ret
 
-    ; Wait a bit
-    ld b, 2
-.wipe_up_wait:
-    halt
-    djnz .wipe_up_wait
+; ------------------------------------------------------------------
+; EFFECT 4: HORIZONTAL_LINES - Top-to-bottom row wipe (1 row/frame)
+; ------------------------------------------------------------------
+.trans_horizontal_lines:
+    ; Pixel-row resolution: 24 tile-rows x 8 sub-rows = 192 pixel rows
+    ; Each step: clear all 8 pixel sub-rows of one tile-row, then wait
+    ld c, 0                       ; C = tile row (0-23)
+.thl_loop:
+    ld a, c
+    add a, a
+    add a, a
+    add a, a                      ; A = tile_row * 8 = first pixel row of tile
+    ld e, a                       ; E = first pixel row
+    ld b, 8                       ; 8 pixel sub-rows per tile row
+.thl_inner:
+    ld a, e
+    call trans_clear_pixel_row_colors
+    inc e
+    djnz .thl_inner
+    call trans_wait_frames
+    inc c
+    ld a, c
+    cp 24
+    jp c, .thl_loop
+    ret
 
-    pop bc
-    dec c                         ; Previous row
-    djnz .wipe_up_loop
+; ------------------------------------------------------------------
+; EFFECT 5: SPIRAL - Pixel-row resolution via color table manipulation
+; Clears pixel rows from outside in (top+bottom simultaneously).
+; Works by setting color table bytes to 0x11 (black fg + black bg)
+; for all 256 tile patterns at the given pixel sub-row in each bank.
+; 96 rings: rows (0,191), (1,190), (2,189), ..., (95,96)
+; ------------------------------------------------------------------
+.trans_spiral:
+    ld b, 0                       ; B = top pixel row (0..95)
+    ld c, 191                     ; C = bottom pixel row (191..96)
+.tsp_loop:
+    ld a, b
+    call trans_clear_pixel_row_colors   ; blacken pixel row B (top)
+    ld a, c
+    call trans_clear_pixel_row_colors   ; blacken pixel row C (bottom)
+    call trans_wait_frames
+    inc b
+    dec c
+    ld a, b
+    cp c
+    jr c, .tsp_loop               ; loop while top < bottom
+    ret
 
+; ------------------------------------------------------------------
+; EFFECT 6: FILL_WHITE_SQUARES - 4-column stripe wipe (8 cols/frame)
+; ------------------------------------------------------------------
+.trans_fill_white_squares:
+    ld c, 0                       ; C = current column (step 8)
+.tws_loop:
+    ld a, c
+    call trans_clear_column
+    ld a, c
+    inc a
+    call trans_clear_column
+    ld a, c
+    add a, 2
+    call trans_clear_column
+    ld a, c
+    add a, 3
+    call trans_clear_column
+    ld a, c
+    add a, 4
+    call trans_clear_column
+    ld a, c
+    add a, 5
+    call trans_clear_column
+    ld a, c
+    add a, 6
+    call trans_clear_column
+    ld a, c
+    add a, 7
+    call trans_clear_column
+    ld a, c
+    add a, 8
+    ld c, a
+    call trans_wait_frames
+    ld a, c
+    cp 32
+    jr c, .tws_loop
+    ret
+
+; ==================================================================
+; trans_clear_pixel_row_colors
+; Blackens a single pixel row (1px tall) by setting the color table
+; entry for all 256 tile patterns in the appropriate bank to 0x11
+; (fg=black, bg=black).  Works at 1-pixel-row granularity unlike
+; trans_clear_row_direct which works at 8-pixel (tile-row) granularity.
+;
+; Screen 2 color table layout:
+;   Bank 0 (#2000): tiles used in name-table rows 0-7   (pixel rows 0-63)
+;   Bank 1 (#2800): tiles used in name-table rows 8-15  (pixel rows 64-127)
+;   Bank 2 (#3000): tiles used in name-table rows 16-23 (pixel rows 128-191)
+; Each tile has 8 color bytes; byte J covers pixel sub-row J of that tile.
+; Tile T color byte for sub-row J:  bank_base + T*8 + J
+;
+; Input:  A = pixel row (0-191)
+;         bank    = A >> 6   (0-2)
+;         sub_row = A & 7    (0-7)
+;         color_base = #2000 + bank * #0800
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_clear_pixel_row_colors:
+    push bc
+    push de
+    push hl
+    ; --- Compute sub_row = A & 7 ---
+    ld l, a                       ; L = pixel row (save)
+    and 7
+    ld e, a                       ; E = sub_row (0-7)
+    ; --- Compute bank = A >> 6 (0-2) ---
+    ld a, l
+    srl a
+    srl a
+    srl a
+    srl a
+    srl a
+    srl a                         ; A = bank (0, 1 or 2)
+    ; --- Compute H = #20 + bank*8 (color table high byte) ---
+    ; bank=0 -> H=#20, bank=1 -> H=#28, bank=2 -> H=#30
+    add a, a                      ; bank * 2
+    add a, a                      ; bank * 4
+    add a, a                      ; bank * 8
+    add a, #20
+    ld h, a                       ; H = color table high byte for this bank
+    ld l, e                       ; L = sub_row  (offset within tile 0 entry)
+    ; HL now = address of tile-0 color byte for this pixel sub-row
+    ; --- Write 0x11 (black/black) for all 256 tiles ---
+    ; Tile addresses: HL, HL+8, HL+16, ... HL+255*8
+    ; (consecutive tiles are 8 bytes apart in the color table)
+    ld b, 0                       ; B=0 → djnz executes 256 times
+.tpcr_loop:
+    ; DI only around the 3 critical VDP port writes.
+    ; Keeping DI for the whole loop would leave interrupts disabled for ~6ms
+    ; and can cause DI+HALT if trans_wait_frames is reached before EI fires.
+    di
+    ld a, l
+    out (#99), a                  ; VRAM address low
+    ld a, h
+    or #40
+    out (#99), a                  ; VRAM address high + write mode
+    ld a, #11                     ; fg=1 (black), bg=1 (black)
+    out (#98), a                  ; Write to VRAM color table
+    ei                            ; Re-enable: interrupt fires after next instr
+    ld a, l                       ; (EI delay instruction) Advance HL += 8
+    add a, 8
+    ld l, a
+    jr nc, .tpcr_nc
+    inc h
+.tpcr_nc:
+    djnz .tpcr_loop
+    pop hl
     pop de
+    pop bc
     ret
 
-; ------------------------------------------------------------------
-; Helper: Blank entire screen (set all colors to black)
-; ------------------------------------------------------------------
-blank_screen:
-    ; Set VDP backdrop color to black
-    ld a, 7                       ; VDP R#7
+; ==================================================================
+; trans_wait_frames
+; Wait N V-blank frames where N = transition_delay_var
+; Provides timed delay between animation steps
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_wait_frames:
+    push bc
+    ld a, (transition_delay_var)
+    or a
+    jr z, .twf_done               ; 0 = no wait (safety)
     ld b, a
-    ld c, 0                       ; Black backdrop
-    call WRTVDP
-
-    ; Optionally: Set all sprite colors to 0 (transparent)
-    ; For now, just backdrop is enough
+.twf_loop:
+    halt                          ; Wait for V-blank (~20ms at 50Hz)
+    djnz .twf_loop
+.twf_done:
+    pop bc
     ret
 
-; ------------------------------------------------------------------
-; Helper: Restore screen colors
-; ------------------------------------------------------------------
-restore_screen_colors:
-    ; Restore normal backdrop color
-    ld a, 7                       ; VDP R#7
-    ld b, a
-    ld c, #04                     ; Dark blue backdrop (MSX default)
-    call WRTVDP
+; ==================================================================
+; trans_clear_column
+; Write tile 0 to all 24 rows of a single column in the Name Table
+; Input:  A = column (0-31)
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_clear_column:
+    push bc
+    push de
+    push hl
+    ld l, a
+    ld h, #18                     ; HL = #1800 + column (row 0)
+    ld b, 24                      ; 24 rows
+    di                            ; Protect VDP address setup from ISR corruption
+.tcc_row:
+    ld a, l
+    out (#99), a                  ; VRAM address low byte
+    ld a, h
+    or #40
+    out (#99), a                  ; VRAM address high + write mode
+    xor a
+    out (#98), a                  ; Write tile 0
+    ld a, l                       ; HL += 32 (advance to next row)
+    add a, 32
+    ld l, a
+    jr nc, .tcc_no_carry
+    inc h
+.tcc_no_carry:
+    djnz .tcc_row
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_clear_row_direct
+; Write tile 0 to all 32 columns of a single row in the Name Table
+; Input:  A = row (0-23)
+; Preserves: BC, DE, HL
+; ==================================================================
+trans_clear_row_direct:
+    push bc
+    push de
+    push hl
+    ; HL = #1800 + row * 32
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    add hl, hl                    ; *16
+    add hl, hl                    ; *32
+    ld de, #1800
+    add hl, de                    ; HL = name table row start
+    di                            ; Protect VDP address+data from ISR corruption
+    ld a, l
+    out (#99), a                  ; VRAM address low
+    ld a, h
+    or #40
+    out (#99), a                  ; VRAM address high + write mode
+    ld b, 32
+    xor a                         ; Tile 0
+.tcrd_loop:
+    out (#98), a
+    djnz .tcrd_loop
+    ei
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ==================================================================
+; trans_fast_filvrm
+; Fill VRAM with a constant byte using direct port access
+; Input:  HL = VRAM destination address
+;         BC = byte count
+;         A  = fill value
+; Destroys: A, BC, E
+; ==================================================================
+trans_fast_filvrm:
+    ld e, a                       ; Save fill byte
+    di                            ; Protect VDP address+data from ISR corruption
+    ld a, l
+    out (#99), a                  ; VRAM address low
+    ld a, h
+    or #40
+    out (#99), a                  ; VRAM address high + write mode
+.tff_loop:
+    ld a, e
+    out (#98), a                  ; Write byte to VRAM
+    dec bc
+    ld a, b
+    or c
+    jr nz, .tff_loop
+    ei
     ret
 
 `;
@@ -2349,7 +2584,7 @@ function generateNodeStructure(node, gameFlow, analysis) {
     const nodeLabel = `gameflow_node_${sanitizeId(node.id)}`;
     const connLabel = `${nodeLabel}_conn`;
     // Check if node has data
-    const hasData = ['Start', 'WorldLink', 'SubMenu', 'Text', 'IfThenElse', 'Globals'].includes(node.type) ||
+    const hasData = ['Start', 'WorldLink', 'SubMenu', 'Text', 'IfThenElse', 'Globals', 'Transition'].includes(node.type) ||
         (node.type === 'Globals' && node.variables && node.variables.length > 0);
     const dataLabel = hasData ? `${nodeLabel}_data` : 'gameflow_no_data';
     let code = `; Node: ${node.type} - "${node.title || node.name || node.id}"
@@ -2406,11 +2641,23 @@ ${nodeLabel}:
                     while (cursorLayerColors.length < 4) {
                         cursorLayerColors.push(0);
                     }
+                    // Resolve background screen load function pointer (0 = none)
+                    const submenuBgScreenId = node?.appearance?.backgroundScreenAssetId;
+                    let submenuBgScreenLabel = '0';
+                    if (submenuBgScreenId && analysis.screenMaps) {
+                        const bgScreen = analysis.screenMaps.find((s) => s.id === submenuBgScreenId);
+                        if (bgScreen) {
+                            const sName = bgScreen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                            const sIdSuffix = bgScreen.id ? `_${bgScreen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+                            submenuBgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+                        }
+                    }
                     code += `    db ${submenuBgColor}    ; Background color (MSX index)\n`;
                     code += `    db ${cursorSpriteIndex}    ; Cursor sprite asset index (#FF = use text marker)\n`;
                     code += `    db ${cursorLayerCount}    ; Cursor sprite layer count (max 4)\n`;
                     code += `    db ${cursorLayerOffsets[0]}, ${cursorLayerOffsets[1]}, ${cursorLayerOffsets[2]}, ${cursorLayerOffsets[3]}    ; Cursor source layer offsets\n`;
                     code += `    db ${cursorLayerColors[0]}, ${cursorLayerColors[1]}, ${cursorLayerColors[2]}, ${cursorLayerColors[3]}    ; Cursor layer colors\n`;
+                    code += `    dw ${submenuBgScreenLabel}    ; Background screen load function (0=none)\n`;
                     code += `    db ${optionCount}    ; Number of options (max 6)\n`;
                     code += `    db ${fallbackIndex}    ; Initial selected option\n`;
                     code += `    dw submenu_${nodeId}_title\n`;
@@ -2428,9 +2675,10 @@ ${nodeLabel}:
                 break;
             case 'Text': {
                 const nodeId = sanitizeId(node.id);
-                const title = (node.title || node.name || 'TEXT').replace(/"/g, '').toUpperCase();
-                const message = (node.message || '').replace(/"/g, '');
-                const bgColor = 1; // MSX color 1 = black (default for Text nodes)
+                const title = (node.title || node.name || '').replace(/"/g, '').replace(/\r?\n/g, ' ').trim().toUpperCase() || 'TEXT';
+                const message = (node.message || '').replace(/"/g, '').replace(/\r?\n/g, ' ');
+                const bgHex = node.appearance?.colors?.background || '#000000';
+                const bgColor = hexToMSXColor(bgHex);
                 // Word-wrap message to 28 chars per line (leaving 2-char margin each side)
                 const maxLineWidth = 28;
                 const words = message.split(' ');
@@ -2460,8 +2708,20 @@ ${nodeLabel}:
                 });
                 // Prompt at row 20
                 allLines.push({ row: 20, text: promptText, label: `text_${nodeId}_prompt` });
-                // Generate data table: bgColor, numLines, then per line: row, col, DW string_ptr
-                code += `    DB ${bgColor}                  ; Background color (MSX: 1=black)\n`;
+                // Resolve background screen load function pointer
+                const bgScreenId = node.appearance?.backgroundScreenAssetId;
+                let bgScreenLabel = '0';
+                if (bgScreenId && analysis.screenMaps) {
+                    const bgScreen = analysis.screenMaps.find((s) => s.id === bgScreenId);
+                    if (bgScreen) {
+                        const sName = bgScreen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                        const sIdSuffix = bgScreen.id ? `_${bgScreen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+                        bgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+                    }
+                }
+                // Generate data table: bgColor, DW screen_load_ptr, numLines, then per line: row, col, DW string_ptr
+                code += `    DB ${bgColor}                  ; Background color (MSX index from ${bgHex})\n`;
+                code += `    DW ${bgScreenLabel}            ; Background screen load function (0=none)\n`;
                 code += `    DB ${allLines.length}                  ; Number of lines\n`;
                 for (const line of allLines) {
                     const col = Math.max(0, Math.floor((32 - line.text.length) / 2));
@@ -2499,6 +2759,36 @@ ${nodeLabel}:
                     code += `    db 0    ; No assignments\n`;
                 }
                 break;
+            case 'Transition': {
+                // Effect IDs match execute_transition_effect dispatch (0-6)
+                const transEffectMap = {
+                    'cls': 0,
+                    'dissolve_pixels': 1,
+                    'dissolve_chars': 2,
+                    'vertical_lines': 3,
+                    'horizontal_lines': 4,
+                    'spiral': 5,
+                    'fill_white_squares': 6,
+                };
+                // Steps per effect = number of animation stages (each stage = N frames)
+                const transStepsMap = {
+                    'cls': 1,
+                    'dissolve_pixels': 8,
+                    'dissolve_chars': 8,
+                    'vertical_lines': 16,
+                    'horizontal_lines': 24,
+                    'spiral': 96, // 96 pixel-row rings (top+bottom closing in, 192px/2)
+                    'fill_white_squares': 4,
+                };
+                const transEffectId = transEffectMap[node.effect] ?? 0;
+                const transSteps = transStepsMap[node.effect] ?? 8;
+                const transDurationMs = node.duration ?? 1000;
+                // Convert ms → frames per step (50Hz MSX = 20ms/frame). Clamp to 1-255.
+                const transFramesPerStep = Math.max(1, Math.min(255, Math.round(transDurationMs / transSteps / 20)));
+                code += `    db ${transEffectId}              ; Effect: ${node.effect || 'cls'}\n`;
+                code += `    db ${transFramesPerStep}              ; Frames per step (duration ${transDurationMs}ms / ${transSteps} steps / 20ms)\n`;
+                break;
+            }
         }
         code += `\n`;
     }

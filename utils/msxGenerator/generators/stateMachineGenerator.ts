@@ -122,6 +122,7 @@ const COLLISION_TYPE_IDS: Record<string, number> = {
     'wall': 1,
     'enemy': 2,
     'item': 3,
+    'entity': 4,
 };
 
 /**
@@ -445,20 +446,14 @@ SM_TransitionTriggered:
     ; A = Entity Index
     ; ------------------------------------------------------------------
         SM_ExecuteActions:
+    ld c, a         ; Save entity index before null check overwrites A
     ld a, d
     or e
-    ret z; Null pointer
-    
-    ex de, hl; HL = Action List
+    ret z           ; Null pointer
 
-    ; We need Entity Index.It was passed in A ?
-    ; Wait, SM_ChangeState called us.
-    ; In SM_ChangeState:
-;   pop af(Entity Index)
-    ;   call SM_ExecuteActions
-    ; So A has Entity Index.
-    
-    ld b, a; B = Entity Index
+    ex de, hl       ; HL = Action List
+
+    ld b, c         ; B = Entity Index (restored from C)
 
 SM_ExecuteActions_Loop:
     ld a, (hl); Get Action ID
@@ -2291,7 +2286,7 @@ Condition_CanMove:
     ret
 
 Condition_HasCollision:
-    ; Params: collisionType (0=any, 1=wall, 2=enemy, 3=item)
+    ; Params: collisionType (0=any, 1=wall, 2=enemy, 3=item, 4=entity)
     ld a, (hl)
     inc hl
     ld c, a                 ; C = collision type
@@ -2307,6 +2302,7 @@ Condition_HasCollision:
 
     ; E = entity-entity collision flags for entity
     ld hl, entity_entity_collision_flags
+    ld d, 0                 ; Reset D (was clobbered with wall_flags above)
     add hl, de
     ld e, (hl)
     pop hl
@@ -2320,6 +2316,8 @@ Condition_HasCollision:
     jr z, .chc_enemy
     cp 3
     jr z, .chc_item
+    cp 4
+    jr z, .chc_entity
 
 .chc_none:
     xor a
@@ -2349,6 +2347,13 @@ Condition_HasCollision:
 .chc_item:
     ld a, e
     and #04
+    jr z, .chc_none
+    ld a, 1
+    ret
+
+.chc_entity:
+    ld a, e
+    and #01
     jr z, .chc_none
     ld a, 1
     ret

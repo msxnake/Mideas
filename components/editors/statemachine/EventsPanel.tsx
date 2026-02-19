@@ -9,7 +9,7 @@ import { TrashIcon } from '../../icons/MsxIcons';
  */
 const PRESET_EVENTS: StateMachineEventName[] = [
   'walk', 'run', 'jump', 'attack', 'shoot', 'fall', 'right', 'left', 'up', 'down', 'Spc', 'Enter', 'Tab', 'Shift', 'Ctrl', 'Alt',
-  'collision_wall', 'collision_floor', 'collision_enemy', 'collision_item', 'timer_expired', 'animation_finished',
+  'collision_wall', 'collision_floor', 'collision_enemy', 'collision_item', 'collision_entity', 'timer_expired', 'animation_finished',
   'dialogue_finished', 'item_collected', 'enemy_defeated', 'level_complete', 'game_over', 'player_detected', 'patrol_point_reached'
 ];
 

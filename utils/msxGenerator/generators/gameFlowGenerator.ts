@@ -1089,8 +1089,8 @@ show_menu_placeholder:
     ld (gameflow_submenu_data_ptr), hl
 
     ; Cache option count (clamped to supported range)
-    ; option_count is at offset +11 in submenu header
-    ld bc, 11
+    ; option_count is at offset +13 in submenu header (+11-12 = bg_screen_fn DW)
+    ld bc, 13
     add hl, bc
     ld a, (hl)
     cp 6
@@ -1203,8 +1203,29 @@ render_submenu_screen:
     pop af
     call init_char0_color
 
-    ; Clear full visible screen (24 rows) before drawing menu.
-    ; clear_screen_area only clears the center and leaves HUD/map artifacts.
+    ; Load background screen (if configured) or clear solid background.
+    ; bg_screen_fn DW is at offset +11; option_count is at offset +13.
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 11
+    add hl, bc
+    ld a, (hl)
+    inc hl
+    ld h, (hl)
+    ld l, a                       ; HL = bg_screen_fn (0 if none)
+    ld a, h
+    or l
+    jr z, .rss_clear_screen       ; no bg screen → solid clear
+
+    ; Call background screen loader (loads tiles + screen map).
+    ; Returns here when done.
+    ld de, .rss_bg_done
+    push de
+    jp (hl)                       ; indirect call to load_screen_X
+.rss_bg_done:
+    jr .rss_read_count
+
+.rss_clear_screen:
+    ; Clear full visible screen (24 rows) with tile 0 (solid background).
     ld a, 0
     ld b, 24
 .rss_clear_loop:
@@ -1216,8 +1237,9 @@ render_submenu_screen:
     inc a
     djnz .rss_clear_loop
 
+.rss_read_count:
     ld hl, (gameflow_submenu_data_ptr)
-    ld bc, 11                     ; offset to option_count
+    ld bc, 13                     ; offset to option_count (+11-12 = bg_screen_fn)
     add hl, bc
     ld a, (hl)                    ; option_count
     cp 6
@@ -1533,10 +1555,10 @@ submenu_update_cursor_sprite:
     ld c, a                       ; C = Y (pixels)
 
     ; Resolve selected option pointer and centered text start column.
-    ; Header layout:
-    ; +15 = first option DW pointer
+    ; Header layout (with bg_screen_fn DW at +11-12):
+    ; +17 = first option DW pointer
     ld hl, (gameflow_submenu_data_ptr)
-    ld de, 15
+    ld de, 17
     add hl, de
     ld a, (gameflow_menu_selection)
     add a, a                      ; *2 (DW stride)
@@ -2694,11 +2716,24 @@ ${nodeLabel}:
             cursorLayerColors.push(0);
           }
 
+          // Resolve background screen load function pointer (0 = none)
+          const submenuBgScreenId = node?.appearance?.backgroundScreenAssetId;
+          let submenuBgScreenLabel = '0';
+          if (submenuBgScreenId && analysis.screenMaps) {
+            const bgScreen = analysis.screenMaps.find((s: any) => s.id === submenuBgScreenId);
+            if (bgScreen) {
+              const sName = (bgScreen.name as string).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+              const sIdSuffix = bgScreen.id ? `_${(bgScreen.id as string).replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+              submenuBgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+            }
+          }
+
           code += `    db ${submenuBgColor}    ; Background color (MSX index)\n`;
           code += `    db ${cursorSpriteIndex}    ; Cursor sprite asset index (#FF = use text marker)\n`;
           code += `    db ${cursorLayerCount}    ; Cursor sprite layer count (max 4)\n`;
           code += `    db ${cursorLayerOffsets[0]}, ${cursorLayerOffsets[1]}, ${cursorLayerOffsets[2]}, ${cursorLayerOffsets[3]}    ; Cursor source layer offsets\n`;
           code += `    db ${cursorLayerColors[0]}, ${cursorLayerColors[1]}, ${cursorLayerColors[2]}, ${cursorLayerColors[3]}    ; Cursor layer colors\n`;
+          code += `    dw ${submenuBgScreenLabel}    ; Background screen load function (0=none)\n`;
           code += `    db ${optionCount}    ; Number of options (max 6)\n`;
           code += `    db ${fallbackIndex}    ; Initial selected option\n`;
           code += `    dw submenu_${nodeId}_title\n`;
