@@ -63,6 +63,8 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   currentAddress++;
   code += `gameflow_condition_result EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Result of last condition evaluation\n`;
   currentAddress++;
+  code += `transition_delay_var    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames per step for active transition effect\n`;
+  currentAddress++;
 
   // Mideas Global Variables Dictionary (from project + defaults)
   code += `

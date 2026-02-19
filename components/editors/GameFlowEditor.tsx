@@ -75,6 +75,41 @@ interface GameFlowEditorProps {
 }
 
 /**
+ * Calculates the SVG path string for a connection between two ports.
+ * Uses smart routing: simple bezier for forward edges, U-shaped detour below
+ * both nodes for backward (or near-vertical) edges to avoid crossings.
+ */
+const getConnectionPath = (p1: Point, p2: Point, fromNode: GameFlowNode, toNode: GameFlowNode): string => {
+  const dx = p2.x - p1.x;
+
+  // Forward edge: standard cubic bezier with horizontal control points
+  if (dx >= 50) {
+    const controlOffset = Math.max(dx * 0.5, 60);
+    return `M ${p1.x} ${p1.y} C ${p1.x + controlOffset} ${p1.y}, ${p2.x - controlOffset} ${p2.y}, ${p2.x} ${p2.y}`;
+  }
+
+  // Backward or near-vertical edge: route below both nodes via U-shaped path.
+  // Two cubic bezier segments meeting at a midpoint below the nodes.
+  const SIDE_PAD = 60;
+  const VERT_PAD = 60;
+  const fromNodeBottom = fromNode.position.y + getNodeHeight(fromNode);
+  const toNodeBottom = toNode.position.y + getNodeHeight(toNode);
+  const detourY = Math.max(fromNodeBottom, toNodeBottom, p1.y + 30, p2.y + 30) + VERT_PAD;
+
+  const rightX = p1.x + SIDE_PAD;
+  const leftX = p2.x - SIDE_PAD;
+  const midX = (rightX + leftX) / 2;
+
+  // Segment 1: exit source going right, curve down to detour level
+  // Segment 2: from detour midpoint, curve left then up into target port
+  return [
+    `M ${p1.x} ${p1.y}`,
+    `C ${rightX} ${p1.y}, ${rightX} ${detourY}, ${midX} ${detourY}`,
+    `C ${leftX} ${detourY}, ${leftX} ${p2.y}, ${p2.x} ${p2.y}`
+  ].join(' ');
+};
+
+/**
  * Calculates the absolute position of a port on a node.
  * @param node The game flow node.
  * @param portId The ID of the port ('in', 'out', or an option ID for submenus).
@@ -1185,19 +1220,14 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               if(!fromNode || !toNode) return null;
               const p1 = getPortPosition(fromNode, conn.from.sourceId || 'out');
               const p2 = getPortPosition(toNode, 'in');
-
-              // Calculate control points for cubic Bezier curve (spline)
-              const dx = p2.x - p1.x;
-              const controlPointOffset = Math.abs(dx) * 0.5; // 50% of horizontal distance
-              const cp1 = { x: p1.x + controlPointOffset, y: p1.y };
-              const cp2 = { x: p2.x - controlPointOffset, y: p2.y };
+              const pathD = getConnectionPath(p1, p2, fromNode, toNode);
 
               return (
                 <g key={conn.id}>
                   {/* Visible connection line */}
                   <path
                     data-testid={`connection-${conn.id}`}
-                    d={`M ${p1.x} ${p1.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p2.x} ${p2.y}`}
+                    d={pathD}
                     stroke={isCutMode ? "hsl(0, 80%, 60%)" : "hsl(150, 50%, 60%)"}
                     strokeWidth={1.5}
                     fill="none"
@@ -1206,7 +1236,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
                   />
                   {/* Invisible wider hitbox for clicking */}
                   <path
-                    d={`M ${p1.x} ${p1.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${p2.x} ${p2.y}`}
+                    d={pathD}
                     stroke="transparent"
                     strokeWidth={12}
                     fill="none"
@@ -1279,7 +1309,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
           <div className="p-4 space-y-4">
             <div className="flex items-center space-x-2">
               <input type="checkbox" id="music-stop"
-                checked={!!editingMusicNode.stop}
+                checked={!!editingMusicNode?.stop}
                 onChange={(e) => handleMusicNodeChange('stop', e.target.checked)}
                 className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
               />
@@ -1290,7 +1320,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               <select
                 value={editingTransitionNode.effect}
                 onChange={(e) => handleTransitionNodeChange(e.target.value, editingTransitionNode.duration || 1000)}
-                disabled={!!editingMusicNode.stop} className="w-full p-2 border border-msx-border bg-msx-bgcolor text-white rounded"
+                disabled={!!editingMusicNode?.stop} className="w-full p-2 border border-msx-border bg-msx-bgcolor text-white rounded"
               >
                 <option value="cls">CLS (Clear Screen)</option>
                 <option value="dissolve_pixels">Disolver Píxeles</option>

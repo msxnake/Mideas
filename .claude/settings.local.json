@@ -115,7 +115,8 @@
       "Bash(\"C:\\\\Program Files\\\\openMSX\\\\openmsx.exe\" -cart \"C:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\test\\\\game1.rom\" -script \"C:\\\\Users\\\\salam\\\\Documents\\\\Programacion\\\\Mideas\\\\automation\\\\openmsx\\\\test_game1.tcl\")",
       "Bash(python3:*)",
       "Bash(cmd.exe:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Bash(cmd /c \"npx tsc --noEmit 2>&1\")"
     ],
     "deny": [],
     "ask": []
