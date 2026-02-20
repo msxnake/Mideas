@@ -417,6 +417,21 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   code += `wall_entity_idx     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current entity index in wall loop\n`;
   currentAddress++;
 
+  // Entity-entity collision optimized system variables
+  code += `\n; Entity-entity collision optimized variables\n`;
+  code += `coll_list           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active collidable entity indices (16 bytes max)\n`;
+  currentAddress += 16;
+  code += `coll_list_count     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entities in coll_list\n`;
+  currentAddress++;
+  code += `coll_src_left       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB left edge (scratch)\n`;
+  currentAddress++;
+  code += `coll_src_right      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB right edge (scratch)\n`;
+  currentAddress++;
+  code += `coll_src_top        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB top edge (scratch)\n`;
+  currentAddress++;
+  code += `coll_src_bottom     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB bottom edge (scratch)\n`;
+  currentAddress++;
+
   // Interrupt system variables (dynamically allocated to avoid RAM overlap)
   code += `
 ; ==================================================================

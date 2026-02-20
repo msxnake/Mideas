@@ -563,12 +563,12 @@ show_sprite:
     cp 32
     ret nc
 
-    ; Safety check: If Y=209 (invisible), force it to visible (e.g. 100)
+    ; Safety check: Never write Y >= 208 (208 is SAT end marker on MSX)
     push af
     ld a, c
-    cp 209
-    jr nz, .y_ok
-    ld c, 100       ; Force visible Y
+    cp 208
+    jr c, .y_ok
+    ld c, SPRITE_INVISIBLE
 .y_ok:
     pop af
 

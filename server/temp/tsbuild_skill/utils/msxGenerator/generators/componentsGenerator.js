@@ -332,8 +332,6 @@ sprite_next_entity:
     dec b                      ; Decrement loop counter
     jp nz, sprite_update_loop  ; Jump if not zero (djnz replacement for long jumps)
 
-    ; Update all sprites to VRAM
-    call update_sprites_to_vram
     ret
 
 ; ==================================================================
@@ -599,31 +597,8 @@ function generateCollisionSystem(analysis) {
     push hl
     push de
 
-    ld hl, entity_y_pos
-    ld e, c                       ; Entity index
-    ld d, 0
-    add hl, de
-    ld a, (hl)                    ; A = Y position
-
-    ; Ground detection: check if Y >= GROUND_LEVEL (176 for 16x16 sprites on 192px screen)
-    ; GROUND_LEVEL = 192 - 16 = 176
-    cp 176
-    jr c, .not_on_ground          ; Y < 176, entity is in air
-
-.on_ground:
-    ; Clamp Y to ground level
-    ld (hl), 176
-
-    ; Set entity_on_ground flag (bit 0)
-    ld hl, entity_on_ground
-    ld e, c
-    ld d, 0
-    add hl, de
-    set 0, (hl)                   ; Mark as on ground
-    jr .ground_check_done
-
-.not_on_ground:
-    ; Not on ground tiles, but check platform_id and grace frames
+    ; Ground detection is handled exclusively by update_wallcollision_component (tile-based)
+    ; Check only platform_id and grace frames for platform-riding entities
     ; Entity is grounded if: on tiles OR on platform OR has grace frames
 
     ; Check if entity has platform reference
@@ -668,13 +643,12 @@ function generateCollisionSystem(analysis) {
     ld e, c
     ld d, 0
     add hl, de
-    ld d, (hl)                    ; D = X position
+    ld a, (hl)                    ; A = X position (keep DE as entity index)
 
     ld hl, entity_y_pos
-    ld e, c
-    ld d, 0
     add hl, de
     ld e, (hl)                    ; E = Y position
+    ld d, a                       ; D = X position
 
     ; Get tile at entity's feet position (center-bottom)
     push bc
@@ -3113,7 +3087,7 @@ update_wallcollision_component:
     ; Moving up - check top edge at 2 X points
     ld a, (wall_temp_y)
     or a
-    jp z, .wall_next              ; Y=0, at top edge
+    jp z, .wall_up_top_edge       ; Y=0, clamp + stop upward velocity
     sub 1
     srl a
     srl a
@@ -3141,6 +3115,39 @@ update_wallcollision_component:
     call get_behavior_tile
     or a
     jp z, .wall_next              ; Both passable
+
+.wall_up_top_edge:
+    ; Top boundary clamp to prevent Y underflow (0 -> 255 -> ... -> 208 SAT terminator)
+    xor a
+    ld (wall_temp_y), a
+    push af
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    pop af
+    ld (hl), a                    ; Clamp Y = 0
+
+    ; Zero Y velocity
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+
+    ; Also zero gravity_vel to stop upward momentum at top edge
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de                        ; word index
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 0, (hl)                       ; UP wall collision
+    jp .wall_next
 
 .wall_up_blocked:
     ; Snap Y below ceiling: Y = (row+1) * 8

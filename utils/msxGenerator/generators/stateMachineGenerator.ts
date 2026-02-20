@@ -2112,11 +2112,12 @@ SM_TestMoveDirection:
 
     ld hl, entity_x_pos
     add hl, de
-    ld d, (hl)              ; D = X
+    ld a, (hl)              ; A = X (keep DE as entity index)
 
     ld hl, entity_y_pos
     add hl, de
     ld e, (hl)              ; E = Y
+    ld d, a                 ; D = X
 
     ld a, c
     cp 1
@@ -2295,16 +2296,16 @@ Condition_HasCollision:
     ld e, b
     ld d, 0
 
-    ; D = wall collision flags for entity
+    ; Read wall collision flags without clobbering DE index
     ld hl, entity_wall_collision_flags
     add hl, de
-    ld d, (hl)
+    ld a, (hl)              ; A = wall flags
 
-    ; E = entity-entity collision flags for entity
+    ; Read entity-entity collision flags using same DE index
     ld hl, entity_entity_collision_flags
-    ld d, 0                 ; Reset D (was clobbered with wall_flags above)
     add hl, de
     ld e, (hl)
+    ld d, a                 ; D = wall flags
     pop hl
 
     ld a, c
@@ -2755,10 +2756,14 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
         asm += `    DB 0; ID(unused) \n`;
         asm += `    DW ${state.onEnter && state.onEnter.length > 0 ? onEnterLabel : 0} \n`;
         asm += `    DW ${state.onExit && state.onExit.length > 0 ? onExitLabel : 0} \n`;
-        // Include transitions that start from this state or from the special "Any" state
-        const transitions = sm.transitions.filter(t =>
-            t.fromStateId === state.id || isAnyStateId(t.fromStateId)
-        );
+        // Include transitions that start from this state plus global "Any" transitions.
+        // Guard: do not replicate an Any->X transition inside X itself, because that
+        // creates a self-transition loop every frame when condition stays true.
+        const transitions = sm.transitions.filter(t => {
+            if (t.fromStateId === state.id) return true;
+            if (!isAnyStateId(t.fromStateId)) return false;
+            return t.toStateId !== state.id;
+        });
         asm += `    DW ${transitions.length > 0 ? transitionsLabel : 0} \n`;
 
         // Actions Data

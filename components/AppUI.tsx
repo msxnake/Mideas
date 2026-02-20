@@ -591,7 +591,15 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             onUpdateEntityInstance={(id, data) => { 
                 if (activeScreenMapAsset) { 
                   const updatedEntities = activeScreenMapAsset.layers.entities.map(e => 
-                    e.id === id ? { ...e, ...data, componentOverrides: { ...e.componentOverrides, ...data.componentOverrides } } : e 
+                    e.id === id
+                      ? {
+                          ...e,
+                          ...data,
+                          ...(Object.prototype.hasOwnProperty.call(data, 'componentOverrides')
+                            ? { componentOverrides: data.componentOverrides || {} }
+                            : {}),
+                        }
+                      : e 
                   ); 
                   handleUpdateAsset(activeScreenMapAsset.id, { layers: { ...activeScreenMapAsset.layers, entities: updatedEntities }});
                 }

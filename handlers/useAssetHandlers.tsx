@@ -374,7 +374,55 @@ export const useAssetHandlers = ({
         title: "Delete Asset",
         message: `Are you sure you want to delete asset "${assetToDelete.name}"? This action can be undone.`,
         onConfirm: () => {
-          setAssetsWithHistory(prevAssets => prevAssets.filter(a => a.id !== assetId));
+          setAssetsWithHistory(prevAssets => {
+            const remainingAssets = prevAssets.filter(a => a.id !== assetId);
+            if (assetToDelete.type !== 'statemachine') {
+              return remainingAssets;
+            }
+
+            return remainingAssets.map(asset => {
+              if (asset.type !== 'screenmap' || !asset.data) return asset;
+
+              const screenMap = asset.data as ScreenMap;
+              const entities = screenMap.layers?.entities;
+              if (!Array.isArray(entities)) return asset;
+
+              let changed = false;
+              const updatedEntities = entities.map(entity => {
+                const overrides = entity.componentOverrides || {};
+                const smOverride = overrides['comp_statemachine'];
+                if (!smOverride || typeof smOverride !== 'object') return entity;
+                if ((smOverride as any).stateMachineAssetId !== assetId) return entity;
+
+                const nextSmOverride = { ...(smOverride as Record<string, any>) };
+                delete nextSmOverride.stateMachineAssetId;
+                delete nextSmOverride.currentStateId;
+
+                const nextOverrides: Record<string, any> = { ...overrides };
+                if (Object.keys(nextSmOverride).length === 0) {
+                  delete nextOverrides['comp_statemachine'];
+                } else {
+                  nextOverrides['comp_statemachine'] = nextSmOverride;
+                }
+
+                changed = true;
+                return { ...entity, componentOverrides: nextOverrides };
+              });
+
+              if (!changed) return asset;
+
+              return {
+                ...asset,
+                data: {
+                  ...screenMap,
+                  layers: {
+                    ...screenMap.layers,
+                    entities: updatedEntities
+                  }
+                }
+              };
+            });
+          });
           if (selectedAssetId === assetId) {
             setSelectedAssetId(null);
             setCurrentEditor(EditorType.None);

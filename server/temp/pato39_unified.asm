@@ -11910,7 +11910,17 @@ SM_New_Statemachine_state_1771520893784:
     DB 0; ID(unused) 
     DW 0 
     DW 0 
-    DW 0 
+    DW SM_New_Statemachine_state_1771520893784_Transitions 
+SM_New_Statemachine_state_1771520893784_Transitions: 
+    DB 1; Count
+    DB 8; HAS_COLLISION 
+    DB 4          ; collisionType: entity
+    DW SM_New_Statemachine_state_1771520893784 
+    DW SM_New_Statemachine_state_1771520893784_Transitions_Actions_0 
+SM_New_Statemachine_state_1771520893784_Transitions_Actions_0: 
+    DB 5; CHANGE_SPRITE 
+    DB 4; sprite: bola_dead 
+    DB 0xFF; END
 
 
 

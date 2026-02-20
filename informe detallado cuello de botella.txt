@@ -1,0 +1,244 @@
+﻿Informe de Cuellos de Botella - ASM MSX Generado por Mideas
+
+Contexto
+- Proyecto: PATO39 (Duck Invaders) — 2 entidades, 3 pantallas, 5 sprites, 1 SM, HUD activo
+- CPU MSX1: Z80 a 3.58 MHz = ~59,600 ciclos/frame a 60Hz (~71,500 a 50Hz)
+- Archivo analizado: unitedFiles.asm (basado en patoantic6.asm)
+
+---
+CUELLO 1 (ALTO) — 10 pasadas independientes sobre 32 entidades
+
+update_all_entities llama a 12 subsistemas, cada uno con su propio bucle ld b,32:
+
+┌────────────────────────────────┬───────────┐
+│           Subsistema           │ Bucle 32? │
+├────────────────────────────────┼───────────┤
+│ update_input_component         │ Si        │
+├────────────────────────────────┼───────────┤
+│ update_jump_component          │ Si        │
+├────────────────────────────────┼───────────┤
+│ update_gravity_component       │ Si        │
+├────────────────────────────────┼───────────┤
+│ update_position_component      │ Si        │
+├────────────────────────────────┼───────────┤
+│ prepare_platform_detection     │ Si        │
+├────────────────────────────────┼───────────┤
+│ update_collision_component     │ Si        │
+├────────────────────────────────┼───────────┤
+│ update_platform_riding         │ Si        │
+├────────────────────────────────┼───────────┤
+│ update_wallcollision_component │ Si        │
+├────────────────────────────────┼───────────┤
+│ update_animation_component     │ Si        │
+├────────────────────────────────┼───────────┤
+│ update_sprite_component        │ Si        │
+└────────────────────────────────┴───────────┘
+
+Con 2 entidades activas de 32 slots, el 93.75% de las iteraciones son trabajo muerto (check active → skip).
+
+Solución propuesta: Unified Entity Loop — un solo bucle que recorre 32 slots, y para cada entidad activa + en la pantalla actual, ejecuta todos los componentes inline según su máscara:
+
+update_all_entities_unified:
+    ld c, 0              ; entity index
+.loop:
+    ; 1) Check active + screen (una sola vez)
+    ld b, 0
+    ld hl, entity_active
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .next
+    ld hl, entity_screen_id
+    add hl, bc
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jp nz, .next
+
+    ; 2) Leer comp_masks UNA vez
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld a, (hl)
+    ; test bits y call inline handlers...
+
+.next:
+    inc c
+    ld a, c
+    cp MAX_ENTITIES
+    jp nz, .loop
+    ret
+
+Ahorro estimado: ~300 iteraciones vacías eliminadas → ~3000-5000 ciclos/frame
+
+---
+CUELLO 2 (ALTO) — wall_entity_idx releída 18 veces por entidad desde RAM
+
+Dentro de update_wallcollision_component, el patrón:
+ld a, (wall_entity_idx)   ; 13 ciclos
+ld e, a                   ; 4 ciclos
+ld d, 0                   ; 7 ciclos
+ld hl, entity_xxx         ; 10 ciclos
+add hl, de                ; 11 ciclos
+se repite 18 veces por entidad. Total: 18 × 45 = ~810 ciclos desperdiciados por entidad.
+
+Solución propuesta: Usar registro IXL o mantener el índice en un registro dedicado (C o E) a lo largo de toda la función. O mejor aún, precalcular punteros base al inicio:
+
+; Al inicio del procesamiento de cada entidad:
+ld a, (wall_entity_idx)
+ld c, a                    ; C = entity index, NO TOCAR en toda la función
+; Precalcular punteros usados frecuentemente
+ld b, 0
+ld hl, entity_pos_x
+add hl, bc
+ld (wall_ptr_pos_x), hl    ; guardar puntero una vez
+; ... igual para pos_y, vel_x, vel_y
+
+Ahorro: ~600 ciclos por entidad activa con movimiento
+
+---
+CUELLO 3 (ALTO) — get_behavior_tile recalcula row×32+col cada llamada
+
+Cada call cuesta ~70 ciclos. Se llama 8-10 veces por entidad por frame en wall collision.
+
+Solución propuesta A — Cache de fila: Cuando se chequean 2 puntos en la misma fila (ej: esquina izquierda-arriba y derecha-arriba), precalcular row*32 + behavior_map_base una vez y solo sumar la columna:
+
+; Precalcular base de fila
+get_behavior_row_base:
+    ld l, b          ; B = row
+    ld h, 0
+    add hl, hl       ; *32
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld de, (current_behavior_map)
+    add hl, de
+    ret              ; HL = base para toda la fila
+
+; Luego, para cada columna en esa fila:
+get_behavior_col:
+    push hl
+    ld e, c          ; C = col
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    pop hl
+    ret              ; ~25 ciclos vs 70
+
+Solución propuesta B — Lookup table para row×32: Tabla de 24 words precalculada en ROM:
+
+row_x32_table:
+    dw 0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352
+    dw 384, 416, 448, 480, 512, 544, 576, 608, 640, 672, 704, 736
+
+Elimina los 5 add hl,hl. Ahorro: ~30 ciclos × 10 calls = 300 ciclos/frame
+
+---
+CUELLO 4 (ALTO) — update_sprites_to_vram incondicional: 128 bytes cada frame
+
+128 bytes × 50 ciclos/byte = ~6400 ciclos/frame, siempre, incluso si nada se movió.
+
+Solución propuesta: Flag sprites_dirty:
+
+; En cada función que modifique sprite_attributes:
+ld a, 1
+ld (sprites_dirty), a
+
+; En update_sprites_to_vram:
+update_sprites_to_vram:
+    ld a, (sprites_dirty)
+    or a
+    ret z                  ; nada cambió, skip
+    xor a
+    ld (sprites_dirty), a
+    ld hl, sprite_attributes
+    ld de, SPRATR
+    ld bc, 128
+    call FAST_LDIRVM
+    ret
+
+Ahorro: 6400 ciclos en frames sin movimiento (ej: entidad parada, menú, pausa)
+
+Nota: En frames con movimiento el coste es igual, pero típicamente un juego tiene frames "quietos" frecuentes.
+
+---
+CUELLO 5 (MEDIO) — SM loop sin check entity_active
+
+execute_all_state_machines carga 2 punteros (SM ptr low + high) para las 32 entidades sin verificar primero si están activas. Con 1 SM real, 31 entidades hacen trabajo inútil.
+
+Solución propuesta: Añadir check entity_active antes de cargar punteros SM:
+
+.sm_loop:
+    ; PRIMERO verificar si está activa
+    ld b, 0
+    ld hl, entity_active
+    add hl, bc
+    ld a, (hl)
+    or a
+    jp z, .skip_entity
+    ; LUEGO cargar SM pointer...
+
+Ahorro: ~2000 ciclos/frame
+
+---
+CUELLO 6 (MEDIO) — current_behavior_map cargado dentro de cada get_behavior_tile
+
+ld de, (current_behavior_map) (20 ciclos) se ejecuta en cada llamada. El behavior map no cambia durante un frame.
+
+Solución propuesta: Cargar el puntero una vez al inicio de update_wallcollision_component y pasarlo en un registro o variable precacheada.
+
+Ahorro: ~160 ciclos/frame (20 × 8 calls evitadas)
+
+---
+CUELLO 7 (MEDIO) — Colisión entity-entity O(N²)
+
+update_entity_collision_fast ya mitiga ejecutándose solo cada 2 frames (and 1 / ret nz), pero sigue siendo 32×32 = 1024 pairs potenciales.
+
+Solución propuesta: Active entity list — mantener un array corto de índices de entidades activas en la pantalla actual:
+
+; Al inicio del frame, construir lista:
+active_entity_list:    ds MAX_ENTITIES  ; solo índices activos
+active_entity_count:   db 0
+
+; Colisión solo itera active_entity_count² en vez de 32²
+
+Con 2 entidades activas: 4 pairs vs 1024 → reducción del 99.6%
+
+---
+CUELLO 8 (BAJO) — Doble lectura de entity_comp_masks en animation
+
+update_animation_component lee entity_comp_masks para ANIMATION bit y luego otra vez para SPRITE bit.
+
+Solución: Leer una vez, testear ambos bits con and (COMP_MASK_ANIMATION | COMP_MASK_SPRITE).
+
+---
+Resumen de Impacto Estimado
+
+┌────────────────────────────────┬────────────────────────┬────────────────────────────────────────┐
+│          Optimización          │ Ciclos ahorrados/frame │        Dificultad en generador         │
+├────────────────────────────────┼────────────────────────┼────────────────────────────────────────┤
+│ Unified Entity Loop            │ 3000-5000              │ Alta (reestructurar generators)        │
+├────────────────────────────────┼────────────────────────┼────────────────────────────────────────┤
+│ Registros en wallcollision     │ 600-800 per entity     │ Media (reescribir componentsGenerator) │
+├────────────────────────────────┼────────────────────────┼────────────────────────────────────────┤
+│ Cache row en get_behavior_tile │ 300-500                │ Baja (modificar una función)           │
+├────────────────────────────────┼────────────────────────┼────────────────────────────────────────┤
+│ Dirty flag sprites VRAM        │ 0-6400 (condicional)   │ Baja (añadir flag)                     │
+├────────────────────────────────┼────────────────────────┼────────────────────────────────────────┤
+│ Active check en SM             │ ~2000                  │ Baja (añadir 5 líneas)                 │
+├────────────────────────────────┼────────────────────────┼────────────────────────────────────────┤
+│ Active entity list             │ Variable (O(N²)→O(K²)) │ Media                                  │
+├────────────────────────────────┼────────────────────────┼────────────────────────────────────────┤
+│ Cache behavior_map ptr         │ ~160                   │ Baja                                   │
+└────────────────────────────────┴────────────────────────┴────────────────────────────────────────┘
+
+Prioridad recomendada
+
+1. Dirty flag sprites — máximo impacto, mínimo esfuerzo
+2. Active check en SM — fácil, ahorra ~2000 ciclos
+3. Cache row + behavior_map ptr en get_behavior_tile — fácil, ahorra ~500 ciclos
+4. Registros en wallcollision — medio esfuerzo, buen ahorro
+5. Unified entity loop — mayor ahorro total, pero requiere reestructurar el generador significativamente
+6. Active entity list para colisión — importante cuando haya más entidades
+
+Todas estas optimizaciones son transparentes al gameplay — solo afectan eficiencia, no comportamiento.

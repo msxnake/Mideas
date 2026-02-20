@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { EditorType, ProjectAsset, ContextMenuItem, Tile, ScreenMap } from './types';
+import { EditorType, ProjectAsset, ContextMenuItem, Tile, ScreenMap, ComponentDefinition, EntityTemplate } from './types';
 import { AppUI } from './components/AppUI';
 import { ThemeProvider } from './contexts/ThemeContext';
 
@@ -179,6 +179,128 @@ const App: React.FC = () => {
     handleUndo,
     handleRedo
   } = historyHandlers;
+
+  const sanitizeAssetsByTemplates = useCallback((sourceAssets: ProjectAsset[], templatesToUse: EntityTemplate[]) => {
+    const templateComponentIds = new Map<string, Set<string>>();
+    templatesToUse.forEach(template => {
+      templateComponentIds.set(
+        template.id,
+        new Set((template.components || []).map(comp => comp.definitionId))
+      );
+    });
+
+    const validStateMachineIds = new Set(
+      sourceAssets
+        .filter(asset => asset.type === 'statemachine')
+        .map(asset => asset.id)
+    );
+
+    return sourceAssets.map(asset => {
+      if (asset.type !== 'screenmap' || !asset.data) return asset;
+
+      const screenMap = asset.data as ScreenMap;
+      const entities = screenMap.layers?.entities;
+      if (!Array.isArray(entities)) return asset;
+
+      let screenChanged = false;
+      const sanitizedEntities = entities.map(entity => {
+        const currentOverrides = entity.componentOverrides || {};
+        const allowedComponentIds = templateComponentIds.get(entity.entityTemplateId);
+        const nextOverrides: Record<string, any> = {};
+        let entityChanged = false;
+
+        if (!allowedComponentIds) {
+          if (Object.keys(currentOverrides).length > 0) {
+            entityChanged = true;
+          }
+        } else {
+          Object.entries(currentOverrides).forEach(([componentId, overrideValue]) => {
+            if (!allowedComponentIds.has(componentId)) {
+              entityChanged = true;
+              return;
+            }
+
+            if (componentId === 'comp_statemachine' && overrideValue && typeof overrideValue === 'object') {
+              const smOverride = { ...(overrideValue as Record<string, any>) };
+              const stateMachineAssetId = smOverride.stateMachineAssetId;
+              if (stateMachineAssetId && !validStateMachineIds.has(String(stateMachineAssetId))) {
+                delete smOverride.stateMachineAssetId;
+                delete smOverride.currentStateId;
+                entityChanged = true;
+              }
+
+              if (Object.keys(smOverride).length === 0) {
+                entityChanged = true;
+                return;
+              }
+
+              nextOverrides[componentId] = smOverride;
+              return;
+            }
+
+            nextOverrides[componentId] = overrideValue;
+          });
+        }
+
+        if (!entityChanged) {
+          entityChanged = JSON.stringify(currentOverrides) !== JSON.stringify(nextOverrides);
+        }
+
+        if (!entityChanged) return entity;
+        screenChanged = true;
+        return { ...entity, componentOverrides: nextOverrides };
+      });
+
+      if (!screenChanged) return asset;
+
+      return {
+        ...asset,
+        data: {
+          ...screenMap,
+          layers: {
+            ...screenMap.layers,
+            entities: sanitizedEntities
+          }
+        }
+      };
+    });
+  }, []);
+
+  const setEntityTemplatesWithCleanup = useCallback((
+    updater: EntityTemplate[] | ((prev: EntityTemplate[]) => EntityTemplate[])
+  ) => {
+    const nextTemplates = typeof updater === 'function'
+      ? (updater as (prev: EntityTemplate[]) => EntityTemplate[])(entityTemplates)
+      : updater;
+
+    setEntityTemplatesWithHistory(nextTemplates);
+    setAssetsWithHistory(prevAssets => sanitizeAssetsByTemplates(prevAssets, nextTemplates));
+  }, [entityTemplates, setEntityTemplatesWithHistory, setAssetsWithHistory, sanitizeAssetsByTemplates]);
+
+  const setComponentDefinitionsWithCleanup = useCallback((
+    updater: ComponentDefinition[] | ((prev: ComponentDefinition[]) => ComponentDefinition[])
+  ) => {
+    const nextDefinitions = typeof updater === 'function'
+      ? (updater as (prev: ComponentDefinition[]) => ComponentDefinition[])(componentDefinitions)
+      : updater;
+
+    const validDefinitionIds = new Set(nextDefinitions.map(def => def.id));
+    const nextTemplates = entityTemplates.map(template => ({
+      ...template,
+      components: (template.components || []).filter(component => validDefinitionIds.has(component.definitionId))
+    }));
+
+    setComponentDefinitionsWithHistory(nextDefinitions);
+    setEntityTemplatesWithHistory(nextTemplates);
+    setAssetsWithHistory(prevAssets => sanitizeAssetsByTemplates(prevAssets, nextTemplates));
+  }, [
+    componentDefinitions,
+    entityTemplates,
+    setComponentDefinitionsWithHistory,
+    setEntityTemplatesWithHistory,
+    setAssetsWithHistory,
+    sanitizeAssetsByTemplates
+  ]);
 
   // Initialize asset handlers
   const assetHandlers = useAssetHandlers({
@@ -470,9 +592,9 @@ const App: React.FC = () => {
 
     // Entity & Component state
     componentDefinitions,
-    setComponentDefinitions: setComponentDefinitionsWithHistory,
+    setComponentDefinitions: setComponentDefinitionsWithCleanup,
     entityTemplates,
-    setEntityTemplates: setEntityTemplatesWithHistory,
+    setEntityTemplates: setEntityTemplatesWithCleanup,
     mainMenuConfig,
     onUpdateMainMenuConfig: setMainMenuConfigWithHistory,
     currentEntityTypeToPlace,

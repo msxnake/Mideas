@@ -660,13 +660,12 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     ld e, c
     ld d, 0
     add hl, de
-    ld d, (hl)                    ; D = X position
+    ld a, (hl)                    ; A = X position (keep DE as entity index)
 
     ld hl, entity_y_pos
-    ld e, c
-    ld d, 0
     add hl, de
     ld e, (hl)                    ; E = Y position
+    ld d, a                       ; D = X position
 
     ; Get tile at entity's feet position (center-bottom)
     push bc
@@ -719,45 +718,50 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     ret
 
 update_entity_collision_fast:
-    ; Update every 2 frames using interrupt counter bit0.
-    ; Latching policy: skipped frame keeps previous collision result.
+    ; =============================================================
+    ; Optimized entity-entity collision: 2-phase active-list system
+    ; Phase 1: Build list of active collidable entities on screen
+    ; Phase 2: Check only valid pairs (i < j) with clamped AABB
+    ; Runs every 2 frames (latches previous result on skip frames)
+    ; =============================================================
+
+    ; Frame skip - every 2 frames
     ld hl, interrupt_counter
     ld a, (hl)
     and 1
     ret nz
 
-    ld c, 0                       ; C = source entity index
+    ; === PHASE 1: Build active list ===
+    ld hl, coll_list              ; HL = write pointer into coll_list
+    xor a
+    ld (coll_list_count), a       ; count = 0
+    ld c, 0                       ; C = entity index 0..31
 
-uecf_source_loop:
+.build_loop:
     ld a, c
     cp 32
-    ret z
+    jp z, .build_done
 
-    ; Source must be active
-    ld hl, entity_active
+    ; Clear collision flags for ALL entities with collision component
+    push hl                       ; Save list write pointer
     ld e, c
     ld d, 0
+
+    ; Check active
+    ld hl, entity_active
     add hl, de
     ld a, (hl)
     or a
-    jp z, uecf_next_source
+    jp z, .build_skip
 
-    ; Source must have Collision component
+    ; Check collision component
     ld hl, entity_comp_masks
     add hl, de
     ld a, (hl)
     and COMP_MASK_COLLISION
-    jp z, uecf_next_source
+    jp z, .build_skip
 
-    ; Source must be in current screen
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jp nz, uecf_next_source
-
-    ; Clear source collision latch before recomputing this frame
+    ; Clear collision flags for this entity (even if wrong screen)
     ld hl, entity_entity_collision_flags
     add hl, de
     ld (hl), 0
@@ -765,202 +769,316 @@ uecf_source_loop:
     add hl, de
     ld (hl), 255
 
-    ; Cache source AABB in scratch bytes
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_collision_offset_x
-    add hl, de
-    add a, (hl)
-    ld (temp_byte_1), a           ; source left
-
-    ld hl, entity_collision_hitbox_w
-    add hl, de
-    add a, (hl)
-    ld (temp_byte_2), a           ; source right
-
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_collision_offset_y
-    add hl, de
-    add a, (hl)
-    ld (wall_temp_x), a           ; source top
-
-    ld hl, entity_collision_hitbox_h
-    add hl, de
-    add a, (hl)
-    ld (wall_temp_y), a           ; source bottom
-
-    ld b, 0                       ; B = target entity index
-
-uecf_target_loop:
-    ld a, b
-    cp 32
-    jp z, uecf_next_source
-
-    ; Skip self
-    ld a, b
-    cp c
-    jp z, uecf_next_target
-
-    ; Target must be active
-    ld hl, entity_active
-    ld e, b
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, uecf_next_target
-
-    ; Target must have Collision component
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)
-    and COMP_MASK_COLLISION
-    jp z, uecf_next_target
-
-    ; Target must be in current screen
+    ; Check screen match
     ld hl, entity_screen_id
     add hl, de
     ld a, (hl)
     ld hl, current_screen_id
     cp (hl)
-    jp nz, uecf_next_target
+    jp nz, .build_skip
 
-    ; Mutual layer mask check:
-    ; source.collidesWith includes target.layer
-    ld hl, entity_collides_with
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_collision_layer
+    ; Entity qualifies - add to list (max 16)
+    ld a, (coll_list_count)
+    cp 16
+    jp nc, .build_skip            ; List full
+
+    ; Store entity index in coll_list
+    pop hl                        ; Restore list write pointer
+    ld (hl), c                    ; coll_list[count] = entity index
+    inc hl                        ; Advance write pointer
+    push hl                       ; Save updated write pointer
+
+    ld a, (coll_list_count)
+    inc a
+    ld (coll_list_count), a
+
+.build_skip:
+    pop hl                        ; Restore list write pointer
+    inc c
+    jp .build_loop
+
+.build_done:
+    ; === PHASE 2: Check pairs ===
+    ; Need at least 2 entities for any pair
+    ld a, (coll_list_count)
+    cp 2
+    ret c                         ; 0 or 1 entities, nothing to check
+
+    ; Outer loop: i = 0 .. count-2
+    ld b, 0                       ; B = outer index i
+
+.outer_loop:
+    ld a, (coll_list_count)
+    dec a                         ; A = count - 1
+    cp b
+    jp z, .coll_done              ; i == count-1, done
+    jp c, .coll_done              ; safety
+
+    ; Get source entity index from coll_list[i]
+    push bc                       ; Save B=i
+    ld hl, coll_list
     ld e, b
     ld d, 0
     add hl, de
-    and (hl)
-    jp z, uecf_next_target
+    ld c, (hl)                    ; C = source entity index
 
-    ; target.collidesWith includes source.layer
-    ld hl, entity_collides_with
-    ld e, b
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld hl, entity_collision_layer
+    ; Cache source AABB with clamping
     ld e, c
     ld d, 0
-    add hl, de
-    and (hl)
-    jp z, uecf_next_target
 
-    ; --- AABB overlap test with per-entity hitboxes ---
-    ; target left
+    ; source left = x + offset_x
     ld hl, entity_x_pos
-    ld e, b
-    ld d, 0
     add hl, de
     ld a, (hl)
     ld hl, entity_collision_offset_x
     add hl, de
     add a, (hl)
-    ld (wall_entity_idx), a
+    jp nc, .src_left_ok
+    ld a, 255                     ; Clamp on overflow
+.src_left_ok:
+    ld (coll_src_left), a
 
-    ; source.right <= target.left => no overlap
-    ld a, (temp_byte_2)
-    ld hl, wall_entity_idx
-    cp (hl)
-    jp c, uecf_next_target
-    jp z, uecf_next_target
-
-    ; target right
-    ld a, (wall_entity_idx)
+    ; source right = left + hitbox_w (clamped)
     ld hl, entity_collision_hitbox_w
-    ld e, b
-    ld d, 0
     add hl, de
     add a, (hl)
-    ld (wall_entity_idx), a
+    jp nc, .src_right_ok
+    ld a, 255                     ; Clamp on overflow
+.src_right_ok:
+    ld (coll_src_right), a
 
-    ; source.left >= target.right => no overlap
-    ld a, (temp_byte_1)
-    ld hl, wall_entity_idx
-    cp (hl)
-    jp nc, uecf_next_target
-
-    ; target top
+    ; source top = y + offset_y
     ld hl, entity_y_pos
-    ld e, b
-    ld d, 0
     add hl, de
     ld a, (hl)
     ld hl, entity_collision_offset_y
     add hl, de
     add a, (hl)
-    ld (wall_entity_idx), a
+    jp nc, .src_top_ok
+    ld a, 255
+.src_top_ok:
+    ld (coll_src_top), a
 
-    ; source.bottom <= target.top => no overlap
-    ld a, (wall_temp_y)
-    ld hl, wall_entity_idx
-    cp (hl)
-    jp c, uecf_next_target
-    jp z, uecf_next_target
-
-    ; target bottom
-    ld a, (wall_entity_idx)
+    ; source bottom = top + hitbox_h (clamped)
     ld hl, entity_collision_hitbox_h
-    ld e, b
-    ld d, 0
     add hl, de
     add a, (hl)
-    ld (wall_entity_idx), a
+    jp nc, .src_bot_ok
+    ld a, 255
+.src_bot_ok:
+    ld (coll_src_bottom), a
 
-    ; source.top >= target.bottom => no overlap
-    ld a, (wall_temp_x)
-    ld hl, wall_entity_idx
-    cp (hl)
-    jp nc, uecf_next_target
-
-    ; First hit latch: store target and classify flags
-    ld hl, entity_last_collision_entity
-    ld e, c
-    ld d, 0
-    add hl, de
+    ; Inner loop: j = i+1 .. count-1
+    pop bc                        ; Restore B=i
+    push bc                       ; Save again for later
     ld a, b
-    ld (hl), a
+    inc a                         ; A = i+1
+    ld b, a                       ; B = inner index j (reusing B temporarily)
+    push bc                       ; Save B=j, (stack: j, i)
 
-    ld hl, entity_collision_layer
+.inner_loop:
+    pop bc                        ; Restore B=j
+    ld a, (coll_list_count)
+    cp b
+    jp z, .inner_done             ; j == count, done with inner
+    jp c, .inner_done
+
+    ; Get target entity index from coll_list[j]
+    push bc                       ; Save B=j
+    ld hl, coll_list
     ld e, b
     ld d, 0
     add hl, de
-    ld d, (hl)                    ; D = target layer bitmask
+    ld b, (hl)                    ; B = target entity index
 
-    ld a, 1                       ; bit0: any
-    bit 1, d                      ; enemy layer mask = 2
-    jr z, .uecf_no_enemy
-    or 2                          ; bit1: enemy
-.uecf_no_enemy:
-    bit 4, d                      ; item layer mask = 16
-    jr z, .uecf_no_item
-    or 4                          ; bit2: item
-.uecf_no_item:
-    ld hl, entity_entity_collision_flags
+    ; --- Mutual layer mask check ---
+    ; source.collidesWith & target.layer
     ld e, c
     ld d, 0
+    ld hl, entity_collides_with
     add hl, de
+    ld a, (hl)                    ; A = source.collidesWith
+    ld e, b
+    ld hl, entity_collision_layer
+    add hl, de
+    and (hl)                      ; A = source.collidesWith & target.layer
+    jp z, .next_inner
+
+    ; target.collidesWith & source.layer
+    ld e, b
+    ld d, 0
+    ld hl, entity_collides_with
+    add hl, de
+    ld a, (hl)                    ; A = target.collidesWith
+    ld e, c
+    ld hl, entity_collision_layer
+    add hl, de
+    and (hl)                      ; A = target.collidesWith & source.layer
+    jp z, .next_inner
+
+    ; --- AABB overlap test (source cached, compute target with clamp) ---
+    ; target left = x + offset_x
+    ld e, b
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    add a, (hl)
+    jp nc, .tgt_left_ok
+    ld a, 255
+.tgt_left_ok:
+    ld e, a                       ; E = target_left
+
+    ; source.right <= target.left => no overlap
+    ld a, (coll_src_right)
+    cp e
+    jp c, .next_inner
+    jp z, .next_inner
+
+    ; target right = target_left + hitbox_w (clamped)
+    push de                       ; Save E=target_left, D free
+    ld e, b
+    ld d, 0
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    pop de                        ; Restore E=target_left
+    ld a, e                       ; A = target_left
+    add a, (hl)                   ; A = target_left + width
+    jp nc, .tgt_right_ok
+    ld a, 255
+.tgt_right_ok:
+    ; source.left >= target.right => no overlap
+    ld d, a                       ; D = target_right
+    ld a, (coll_src_left)
+    cp d
+    jp nc, .next_inner
+
+    ; target top = y + offset_y
+    ld e, b
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    add a, (hl)
+    jp nc, .tgt_top_ok
+    ld a, 255
+.tgt_top_ok:
+    ld e, a                       ; E = target_top
+
+    ; source.bottom <= target.top => no overlap
+    ld a, (coll_src_bottom)
+    cp e
+    jp c, .next_inner
+    jp z, .next_inner
+
+    ; target bottom = target_top + hitbox_h (clamped)
+    push de                       ; Save E=target_top
+    ld e, b
+    ld d, 0
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    pop de                        ; Restore E=target_top
+    ld a, e                       ; A = target_top
+    add a, (hl)                   ; A = target_top + height
+    jp nc, .tgt_bot_ok
+    ld a, 255
+.tgt_bot_ok:
+    ; source.top >= target.bottom => no overlap
+    ld d, a                       ; D = target_bottom
+    ld a, (coll_src_top)
+    cp d
+    jp nc, .next_inner
+
+    ; ==========  COLLISION DETECTED between source(C) and target(B) ==========
+
+    ; --- Set flags for SOURCE entity (C) ---
+    push bc                       ; Save B=target, C=source
+    ld e, c
+    ld d, 0
+
+    ; Store target index in source's last_collision_entity
+    ld hl, entity_last_collision_entity
+    add hl, de
+    ld (hl), b
+
+    ; Classify target layer into flags
+    push de
+    ld e, b
+    ld d, 0
+    ld hl, entity_collision_layer
+    add hl, de
+    ld d, (hl)                    ; D = target layer bitmask
+    pop de
+
+    ld a, 1                       ; bit0: any collision
+    bit 1, d                      ; enemy layer = 2
+    jp z, .src_no_enemy
+    or 2                          ; bit1: enemy
+.src_no_enemy:
+    bit 4, d                      ; item layer = 16
+    jp z, .src_no_item
+    or 4                          ; bit2: item
+.src_no_item:
+    ld hl, entity_entity_collision_flags
+    add hl, de
+    or (hl)                       ; OR with existing flags (multiple hits)
     ld (hl), a
 
-    ; First hit only per source entity
-    jp uecf_next_source
+    ; --- Set flags for TARGET entity (B) --- (bidirectional)
+    pop bc                        ; Restore B=target, C=source
+    push bc
 
-uecf_next_target:
+    ld e, b
+    ld d, 0
+
+    ; Store source index in target's last_collision_entity
+    ld hl, entity_last_collision_entity
+    add hl, de
+    ld (hl), c
+
+    ; Classify source layer into flags
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_collision_layer
+    add hl, de
+    ld d, (hl)                    ; D = source layer bitmask
+    pop de
+
+    ld a, 1                       ; bit0: any collision
+    bit 1, d                      ; enemy layer = 2
+    jp z, .tgt_no_enemy
+    or 2
+.tgt_no_enemy:
+    bit 4, d                      ; item layer = 16
+    jp z, .tgt_no_item
+    or 4
+.tgt_no_item:
+    ld hl, entity_entity_collision_flags
+    add hl, de
+    or (hl)                       ; OR with existing flags
+    ld (hl), a
+
+    pop bc                        ; Restore B=target, C=source
+
+.next_inner:
+    ; Advance j
+    pop bc                        ; Restore B=j (inner index)
     inc b
-    jp uecf_target_loop
+    push bc                       ; Save updated j
+    jp .inner_loop
 
-uecf_next_source:
-    inc c
-    jp uecf_source_loop
+.inner_done:
+    pop bc                        ; Restore B=i (outer index)
+    inc b                         ; i++
+    jp .outer_loop
+
+.coll_done:
+    ret
 
         ; ==================================================================
 ; COLLISION HELPER FUNCTIONS(Critical for Gameplay Parity)
@@ -3119,7 +3237,7 @@ update_wallcollision_component:
     ; Moving up - check top edge at 2 X points
     ld a, (wall_temp_y)
     or a
-    jp z, .wall_next              ; Y=0, at top edge
+    jp z, .wall_up_top_edge       ; Y=0, clamp + stop upward velocity
     sub 1
     srl a
     srl a
@@ -3147,6 +3265,39 @@ update_wallcollision_component:
     call get_behavior_tile
     or a
     jp z, .wall_next              ; Both passable
+
+.wall_up_top_edge:
+    ; Top boundary clamp to prevent Y underflow (0 -> 255 -> ... -> 208 SAT terminator)
+    xor a
+    ld (wall_temp_y), a
+    push af
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_y_pos
+    add hl, de
+    pop af
+    ld (hl), a                    ; Clamp Y = 0
+
+    ; Zero Y velocity
+    ld a, (wall_entity_idx)
+    ld e, a
+    ld d, 0
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+
+    ; Also zero gravity_vel to stop upward momentum at top edge
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de                        ; word index
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 0, (hl)                       ; UP wall collision
+    jp .wall_next
 
 .wall_up_blocked:
     ; Snap Y below ceiling: Y = (row+1) * 8

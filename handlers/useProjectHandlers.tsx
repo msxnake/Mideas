@@ -48,6 +48,97 @@ interface ProjectHandlersProps {
   helpDocsData: HelpDocSection[];
 }
 
+function sanitizeProjectAssetsForTemplateChanges(
+  sourceAssets: ProjectAsset[],
+  templates: EntityTemplate[]
+): ProjectAsset[] {
+  const templateComponentIds = new Map<string, Set<string>>();
+  templates.forEach(template => {
+    templateComponentIds.set(
+      template.id,
+      new Set((template.components || []).map(comp => comp.definitionId))
+    );
+  });
+
+  const validStateMachineIds = new Set(
+    sourceAssets
+      .filter(asset => asset.type === 'statemachine')
+      .map(asset => asset.id)
+  );
+
+  return sourceAssets.map(asset => {
+    if (asset.type !== 'screenmap' || !asset.data) return asset;
+
+    const screenMap = asset.data as ScreenMap;
+    const entities = screenMap.layers?.entities;
+    if (!Array.isArray(entities)) return asset;
+
+    let screenChanged = false;
+    const sanitizedEntities = entities.map(entity => {
+      const currentOverrides = entity.componentOverrides || {};
+      const allowedComponentIds = templateComponentIds.get(entity.entityTemplateId);
+      const nextOverrides: Record<string, any> = {};
+      let entityChanged = false;
+
+      if (!allowedComponentIds) {
+        if (Object.keys(currentOverrides).length > 0) {
+          entityChanged = true;
+        }
+      } else {
+        Object.entries(currentOverrides).forEach(([componentId, overrideValue]) => {
+          if (!allowedComponentIds.has(componentId)) {
+            entityChanged = true;
+            return;
+          }
+
+          if (componentId === 'comp_statemachine' && overrideValue && typeof overrideValue === 'object') {
+            const smOverride = { ...(overrideValue as Record<string, any>) };
+            const stateMachineAssetId = smOverride.stateMachineAssetId;
+
+            if (stateMachineAssetId && !validStateMachineIds.has(String(stateMachineAssetId))) {
+              delete smOverride.stateMachineAssetId;
+              delete smOverride.currentStateId;
+              entityChanged = true;
+            }
+
+            if (Object.keys(smOverride).length === 0) {
+              entityChanged = true;
+              return;
+            }
+
+            nextOverrides[componentId] = smOverride;
+            return;
+          }
+
+          nextOverrides[componentId] = overrideValue;
+        });
+      }
+
+      if (!entityChanged) {
+        entityChanged = JSON.stringify(currentOverrides) !== JSON.stringify(nextOverrides);
+      }
+
+      if (!entityChanged) return entity;
+
+      screenChanged = true;
+      return { ...entity, componentOverrides: nextOverrides };
+    });
+
+    if (!screenChanged) return asset;
+
+    return {
+      ...asset,
+      data: {
+        ...screenMap,
+        layers: {
+          ...screenMap.layers,
+          entities: sanitizedEntities
+        }
+      }
+    };
+  });
+}
+
 export const useProjectHandlers = ({
   assets,
   setAssets,
@@ -271,8 +362,10 @@ export const useProjectHandlers = ({
       return asset;
     });
 
+    const sanitizedAssets = sanitizeProjectAssetsForTemplateChanges(assetsNormalized, cleanedTemplates);
+
     const projectData = {
-      assets: assetsNormalized,
+      assets: sanitizedAssets,
       currentScreenMode,
       selectedAssetId,
       currentEditor,
@@ -332,6 +425,8 @@ export const useProjectHandlers = ({
       setSelectedEffectZoneId(null);
       setSelectedEntityInstanceId(null);
 
+      let loadedAssets: ProjectAsset[] = [];
+
       if (projectData.assets) {
         const normalizeCondition = (cond: any): any => {
           if (!cond) return cond;
@@ -357,7 +452,7 @@ export const useProjectHandlers = ({
             return { ...a, params: p };
           });
 
-        const migratedAssets = projectData.assets.map((asset: ProjectAsset) => {
+        loadedAssets = projectData.assets.map((asset: ProjectAsset) => {
           if (asset.type === 'screenmap' && asset.data && !(asset.data as ScreenMap).effectZones) {
             return { ...asset, data: { ...(asset.data as ScreenMap), effectZones: [] } };
           }
@@ -379,8 +474,6 @@ export const useProjectHandlers = ({
           }
           return asset;
         });
-
-        setAssetsWithHistory(() => migratedAssets);
       }
 
       const loadedMode = projectData.currentScreenMode || DEFAULT_SCREEN_MODE;
@@ -430,6 +523,7 @@ export const useProjectHandlers = ({
         setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
       }
 
+      let templatesForSanitization: EntityTemplate[] = DEFAULT_ENTITY_TEMPLATES;
       if (projectData.entityTemplates) {
         const cleanedEntityTemplates = projectData.entityTemplates.map((template: EntityTemplate) => {
           const cleanedComponents = template.components.map(comp => {
@@ -462,6 +556,14 @@ export const useProjectHandlers = ({
         });
 
         setEntityTemplatesState(cleanedEntityTemplates);
+        templatesForSanitization = cleanedEntityTemplates;
+      } else {
+        setEntityTemplatesState(DEFAULT_ENTITY_TEMPLATES);
+      }
+
+      if (loadedAssets.length > 0) {
+        const sanitizedLoadedAssets = sanitizeProjectAssetsForTemplateChanges(loadedAssets, templatesForSanitization);
+        setAssetsWithHistory(() => sanitizedLoadedAssets);
       }
 
       if (projectData.mainMenuConfig) setMainMenuConfigState(projectData.mainMenuConfig);
