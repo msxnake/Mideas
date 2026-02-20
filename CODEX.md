@@ -46,3 +46,6 @@ Memoria Codex - uso de archivos .md en raiz (sin subcarpetas)
 - `memoria_Rom_Ram_MSX.md`: referencia sobre organizacion ROM/RAM en MSX y variables ASM.
 - `SPRITE_MOVEMENT_SOLUTION.md`: reporte tecnico de problema/solucion de movimiento de sprites.
 - `TILE_COLLISION_BUG_REPORT.md`: informe de bug de colisiones con analisis de causa raiz.
+
+Regla de ubicacion de archivos
+- Si el usuario menciona un archivo sin ruta explicita, buscar primero en `C:\Users\salam\Downloads`.

@@ -97,6 +97,14 @@ function generateVariablesFile(analysis) {
     currentAddress += 2;
     code += `current_behavior_map    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pointer to current behavior map data (16-bit)\n`;
     currentAddress += 2;
+    code += `behavior_cache_row     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached behavior row (255=invalid)\n`;
+    currentAddress++;
+    code += `behavior_cache_map_l   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached behavior map pointer low byte\n`;
+    currentAddress++;
+    code += `behavior_cache_map_h   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached behavior map pointer high byte\n`;
+    currentAddress++;
+    code += `behavior_cache_row_base EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached row base address in behavior map (16-bit)\n`;
+    currentAddress += 2;
     // Viewport/Camera variables (for scroll system)
     code += `
 ; ==================================================================
@@ -205,6 +213,8 @@ MAX_ENTITIES        EQU 32
     code += `entity_sprite_asset_index EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity sprite asset index - RAM copy (32 bytes)\n`;
     currentAddress += 32;
     code += `active_sprite_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of sprites currently active\n`;
+    currentAddress++;
+    code += `sprites_dirty      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=sprite_attributes changed, needs VRAM sync\n`;
     currentAddress++;
     code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (32 bytes)\n`;
     currentAddress += 32;
@@ -324,7 +334,25 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress++;
     code += `wall_temp_y         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached entity Y for wall checks\n`;
     currentAddress++;
-    code += `wall_entity_idx     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current entity index in wall loop\n`;
+    // Frame-local compact entity list (non-zero component masks)
+    code += `\n; Unified update helpers\n`;
+    code += `active_entity_list  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)\n`;
+    currentAddress += 32;
+    code += `active_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in active_entity_list\n`;
+    currentAddress++;
+    // Entity-entity collision optimized system variables
+    code += `\n; Entity-entity collision optimized variables\n`;
+    code += `coll_list           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active collidable entity indices (MAX_ENTITIES bytes)\n`;
+    currentAddress += 32;
+    code += `coll_list_count     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entities in coll_list\n`;
+    currentAddress++;
+    code += `coll_src_left       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB left edge (scratch)\n`;
+    currentAddress++;
+    code += `coll_src_right      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB right edge (scratch)\n`;
+    currentAddress++;
+    code += `coll_src_top        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB top edge (scratch)\n`;
+    currentAddress++;
+    code += `coll_src_bottom     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Source AABB bottom edge (scratch)\n`;
     currentAddress++;
     // Interrupt system variables (dynamically allocated to avoid RAM overlap)
     code += `

@@ -493,6 +493,8 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
       code += `    push bc\n`;
       code += `    push de\n`;
       code += `    push hl\n\n`;
+      code += `    ; Keep system loops in sync with current component masks\n`;
+      code += `    call rebuild_used_entity_list\n`;
 
       // Only generate calls for used components
       if (hasJump) {
@@ -515,6 +517,7 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
     } else {
       code += `; Task 1 (Physics): Minimal - only position update (no Jump/Movement/Gravity used)\n`;
       code += `task_update_physics:\n`;
+      code += `    call rebuild_used_entity_list  ; Keep compact entity list updated\n`;
       code += `    call update_position_component  ; Just apply any existing velocities\n`;
       code += `    ret\n\n`;
     }

@@ -27,6 +27,8 @@ function generateUpdateAllEntities(usedComponents: Set<string>): string {
 ; Only calls component systems that are actually used in this project
 ; Unused systems are NOT called (saves Z80 cycles)
 update_all_entities:
+    ; Build entity list once per frame (slots with non-zero component masks)
+    call rebuild_used_entity_list
 `;
 
     // Define the component systems in execution order
@@ -64,6 +66,10 @@ update_all_entities:
             if (!processedFunctions.has(funcCall)) {
                 processedFunctions.add(funcCall);
                 code += `    call ${funcCall.padEnd(30)} ; ${comment}\n`;
+                if (funcCall === 'update_shoot_component') {
+                    code += `    ; Shooting may spawn entities, rebuild used-entity list for later phases\n`;
+                    code += `    call rebuild_used_entity_list\n`;
+                }
                 callCount++;
             }
         }
@@ -71,6 +77,51 @@ update_all_entities:
 
     code += `    ret\n`;
     code += `; Total systems called: ${callCount} (optimized from 15)\n\n`;
+    code += `
+; ------------------------------------------------------------------
+; rebuild_used_entity_list
+; Build compact list of entity slots that are in use (mask_l|mask_h != 0)
+; Output:
+;   active_entity_list[]   = entity indices with components
+;   active_entity_count    = number of entries
+; ------------------------------------------------------------------
+rebuild_used_entity_list:
+    xor a
+    ld (active_entity_count), a
+    ld c, 0
+
+.rebuild_loop:
+    ld a, c
+    cp MAX_ENTITIES
+    ret z
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    or (hl)
+    jr z, .next_entity
+
+    ld hl, active_entity_count
+    ld a, (hl)
+    cp MAX_ENTITIES
+    jr nc, .next_entity
+
+    ld e, a
+    ld d, 0
+    ld hl, active_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, active_entity_count
+    inc (hl)
+
+.next_entity:
+    inc c
+    jr .rebuild_loop
+`;
 
     return code;
 }
@@ -106,13 +157,23 @@ init_position_system:
 
 update_position_component:
     ; Update positions based on velocities (Movement -> Position)
-    ld b, 32                   ; Loop through all entities
-    ld hl, entity_comp_masks   ; Check component masks
-    ld c, 0                    ; Entity index
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                    ; Loop through used entities only
+    ld hl, active_entity_list
 
 position_update_loop:
+    ld c, (hl)                 ; C = entity index
+    inc hl                     ; Advance list pointer
+    push hl                    ; Save list pointer
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
     ld a, (hl)                 ; Get entity component mask
     ld d, a                    ; OPTIMIZED: Save mask in D to avoid redundant memory read
+    pop hl                     ; Restore list pointer
     and COMP_MASK_POSITION     ; Check if has position component
     jr z, position_next_entity ; Skip if no position component
 
@@ -169,9 +230,8 @@ position_update_loop:
     pop bc
 
 position_next_entity:
-    inc hl                     ; Next entity mask
-    inc c                      ; Next entity index
-    djnz position_update_loop
+    dec b
+    jp nz, position_update_loop
     ret
 `;
 }
@@ -198,12 +258,22 @@ init_sprite_system:
 
 update_sprite_component:
     ; Update sprite rendering based on entity positions
-    ld b, 32                   ; Loop through all entities
-    ld hl, entity_comp_masks   ; Check component masks
-    ld c, 0                    ; Entity index counter
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                    ; Loop through used entities only
+    ld hl, active_entity_list
 
 sprite_update_loop:
+    ld c, (hl)                 ; C = entity index
+    inc hl                     ; Advance list pointer
+    push hl                    ; Save list pointer
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
     ld a, (hl)                 ; Get entity component mask
+    pop hl                     ; Restore list pointer
     and COMP_MASK_SPRITE       ; Check if has sprite component
     jp z, sprite_next_entity   ; Skip if no sprite component (jp because distance > 127 bytes)
 
@@ -337,10 +407,8 @@ sprite_continue:
     pop bc
 
 sprite_next_entity:
-    inc hl                     ; Next entity
-    inc c                      ; Next entity index
-    dec b                      ; Decrement loop counter
-    jp nz, sprite_update_loop  ; Jump if not zero (djnz replacement for long jumps)
+    dec b
+    jp nz, sprite_update_loop
 
     ret
 
@@ -449,12 +517,22 @@ function generateMovementSystem(): string {
 
         update_movement_component:
             ; Update movement / physics for entities
-            ld b, 32                   ; Loop through all entities
-            ld hl, entity_comp_masks   ; Check component masks
-            ld c, 0                    ; Entity index
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop through used entities only
+            ld hl, active_entity_list
 
         movement_update_loop:
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks
+            add hl, de
             ld a, (hl)                 ; Get entity component mask
+            pop hl                     ; Restore list pointer
             and COMP_MASK_MOVEMENT     ; Check if has movement component
             jr z, movement_next_entity ; Skip if no movement component
 
@@ -506,9 +584,7 @@ function generateMovementSystem(): string {
             pop bc
 
         movement_next_entity:
-            inc hl                     ; Next entity mask
-            inc c                      ; Next entity index
-            dec b                      ; Decrement loop counter
+            dec b
             jp nz, movement_update_loop
     ret
     `;
@@ -593,17 +669,28 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     update_collision_component:
     ; Ground detection for entities with Collision or Gravity components
     ; Sets entity_on_ground flag based on Y position
-    ld b, 32                      ; Loop through all entities
-    ld hl, entity_comp_masks_hi   ; Check high byte for Gravity component
-    ld de, entity_comp_masks      ; Low byte for Collision component
-    ld c, 0                       ; Entity index
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                       ; Loop through used entities only
+    ld hl, active_entity_list
 
     collision_update_loop:
+    ld c, (hl)                    ; C = entity index
+    inc hl                        ; Advance list pointer
+    push hl                       ; Save list pointer
+
     ; Check if entity has Collision OR Gravity component
-    ld a, (de)                    ; Get low byte (Collision is bit 3)
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)                    ; Get low byte (Collision is bit 3)
     and COMP_MASK_COLLISION
     jr nz, .has_collision_comp    ; Has Collision component
 
+    ld hl, entity_comp_masks_hi
+    add hl, de
     ld a, (hl)                    ; Get high byte (Gravity is bit 1)
     and #02                       ; COMP_MASK_GRAVITY high byte
     jp z, collision_next_entity   ; Skip if no collision or gravity (JP for long jump)
@@ -707,10 +794,8 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     pop bc
 
     collision_next_entity:
-    inc hl                        ; Next entity high mask
-    inc de                        ; Next entity low mask
-    inc c                         ; Next entity index
-    dec b                         ; Decrement loop counter
+    pop hl                        ; Restore list pointer
+    dec b
     jp nz, collision_update_loop
 
     ; Run lightweight entity-entity collision pass for all collidable entities
@@ -777,9 +862,9 @@ update_entity_collision_fast:
     cp (hl)
     jp nz, .build_skip
 
-    ; Entity qualifies - add to list (max 16)
+    ; Entity qualifies - add to list (max MAX_ENTITIES)
     ld a, (coll_list_count)
-    cp 16
+    cp MAX_ENTITIES
     jp nc, .build_skip            ; List full
 
     ; Store entity index in coll_list
@@ -1335,20 +1420,54 @@ get_behavior_tile:
     jr nc, .bt_out_of_bounds      ; Column >= 32: treat as passable
     push hl
     push de
-    ; Calculate index = row * 32 + column
+
+    ; Load cached behavior map pointer (fallback to current_behavior_map)
+    ld hl, behavior_cache_map_l
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, d
+    or e
+    jr nz, .map_ptr_ready
+
+    ld de, (current_behavior_map)
+    ld a, e
+    ld (behavior_cache_map_l), a
+    ld a, d
+    ld (behavior_cache_map_h), a
+    ld a, #FF
+    ld (behavior_cache_row), a
+
+.map_ptr_ready:
+    ; Reuse previous row base when checking multiple points on same row
+    ld a, b
+    ld hl, behavior_cache_row
+    cp (hl)
+    jr z, .use_cached_row_base
+
+    ; Cache miss: row base = behavior_map + row*32
     ld a, b
     ld l, a
-    ld h, 0                       ; HL = row
+    ld h, 0
     add hl, hl                    ; HL = row * 2
     add hl, hl                    ; HL = row * 4
     add hl, hl                    ; HL = row * 8
     add hl, hl                    ; HL = row * 16
     add hl, hl                    ; HL = row * 32
+    add hl, de                    ; HL = row base address
+
+    ld a, b
+    ld (behavior_cache_row), a
+    ld (behavior_cache_row_base), hl
+    jr .row_base_ready
+
+.use_cached_row_base:
+    ld hl, (behavior_cache_row_base)
+
+.row_base_ready:
     ld e, c
     ld d, 0
-    add hl, de                    ; HL = row * 32 + column
-    ld de, (current_behavior_map) ; DE = pointer to behavior map
-    add hl, de                    ; HL = address of behavior byte
+    add hl, de                    ; HL = row base + column
     ld a, (hl)                    ; A = behavior value
     pop de
     pop hl
@@ -1396,12 +1515,22 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ; NOTE: input_state/prev_input_state are polled by interrupt task_update_input
 
             ; Process input for entities with input component
-            ld b, 32                   ; Loop through all entities
-            ld hl, entity_comp_masks   ; Check component masks
-            ld c, 0                    ; Entity index
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop through used entities only
+            ld hl, active_entity_list
 
         input_update_loop:
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks
+            add hl, de
             ld a, (hl)                 ; Get entity component mask
+            pop hl                     ; Restore list pointer
             and COMP_MASK_INPUT        ; Check if has input component
             jp z, input_next_entity    ; Skip if no input component
 
@@ -1596,9 +1725,7 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             pop bc
 
         input_next_entity:
-            inc hl                     ; Next entity
-            inc c                      ; Next entity index
-            dec b                      ; Decrement loop counter
+            dec b
             jp nz, input_update_loop
             ret
     `;
@@ -1619,11 +1746,22 @@ function generateBehaviorSystem(): string {
 
 update_behavior_component:
 ; Update AI / behavior logic for entities
-            ld b, 32                   ; Loop through all entities
-            ld hl, entity_comp_masks; Check component masks
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop through used entities only
+            ld hl, active_entity_list
 
 behavior_update_loop:
-            ld a, (hl); Get entity component mask
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks
+            add hl, de
+            ld a, (hl)                 ; Get entity component mask
+            pop hl                     ; Restore list pointer
             and COMP_MASK_BEHAVIOR; Check if has behavior component
             jr z, behavior_next_entity; Skip if no behavior component
 
@@ -1631,8 +1769,7 @@ behavior_update_loop:
     ; TODO: State machines, pathfinding, decision trees
 
 behavior_next_entity:
-            inc hl; Next entity
-            dec b; Decrement loop counter
+            dec b
             jp nz, behavior_update_loop
             ret
     `;
@@ -1659,12 +1796,22 @@ function generateGravitySystem(): string {
 
 update_gravity_component:
 ; Apply gravity acceleration to entities
-            ld b, 32; Loop through all entities
-            ld hl, entity_comp_masks_hi; Check component masks (high byte)
-            ld c, 0; Entity index
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop through used entities only
+            ld hl, active_entity_list
 
 gravity_update_loop:
-            ld a, (hl); Get entity component mask high byte
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks_hi
+            add hl, de
+            ld a, (hl)                 ; Get entity component mask high byte
+            pop hl                     ; Restore list pointer
             and #02; Check COMP_MASK_GRAVITY(#0200) => bit 1 in high byte
             jr z, gravity_next_entity; Skip if no gravity component
 
@@ -1758,9 +1905,7 @@ gravity_done:
             pop bc
 
 gravity_next_entity:
-            inc hl; Next entity mask (high byte)
-            inc c; Next entity index
-            dec b; Decrement loop counter
+            dec b
             jp nz, gravity_update_loop
     ret
     `;
@@ -1816,12 +1961,22 @@ init_health_system:
 update_health_component:
     ; Check for death (current <= 0) and mark entities as dead
     ; Entity death is detected by state machine via HEALTH_LESS_THAN condition
-    ld b, 32                      ; Loop all entities
-    ld hl, entity_comp_masks_hi   ; Check for Health component
-    ld c, 0                       ; Entity index
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                       ; Loop used entities only
+    ld hl, active_entity_list
 
 .health_update_loop:
+    ld c, (hl)                    ; C = entity index
+    inc hl                        ; Advance list pointer
+    push hl                       ; Save list pointer
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
     ld a, (hl)
+    pop hl                        ; Restore list pointer
     and #04                       ; COMP_MASK_HEALTH
     jr z, .health_next_entity
 
@@ -1847,9 +2002,8 @@ update_health_component:
     pop bc
 
 .health_next_entity:
-    inc hl
-    inc c
-    djnz .health_update_loop
+    dec b
+    jp nz, .health_update_loop
     ret
 
 ; ==================================================================
@@ -1949,12 +2103,22 @@ init_damage_system:
 update_damage_component:
     ; Update invincibility frames for all entities with Damage component
     ; Decrements invincibility_frames counter each frame
-    ld b, 32                      ; Loop through all entities
-    ld hl, entity_comp_masks_hi   ; Check high byte for Damage component
-    ld c, 0                       ; Entity index
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                       ; Loop used entities only
+    ld hl, active_entity_list
 
 .damage_update_loop:
+    ld c, (hl)                    ; C = entity index
+    inc hl                        ; Advance list pointer
+    push hl                       ; Save list pointer
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
     ld a, (hl)
+    pop hl                        ; Restore list pointer
     and #08                       ; COMP_MASK_DAMAGE (bit 3 in high byte = #0800)
     jr z, .damage_next_entity     ; Skip if no damage component
 
@@ -1978,9 +2142,8 @@ update_damage_component:
     pop bc
 
 .damage_next_entity:
-    inc hl                        ; Next entity high mask
-    inc c                         ; Next entity index
-    djnz .damage_update_loop
+    dec b
+    jp nz, .damage_update_loop
     ret
 
 ; ==================================================================
@@ -2079,12 +2242,22 @@ init_shoot_system:
 update_shoot_component:
     ; Update shooting for all entities with Shoot component
     ; Decrements cooldown and spawns projectile if fire pressed
-    ld b, 32                      ; Loop through all entities
-    ld hl, entity_comp_masks_hi   ; Check high byte for Shoot component
-    ld c, 0                       ; Entity index
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                       ; Loop used entities only
+    ld hl, active_entity_list
 
 .shoot_update_loop:
+    ld c, (hl)                    ; C = entity index
+    inc hl                        ; Advance list pointer
+    push hl                       ; Save list pointer
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
     ld a, (hl)
+    pop hl                        ; Restore list pointer
     and #10                       ; COMP_MASK_SHOOT (bit 4 in high byte = #1000)
     jr z, .shoot_next_entity      ; Skip if no shoot component
 
@@ -2278,9 +2451,8 @@ update_shoot_component:
     pop bc
 
 .shoot_next_entity:
-    inc hl                        ; Next entity high mask
-    inc c                         ; Next entity index
-    djnz .shoot_update_loop
+    dec b
+    jp nz, .shoot_update_loop
     ret
     `;
 }
@@ -2428,18 +2600,25 @@ function generateAnimationSystem(): string {
             ; Update animations for entities
             ; - Advances entity_anim_frame using entity_anim_tick/entity_anim_speed
             ; - Copies the selected frame's patterns to VRAM for this entity
-            ld b, 32
-            ld c, 0
-            ld hl, entity_comp_masks
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                    ; Loop used entities only
+            ld hl, active_entity_list
 
         .anim_loop:
+            ld c, (hl)                 ; C = entity index
+            inc hl                     ; Advance list pointer
+            push hl                    ; Save list pointer
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks
+            add hl, de
             ld a, (hl)
-            and COMP_MASK_ANIMATION
-            jp z, .anim_next_entity
-
-            ld a, (hl)
-            and COMP_MASK_SPRITE
-            jp z, .anim_next_entity
+            pop hl                     ; Restore list pointer
+            and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+            cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+            jp nz, .anim_next_entity
 
             ; Skip inactive entities
             push hl
@@ -2637,8 +2816,6 @@ anim_done_entity:
             pop bc
 
         .anim_next_entity:
-            inc hl
-            inc c
             dec b
             jp nz, .anim_loop
     ret
@@ -2684,12 +2861,22 @@ function generateJumpSystem(): string {
             ; Uses: entity_jump_count, entity_on_ground, entity_gravity_vel
             ; Uses global input_btn_curr/input_btn_prev edge detection
 
-            ld b, 32                      ; Loop all entities
-            ld hl, entity_comp_masks_hi    ; High byte masks (Jump/Gravity)
-            ld c, 0                       ; Entity index
+            ld a, (active_entity_count)
+            or a
+            ret z
+            ld b, a                       ; Loop used entities only
+            ld hl, active_entity_list
 
         jump_update_loop:
+            ld c, (hl)                    ; C = entity index
+            inc hl                        ; Advance list pointer
+            push hl                       ; Save list pointer
+            ld e, c
+            ld d, 0
+            ld hl, entity_comp_masks_hi
+            add hl, de
             ld a, (hl)
+            pop hl                        ; Restore list pointer
             and #01                       ; Jump bit (COMP_MASK_JUMP=#0100 -> high byte bit0)
             jr z, jump_next_entity
 
@@ -2762,8 +2949,10 @@ function generateJumpSystem(): string {
 
             ; If entity has Gravity, set gravity velocity to negative jump impulse
             ; Jump impulse: -1024 (8.8 fixed) => #FC00 (~4 tiles height with gravity #40)
-            pop hl                        ; restore hl pointer to high mask for this entity
-            push hl
+            ld hl, entity_comp_masks_hi
+            ld e, c
+            ld d, 0
+            add hl, de
             ld a, (hl)
             and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
             jr z, jump_done_entity
@@ -2782,8 +2971,6 @@ jump_done_entity:
             pop bc
 
         jump_next_entity:
-            inc hl                        ; Next entity high mask
-            inc c                         ; Next entity index
             dec b
             jp nz, jump_update_loop
     ret
@@ -2813,12 +3000,22 @@ init_auto_destroy_system:
 
 update_auto_destroy_component:
     ; Update lifetime counters and destroy entities when expired
-    ld b, 32                      ; Loop all entities
-    ld hl, entity_comp_masks_hi    ; High byte masks
-        ld c, 0                       ; Entity index
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                       ; Loop used entities only
+    ld hl, active_entity_list
 
     auto_destroy_loop:
+        ld c, (hl)                    ; C = entity index
+        inc hl                        ; Advance list pointer
+        push hl                       ; Save list pointer
+        ld e, c
+        ld d, 0
+        ld hl, entity_comp_masks_hi
+        add hl, de
         ld a, (hl)
+        pop hl                        ; Restore list pointer
         and #04                       ; AUTO_DESTROY bit (COMP_MASK_AUTO_DESTROY=#0400 -> high byte bit2)
         jr z, auto_destroy_next
 
@@ -2871,8 +3068,6 @@ auto_destroy_done:
         pop bc
 
 auto_destroy_next:
-        inc hl                        ; Next entity high mask
-        inc c                         ; Next entity index
         dec b
         jp nz, auto_destroy_loop
         ret
@@ -3018,17 +3213,15 @@ init_wallcollision_system:
 ; Entity position is cached in wall_temp_x/y to avoid register issues
 ; ------------------------------------------------------------------
 update_wallcollision_component:
-    xor a
-    ld (wall_entity_idx), a       ; Entity index = 0
+    ld e, 0                       ; Entity index = 0
+    ld d, 0
 
 .wall_loop:
-    ld a, (wall_entity_idx)
+    ld a, e
     cp MAX_ENTITIES
     ret z
 
     ; Check if entity is active
-    ld e, a
-    ld d, 0
     ld hl, entity_active
     add hl, de
     ld a, (hl)
@@ -3037,9 +3230,6 @@ update_wallcollision_component:
 
     ; Only process entities with movement capability (Input or Movement)
     ; Static entities (Nucleo etc.) have no velocity sources - skip them
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_comp_masks
     add hl, de
     ld a, (hl)
@@ -3047,9 +3237,6 @@ update_wallcollision_component:
     jp z, .wall_next
 
     ; Skip entities that are not in the currently active screen
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_screen_id
     add hl, de
     ld a, (hl)
@@ -3058,17 +3245,10 @@ update_wallcollision_component:
     jp nz, .wall_next
 
     ; Cache entity position
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_x_pos
     add hl, de
     ld a, (hl)
     ld (wall_temp_x), a          ; Cache X
-
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
@@ -3085,9 +3265,6 @@ update_wallcollision_component:
     res 0, (hl)
 
     ; ---- CHECK HORIZONTAL VELOCITY ----
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_vel_x
     add hl, de
     ld a, (hl)
@@ -3139,18 +3316,12 @@ update_wallcollision_component:
     add a, a                      ; A = (column+1) * 8
     ld (wall_temp_x), a          ; Update cache
     push af
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_x_pos
     add hl, de
     pop af
     ld (hl), a                    ; Snap entity X position
 
     ; Zero X velocity
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
@@ -3200,18 +3371,12 @@ update_wallcollision_component:
     sub 16                        ; A = column*8 - 16
     ld (wall_temp_x), a          ; Update cache
     push af
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_x_pos
     add hl, de
     pop af
     ld (hl), a                    ; Snap entity X position
 
     ; Zero X velocity
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
@@ -3221,9 +3386,6 @@ update_wallcollision_component:
 
 .check_wall_y:
     ; ---- CHECK VERTICAL VELOCITY ----
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_vel_y
     add hl, de
     ld a, (hl)
@@ -3271,18 +3433,12 @@ update_wallcollision_component:
     xor a
     ld (wall_temp_y), a
     push af
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_y_pos
     add hl, de
     pop af
     ld (hl), a                    ; Clamp Y = 0
 
     ; Zero Y velocity
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0
@@ -3308,18 +3464,12 @@ update_wallcollision_component:
     add a, a                      ; A = (row+1) * 8
     ld (wall_temp_y), a          ; Update cache
     push af
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_y_pos
     add hl, de
     pop af
     ld (hl), a                    ; Snap entity Y position
 
     ; Zero Y velocity
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0
@@ -3377,18 +3527,12 @@ update_wallcollision_component:
     sub 16                        ; A = row*8 - 16
     ld (wall_temp_y), a          ; Update cache
     push af
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_y_pos
     add hl, de
     pop af
     ld (hl), a                    ; Snap entity Y position
 
     ; Zero Y velocity and gravity velocity (landing)
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0
@@ -3401,9 +3545,6 @@ update_wallcollision_component:
     ld (hl), 0
 
     ; Set entity_on_ground flag (floor detected)
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_on_ground
     add hl, de
     set 0, (hl)
@@ -3415,9 +3556,6 @@ update_wallcollision_component:
 .check_wall_y_gravity:
     ; vel_y is 0, but entity might have gravity component
     ; Check floor anyway to keep entity_on_ground flag correct (prevents jitter)
-    ld a, (wall_entity_idx)
-    ld e, a
-    ld d, 0
     ld hl, entity_comp_masks_hi
     add hl, de
     ld a, (hl)
@@ -3425,9 +3563,7 @@ update_wallcollision_component:
     jp nz, .wall_check_down       ; Has gravity, check floor
     ; No gravity, skip vertical check
 .wall_next:
-    ld a, (wall_entity_idx)
-    inc a
-    ld (wall_entity_idx), a
+    inc e
     jp .wall_loop
     `;
 }
@@ -4390,16 +4526,28 @@ update_collectible_component:
 ; ==================================================================
 ; This function executes the state machine for each entity that has one
 execute_all_state_machines:
-    ld b, 32                      ; Loop through all 32 entities
-    xor a                         ; A = 0 (entity index counter)
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a                       ; Loop through used entities only
+    ld hl, active_entity_list
     
 .sm_loop:
-    push af                       ; Save entity index
+    ld a, (hl)                    ; A = entity index
+    inc hl                        ; Advance list pointer
+    push hl                       ; Save list pointer
     push bc                       ; Save loop counter
-    
-    ; Check if this entity has a state machine assigned
+
+    ; Skip inactive entities early
     ld c, a                       ; C = entity index
     ld b, 0                       ; BC = entity index
+    ld hl, entity_active
+    add hl, bc
+    ld a, (hl)                    ; A = active flag
+    or a
+    jr z, .skip_entity            ; Inactive entity, skip
+
+    ; Check if this entity has a state machine assigned
     ld hl, entity_sm_ptr_l
     add hl, bc
     ld e, (hl)                    ; E = SM ptr low
@@ -4412,21 +4560,16 @@ execute_all_state_machines:
     ld a, d
     or e
     jr z, .skip_entity            ; No SM assigned, skip
-    
+
     ; Entity has a state machine - execute it
-    pop bc                        ; Restore loop counter
-    pop af                        ; Restore entity index
-    push af                       ; Save again for continuation
-    push bc                       ; Save again for continuation
-    
+    ld a, c
     call SM_Update                ; Execute state machine (A = entity index)
     
 .skip_entity:
     pop bc                        ; Restore loop counter
-    pop af                        ; Restore entity index
-    
-    inc a                         ; Next entity
-    djnz .sm_loop                 ; Loop for all entities
+    pop hl                        ; Restore list pointer
+    dec b
+    jp nz, .sm_loop               ; Loop for all used entities
     
     ret
 

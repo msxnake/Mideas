@@ -518,6 +518,12 @@ ${importedHudFrameLabelBase}_draw:
     ld (current_screen_layout), hl
     ld hl, BEHAVIOR_${screenName}_${index}_DATA
     ld (current_behavior_map), hl
+    ld a, l
+    ld (behavior_cache_map_l), a
+    ld a, h
+    ld (behavior_cache_map_h), a
+    ld a, #FF
+    ld (behavior_cache_row), a
     ret
 
 `;
@@ -554,6 +560,12 @@ ${importedHudFrameLabelBase}_draw:
     ld (current_screen_layout), hl
     ld hl, BEHAVIOR_${screenName}_${index}_DATA
     ld (current_behavior_map), hl
+    ld a, l
+    ld (behavior_cache_map_l), a
+    ld a, h
+    ld (behavior_cache_map_h), a
+    ld a, #FF
+    ld (behavior_cache_row), a
     ret
 
 `;

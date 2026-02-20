@@ -120,11 +120,14 @@ app.post('/compile', (req, res) => {
         // MSX ROM files must be multiples of 8KB
         const KB_8 = 8192; // 8KB in bytes
         const originalSize = data.length;
+        const romBlocksNeeded = Math.max(1, Math.ceil(originalSize / KB_8));
+        const targetBlocks = Math.pow(2, Math.ceil(Math.log2(romBlocksNeeded)));
+        const targetSize = targetBlocks * KB_8;
 
         let paddedData = data;
-        if (originalSize % KB_8 !== 0) {
+        if (originalSize !== targetSize) {
           // Calculate padding needed to reach next 8KB boundary
-          const paddingNeeded = KB_8 - (originalSize % KB_8);
+          const paddingNeeded = targetSize - originalSize;
           const padding = Buffer.alloc(paddingNeeded, 0xFF); // Fill with 0xFF (common for ROM padding)
           paddedData = Buffer.concat([data, padding]);
 

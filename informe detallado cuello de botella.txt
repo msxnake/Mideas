@@ -242,3 +242,53 @@ Prioridad recomendada
 6. Active entity list para colisión — importante cuando haya más entidades
 
 Todas estas optimizaciones son transparentes al gameplay — solo afectan eficiencia, no comportamiento.
+
+---
+ACTUALIZACION DE RESOLUCION (2026-02-20)
+
+Estado verificado contra generadores actuales:
+
+1) CUELLO 1 (Unified Entity Loop): PENDIENTE
+- Sigue habiendo llamadas por sistema en `update_all_entities` y cada sistema mantiene su propio loop.
+
+2) CUELLO 2 (wall_entity_idx releida): RESUELTO
+- `update_wallcollision_component` ya no usa `wall_entity_idx`.
+- El indice de entidad se mantiene en registros (`DE/E`) durante el loop.
+
+3) CUELLO 3 (row*32 en get_behavior_tile): RESUELTO
+- `get_behavior_tile` cachea fila (`behavior_cache_row`) y base de fila (`behavior_cache_row_base`).
+
+4) CUELLO 4 (VRAM sprite copy incondicional): RESUELTO
+- `update_sprites_to_vram` ya esta gateado por `sprites_dirty`.
+
+5) CUELLO 5 (SM sin check active): RESUELTO
+- `execute_all_state_machines` hace skip temprano de entidades inactivas antes de cargar punteros SM.
+
+6) CUELLO 6 (current_behavior_map en cada call): RESUELTO
+- Se cachea puntero de mapa (`behavior_cache_map_l/h`) y se invalida al cambiar de pantalla.
+
+7) CUELLO 7 (entity-entity O(N^2) 32x32): RESUELTO
+- `update_entity_collision_fast` implementa fase de build de lista activa (`coll_list`, `coll_list_count`) y recorre solo pares validos.
+
+8) CUELLO 8 (doble lectura de comp mask en animation): RESUELTO (hoy)
+- `update_animation_component` ahora lee una vez y valida ambos bits en una sola mascara:
+  `and COMP_MASK_ANIMATION | COMP_MASK_SPRITE`
+
+Prioridad actualizada (solo pendientes reales):
+1. Unified Entity Loop (CUELLO 1) — mayor ahorro restante
+2. Micro-opt adicional en wall collision (precalculo de punteros hot paths) — mejora incremental
+
+---
+IMPLEMENTACION SEGURA APLICADA (2026-02-20)
+
+Para evitar romper gameplay, se aplico una variante por fases:
+
+- No se cambio el orden de sistemas en `update_all_entities`.
+- Se agrego `rebuild_used_entity_list` (lista compacta de entidades con mascara != 0).
+- Los sistemas principales ahora iteran `active_entity_list`/`active_entity_count` en vez de 32 slots.
+- Se reconstruye la lista despues de `update_shoot_component` para incluir entidades spawneadas ese mismo frame.
+
+Resultado:
+- Se elimina gran parte del trabajo muerto en slots vacios.
+- Se mantiene la semantica temporal por fases (input -> shoot -> ... -> sprite).
+- Riesgo de regresion de gameplay mucho menor que un unified-loop monolitico por entidad.

@@ -539,6 +539,8 @@ show_sprite:
     inc hl
     ld (hl), e      ; Color
 
+    ld a, 1
+    ld (sprites_dirty), a
     ret
 
 ; Clear all sprites (set Y = SPRITE_INVISIBLE)
@@ -554,6 +556,8 @@ clear_all_sprites:
     inc hl          ; Skip to Color
     inc hl          ; Next sprite (4× INC HL = 24 cycles vs ADD HL,DE = 35 cycles)
     djnz .sprite_clear_loop
+    ld a, 1
+    ld (sprites_dirty), a
     ret
 
 ; Hide specific sprite (A = hardware sprite index)
@@ -567,10 +571,17 @@ hide_sprite:
     ld de, sprite_attributes
     add hl, de
     ld (hl), SPRITE_INVISIBLE
+    ld a, 1
+    ld (sprites_dirty), a
     ret
 
 ; Copy sprite attributes from RAM to VRAM
 update_sprites_to_vram:
+    ld a, (sprites_dirty)
+    or a
+    ret z
+    xor a
+    ld (sprites_dirty), a
     ld hl, sprite_attributes
     ld de, SPRATR
     ld bc, ${totalHardwareSprites * 4}  ; 4 bytes per sprite
@@ -587,6 +598,7 @@ SPRITE_INVISIBLE    EQU ${SPRITE_INVISIBLE_VALUE}
 ; ==================================================================
 ; sprite_attributes: ds ${totalHardwareSprites * 4}
 ; active_sprite_count: db 0
+; sprites_dirty: db 0
 `;
     return code;
 }
