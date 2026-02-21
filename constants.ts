@@ -679,13 +679,15 @@ export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
           <p>This IDE is designed to help you create games for the MSX (MSX1/MSX2) platform.</p>
           <p>Key features include:</p>
           <ul>
-            <li>Visual Tile Editor</li>
+            <li>Visual Tile Editor with Tile Banks support</li>
             <li>Sprite Editor with animation support</li>
-            <li>Screen Map Editor with Effect Zones</li>
+            <li>Screen Map Editor with Effect Zones and HUD config</li>
             <li>Integrated Z80 Code Editor with snippets</li>
-            <li>PT3 Music Tracker</li>
+            <li>World Map Editor for connecting screens</li>
+            <li>GameFlow and State Machine systems for logic</li>
+            <li>Entity Component System (ECS)</li>
+            <li>PT3 Music Tracker and Sound FX Editors</li>
             <li>Font Editor</li>
-            <li>And more!</li>
           </ul>
           <p>Use the <strong>File Explorer</strong> on the left to manage your assets. Create new assets using the <strong>Toolbar</strong> at the top.</p>
           <p>Select an asset to open its dedicated editor. Properties for the selected asset or element will appear in the <strong>Properties Panel</strong> on the right.</p>
@@ -701,13 +703,11 @@ export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
           <ul>
             <li><strong>New Project</strong>: Clears current work and sets up a new project structure (main.asm, etc.).</li>
             <li><strong>Load/Save/Save As</strong>: Standard project file operations (saves as .json).</li>
-            <li><strong>New Asset</strong>: Dropdown to create Tiles, Sprites, Screen Maps, Code files, etc.</li>
+            <li><strong>New Asset</strong>: Dropdown to create State Machines, Tiles, Sprites, Fonts, Screen Maps, World Maps, GameFlows, Tile Banks, Sound FX, Music Tracks, and Code files.</li>
             <li><strong>Undo/Redo</strong>: Reverts or reapplies recent changes.</li>
-            <li><strong>Tile Banks/Font Editor</strong>: Opens specialized editors for Screen 2 graphics management and MSX1 font editing.</li>
-            <li><strong>Compile (Mock)</strong>: Placeholder for future compilation integration.</li>
-            <li><strong>Debug/Run (Mock)</strong>: Placeholders for debugging and emulator launching.</li>
-            <li><strong>Configure</strong>: Dropdown for IDE settings (Data Output, Autosave, Theme, etc.).</li>
-            <li><strong>Tutorials</strong>: Opens this Help & Documentation viewer.</li>
+            <li><strong>System Tools</strong>: Access World View, Component Definitions, and Entity Templates.</li>
+            <li><strong>Configure</strong>: Dropdown for IDE settings (Data Output, Autosave, Theme, ASM Compiler, MSX Emulator).</li>
+            <li><strong>Help</strong>: Opens this Help & Documentation viewer.</li>
           </ul>
         `,
         tags: ["toolbar", "ide", "ui"],
@@ -775,7 +775,7 @@ export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
           <h3>Tools & Panels:</h3>
           <ul>
             <li><strong>Tileset Panel (Left)</strong>: Shows available tiles. Click a tile to select it for drawing on Background/Collision layers. Hidden when 'Effects' layer is active.</li>
-            <li><strong>Entity Types Panel (Right, when Entity layer active)</strong>: Lists mock entity types. Select one to place instances on the map.</li>
+            <li><strong>Entity Types Panel (Right, when Entity layer active)</strong>: Lists your configured Entity Templates. Select one to place instances on the map.</li>
             <li><strong>Properties Panel (Right)</strong>: Shows properties of the selected map, entity instance, or effect zone.</li>
             <li><strong>Active Area</strong>: Defines the playable portion of the screen map. Areas outside can be used for HUD elements. Editable via input fields in the toolbar.</li>
             <li><strong>Toolbar (Screen Editor)</strong>: Contains layer selectors, zoom, active area inputs, HUD editor button, and export options. When 'Effects' layer is active, an "Add Effect Zone" button appears.</li>
@@ -796,6 +796,121 @@ export const DEFAULT_HELP_DOCS_DATA: HelpDocSection[] = [
           </ul>
         `,
         tags: ["screenmap", "level design", "tiles", "effect zones"],
+      },
+      {
+        id: "screen_hud",
+        title: "HUD Configuration",
+        content: `
+          <h2>HUD Configuration</h2>
+          <p>The HUD (Heads-Up Display) mode is available from the Screen Editor toolbar. It allows you to place UI elements like Score, Lives, and text on parts of the screen outside the active gameplay area.</p>
+          <h3>Features:</h3>
+          <ul>
+            <li>Add specific HUD elements (Score, HighScore, Lives, Custom Text, etc.).</li>
+            <li>In MSX SCREEN 2, you can import an external screen as a background template for your HUD.</li>
+            <li>Assign TileBanks to specific screen sectors to manage character sets appropriately over 3 sectors.</li>
+          </ul>
+        `,
+        tags: ["screenmap", "hud", "ui"],
+      },
+    ],
+  },
+  {
+    id: "ecs_system",
+    title: "Entity Component System (ECS)",
+    articles: [
+      {
+        id: "ecs_intro",
+        title: "Introduction to ECS",
+        content: `
+          <h2>Entity Component System (ECS)</h2>
+          <p>Mideas uses an ECS architecture to manage game objects. This involves two main concepts:</p>
+          <h3>Component Definitions</h3>
+          <p>Found under System Tools. Here you define reusable data structures (e.g., Position, Health, Renderable). A component defines properties like byte, word, boolean, or references to other assets.</p>
+          <h3>Entity Templates</h3>
+          <p>Found under System Tools. An entity template combines multiple components to form a specific type of game object (e.g., Player, Enemy). You assign default values to the components included in the template.</p>
+          <h3>Entity Instances</h3>
+          <p>Once you have created an Entity Template, you can place instances of it onto a Screen Map using the Screen Editor's Entity layer. Each instance can optionally override the default component values.</p>
+        `,
+        tags: ["ecs", "components", "entities", "game logic"],
+      },
+    ],
+  },
+  {
+    id: "world_and_logic",
+    title: "World & Logic",
+    articles: [
+      {
+        id: "world_map",
+        title: "World Map Editor",
+        content: `
+          <h2>World Map Editor</h2>
+          <p>The World Map editor allows you to visually connect multiple Screen Maps to form your game's world layout.</p>
+          <ul>
+            <li><strong>Nodes</strong>: Each node represents a Screen Map instance.</li>
+            <li><strong>Connections</strong>: Draw lines between nodes to specify how screens connect (North, South, East, West).</li>
+            <li><strong>Start Screen</strong>: Right-click a node to set it as the starting screen of the game.</li>
+          </ul>
+        `,
+        tags: ["world map", "levels", "graph"],
+      },
+      {
+        id: "state_machine",
+        title: "State Machine Editor",
+        content: `
+          <h2>State Machine Editor</h2>
+          <p>State Machines define complex behavior for your game entities without writing code manually.</p>
+          <ul>
+            <li><strong>States</strong>: Represent a behavior phase (e.g., Idle, Walking, Attacking). Each state can execute Z80 logic.</li>
+            <li><strong>Transitions</strong>: Define conditions under which an entity moves from one state to another (e.g., If KeyPressed(Right) -> WalkRight).</li>
+            <li><strong>Actions</strong>: Assign specific actions when entering, exiting, or running a state.</li>
+          </ul>
+        `,
+        tags: ["state machine", "logic", "behavior"],
+      },
+      {
+        id: "global_variables",
+        title: "Global Variables",
+        content: `
+          <h2>Global Variables</h2>
+          <p>Global Variables allow you to define system-wide parameters (like Score, Lives, Goal status) that can be accessed by both GameFlow logic and State Machines.</p>
+          <p>You can create variables of different types (boolean, byte, word) and reference them conditionally to branch your game's logic flow.</p>
+        `,
+        tags: ["variables", "logic", "state"],
+      },
+    ],
+  },
+  {
+    id: "music_and_sound",
+    title: "Music & Sound",
+    articles: [
+      {
+        id: "pt3_tracker",
+        title: "PT3 Music Tracker",
+        content: `
+          <h2>PT3 Music Tracker</h2>
+          <p>The PT3 Music Tracker allows you to compose music for the MSX PSG (AY-3-8910) or SCC chips.</p>
+          <ul>
+            <li><strong>Patterns</strong>: Compose repeating blocks of music across 3 channels (PSG) or 5 channels (SCC).</li>
+            <li><strong>Instruments</strong>: Define sound properties such as volume/tone envelopes and hardware shapes.</li>
+            <li><strong>Ornaments</strong>: Define pitch modulations.</li>
+            <li>You can use your PC keyboard as a piano to input notes when the tracker has focus.</li>
+          </ul>
+        `,
+        tags: ["music", "tracker", "audio", "pt3"],
+      },
+      {
+        id: "sound_fx",
+        title: "Sound FX Editor",
+        content: `
+          <h2>Sound FX Editor</h2>
+          <p>Create sound effects using a step-based sequence for the PSG chip.</p>
+          <ul>
+            <li>Define sequences of tone and noise periods alongside volume levels.</li>
+            <li>Can utilize hardware envelopes for specific effects.</li>
+            <li>Useful for jumps, explosions, shots, and other gameplay sounds.</li>
+          </ul>
+        `,
+        tags: ["sound", "sfx", "audio"],
       },
     ],
   },

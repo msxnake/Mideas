@@ -21,7 +21,7 @@ const rotatePixelData90CW = (pixelData: any[][]): any[][] => {
     const height = pixelData.length;
     const width = pixelData[0].length;
     const rotated = Array(width).fill(null).map(() => Array(height).fill(null));
-    
+
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             rotated[x][height - 1 - y] = pixelData[y][x];
@@ -34,7 +34,7 @@ const rotatePixelData180 = (pixelData: any[][]): any[][] => {
     const height = pixelData.length;
     const width = pixelData[0].length;
     const rotated = Array(height).fill(null).map(() => Array(width).fill(null));
-    
+
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             rotated[height - 1 - y][width - 1 - x] = pixelData[y][x];
@@ -47,7 +47,7 @@ const rotatePixelData270CW = (pixelData: any[][]): any[][] => {
     const height = pixelData.length;
     const width = pixelData[0].length;
     const rotated = Array(width).fill(null).map(() => Array(height).fill(null));
-    
+
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             rotated[width - 1 - x][y] = pixelData[y][x];
@@ -63,22 +63,22 @@ const generateRotatedSprites = (entity: AnimatedEntity): HTMLImageElement[] => {
     }
 
     console.log(`🔄 Auto-generating rotated sprites for ${entity.template.name} (${entity.frameImages.length} base frames)`);
-    
+
     const generatedFrames: HTMLImageElement[] = [];
     const spriteWidth = entity.sprite.size.width;
     const spriteHeight = entity.sprite.size.height;
     const baseFrameCount = entity.sprite.frames.length;
-    
+
     // Generate frames by direction: [all_right_frames, all_up_frames, all_left_frames, all_down_frames]
     for (let direction = 0; direction < 4; direction++) {
         for (let frameIndex = 0; frameIndex < baseFrameCount; frameIndex++) {
             const basePixelData = entity.sprite.frames[frameIndex].data;
-            
+
             switch (direction) {
                 case 0: // Right (0°) - original
                     generatedFrames.push(entity.frameImages[frameIndex]);
                     break;
-                    
+
                 case 1: // Up (270°) - was Down
                     if (spriteWidth === spriteHeight) {
                         const rotated270 = rotatePixelData270CW(basePixelData);
@@ -89,14 +89,14 @@ const generateRotatedSprites = (entity: AnimatedEntity): HTMLImageElement[] => {
                         generatedFrames.push(entity.frameImages[frameIndex]);
                     }
                     break;
-                    
+
                 case 2: // Left (mirror horizontal)
                     const mirrored = mirrorPixelDataHorizontally(basePixelData);
                     const imgMirrored = new Image();
                     imgMirrored.src = createSpriteDataURL(mirrored, spriteWidth, spriteHeight);
                     generatedFrames.push(imgMirrored);
                     break;
-                    
+
                 case 3: // Down (90°) - was Up
                     if (spriteWidth === spriteHeight) {
                         const rotated90 = rotatePixelData90CW(basePixelData);
@@ -110,9 +110,9 @@ const generateRotatedSprites = (entity: AnimatedEntity): HTMLImageElement[] => {
             }
         }
     }
-    
+
     console.log(`✅ Generated ${generatedFrames.length} rotated frames: ${baseFrameCount} frames × 4 directions`);
-    console.log(`📋 Frame structure: Right(0-${baseFrameCount-1}), Up(${baseFrameCount}-${baseFrameCount*2-1}), Left(${baseFrameCount*2}-${baseFrameCount*3-1}), Down(${baseFrameCount*3}-${baseFrameCount*4-1})`);
+    console.log(`📋 Frame structure: Right(0-${baseFrameCount - 1}), Up(${baseFrameCount}-${baseFrameCount * 2 - 1}), Left(${baseFrameCount * 2}-${baseFrameCount * 3 - 1}), Down(${baseFrameCount * 3}-${baseFrameCount * 4 - 1})`);
     return generatedFrames;
 };
 
@@ -150,7 +150,8 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     const terminalVelocity = Number(gravityProps.terminalVelocity || 2);
 
                     // Only apply gravity if entity is NOT on ground (not touching the ground)
-                    if (!entity.isOnGround) {
+                    // Note: wallCollisionEngine sets isGrounded, other systems may set isOnGround
+                    if (!entity.isOnGround && !entity.isGrounded) {
                         entity.vy += strength;
                         if (entity.vy > terminalVelocity) entity.vy = terminalVelocity;
                     }
@@ -158,7 +159,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             });
         }
     },
-    
+
     animation: {
         id: 'animation',
         name: 'Animation Engine',
@@ -224,7 +225,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             });
         }
     },
-    
+
     patrol: {
         id: 'patrol',
         name: 'Patrol Engine',
@@ -268,9 +269,9 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             entities.forEach(entity => {
                 const spawnerComp = entity.template.components.find(c => c.definitionId === 'comp_spawner');
                 if (spawnerComp) {
-                    const spawnerProps = { 
-                        ...spawnerComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_spawner'] || {}) 
+                    const spawnerProps = {
+                        ...spawnerComp.defaultValues,
+                        ...(entity.instance.componentOverrides?.['comp_spawner'] || {})
                     };
 
                     if (!spawnerProps.isActive) return;
@@ -282,13 +283,13 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             spawnedEntities: [],
                             spawnCount: 0
                         };
-                        
+
                         console.log('🔧 Spawner initialized:', {
                             entityName: entity.template.name,
                             spawnerProps,
                             spawnRate: Number(spawnerProps.spawnRate)
                         });
-                        
+
                         // Spawn on start if enabled
                         if (spawnerProps.spawnOnStart) {
                             entity.spawnerData.lastSpawnTime = performance.now() - Number(spawnerProps.spawnRate);
@@ -301,7 +302,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 
                     // Clean up dead entities from tracking
                     if (entity.spawnerData.spawnedEntities) {
-                        entity.spawnerData.spawnedEntities = entity.spawnerData.spawnedEntities.filter(spawnedId => 
+                        entity.spawnerData.spawnedEntities = entity.spawnerData.spawnedEntities.filter(spawnedId =>
                             entities.some(e => e.instance.id === spawnedId)
                         );
                     }
@@ -309,7 +310,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     // Check if we should spawn
                     const timeSinceLastSpawn = now - entity.spawnerData.lastSpawnTime;
                     const shouldSpawn = timeSinceLastSpawn >= spawnRate && entity.spawnerData.spawnedEntities.length < maxEntities;
-                    
+
                     if (entity.spawnerData.spawnCount < 1) {
                         console.log('🕐 Spawner timing check:', {
                             entityName: entity.template.name,
@@ -320,28 +321,28 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             shouldSpawn
                         });
                     }
-                    
+
                     if (shouldSpawn) {
-                        
+
                         // Find template to spawn
                         const templateToSpawn = entityTemplates?.find(t => t.id === spawnerProps.entityTemplateId);
                         if (templateToSpawn && screenMap && allAssets) {
-                            
+
                             // Calculate spawn position
                             const spawnZoneX = Number(spawnerProps.spawnZoneX) || 0;
                             const spawnZoneY = Number(spawnerProps.spawnZoneY) || 0;
                             const spawnZoneWidth = Number(spawnerProps.spawnZoneWidth) || PREVIEW_WIDTH;
                             const spawnZoneHeight = Number(spawnerProps.spawnZoneHeight) || PREVIEW_HEIGHT;
 
-                            const spawnX = spawnZoneWidth > 0 ? 
-                                spawnZoneX + Math.random() * spawnZoneWidth : 
+                            const spawnX = spawnZoneWidth > 0 ?
+                                spawnZoneX + Math.random() * spawnZoneWidth :
                                 Math.random() * PREVIEW_WIDTH;
-                            const spawnY = spawnZoneHeight > 0 ? 
-                                spawnZoneY + Math.random() * spawnZoneHeight : 
+                            const spawnY = spawnZoneHeight > 0 ?
+                                spawnZoneY + Math.random() * spawnZoneHeight :
                                 Math.random() * PREVIEW_HEIGHT;
 
                             // Create new entity instance
-                            const newEntityId = `spawned_${Date.now()}_${Math.random().toString(36).substring(2,7)}`;
+                            const newEntityId = `spawned_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
                             const newEntityInstance = {
                                 id: newEntityId,
                                 entityTemplateId: templateToSpawn.id,
@@ -358,7 +359,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             entity.spawnerData.spawnedEntities.push(newEntityId);
                             entity.spawnerData.spawnCount++;
                             entity.spawnerData.lastSpawnTime = now;
-                            
+
                             console.log(`🔧 Spawner: Created ${templateToSpawn.name} at (${spawnX.toFixed(0)}, ${spawnY.toFixed(0)})`);
                         }
                     }
@@ -374,15 +375,15 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             entities.forEach(entity => {
                 const aimingComp = entity.template.components.find(c => c.definitionId === 'comp_aiming');
                 const damageComp = entity.template.components.find(c => c.definitionId === 'comp_damage');
-                
+
                 if (aimingComp && damageComp) {
-                    const aimingProps = { 
-                        ...aimingComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_aiming'] || {}) 
+                    const aimingProps = {
+                        ...aimingComp.defaultValues,
+                        ...(entity.instance.componentOverrides?.['comp_aiming'] || {})
                     };
-                    const damageProps = { 
-                        ...damageComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_damage'] || {}) 
+                    const damageProps = {
+                        ...damageComp.defaultValues,
+                        ...(entity.instance.componentOverrides?.['comp_damage'] || {})
                     };
 
                     // Initialize shooting data if not exists
@@ -401,9 +402,9 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     // Find target within range
                     const targetTemplateId = aimingProps.targetEntityTemplateId || 'tpl_player';
                     const aimingRange = Number(aimingProps.aimingRange) || 128;
-                    
-                    const potentialTargets = entities.filter(target => 
-                        target.template.id === targetTemplateId && 
+
+                    const potentialTargets = entities.filter(target =>
+                        target.template.id === targetTemplateId &&
                         target.instance.id !== entity.instance.id
                     );
 
@@ -412,10 +413,10 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 
                     potentialTargets.forEach(target => {
                         const distance = Math.sqrt(
-                            Math.pow(target.x - entity.x, 2) + 
+                            Math.pow(target.x - entity.x, 2) +
                             Math.pow(target.y - entity.y, 2)
                         );
-                        
+
                         if (distance < closestDistance) {
                             closestDistance = distance;
                             closestTarget = target;
@@ -427,26 +428,26 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         const dx = closestTarget.x - entity.x;
                         const dy = closestTarget.y - entity.y;
                         const distance = Math.sqrt(dx * dx + dy * dy);
-                        
+
                         // Find bullet template - prioritize player bullet for player ships
                         const isPlayerShip = entity.template.id === 'tpl_player_ship';
                         const bulletTemplateId = isPlayerShip ? 'tpl_player_bullet' : 'tpl_player_bullet'; // Can add enemy bullets later
                         const bulletTemplate = entityTemplates.find(t => t.id === bulletTemplateId);
-                        
+
                         if (bulletTemplate) {
                             // Calculate bullet spawn position (from ship center/front)
                             const bulletStartX = entity.x + (entity.sprite.size.width / 2) - 4; // Center bullet
                             const bulletStartY = entity.y - 2; // Slightly above ship
-                            
+
                             // Create bullet entity instance
-                            const bulletId = `bullet_${Date.now()}_${Math.random().toString(36).substring(2,5)}`;
+                            const bulletId = `bullet_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
                             const bulletInstance = {
                                 id: bulletId,
                                 entityTemplateId: bulletTemplate.id,
                                 name: `${bulletTemplate.name} ${entity.shootingData.projectiles?.length || 0}`,
-                                position: { 
-                                    x: Math.floor(bulletStartX / TILE_SIZE), 
-                                    y: Math.floor(bulletStartY / TILE_SIZE) 
+                                position: {
+                                    x: Math.floor(bulletStartX / TILE_SIZE),
+                                    y: Math.floor(bulletStartY / TILE_SIZE)
                                 },
                                 componentOverrides: {
                                     'comp_physics': {
@@ -462,7 +463,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             pendingSpawns.current.push(bulletInstance);
 
                             entity.shootingData.lastShotTime = now;
-                            
+
                             console.log(`🔫 ${entity.template.name} fired bullet at (${bulletStartX.toFixed(0)}, ${bulletStartY.toFixed(0)})`);
                         }
                     }
@@ -653,7 +654,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             // Get current pressed keys from the modal's key tracking system (we need to access it from the modal scope)
             // For now, we'll implement a simple key tracking system
             const currentPressedKeys = (window as any).currentPressedKeys || new Set();
-            
+
             entities.forEach(entity => {
                 const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
                 if (cursorsComp) {
@@ -753,19 +754,21 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             entities.forEach(entity => {
                 const physicsComp = entity.template.components.find(c => c.definitionId === 'comp_physics');
                 if (physicsComp) {
-                    const physicsProps = { 
-                        ...physicsComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_physics'] || {}) 
+                    const physicsProps = {
+                        ...physicsComp.defaultValues,
+                        ...(entity.instance.componentOverrides?.['comp_physics'] || {})
                     };
 
-                    // Apply physics velocities to entity movement
+                    // Apply physics velocities to entity movement.
+                    // NOTE: These are OVERRIDES (=), not accumulations (+=).
+                    // Using += would add the velocity on every frame, causing infinite acceleration.
                     const velocityX = Number(physicsProps.velocityX) || 0;
                     const velocityY = Number(physicsProps.velocityY) || 0;
-                    
-                    // Add physics velocity to current movement velocity
-                    entity.vx += velocityX;
-                    entity.vy += velocityY;
-                    
+
+                    // Only override velocity if a non-zero physics velocity is defined
+                    if (velocityX !== 0) entity.vx = velocityX;
+                    if (velocityY !== 0) entity.vy = velocityY;
+
                     // Apply friction if specified
                     const friction = Number(physicsProps.friction) || 0;
                     if (friction > 0) {
@@ -783,7 +786,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
     wallCollision: wallCollisionEngine,
 
 
-  
+
 
     tileCollection: {
         id: 'tileCollection',
@@ -794,7 +797,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             entities.forEach(entity => {
                 const tileCollectorComp = entity.template.components.find(c => c.definitionId === 'comp_tile_collector');
                 const inventoryComp = entity.template.components.find(c => c.definitionId === 'comp_inventory');
-                
+
                 if (tileCollectorComp) {
                     const collectorProps = {
                         ...tileCollectorComp.defaultValues,
@@ -802,12 +805,12 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     };
 
                     console.log('🎯 Tile Collector - Entity pos:', entity.x, entity.y, 'Props:', collectorProps);
-                    
+
                     let inventoryProps = null;
                     if (inventoryComp) {
-                        inventoryProps = { 
-                            ...inventoryComp.defaultValues, 
-                            ...(entity.instance.componentOverrides?.['comp_inventory'] || {}) 
+                        inventoryProps = {
+                            ...inventoryComp.defaultValues,
+                            ...(entity.instance.componentOverrides?.['comp_inventory'] || {})
                         };
                     }
 
@@ -831,7 +834,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     const collectibleTileIds = (collectorProps.collectibleTileIds || 'dot,powerup,fruit')
                         .split(',')
                         .map(id => id.trim());
-                    
+
                     const replacementTileId = collectorProps.replacementTileId || 'empty';
 
                     // Check surrounding tiles for collectibles (Pac-Man style - center collision)
@@ -845,7 +848,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     ];
 
                     tilesToCheck.forEach(tilePos => {
-                        if (tilePos.x < 0 || tilePos.y < 0 || 
+                        if (tilePos.x < 0 || tilePos.y < 0 ||
                             tilePos.x >= screenMap.width || tilePos.y >= screenMap.height) {
                             return;
                         }
@@ -869,7 +872,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             const entityCenterX = entity.x + 8;
                             const entityCenterY = entity.y + 8;
                             const distance = Math.sqrt(
-                                Math.pow(entityCenterX - tileCenterX, 2) + 
+                                Math.pow(entityCenterX - tileCenterX, 2) +
                                 Math.pow(entityCenterY - tileCenterY, 2)
                             );
 
@@ -915,9 +918,9 @@ const AVAILABLE_ENGINES: EngineRegistry = {
             entities.forEach(entity => {
                 const rotateComp = entity.template.components.find(c => c.definitionId === 'comp_rotate');
                 if (rotateComp) {
-                    const rotateProps = { 
-                        ...rotateComp.defaultValues, 
-                        ...(entity.instance.componentOverrides?.['comp_rotate'] || {}) 
+                    const rotateProps = {
+                        ...rotateComp.defaultValues,
+                        ...(entity.instance.componentOverrides?.['comp_rotate'] || {})
                     };
 
                     // Initialize rotation data if needed
@@ -956,13 +959,13 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         entity.rotationData.facingDirection = newDirection;
                         entity.rotationData.rotation = newRotation;
                         entity.rotationData.lastDirection = newDirection;
-                        
+
                         console.log(`🔄 ${entity.template.name} rotation: direction=${newDirection}, rotation=${newRotation}°, frames=${entity.frameImages.length}`);
-                        
+
                         // Update current animation frame based on direction for auto-generated sprites
                         const baseFrameCount = entity.sprite.frames.length; // Original frames before generation
                         const totalFrames = entity.frameImages.length;
-                        
+
                         if (totalFrames === baseFrameCount * 4) {
                             // Auto-generated system: 4 rotations per base frame
                             // Structure: [base0_right, base0_up, base0_left, base0_down, base1_right, base1_up, ...]
@@ -974,7 +977,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             console.log(`🎭 ${entity.template.name} switched to direction ${newDirection}, base frame ${baseFrame} (auto-generated, ${framesPerDirection} frames per direction)`);
                         } else if (entity.frameImages.length >= 8) {
                             // 8-frame manual system: 2 frames per direction (open/closed mouth)
-                            const baseFrame = newDirection * 2; 
+                            const baseFrame = newDirection * 2;
                             entity.currentFrame = baseFrame;
                             entity.baseFrameForDirection = baseFrame;
                             console.log(`🎭 ${entity.template.name} switched to direction ${newDirection}, base frame ${baseFrame} (8-frame manual system)`);
@@ -1023,7 +1026,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 
                     console.log(`🎯 Executing onEnter actions for state: ${entity.currentState} on entity: ${entity.template.name} (${entity.instance.name})`);
                     console.log(`📋 State definition:`, currentStateDef);
-                    
+
                     if (currentStateDef.onEnter && currentStateDef.onEnter.length > 0) {
                         console.log(`🎬 Found ${currentStateDef.onEnter.length} onEnter actions`);
                         currentStateDef.onEnter.forEach((action, index) => {
@@ -1058,7 +1061,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                     // Example: continuous movement based on state properties
                     const moveSpeed = Number(currentStateDef.properties.moveSpeed) || 1;
                     const direction = currentStateDef.properties.direction || 'right';
-                    
+
                     switch (direction) {
                         case 'right':
                             entity.vx = moveSpeed;
@@ -1086,7 +1089,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 // Engine Detection System
 const detectRequiredEngines = (entities: AnimatedEntity[]): string[] => {
     const requiredEngines = new Set<string>();
-    
+
     entities.forEach(entity => {
         // Check each component to determine required engines
         entity.template.components.forEach(comp => {
@@ -1138,18 +1141,18 @@ const detectRequiredEngines = (entities: AnimatedEntity[]): string[] => {
                     break;
             }
         });
-        
+
         // Check instance overrides for additional engines
         if (entity.instance.componentOverrides?.comp_patrol) {
             requiredEngines.add('patrol');
         }
-        
+
         // Check if entity has a state machine (also check the entity itself)
         if (entity.stateMachine) {
             requiredEngines.add('stateMachine');
         }
     });
-    
+
     return Array.from(requiredEngines);
 };
 
@@ -1208,6 +1211,12 @@ interface AnimatedEntity {
     wallCollisionLogged?: boolean;
     isFacingMirrored?: boolean; // Track if entity is currently facing mirrored direction (for idle pose)
     isOnGround: boolean; // Track if entity is touching the ground (for jump and gravity)
+    isGrounded?: boolean; // Set by wallCollisionEngine when entity is resting on a solid tile
+    isTouchingCeiling?: boolean; // Set by wallCollisionEngine
+    isTouchingWallLeft?: boolean; // Set by wallCollisionEngine
+    isTouchingWallRight?: boolean; // Set by wallCollisionEngine
+    velocityX?: number; // Alternative velocity property used by some engines
+    velocityY?: number; // Alternative velocity property used by some engines
 }
 
 interface ScreenPlayModalProps {
@@ -1329,12 +1338,12 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     // Helper function to check if entity can move in a specific direction
     const canMoveInDirection = useCallback((entity: AnimatedEntity, direction: string): boolean => {
         // Debug logs removed for cleaner output
-        
+
         if (!screenMap?.layers?.collision) {
             // console.log(`🔍 No collision layer found - returning true`);
             return true;
         }
-        
+
         // Get the actual velocity that would be applied based on direction
         let velocityX = 0, velocityY = 0;
         switch (direction) {
@@ -1344,11 +1353,11 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             case 'down': velocityY = 1; break;
             default: return true;
         }
-        
+
         // Calculate next position using the actual velocity that would be set
         const nextX = entity.x + velocityX;
         const nextY = entity.y + velocityY;
-        
+
         // Use same collision detection logic as the movement system
         const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision' || c.definitionId === 'comp_collision');
         if (!wallCollisionComp) {
@@ -1356,10 +1365,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             return true;
         }
         // console.log(`🔍 Found collision component: ${wallCollisionComp.definitionId}`);
-        
+
         const componentId = wallCollisionComp.definitionId;
         const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
-        
+
         // Get hitbox values from sprite first, then fallback to collision component
         let hitboxWidth = 12;
         let hitboxHeight = 12;
@@ -1368,7 +1377,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
         // Try to get sprite hitbox values
         let spriteAssetId: string | undefined;
-        
+
         // Search in component overrides
         if (entity.instance?.componentOverrides) {
             for (const compId in entity.instance.componentOverrides) {
@@ -1380,7 +1389,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 }
             }
         }
-        
+
         // If not found in overrides, search in template defaults
         if (!spriteAssetId) {
             for (const comp of entity.template.components) {
@@ -1392,7 +1401,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 }
             }
         }
-        
+
         // Get sprite asset and use its hitbox values (solo si allAssets está disponible)
         if (spriteAssetId && allAssets && allAssets.length > 0) {
             const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
@@ -1412,22 +1421,22 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             offsetX = Number(props.offsetX) || 2;
             offsetY = Number(props.offsetY) || 2;
         }
-        
+
         // Check if new position would collide
         const entityLeft = nextX + offsetX;
         const entityTop = nextY + offsetY;
         const entityRight = entityLeft + hitboxWidth;
         const entityBottom = entityTop + hitboxHeight;
-        
+
         const leftTile = Math.floor(entityLeft / 16);
         const topTile = Math.floor(entityTop / 16);
         const rightTile = Math.floor((entityRight - 1) / 16);
         const bottomTile = Math.floor((entityBottom - 1) / 16);
-        
+
         // Debug info
         // console.log(`🔍 Checking direction ${direction}: nextPos(${nextX}, ${nextY}), hitbox(${hitboxWidth}×${hitboxHeight}), offset(${offsetX}, ${offsetY})`);
         // console.log(`🔍 Tiles to check: (${leftTile}, ${topTile}) to (${rightTile}, ${bottomTile})`);
-        
+
         // Check all tiles the entity would occupy
         for (let tileY = topTile; tileY <= bottomTile; tileY++) {
             for (let tileX = leftTile; tileX <= rightTile; tileX++) {
@@ -1436,7 +1445,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     // console.log(`🔍 Tile (${tileX}, ${tileY}) is out of bounds`);
                     return false;
                 }
-                
+
                 // DEBUG: Check collision layer structure - always show when checking tiles
                 console.log(`🔍 DEBUG Collision vs Game Flow differences en (${tileX},${tileY}):`, {
                     tilePos: { x: tileX, y: tileY },
@@ -1444,12 +1453,12 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     gameFlowTileSize: 8, // Game Flow Preview uses TILE_SIZE = 8
                     entityPixelPos: { x: entity.x, y: entity.y }
                 });
-                
+
                 // Use the same structure as the working collision system
                 const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
-                
+
                 console.log(`🔍 Tile en (${tileX},${tileY}):`, tileOnLayer);
-                
+
                 // If tile exists and has a tileId, check if it's actually solid (using Game Flow Preview logic)
                 if (tileOnLayer && tileOnLayer.tileId) {
                     // Get tileset from allAssets (same as Game Flow Preview)
@@ -1470,43 +1479,43 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 }
             }
         }
-        
+
         // console.log(`🔍 No collision found - movement allowed`);
         return true;
     }, [screenMap]);
-    
+
     // Enhanced condition evaluator that supports compound conditions
     const evaluateCondition = useCallback((condition: any, entity: AnimatedEntity, pressedKey: string, isKeyDown: boolean): boolean => {
         if (!condition) return false;
-        
+
         switch (condition.type) {
             case 'KEY_PRESSED':
                 return isKeyDown && condition.params?.key === pressedKey;
-                
+
             case 'KEY_RELEASED':
                 return !isKeyDown && condition.params?.key === pressedKey;
-                
+
             case 'CAN_MOVE_DIRECTION':
                 const canMove = canMoveInDirection(entity, condition.params?.direction);
                 // console.log(`🔍 CAN_MOVE_DIRECTION(${condition.params?.direction}): ${canMove} at position (${entity.x}, ${entity.y})`);
                 return canMove;
-                
+
             case 'AND':
                 if (!condition.conditions || !Array.isArray(condition.conditions)) return false;
-                return condition.conditions.every((subCondition: any) => 
+                return condition.conditions.every((subCondition: any) =>
                     evaluateCondition(subCondition, entity, pressedKey, isKeyDown)
                 );
-                
+
             case 'OR':
                 if (!condition.conditions || !Array.isArray(condition.conditions)) return false;
-                return condition.conditions.some((subCondition: any) => 
+                return condition.conditions.some((subCondition: any) =>
                     evaluateCondition(subCondition, entity, pressedKey, isKeyDown)
                 );
-                
+
             case 'NOT':
                 if (!condition.conditions || !Array.isArray(condition.conditions)) return false;
                 return !evaluateCondition(condition.conditions[0], entity, pressedKey, isKeyDown);
-                
+
             default:
                 return false;
         }
@@ -1515,25 +1524,25 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     const checkKeyTransitions = useCallback((entityId: string, pressedKey: string, isKeyDown: boolean) => {
         const entity = entitiesRef.current.find(e => e.instance.id === entityId);
         if (!entity || !entity.stateMachine || !entity.currentState) return;
-        
+
         const currentStateDef = entity.stateMachine.states.find(s => s.name === entity.currentState);
         if (!currentStateDef) return;
-        
+
         for (const transition of entity.stateMachine.transitions) {
             if (transition.fromStateId !== currentStateDef.id) continue;
-            
+
             const condition = transition.conditions;
             if (!condition) continue;
-            
+
             // Use enhanced condition evaluation
             const conditionMet = evaluateCondition(condition, entity, pressedKey, isKeyDown);
-            
+
             if (conditionMet) {
                 const nextState = entity.stateMachine.states.find(s => s.id === transition.toStateId);
                 if (nextState) {
                     console.log(`🔄 State transition: ${entity.currentState} → ${nextState.name} (key: ${pressedKey})`);
                     entity.currentState = nextState.name;
-                    
+
                     if (transition.actions) {
                         for (const action of transition.actions) {
                             if (action.type === 'SET_VELOCITY') {
@@ -1585,16 +1594,16 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
     const processSpawnedEntities = useCallback(() => {
         if (pendingSpawnsRef.current.length === 0) return;
-        
+
         const newAnimatedEntities: AnimatedEntity[] = [];
-        
+
         pendingSpawnsRef.current.forEach(instance => {
             console.log('🔄 Processing spawn:', {
                 instanceId: instance.id,
                 templateId: instance.entityTemplateId,
                 position: instance.position
             });
-            
+
             const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
             if (!template) {
                 console.error('❌ Template not found:', instance.entityTemplateId);
@@ -1603,7 +1612,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
             // Get sprite (same logic as existing entity loading)
             let spriteAssetId: string | undefined;
-            
+
             if (instance.componentOverrides) {
                 for (const compId in instance.componentOverrides) {
                     const compDef = componentDefinitions.find(c => c.id === compId);
@@ -1633,18 +1642,18 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
             let spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
             let sprite = spriteAsset?.data as Sprite;
-            
+
             // Fallback: Use first available sprite if configured sprite not found
             if (!sprite?.frames?.length) {
                 console.warn('⚠️ Sprite not found, using fallback:', spriteAssetId);
                 spriteAsset = allAssets.find(a => a.type === 'sprite');
                 sprite = spriteAsset?.data as Sprite;
-                
+
                 if (!sprite?.frames?.length) {
                     console.error('❌ No sprites available in project');
                     return;
                 }
-                
+
                 console.log('✅ Using fallback sprite:', spriteAsset?.id);
             }
 
@@ -1653,29 +1662,29 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 img.src = createSpriteDataURL(frame.data, sprite.size.width, sprite.size.height);
                 return img;
             });
-            
+
             // Create fake animation frames for single-frame sprites (for spawned entities)
             if (frameImages.length === 1) {
                 console.log('🎭 Creating fake animation frames for single-frame sprite');
                 const originalFrame = frameImages[0];
-                
+
                 // Create 3 additional frames with slight variations (tint effects)
                 for (let i = 1; i < 4; i++) {
                     const canvas = document.createElement('canvas');
                     canvas.width = sprite.size.width;
                     canvas.height = sprite.size.height;
                     const ctx = canvas.getContext('2d');
-                    
+
                     if (ctx) {
                         ctx.drawImage(originalFrame, 0, 0);
-                        
+
                         // Apply different tint for each frame
                         ctx.globalCompositeOperation = 'multiply';
-                        ctx.fillStyle = i === 1 ? 'rgba(255, 200, 200, 0.1)' : 
-                                       i === 2 ? 'rgba(200, 255, 200, 0.1)' : 
-                                                'rgba(200, 200, 255, 0.1)';
+                        ctx.fillStyle = i === 1 ? 'rgba(255, 200, 200, 0.1)' :
+                            i === 2 ? 'rgba(200, 255, 200, 0.1)' :
+                                'rgba(200, 200, 255, 0.1)';
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        
+
                         const img = new Image();
                         img.src = canvas.toDataURL();
                         frameImages.push(img);
@@ -1723,15 +1732,15 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
             newAnimatedEntities.push(newAnimatedEntity);
         });
-        
+
         // Add new entities to the main entities list
         entitiesRef.current = [...entitiesRef.current, ...newAnimatedEntities];
         pendingSpawnsRef.current = []; // Clear pending spawns
-        
+
         if (newAnimatedEntities.length > 0) {
             console.log(`🎯 Spawned ${newAnimatedEntities.length} new entities. Total entities: ${entitiesRef.current.length}`);
             console.log('New entities:', newAnimatedEntities.map(e => ({ name: e.template.name, x: e.x, y: e.y })));
-            
+
             // Update UI state to trigger re-render
             setEntityCount(entitiesRef.current.length);
         }
@@ -1760,13 +1769,13 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
         };
 
         const entitiesToAnimate: AnimatedEntity[] = [];
-        
+
         screenMap.layers.entities.forEach(instance => {
             const template = entityTemplates.find(t => t.id === instance.entityTemplateId);
             if (!template) return;
 
             let spriteAssetId: string | undefined;
-            
+
             // Get sprite from component overrides or template defaults
             if (instance.componentOverrides) {
                 for (const compId in instance.componentOverrides) {
@@ -1824,9 +1833,9 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     const instanceCurrentStateId = smcOverride?.currentStateId;
                     const templateCurrentStateId = smc?.defaultValues?.currentStateId;
                     const machineInitialStateId = stateMachine.initialStateId;
-                    
+
                     const startStateId = instanceCurrentStateId || templateCurrentStateId || machineInitialStateId;
-                    
+
                     console.log(`🎯 State Machine Initialization for ${template.name}:`, {
                         instanceName: instance.name,
                         stateMachineAsset: stateMachineAssetId,
@@ -1836,7 +1845,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         selectedStartStateId: startStateId,
                         availableStates: stateMachine.states.map(s => ({ id: s.id, name: s.name }))
                     });
-                    
+
                     let initialState = stateMachine.states.find(s => s.id === startStateId);
 
                     if (!initialState && startStateId) {
@@ -1848,7 +1857,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         initialState = stateMachine.states.find(s => s.name.toLowerCase() === 'idle') || stateMachine.states[0];
                         console.log(`🔍 Fallback state selected: ${initialState?.name}`);
                     }
-                    
+
                     currentState = initialState?.name;
                     console.log(`✅ Final selected state: ${currentState}`);
                 }
@@ -1860,14 +1869,14 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
             // Check if entity has rotation component and auto-generate rotated sprites
             const hasRotateComponent = template.components.some(c => c.definitionId === 'comp_rotate');
             let finalFrameImages = frameImages;
-            
+
             if (hasRotateComponent && sprite.frames.length > 0) {
                 // Create temporary entity for sprite generation
                 const tempEntity: AnimatedEntity = {
                     instance, template, sprite, x: startX, y: startY, vx: 0, vy: 0,
                     frameImages, currentFrame: 0, lastFrameUpdateTime: 0, spawnTime: performance.now(), isOnGround: false
                 };
-                
+
                 finalFrameImages = generateRotatedSprites(tempEntity);
                 console.log(`🎯 Auto-generated directional sprites for ${template.name}: ${finalFrameImages.length} total frames`);
             }
@@ -1921,12 +1930,12 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
         entitiesRef.current = entitiesToAnimate;
         setEntityCount(entitiesToAnimate.length); // Initialize UI counter
-        
+
         // Dynamic Engine Detection and Registration
         const requiredEngineIds = detectRequiredEngines(entitiesToAnimate);
         const activeEngines = requiredEngineIds.map(engineId => AVAILABLE_ENGINES[engineId]).filter(Boolean);
         activeEnginesRef.current = activeEngines;
-        
+
         console.log('🎮 Dynamic Engine System:', {
             totalEntities: entitiesToAnimate.length,
             requiredEngines: requiredEngineIds,
@@ -1936,7 +1945,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 components: e.template.components.map(c => c.definitionId)
             }))
         });
-        
+
         // DIAGNOSTIC: Log screen map entities and available assets
         console.log('🔍 DIAGNOSTIC INFO:', {
             screenMapEntities: screenMap.layers.entities.length,
@@ -1944,8 +1953,8 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 const template = entityTemplates.find(t => t.id === e.entityTemplateId);
                 const hasWallCollision = template?.components.some(c => c.definitionId === 'comp_wall_collision');
                 return {
-                    id: e.id, 
-                    templateId: e.entityTemplateId, 
+                    id: e.id,
+                    templateId: e.entityTemplateId,
                     name: e.name,
                     position: e.position,
                     templateName: template?.name,
@@ -1953,17 +1962,17 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 };
             }),
             availableTemplates: entityTemplates.map(t => ({
-                id: t.id, 
+                id: t.id,
                 name: t.name,
                 hasWallCollision: t.components.some(c => c.definitionId === 'comp_wall_collision')
             })),
             availableSprites: allAssets.filter(a => a.type === 'sprite').map(a => ({
-                id: a.id, 
+                id: a.id,
                 name: a.name
             })),
             collectorPlayerTemplate: entityTemplates.find(t => t.id === 'tpl_collector_player')
         });
-        
+
     }, [isOpen, screenMap, allAssets, entityTemplates, componentDefinitions]);
 
     // HUD image cache
@@ -2294,62 +2303,66 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                 }
             }
 
-            // Compute isOnGround for all entities before executing engines
+            // Compute isOnGround for all entities before executing engines.
+            // IMPORTANT: Must run for any entity with comp_gravity, not just comp_collision.
             if (physicsEnabled) {
                 entitiesRef.current.forEach(entity => {
+                    const hasGravityComp = entity.template.components.some(c => c.definitionId === 'comp_gravity');
                     const hasCollisionComp = entity.template.components.some(c => c.definitionId === 'comp_collision');
 
+                    // Only run ground check for entities that have gravity or collision
+                    if (!hasGravityComp && !hasCollisionComp) return;
 
-                    if (hasCollisionComp && screenMap?.layers?.collision) {
-                        // Get hitbox properties (same logic as GameFlowPreviewModal entityCollisionProps)
-                        const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
-                        if (!collisionCompDef) {
-                            entity.isOnGround = false;
-                            return;
+                    if (screenMap?.layers?.collision) {
+                        // Determine hitbox from comp_collision (if present) or sprite hitbox
+                        let hitboxWidth = entity.sprite.size.width;
+                        let hitboxHeight = entity.sprite.size.height;
+                        let offsetX = 0;
+                        let offsetY = 0;
+
+                        if (hasCollisionComp) {
+                            const collisionCompDef = componentDefinitions.find(c => c.id === 'comp_collision');
+                            if (collisionCompDef) {
+                                const props = {
+                                    ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>),
+                                    ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
+                                    ...(entity.instance.componentOverrides?.['comp_collision'] || {})
+                                };
+                                const spriteHitbox = entity.sprite?.hitbox;
+                                hitboxWidth = Number(props.hitboxWidth) || spriteHitbox?.width || entity.sprite.size.width;
+                                hitboxHeight = Number(props.hitboxHeight) || spriteHitbox?.height || entity.sprite.size.height;
+                                offsetX = (props.offsetX !== undefined && props.offsetX !== '' && Number(props.offsetX) !== 0) ? Number(props.offsetX) : (spriteHitbox?.offsetX ?? 0);
+                                offsetY = (props.offsetY !== undefined && props.offsetY !== '' && Number(props.offsetY) !== 0) ? Number(props.offsetY) : (spriteHitbox?.offsetY ?? 0);
+                            }
+                        } else if (entity.sprite?.hitbox) {
+                            hitboxWidth = entity.sprite.hitbox.width;
+                            hitboxHeight = entity.sprite.hitbox.height;
+                            offsetX = entity.sprite.hitbox.offsetX;
+                            offsetY = entity.sprite.hitbox.offsetY;
                         }
 
-                        const props = {
-                            ...collisionCompDef.properties.reduce((acc, prop) => { acc[prop.name] = prop.defaultValue; return acc; }, {} as Record<string, any>),
-                            ...(entity.template.components.find(c => c.definitionId === 'comp_collision')?.defaultValues || {}),
-                            ...(entity.instance.componentOverrides?.['comp_collision'] || {})
-                        };
-
-                        // Prioridad de hitbox: comp_collision > sprite.hitbox > sprite.size
-                        const spriteHitbox = entity.sprite?.hitbox;
-                        const fallbackWidth = spriteHitbox?.width ?? entity.sprite.size.width;
-                        const fallbackHeight = spriteHitbox?.height ?? entity.sprite.size.height;
-                        const fallbackOffsetX = spriteHitbox?.offsetX ?? 0;
-                        const fallbackOffsetY = spriteHitbox?.offsetY ?? 0;
-
-                        const hitboxWidth = Number(props.hitboxWidth) || fallbackWidth;
-                        const hitboxHeight = Number(props.hitboxHeight) || fallbackHeight;
-                        const offsetX = (props.offsetX !== undefined && props.offsetX !== '' && Number(props.offsetX) !== 0) ? Number(props.offsetX) : fallbackOffsetX;
-                        const offsetY = (props.offsetY !== undefined && props.offsetY !== '' && Number(props.offsetY) !== 0) ? Number(props.offsetY) : fallbackOffsetY;
-
-                        // Calculate hitbox for current position
                         const hitboxX = entity.x + offsetX;
                         const hitboxY = entity.y + offsetY;
                         const centerX1 = hitboxX + Math.floor(hitboxWidth / 3);
                         const centerX2 = hitboxX + Math.floor((2 * hitboxWidth) / 3);
                         const bottomY = hitboxY + hitboxHeight;
 
-                        // Check collision at two points on bottom edge, 1px below (same logic as GameFlowPreviewModal)
                         const checkCollisionAt = (x: number, y: number): boolean => {
                             const tileX = Math.floor(x / TILE_SIZE);
                             const tileY = Math.floor(y / TILE_SIZE);
                             if (tileX < 0 || tileY < 0 || tileX >= 32 || tileY >= 24) return false;
-
                             const tileOnLayer = screenMap.layers.collision[tileY]?.[tileX];
                             if (!tileOnLayer || !tileOnLayer.tileId) return false;
-
                             const tile = tileset.find(t => t.id === tileOnLayer.tileId);
-                            const isSolid = tile?.logicalProperties?.isSolid ?? false;
-                            return isSolid;
+                            return tile?.logicalProperties?.isSolid ?? false;
                         };
 
-                        entity.isOnGround = checkCollisionAt(centerX1, bottomY + 1) || checkCollisionAt(centerX2, bottomY + 1);
+                        const onGround = checkCollisionAt(centerX1, bottomY + 1) || checkCollisionAt(centerX2, bottomY + 1);
+                        entity.isOnGround = onGround;
+                        entity.isGrounded = onGround; // Keep both in sync for wallCollisionEngine compatibility
                     } else {
                         entity.isOnGround = false;
+                        entity.isGrounded = false;
                     }
                 });
             }
@@ -2451,7 +2464,7 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
             // Process any pending spawned entities
             processSpawnedEntities();
-            
+
             // Update entities position and rendering
             entitiesRef.current.forEach(entity => {
                 // Only apply movement and physics if physicsEnabled is true
@@ -2462,125 +2475,135 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
 
                     // Check collision for the new position
                     const wallCollisionComp = entity.template.components.find(c => c.definitionId === 'comp_wall_collision' || c.definitionId === 'comp_collision');
-                if (wallCollisionComp && screenMap?.layers?.collision) {
-                    const componentId = wallCollisionComp.definitionId;
-                    const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
-                    
-                    // Get hitbox values from sprite first, then fallback to collision component
-                    let hitboxWidth = 12;
-                    let hitboxHeight = 12;
-                    let offsetX = 2;
-                    let offsetY = 2;
+                    if (wallCollisionComp && screenMap?.layers?.collision) {
+                        const componentId = wallCollisionComp.definitionId;
+                        const props = { ...wallCollisionComp.defaultValues, ...(entity.instance.componentOverrides?.[componentId] || {}) };
 
-                    // Try to get sprite hitbox values
-                    let spriteAssetId: string | undefined;
-                    
-                    // Search in component overrides
-                    if (entity.instance?.componentOverrides) {
-                        for (const compId in entity.instance.componentOverrides) {
-                            const compDef = componentDefinitions.find(c => c.id === compId);
-                            const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
-                            if (spriteProp && entity.instance.componentOverrides[compId]?.[spriteProp.name]) {
-                                spriteAssetId = entity.instance.componentOverrides[compId][spriteProp.name];
-                                break;
+                        // Get hitbox values from sprite first, then fallback to collision component
+                        let hitboxWidth = 12;
+                        let hitboxHeight = 12;
+                        let offsetX = 2;
+                        let offsetY = 2;
+
+                        // Try to get sprite hitbox values
+                        let spriteAssetId: string | undefined;
+
+                        // Search in component overrides
+                        if (entity.instance?.componentOverrides) {
+                            for (const compId in entity.instance.componentOverrides) {
+                                const compDef = componentDefinitions.find(c => c.id === compId);
+                                const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                                if (spriteProp && entity.instance.componentOverrides[compId]?.[spriteProp.name]) {
+                                    spriteAssetId = entity.instance.componentOverrides[compId][spriteProp.name];
+                                    break;
+                                }
                             }
                         }
-                    }
-                    
-                    // If not found in overrides, search in template defaults
-                    if (!spriteAssetId) {
-                        for (const comp of entity.template.components) {
-                            const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
-                            const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
-                            if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
-                                spriteAssetId = comp.defaultValues[spriteProp.name];
-                                break;
+
+                        // If not found in overrides, search in template defaults
+                        if (!spriteAssetId) {
+                            for (const comp of entity.template.components) {
+                                const compDef = componentDefinitions.find(c => c.id === comp.definitionId);
+                                const spriteProp = compDef?.properties.find(p => p.type === 'sprite_ref');
+                                if (spriteProp && comp.defaultValues?.[spriteProp.name]) {
+                                    spriteAssetId = comp.defaultValues[spriteProp.name];
+                                    break;
+                                }
                             }
                         }
-                    }
-                    
-                    // Get sprite asset and use its hitbox values (solo si allAssets está disponible)
-                    if (spriteAssetId && allAssets && allAssets.length > 0) {
-                        const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
-                        const sprite = spriteAsset?.data as Sprite;
-                        if (sprite?.hitbox) {
-                            hitboxWidth = sprite.hitbox.width;
-                            hitboxHeight = sprite.hitbox.height;
-                            offsetX = sprite.hitbox.offsetX;
-                            offsetY = sprite.hitbox.offsetY;
-                        }
-                    }
 
-                    // Fallback: use collision component values if no sprite hitbox (with Pac-Man style adjustment)
-                    if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
-                        hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
-                        hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
-                        offsetX = Number(props.offsetX) || 2;
-                        offsetY = Number(props.offsetY) || 2;
-                    }
-                    
-                    // Check if new position would collide
-                    const entityLeft = newX + offsetX;
-                    const entityTop = newY + offsetY;
-                    const entityRight = entityLeft + hitboxWidth;
-                    const entityBottom = entityTop + hitboxHeight;
-                    
-                    const leftTile = Math.floor(entityLeft / 16);
-                    const topTile = Math.floor(entityTop / 16);
-                    const rightTile = Math.floor((entityRight - 1) / 16);
-                    const bottomTile = Math.floor((entityBottom - 1) / 16);
-                    
-                    let hasCollision = false;
-                    let collisionType: 'tile' | 'boundary' | null = null;
-                    
-                    // Check all tiles the entity would occupy
-                    for (let tileY = topTile; tileY <= bottomTile && !hasCollision; tileY++) {
-                        for (let tileX = leftTile; tileX <= rightTile && !hasCollision; tileX++) {
-                            if (tileX < 0 || tileY < 0 || tileX >= screenMap.width || tileY >= screenMap.height) {
-                                hasCollision = true;
-                                collisionType = 'boundary';
-                                break;
-                            }
-
-                            // Access collision layer as 2D array: collision[row][column]
-                            const collisionRow = screenMap.layers.collision[tileY];
-                            if (!collisionRow) continue;
-
-                            const tile = collisionRow[tileX];
-
-                            // Check if tile has a collision (tileId is not null and not empty)
-                            if (tile && tile.tileId && tile.tileId !== 'empty' && tile.tileId !== '') {
-                                hasCollision = true;
-                                collisionType = 'tile';
-                                break;
+                        // Get sprite asset and use its hitbox values (solo si allAssets está disponible)
+                        if (spriteAssetId && allAssets && allAssets.length > 0) {
+                            const spriteAsset = allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite');
+                            const sprite = spriteAsset?.data as Sprite;
+                            if (sprite?.hitbox) {
+                                hitboxWidth = sprite.hitbox.width;
+                                hitboxHeight = sprite.hitbox.height;
+                                offsetX = sprite.hitbox.offsetX;
+                                offsetY = sprite.hitbox.offsetY;
                             }
                         }
-                    }
-                    
-                    // Only apply movement if no collision
-                    if (!hasCollision) {
+
+                        // Fallback: use collision component values if no sprite hitbox (with Pac-Man style adjustment)
+                        if (!spriteAssetId || !allAssets || !allAssets.find(a => a.id === spriteAssetId && a.type === 'sprite')?.data?.hitbox) {
+                            hitboxWidth = Number(props.hitboxWidth) > 14 ? 12 : Number(props.hitboxWidth) || 12;
+                            hitboxHeight = Number(props.hitboxHeight) > 14 ? 12 : Number(props.hitboxHeight) || 12;
+                            offsetX = Number(props.offsetX) || 2;
+                            offsetY = Number(props.offsetY) || 2;
+                        }
+
+                        // Check if new position would collide
+                        const entityLeft = newX + offsetX;
+                        const entityTop = newY + offsetY;
+                        const entityRight = entityLeft + hitboxWidth;
+                        const entityBottom = entityTop + hitboxHeight;
+
+                        const leftTile = Math.floor(entityLeft / 16);
+                        const topTile = Math.floor(entityTop / 16);
+                        const rightTile = Math.floor((entityRight - 1) / 16);
+                        const bottomTile = Math.floor((entityBottom - 1) / 16);
+
+                        let hasCollision = false;
+                        let collisionType: 'tile' | 'boundary' | null = null;
+
+                        // Check all tiles the entity would occupy
+                        for (let tileY = topTile; tileY <= bottomTile && !hasCollision; tileY++) {
+                            for (let tileX = leftTile; tileX <= rightTile && !hasCollision; tileX++) {
+                                if (tileX < 0 || tileY < 0 || tileX >= screenMap.width || tileY >= screenMap.height) {
+                                    hasCollision = true;
+                                    collisionType = 'boundary';
+                                    break;
+                                }
+
+                                // Access collision layer as 2D array: collision[row][column]
+                                const collisionRow = screenMap.layers.collision[tileY];
+                                if (!collisionRow) continue;
+
+                                const tile = collisionRow[tileX];
+
+                                // Check if tile has a collision (tileId is not null and not empty)
+                                if (tile && tile.tileId && tile.tileId !== 'empty' && tile.tileId !== '') {
+                                    hasCollision = true;
+                                    collisionType = 'tile';
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Only apply movement if no collision
+                        if (!hasCollision) {
+                            entity.x = newX;
+                            entity.y = newY;
+                        } else {
+                            // Stop velocity on collision (only log if entity was actually moving)
+                            if (entity.vx !== 0 || entity.vy !== 0) {
+                                if (collisionType === 'boundary') {
+                                    console.log(`🚧 Detección de salida de pantalla! Stopping velocity (${entity.vx}, ${entity.vy}) → (0, 0) at position (${entity.x}, ${entity.y})`);
+                                } else {
+                                    console.log(`🚧 Collision detected! Stopping velocity (${entity.vx}, ${entity.vy}) → (0, 0) at position (${entity.x}, ${entity.y})`);
+                                }
+                            }
+                            entity.vx = 0;
+                            entity.vy = 0;
+                        }
+                    } else {
+                        // No collision detection component, apply movement normally
                         entity.x = newX;
                         entity.y = newY;
-                    } else {
-                        // Stop velocity on collision (only log if entity was actually moving)
-                        if (entity.vx !== 0 || entity.vy !== 0) {
-                            if (collisionType === 'boundary') {
-                                console.log(`🚧 Detección de salida de pantalla! Stopping velocity (${entity.vx}, ${entity.vy}) → (0, 0) at position (${entity.x}, ${entity.y})`);
-                            } else {
-                                console.log(`🚧 Collision detected! Stopping velocity (${entity.vx}, ${entity.vy}) → (0, 0) at position (${entity.x}, ${entity.y})`);
-                            }
+                        // Clamp to screen boundaries so gravity entities don't fly off
+                        if (entity.y > PREVIEW_HEIGHT) {
+                            entity.y = PREVIEW_HEIGHT;
+                            entity.vy = 0;
+                            entity.isOnGround = true;
+                            entity.isGrounded = true;
                         }
-                        entity.vx = 0;
-                        entity.vy = 0;
+                        if (entity.y < 0) { entity.y = 0; entity.vy = 0; }
+                        if (entity.x < -entity.sprite.size.width) { entity.x = -entity.sprite.size.width; }
+                        if (entity.x > PREVIEW_WIDTH) { entity.x = PREVIEW_WIDTH; }
                     }
-                } else {
-                    // No collision detection component, apply movement normally
-                    entity.x = newX;
-                    entity.y = newY;
-                }
 
-                // Screen boundary constraints removed to allow entities to move off-screen
-                // (useful for side-scrolling games, screen transitions, etc.)
+                    // Screen boundary constraints removed to allow entities to move off-screen
+                    // (useful for side-scrolling games, screen transitions, etc.)
                 } // End of physicsEnabled block
 
                 // Choose correct sprite image (animation is now handled by animation engine)
@@ -2688,16 +2711,16 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                     ctx.strokeRect(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
                     ctx.restore();
                 }
-                
+
                 // Check if bullet entities should be cleaned up (off-screen)
                 if (entity.template.id === 'tpl_player_bullet') {
-                    if (entity.y < -20 || entity.y > PREVIEW_HEIGHT + 20 || 
+                    if (entity.y < -20 || entity.y > PREVIEW_HEIGHT + 20 ||
                         entity.x < -20 || entity.x > PREVIEW_WIDTH + 20) {
                         entity.markedForDestruction = true;
                     }
                 }
             });
-            
+
             // Remove entities marked for destruction
             entitiesRef.current = entitiesRef.current.filter(entity => !entity.markedForDestruction);
 
@@ -2733,11 +2756,10 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
     return (
         <div
             ref={modalRef}
-            className={`fixed inset-0 flex items-center justify-center z-50 outline-none ${
-                isFullScreen
-                    ? 'bg-black'
-                    : 'bg-black bg-opacity-75 animate-fadeIn p-4'
-            }`}
+            className={`fixed inset-0 flex items-center justify-center z-50 outline-none ${isFullScreen
+                ? 'bg-black'
+                : 'bg-black bg-opacity-75 animate-fadeIn p-4'
+                }`}
             onClick={isFullScreen ? handleExitFullScreen : onClose}
             onKeyDown={handleKeyDown}
             onKeyUp={handleKeyUp}
