@@ -1,297 +1,272 @@
+"use strict";
 /**
  * @fileoverview Game Flow Generator - GameFlow-Based Execution Engine
  * Generates complete GameFlow execution system based on node graph
- * 
+ *
  * Architecture: GameFlow is the SOLE orchestrator of game execution.
  * The ASM code follows the graph structure exclusively, starting from
  * the Start node and executing each connected node in sequence.
  */
-
-import { ProjectAnalysis } from '../../asmTemplateGenerator';
-import { MSX1_PALETTE } from '../../../constants';
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateGameFlowFile = generateGameFlowFile;
+const constants_1 = require("../../../constants");
 /**
  * Sanitize node ID for use in ASM labels
  */
-function sanitizeId(id: string): string {
-  return id.replace(/[^a-zA-Z0-9]/g, '_');
+function sanitizeId(id) {
+    return id.replace(/[^a-zA-Z0-9]/g, '_');
 }
-
 /**
  * Normalize text for ASM string literals used in generated labels/data.
  */
-function sanitizeAsmText(value: any): string {
-  return String(value || '')
-    .replace(/"/g, '')
-    .replace(/\r?\n/g, ' ')
-    .trim();
+function sanitizeAsmText(value) {
+    return String(value || '')
+        .replace(/"/g, '')
+        .replace(/\r?\n/g, ' ')
+        .trim();
 }
-
 /**
  * Convert hex color to MSX color code (0-15).
  * Matches the mapping strategy used by menusGenerator.
  */
-function hexToRGB(hex: string): { r: number; g: number; b: number } | null {
-  const clean = String(hex || '').trim();
-  if (!clean || clean.toLowerCase().startsWith('rgba(0,0,0,0')) return null;
-  const normalized = clean.replace('#', '');
-  if (normalized.length !== 6) return null;
-
-  const r = parseInt(normalized.substring(0, 2), 16);
-  const g = parseInt(normalized.substring(2, 4), 16);
-  const b = parseInt(normalized.substring(4, 6), 16);
-  if ([r, g, b].some((v) => Number.isNaN(v))) return null;
-
-  return { r, g, b };
+function hexToRGB(hex) {
+    const clean = String(hex || '').trim();
+    if (!clean || clean.toLowerCase().startsWith('rgba(0,0,0,0'))
+        return null;
+    const normalized = clean.replace('#', '');
+    if (normalized.length !== 6)
+        return null;
+    const r = parseInt(normalized.substring(0, 2), 16);
+    const g = parseInt(normalized.substring(2, 4), 16);
+    const b = parseInt(normalized.substring(4, 6), 16);
+    if ([r, g, b].some((v) => Number.isNaN(v)))
+        return null;
+    return { r, g, b };
 }
-
-function hexToMSX1Index(hex: string, allowTransparent = true): number {
-  const raw = String(hex || '').trim();
-  if (!raw) return allowTransparent ? 0 : 1;
-  if (raw.toLowerCase().startsWith('rgba(0,0,0,0')) return allowTransparent ? 0 : 1;
-
-  const upper = raw.toUpperCase();
-  const exact = MSX1_PALETTE.find((c) => c.hex.toUpperCase() === upper);
-  if (exact) return exact.index;
-
-  const rgb = hexToRGB(raw);
-  if (!rgb) return allowTransparent ? 0 : 1;
-
-  let bestIndex = allowTransparent ? 0 : 1;
-  let bestDist = Infinity;
-  for (const c of MSX1_PALETTE) {
-    if (!allowTransparent && c.index === 0) continue;
-    const cRgb = hexToRGB(c.hex);
-    if (!cRgb) continue;
-    const dist = (rgb.r - cRgb.r) ** 2 + (rgb.g - cRgb.g) ** 2 + (rgb.b - cRgb.b) ** 2;
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestIndex = c.index;
+function hexToMSX1Index(hex, allowTransparent = true) {
+    const raw = String(hex || '').trim();
+    if (!raw)
+        return allowTransparent ? 0 : 1;
+    if (raw.toLowerCase().startsWith('rgba(0,0,0,0'))
+        return allowTransparent ? 0 : 1;
+    const upper = raw.toUpperCase();
+    const exact = constants_1.MSX1_PALETTE.find((c) => c.hex.toUpperCase() === upper);
+    if (exact)
+        return exact.index;
+    const rgb = hexToRGB(raw);
+    if (!rgb)
+        return allowTransparent ? 0 : 1;
+    let bestIndex = allowTransparent ? 0 : 1;
+    let bestDist = Infinity;
+    for (const c of constants_1.MSX1_PALETTE) {
+        if (!allowTransparent && c.index === 0)
+            continue;
+        const cRgb = hexToRGB(c.hex);
+        if (!cRgb)
+            continue;
+        const dist = (rgb.r - cRgb.r) ** 2 + (rgb.g - cRgb.g) ** 2 + (rgb.b - cRgb.b) ** 2;
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestIndex = c.index;
+        }
     }
-  }
-
-  return bestIndex;
+    return bestIndex;
 }
-
-function hexToMSXColor(hex: string): number {
-  const idx = hexToMSX1Index(hex, false);
-  return idx === 0 ? 1 : idx;
+function hexToMSXColor(hex) {
+    const idx = hexToMSX1Index(hex, false);
+    return idx === 0 ? 1 : idx;
 }
-
 /**
  * Find sprite asset index by id in analysis.sprites.
  */
-function findSpriteAssetIndex(analysis: ProjectAnalysis, spriteAssetId: any): number {
-  const id = String(spriteAssetId || '').trim();
-  if (!id) return -1;
-  const sprites = Array.isArray(analysis.sprites) ? analysis.sprites : [];
-  return sprites.findIndex((s: any) => String(s?.id || '').trim() === id);
+function findSpriteAssetIndex(analysis, spriteAssetId) {
+    const id = String(spriteAssetId || '').trim();
+    if (!id)
+        return -1;
+    const sprites = Array.isArray(analysis.sprites) ? analysis.sprites : [];
+    return sprites.findIndex((s) => String((s === null || s === void 0 ? void 0 : s.id) || '').trim() === id);
 }
-
 /**
  * Analyze drawable layer indexes in a sprite (used at least once).
  */
-function analyzeDrawableLayerIndexes(sprite: any): number[] {
-  const palette: string[] = sprite?.spritePalette || [];
-  const bg: string | undefined = sprite?.backgroundColor;
-  const frames = sprite?.frames || [];
-
-  if (!palette.length || !frames.length) return [];
-  const used: number[] = [];
-
-  for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
-    const layerColor = palette[layerIdx];
-    if (!layerColor || layerColor === bg) continue;
-
-    let hasPixels = false;
-    for (const frame of frames) {
-      if (!frame?.data) continue;
-      for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
-        for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
-          if (frame.data[y][x] === layerColor) {
-            hasPixels = true;
-          }
+function analyzeDrawableLayerIndexes(sprite) {
+    var _a;
+    const palette = (sprite === null || sprite === void 0 ? void 0 : sprite.spritePalette) || [];
+    const bg = sprite === null || sprite === void 0 ? void 0 : sprite.backgroundColor;
+    const frames = (sprite === null || sprite === void 0 ? void 0 : sprite.frames) || [];
+    if (!palette.length || !frames.length)
+        return [];
+    const used = [];
+    for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
+        const layerColor = palette[layerIdx];
+        if (!layerColor || layerColor === bg)
+            continue;
+        let hasPixels = false;
+        for (const frame of frames) {
+            if (!(frame === null || frame === void 0 ? void 0 : frame.data))
+                continue;
+            for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
+                for (let x = 0; x < (((_a = frame.data[y]) === null || _a === void 0 ? void 0 : _a.length) || 0) && !hasPixels; x++) {
+                    if (frame.data[y][x] === layerColor) {
+                        hasPixels = true;
+                    }
+                }
+            }
+            if (hasPixels)
+                break;
         }
-      }
-      if (hasPixels) break;
+        if (hasPixels) {
+            used.push(layerIdx);
+        }
     }
-
-    if (hasPixels) {
-      used.push(layerIdx);
-    }
-  }
-
-  return used;
+    return used;
 }
-
 /**
  * Build submenu cursor layer config (source pattern offsets + colors).
  * Keeps only drawable colors and clamps to 4 hardware sprite layers.
  */
-function getSpriteLayerConfigForSubmenuCursor(sprite: any): { layerOffsets: number[]; layerColors: number[] } {
-  const palette: string[] = sprite?.spritePalette || [];
-  const bg: string | undefined = sprite?.backgroundColor;
-  const usedLayerIndexes = analyzeDrawableLayerIndexes(sprite);
-  if (usedLayerIndexes.length === 0) {
-    return { layerOffsets: [0], layerColors: [15] };
-  }
-
-  const selectedLayers = usedLayerIndexes.slice(0, 4);
-  if (selectedLayers.length === 0) {
-    return { layerOffsets: [0], layerColors: [15] };
-  }
-
-  const layerOffsets = selectedLayers.map((_idx, compactIndex) => compactIndex);
-  const layerColors = selectedLayers.map((idx) => {
-    const hex = palette[idx];
-    if (!hex || (bg && hex === bg)) return 0;
-    return hexToMSX1Index(hex, true);
-  });
-
-  return { layerOffsets, layerColors };
+function getSpriteLayerConfigForSubmenuCursor(sprite) {
+    const palette = (sprite === null || sprite === void 0 ? void 0 : sprite.spritePalette) || [];
+    const bg = sprite === null || sprite === void 0 ? void 0 : sprite.backgroundColor;
+    const usedLayerIndexes = analyzeDrawableLayerIndexes(sprite);
+    if (usedLayerIndexes.length === 0) {
+        return { layerOffsets: [0], layerColors: [15] };
+    }
+    const selectedLayers = usedLayerIndexes.slice(0, 4);
+    if (selectedLayers.length === 0) {
+        return { layerOffsets: [0], layerColors: [15] };
+    }
+    const layerOffsets = selectedLayers.map((_idx, compactIndex) => compactIndex);
+    const layerColors = selectedLayers.map((idx) => {
+        const hex = palette[idx];
+        if (!hex || (bg && hex === bg))
+            return 0;
+        return hexToMSX1Index(hex, true);
+    });
+    return { layerOffsets, layerColors };
 }
-
 /**
  * Resolve submenu selector mode from JSON appearance.
  * Supports aliases for backward/forward compatibility.
  */
-function getSubMenuSelectorMode(node: any): 'auto' | 'char' | 'sprite' {
-  const raw =
-    node?.appearance?.selectorType ??
-    node?.appearance?.cursorType ??
-    node?.appearance?.cursorMode ??
-    node?.selectorType ??
-    node?.cursorType ??
-    node?.cursorMode;
-
-  const mode = String(raw || '')
-    .trim()
-    .toLowerCase();
-
-  if (mode === 'char' || mode === 'character' || mode === 'text' || mode === 'glyph') {
-    return 'char';
-  }
-  if (mode === 'sprite' || mode === 'image') {
-    return 'sprite';
-  }
-  return 'auto';
+function getSubMenuSelectorMode(node) {
+    var _a, _b, _c, _d, _e, _f, _g, _h;
+    const raw = (_h = (_g = (_f = (_d = (_b = (_a = node === null || node === void 0 ? void 0 : node.appearance) === null || _a === void 0 ? void 0 : _a.selectorType) !== null && _b !== void 0 ? _b : (_c = node === null || node === void 0 ? void 0 : node.appearance) === null || _c === void 0 ? void 0 : _c.cursorType) !== null && _d !== void 0 ? _d : (_e = node === null || node === void 0 ? void 0 : node.appearance) === null || _e === void 0 ? void 0 : _e.cursorMode) !== null && _f !== void 0 ? _f : node === null || node === void 0 ? void 0 : node.selectorType) !== null && _g !== void 0 ? _g : node === null || node === void 0 ? void 0 : node.cursorType) !== null && _h !== void 0 ? _h : node === null || node === void 0 ? void 0 : node.cursorMode;
+    const mode = String(raw || '')
+        .trim()
+        .toLowerCase();
+    if (mode === 'char' || mode === 'character' || mode === 'text' || mode === 'glyph') {
+        return 'char';
+    }
+    if (mode === 'sprite' || mode === 'image') {
+        return 'sprite';
+    }
+    return 'auto';
 }
-
 /**
  * Choose initial option index for SubMenu nodes.
  * Preview defaults to option 0 unless an explicit index exists.
  */
-function getSubMenuInitialOptionIndex(node: any): number {
-  const options = Array.isArray(node?.options) ? node.options : [];
-  if (options.length === 0) return 0;
-
-  const explicitRaw =
-    node?.initialSelection ??
-    node?.initialSelectedOption ??
-    node?.appearance?.initialSelection ??
-    0;
-  const explicit = Number(explicitRaw);
-  if (!Number.isFinite(explicit)) return 0;
-  if (explicit < 0) return 0;
-  if (explicit >= options.length) return 0;
-  return Math.floor(explicit);
+function getSubMenuInitialOptionIndex(node) {
+    var _a, _b, _c, _d;
+    const options = Array.isArray(node === null || node === void 0 ? void 0 : node.options) ? node.options : [];
+    if (options.length === 0)
+        return 0;
+    const explicitRaw = (_d = (_b = (_a = node === null || node === void 0 ? void 0 : node.initialSelection) !== null && _a !== void 0 ? _a : node === null || node === void 0 ? void 0 : node.initialSelectedOption) !== null && _b !== void 0 ? _b : (_c = node === null || node === void 0 ? void 0 : node.appearance) === null || _c === void 0 ? void 0 : _c.initialSelection) !== null && _d !== void 0 ? _d : 0;
+    const explicit = Number(explicitRaw);
+    if (!Number.isFinite(explicit))
+        return 0;
+    if (explicit < 0)
+        return 0;
+    if (explicit >= options.length)
+        return 0;
+    return Math.floor(explicit);
 }
-
 /**
  * Convert node type to constant name (e.g., "WorldLink" -> "NODE_TYPE_WORLD_LINK")
  */
-function getNodeTypeConstant(nodeType: string): string {
-  return `NODE_TYPE_${nodeType
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
-    .toUpperCase()
-    }`;
+function getNodeTypeConstant(nodeType) {
+    return `NODE_TYPE_${nodeType
+        .replace(/([a-z])([A-Z])/g, '$1_$2')
+        .toUpperCase()}`;
 }
-
 /**
  * Get routine name for screen loading
  */
-function getScreenLoadRoutineName(screen: { name?: string; id?: string }): string {
-  const screenName = (screen.name || 'DEFAULT').toUpperCase().replace(/[^A-Z0-9]/g, '_');
-  const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
-  return `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
+function getScreenLoadRoutineName(screen) {
+    const screenName = (screen.name || 'DEFAULT').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+    return `load_screen_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}`;
 }
-
 /**
  * Resolve a global variable reference used by GameFlow nodes to a valid ASM symbol.
  * Returns null when the variable does not exist in analysis.globalVariables.
  */
-function resolveGlobalVariableAsmName(variableName: any, analysis: ProjectAnalysis): string | null {
-  const rawName = String(variableName || '').trim();
-  if (!rawName) return null;
-
-  const toDefaultAsmName = (name: string): string =>
-    `global_var_${name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/[^a-z0-9_]/g, '_')}`;
-
-  const normalizedInput = rawName.toLowerCase();
-  const expectedAsmName = toDefaultAsmName(rawName);
-  const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
-
-  for (const v of globals) {
-    const candidateName = String(v?.name || '').trim();
-    const candidateAsmName = String(v?.asmName || '').trim();
-    if (candidateName && candidateName.toLowerCase() === normalizedInput) {
-      return candidateAsmName || toDefaultAsmName(candidateName);
+function resolveGlobalVariableAsmName(variableName, analysis) {
+    const rawName = String(variableName || '').trim();
+    if (!rawName)
+        return null;
+    const toDefaultAsmName = (name) => `global_var_${name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/[^a-z0-9_]/g, '_')}`;
+    const normalizedInput = rawName.toLowerCase();
+    const expectedAsmName = toDefaultAsmName(rawName);
+    const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+    for (const v of globals) {
+        const candidateName = String((v === null || v === void 0 ? void 0 : v.name) || '').trim();
+        const candidateAsmName = String((v === null || v === void 0 ? void 0 : v.asmName) || '').trim();
+        if (candidateName && candidateName.toLowerCase() === normalizedInput) {
+            return candidateAsmName || toDefaultAsmName(candidateName);
+        }
+        if (candidateAsmName && candidateAsmName.toLowerCase() === normalizedInput) {
+            return candidateAsmName;
+        }
+        if (candidateName && toDefaultAsmName(candidateName) === expectedAsmName) {
+            return candidateAsmName || toDefaultAsmName(candidateName);
+        }
     }
-    if (candidateAsmName && candidateAsmName.toLowerCase() === normalizedInput) {
-      return candidateAsmName;
-    }
-    if (candidateName && toDefaultAsmName(candidateName) === expectedAsmName) {
-      return candidateAsmName || toDefaultAsmName(candidateName);
-    }
-  }
-
-  return null;
+    return null;
 }
-
 /**
  * Get imported HUD frame draw routine name for a screen.
  * Returns null when screen has no imported HUD frame snapshot.
  */
-function getImportedHudFrameDrawRoutineName(screen: { name?: string; id?: string; hudConfiguration?: any }): string | null {
-  const importedCells = screen?.hudConfiguration?.importedFrame?.cells;
-  if (!Array.isArray(importedCells) || importedCells.length === 0) {
-    return null;
-  }
-
-  const screenName = (screen.name || 'DEFAULT').toUpperCase().replace(/[^A-Z0-9]/g, '_');
-  const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
-  return `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_draw`;
+function getImportedHudFrameDrawRoutineName(screen) {
+    var _a, _b;
+    const importedCells = (_b = (_a = screen === null || screen === void 0 ? void 0 : screen.hudConfiguration) === null || _a === void 0 ? void 0 : _a.importedFrame) === null || _b === void 0 ? void 0 : _b.cells;
+    if (!Array.isArray(importedCells) || importedCells.length === 0) {
+        return null;
+    }
+    const screenName = (screen.name || 'DEFAULT').toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    const screenIdSuffix = screen.id ? `_${screen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+    return `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_draw`;
 }
-
 /**
  * Generate complete GameFlow file (gameflow.asm)
- * 
+ *
  * This is the CORE of the new architecture. It generates:
  * 1. GameFlow execution engine (dispatcher)
  * 2. Node handlers for each node type
  * 3. Node data structures
  * 4. Connection tables
- * 
+ *
  * @param analysis - Project analysis with GameFlow data
  * @returns Complete ASM code for GameFlow execution
  */
-export function generateGameFlowFile(analysis: ProjectAnalysis): string {
-  // If no GameFlow exists, generate a minimal default one
-  if (!analysis.gameFlow) {
-    return generateDefaultGameFlow(analysis);
-  }
-
-  const gameFlow = analysis.gameFlow;
-
-  let code = `; ==================================================================
+function generateGameFlowFile(analysis) {
+    var _a, _b, _c, _d;
+    // If no GameFlow exists, generate a minimal default one
+    if (!analysis.gameFlow) {
+        return generateDefaultGameFlow(analysis);
+    }
+    const gameFlow = analysis.gameFlow;
+    let code = `; ==================================================================
 ; GAMEFLOW EXECUTION ENGINE
 ; File: gameflow.asm
 ; Description: GameFlow-based game orchestration system
 ; ==================================================================
 ;
 ; GameFlow: ${gameFlow.name || 'Unnamed'}
-; Total Nodes: ${gameFlow.nodes?.length || 0}
-; Total Connections: ${gameFlow.connections?.length || 0}
+; Total Nodes: ${((_a = gameFlow.nodes) === null || _a === void 0 ? void 0 : _a.length) || 0}
+; Total Connections: ${((_b = gameFlow.connections) === null || _b === void 0 ? void 0 : _b.length) || 0}
 ; Start Node: ${gameFlow.startNodeId || 'NONE'}
 ;
 ; ARCHITECTURE:
@@ -302,12 +277,10 @@ export function generateGameFlowFile(analysis: ProjectAnalysis): string {
 ; ==================================================================
 
 `;
-
-  // ===================================================================
-  // SECTION 1: GAMEFLOW INITIALIZATION AND ENTRY POINT
-  // ===================================================================
-
-  code += `; ==================================================================
+    // ===================================================================
+    // SECTION 1: GAMEFLOW INITIALIZATION AND ENTRY POINT
+    // ===================================================================
+    code += `; ==================================================================
 ; GAMEFLOW INITIALIZATION
 ; ==================================================================
 
@@ -328,12 +301,10 @@ ${gameFlow.startNodeId ? `    ld hl, gameflow_node_${sanitizeId(gameFlow.startNo
     jp gameflow_execute_node
 
 `;
-
-  // ===================================================================
-  // SECTION 2: CORE EXECUTION ENGINE
-  // ===================================================================
-
-  code += `; ==================================================================
+    // ===================================================================
+    // SECTION 2: CORE EXECUTION ENGINE
+    // ===================================================================
+    code += `; ==================================================================
 ; CORE EXECUTION ENGINE
 ; ==================================================================
 
@@ -362,28 +333,23 @@ gameflow_execute_node:
     ; DE = node data, BC = connection table
     ; Dispatch based on node type
 `;
-
-  // Generate dispatcher for all node types present in this GameFlow
-  const nodeTypes = Array.from(new Set(gameFlow.nodes?.map((n: any) => n.type) || []));
-
-  nodeTypes.forEach((nodeType: any) => {
-    const handlerLabel = `gameflow_handle_${nodeType.toLowerCase()}`;
-    code += `    cp ${getNodeTypeConstant(nodeType)}
+    // Generate dispatcher for all node types present in this GameFlow
+    const nodeTypes = Array.from(new Set(((_c = gameFlow.nodes) === null || _c === void 0 ? void 0 : _c.map((n) => n.type)) || []));
+    nodeTypes.forEach((nodeType) => {
+        const handlerLabel = `gameflow_handle_${nodeType.toLowerCase()}`;
+        code += `    cp ${getNodeTypeConstant(nodeType)}
     jp z, ${handlerLabel}
 `;
-  });
-
-  code += `    
+    });
+    code += `    
     ; Unknown node type - error
     ret
 
 `;
-
-  // ===================================================================
-  // SECTION 3: NODE TYPE HANDLERS
-  // ===================================================================
-
-  code += `; ==================================================================
+    // ===================================================================
+    // SECTION 3: NODE TYPE HANDLERS
+    // ===================================================================
+    code += `; ==================================================================
 ; NODE TYPE HANDLERS
 ; Each handler receives:
 ;   DE = node data pointer
@@ -391,14 +357,11 @@ gameflow_execute_node:
 ; ==================================================================
 
 `;
-
-  code += generateNodeHandlers(nodeTypes, analysis);
-
-  // ===================================================================
-  // SECTION 4: CONNECTION UTILITIES
-  // ===================================================================
-
-  code += `; ==================================================================
+    code += generateNodeHandlers(nodeTypes, analysis);
+    // ===================================================================
+    // SECTION 4: CONNECTION UTILITIES
+    // ===================================================================
+    code += `; ==================================================================
 ; CONNECTION UTILITIES
 ; ==================================================================
 
@@ -478,17 +441,12 @@ gameflow_no_data:
     db #C9                        ; RET instruction - returns immediately
 
 `;
-
-  // ===================================================================
-  // SECTION 5: GAME LOOP (for WorldLink nodes)
-  // ===================================================================
-
-  // Check if project has HUD elements
-  const hasHud = analysis.screenMaps?.some(screen =>
-    screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
-  );
-
-  code += `; ==================================================================
+    // ===================================================================
+    // SECTION 5: GAME LOOP (for WorldLink nodes)
+    // ===================================================================
+    // Check if project has HUD elements
+    const hasHud = (_d = analysis.screenMaps) === null || _d === void 0 ? void 0 : _d.some(screen => { var _a; return ((_a = screen.hudConfiguration) === null || _a === void 0 ? void 0 : _a.elements) && screen.hudConfiguration.elements.length > 0; });
+    code += `; ==================================================================
 ; GAME LOOP (WorldLink nodes only)
 ; ==================================================================
 
@@ -522,30 +480,25 @@ ${hasHud ? `
     jp gameflow_world_game_loop
 
 `;
-
-  // ===================================================================
-  // SECTION 6: NODE DATA STRUCTURES
-  // ===================================================================
-
-  code += `; ==================================================================
+    // ===================================================================
+    // SECTION 6: NODE DATA STRUCTURES
+    // ===================================================================
+    code += `; ==================================================================
 ; NODE DATA STRUCTURES
 ; Each node has: type byte, data pointer, connection table pointer
 ; ==================================================================
 
 `;
-
-  // Generate node structures and connection tables
-  if (gameFlow.nodes && gameFlow.nodes.length > 0) {
-    gameFlow.nodes.forEach((node: any) => {
-      code += generateNodeStructure(node, gameFlow, analysis);
-    });
-  }
-
-  // ===================================================================
-  // SECTION 6.5: INITIALIZATION UTILITIES
-  // ===================================================================
-
-  code += `
+    // Generate node structures and connection tables
+    if (gameFlow.nodes && gameFlow.nodes.length > 0) {
+        gameFlow.nodes.forEach((node) => {
+            code += generateNodeStructure(node, gameFlow, analysis);
+        });
+    }
+    // ===================================================================
+    // SECTION 6.5: INITIALIZATION UTILITIES
+    // ===================================================================
+    code += `
 ; ==================================================================
 ; INITIALIZATION UTILITY FUNCTIONS
 ; ==================================================================
@@ -678,32 +631,26 @@ reset_vdp_registers:
 ; ------------------------------------------------------------------
 init_all_global_variables:
 `;
-
-  // Generate initialization for all global variables in the project
-  if (analysis.globalVariables && analysis.globalVariables.length > 0) {
-    code += `    ; Initialize global variables\n`;
-    analysis.globalVariables.forEach((v: any) => {
-      const varName = v.name;
-      const asmVarName = v.asmName || `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
-
-      // Use first value from values array as initial value (or 0 if no values)
-      const initialValue = v.values && v.values.length > 0 ? v.values[0].value : 0;
-      const value = typeof initialValue === 'boolean' ? (initialValue ? 1 : 0) : initialValue;
-
-      code += `    ld a, ${value}\n`;
-      code += `    ld (${asmVarName}), a    ; ${varName} = ${initialValue}\n`;
-    });
-  }
-
-  code += `    ret
+    // Generate initialization for all global variables in the project
+    if (analysis.globalVariables && analysis.globalVariables.length > 0) {
+        code += `    ; Initialize global variables\n`;
+        analysis.globalVariables.forEach((v) => {
+            const varName = v.name;
+            const asmVarName = v.asmName || `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+            // Use first value from values array as initial value (or 0 if no values)
+            const initialValue = v.values && v.values.length > 0 ? v.values[0].value : 0;
+            const value = typeof initialValue === 'boolean' ? (initialValue ? 1 : 0) : initialValue;
+            code += `    ld a, ${value}\n`;
+            code += `    ld (${asmVarName}), a    ; ${varName} = ${initialValue}\n`;
+        });
+    }
+    code += `    ret
 
 `;
-
-  // ===================================================================
-  // SECTION 7: VARIABLES
-  // ===================================================================
-
-  code += `; ==================================================================
+    // ===================================================================
+    // SECTION 7: VARIABLES
+    // ===================================================================
+    code += `; ==================================================================
 ; GAMEFLOW VARIABLES
 ; ==================================================================
 
@@ -783,24 +730,20 @@ empty_row_data:
 ; END OF GAMEFLOW
 ; ==================================================================
 `;
-
-  return code;
+    return code;
 }
-
 /**
  * Generate handlers for all node types
  */
-function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): string {
-  let code = '';
-
-  const hasHud = analysis.screenMaps?.some(screen =>
-    screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
-  );
-
-  nodeTypes.forEach((nodeType: string) => {
-    switch (nodeType) {
-      case 'Start':
-        code += `gameflow_handle_start:
+function generateNodeHandlers(nodeTypes, analysis) {
+    var _a;
+    let code = '';
+    const hasHud = (_a = analysis.screenMaps) === null || _a === void 0 ? void 0 : _a.some(screen => { var _a; return ((_a = screen.hudConfiguration) === null || _a === void 0 ? void 0 : _a.elements) && screen.hudConfiguration.elements.length > 0; });
+    nodeTypes.forEach((nodeType) => {
+        var _a;
+        switch (nodeType) {
+            case 'Start':
+                code += `gameflow_handle_start:
     ; Start node - Initialize game state and systems
     ; DE = node data pointer:
     ;   [init_routine_ptr DW][init_routine_bank DB]
@@ -838,10 +781,9 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
     jp gameflow_execute_node
 
 `;
-        break;
-
-      case 'WorldLink':
-        code += `gameflow_handle_worldlink:
+                break;
+            case 'WorldLink':
+                code += `gameflow_handle_worldlink:
     ; WorldLink node - load world and enter game loop
     ; DE = world data pointer:
     ;   [load_world_ptr DW][load_world_bank DB]
@@ -892,10 +834,9 @@ ${hasHud ? `
     jp gameflow_execute_node
 
 `;
-        break;
-
-      case 'End':
-        code += `gameflow_handle_end:
+                break;
+            case 'End':
+                code += `gameflow_handle_end:
     ; End node - stop execution and show end screen
     ; DE = end screen data pointer (screen type, message pointer)
     ; BC = connection table (unused, end stops execution)
@@ -1039,25 +980,22 @@ str_credits:
     db "CREDITS", 0
 
 `;
-        break;
-
-      case 'Restart':
-        code += `gameflow_handle_restart:
+                break;
+            case 'Restart':
+                code += `gameflow_handle_restart:
     ; Restart node - safe runtime reinit entry (no cold page remap).
     jp restart_rom
 
 `;
-        break;
-
-      case 'SubMenu':
-        {
-          const submenuCursorPatternCount = Math.max((analysis.sprites?.length || 0), 1);
-          let submenuCursorPatternTable = '';
-          for (let i = 0; i < submenuCursorPatternCount; i++) {
-            submenuCursorPatternTable += `    dw SPRITE_${i}_PATTERN\n`;
-          }
-
-        code += `gameflow_handle_submenu:
+                break;
+            case 'SubMenu':
+                {
+                    const submenuCursorPatternCount = Math.max((((_a = analysis.sprites) === null || _a === void 0 ? void 0 : _a.length) || 0), 1);
+                    let submenuCursorPatternTable = '';
+                    for (let i = 0; i < submenuCursorPatternCount; i++) {
+                        submenuCursorPatternTable += `    dw SPRITE_${i}_PATTERN\n`;
+                    }
+                    code += `gameflow_handle_submenu:
     ; SubMenu node - interactive navigation
     ; DE points to SubMenu data:
     ;   [bg_color][cursor_sprite_idx][cursor_layer_count]
@@ -1673,11 +1611,10 @@ submenu_cursor_sprite_pattern_table:
 ${submenuCursorPatternTable}
 
 `;
-          break;
-        }
-
-      case 'Text':
-        code += `gameflow_handle_text:
+                    break;
+                }
+            case 'Text':
+                code += `gameflow_handle_text:
     ; Text node - show text screen and wait for fire
     ; DE = text data pointer (pre-computed lines table)
     ; BC = connection table
@@ -1861,10 +1798,9 @@ wait_for_fire:
     ret
 
 `;
-        break;
-
-      case 'IfThenElse':
-        code += `gameflow_handle_ifthenelse:
+                break;
+            case 'IfThenElse':
+                code += `gameflow_handle_ifthenelse:
     ; IfThenElse node - conditional branching
     ; DE = condition data pointer (variable address, compare value, operator)
     ; BC = connection table
@@ -1909,10 +1845,9 @@ wait_for_fire:
     jp gameflow_execute_node
 
 `;
-        break;
-
-      case 'Globals':
-        code += `gameflow_handle_globals:
+                break;
+            case 'Globals':
+                code += `gameflow_handle_globals:
     ; Globals node - set global variables
     ; DE = globals data pointer (list of variable assignments)
     ; BC = connection table
@@ -1956,10 +1891,9 @@ wait_for_fire:
     jp gameflow_execute_node
 
 `;
-        break;
-
-      case 'Waypoint':
-        code += `gameflow_handle_waypoint:
+                break;
+            case 'Waypoint':
+                code += `gameflow_handle_waypoint:
     ; Waypoint node - passthrough routing node
     ; Simply follow default connection
     call gameflow_get_default_connection
@@ -1969,10 +1903,9 @@ wait_for_fire:
     jp gameflow_execute_node
 
 `;
-        break;
-
-      case 'Transition':
-        code += `gameflow_handle_transition:
+                break;
+            case 'Transition':
+                code += `gameflow_handle_transition:
     ; Transition node - visual screen wipe/fade effect
     ; DE = transition data pointer (db effect_id)
     ; BC = connection table
@@ -2387,10 +2320,9 @@ trans_fast_filvrm:
     ret
 
 `;
-        break;
-
-      case 'Group':
-        code += `gameflow_handle_group:
+                break;
+            case 'Group':
+                code += `gameflow_handle_group:
     ; Group node - nested GameFlow execution
     ; DE = group data pointer (nested GameFlow entry point)
     ; BC = connection table
@@ -2424,10 +2356,9 @@ trans_fast_filvrm:
     jp gameflow_execute_node
 
 `;
-        break;
-
-      case 'Music':
-        code += `gameflow_handle_music:
+                break;
+            case 'Music':
+                code += `gameflow_handle_music:
     ; Music node - play/stop music
     ; DE = music data (track ID, flags)
     ; BC = connection table
@@ -2599,10 +2530,9 @@ music_loop_flag:
     db 0                          ; 0=no loop, 1=loop
 
 `;
-        break;
-
-      default:
-        code += `gameflow_handle_${nodeType.toLowerCase()}:
+                break;
+            default:
+                code += `gameflow_handle_${nodeType.toLowerCase()}:
     ; ${nodeType} node - not yet implemented
     call gameflow_get_default_connection
     ld a, h
@@ -2611,14 +2541,13 @@ music_loop_flag:
     jp gameflow_execute_node
 
 `;
-        break;
-    }
-  });
-
-  const needsPrintStringVram = nodeTypes.includes('Text') || nodeTypes.includes('SubMenu');
-  const hasEndNode = nodeTypes.includes('End');
-  if (needsPrintStringVram && !hasEndNode) {
-    code += `; ------------------------------------------------------------------
+                break;
+        }
+    });
+    const needsPrintStringVram = nodeTypes.includes('Text') || nodeTypes.includes('SubMenu');
+    const hasEndNode = nodeTypes.includes('End');
+    if (needsPrintStringVram && !hasEndNode) {
+        code += `; ------------------------------------------------------------------
 ; Shared helper: Print string to VRAM
 ; Input: HL = string pointer (null-terminated)
 ;        DE = VRAM destination
@@ -2654,423 +2583,369 @@ print_string_vram:
     ret
 
 `;
-  }
-
-  return code;
+    }
+    return code;
 }
-
 /**
  * Generate node structure and connection table for a specific node
  */
-function generateNodeStructure(node: any, gameFlow: any, analysis: ProjectAnalysis): string {
-  const nodeLabel = `gameflow_node_${sanitizeId(node.id)}`;
-  const connLabel = `${nodeLabel}_conn`;
-
-  // Check if node has data
-  const hasData = ['Start', 'WorldLink', 'SubMenu', 'Text', 'IfThenElse', 'Globals', 'Transition'].includes(node.type) ||
-                  (node.type === 'Globals' && node.variables && node.variables.length > 0);
-
-  const dataLabel = hasData ? `${nodeLabel}_data` : 'gameflow_no_data';
-
-  let code = `; Node: ${node.type} - "${node.title || node.name || node.id}"
+function generateNodeStructure(node, gameFlow, analysis) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q;
+    const nodeLabel = `gameflow_node_${sanitizeId(node.id)}`;
+    const connLabel = `${nodeLabel}_conn`;
+    // Check if node has data
+    const hasData = ['Start', 'WorldLink', 'SubMenu', 'Text', 'IfThenElse', 'Globals', 'Transition'].includes(node.type) ||
+        (node.type === 'Globals' && node.variables && node.variables.length > 0);
+    const dataLabel = hasData ? `${nodeLabel}_data` : 'gameflow_no_data';
+    let code = `; Node: ${node.type} - "${node.title || node.name || node.id}"
 ${nodeLabel}:
     db ${getNodeTypeConstant(node.type)}
     dw ${dataLabel}
     dw ${connLabel}
 
 `;
-
-  // Generate node-specific data only if needed
-  if (hasData) {
-    code += `${nodeLabel}_data:
+    // Generate node-specific data only if needed
+    if (hasData) {
+        code += `${nodeLabel}_data:
 `;
-
-    switch (node.type) {
-      case 'Start':
-        // Generate Start node initialization data
-        code += `    dw ${nodeLabel}_init    ; Initialization routine address\n`;
-        code += `    db ((${nodeLabel}_init - #4000) / #2000)    ; Initialization routine bank\n`;
-
-        // Generate initialization routine after the data structure
-        // This will be appended after the switch
-        break;
-
-      case 'WorldLink':
-        const worldAssetId = node.worldAssetId || 'default';
-        code += `    dw load_world_${sanitizeId(worldAssetId)}\n`;
-        code += `    db ((load_world_${sanitizeId(worldAssetId)} - #4000) / #2000)\n`;
-        break;
-
-      case 'SubMenu':
-        {
-          const nodeId = sanitizeId(node.id);
-          const options = (Array.isArray(node.options) ? node.options : []).slice(0, 6);
-          const optionCount = options.length;
-          const fallbackRaw = getSubMenuInitialOptionIndex(node);
-          const fallbackIndex = optionCount > 0 ? Math.min(fallbackRaw, optionCount - 1) : 0;
-          const titleText = sanitizeAsmText(node.title || node.name || 'MENU').toUpperCase();
-          const submenuBgHex = node?.appearance?.colors?.background || '#000000';
-          const submenuBgColor = hexToMSXColor(submenuBgHex);
-          const selectorMode = getSubMenuSelectorMode(node);
-          const cursorSpriteAssetId = node?.appearance?.cursorSpriteAssetId;
-          const cursorSpriteIndexRaw = findSpriteAssetIndex(analysis, cursorSpriteAssetId);
-          const cursorSprite = cursorSpriteIndexRaw >= 0 ? analysis.sprites?.[cursorSpriteIndexRaw] : null;
-          const useSpriteCursor =
-            selectorMode === 'char'
-              ? false
-              : selectorMode === 'sprite'
-                ? cursorSpriteIndexRaw >= 0
-                : cursorSpriteIndexRaw >= 0;
-          const cursorSpriteIndex = useSpriteCursor ? cursorSpriteIndexRaw : 0xFF;
-          const layerConfig = useSpriteCursor && cursorSprite
-            ? getSpriteLayerConfigForSubmenuCursor(cursorSprite)
-            : { layerOffsets: [] as number[], layerColors: [] as number[] };
-          const cursorLayerOffsets = layerConfig.layerOffsets.slice(0, 4);
-          const cursorLayerColors = layerConfig.layerColors.slice(0, 4);
-          const cursorLayerCount = Math.min(cursorLayerColors.length, 4);
-          while (cursorLayerOffsets.length < 4) {
-            cursorLayerOffsets.push(0);
-          }
-          while (cursorLayerColors.length < 4) {
-            cursorLayerColors.push(0);
-          }
-
-          // Resolve background screen load function pointer (0 = none)
-          const submenuBgScreenId = node?.appearance?.backgroundScreenAssetId;
-          let submenuBgScreenLabel = '0';
-          if (submenuBgScreenId && analysis.screenMaps) {
-            const bgScreen = analysis.screenMaps.find((s: any) => s.id === submenuBgScreenId);
-            if (bgScreen) {
-              const sName = (bgScreen.name as string).toUpperCase().replace(/[^A-Z0-9]/g, '_');
-              const sIdSuffix = bgScreen.id ? `_${(bgScreen.id as string).replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
-              submenuBgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+        switch (node.type) {
+            case 'Start':
+                // Generate Start node initialization data
+                code += `    dw ${nodeLabel}_init    ; Initialization routine address\n`;
+                code += `    db ((${nodeLabel}_init - #4000) / #2000)    ; Initialization routine bank\n`;
+                // Generate initialization routine after the data structure
+                // This will be appended after the switch
+                break;
+            case 'WorldLink':
+                const worldAssetId = node.worldAssetId || 'default';
+                code += `    dw load_world_${sanitizeId(worldAssetId)}\n`;
+                code += `    db ((load_world_${sanitizeId(worldAssetId)} - #4000) / #2000)\n`;
+                break;
+            case 'SubMenu':
+                {
+                    const nodeId = sanitizeId(node.id);
+                    const options = (Array.isArray(node.options) ? node.options : []).slice(0, 6);
+                    const optionCount = options.length;
+                    const fallbackRaw = getSubMenuInitialOptionIndex(node);
+                    const fallbackIndex = optionCount > 0 ? Math.min(fallbackRaw, optionCount - 1) : 0;
+                    const titleText = sanitizeAsmText(node.title || node.name || 'MENU').toUpperCase();
+                    const submenuBgHex = ((_b = (_a = node === null || node === void 0 ? void 0 : node.appearance) === null || _a === void 0 ? void 0 : _a.colors) === null || _b === void 0 ? void 0 : _b.background) || '#000000';
+                    const submenuBgColor = hexToMSXColor(submenuBgHex);
+                    const selectorMode = getSubMenuSelectorMode(node);
+                    const cursorSpriteAssetId = (_c = node === null || node === void 0 ? void 0 : node.appearance) === null || _c === void 0 ? void 0 : _c.cursorSpriteAssetId;
+                    const cursorSpriteIndexRaw = findSpriteAssetIndex(analysis, cursorSpriteAssetId);
+                    const cursorSprite = cursorSpriteIndexRaw >= 0 ? (_d = analysis.sprites) === null || _d === void 0 ? void 0 : _d[cursorSpriteIndexRaw] : null;
+                    const useSpriteCursor = selectorMode === 'char'
+                        ? false
+                        : selectorMode === 'sprite'
+                            ? cursorSpriteIndexRaw >= 0
+                            : cursorSpriteIndexRaw >= 0;
+                    const cursorSpriteIndex = useSpriteCursor ? cursorSpriteIndexRaw : 0xFF;
+                    const layerConfig = useSpriteCursor && cursorSprite
+                        ? getSpriteLayerConfigForSubmenuCursor(cursorSprite)
+                        : { layerOffsets: [], layerColors: [] };
+                    const cursorLayerOffsets = layerConfig.layerOffsets.slice(0, 4);
+                    const cursorLayerColors = layerConfig.layerColors.slice(0, 4);
+                    const cursorLayerCount = Math.min(cursorLayerColors.length, 4);
+                    while (cursorLayerOffsets.length < 4) {
+                        cursorLayerOffsets.push(0);
+                    }
+                    while (cursorLayerColors.length < 4) {
+                        cursorLayerColors.push(0);
+                    }
+                    // Resolve background screen load function pointer (0 = none)
+                    const submenuBgScreenId = (_e = node === null || node === void 0 ? void 0 : node.appearance) === null || _e === void 0 ? void 0 : _e.backgroundScreenAssetId;
+                    let submenuBgScreenLabel = '0';
+                    if (submenuBgScreenId && analysis.screenMaps) {
+                        const bgScreen = analysis.screenMaps.find((s) => s.id === submenuBgScreenId);
+                        if (bgScreen) {
+                            const sName = bgScreen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                            const sIdSuffix = bgScreen.id ? `_${bgScreen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+                            submenuBgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+                        }
+                    }
+                    const submenuBgScreenBankExpr = submenuBgScreenLabel === '0'
+                        ? '0'
+                        : `((${submenuBgScreenLabel} - #4000) / #2000)`;
+                    code += `    db ${submenuBgColor}    ; Background color (MSX index)\n`;
+                    code += `    db ${cursorSpriteIndex}    ; Cursor sprite asset index (#FF = use text marker)\n`;
+                    code += `    db ${cursorLayerCount}    ; Cursor sprite layer count (max 4)\n`;
+                    code += `    db ${cursorLayerOffsets[0]}, ${cursorLayerOffsets[1]}, ${cursorLayerOffsets[2]}, ${cursorLayerOffsets[3]}    ; Cursor source layer offsets\n`;
+                    code += `    db ${cursorLayerColors[0]}, ${cursorLayerColors[1]}, ${cursorLayerColors[2]}, ${cursorLayerColors[3]}    ; Cursor layer colors\n`;
+                    code += `    dw ${submenuBgScreenLabel}    ; Background screen load function (0=none)\n`;
+                    code += `    db ${submenuBgScreenBankExpr}    ; Background screen load bank\n`;
+                    code += `    db ${optionCount}    ; Number of options (max 6)\n`;
+                    code += `    db ${fallbackIndex}    ; Initial selected option\n`;
+                    code += `    dw submenu_${nodeId}_title\n`;
+                    options.forEach((_, idx) => {
+                        code += `    dw submenu_${nodeId}_opt${idx}\n`;
+                    });
+                    code += `\nsubmenu_${nodeId}_title:\n`;
+                    code += `    db "${titleText}", 0\n`;
+                    options.forEach((option, idx) => {
+                        const optionText = sanitizeAsmText((option === null || option === void 0 ? void 0 : option.text) || (option === null || option === void 0 ? void 0 : option.label) || (option === null || option === void 0 ? void 0 : option.name) || (option === null || option === void 0 ? void 0 : option.id) || `OPTION ${idx + 1}`).toUpperCase();
+                        code += `submenu_${nodeId}_opt${idx}:\n`;
+                        code += `    db "${optionText}", 0\n`;
+                    });
+                }
+                break;
+            case 'Text': {
+                const nodeId = sanitizeId(node.id);
+                const title = (node.title || node.name || '').replace(/"/g, '').replace(/\r?\n/g, ' ').trim().toUpperCase() || 'TEXT';
+                const message = (node.message || '').replace(/"/g, '').replace(/\r?\n/g, ' ');
+                const bgHex = ((_g = (_f = node.appearance) === null || _f === void 0 ? void 0 : _f.colors) === null || _g === void 0 ? void 0 : _g.background) || '#000000';
+                const bgColor = hexToMSXColor(bgHex);
+                // Word-wrap message to 28 chars per line (leaving 2-char margin each side)
+                const maxLineWidth = 28;
+                const words = message.split(' ');
+                const messageLines = [];
+                let currentLine = '';
+                for (const word of words) {
+                    const upperWord = word.toUpperCase();
+                    const testLine = currentLine ? currentLine + ' ' + upperWord : upperWord;
+                    if (testLine.length > maxLineWidth && currentLine) {
+                        messageLines.push(currentLine);
+                        currentLine = upperWord;
+                    }
+                    else {
+                        currentLine = testLine;
+                    }
+                }
+                if (currentLine.trim())
+                    messageLines.push(currentLine);
+                const promptText = 'PRESS FIRE TO CONTINUE';
+                // Build lines array: title + message lines + prompt
+                const allLines = [];
+                // Title at row 3
+                allLines.push({ row: 3, text: title, label: `text_${nodeId}_title` });
+                // Message lines starting at row 7
+                messageLines.forEach((line, i) => {
+                    allLines.push({ row: 7 + i, text: line, label: `text_${nodeId}_msg${i}` });
+                });
+                // Prompt at row 20
+                allLines.push({ row: 20, text: promptText, label: `text_${nodeId}_prompt` });
+                // Resolve background screen load function pointer
+                const bgScreenId = (_h = node.appearance) === null || _h === void 0 ? void 0 : _h.backgroundScreenAssetId;
+                let bgScreenLabel = '0';
+                if (bgScreenId && analysis.screenMaps) {
+                    const bgScreen = analysis.screenMaps.find((s) => s.id === bgScreenId);
+                    if (bgScreen) {
+                        const sName = bgScreen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+                        const sIdSuffix = bgScreen.id ? `_${bgScreen.id.replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
+                        bgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
+                    }
+                }
+                const bgScreenBankExpr = bgScreenLabel === '0'
+                    ? '0'
+                    : `((${bgScreenLabel} - #4000) / #2000)`;
+                // Generate data table: bgColor, DW screen_load_ptr, DB screen_load_bank, numLines...
+                code += `    DB ${bgColor}                  ; Background color (MSX index from ${bgHex})\n`;
+                code += `    DW ${bgScreenLabel}            ; Background screen load function (0=none)\n`;
+                code += `    DB ${bgScreenBankExpr}         ; Background screen load bank\n`;
+                code += `    DB ${allLines.length}                  ; Number of lines\n`;
+                for (const line of allLines) {
+                    const col = Math.max(0, Math.floor((32 - line.text.length) / 2));
+                    code += `    DB ${line.row}, ${col}              ; Row ${line.row}, Col ${col}\n`;
+                    code += `    DW ${line.label}          ; -> "${line.text}"\n`;
+                }
+                // Generate string data labels
+                code += `\n`;
+                for (const line of allLines) {
+                    code += `${line.label}:\n`;
+                    code += `    DB "${line.text}", 0\n`;
+                }
+                break;
             }
-          }
-          const submenuBgScreenBankExpr = submenuBgScreenLabel === '0'
-            ? '0'
-            : `((${submenuBgScreenLabel} - #4000) / #2000)`;
-
-          code += `    db ${submenuBgColor}    ; Background color (MSX index)\n`;
-          code += `    db ${cursorSpriteIndex}    ; Cursor sprite asset index (#FF = use text marker)\n`;
-          code += `    db ${cursorLayerCount}    ; Cursor sprite layer count (max 4)\n`;
-          code += `    db ${cursorLayerOffsets[0]}, ${cursorLayerOffsets[1]}, ${cursorLayerOffsets[2]}, ${cursorLayerOffsets[3]}    ; Cursor source layer offsets\n`;
-          code += `    db ${cursorLayerColors[0]}, ${cursorLayerColors[1]}, ${cursorLayerColors[2]}, ${cursorLayerColors[3]}    ; Cursor layer colors\n`;
-          code += `    dw ${submenuBgScreenLabel}    ; Background screen load function (0=none)\n`;
-          code += `    db ${submenuBgScreenBankExpr}    ; Background screen load bank\n`;
-          code += `    db ${optionCount}    ; Number of options (max 6)\n`;
-          code += `    db ${fallbackIndex}    ; Initial selected option\n`;
-          code += `    dw submenu_${nodeId}_title\n`;
-          options.forEach((_: any, idx: number) => {
-            code += `    dw submenu_${nodeId}_opt${idx}\n`;
-          });
-
-          code += `\nsubmenu_${nodeId}_title:\n`;
-          code += `    db "${titleText}", 0\n`;
-          options.forEach((option: any, idx: number) => {
-            const optionText = sanitizeAsmText(
-              option?.text || option?.label || option?.name || option?.id || `OPTION ${idx + 1}`
-            ).toUpperCase();
-            code += `submenu_${nodeId}_opt${idx}:\n`;
-            code += `    db "${optionText}", 0\n`;
-          });
+            case 'IfThenElse':
+                const varName = node.variableName || 'unknown';
+                const asmVarName = resolveGlobalVariableAsmName(varName, analysis);
+                const compareValue = node.compareValue || 0;
+                if (asmVarName) {
+                    code += `    dw ${asmVarName}    ; Variable to check\n`;
+                }
+                else {
+                    code += `    dw 0                 ; WARNING: Missing global variable "${varName}"\n`;
+                }
+                code += `    db ${compareValue}   ; Compare value\n`;
+                code += `    db 0                 ; Operator (0=equals)\n`;
+                break;
+            case 'Globals':
+                if (node.variables && node.variables.length > 0) {
+                    const resolvedAssignments = node.variables
+                        .map((v) => {
+                        const vName = v.variableName || v.name || 'unknown';
+                        const vAsmName = resolveGlobalVariableAsmName(vName, analysis);
+                        const vValue = v.value || 0;
+                        return { vName, vAsmName, vValue };
+                    })
+                        .filter((entry) => !!entry.vAsmName);
+                    code += `    db ${resolvedAssignments.length}    ; Number of assignments\n`;
+                    resolvedAssignments.forEach((entry) => {
+                        code += `    dw ${entry.vAsmName}\n`;
+                        code += `    db ${entry.vValue}\n`;
+                    });
+                    const missingAssignments = node.variables.length - resolvedAssignments.length;
+                    if (missingAssignments > 0) {
+                        code += `    ; WARNING: ${missingAssignments} Globals assignment(s) skipped (undefined global variable)\n`;
+                    }
+                    if (resolvedAssignments.length === 0) {
+                        code += `    ; No valid global assignments found\n`;
+                    }
+                }
+                else {
+                    code += `    db 0    ; No assignments\n`;
+                }
+                break;
+            case 'Transition': {
+                // Effect IDs match execute_transition_effect dispatch (0-6)
+                const transEffectMap = {
+                    'cls': 0,
+                    'dissolve_pixels': 1,
+                    'dissolve_chars': 2,
+                    'vertical_lines': 3,
+                    'horizontal_lines': 4,
+                    'spiral': 5,
+                    'fill_white_squares': 6,
+                };
+                // Steps per effect = number of animation stages (each stage = N frames)
+                const transStepsMap = {
+                    'cls': 1,
+                    'dissolve_pixels': 8,
+                    'dissolve_chars': 8,
+                    'vertical_lines': 16,
+                    'horizontal_lines': 24,
+                    'spiral': 96, // 96 pixel-row rings (top+bottom closing in, 192px/2)
+                    'fill_white_squares': 4,
+                };
+                const transEffectId = (_j = transEffectMap[node.effect]) !== null && _j !== void 0 ? _j : 0;
+                const transSteps = (_k = transStepsMap[node.effect]) !== null && _k !== void 0 ? _k : 8;
+                const transDurationMs = (_l = node.duration) !== null && _l !== void 0 ? _l : 1000;
+                // Convert ms → frames per step (50Hz MSX = 20ms/frame). Clamp to 1-255.
+                const transFramesPerStep = Math.max(1, Math.min(255, Math.round(transDurationMs / transSteps / 20)));
+                code += `    db ${transEffectId}              ; Effect: ${node.effect || 'cls'}\n`;
+                code += `    db ${transFramesPerStep}              ; Frames per step (duration ${transDurationMs}ms / ${transSteps} steps / 20ms)\n`;
+                break;
+            }
         }
-        break;
-
-      case 'Text': {
-        const nodeId = sanitizeId(node.id);
-        const title = (node.title || node.name || '').replace(/"/g, '').replace(/\r?\n/g, ' ').trim().toUpperCase() || 'TEXT';
-        const message = (node.message || '').replace(/"/g, '').replace(/\r?\n/g, ' ');
-        const bgHex = (node as any).appearance?.colors?.background || '#000000';
-        const bgColor = hexToMSXColor(bgHex);
-
-        // Word-wrap message to 28 chars per line (leaving 2-char margin each side)
-        const maxLineWidth = 28;
-        const words = message.split(' ');
-        const messageLines: string[] = [];
-        let currentLine = '';
-        for (const word of words) {
-          const upperWord = word.toUpperCase();
-          const testLine = currentLine ? currentLine + ' ' + upperWord : upperWord;
-          if (testLine.length > maxLineWidth && currentLine) {
-            messageLines.push(currentLine);
-            currentLine = upperWord;
-          } else {
-            currentLine = testLine;
-          }
-        }
-        if (currentLine.trim()) messageLines.push(currentLine);
-
-        const promptText = 'PRESS FIRE TO CONTINUE';
-
-        // Build lines array: title + message lines + prompt
-        const allLines: { row: number; text: string; label: string }[] = [];
-
-        // Title at row 3
-        allLines.push({ row: 3, text: title, label: `text_${nodeId}_title` });
-
-        // Message lines starting at row 7
-        messageLines.forEach((line, i) => {
-          allLines.push({ row: 7 + i, text: line, label: `text_${nodeId}_msg${i}` });
-        });
-
-        // Prompt at row 20
-        allLines.push({ row: 20, text: promptText, label: `text_${nodeId}_prompt` });
-
-        // Resolve background screen load function pointer
-        const bgScreenId = (node as any).appearance?.backgroundScreenAssetId;
-        let bgScreenLabel = '0';
-        if (bgScreenId && analysis.screenMaps) {
-          const bgScreen = analysis.screenMaps.find((s: any) => s.id === bgScreenId);
-          if (bgScreen) {
-            const sName = (bgScreen.name as string).toUpperCase().replace(/[^A-Z0-9]/g, '_');
-            const sIdSuffix = bgScreen.id ? `_${(bgScreen.id as string).replace(/[^a-zA-Z0-9]/g, '_').slice(-12)}` : '';
-            bgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
-          }
-        }
-        const bgScreenBankExpr = bgScreenLabel === '0'
-          ? '0'
-          : `((${bgScreenLabel} - #4000) / #2000)`;
-
-        // Generate data table: bgColor, DW screen_load_ptr, DB screen_load_bank, numLines...
-        code += `    DB ${bgColor}                  ; Background color (MSX index from ${bgHex})\n`;
-        code += `    DW ${bgScreenLabel}            ; Background screen load function (0=none)\n`;
-        code += `    DB ${bgScreenBankExpr}         ; Background screen load bank\n`;
-        code += `    DB ${allLines.length}                  ; Number of lines\n`;
-
-        for (const line of allLines) {
-          const col = Math.max(0, Math.floor((32 - line.text.length) / 2));
-          code += `    DB ${line.row}, ${col}              ; Row ${line.row}, Col ${col}\n`;
-          code += `    DW ${line.label}          ; -> "${line.text}"\n`;
-        }
-
-        // Generate string data labels
         code += `\n`;
-        for (const line of allLines) {
-          code += `${line.label}:\n`;
-          code += `    DB "${line.text}", 0\n`;
-        }
-        break;
-      }
-
-      case 'IfThenElse':
-        const varName = node.variableName || 'unknown';
-        const asmVarName = resolveGlobalVariableAsmName(varName, analysis);
-        const compareValue = node.compareValue || 0;
-        if (asmVarName) {
-          code += `    dw ${asmVarName}    ; Variable to check\n`;
-        } else {
-          code += `    dw 0                 ; WARNING: Missing global variable "${varName}"\n`;
-        }
-        code += `    db ${compareValue}   ; Compare value\n`;
-        code += `    db 0                 ; Operator (0=equals)\n`;
-        break;
-
-      case 'Globals':
-        if (node.variables && node.variables.length > 0) {
-          const resolvedAssignments = node.variables
-            .map((v: any) => {
-              const vName = v.variableName || v.name || 'unknown';
-              const vAsmName = resolveGlobalVariableAsmName(vName, analysis);
-              const vValue = v.value || 0;
-              return { vName, vAsmName, vValue };
-            })
-            .filter((entry: any) => !!entry.vAsmName);
-
-          code += `    db ${resolvedAssignments.length}    ; Number of assignments\n`;
-          resolvedAssignments.forEach((entry: any) => {
-            code += `    dw ${entry.vAsmName}\n`;
-            code += `    db ${entry.vValue}\n`;
-          });
-
-          const missingAssignments = node.variables.length - resolvedAssignments.length;
-          if (missingAssignments > 0) {
-            code += `    ; WARNING: ${missingAssignments} Globals assignment(s) skipped (undefined global variable)\n`;
-          }
-
-          if (resolvedAssignments.length === 0) {
-            code += `    ; No valid global assignments found\n`;
-          }
-        } else {
-          code += `    db 0    ; No assignments\n`;
-        }
-        break;
-
-      case 'Transition': {
-        // Effect IDs match execute_transition_effect dispatch (0-6)
-        const transEffectMap: Record<string, number> = {
-          'cls': 0,
-          'dissolve_pixels': 1,
-          'dissolve_chars': 2,
-          'vertical_lines': 3,
-          'horizontal_lines': 4,
-          'spiral': 5,
-          'fill_white_squares': 6,
-        };
-        // Steps per effect = number of animation stages (each stage = N frames)
-        const transStepsMap: Record<string, number> = {
-          'cls': 1,
-          'dissolve_pixels': 8,
-          'dissolve_chars': 8,
-          'vertical_lines': 16,
-          'horizontal_lines': 24,
-          'spiral': 96,   // 96 pixel-row rings (top+bottom closing in, 192px/2)
-          'fill_white_squares': 4,
-        };
-        const transEffectId = transEffectMap[node.effect] ?? 0;
-        const transSteps = transStepsMap[node.effect] ?? 8;
-        const transDurationMs = node.duration ?? 1000;
-        // Convert ms → frames per step (50Hz MSX = 20ms/frame). Clamp to 1-255.
-        const transFramesPerStep = Math.max(1, Math.min(255,
-          Math.round(transDurationMs / transSteps / 20)
-        ));
-        code += `    db ${transEffectId}              ; Effect: ${node.effect || 'cls'}\n`;
-        code += `    db ${transFramesPerStep}              ; Frames per step (duration ${transDurationMs}ms / ${transSteps} steps / 20ms)\n`;
-        break;
-      }
     }
-
-    code += `\n`;
-  }
-
-  // Generate connection table
-  code += `${connLabel}:
+    // Generate connection table
+    code += `${connLabel}:
 `;
-
-  const connections = gameFlow.connections?.filter((c: any) =>
-    (c.from?.nodeId || c.from) === node.id
-  ) || [];
-
-  if (node.type === 'IfThenElse') {
-    // THEN/ELSE connections
-    const thenConn = connections.find((c: any) => c.from?.sourceId === 'then' || !c.from?.sourceId);
-    const elseConn = connections.find((c: any) => c.from?.sourceId === 'else');
-
-    code += `    db CONNECTION_THEN\n`;
-    code += `    dw ${thenConn ? `gameflow_node_${sanitizeId(thenConn.to?.nodeId || thenConn.to)}` : '0'}\n`;
-    code += `    db CONNECTION_ELSE\n`;
-    code += `    dw ${elseConn ? `gameflow_node_${sanitizeId(elseConn.to?.nodeId || elseConn.to)}` : '0'}\n`;
-  } else if (node.type === 'SubMenu') {
-    // Option connections
-    const options = (Array.isArray(node.options) ? node.options : []).slice(0, 6);
-    options.forEach((option: any, idx: number) => {
-      const optConn = connections.find((c: any) => c.from?.sourceId === option.id);
-      code += `    db CONNECTION_OPTION_${idx}\n`;
-      code += `    dw ${optConn ? `gameflow_node_${sanitizeId(optConn.to?.nodeId || optConn.to)}` : '0'}\n`;
-    });
-  } else {
-    // Single default connection
-    const defaultConn = connections[0];
-    code += `    db CONNECTION_DEFAULT\n`;
-    code += `    dw ${defaultConn ? `gameflow_node_${sanitizeId(defaultConn.to?.nodeId || defaultConn.to)}` : '0'}\n`;
-  }
-
-  code += `    db CONNECTION_END\n\n`;
-
-  // Generate initialization routine for Start nodes
-  if (node.type === 'Start') {
-    code += generateStartNodeInitRoutine(node, nodeLabel, analysis);
-  }
-
-  return code;
+    const connections = ((_m = gameFlow.connections) === null || _m === void 0 ? void 0 : _m.filter((c) => { var _a; return (((_a = c.from) === null || _a === void 0 ? void 0 : _a.nodeId) || c.from) === node.id; })) || [];
+    if (node.type === 'IfThenElse') {
+        // THEN/ELSE connections
+        const thenConn = connections.find((c) => { var _a, _b; return ((_a = c.from) === null || _a === void 0 ? void 0 : _a.sourceId) === 'then' || !((_b = c.from) === null || _b === void 0 ? void 0 : _b.sourceId); });
+        const elseConn = connections.find((c) => { var _a; return ((_a = c.from) === null || _a === void 0 ? void 0 : _a.sourceId) === 'else'; });
+        code += `    db CONNECTION_THEN\n`;
+        code += `    dw ${thenConn ? `gameflow_node_${sanitizeId(((_o = thenConn.to) === null || _o === void 0 ? void 0 : _o.nodeId) || thenConn.to)}` : '0'}\n`;
+        code += `    db CONNECTION_ELSE\n`;
+        code += `    dw ${elseConn ? `gameflow_node_${sanitizeId(((_p = elseConn.to) === null || _p === void 0 ? void 0 : _p.nodeId) || elseConn.to)}` : '0'}\n`;
+    }
+    else if (node.type === 'SubMenu') {
+        // Option connections
+        const options = (Array.isArray(node.options) ? node.options : []).slice(0, 6);
+        options.forEach((option, idx) => {
+            var _a;
+            const optConn = connections.find((c) => { var _a; return ((_a = c.from) === null || _a === void 0 ? void 0 : _a.sourceId) === option.id; });
+            code += `    db CONNECTION_OPTION_${idx}\n`;
+            code += `    dw ${optConn ? `gameflow_node_${sanitizeId(((_a = optConn.to) === null || _a === void 0 ? void 0 : _a.nodeId) || optConn.to)}` : '0'}\n`;
+        });
+    }
+    else {
+        // Single default connection
+        const defaultConn = connections[0];
+        code += `    db CONNECTION_DEFAULT\n`;
+        code += `    dw ${defaultConn ? `gameflow_node_${sanitizeId(((_q = defaultConn.to) === null || _q === void 0 ? void 0 : _q.nodeId) || defaultConn.to)}` : '0'}\n`;
+    }
+    code += `    db CONNECTION_END\n\n`;
+    // Generate initialization routine for Start nodes
+    if (node.type === 'Start') {
+        code += generateStartNodeInitRoutine(node, nodeLabel, analysis);
+    }
+    return code;
 }
-
 /**
  * Generate initialization routine for Start node
  */
-function generateStartNodeInitRoutine(node: any, nodeLabel: string, analysis: ProjectAnalysis): string {
-  let code = `; ------------------------------------------------------------------
+function generateStartNodeInitRoutine(node, nodeLabel, analysis) {
+    let code = `; ------------------------------------------------------------------
 ; ${nodeLabel}_init
 ; Initialization routine for Start node
 ; Initializes global variables and MSX systems
 ; ------------------------------------------------------------------
 ${nodeLabel}_init:
 `;
-
-  const initGlobals = node.initializeGlobals;
-  const systemConfig = node.systemConfig;
-
-  // CRITICAL: Always call init_game_systems to initialize ECS components,
-  // entities, and load game assets. Without this, the screen stays black
-  // because no patterns, sprites, or entities are set up.
-  code += `    ; === Core Game Systems Initialization (ALWAYS required) ===\n`;
-  code += `    call init_game_systems\n\n`;
-
-  // 1. Initialize MSX Systems (if configured)
-  if (systemConfig) {
-    code += `    ; === MSX System Initialization ===\n`;
-
-    if (systemConfig.initPSG) {
-      code += `    ; Initialize PSG (silence all channels)\n`;
-      code += `    call init_psg_silence\n\n`;
+    const initGlobals = node.initializeGlobals;
+    const systemConfig = node.systemConfig;
+    // CRITICAL: Always call init_game_systems to initialize ECS components,
+    // entities, and load game assets. Without this, the screen stays black
+    // because no patterns, sprites, or entities are set up.
+    code += `    ; === Core Game Systems Initialization (ALWAYS required) ===\n`;
+    code += `    call init_game_systems\n\n`;
+    // 1. Initialize MSX Systems (if configured)
+    if (systemConfig) {
+        code += `    ; === MSX System Initialization ===\n`;
+        if (systemConfig.initPSG) {
+            code += `    ; Initialize PSG (silence all channels)\n`;
+            code += `    call init_psg_silence\n\n`;
+        }
+        if (systemConfig.clearSprites) {
+            code += `    ; Clear sprite attribute table\n`;
+            code += `    call clear_sprite_table\n\n`;
+        }
+        if (systemConfig.clearVRAM) {
+            code += `    ; Clear VRAM areas\n`;
+            code += `    call clear_vram_areas\n\n`;
+        }
+        if (systemConfig.resetVDP) {
+            code += `    ; Reset VDP registers to default\n`;
+            code += `    call reset_vdp_registers\n\n`;
+        }
     }
-
-    if (systemConfig.clearSprites) {
-      code += `    ; Clear sprite attribute table\n`;
-      code += `    call clear_sprite_table\n\n`;
+    // 2. Initialize Global Variables (if configured)
+    if (initGlobals && initGlobals.enabled) {
+        code += `    ; === Global Variables Initialization ===\n`;
+        if (initGlobals.variables && initGlobals.variables.length > 0) {
+            // Use specified variables
+            initGlobals.variables.forEach((v) => {
+                const varName = v.variableName;
+                const asmVarName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+                const value = typeof v.value === 'boolean' ? (v.value ? 1 : 0) : v.value;
+                code += `    ld a, ${value}\n`;
+                code += `    ld (${asmVarName}), a    ; ${varName} = ${v.value}\n`;
+            });
+        }
+        else {
+            // Initialize all global variables to their default values
+            code += `    ; Initialize all global variables to default values\n`;
+            code += `    call init_all_global_variables\n`;
+        }
+        code += `\n`;
     }
-
-    if (systemConfig.clearVRAM) {
-      code += `    ; Clear VRAM areas\n`;
-      code += `    call clear_vram_areas\n\n`;
+    // 3. Initial delay (if configured)
+    if (systemConfig && systemConfig.initialDelayFrames && systemConfig.initialDelayFrames > 0) {
+        code += `    ; Initial delay\n`;
+        code += `    ld b, ${systemConfig.initialDelayFrames}\n`;
+        code += `.delay_loop:\n`;
+        code += `    halt    ; Wait for V-blank\n`;
+        code += `    djnz .delay_loop\n\n`;
     }
-
-    if (systemConfig.resetVDP) {
-      code += `    ; Reset VDP registers to default\n`;
-      code += `    call reset_vdp_registers\n\n`;
-    }
-  }
-
-  // 2. Initialize Global Variables (if configured)
-  if (initGlobals && initGlobals.enabled) {
-    code += `    ; === Global Variables Initialization ===\n`;
-
-    if (initGlobals.variables && initGlobals.variables.length > 0) {
-      // Use specified variables
-      initGlobals.variables.forEach((v: any) => {
-        const varName = v.variableName;
-        const asmVarName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
-        const value = typeof v.value === 'boolean' ? (v.value ? 1 : 0) : v.value;
-
-        code += `    ld a, ${value}\n`;
-        code += `    ld (${asmVarName}), a    ; ${varName} = ${v.value}\n`;
-      });
-    } else {
-      // Initialize all global variables to their default values
-      code += `    ; Initialize all global variables to default values\n`;
-      code += `    call init_all_global_variables\n`;
-    }
-
-    code += `\n`;
-  }
-
-  // 3. Initial delay (if configured)
-  if (systemConfig && systemConfig.initialDelayFrames && systemConfig.initialDelayFrames > 0) {
-    code += `    ; Initial delay\n`;
-    code += `    ld b, ${systemConfig.initialDelayFrames}\n`;
-    code += `.delay_loop:\n`;
-    code += `    halt    ; Wait for V-blank\n`;
-    code += `    djnz .delay_loop\n\n`;
-  }
-
-  code += `    ret\n\n`;
-
-  return code;
+    code += `    ret\n\n`;
+    return code;
 }
-
 /**
  * Generate default GameFlow when none exists
  */
-function generateDefaultGameFlow(analysis: ProjectAnalysis): string {
-  const defaultHasHud = analysis.screenMaps?.some(screen =>
-    screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
-  );
-  const firstScreen = analysis.screenMaps && analysis.screenMaps.length > 0 ? analysis.screenMaps[0] : null;
-  const firstImportedHudFrameDrawRoutine = firstScreen ? getImportedHudFrameDrawRoutineName(firstScreen as any) : null;
-  const firstScreenLoadCode = firstScreen
-    ? `    call ${getScreenLoadRoutineName(firstScreen)}\n`
-    : `    ; No screens available\n`;
-
-  return `; ==================================================================
+function generateDefaultGameFlow(analysis) {
+    var _a;
+    const defaultHasHud = (_a = analysis.screenMaps) === null || _a === void 0 ? void 0 : _a.some(screen => { var _a; return ((_a = screen.hudConfiguration) === null || _a === void 0 ? void 0 : _a.elements) && screen.hudConfiguration.elements.length > 0; });
+    const firstScreen = analysis.screenMaps && analysis.screenMaps.length > 0 ? analysis.screenMaps[0] : null;
+    const firstImportedHudFrameDrawRoutine = firstScreen ? getImportedHudFrameDrawRoutineName(firstScreen) : null;
+    const firstScreenLoadCode = firstScreen
+        ? `    call ${getScreenLoadRoutineName(firstScreen)}\n`
+        : `    ; No screens available\n`;
+    return `; ==================================================================
 ; DEFAULT GAMEFLOW (No GameFlow defined in project)
 ; ==================================================================
 

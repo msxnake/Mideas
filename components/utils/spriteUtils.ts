@@ -405,7 +405,8 @@ export const generateSingleFrameASMCode = (
   backgroundColor: MSXColorValue,
   spriteWidth: number,
   spriteHeight: number,
-  dataFormat: DataFormat = 'hex'
+  dataFormat: DataFormat = 'hex',
+  layerIndexesToExport?: number[]
 ): string => {
   const ASM_BYTES_PER_LINE = 16;
   const safeFrameName = frameName.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
@@ -414,14 +415,24 @@ export const generateSingleFrameASMCode = (
 
   let layersGenerated = 0;
 
-  for (let layerIndex = 0; layerIndex < spritePalette.length; layerIndex++) {
-    const layerColor = spritePalette[layerIndex];
+  const exportLayers = Array.isArray(layerIndexesToExport) && layerIndexesToExport.length > 0
+    ? layerIndexesToExport
+    : spritePalette
+      .map((_color, index) => index)
+      .filter((index) => {
+        const color = spritePalette[index];
+        return !!color && color !== backgroundColor;
+      });
 
-    // Always export all drawable layers so every frame has a stable layout.
-    // This is required so runtime animation can copy full frames reliably.
-    if (layerColor === backgroundColor) {
+  for (const layerIndex of exportLayers) {
+    const layerColor = spritePalette[layerIndex];
+    if (!layerColor || layerColor === backgroundColor) {
       continue;
     }
+
+    // Export a stable set of layers across all frames (pre-selected in
+    // generateSpriteASMCode). Individual frames can still have zero bytes
+    // for a given layer if that color is not present in that frame.
 
     // First, generate layer bytes to check if layer is empty
     const layerBytes: number[] = [];
@@ -502,9 +513,8 @@ export const generateSingleFrameASMCode = (
       }
     }
 
-    // Always generate the label even if layer is empty (all zeros).
-    // This ensures every frame has consistent LAYER labels required
-    // by the frame pointer table in spritesGenerator.ts.
+    // Always generate the selected layer label, even if this frame has no
+    // pixels for that layer, to keep per-frame byte layout stable.
 
     // Layer has data, so write the label and data
     layersGenerated += 1;
@@ -558,6 +568,18 @@ export const generateSpriteASMCode = (
   fullAsmCode += `SPRITE_${safeSpriteName}_HEIGHT    EQU ${sprite.size.height}\n`;
   fullAsmCode += `SPRITE_${safeSpriteName}_FRAMES    EQU ${sprite.frames.length}\n\n`;
 
+  // Keep a stable (and compact) layer set across all frames:
+  // only non-background palette layers that are actually used at least once.
+  const usedLayerIndexes = sprite.spritePalette
+    .map((_color, index) => index)
+    .filter((layerIndex) => {
+      const layerColor = sprite.spritePalette[layerIndex];
+      if (!layerColor || layerColor === sprite.backgroundColor) return false;
+      return sprite.frames.some((frame) =>
+        frame?.data?.some((row) => row?.some((pixel) => pixel === layerColor))
+      );
+    });
+
   sprite.frames.forEach((frame, index) => {
     fullAsmCode += generateSingleFrameASMCode(
       `${uniqueName}_F${index}`,
@@ -566,7 +588,8 @@ export const generateSpriteASMCode = (
       sprite.backgroundColor,
       sprite.size.width,
       sprite.size.height,
-      dataFormat
+      dataFormat,
+      usedLayerIndexes
     );
   });
 

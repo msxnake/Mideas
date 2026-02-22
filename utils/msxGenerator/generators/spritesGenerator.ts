@@ -14,19 +14,15 @@ const DEFAULT_DATA_FORMAT = 'hex';
 
 /**
  * Analyze drawable palette layers for a sprite across ALL frames.
- *
- * Runtime animation copies contiguous blocks of layer bytes from the first
- * drawable layer, so we need a contiguous layer range [first..last].
+ * Returns palette layer indexes that are really used at least once.
  */
-const analyzeDrawableLayerRange = (sprite: any): { first: number; last: number } | null => {
+const analyzeDrawableLayerIndexes = (sprite: any): number[] => {
   const palette: string[] = sprite?.spritePalette || [];
   const bg: string | undefined = sprite?.backgroundColor;
   const frames = sprite?.frames || [];
 
-  if (!palette.length || !frames.length) return null;
-
-  let first = -1;
-  let last = -1;
+  if (!palette.length || !frames.length) return [];
+  const used: number[] = [];
 
   for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
     const layerColor = palette[layerIdx];
@@ -45,18 +41,17 @@ const analyzeDrawableLayerRange = (sprite: any): { first: number; last: number }
       if (hasPixels) break;
     }
 
-    if (!hasPixels) continue;
-    if (first === -1) first = layerIdx;
-    last = layerIdx;
+    if (hasPixels) {
+      used.push(layerIdx);
+    }
   }
 
-  if (first === -1 || last === -1) return null;
-  return { first, last };
+  return used;
 };
 
 const findFirstDrawableLayerIndex = (sprite: any): number => {
-  const range = analyzeDrawableLayerRange(sprite);
-  return range ? range.first : -1;
+  const usedLayers = analyzeDrawableLayerIndexes(sprite);
+  return usedLayers.length > 0 ? usedLayers[0] : -1;
 };
 
 /**
@@ -124,25 +119,24 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
   };
 
   // Helper to analyze sprite layers/colors.
-  // IMPORTANT: preserve contiguous range from first..last used layer so
-  // runtime VRAM copies (layerCount * 32 from first layer) keep alignment.
+  // Uses compact stable layer set (only globally used layers), matching
+  // spriteUtils.generateSpriteASMCode() output layout.
   const getSpriteLayerColors = (sprite: any): number[] => {
     if (!sprite) return [15]; // Default white
 
     const palette: string[] = sprite.spritePalette || [];
     const bg: string | undefined = sprite.backgroundColor;
-    const range = analyzeDrawableLayerRange(sprite);
-    if (!range) return [15];
+    const usedLayerIndexes = analyzeDrawableLayerIndexes(sprite);
+    if (usedLayerIndexes.length === 0) return [15];
 
-    const colors: number[] = [];
-    for (let layerIdx = range.first; layerIdx <= range.last; layerIdx++) {
+    const colors: number[] = usedLayerIndexes.map((layerIdx) => {
       const hex = palette[layerIdx];
       if (!hex || (bg && hex === bg)) {
-        colors.push(0);
+        return 0;
       } else {
-        colors.push(hexToMSX1Index(hex));
+        return hexToMSX1Index(hex);
       }
-    }
+    });
 
     return colors.length > 0 ? colors : [15];
   };

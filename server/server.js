@@ -191,6 +191,107 @@ function collectAsmDataBlocks(lines, labelRegex) {
   return blocks;
 }
 
+function countSymbolReferences(sourceCodeUpper, symbol) {
+  const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`\\b${escaped}\\b`, 'g');
+  const matches = sourceCodeUpper.match(re);
+  return matches ? matches.length : 0;
+}
+
+function buildSpriteFrameGroups(spritePatternBlocks, sourceCode) {
+  const groups = [];
+  const groupsByKey = new Map();
+  const usedSymbolBases = new Set();
+  const sourceCodeUpper = String(sourceCode || '').toUpperCase();
+
+  const toSafeSymbolBase = (rawKey) => {
+    let base = String(rawKey || 'SPRITE')
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+    if (!base) base = 'SPRITE';
+    if (/^\d/.test(base)) base = `SPRITE_${base}`;
+    if (base.length > 32) base = base.slice(0, 32);
+
+    let unique = base;
+    let suffix = 2;
+    while (usedSymbolBases.has(unique)) {
+      unique = `${base}_${suffix}`;
+      suffix += 1;
+    }
+    usedSymbolBases.add(unique);
+    return unique;
+  };
+
+  for (const block of spritePatternBlocks) {
+    // Example label: HERO_LEFT_0_F1_LAYER2
+    const m = block.label.match(/^(.*)_F(\d+)_LAYER(\d+)$/i);
+    if (!m) continue;
+
+    const spriteBase = m[1].toUpperCase();
+    const frameIndex = parseInt(m[2], 10);
+    const layerIndex = parseInt(m[3], 10);
+    const frameKey = `${spriteBase}_F${frameIndex}`;
+
+    let group = groupsByKey.get(frameKey);
+    if (!group) {
+      const symbolBase = toSafeSymbolBase(frameKey);
+      group = {
+        key: frameKey,
+        spriteBase,
+        frameIndex,
+        symbolBase,
+        compressedLabel: `ZX0_SPRITE_FRAME_${symbolBase}_DATA`,
+        blocks: []
+      };
+      groupsByKey.set(frameKey, group);
+      groups.push(group);
+    }
+
+    group.blocks.push({
+      ...block,
+      layerIndex
+    });
+  }
+
+  const result = [];
+  for (const group of groups) {
+    if (!group.blocks || group.blocks.length === 0) continue;
+
+    group.blocks.sort((a, b) => a.layerIndex - b.layerIndex);
+    const firstBlock = group.blocks[0];
+    const firstLabel = firstBlock.label;
+
+    const bytes = [];
+    for (const block of group.blocks) {
+      bytes.push(...block.bytes);
+    }
+
+    // Safety: If any non-first layer label is referenced elsewhere, skip this group.
+    // Compression remap is safe only when external code uses the frame entry label.
+    let hasUnsafeExternalLayerRefs = false;
+    for (let i = 1; i < group.blocks.length; i++) {
+      const label = group.blocks[i].label.toUpperCase();
+      const refs = countSymbolReferences(sourceCodeUpper, label);
+      if (refs > 1) {
+        hasUnsafeExternalLayerRefs = true;
+        break;
+      }
+    }
+    if (hasUnsafeExternalLayerRefs) continue;
+
+    result.push({
+      ...group,
+      firstLabel,
+      bytes
+    });
+  }
+
+  return result;
+}
+
 function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   const info = {
     attempted: false,
@@ -253,14 +354,12 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   const tileColorBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_TILE_COLOR_BUFFER') ? 'ZX0_TILE_COLOR_BUFFER' : 'ZX0_TILE_COLOR_BUFFER';
   const fontPatternBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_FONT_PATTERN_BUFFER') ? 'ZX0_FONT_PATTERN_BUFFER' : 'ZX0_FONT_PATTERN_BUFFER';
   const fontColorBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_FONT_COLOR_BUFFER') ? 'ZX0_FONT_COLOR_BUFFER' : 'ZX0_FONT_COLOR_BUFFER';
-  const spritePatternBufferSymbol = hasEquSymbol(sourceCode, 'ZX0_SPRITE_PATTERN_BUFFER') ? 'ZX0_SPRITE_PATTERN_BUFFER' : 'ZX0_SPRITE_PATTERN_BUFFER';
   info.screenBufferSymbol = screenBufferSymbol;
   info.behaviorBufferSymbol = behaviorBufferSymbol;
   info.tilePatternBufferSymbol = tilePatternBufferSymbol;
   info.tileColorBufferSymbol = tileColorBufferSymbol;
   info.fontPatternBufferSymbol = fontPatternBufferSymbol;
   info.fontColorBufferSymbol = fontColorBufferSymbol;
-  info.spritePatternBufferSymbol = spritePatternBufferSymbol;
 
   info.attempted = true;
   const lines = sourceCode.split(/\r?\n/);
@@ -298,7 +397,7 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   const selectedTileColorBlocks = new Map();
   const selectedFontPatternBlocks = new Map();
   const selectedFontColorBlocks = new Map();
-  let selectedSpritePatternBlob = null;
+  const selectedSpritePatternGroups = [];
 
   function processBlocks(blocks, kind) {
     for (const block of blocks) {
@@ -352,47 +451,38 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   processBlocks(fontColorBlocks, 'font_color');
 
   if (spritePatternBlocks.length > 0) {
-    const spriteBytes = [];
-    const spriteLabelOffsets = new Map();
-    for (const block of spritePatternBlocks) {
-      spriteLabelOffsets.set(block.label, spriteBytes.length);
-      spriteBytes.push(...block.bytes);
-    }
+    // Group sprite pattern data by frame (all layers packed together):
+    // HERO_LEFT_0_F1_LAYER1 + HERO_LEFT_0_F1_LAYER2 => frame group HERO_LEFT_0_F1
+    const spriteGroups = buildSpriteFrameGroups(spritePatternBlocks, sourceCode);
 
-    info.originalBytes += spriteBytes.length;
-    // Keep a conservative RAM margin so sprite blob doesn't consume all free RAM.
-    const MAX_SAFE_SPRITE_BLOB_BYTES = 0x2200; // 8704 bytes
-    if (spriteBytes.length > MAX_SAFE_SPRITE_BLOB_BYTES) {
-      info.compressedBytes += spriteBytes.length;
-      if (!info.warning) {
-        info.warning = `ZX0 sprite blob skipped: ${spriteBytes.length} bytes exceeds safe RAM budget (${MAX_SAFE_SPRITE_BLOB_BYTES} bytes).`;
-      }
-    } else {
+    for (const group of spriteGroups) {
+      info.originalBytes += group.bytes.length;
+
       try {
-        const compressed = runZx0Compression(spriteBytes, tempDir);
-        if (compressed.length < spriteBytes.length) {
-          selectedSpritePatternBlob = {
-            kind: 'sprite_pattern_blob',
-            label: 'ZX0_SPRITE_PATTERN_DATA',
-            bytes: spriteBytes,
-            compressedBytes: Array.from(compressed.values()),
-            blocks: spritePatternBlocks,
-            labelOffsets: spriteLabelOffsets
-          };
-          info.compressedSpritePatterns = spritePatternBlocks.length;
+        const compressed = runZx0Compression(group.bytes, tempDir);
+        if (compressed.length < group.bytes.length) {
+          selectedSpritePatternGroups.push({
+            ...group,
+            kind: 'sprite_pattern_frame',
+            compressedBytes: Array.from(compressed.values())
+          });
+          info.compressedSpritePatterns += group.blocks.length;
           info.compressedBytes += compressed.length;
-          info.savedBytes += (spriteBytes.length - compressed.length);
+          info.savedBytes += (group.bytes.length - compressed.length);
         } else {
-          info.compressedBytes += spriteBytes.length;
+          info.compressedBytes += group.bytes.length;
         }
       } catch (err) {
         if (!info.warning) {
-          info.warning = `ZX0 compression failed for sprite pattern blob: ${err.message}`;
+          info.warning = `ZX0 compression failed for sprite frame ${group.key}: ${err.message}`;
         }
-        info.compressedBytes += spriteBytes.length;
+        info.compressedBytes += group.bytes.length;
       }
     }
   }
+  info.spritePatternBufferSymbol = selectedSpritePatternGroups.length > 0
+    ? 'ZX0_SPRITE_FRAME_BUFFER'
+    : null;
 
   const compressedBlockCount =
     selectedLayoutBlocks.size +
@@ -401,7 +491,7 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
     selectedTileColorBlocks.size +
     selectedFontPatternBlocks.size +
     selectedFontColorBlocks.size +
-    (selectedSpritePatternBlob ? 1 : 0);
+    selectedSpritePatternGroups.length;
   const routineOverhead = (compressedBlockCount > 0 && !sourceHasZx0Routine) ? ZX0_ROUTINE_OVERHEAD_BYTES : 0;
   const runtimeOverhead = compressedBlockCount * ZX0_PER_BLOCK_RUNTIME_OVERHEAD_BYTES;
   info.netSavedBytes = info.savedBytes - routineOverhead - runtimeOverhead;
@@ -433,12 +523,14 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   const compressedTileColorLabels = new Set(Array.from(selectedTileColorBlocks.keys()));
   const compressedFontPatternLabels = new Set(Array.from(selectedFontPatternBlocks.keys()));
   const compressedFontColorLabels = new Set(Array.from(selectedFontColorBlocks.keys()));
-  if (selectedSpritePatternBlob) {
-    for (const block of selectedSpritePatternBlob.blocks) {
-      replacementByStart.set(block.startLine, {
-        endLine: block.endLine,
-        lines: [`    ; ZX0 compressed sprite pattern moved to ${selectedSpritePatternBlob.label} (${block.bytes.length} bytes)`]
-      });
+  if (selectedSpritePatternGroups.length > 0) {
+    for (const spriteGroup of selectedSpritePatternGroups) {
+      for (const block of spriteGroup.blocks) {
+        replacementByStart.set(block.startLine, {
+          endLine: block.endLine,
+          lines: [`    ; ZX0 compressed sprite pattern moved to ${spriteGroup.compressedLabel} (${block.bytes.length} bytes)`]
+        });
+      }
     }
   }
   const rebuilt = [];
@@ -460,46 +552,46 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   let behaviorDecompressedInCurrentFunction = false;
   let patternDecompressedInCurrentFunction = false;
   let colorDecompressedInCurrentFunction = false;
-  let spriteBlobInitInjected = false;
-  let spriteBlobSubmenuInjected = false;
+  let inLoadSpritePatterns = false;
+  let inUpdateAnimation = false;
+  let inSubmenuPrepareCursor = false;
   let fontBlobInitInjected = false;
 
   for (const line of rebuilt) {
-    if (selectedSpritePatternBlob && /^\s*init_sprite_system:\s*$/i.test(line)) {
+    if (selectedSpritePatternGroups.length > 0 && /^\s*load_sprite_patterns:\s*$/i.test(line)) {
+      inLoadSpritePatterns = true;
+      inUpdateAnimation = false;
+      inSubmenuPrepareCursor = false;
       patched.push(line);
-      patched.push('    ; Decompress ZX0 sprite pattern blob into RAM buffer');
-      patched.push('    di');
-      patched.push(`    ld hl, ${selectedSpritePatternBlob.label}`);
-      patched.push(`    ld de, ${spritePatternBufferSymbol}`);
-      patched.push('    call dzx0_standard');
-      patched.push('    ei');
-      spriteBlobInitInjected = true;
       continue;
     }
 
-    if (selectedSpritePatternBlob && !spriteBlobInitInjected && /^\s*init_sprites:\s*$/i.test(line)) {
+    if (selectedSpritePatternGroups.length > 0 && /^\s*update_animation_component:\s*$/i.test(line)) {
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = true;
+      inSubmenuPrepareCursor = false;
       patched.push(line);
-      patched.push('    ; Decompress ZX0 sprite pattern blob into RAM buffer');
-      patched.push('    di');
-      patched.push(`    ld hl, ${selectedSpritePatternBlob.label}`);
-      patched.push(`    ld de, ${spritePatternBufferSymbol}`);
-      patched.push('    call dzx0_standard');
-      patched.push('    ei');
-      spriteBlobInitInjected = true;
       continue;
     }
 
-    if (selectedSpritePatternBlob && /^\s*submenu_prepare_cursor_sprite:\s*$/i.test(line)) {
+    if (selectedSpritePatternGroups.length > 0 && /^\s*submenu_prepare_cursor_sprite:\s*$/i.test(line)) {
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inSubmenuPrepareCursor = true;
       patched.push(line);
-      if (!spriteBlobSubmenuInjected) {
-        patched.push('    ; Ensure sprite pattern blob is available for submenu cursor');
-        patched.push('    di');
-        patched.push(`    ld hl, ${selectedSpritePatternBlob.label}`);
-        patched.push(`    ld de, ${spritePatternBufferSymbol}`);
-        patched.push('    call dzx0_standard');
-        patched.push('    ei');
-        spriteBlobSubmenuInjected = true;
-      }
+      continue;
+    }
+
+    if (/^\s*[A-Za-z_][A-Za-z0-9_]*:\s*$/.test(line) && !/^\s*submenu_prepare_cursor_sprite:\s*$/i.test(line)) {
+      inSubmenuPrepareCursor = false;
+    }
+
+    if (
+      selectedSpritePatternGroups.length > 0 &&
+      (inLoadSpritePatterns || inUpdateAnimation || inSubmenuPrepareCursor) &&
+      /^\s*call\s+FAST_LDIRVM\s*(?:;.*)?$/i.test(line)
+    ) {
+      patched.push('    call COPY_SPRITE_SRC_TO_VRAM');
       continue;
     }
 
@@ -531,6 +623,9 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
       inLoadScreen = true;
       inLoadPattern = false;
       inLoadColor = false;
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inSubmenuPrepareCursor = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
@@ -543,6 +638,9 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
       inLoadScreen = false;
       inLoadPattern = true;
       inLoadColor = false;
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inSubmenuPrepareCursor = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
@@ -555,6 +653,9 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
       inLoadScreen = false;
       inLoadPattern = false;
       inLoadColor = true;
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inSubmenuPrepareCursor = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
@@ -648,10 +749,12 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
       continue;
     }
 
-    if ((inLoadScreen || inLoadPattern || inLoadColor) && /^\s*ret\s*$/i.test(line)) {
+    if ((inLoadScreen || inLoadPattern || inLoadColor || inLoadSpritePatterns || inUpdateAnimation) && /^\s*ret\s*$/i.test(line)) {
       inLoadScreen = false;
       inLoadPattern = false;
       inLoadColor = false;
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;
@@ -683,8 +786,8 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   const maxFontColorSize = selectedFontColorBlocks.size > 0
     ? Math.max(...Array.from(selectedFontColorBlocks.values()).map(b => b.bytes.length))
     : 0;
-  const maxSpritePatternSize = selectedSpritePatternBlob
-    ? selectedSpritePatternBlob.bytes.length
+  const maxSpriteFrameSize = selectedSpritePatternGroups.length > 0
+    ? Math.max(...selectedSpritePatternGroups.map((group) => group.bytes.length))
     : 0;
 
   const needsScreenBufferEqu = selectedLayoutBlocks.size > 0 &&
@@ -710,10 +813,8 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   const needsFontColorBufferEqu = selectedFontColorBlocks.size > 0 &&
     fontColorBufferSymbol === 'ZX0_FONT_COLOR_BUFFER' &&
     !/^\s*ZX0_FONT_COLOR_BUFFER\s+EQU\s+/im.test(finalCode);
-
-  const needsSpritePatternBufferEqu = !!selectedSpritePatternBlob &&
-    spritePatternBufferSymbol === 'ZX0_SPRITE_PATTERN_BUFFER' &&
-    !/^\s*ZX0_SPRITE_PATTERN_BUFFER\s+EQU\s+/im.test(finalCode);
+  const needsSpriteFrameBufferEqu = selectedSpritePatternGroups.length > 0 &&
+    !/^\s*ZX0_SPRITE_FRAME_BUFFER\s+EQU\s+/im.test(finalCode);
 
   const buffersToAllocate = [];
   if (needsScreenBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_SCREEN_BUFFER', size: Math.max(1, maxLayoutSize), title: 'ZX0 SCREEN BUFFER', note: 'Free RAM buffer for screen layout decompression' });
@@ -722,7 +823,14 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   if (needsTileColorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_TILE_COLOR_BUFFER', size: Math.max(1, maxTileColorSize), title: 'ZX0 TILE COLOR BUFFER', note: 'Free RAM buffer for tile color data decompression' });
   if (needsFontPatternBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_FONT_PATTERN_BUFFER', size: Math.max(1, maxFontPatternSize), title: 'ZX0 FONT PATTERN BUFFER', note: 'Free RAM buffer for font pattern data decompression' });
   if (needsFontColorBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_FONT_COLOR_BUFFER', size: Math.max(1, maxFontColorSize), title: 'ZX0 FONT COLOR BUFFER', note: 'Free RAM buffer for font color data decompression' });
-  if (needsSpritePatternBufferEqu) buffersToAllocate.push({ symbol: 'ZX0_SPRITE_PATTERN_BUFFER', size: Math.max(1, maxSpritePatternSize), title: 'ZX0 SPRITE PATTERN BUFFER', note: 'Free RAM buffer for sprite pattern blob decompression' });
+  if (needsSpriteFrameBufferEqu) {
+    buffersToAllocate.push({
+      symbol: 'ZX0_SPRITE_FRAME_BUFFER',
+      size: Math.max(1, maxSpriteFrameSize),
+      title: 'ZX0 SPRITE FRAME BUFFER',
+      note: 'Shared RAM buffer for per-frame sprite decompression before VRAM upload'
+    });
+  }
 
   if (buffersToAllocate.length > 0) {
     const RAM_BUFFER_BASE = 0xC900;
@@ -755,29 +863,38 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
     }
   }
 
-  if (selectedSpritePatternBlob) {
+  if (selectedSpritePatternGroups.length > 0) {
     extraEquBlocks.push(
       '; ==================================================================',
       '; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)',
-      '; Original sprite labels now point to decompressed RAM buffer',
+      '; Frame entry labels now point to ZX0-compressed frame blobs',
       '; =================================================================='
     );
-    for (const block of selectedSpritePatternBlob.blocks) {
-      const offset = selectedSpritePatternBlob.labelOffsets.get(block.label) || 0;
-      extraEquBlocks.push(`${block.label} EQU ${spritePatternBufferSymbol}+${offset}`);
+    for (const group of selectedSpritePatternGroups) {
+      extraEquBlocks.push(`; Frame group: ${group.key}`);
+      extraEquBlocks.push(`${group.firstLabel} EQU ${group.compressedLabel}`);
     }
     extraEquBlocks.push('');
   }
 
   const extraDataBlocks = [];
-  if (selectedSpritePatternBlob) {
+  if (selectedSpritePatternGroups.length > 0) {
     extraDataBlocks.push(
       '; ==================================================================',
-      '; ZX0 SPRITE PATTERN BLOB (AUTO-INJECTED)',
+      '; ZX0 SPRITE FRAME BLOBS (AUTO-INJECTED)',
       '; ==================================================================',
-      `${selectedSpritePatternBlob.label}:`,
-      `    ; ZX0 compressed sprite patterns (${selectedSpritePatternBlob.bytes.length} -> ${selectedSpritePatternBlob.compressedBytes.length} bytes)`,
-      ...formatAsmDbLines(selectedSpritePatternBlob.compressedBytes),
+      'ZX0_SPRITE_FRAME_DATA_START:'
+    );
+    for (const group of selectedSpritePatternGroups) {
+      extraDataBlocks.push(
+        `${group.compressedLabel}:`,
+        `    ; ZX0 compressed sprite frame ${group.key} (${group.bytes.length} -> ${group.compressedBytes.length} bytes)`,
+        ...formatAsmDbLines(group.compressedBytes)
+      );
+    }
+    extraDataBlocks.push(
+      'ZX0_SPRITE_FRAME_DATA_END_LABEL:',
+      '    DB #00',
       ''
     );
   }
@@ -797,6 +914,60 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
       finalCode = finalCode.replace(/^\s*end\b.*$/im, `${equBlock}$&`);
     } else {
       finalCode = `${finalCode}${equBlock}`;
+    }
+  }
+
+  if (selectedSpritePatternGroups.length > 0 && !/^\s*COPY_SPRITE_SRC_TO_VRAM:\s*$/im.test(finalCode)) {
+    const spriteCopyHelperBlock = [
+      '',
+      '; ==================================================================',
+      '; ZX0 SPRITE COPY HELPER (AUTO-INJECTED)',
+      '; - If HL points to a compressed sprite frame blob, decompress frame',
+      ';   to ZX0_SPRITE_FRAME_BUFFER and then upload to VRAM.',
+      '; - Otherwise copy raw frame data directly to VRAM.',
+      '; Input: HL=source (ROM), DE=VRAM destination, BC=byte count',
+      '; ==================================================================',
+      'COPY_SPRITE_SRC_TO_VRAM:',
+      '    push de',
+      '    ; source < ZX0_SPRITE_FRAME_DATA_START => raw copy',
+      '    push hl',
+      '    ld de, ZX0_SPRITE_FRAME_DATA_START',
+      '    or a',
+      '    sbc hl, de',
+      '    pop hl',
+      '    jr c, COPY_SPRITE_SRC_TO_VRAM_RAW',
+      '',
+      '    ; source >= ZX0_SPRITE_FRAME_DATA_END_LABEL => raw copy',
+      '    push hl',
+      '    ld de, ZX0_SPRITE_FRAME_DATA_END_LABEL',
+      '    or a',
+      '    sbc hl, de',
+      '    pop hl',
+      '    jr nc, COPY_SPRITE_SRC_TO_VRAM_RAW',
+      '',
+      '    ; Compressed frame: decompress to shared RAM buffer, then upload',
+      '    pop de',
+      '    push bc',
+      '    push de',
+      '    push hl',
+      '    ld de, ZX0_SPRITE_FRAME_BUFFER',
+      '    call dzx0_standard',
+      '    pop hl',
+      '    pop de',
+      '    pop bc',
+      '    ld hl, ZX0_SPRITE_FRAME_BUFFER',
+      '    jp FAST_LDIRVM',
+      '',
+      'COPY_SPRITE_SRC_TO_VRAM_RAW:',
+      '    pop de',
+      '    jp FAST_LDIRVM',
+      ''
+    ].join('\n');
+
+    if (/^\s*end\b.*$/im.test(finalCode)) {
+      finalCode = finalCode.replace(/^\s*end\b.*$/im, `${spriteCopyHelperBlock}\n$&`);
+    } else {
+      finalCode = `${finalCode}\n${spriteCopyHelperBlock}\n`;
     }
   }
 

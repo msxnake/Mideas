@@ -262,6 +262,44 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     return result;
   };
 
+  const runCompressRequest = async (sourceCode: string, projectNameInput?: string) => {
+    const response = await fetch('http://localhost:3001/compress-unified-asm', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        code: sourceCode,
+        projectName: projectNameInput || currentProjectName || 'MSX_Game'
+      }),
+    });
+
+    const responseText = await response.text();
+    let result: any;
+
+    try {
+      result = JSON.parse(responseText);
+    } catch (jsonError) {
+      console.error('Failed to parse JSON response:', jsonError);
+      console.error('Raw response:', responseText);
+      return {
+        success: false,
+        message: `Compression response error: ${responseText}`,
+        fullDetails: { jsonError, responseText, status: response.status }
+      };
+    }
+
+    if (!response.ok || !result.success) {
+      return {
+        success: false,
+        message: result.details || result.error || 'Unknown compression error',
+        ...result
+      };
+    }
+
+    return result;
+  };
+
   const buildMapperSummary = (compileResult: any, projectNameInput?: string) => {
     const projectName = projectNameInput || currentProjectName || 'MSX_Game';
     const requested = compileResult?.requestedRomConfig || {};
@@ -528,16 +566,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
-  const handleQuickValidateMapper = async () => {
+  const handleGenerateCompressCompileMapper = async () => {
     if (exportType !== 'asm_all_in_one') {
-      alert('Quick mapper validation is only available for ASM (all in one).');
+      alert('Generate + Compress + Compile + Mapper is only available for ASM (all in one).');
       return;
     }
 
     setIsQuickValidating(true);
     setIsGenerating(true);
     setIsCompiling(true);
+    setIsCompressingAsm(true);
     setCompilationResult(null);
+    setAsmCompressionResult(null);
     setQuickValidationSummary(null);
 
     try {
@@ -549,17 +589,61 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       setActiveFileIndex(bundle.activeIndex);
       setLastGeneratedRomConfig(bundle.romConfig);
 
-      const compileResult = await runCompileRequest(bundle.mainCode, bundle.romConfig, bundle.projectName);
+      let sourceCodeForCompile = bundle.mainCode;
+      let compressionSummary = 'Compression: skipped';
+
+      try {
+        const compressionResult = await runCompressRequest(bundle.mainCode, bundle.projectName);
+        setAsmCompressionResult(compressionResult);
+
+        if (compressionResult.success && compressionResult.applied && compressionResult.compressedCode) {
+          const compressedFileName = compressionResult.unitedCompressedAsmFile || 'unitedCompressedFiles.asm';
+          const compressedContent = compressionResult.compressedCode as string;
+          const filesWithoutCompressed = bundle.files.filter(
+            f => f.name !== compressedFileName && f.name !== (compressionResult.compressedAsmFile || '')
+          );
+          const unifiedIndex = filesWithoutCompressed.findIndex(f => f.name === 'unitedFiles.asm');
+          const compressedFileEntry: GeneratedFile = { name: compressedFileName, content: compressedContent };
+
+          const nextFiles = unifiedIndex >= 0
+            ? [
+                ...filesWithoutCompressed.slice(0, unifiedIndex + 1),
+                compressedFileEntry,
+                ...filesWithoutCompressed.slice(unifiedIndex + 1)
+              ]
+            : [compressedFileEntry, ...filesWithoutCompressed];
+
+          const compressedIndex = nextFiles.findIndex(f => f.name === compressedFileName);
+          setGeneratedFiles(nextFiles);
+          setActiveFileIndex(compressedIndex >= 0 ? compressedIndex : 0);
+          setGeneratedCode(compressedContent);
+          sourceCodeForCompile = compressedContent;
+
+          const netSaved = compressionResult?.compressionInfo?.netSavedBytes ?? 0;
+          compressionSummary = `Compression: applied (net saved ${netSaved} bytes)`;
+        } else if (compressionResult.success) {
+          compressionSummary = `Compression: ${compressionResult.message || 'skipped (no net gain)'}`;
+        } else {
+          compressionSummary = `Compression warning: ${compressionResult.message || 'failed'}`;
+        }
+      } catch (compressionError) {
+        compressionSummary = `Compression warning: ${compressionError}`;
+      } finally {
+        setIsCompressingAsm(false);
+      }
+
+      const compileResult = await runCompileRequest(sourceCodeForCompile, bundle.romConfig, bundle.projectName);
       setCompilationResult(compileResult);
-      setQuickValidationSummary(buildMapperSummary(compileResult, bundle.projectName));
+      setQuickValidationSummary(`${compressionSummary}\n${buildMapperSummary(compileResult, bundle.projectName)}`);
     } catch (error) {
       const failure = {
         success: false,
-        message: `Quick validation failed: ${error}`
+        message: `Generate + Compress + Compile + Mapper failed: ${error}`
       };
       setCompilationResult(failure);
       setQuickValidationSummary(buildMapperSummary(failure, currentProjectName || 'MSX_Game'));
     } finally {
+      setIsCompressingAsm(false);
       setIsCompiling(false);
       setIsGenerating(false);
       setIsQuickValidating(false);
@@ -579,31 +663,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     setAsmCompressionResult(null);
 
     try {
-      const response = await fetch('http://localhost:3001/compress-unified-asm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code: sourceCode,
-          projectName: currentProjectName || 'MSX_Game'
-        }),
-      });
-
-      const responseText = await response.text();
-      let result: any;
-
-      try {
-        result = JSON.parse(responseText);
-      } catch (jsonError) {
-        console.error('Failed to parse JSON response:', jsonError);
-        console.error('Raw response:', responseText);
-        alert(`Compression response error: ${responseText}`);
-        return;
-      }
-
-      if (!response.ok || !result.success) {
-        alert(`Compression failed: ${result.details || result.error || 'Unknown error'}`);
+      const result = await runCompressRequest(sourceCode, currentProjectName || 'MSX_Game');
+      if (!result.success) {
+        alert(`Compression failed: ${result.message || 'Unknown error'}`);
         return;
       }
 
@@ -1066,12 +1128,12 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                 {exportType === 'asm_all_in_one' && (
                   <Button
-                    onClick={handleQuickValidateMapper}
-                    disabled={isGenerating || isCompiling || isQuickValidating}
+                    onClick={handleGenerateCompressCompileMapper}
+                    disabled={isGenerating || isCompressingAsm || isCompiling || isQuickValidating}
                     variant="secondary"
                     className="w-full"
                   >
-                    {isQuickValidating ? 'Running quick validation...' : 'Generate + Compile + Mapper Summary'}
+                    {isQuickValidating ? 'Running generate + compress + compile + mapper...' : 'Generate + Compress + Compile + Mapper'}
                   </Button>
                 )}
 
@@ -1087,7 +1149,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                 {quickValidationSummary && (
                   <div className="p-2 rounded text-xs bg-blue-900 bg-opacity-30 border border-blue-600 text-msx-textsecondary whitespace-pre-wrap">
-                    <div className="font-semibold text-blue-300 mb-1">Quick Mapper Validation</div>
+                    <div className="font-semibold text-blue-300 mb-1">Mapper Pipeline Summary</div>
                     {quickValidationSummary}
                   </div>
                 )}

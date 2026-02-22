@@ -1,84 +1,81 @@
+"use strict";
 /**
  * @fileoverview State Machine Generator - Generates Z80 assembly for State Machines
  * Includes the runtime engine and data serialization logic.
  */
-
-import { StateMachine, StateMachineState, Action, Condition, ActionTypes, ConditionTypes } from '../../../statemachine.types';
-import { buildMSXDirectionalSpriteCatalog } from '../../../components/utils/spriteUtils';
-
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateStateMachineSystem = generateStateMachineSystem;
+const statemachine_types_1 = require("../../../statemachine.types");
+const spriteUtils_1 = require("../../../components/utils/spriteUtils");
 // =============================================================================
 // CONSTANTS & MAPPINGS
 // =============================================================================
-
-const ACTION_IDS: Record<string, number> = {
-    [ActionTypes.SET_POSITION]: 1,
-    [ActionTypes.MOVE_BY]: 2,
-    [ActionTypes.SET_VELOCITY]: 3,
-    [ActionTypes.APPLY_FORCE]: 4,
-    [ActionTypes.CHANGE_SPRITE]: 5,
-    [ActionTypes.PLAY_ANIMATION]: 6,
-    [ActionTypes.SET_ANIMATION_SPEED]: 7,
-    [ActionTypes.TOGGLE_ANIMATION]: 8,
-    [ActionTypes.PLAY_SOUND]: 9,
-    [ActionTypes.PLAY_MUSIC]: 10,
-    [ActionTypes.MUTE_MUSIC]: 11,
-    [ActionTypes.STOP_MUSIC]: 12,
-    [ActionTypes.SET_VARIABLE]: 13,
-    [ActionTypes.INCREMENT_VARIABLE]: 14,
-    [ActionTypes.DECREMENT_VARIABLE]: 15,
-    [ActionTypes.SET_COMPONENT_PROPERTY]: 16,
-    [ActionTypes.WAIT]: 17,
-    [ActionTypes.GOTO_STATE]: 18,
-    [ActionTypes.DESTROY_ENTITY]: 19,
-    [ActionTypes.SPAWN_ENTITY]: 20,
-    [ActionTypes.GET_RANDOM_ENTITY_POSITION]: 21,
-    [ActionTypes.CHANGE_GAME_FLOW_NODE]: 22,
-    [ActionTypes.DECREASE_LIVES]: 23,
-    [ActionTypes.INCREASE_LIVES]: 24,
-    [ActionTypes.RESPAWN_PLAYER]: 25,
-    [ActionTypes.BREAK_TILE]: 26,
-    [ActionTypes.REPLACE_TILE]: 27,
-    [ActionTypes.RND]: 28,
-    [ActionTypes.POINT_AT]: 29,
-    [ActionTypes.ADD_VARIABLES]: 30,
-    [ActionTypes.SUBTRACT_VARIABLES]: 31,
-    [ActionTypes.MULTIPLY_VARIABLES]: 32,
-    [ActionTypes.DIVIDE_VARIABLES]: 33,
-    [ActionTypes.MODULO_VARIABLES]: 34,
-    [ActionTypes.ASSIGN_VARIABLE]: 35,
+const ACTION_IDS = {
+    [statemachine_types_1.ActionTypes.SET_POSITION]: 1,
+    [statemachine_types_1.ActionTypes.MOVE_BY]: 2,
+    [statemachine_types_1.ActionTypes.SET_VELOCITY]: 3,
+    [statemachine_types_1.ActionTypes.APPLY_FORCE]: 4,
+    [statemachine_types_1.ActionTypes.CHANGE_SPRITE]: 5,
+    [statemachine_types_1.ActionTypes.PLAY_ANIMATION]: 6,
+    [statemachine_types_1.ActionTypes.SET_ANIMATION_SPEED]: 7,
+    [statemachine_types_1.ActionTypes.TOGGLE_ANIMATION]: 8,
+    [statemachine_types_1.ActionTypes.PLAY_SOUND]: 9,
+    [statemachine_types_1.ActionTypes.PLAY_MUSIC]: 10,
+    [statemachine_types_1.ActionTypes.MUTE_MUSIC]: 11,
+    [statemachine_types_1.ActionTypes.STOP_MUSIC]: 12,
+    [statemachine_types_1.ActionTypes.SET_VARIABLE]: 13,
+    [statemachine_types_1.ActionTypes.INCREMENT_VARIABLE]: 14,
+    [statemachine_types_1.ActionTypes.DECREMENT_VARIABLE]: 15,
+    [statemachine_types_1.ActionTypes.SET_COMPONENT_PROPERTY]: 16,
+    [statemachine_types_1.ActionTypes.WAIT]: 17,
+    [statemachine_types_1.ActionTypes.GOTO_STATE]: 18,
+    [statemachine_types_1.ActionTypes.DESTROY_ENTITY]: 19,
+    [statemachine_types_1.ActionTypes.SPAWN_ENTITY]: 20,
+    [statemachine_types_1.ActionTypes.GET_RANDOM_ENTITY_POSITION]: 21,
+    [statemachine_types_1.ActionTypes.CHANGE_GAME_FLOW_NODE]: 22,
+    [statemachine_types_1.ActionTypes.DECREASE_LIVES]: 23,
+    [statemachine_types_1.ActionTypes.INCREASE_LIVES]: 24,
+    [statemachine_types_1.ActionTypes.RESPAWN_PLAYER]: 25,
+    [statemachine_types_1.ActionTypes.BREAK_TILE]: 26,
+    [statemachine_types_1.ActionTypes.REPLACE_TILE]: 27,
+    [statemachine_types_1.ActionTypes.RND]: 28,
+    [statemachine_types_1.ActionTypes.POINT_AT]: 29,
+    [statemachine_types_1.ActionTypes.ADD_VARIABLES]: 30,
+    [statemachine_types_1.ActionTypes.SUBTRACT_VARIABLES]: 31,
+    [statemachine_types_1.ActionTypes.MULTIPLY_VARIABLES]: 32,
+    [statemachine_types_1.ActionTypes.DIVIDE_VARIABLES]: 33,
+    [statemachine_types_1.ActionTypes.MODULO_VARIABLES]: 34,
+    [statemachine_types_1.ActionTypes.ASSIGN_VARIABLE]: 35,
     // Special
     END: 0xFF
 };
-
-const CONDITION_IDS: Record<string, number> = {
-    [ConditionTypes.AND]: 1,
-    [ConditionTypes.OR]: 2,
-    [ConditionTypes.NOT]: 3,
-    [ConditionTypes.KEY_PRESSED]: 4,
-    [ConditionTypes.KEY_RELEASED]: 5,
-    [ConditionTypes.TIME_OUT]: 6,
-    [ConditionTypes.CAN_MOVE_DIRECTION]: 7,
-    [ConditionTypes.HAS_COLLISION]: 8,
-    [ConditionTypes.PATH_CLEAR]: 9,
-    [ConditionTypes.ON_WALL_COLLISION]: 10,
-    [ConditionTypes.HAS_DEADLY_TILE_COLLISION]: 11,
-    [ConditionTypes.ANIMATION_COMPLETE]: 12,
-    [ConditionTypes.KEY_AND_MOVEMENT]: 13,
-    [ConditionTypes.VARIABLE_COMPARE]: 14,
+const CONDITION_IDS = {
+    [statemachine_types_1.ConditionTypes.AND]: 1,
+    [statemachine_types_1.ConditionTypes.OR]: 2,
+    [statemachine_types_1.ConditionTypes.NOT]: 3,
+    [statemachine_types_1.ConditionTypes.KEY_PRESSED]: 4,
+    [statemachine_types_1.ConditionTypes.KEY_RELEASED]: 5,
+    [statemachine_types_1.ConditionTypes.TIME_OUT]: 6,
+    [statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION]: 7,
+    [statemachine_types_1.ConditionTypes.HAS_COLLISION]: 8,
+    [statemachine_types_1.ConditionTypes.PATH_CLEAR]: 9,
+    [statemachine_types_1.ConditionTypes.ON_WALL_COLLISION]: 10,
+    [statemachine_types_1.ConditionTypes.HAS_DEADLY_TILE_COLLISION]: 11,
+    [statemachine_types_1.ConditionTypes.ANIMATION_COMPLETE]: 12,
+    [statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT]: 13,
+    [statemachine_types_1.ConditionTypes.VARIABLE_COMPARE]: 14,
 };
-
 // Variable IDs for VARIABLE_COMPARE condition
-const VARIABLE_IDS: Record<string, number> = {
-    'x': 0,         // entity_x_pos
-    'y': 1,         // entity_y_pos
-    'vx': 2,        // entity_vel_x
-    'vy': 3,        // entity_vel_y
-    'isOnGround': 4,  // entity_on_ground (bit 0)
-    'health': 5,    // entity_health_current
+const VARIABLE_IDS = {
+    'x': 0, // entity_x_pos
+    'y': 1, // entity_y_pos
+    'vx': 2, // entity_vel_x
+    'vy': 3, // entity_vel_y
+    'isOnGround': 4, // entity_on_ground (bit 0)
+    'health': 5, // entity_health_current
 };
-
 // Operator IDs for VARIABLE_COMPARE condition
-const OPERATOR_IDS: Record<string, number> = {
+const OPERATOR_IDS = {
     '==': 0,
     '!=': 1,
     '>': 2,
@@ -86,53 +83,47 @@ const OPERATOR_IDS: Record<string, number> = {
     '>=': 4,
     '<=': 5,
 };
-
 // Key IDs for KEY_PRESSED condition
 // Maps key names to their corresponding input state values
-const KEY_IDS: Record<string, number> = {
-    'up': 1,          // Up direction
-    'arrowup': 1,     // DOM key name alias
-    'down': 5,        // Down direction
-    'arrowdown': 5,   // DOM key name alias
-    'left': 7,        // Left direction
-    'arrowleft': 7,   // DOM key name alias
-    'right': 3,       // Right direction
-    'arrowright': 3,  // DOM key name alias
-    'fire': 9,        // Fire button (special check)
-    'space': 9,       // Space as fire alias
+const KEY_IDS = {
+    'up': 1, // Up direction
+    'arrowup': 1, // DOM key name alias
+    'down': 5, // Down direction
+    'arrowdown': 5, // DOM key name alias
+    'left': 7, // Left direction
+    'arrowleft': 7, // DOM key name alias
+    'right': 3, // Right direction
+    'arrowright': 3, // DOM key name alias
+    'fire': 9, // Fire button (special check)
+    'space': 9, // Space as fire alias
 };
-
-const DIRECTION_IDS: Record<string, number> = {
+const DIRECTION_IDS = {
     'up': 1,
     'down': 5,
     'left': 7,
     'right': 3,
 };
-
-const WALL_DIRECTION_IDS: Record<string, number> = {
+const WALL_DIRECTION_IDS = {
     'any': 0,
     'up': 1,
     'down': 5,
     'left': 7,
     'right': 3,
 };
-
-const COLLISION_TYPE_IDS: Record<string, number> = {
+const COLLISION_TYPE_IDS = {
     'any': 0,
     'wall': 1,
     'enemy': 2,
     'item': 3,
     'entity': 4,
 };
-
 /**
  * Build complete variable ID map including global variables
  * @param globalVariables - Array of global variables from project
  * @returns Complete mapping of variable names to IDs
  */
-function buildVariableIdMap(globalVariables?: any[]): Record<string, number> {
-    const map: Record<string, number> = { ...VARIABLE_IDS };
-
+function buildVariableIdMap(globalVariables) {
+    const map = { ...VARIABLE_IDS };
     // Add global variables starting from ID 6
     if (globalVariables && globalVariables.length > 0) {
         globalVariables.forEach((variable, index) => {
@@ -144,14 +135,11 @@ function buildVariableIdMap(globalVariables?: any[]): Record<string, number> {
             }
         });
     }
-
     return map;
 }
-
 // =============================================================================
 // Z80 RUNTIME ENGINE
 // =============================================================================
-
 const Z80_RUNTIME_ENGINE = `
     ; ------------------------------------------------------------------
     ; SM_Update
@@ -529,11 +517,9 @@ SM_ExecuteActions_Loop:
     push de
     ret
     `;
-
 // =============================================================================
 // Z80 DISPATCH TABLE (Appended to Engine)
 // =============================================================================
-
 const Z80_DISPATCH_TABLE = `
     ; ------------------------------------------------------------------
 ; SM_Dispatch
@@ -2703,25 +2689,21 @@ Condition_VariableCompare:
     ld a, 0
     ret
     `;
-
 // =============================================================================
 // GENERATOR FUNCTIONS
 // =============================================================================
-
 /**
  * Generates the complete ASM file content for the State Machine system
  */
-export function generateStateMachineSystem(stateMachines: StateMachine[], globalVariables?: any[], sprites?: any[]): string {
+function generateStateMachineSystem(stateMachines, globalVariables, sprites) {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
-
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
     // Must match spritesGenerator directional expansion to keep indexes aligned.
-    const spriteCatalog = buildMSXDirectionalSpriteCatalog((sprites || []) as any[]);
-    const spriteNameToIndex: Record<string, number> = spriteCatalog.nameToIndex;
+    const spriteCatalog = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)((sprites || []));
+    const spriteNameToIndex = spriteCatalog.nameToIndex;
     spriteCatalog.warnings.forEach(warning => {
         console.warn(`[State Machine Generator] ${warning}`);
     });
-
     // Generate global variables table
     asm += '; ==================================================================\n';
     asm += '; GLOBAL VARIABLES TABLE\n';
@@ -2729,48 +2711,42 @@ export function generateStateMachineSystem(stateMachines: StateMachine[], global
     if (globalVariables && globalVariables.length > 0) {
         asm += '; Maps variable IDs (6+) to their RAM addresses\n';
         asm += 'SM_GlobalVarTable:\n';
-
         globalVariables.forEach((variable, index) => {
             const varId = 6 + index; // Start from ID 6 (0-5 are entity variables)
             asm += `    DW ${variable.asmName}            ; ID ${varId}: ${variable.name}\n`;
         });
         asm += '\n';
-    } else {
+    }
+    else {
         asm += '; No global variables defined\n';
         asm += 'SM_GlobalVarTable:\n';
         asm += '    ; Empty table (no global variables)\n\n';
     }
-
     asm += '; ==================================================================\n';
     asm += '; STATE MACHINE DATA\n';
     asm += '; ==================================================================\n\n';
-
     // Build variable ID map for serialization
     const variableIdMap = buildVariableIdMap(globalVariables);
-
     for (const sm of stateMachines) {
         asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex);
     }
-
     return asm;
 }
-
-function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string, number>, spriteNameToIndex?: Record<string, number>): string {
+function generateStateMachineData(sm, variableIdMap, spriteNameToIndex) {
     let asm = `; State Machine: ${sm.name} (${sm.id}) \n`;
     const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
-    const isAnyStateId = (value?: string | null) => {
-        if (!value) return false;
+    const isAnyStateId = (value) => {
+        if (!value)
+            return false;
         const normalized = value.trim().toLowerCase();
         return normalized === 'any' || normalized === '__any_state__' || normalized === 'any state (*)';
     };
-
     // Generate States
     for (const state of sm.states) {
         const stateLabel = `SM_${safeName}_${state.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
         const onEnterLabel = `${stateLabel}_OnEnter`;
         const onExitLabel = `${stateLabel}_OnExit`;
         const transitionsLabel = `${stateLabel}_Transitions`;
-
         asm += `${stateLabel}: \n`;
         asm += `    DB 0; ID(unused) \n`;
         asm += `    DW ${state.onEnter && state.onEnter.length > 0 ? onEnterLabel : 0} \n`;
@@ -2779,12 +2755,13 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
         // Guard: do not replicate an Any->X transition inside X itself, because that
         // creates a self-transition loop every frame when condition stays true.
         const transitions = sm.transitions.filter(t => {
-            if (t.fromStateId === state.id) return true;
-            if (!isAnyStateId(t.fromStateId)) return false;
+            if (t.fromStateId === state.id)
+                return true;
+            if (!isAnyStateId(t.fromStateId))
+                return false;
             return t.toStateId !== state.id;
         });
         asm += `    DW ${transitions.length > 0 ? transitionsLabel : 0} \n`;
-
         // Actions Data
         if (state.onEnter && state.onEnter.length > 0) {
             asm += `${onEnterLabel}: \n`;
@@ -2793,7 +2770,6 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
             }
             asm += `    DB 0xFF; END\n`;
         }
-
         if (state.onExit && state.onExit.length > 0) {
             asm += `${onExitLabel}: \n`;
             for (const action of state.onExit) {
@@ -2801,7 +2777,6 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
             }
             asm += `    DB 0xFF; END\n`;
         }
-
         // Transitions Data
         if (transitions.length > 0) {
             asm += `${transitionsLabel}: \n`;
@@ -2811,19 +2786,17 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
                 const targetStateLabel = isAnyToAny
                     ? '0' // special marker: do not change state, only actions
                     : `SM_${safeName}_${t.toStateId.replace(/[^a-zA-Z0-9]/g, '_')}`;
-                const actionLabel =
-                    t.actions && t.actions.length > 0
-                        ? `${transitionsLabel}_Actions_${idx}`
-                        : '0';
-
+                const actionLabel = t.actions && t.actions.length > 0
+                    ? `${transitionsLabel}_Actions_${idx}`
+                    : '0';
                 if (t.conditions) {
                     asm += generateConditionBytes(t.conditions, variableIdMap);
-                } else {
+                }
+                else {
                     asm += `    DB 0; Empty Condition(Always True) \n`;
                 }
                 asm += `    DW ${targetStateLabel} \n`;
                 asm += `    DW ${actionLabel} \n`;
-
                 if (actionLabel !== '0') {
                     asm += `${actionLabel}: \n`;
                     for (const action of t.actions || []) {
@@ -2835,11 +2808,9 @@ function generateStateMachineData(sm: StateMachine, variableIdMap: Record<string
         }
         asm += '\n';
     }
-
     return asm;
 }
-
-function serializeValue(value: any): string {
+function serializeValue(value) {
     if (typeof value === 'number') {
         return value.toString();
     }
@@ -2848,31 +2819,32 @@ function serializeValue(value: any): string {
     }
     if (typeof value === 'string') {
         // Handle string representations of booleans
-        if (value === 'true') return '1';
-        if (value === 'false') return '0';
+        if (value === 'true')
+            return '1';
+        if (value === 'false')
+            return '0';
         // Try to parse as number
         const num = parseInt(value, 10);
-        if (!isNaN(num)) return num.toString();
+        if (!isNaN(num))
+            return num.toString();
         return '0';
     }
     return '0';
 }
-
-function generateActionBytes(action: Action, smName: string = '', variableIdMap?: Record<string, number>, spriteNameToIndex?: Record<string, number>): string {
+function generateActionBytes(action, smName = '', variableIdMap, spriteNameToIndex) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
     const id = ACTION_IDS[action.type];
-    if (!id) return `; Unknown Action: ${action.type} \n`;
-
+    if (!id)
+        return `; Unknown Action: ${action.type} \n`;
     let bytes = `    DB ${id}; ${action.type} \n`;
-
     switch (action.type) {
-        case ActionTypes.SET_POSITION:
-        case ActionTypes.MOVE_BY:
-        case ActionTypes.SET_VELOCITY:
-        case ActionTypes.APPLY_FORCE:
+        case statemachine_types_1.ActionTypes.SET_POSITION:
+        case statemachine_types_1.ActionTypes.MOVE_BY:
+        case statemachine_types_1.ActionTypes.SET_VELOCITY:
+        case statemachine_types_1.ActionTypes.APPLY_FORCE:
             bytes += `    DB ${serializeValue(action.params.x)}, ${serializeValue(action.params.y)} \n`;
             break;
-
-        case ActionTypes.CHANGE_SPRITE: {
+        case statemachine_types_1.ActionTypes.CHANGE_SPRITE: {
             // JSON uses "sprite" (name/id), convert to asset index
             const spriteName = action.params.sprite || action.params.spriteId || '';
             let spriteIndex = 0;
@@ -2881,95 +2853,85 @@ function generateActionBytes(action: Action, smName: string = '', variableIdMap?
                 const lowerIndex = spriteNameToIndex[spriteName.toLowerCase()];
                 if (directIndex !== undefined) {
                     spriteIndex = directIndex;
-                } else if (lowerIndex !== undefined) {
+                }
+                else if (lowerIndex !== undefined) {
                     spriteIndex = lowerIndex;
-                } else {
+                }
+                else {
                     spriteIndex = serializeValue(spriteName) === '0' ? 0 : parseInt(serializeValue(spriteName), 10) || 0;
                 }
-            } else {
+            }
+            else {
                 spriteIndex = serializeValue(spriteName) === '0' ? 0 : parseInt(serializeValue(spriteName), 10) || 0;
             }
             bytes += `    DB ${spriteIndex}; sprite: ${spriteName} \n`;
             break;
         }
-
-        case ActionTypes.PLAY_ANIMATION:
+        case statemachine_types_1.ActionTypes.PLAY_ANIMATION:
             bytes += `    DB ${serializeValue(action.params.animationName)} \n`;
             break;
-
-        case ActionTypes.SET_ANIMATION_SPEED:
+        case statemachine_types_1.ActionTypes.SET_ANIMATION_SPEED:
             bytes += `    DB ${serializeValue(action.params.speed)} \n`;
             break;
-
-        case ActionTypes.TOGGLE_ANIMATION:
+        case statemachine_types_1.ActionTypes.TOGGLE_ANIMATION:
             bytes += `    DB ${serializeValue(action.params.playing)} \n`;
             break;
-
-        case ActionTypes.PLAY_SOUND:
+        case statemachine_types_1.ActionTypes.PLAY_SOUND:
             bytes += `    DB ${serializeValue(action.params.soundId)} \n`;
             break;
-
-        case ActionTypes.SET_VARIABLE:
-        case ActionTypes.INCREMENT_VARIABLE:
-        case ActionTypes.DECREMENT_VARIABLE: {
+        case statemachine_types_1.ActionTypes.SET_VARIABLE:
+        case statemachine_types_1.ActionTypes.INCREMENT_VARIABLE:
+        case statemachine_types_1.ActionTypes.DECREMENT_VARIABLE: {
             // Get variable name from params
             const variableName = action.params.variable || action.params.variableName || action.params.name;
             // Look up variable ID in map
-            const varId = variableIdMap?.[variableName] ?? 0;
-            const value = action.params.value ?? action.params.amount ?? 0;
+            const varId = (_a = variableIdMap === null || variableIdMap === void 0 ? void 0 : variableIdMap[variableName]) !== null && _a !== void 0 ? _a : 0;
+            const value = (_c = (_b = action.params.value) !== null && _b !== void 0 ? _b : action.params.amount) !== null && _c !== void 0 ? _c : 0;
             bytes += `    DB ${varId}, ${serializeValue(value)}        ; ${variableName} (ID ${varId})\n`;
             break;
         }
-
-        case ActionTypes.WAIT:
+        case statemachine_types_1.ActionTypes.WAIT:
             bytes += `    DB ${serializeValue(action.params.duration)} \n`;
             break;
-
-        case ActionTypes.GOTO_STATE:
+        case statemachine_types_1.ActionTypes.GOTO_STATE:
             if (smName && action.params.stateId) {
                 const targetLabel = `SM_${smName.replace(/[^a-zA-Z0-9]/g, '_')}_${action.params.stateId.replace(/[^a-zA-Z0-9]/g, '_')} `;
                 bytes += `    DW ${targetLabel} \n`;
-            } else {
+            }
+            else {
                 bytes += `    DW 0; Invalid GOTO target\n`;
             }
             break;
-
-        case ActionTypes.SPAWN_ENTITY:
+        case statemachine_types_1.ActionTypes.SPAWN_ENTITY:
             bytes += `    DB ${serializeValue(action.params.entityId)}, ${serializeValue(action.params.x)}, ${serializeValue(action.params.y)} \n`;
             break;
-
-        case ActionTypes.DESTROY_ENTITY: {
-            const target = action.params?.target || 'self';
+        case statemachine_types_1.ActionTypes.DESTROY_ENTITY: {
+            const target = ((_d = action.params) === null || _d === void 0 ? void 0 : _d.target) || 'self';
             const targetId = target === 'other' ? 1 : 0;
             bytes += `    DB ${targetId}          ; Target: ${target}\n`;
             break;
         }
-
-        case ActionTypes.ADD_VARIABLES:
-        case ActionTypes.SUBTRACT_VARIABLES:
-        case ActionTypes.MULTIPLY_VARIABLES:
-        case ActionTypes.DIVIDE_VARIABLES:
-        case ActionTypes.MODULO_VARIABLES: {
+        case statemachine_types_1.ActionTypes.ADD_VARIABLES:
+        case statemachine_types_1.ActionTypes.SUBTRACT_VARIABLES:
+        case statemachine_types_1.ActionTypes.MULTIPLY_VARIABLES:
+        case statemachine_types_1.ActionTypes.DIVIDE_VARIABLES:
+        case statemachine_types_1.ActionTypes.MODULO_VARIABLES: {
             // Mathematical operations: DestVar = Src1 OP Src2
             // Params: destination, source1, source2 (variable names)
             const destName = action.params.destination || action.params.dest || action.params.result;
             const src1Name = action.params.source1 || action.params.src1 || action.params.operand1;
             const src2Name = action.params.source2 || action.params.src2 || action.params.operand2;
-
-            const destId = variableIdMap?.[destName] ?? 0;
-            const src1Id = variableIdMap?.[src1Name] ?? 0;
-            const src2Id = variableIdMap?.[src2Name] ?? 0;
-
-            const opName = action.type === ActionTypes.ADD_VARIABLES ? 'ADD' :
-                action.type === ActionTypes.SUBTRACT_VARIABLES ? 'SUB' :
-                    action.type === ActionTypes.MULTIPLY_VARIABLES ? 'MUL' :
-                        action.type === ActionTypes.DIVIDE_VARIABLES ? 'DIV' : 'MOD';
-
+            const destId = (_e = variableIdMap === null || variableIdMap === void 0 ? void 0 : variableIdMap[destName]) !== null && _e !== void 0 ? _e : 0;
+            const src1Id = (_f = variableIdMap === null || variableIdMap === void 0 ? void 0 : variableIdMap[src1Name]) !== null && _f !== void 0 ? _f : 0;
+            const src2Id = (_g = variableIdMap === null || variableIdMap === void 0 ? void 0 : variableIdMap[src2Name]) !== null && _g !== void 0 ? _g : 0;
+            const opName = action.type === statemachine_types_1.ActionTypes.ADD_VARIABLES ? 'ADD' :
+                action.type === statemachine_types_1.ActionTypes.SUBTRACT_VARIABLES ? 'SUB' :
+                    action.type === statemachine_types_1.ActionTypes.MULTIPLY_VARIABLES ? 'MUL' :
+                        action.type === statemachine_types_1.ActionTypes.DIVIDE_VARIABLES ? 'DIV' : 'MOD';
             bytes += `    DB ${destId}, ${src1Id}, ${src2Id}        ; ${destName} = ${src1Name} ${opName} ${src2Name}\n`;
             break;
         }
-
-        case ActionTypes.ASSIGN_VARIABLE: {
+        case statemachine_types_1.ActionTypes.ASSIGN_VARIABLE: {
             // Assign variable: target = source
             // Supports UI params:
             // - targetVariable
@@ -2977,160 +2939,139 @@ function generateActionBytes(action: Action, smName: string = '', variableIdMap?
             // - sourceValue (when constant)
             // - sourceVariable (when variable)
             const destName = action.params.targetVariable || action.params.destination || action.params.dest || action.params.result;
-            const destId = variableIdMap?.[destName] ?? 0;
-
+            const destId = (_h = variableIdMap === null || variableIdMap === void 0 ? void 0 : variableIdMap[destName]) !== null && _h !== void 0 ? _h : 0;
             const sourceType = action.params.sourceType || (action.params.sourceVariable ? 'variable' : 'constant');
             if (sourceType !== 'variable') {
                 // Compile constant assign as SET_VARIABLE to preserve runtime semantics.
-                const sourceValue = action.params.sourceValue ?? action.params.value ?? 0;
-                const setVariableId = ACTION_IDS[ActionTypes.SET_VARIABLE];
-                bytes = `    DB ${setVariableId}; ${ActionTypes.SET_VARIABLE} (from ${ActionTypes.ASSIGN_VARIABLE})\n`;
+                const sourceValue = (_k = (_j = action.params.sourceValue) !== null && _j !== void 0 ? _j : action.params.value) !== null && _k !== void 0 ? _k : 0;
+                const setVariableId = ACTION_IDS[statemachine_types_1.ActionTypes.SET_VARIABLE];
+                bytes = `    DB ${setVariableId}; ${statemachine_types_1.ActionTypes.SET_VARIABLE} (from ${statemachine_types_1.ActionTypes.ASSIGN_VARIABLE})\n`;
                 bytes += `    DB ${destId}, ${serializeValue(sourceValue)}        ; ${destName} = ${sourceValue}\n`;
                 break;
             }
-
             const srcName = action.params.sourceVariable || action.params.source || action.params.src || action.params.operand || action.params.source1;
-            const srcId = variableIdMap?.[srcName] ?? 0;
+            const srcId = (_l = variableIdMap === null || variableIdMap === void 0 ? void 0 : variableIdMap[srcName]) !== null && _l !== void 0 ? _l : 0;
             bytes += `    DB ${destId}, ${srcId}        ; ${destName} = ${srcName}\n`;
             break;
         }
-
         default:
             bytes += `    ; Params not implemented for ${action.type}\n`;
             break;
     }
-
     return bytes;
 }
-
-function generateConditionBytes(condition: Condition, variableIdMap?: Record<string, number>): string {
+function generateConditionBytes(condition, variableIdMap) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
     const id = CONDITION_IDS[condition.type];
     if (!id) {
         console.warn(`[State Machine Generator] Unknown condition "${condition.type}". Falling back to NOP condition.`);
         return `    DB 0; FALLBACK NOP for unknown condition ${condition.type}\n`;
     }
-
     let bytes = `    DB ${id}; ${condition.type} \n`;
-
     switch (condition.type) {
-        case ConditionTypes.KEY_PRESSED:
-        case ConditionTypes.KEY_RELEASED: {
-            const keyName = condition.params?.key?.toLowerCase();
-            const keyId = KEY_IDS[keyName] ?? 0; // Default to 0 (center/no key) if unknown
+        case statemachine_types_1.ConditionTypes.KEY_PRESSED:
+        case statemachine_types_1.ConditionTypes.KEY_RELEASED: {
+            const keyName = (_b = (_a = condition.params) === null || _a === void 0 ? void 0 : _a.key) === null || _b === void 0 ? void 0 : _b.toLowerCase();
+            const keyId = (_c = KEY_IDS[keyName]) !== null && _c !== void 0 ? _c : 0; // Default to 0 (center/no key) if unknown
             bytes += `    DB ${keyId}          ; Key: ${keyName || 'unknown'}\n`;
             break;
         }
-
-        case ConditionTypes.TIME_OUT:
-            bytes += `    DB ${serializeValue(condition.params?.duration)} \n`;
+        case statemachine_types_1.ConditionTypes.TIME_OUT:
+            bytes += `    DB ${serializeValue((_d = condition.params) === null || _d === void 0 ? void 0 : _d.duration)} \n`;
             break;
-
-        case ConditionTypes.CAN_MOVE_DIRECTION: {
-            const directionName = String(condition.params?.direction || '').toLowerCase();
-            const directionId = DIRECTION_IDS[directionName] ?? 0;
+        case statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION: {
+            const directionName = String(((_e = condition.params) === null || _e === void 0 ? void 0 : _e.direction) || '').toLowerCase();
+            const directionId = (_f = DIRECTION_IDS[directionName]) !== null && _f !== void 0 ? _f : 0;
             if (directionName && directionId === 0) {
                 console.warn(`[State Machine Generator] Unknown direction "${directionName}" in CAN_MOVE_DIRECTION. Using 0 (no direction).`);
             }
             bytes += `    DB ${directionId}          ; Direction: ${directionName || 'none'}\n`;
             break;
         }
-
-        case ConditionTypes.ON_WALL_COLLISION: {
-            const directionName = String(condition.params?.direction || 'any').toLowerCase();
-            const directionId = WALL_DIRECTION_IDS[directionName] ?? 0;
+        case statemachine_types_1.ConditionTypes.ON_WALL_COLLISION: {
+            const directionName = String(((_g = condition.params) === null || _g === void 0 ? void 0 : _g.direction) || 'any').toLowerCase();
+            const directionId = (_h = WALL_DIRECTION_IDS[directionName]) !== null && _h !== void 0 ? _h : 0;
             if (!(directionName in WALL_DIRECTION_IDS)) {
                 console.warn(`[State Machine Generator] Unknown direction "${directionName}" in ON_WALL_COLLISION. Using any.`);
             }
             bytes += `    DB ${directionId}          ; Wall direction: ${directionName}\n`;
             break;
         }
-
-        case ConditionTypes.HAS_COLLISION: {
-            const collisionType = String(condition.params?.collisionType || 'any').toLowerCase();
+        case statemachine_types_1.ConditionTypes.HAS_COLLISION: {
+            const collisionType = String(((_j = condition.params) === null || _j === void 0 ? void 0 : _j.collisionType) || 'any').toLowerCase();
             let collisionId = COLLISION_TYPE_IDS[collisionType];
-
             if (collisionId === undefined) {
                 console.warn(`[State Machine Generator] Unknown collisionType "${collisionType}" in HAS_COLLISION. Using any.`);
                 collisionId = COLLISION_TYPE_IDS.any;
             }
-
             bytes += `    DB ${collisionId}          ; collisionType: ${collisionType}\n`;
             break;
         }
-
-        case ConditionTypes.PATH_CLEAR: {
-            const directionName = String(condition.params?.direction || '').toLowerCase();
-            const directionId = DIRECTION_IDS[directionName] ?? 0;
+        case statemachine_types_1.ConditionTypes.PATH_CLEAR: {
+            const directionName = String(((_k = condition.params) === null || _k === void 0 ? void 0 : _k.direction) || '').toLowerCase();
+            const directionId = (_l = DIRECTION_IDS[directionName]) !== null && _l !== void 0 ? _l : 0;
             if (directionName && directionId === 0) {
                 console.warn(`[State Machine Generator] Unknown direction "${directionName}" in PATH_CLEAR. Using auto-deduce (0).`);
             }
             bytes += `    DB ${directionId}          ; Direction (0=auto): ${directionName || 'auto'}\n`;
             break;
         }
-
-        case ConditionTypes.KEY_AND_MOVEMENT: {
-            const keyName = String(condition.params?.key || '').toLowerCase();
-            const keyId = KEY_IDS[keyName] ?? 0;
-
-            const directionName = String(condition.params?.direction || '').toLowerCase();
-            let directionId = DIRECTION_IDS[directionName] ?? 0;
-
+        case statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT: {
+            const keyName = String(((_m = condition.params) === null || _m === void 0 ? void 0 : _m.key) || '').toLowerCase();
+            const keyId = (_o = KEY_IDS[keyName]) !== null && _o !== void 0 ? _o : 0;
+            const directionName = String(((_p = condition.params) === null || _p === void 0 ? void 0 : _p.direction) || '').toLowerCase();
+            let directionId = (_q = DIRECTION_IDS[directionName]) !== null && _q !== void 0 ? _q : 0;
             if (!directionName && keyId !== 9) {
                 // If movement key is directional and no explicit direction was provided, use same direction
                 directionId = keyId;
             }
-
             if (directionName && directionId === 0) {
                 console.warn(`[State Machine Generator] Unknown direction "${directionName}" in KEY_AND_MOVEMENT. Using 0.`);
             }
-
             bytes += `    DB ${keyId}, ${directionId}          ; key=${keyName || 'unknown'}, dir=${directionName || 'auto'}\n`;
             break;
         }
-
-        case ConditionTypes.AND:
-        case ConditionTypes.OR:
+        case statemachine_types_1.ConditionTypes.AND:
+        case statemachine_types_1.ConditionTypes.OR:
             if (condition.conditions) {
                 bytes += `    DB ${condition.conditions.length} \n`;
                 for (const sub of condition.conditions) {
                     bytes += generateConditionBytes(sub, variableIdMap);
                 }
-            } else {
+            }
+            else {
                 bytes += `    DB 0\n`;
             }
             break;
-
-        case ConditionTypes.NOT:
+        case statemachine_types_1.ConditionTypes.NOT:
             if (condition.conditions && condition.conditions.length > 0) {
                 bytes += `    DB 1 \n`;
                 bytes += generateConditionBytes(condition.conditions[0], variableIdMap);
-            } else {
+            }
+            else {
                 bytes += `    DB 1 \n`;
                 bytes += `    DB 0; Fallback NOP subcondition for NOT\n`;
             }
             break;
-
-        case ConditionTypes.VARIABLE_COMPARE: {
+        case statemachine_types_1.ConditionTypes.VARIABLE_COMPARE: {
             // Get variable name with proper fallback
-            const variableName = condition.params?.variable || 'x';
-            const varId = variableIdMap?.[variableName];
-
+            const variableName = ((_r = condition.params) === null || _r === void 0 ? void 0 : _r.variable) || 'x';
+            const varId = variableIdMap === null || variableIdMap === void 0 ? void 0 : variableIdMap[variableName];
             // If variable is not in the map, log warning and use fallback
             if (varId === undefined) {
                 console.warn(`[State Machine Generator] Unknown variable "${variableName}" in VARIABLE_COMPARE. Using x (ID 0) as fallback.`);
                 // Use variable ID 0 (x position) as fallback
-                bytes += `    DB 0, ${OPERATOR_IDS[condition.params?.operator || '=='] || 0}, ${serializeValue(condition.params?.value || 0)}; FALLBACK: unknown var "${variableName}" -> x ${condition.params?.operator || '=='} ${condition.params?.value || 0}\n`;
-            } else {
-                const opId = OPERATOR_IDS[condition.params?.operator || '=='] || 0;
-                const value = condition.params?.value || 0;
-                bytes += `    DB ${varId}, ${opId}, ${serializeValue(value)}; ${variableName} (ID ${varId}) ${condition.params?.operator || '=='} ${value}\n`;
+                bytes += `    DB 0, ${OPERATOR_IDS[((_s = condition.params) === null || _s === void 0 ? void 0 : _s.operator) || '=='] || 0}, ${serializeValue(((_t = condition.params) === null || _t === void 0 ? void 0 : _t.value) || 0)}; FALLBACK: unknown var "${variableName}" -> x ${((_u = condition.params) === null || _u === void 0 ? void 0 : _u.operator) || '=='} ${((_v = condition.params) === null || _v === void 0 ? void 0 : _v.value) || 0}\n`;
+            }
+            else {
+                const opId = OPERATOR_IDS[((_w = condition.params) === null || _w === void 0 ? void 0 : _w.operator) || '=='] || 0;
+                const value = ((_x = condition.params) === null || _x === void 0 ? void 0 : _x.value) || 0;
+                bytes += `    DB ${varId}, ${opId}, ${serializeValue(value)}; ${variableName} (ID ${varId}) ${((_y = condition.params) === null || _y === void 0 ? void 0 : _y.operator) || '=='} ${value}\n`;
             }
             break;
         }
-
         default:
             break;
     }
-
     return bytes;
 }
