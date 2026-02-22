@@ -12,7 +12,44 @@
 ; Menus: No
 ; HUD: No
 ; State Machines: 2
+; ROM Mode: auto
+; Mapper Target: konami
+; Auto MegaROM: Yes
 ; ==================================================================
+; ------------------------------------------------------------------
+; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
+; Runtime bank constants are derived from label addresses at assemble time.
+; Estimated payload bytes: 103769
+; Estimated banks used: 13
+; ------------------------------------------------------------------
+; BANK 00 @#0000 : patterns.asm (1940 bytes)
+; BANK 00 @#0794 : colors.asm (1525 bytes)
+; BANK 00 @#0D89 : components.asm (22 bytes)
+; BANK 00 @#0D9F : entities.asm part 1/2 (4705 bytes)
+; BANK 01 @#0000 : entities.asm part 2/2 (4372 bytes)
+; BANK 01 @#1114 : worlds.asm (3820 bytes)
+; BANK 02 @#0000 : worlds.asm (2739 bytes)
+; BANK 02 @#0AB3 : screens.asm part 1/3 (5453 bytes)
+; BANK 03 @#0000 : screens.asm part 2/3 (8192 bytes)
+; BANK 04 @#0000 : screens.asm part 3/3 (5223 bytes)
+; BANK 04 @#1467 : sprites.asm part 1/4 (2969 bytes)
+; BANK 05 @#0000 : sprites.asm part 2/4 (8192 bytes)
+; BANK 06 @#0000 : sprites.asm part 3/4 (8192 bytes)
+; BANK 07 @#0000 : sprites.asm part 4/4 (8192 bytes)
+; BANK 08 @#0000 : sprites.asm part 5/4 (1822 bytes)
+; BANK 08 @#071E : font.asm (174 bytes)
+; BANK 08 @#07CC : hud.asm (71 bytes)
+; BANK 08 @#0813 : menus.asm (168 bytes)
+; BANK 08 @#08BB : sound.asm (3184 bytes)
+; BANK 08 @#152B : scroll.asm (2353 bytes)
+; BANK 08 @#1E5C : animtiles.asm (420 bytes)
+; BANK 09 @#0000 : animtiles.asm (2929 bytes)
+; BANK 09 @#0B71 : particles.asm (4963 bytes)
+; BANK 09 @#1ED4 : statemachine.asm part 1/3 (300 bytes)
+; BANK 10 @#0000 : statemachine.asm part 2/3 (8192 bytes)
+; BANK 11 @#0000 : statemachine.asm part 3/3 (8192 bytes)
+; BANK 12 @#0000 : statemachine.asm part 4/3 (420 bytes)
+; BANK 12 @#01A4 : gameflow.asm (5045 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -60,6 +97,9 @@ restart_rom:
     ld sp, #F380
 
 restart_rom_continue:
+    ; Initialize mapper runtime state (safe no-op in simple32k mode)
+    call mapper_runtime_init
+
     ; Reset some interrupts to ensure compatibility
     ; with MSX computers with disk controllers
     ld a, #C9
@@ -772,192 +812,399 @@ global_var_goal     EQU #C010   ; Goal status (0=Failure, 1=Completed)
 ; SYSTEM VARIABLES
 ; ==================================================================
 ROM_slot            EQU #C011   ; ROM slot number (for SETPAGES32K)
-frame_counter       EQU #C012   ; Frame counter (16-bit)
+mapper_bank_p1_current EQU #C012   ; Mapper current bank for page/window 1
+mapper_bank_p2_current EQU #C013   ; Mapper current bank for page/window 2
+mapper_bank_p3_current EQU #C014   ; Mapper current bank for page/window 3
+mapper_bank_p4_current EQU #C015   ; Mapper current bank for page/window 4
+mapper_saved_bank    EQU #C016   ; Saved mapper bank for push/pop helpers
+mapper_saved_bank_p1 EQU #C017   ; Saved mapper bank for page/window 1 helpers
+mapper_saved_bank_p3 EQU #C018   ; Saved mapper bank for page/window 3 helpers
+mapper_saved_bank_p4 EQU #C019   ; Saved mapper bank for page/window 4 helpers
+frame_counter       EQU #C01A   ; Frame counter (16-bit)
 
 ; ==================================================================
 ; SCREEN MAP POINTERS (Current active screen)
 ; ==================================================================
-current_screen_layout   EQU #C014   ; Pointer to current screen layout data (16-bit)
-current_behavior_map    EQU #C016   ; Pointer to current behavior map data (16-bit)
-behavior_cache_row     EQU #C018   ; Cached behavior row (255=invalid)
-behavior_cache_map_l   EQU #C019   ; Cached behavior map pointer low byte
-behavior_cache_map_h   EQU #C01A   ; Cached behavior map pointer high byte
-behavior_cache_row_base EQU #C01B   ; Cached row base address in behavior map (16-bit)
+current_screen_layout   EQU #C01C   ; Pointer to current screen layout data (16-bit)
+current_screen_layout_bank EQU #C01E   ; Mapper bank for current screen layout data
+current_behavior_map    EQU #C01F   ; Pointer to current behavior map data (16-bit)
+current_behavior_map_bank EQU #C021   ; Mapper bank for current behavior map data
+behavior_cache_row     EQU #C022   ; Cached behavior row (255=invalid)
+behavior_cache_map_l   EQU #C023   ; Cached behavior map pointer low byte
+behavior_cache_map_h   EQU #C024   ; Cached behavior map pointer high byte
+behavior_cache_row_base EQU #C025   ; Cached row base address in behavior map (16-bit)
 
 ; ==================================================================
 ; VIEWPORT/CAMERA VARIABLES (for scroll system)
 ; ==================================================================
-camera_x            EQU #C01D   ; Camera X position in pixels (16-bit)
-camera_y            EQU #C01F   ; Camera Y position in pixels (16-bit)
-camera_tile_x       EQU #C021   ; Camera tile X (column)
-camera_tile_y       EQU #C022   ; Camera tile Y (row)
-world_width_tiles   EQU #C023   ; World width in tiles
-world_height_tiles  EQU #C024   ; World height in tiles
-scroll_dirty_flag   EQU #C025   ; 1=viewport changed, needs redraw
-hud_dirty_flag      EQU #C026   ; 1=HUD needs redraw, 0=clean
+camera_x            EQU #C027   ; Camera X position in pixels (16-bit)
+camera_y            EQU #C029   ; Camera Y position in pixels (16-bit)
+camera_tile_x       EQU #C02B   ; Camera tile X (column)
+camera_tile_y       EQU #C02C   ; Camera tile Y (row)
+world_width_tiles   EQU #C02D   ; World width in tiles
+world_height_tiles  EQU #C02E   ; World height in tiles
+scroll_dirty_flag   EQU #C02F   ; 1=viewport changed, needs redraw
+hud_dirty_flag      EQU #C030   ; 1=HUD needs redraw, 0=clean
 
 ; ==================================================================
 ; ANIMATED TILES VARIABLES
 ; ==================================================================
-anim_tile_timer     EQU #C027   ; Animation frame timer
-anim_tile_frame     EQU #C028   ; Current animation frame (0-3)
-anim_tile_speed     EQU #C029   ; Frames between animation updates
+anim_tile_timer     EQU #C031   ; Animation frame timer
+anim_tile_frame     EQU #C032   ; Current animation frame (0-3)
+anim_tile_speed     EQU #C033   ; Frames between animation updates
 
 ; ==================================================================
 ; PARTICLE SYSTEM VARIABLES
 ; ==================================================================
-particle_pool       EQU #C02A   ; Particle pool (8 particles * 8 bytes = 64 bytes)
+particle_pool       EQU #C034   ; Particle pool (8 particles * 8 bytes = 64 bytes)
 
 ; ==================================================================
 ; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
 ; ==================================================================
 MAX_ENTITIES        EQU 32
-entity_active       EQU #C06A   ; Entity active flags (32 bytes, 0=inactive, 1=active)
-entity_x_pos        EQU #C08A   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #C0AA   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #C0CA   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #C0EA   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #C10A   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #C12A   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #C14A   ; Entity screen ID (32 bytes)
-entity_dir_mask     EQU #C16A   ; Entity direction mask (32 bytes)
-entity_health       EQU #C18A   ; Entity health (32 bytes)
-entity_anim_frame   EQU #C1AA   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #C1CA   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #C1EA   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #C20A   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #C22A   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #C24A   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #C26A   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #C28A   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #C2AA   ; Entity State Wait Timer (32 bytes)
-entity_lifetime     EQU #C2CA   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_carried_by   EQU #C2EA   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_sm_var_0     EQU #C30A   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #C32A   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #C34A   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #C36A   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #C38A   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #C3AA   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #C3CA   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #C3EA   ; Entity Variable 7 (32 bytes)
+entity_active       EQU #C074   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_x_pos        EQU #C094   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #C0B4   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #C0D4   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #C0F4   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #C114   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #C134   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #C154   ; Entity screen ID (32 bytes)
+entity_dir_mask     EQU #C174   ; Entity direction mask (32 bytes)
+entity_health       EQU #C194   ; Entity health (32 bytes)
+entity_anim_frame   EQU #C1B4   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #C1D4   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #C1F4   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #C214   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #C234   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #C254   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #C274   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #C294   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #C2B4   ; Entity State Wait Timer (32 bytes)
+entity_lifetime     EQU #C2D4   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_carried_by   EQU #C2F4   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_sm_var_0     EQU #C314   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #C334   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #C354   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #C374   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #C394   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #C3B4   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #C3D4   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #C3F4   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #C40A   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #C42A   ; Number of sprites currently active
-sprites_dirty      EQU #C42B   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #C42C   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #C44C   ; Sprite colors (32 bytes)
-sprite_attributes   EQU #C46C   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #C414   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #C434   ; Number of sprites currently active
+sprites_dirty      EQU #C435   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #C436   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #C456   ; Sprite colors (32 bytes)
+sprite_attributes   EQU #C476   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (7 screens detected)
 ; ==================================================================
-current_screen_id   EQU #C4EC   ; Currently displayed screen ID
-screen_dirty_flag   EQU #C4ED   ; Screen needs redraw flag
-screen_transition_cooldown EQU #C4EE   ; Cooldown frames after screen transition
-current_world_id    EQU #C4EF   ; Current world ID (for multi-world support)
-current_screen_index EQU #C4F0   ; Current screen index within world
+current_screen_id   EQU #C4F6   ; Currently displayed screen ID
+screen_dirty_flag   EQU #C4F7   ; Screen needs redraw flag
+screen_transition_cooldown EQU #C4F8   ; Cooldown frames after screen transition
+current_world_id    EQU #C4F9   ; Current world ID (for multi-world support)
+current_screen_index EQU #C4FA   ; Current screen index within world
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #C4F1   ; Player X position (16-bit)
-player_y            EQU #C4F3   ; Player Y position (16-bit)
-player_health       EQU #C4F5   ; Player health points
-player_score        EQU #C4F6   ; Player score (16-bit)
+player_x            EQU #C4FB   ; Player X position (16-bit)
+player_y            EQU #C4FD   ; Player Y position (16-bit)
+player_health       EQU #C4FF   ; Player health points
+player_score        EQU #C500   ; Player score (16-bit)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #C4F8   ; Deterministic mode flag
+deterministic        EQU #C502   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #C4F9   ; Temporary 16-bit storage
-temp_word_2         EQU #C4FB   ; Temporary 16-bit storage
-temp_byte_1         EQU #C4FD   ; Temporary 8-bit storage
-temp_byte_2         EQU #C4FE   ; Temporary 8-bit storage
-temp_byte_3         EQU #C4FF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #C51F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #C53F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #C55F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_7         EQU #C57F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #C59F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #C5BF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #C5DF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #C5FF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #C61F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #C63F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #C65F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #C67F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #C69F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #C6BF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #C6DF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #C6FF   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #C71F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #C73F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #C75F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #C77F   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #C79F   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #C7BF   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #C7FF   ; Temporary 16-bit storage (64 bytes)
+temp_word_1         EQU #C503   ; Temporary 16-bit storage
+temp_word_2         EQU #C505   ; Temporary 16-bit storage
+temp_byte_1         EQU #C507   ; Temporary 8-bit storage
+temp_byte_2         EQU #C508   ; Temporary 8-bit storage
+temp_byte_3         EQU #C509   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #C529   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #C549   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #C569   ; Temporary 8-bit storage (32 bytes)
+temp_byte_7         EQU #C589   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #C5A9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #C5C9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #C5E9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #C609   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #C629   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #C649   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #C669   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #C689   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #C6A9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #C6C9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #C6E9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #C709   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #C729   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #C749   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #C769   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #C789   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #C7A9   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #C7C9   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #C809   ; Temporary 16-bit storage (64 bytes)
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #C83F   ; Cached entity X for wall checks
-wall_temp_y         EQU #C840   ; Cached entity Y for wall checks
+wall_temp_x         EQU #C849   ; Cached entity X for wall checks
+wall_temp_y         EQU #C84A   ; Cached entity Y for wall checks
 
 ; Unified update helpers
-active_entity_list  EQU #C841   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #C861   ; Number of entries in active_entity_list
+active_entity_list  EQU #C84B   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #C86B   ; Number of entries in active_entity_list
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #C862   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #C882   ; Number of entities in coll_list
-coll_src_left       EQU #C883   ; Source AABB left edge (scratch)
-coll_src_right      EQU #C884   ; Source AABB right edge (scratch)
-coll_src_top        EQU #C885   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #C886   ; Source AABB bottom edge (scratch)
+coll_list           EQU #C86C   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #C88C   ; Number of entities in coll_list
+coll_src_left       EQU #C88D   ; Source AABB left edge (scratch)
+coll_src_right      EQU #C88E   ; Source AABB right edge (scratch)
+coll_src_top        EQU #C88F   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #C890   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #C887   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #C887   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #C889   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #C88B   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #C88D   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #C88F   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #C891   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #C893   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #C895   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #C897   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #C898   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #C89D   ; Frame counter (16-bit)
-task_exec_time          EQU #C89F   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #C8A1   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #C8A2   ; End of interrupt system
+task_table              EQU #C891   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #C891   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #C893   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #C895   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #C897   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #C899   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #C89B   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #C89D   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #C89F   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #C8A1   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #C8A2   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #C8A7   ; Frame counter (16-bit)
+task_exec_time          EQU #C8A9   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #C8AB   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #C8AC   ; End of interrupt system
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #C8A2   ; End of project variables (2210 bytes used)
+RAM_USAGE_END       EQU #C8AC   ; End of project variables (2220 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#C8A2: Project variables (2210 bytes)
-;   #C8A2-#F37F: Free RAM (~10974 bytes available)
+;   #C000-#C8AC: Project variables (2220 bytes)
+;   #C8AC-#F37F: Free RAM (~10964 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
 ;       RAM space is used at runtime, NOT reserved in ROM.
 ;       Do NOT use ORG #C000 in cartridge ROMs!
 ; ==================================================================
+
+
+; ==================================================================
+; MAPPER RUNTIME API
+; File: mapper.asm
+; Description: Centralized mapper register writes (no scattered inline writes)
+; Target mapper: konami
+; ROM mode: auto (autoMegaROM=true)
+; ==================================================================
+
+; Konami (without SCC) write window references:
+;   6000h-7FFFh, 8000h-9FFFh, A000h-BFFFh are switch registers.
+; Note: in original Konami cartridges 4000h-5FFFh is typically fixed.
+; Mapper register writes are enabled for this build configuration.
+
+; Mapper registers for active target format
+MAPPER_REG_P1       EQU #6000
+MAPPER_REG_P2       EQU #8000
+MAPPER_REG_P3       EQU #A000
+MAPPER_REG_P4       EQU #A000
+
+; ------------------------------------------------------------------
+; mapper_runtime_init
+; Initializes mapper state variables with deterministic defaults.
+; ------------------------------------------------------------------
+mapper_runtime_init:
+    xor a
+    ld (mapper_bank_p1_current), a
+    ld a, 1
+    ld (mapper_bank_p2_current), a
+    ld a, 2
+    ld (mapper_bank_p3_current), a
+    ld a, 3
+    ld (mapper_bank_p4_current), a
+    ret
+
+; ------------------------------------------------------------------
+; API: mapper_set_bank_pX
+; Input: A = bank number
+; ------------------------------------------------------------------
+mapper_set_bank_p1:
+    ld (mapper_bank_p1_current), a
+    ld (MAPPER_REG_P1), a
+    ret
+
+mapper_set_bank_p2:
+    ld (mapper_bank_p2_current), a
+    ld (MAPPER_REG_P2), a
+    ret
+
+mapper_set_bank_p3:
+    ld (mapper_bank_p3_current), a
+    ld (MAPPER_REG_P3), a
+    ret
+
+mapper_set_bank_p4:
+    ld (mapper_bank_p4_current), a
+    ld (MAPPER_REG_P4), a
+    ret
+
+; ------------------------------------------------------------------
+; Helpers for deterministic save/restore around far calls.
+; ------------------------------------------------------------------
+mapper_push_p1:
+    ld a, (mapper_bank_p1_current)
+    ld (mapper_saved_bank_p1), a
+    ret
+
+mapper_pop_p1:
+    ld a, (mapper_saved_bank_p1)
+    jp mapper_set_bank_p1
+
+mapper_push_p2:
+    ld a, (mapper_bank_p2_current)
+    ld (mapper_saved_bank), a
+    ret
+
+mapper_pop_p2:
+    ld a, (mapper_saved_bank)
+    jp mapper_set_bank_p2
+
+mapper_push_p3:
+    ld a, (mapper_bank_p3_current)
+    ld (mapper_saved_bank_p3), a
+    ret
+
+mapper_pop_p3:
+    ld a, (mapper_saved_bank_p3)
+    jp mapper_set_bank_p3
+
+mapper_push_p4:
+    ld a, (mapper_bank_p4_current)
+    ld (mapper_saved_bank_p4), a
+    ret
+
+mapper_pop_p4:
+    ld a, (mapper_saved_bank_p4)
+    jp mapper_set_bank_p4
+
+; ------------------------------------------------------------------
+; Far call helpers (dynamic target address in HL)
+; Input:
+;   A = target bank number
+;   HL = target routine address in selected page window
+; Output:
+;   Returns after restoring previous bank.
+; ------------------------------------------------------------------
+mapper_call_hl_p1:
+    push hl
+    push af
+    call mapper_push_p1
+    pop af
+    call mapper_set_bank_p1
+    pop hl
+    ld de, .return_p1
+    push de
+    jp (hl)
+.return_p1:
+    call mapper_pop_p1
+    ret
+
+mapper_call_hl_p2:
+    push hl
+    push af
+    call mapper_push_p2
+    pop af
+    call mapper_set_bank_p2
+    pop hl
+    ld de, .return_p2
+    push de
+    jp (hl)
+.return_p2:
+    call mapper_pop_p2
+    ret
+
+mapper_call_hl_p3:
+    push hl
+    push af
+    call mapper_push_p3
+    pop af
+    call mapper_set_bank_p3
+    pop hl
+    ld de, .return_p3
+    push de
+    jp (hl)
+.return_p3:
+    call mapper_pop_p3
+    ret
+
+mapper_call_hl_p4:
+    push hl
+    push af
+    call mapper_push_p4
+    pop af
+    call mapper_set_bank_p4
+    pop hl
+    ld de, .return_p4
+    push de
+    jp (hl)
+.return_p4:
+    call mapper_pop_p4
+    ret
+
+; ------------------------------------------------------------------
+; mapper_call_hl_auto
+; Auto-select mapper window from HL target address range:
+;   4000-5FFF -> p1
+;   6000-7FFF -> p2
+;   8000-9FFF -> p3
+;   A000-BFFF -> p4
+; Input:
+;   A = target bank
+;   HL = target routine address
+; ------------------------------------------------------------------
+mapper_call_hl_auto:
+    push af
+    ld a, h
+    cp #60
+    jr c, .use_p1
+    cp #80
+    jr c, .use_p2
+    cp #A0
+    jr c, .use_p3
+    pop af
+    jp mapper_call_hl_p4
+
+.use_p1:
+    pop af
+    jp mapper_call_hl_p1
+
+.use_p2:
+    pop af
+    jp mapper_call_hl_p2
+
+.use_p3:
+    pop af
+    jp mapper_call_hl_p3
 
 
 ; ==================================================================
@@ -2801,7 +3048,13 @@ get_behavior_tile:
     ld e, c
     ld d, 0
     add hl, de                    ; HL = row base + column
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
     ld a, (hl)                    ; A = behavior value
+    push af
+    call mapper_pop_p2
+    pop af
     pop de
     pop hl
     ret
@@ -4539,7 +4792,13 @@ get_tile_at_position:
     ; Read actual tile from current screen layout
     ld de, (current_screen_layout) ; DE = pointer to screen layout data
     add hl, de                    ; HL = pointer to tile at position
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
     ld a, (hl)                    ; A = tile ID from screen map
+    push af
+    call mapper_pop_p2
+    pop af
 
     or a                          ; Set flags based on tile ID
     ret                           ; Z flag set if tile == 0 (empty)
@@ -4948,6 +5207,8 @@ div_a_by_c:
 ; 14 tiles detected
 ; ==================================================================
 
+PATTERN_DATA_BANK EQU ((tile_pattern_bank0 - #4000) / #2000)
+
 ; ==================================================================
 ; TILE PATTERN BANK 0 (Base patterns)
 ; ==================================================================
@@ -4975,6 +5236,9 @@ tile_pattern_bank0:
 load_pattern_bank0:
     ; Load pattern bank 0 to VRAM (base patterns)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, PATTERN_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 tile pattern data into RAM buffer
     di
     ld hl, tile_pattern_bank0
@@ -4985,11 +5249,15 @@ load_pattern_bank0:
     ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
     ld bc, 424    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_pattern_bank1:
     ; Load pattern bank 1: same patterns as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, PATTERN_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 tile pattern data into RAM buffer
     di
     ld hl, tile_pattern_bank0
@@ -5000,11 +5268,15 @@ load_pattern_bank1:
     ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
     ld bc, 424    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_pattern_bank2:
     ; Load pattern bank 2: same patterns as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, PATTERN_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 tile pattern data into RAM buffer
     di
     ld hl, tile_pattern_bank0
@@ -5015,6 +5287,7 @@ load_pattern_bank2:
     ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
     ld bc, 424    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_patterns_to_vram:
@@ -5037,6 +5310,8 @@ load_patterns_to_vram:
 ; 14 tiles detected
 ; ==================================================================
 
+COLOR_DATA_BANK EQU ((tile_color_bank0 - #4000) / #2000)
+
 ; ==================================================================
 ; TILE COLOR BANK 0 (Base colors)
 ; ==================================================================
@@ -5050,6 +5325,9 @@ tile_color_bank0:
 load_color_bank0:
     ; Load color bank 0 to VRAM (base colors)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, COLOR_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 tile color data into RAM buffer
     di
     ld hl, tile_color_bank0
@@ -5060,11 +5338,15 @@ load_color_bank0:
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
     ld bc, 424     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_color_bank1:
     ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, COLOR_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 tile color data into RAM buffer
     di
     ld hl, tile_color_bank0
@@ -5075,11 +5357,15 @@ load_color_bank1:
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
     ld bc, 424     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_color_bank2:
     ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, COLOR_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 tile color data into RAM buffer
     di
     ld hl, tile_color_bank0
@@ -5090,6 +5376,7 @@ load_color_bank2:
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
     ld bc, 424     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_colors_to_vram:
@@ -5171,6 +5458,7 @@ HERO_LEFT_0_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
 
 ; Unified pattern label for sprite 0
 SPRITE_0_PATTERN EQU HERO_LEFT_0_F0_LAYER1
+SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 1: bird
 ;; Sprite: bird
@@ -5266,6 +5554,7 @@ BIRD_1_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 1
 SPRITE_1_PATTERN EQU BIRD_1_F0_LAYER1
+SPRITE_1_PATTERN_BANK EQU ((SPRITE_1_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 2: bot2_right
 ;; Sprite: bot2_right
@@ -5321,6 +5610,7 @@ BOT2_RIGHT_2_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
 
 ; Unified pattern label for sprite 2
 SPRITE_2_PATTERN EQU BOT2_RIGHT_2_F0_LAYER0
+SPRITE_2_PATTERN_BANK EQU ((SPRITE_2_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 3: hero_dead2
 ;; Sprite: hero_dead2
@@ -5656,6 +5946,7 @@ HERO_DEAD2_3_F15_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 3
 SPRITE_3_PATTERN EQU HERO_DEAD2_3_F0_LAYER1
+SPRITE_3_PATTERN_BANK EQU ((SPRITE_3_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 4: New Sprite
 ;; Sprite: New Sprite
@@ -5727,6 +6018,7 @@ NEW_SPRITE_4_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 4
 SPRITE_4_PATTERN EQU NEW_SPRITE_4_F0_LAYER1
+SPRITE_4_PATTERN_BANK EQU ((SPRITE_4_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 5: gema1
 ;; Sprite: gema1
@@ -5782,6 +6074,7 @@ GEMA1_5_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 5
 SPRITE_5_PATTERN EQU GEMA1_5_F0_LAYER2
+SPRITE_5_PATTERN_BANK EQU ((SPRITE_5_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 6: Box
 ;; Sprite: Box
@@ -5845,6 +6138,7 @@ BOX_6_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 6
 SPRITE_6_PATTERN EQU BOX_6_F0_LAYER1
+SPRITE_6_PATTERN_BANK EQU ((SPRITE_6_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 7: fire
 ;; Sprite: fire
@@ -5900,6 +6194,7 @@ FIRE_7_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 7
 SPRITE_7_PATTERN EQU FIRE_7_F0_LAYER1
+SPRITE_7_PATTERN_BANK EQU ((SPRITE_7_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 8: fire2_left
 ;; Sprite: fire2_left
@@ -6015,6 +6310,7 @@ FIRE2_LEFT_8_F4_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 8
 SPRITE_8_PATTERN EQU FIRE2_LEFT_8_F0_LAYER1
+SPRITE_8_PATTERN_BANK EQU ((SPRITE_8_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 9: New Sprite_left
 ;; Sprite: New Sprite_left
@@ -6050,6 +6346,7 @@ NEW_SPRITE_LEFT_9_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #7D76FC)
 
 ; Unified pattern label for sprite 9
 SPRITE_9_PATTERN EQU NEW_SPRITE_LEFT_9_F0_LAYER1
+SPRITE_9_PATTERN_BANK EQU ((SPRITE_9_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 10: New Sprite_1
 ;; Sprite: New Sprite_1
@@ -6105,6 +6402,7 @@ NEW_SPRITE_1_10_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 10
 SPRITE_10_PATTERN EQU NEW_SPRITE_1_10_F0_LAYER2
+SPRITE_10_PATTERN_BANK EQU ((SPRITE_10_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 11: hero_jump_left
 ;; Sprite: hero_jump_left
@@ -6140,6 +6438,7 @@ HERO_JUMP_LEFT_11_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 11
 SPRITE_11_PATTERN EQU HERO_JUMP_LEFT_11_F0_LAYER1
+SPRITE_11_PATTERN_BANK EQU ((SPRITE_11_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 12: hero_ground_left
 ;; Sprite: hero_ground_left
@@ -6215,6 +6514,7 @@ HERO_GROUND_LEFT_12_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 12
 SPRITE_12_PATTERN EQU HERO_GROUND_LEFT_12_F0_LAYER1
+SPRITE_12_PATTERN_BANK EQU ((SPRITE_12_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 13: hero_frame_0_frame_1
 ;; Sprite: hero_frame_0_frame_1
@@ -6430,6 +6730,7 @@ HERO_FRAME_0_FRAME_1_13_F9_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 13
 SPRITE_13_PATTERN EQU HERO_FRAME_0_FRAME_1_13_F0_LAYER1
+SPRITE_13_PATTERN_BANK EQU ((SPRITE_13_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 14: dust_spr
 ;; Sprite: dust_spr
@@ -6565,6 +6866,7 @@ DUST_SPR_14_F5_LAYER3: ; Brush Color Index 3 (Actual Color: #FF7978)
 
 ; Unified pattern label for sprite 14
 SPRITE_14_PATTERN EQU DUST_SPR_14_F0_LAYER0
+SPRITE_14_PATTERN_BANK EQU ((SPRITE_14_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 15: hero_gun
 ;; Sprite: hero_gun
@@ -6620,6 +6922,7 @@ HERO_GUN_15_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
 
 ; Unified pattern label for sprite 15
 SPRITE_15_PATTERN EQU HERO_GUN_15_F0_LAYER1
+SPRITE_15_PATTERN_BANK EQU ((SPRITE_15_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 16: hero_collector_left
 ;; Sprite: hero_collector_left
@@ -6675,6 +6978,7 @@ HERO_COLLECTOR_LEFT_16_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
 
 ; Unified pattern label for sprite 16
 SPRITE_16_PATTERN EQU HERO_COLLECTOR_LEFT_16_F0_LAYER1
+SPRITE_16_PATTERN_BANK EQU ((SPRITE_16_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 17: hero_right
 ;; Sprite: hero_right
@@ -6730,6 +7034,7 @@ HERO_RIGHT_17_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
 
 ; Unified pattern label for sprite 17
 SPRITE_17_PATTERN EQU HERO_RIGHT_17_F0_LAYER1
+SPRITE_17_PATTERN_BANK EQU ((SPRITE_17_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 18: bot2_left
 ;; Sprite: bot2_left
@@ -6785,6 +7090,7 @@ BOT2_LEFT_18_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
 
 ; Unified pattern label for sprite 18
 SPRITE_18_PATTERN EQU BOT2_LEFT_18_F0_LAYER0
+SPRITE_18_PATTERN_BANK EQU ((SPRITE_18_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 19: fire2_right
 ;; Sprite: fire2_right
@@ -6900,6 +7206,7 @@ FIRE2_RIGHT_19_F4_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 19
 SPRITE_19_PATTERN EQU FIRE2_RIGHT_19_F0_LAYER1
+SPRITE_19_PATTERN_BANK EQU ((SPRITE_19_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 20: New Sprite_right
 ;; Sprite: New Sprite_right
@@ -6935,6 +7242,7 @@ NEW_SPRITE_RIGHT_20_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #7D76FC)
 
 ; Unified pattern label for sprite 20
 SPRITE_20_PATTERN EQU NEW_SPRITE_RIGHT_20_F0_LAYER1
+SPRITE_20_PATTERN_BANK EQU ((SPRITE_20_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 21: hero_jump_right
 ;; Sprite: hero_jump_right
@@ -6970,6 +7278,7 @@ HERO_JUMP_RIGHT_21_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 21
 SPRITE_21_PATTERN EQU HERO_JUMP_RIGHT_21_F0_LAYER1
+SPRITE_21_PATTERN_BANK EQU ((SPRITE_21_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 22: hero_ground_right
 ;; Sprite: hero_ground_right
@@ -7045,6 +7354,7 @@ HERO_GROUND_RIGHT_22_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
 
 ; Unified pattern label for sprite 22
 SPRITE_22_PATTERN EQU HERO_GROUND_RIGHT_22_F0_LAYER1
+SPRITE_22_PATTERN_BANK EQU ((SPRITE_22_PATTERN - #4000) / #2000)
 
 ; Sprite Asset 23: hero_collector_right
 ;; Sprite: hero_collector_right
@@ -7100,6 +7410,7 @@ HERO_COLLECTOR_RIGHT_23_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
 
 ; Unified pattern label for sprite 23
 SPRITE_23_PATTERN EQU HERO_COLLECTOR_RIGHT_23_F0_LAYER1
+SPRITE_23_PATTERN_BANK EQU ((SPRITE_23_PATTERN - #4000) / #2000)
 
 ; ==================================================================
 ; PLACEHOLDER SPRITE PATTERN (for entities with missing sprite assets)
@@ -7114,6 +7425,7 @@ SPRITE_PLACEHOLDER_PATTERN:
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
     ; Right half bottom (8x8)
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #2000)
 
 
 ; ==================================================================
@@ -7417,54 +7729,72 @@ init_sprites:
 
 load_sprite_patterns:
     ; Load patterns for all active entities
+    call mapper_push_p2
     ; Entity 0: hero_left (2 layers)
     ; Base HW Sprite: 0
+    ld a, SPRITE_0_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_0_PATTERN
     ld de, SPRPAT + (0 * 32)
     ld bc, 64 ; Load 2 layers (32 bytes each)
     call FAST_LDIRVM
     ; Entity 1: gema1 (1 layers)
     ; Base HW Sprite: 2
+    ld a, SPRITE_5_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (2 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
     ; Entity 2: gema1 (1 layers)
     ; Base HW Sprite: 3
+    ld a, SPRITE_5_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (3 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
     ; Entity 3: gema1 (1 layers)
     ; Base HW Sprite: 4
+    ld a, SPRITE_5_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (4 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
     ; Entity 4: gema1 (1 layers)
     ; Base HW Sprite: 5
+    ld a, SPRITE_5_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (5 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
     ; Entity 5: gema1 (1 layers)
     ; Base HW Sprite: 6
+    ld a, SPRITE_5_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (6 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
     ; Entity 6: gema1 (1 layers)
     ; Base HW Sprite: 7
+    ld a, SPRITE_5_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (7 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
     ; Entity 7: gema1 (1 layers)
     ; Base HW Sprite: 8
+    ld a, SPRITE_5_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (8 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call FAST_LDIRVM
+    call mapper_pop_p2
     ret
 
 ; ==================================================================
@@ -7583,12 +7913,26 @@ SPRITE_INVISIBLE    EQU 224
 ; ==================================================================
 
 SCREEN_PAN1_0_ID EQU 0
+SCREEN_PAN1_0_LAYOUT_BANK EQU ((SCREEN_PAN1_0_LAYOUT - #4000) / #2000)
+BEHAVIOR_PAN1_0_DATA_BANK EQU ((BEHAVIOR_PAN1_0_DATA - #4000) / #2000)
 SCREEN_PAN2_1_ID EQU 1
+SCREEN_PAN2_1_LAYOUT_BANK EQU ((SCREEN_PAN2_1_LAYOUT - #4000) / #2000)
+BEHAVIOR_PAN2_1_DATA_BANK EQU ((BEHAVIOR_PAN2_1_DATA - #4000) / #2000)
 SCREEN_PAN3_2_ID EQU 2
+SCREEN_PAN3_2_LAYOUT_BANK EQU ((SCREEN_PAN3_2_LAYOUT - #4000) / #2000)
+BEHAVIOR_PAN3_2_DATA_BANK EQU ((BEHAVIOR_PAN3_2_DATA - #4000) / #2000)
 SCREEN_PAN4_3_ID EQU 3
+SCREEN_PAN4_3_LAYOUT_BANK EQU ((SCREEN_PAN4_3_LAYOUT - #4000) / #2000)
+BEHAVIOR_PAN4_3_DATA_BANK EQU ((BEHAVIOR_PAN4_3_DATA - #4000) / #2000)
 SCREEN_PAN5_4_ID EQU 4
+SCREEN_PAN5_4_LAYOUT_BANK EQU ((SCREEN_PAN5_4_LAYOUT - #4000) / #2000)
+BEHAVIOR_PAN5_4_DATA_BANK EQU ((BEHAVIOR_PAN5_4_DATA - #4000) / #2000)
 SCREEN_PAN62_5_ID EQU 5
+SCREEN_PAN62_5_LAYOUT_BANK EQU ((SCREEN_PAN62_5_LAYOUT - #4000) / #2000)
+BEHAVIOR_PAN62_5_DATA_BANK EQU ((BEHAVIOR_PAN62_5_DATA - #4000) / #2000)
 SCREEN_PAN7_6_ID EQU 6
+SCREEN_PAN7_6_LAYOUT_BANK EQU ((SCREEN_PAN7_6_LAYOUT - #4000) / #2000)
+BEHAVIOR_PAN7_6_DATA_BANK EQU ((BEHAVIOR_PAN7_6_DATA - #4000) / #2000)
 
 ; ==================================================================
 ; SCREEN MAP DATA
@@ -7952,6 +8296,9 @@ load_screen_pan1_760723005040:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Now load screen layout (full 32x24)
+    call mapper_push_p2
+    ld a, SCREEN_PAN1_0_LAYOUT_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 screen layout into RAM buffer
     di
     ld hl, SCREEN_PAN1_0_LAYOUT
@@ -7962,9 +8309,12 @@ load_screen_pan1_760723005040:
     ld de, NAMETBL
     ld bc, SCREEN_PAN1_0_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ; Initialize collision system pointers for this screen
     ld hl, ZX0_SCREEN_BUFFER
     ld (current_screen_layout), hl
+    ld a, SCREEN_PAN1_0_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN1_0_DATA
@@ -7973,6 +8323,8 @@ load_screen_pan1_760723005040:
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_PAN1_0_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h
@@ -7994,6 +8346,9 @@ load_screen_pan2_760784762679:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Now load screen layout (full 32x24)
+    call mapper_push_p2
+    ld a, SCREEN_PAN2_1_LAYOUT_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 screen layout into RAM buffer
     di
     ld hl, SCREEN_PAN2_1_LAYOUT
@@ -8004,9 +8359,12 @@ load_screen_pan2_760784762679:
     ld de, NAMETBL
     ld bc, SCREEN_PAN2_1_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ; Initialize collision system pointers for this screen
     ld hl, ZX0_SCREEN_BUFFER
     ld (current_screen_layout), hl
+    ld a, SCREEN_PAN2_1_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN2_1_DATA
@@ -8015,6 +8373,8 @@ load_screen_pan2_760784762679:
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_PAN2_1_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h
@@ -8036,6 +8396,9 @@ load_screen_pan3_760799152493:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Now load screen layout (full 32x24)
+    call mapper_push_p2
+    ld a, SCREEN_PAN3_2_LAYOUT_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 screen layout into RAM buffer
     di
     ld hl, SCREEN_PAN3_2_LAYOUT
@@ -8046,9 +8409,12 @@ load_screen_pan3_760799152493:
     ld de, NAMETBL
     ld bc, SCREEN_PAN3_2_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ; Initialize collision system pointers for this screen
     ld hl, ZX0_SCREEN_BUFFER
     ld (current_screen_layout), hl
+    ld a, SCREEN_PAN3_2_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN3_2_DATA
@@ -8057,6 +8423,8 @@ load_screen_pan3_760799152493:
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_PAN3_2_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h
@@ -8078,6 +8446,9 @@ load_screen_pan4_760799516565:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Now load screen layout (full 32x24)
+    call mapper_push_p2
+    ld a, SCREEN_PAN4_3_LAYOUT_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 screen layout into RAM buffer
     di
     ld hl, SCREEN_PAN4_3_LAYOUT
@@ -8088,9 +8459,12 @@ load_screen_pan4_760799516565:
     ld de, NAMETBL
     ld bc, SCREEN_PAN4_3_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ; Initialize collision system pointers for this screen
     ld hl, ZX0_SCREEN_BUFFER
     ld (current_screen_layout), hl
+    ld a, SCREEN_PAN4_3_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN4_3_DATA
@@ -8099,6 +8473,8 @@ load_screen_pan4_760799516565:
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_PAN4_3_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h
@@ -8120,6 +8496,9 @@ load_screen_pan5_760961565333:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Now load screen layout (full 32x24)
+    call mapper_push_p2
+    ld a, SCREEN_PAN5_4_LAYOUT_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 screen layout into RAM buffer
     di
     ld hl, SCREEN_PAN5_4_LAYOUT
@@ -8130,9 +8509,12 @@ load_screen_pan5_760961565333:
     ld de, NAMETBL
     ld bc, SCREEN_PAN5_4_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ; Initialize collision system pointers for this screen
     ld hl, ZX0_SCREEN_BUFFER
     ld (current_screen_layout), hl
+    ld a, SCREEN_PAN5_4_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN5_4_DATA
@@ -8141,6 +8523,8 @@ load_screen_pan5_760961565333:
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_PAN5_4_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h
@@ -8162,6 +8546,9 @@ load_screen_pan62_761237904051:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Now load screen layout (full 32x24)
+    call mapper_push_p2
+    ld a, SCREEN_PAN62_5_LAYOUT_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 screen layout into RAM buffer
     di
     ld hl, SCREEN_PAN62_5_LAYOUT
@@ -8172,9 +8559,12 @@ load_screen_pan62_761237904051:
     ld de, NAMETBL
     ld bc, SCREEN_PAN62_5_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ; Initialize collision system pointers for this screen
     ld hl, ZX0_SCREEN_BUFFER
     ld (current_screen_layout), hl
+    ld a, SCREEN_PAN62_5_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN62_5_DATA
@@ -8183,6 +8573,8 @@ load_screen_pan62_761237904051:
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_PAN62_5_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h
@@ -8204,6 +8596,9 @@ load_screen_pan7_761471728391:
     call clear_all_sprites
     call update_sprites_to_vram
     ; Now load screen layout (full 32x24)
+    call mapper_push_p2
+    ld a, SCREEN_PAN7_6_LAYOUT_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 screen layout into RAM buffer
     di
     ld hl, SCREEN_PAN7_6_LAYOUT
@@ -8214,9 +8609,12 @@ load_screen_pan7_761471728391:
     ld de, NAMETBL
     ld bc, SCREEN_PAN7_6_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ; Initialize collision system pointers for this screen
     ld hl, ZX0_SCREEN_BUFFER
     ld (current_screen_layout), hl
+    ld a, SCREEN_PAN7_6_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN7_6_DATA
@@ -8225,6 +8623,8 @@ load_screen_pan7_761471728391:
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_PAN7_6_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h
@@ -8495,7 +8895,7 @@ init_player_1:
 
     ld hl, entity_anim_flags
     add hl, de
-    ld (hl), #07           ; flags (playing/loop/onlyWhenMoving)
+    ld (hl), #05           ; flags (playing/loop/onlyWhenMoving)
 
 
 
@@ -13981,7 +14381,8 @@ gameflow_execute_node:
 
 gameflow_handle_start:
     ; Start node - Initialize game state and systems
-    ; DE = node data pointer (initialization config)
+    ; DE = node data pointer:
+    ;   [init_routine_ptr DW][init_routine_bank DB]
     ; BC = connection table
 
     push bc         ; Save connection table
@@ -13992,21 +14393,19 @@ gameflow_handle_start:
     ld e, (hl)
     inc hl
     ld d, (hl)      ; DE = initialization routine address
+    inc hl
+    ld b, (hl)      ; B = initialization routine bank
+    ld h, d
+    ld l, e         ; HL = initialization routine address
 
     ; Call initialization routine (if not null)
-    ld a, d
-    or e
+    ld a, h
+    or l
     jr z, .skip_init
 
-    ; Call the initialization routine
-    push de
-    ex de, hl
-    ld de, .after_init
-    push de
-    jp (hl)         ; Indirect call, returns to .after_init
-
-.after_init:
-    pop de
+    ; Mapper-safe far call (auto window from HL address)
+    ld a, b
+    call mapper_call_hl_auto
 
 .skip_init:
     ; Continue to next node
@@ -14019,23 +14418,29 @@ gameflow_handle_start:
 
 gameflow_handle_worldlink:
     ; WorldLink node - load world and enter game loop
-    ; DE = world data pointer (contains load_world_X routine address)
+    ; DE = world data pointer:
+    ;   [load_world_ptr DW][load_world_bank DB]
     ; BC = connection table (for exit)
 
     push bc         ; Save connection table
 
     ; Load the world
-    ; DE points to: dw load_world_X
+    ; DE points to: dw load_world_X, db load_world_bank
     ex de, hl
-    ld a, (hl)
+    ld e, (hl)
     inc hl
-    ld h, (hl)
-    ld l, a         ; HL = load_world_X address
+    ld d, (hl)
+    inc hl
+    ld b, (hl)      ; B = load_world_X bank
+    ld h, d
+    ld l, e         ; HL = load_world_X address
 
-    ; Call the load routine
-    ld de, .after_load
-    push de
-    jp (hl)          ; Indirect call, returns to .after_load
+    ; Mapper-safe far call to world load routine
+    ld a, h
+    or l
+    jr z, .after_load
+    ld a, b
+    call mapper_call_hl_auto
 
 .after_load:
     ; Set game state
@@ -14321,6 +14726,7 @@ gameflow_node_gf_start_1760724231672:
 
 gameflow_node_gf_start_1760724231672_data:
     dw gameflow_node_gf_start_1760724231672_init    ; Initialization routine address
+    db ((gameflow_node_gf_start_1760724231672_init - #4000) / #2000)    ; Initialization routine bank
 
 gameflow_node_gf_start_1760724231672_conn:
     db CONNECTION_DEFAULT
@@ -14346,6 +14752,7 @@ gameflow_node_gfn_1763447705454:
 
 gameflow_node_gfn_1763447705454_data:
     dw load_world_worldmap_1760724209990
+    db ((load_world_worldmap_1760724209990 - #4000) / #2000)
 
 gameflow_node_gfn_1763447705454_conn:
     db CONNECTION_DEFAULT
@@ -14612,7 +15019,9 @@ WORLD_NEW_WORLDMAP_SCREEN_PAN7_ID EQU 6
 ; ------------------------------------------------------------------
 load_world_worldmap_1760724209990:
     ; Load start screen: New Screenmap (screenmap_1760723005040)
-    call load_screen_pan1_760723005040
+    ld a, ((load_screen_pan1_760723005040 - #4000) / #2000)
+    ld hl, load_screen_pan1_760723005040
+    call mapper_call_hl_auto
 
     ; Initialize world state
     ld a, WORLD_NEW_WORLDMAP_ID
@@ -14638,7 +15047,9 @@ load_world_worldmap_1760724209990:
 
 ; Transition: pan2 -> New Screenmap
 transition_worldmap_1760724209990_0:
-    call load_screen_pan1_760723005040
+    ld a, ((load_screen_pan1_760723005040 - #4000) / #2000)
+    ld hl, load_screen_pan1_760723005040
+    call mapper_call_hl_auto
 
     ld a, 0
     ld (current_screen_index), a
@@ -14647,7 +15058,9 @@ transition_worldmap_1760724209990_0:
 
 ; Transition: pan3 -> pan2
 transition_worldmap_1760724209990_1:
-    call load_screen_pan2_760784762679
+    ld a, ((load_screen_pan2_760784762679 - #4000) / #2000)
+    ld hl, load_screen_pan2_760784762679
+    call mapper_call_hl_auto
 
     ld a, 1
     ld (current_screen_index), a
@@ -14656,7 +15069,9 @@ transition_worldmap_1760724209990_1:
 
 ; Transition: pan4 -> pan3
 transition_worldmap_1760724209990_2:
-    call load_screen_pan3_760799152493
+    ld a, ((load_screen_pan3_760799152493 - #4000) / #2000)
+    ld hl, load_screen_pan3_760799152493
+    call mapper_call_hl_auto
 
     ld a, 2
     ld (current_screen_index), a
@@ -14665,7 +15080,9 @@ transition_worldmap_1760724209990_2:
 
 ; Transition: pan5 -> pan4
 transition_worldmap_1760724209990_3:
-    call load_screen_pan4_760799516565
+    ld a, ((load_screen_pan4_760799516565 - #4000) / #2000)
+    ld hl, load_screen_pan4_760799516565
+    call mapper_call_hl_auto
 
     ld a, 3
     ld (current_screen_index), a
@@ -14674,7 +15091,9 @@ transition_worldmap_1760724209990_3:
 
 ; Transition: New Screenmap -> pan5
 transition_worldmap_1760724209990_4:
-    call load_screen_pan5_760961565333
+    ld a, ((load_screen_pan5_760961565333 - #4000) / #2000)
+    ld hl, load_screen_pan5_760961565333
+    call mapper_call_hl_auto
 
     ld a, 4
     ld (current_screen_index), a
@@ -14683,7 +15102,9 @@ transition_worldmap_1760724209990_4:
 
 ; Transition: pan7 -> New Screenmap
 transition_worldmap_1760724209990_5:
-    call load_screen_pan62_761237904051
+    ld a, ((load_screen_pan62_761237904051 - #4000) / #2000)
+    ld hl, load_screen_pan62_761237904051
+    call mapper_call_hl_auto
 
     ld a, 5
     ld (current_screen_index), a
@@ -14692,7 +15113,9 @@ transition_worldmap_1760724209990_5:
 
 ; Transition: pan7 -> pan4
 transition_worldmap_1760724209990_6:
-    call load_screen_pan4_760799516565
+    ld a, ((load_screen_pan4_760799516565 - #4000) / #2000)
+    ld hl, load_screen_pan4_760799516565
+    call mapper_call_hl_auto
 
     ld a, 3
     ld (current_screen_index), a
@@ -14760,22 +15183,22 @@ check_world_screen_transition:
 check_transition_world_worldmap_1760724209990:
     ld a, (current_screen_index)
     cp 0
-    jp z, .screen_0
+    jp z, check_transition_worldmap_1760724209990_screen_0
     cp 1
-    jp z, .screen_1
+    jp z, check_transition_worldmap_1760724209990_screen_1
     cp 2
-    jp z, .screen_2
+    jp z, check_transition_worldmap_1760724209990_screen_2
     cp 3
-    jp z, .screen_3
+    jp z, check_transition_worldmap_1760724209990_screen_3
     cp 4
-    jp z, .screen_4
+    jp z, check_transition_worldmap_1760724209990_screen_4
     cp 5
-    jp z, .screen_5
+    jp z, check_transition_worldmap_1760724209990_screen_5
     cp 6
-    jp z, .screen_6
+    jp z, check_transition_worldmap_1760724209990_screen_6
     ret
 
-.screen_0:
+check_transition_worldmap_1760724209990_screen_0:
     ; West exit: X near left edge and leftward input
     ld a, (input_state)
     cp STICK_LEFT
@@ -14792,7 +15215,9 @@ check_transition_world_worldmap_1760724209990:
     jp nc, check_transition_worldmap_1760724209990_s0_skip_west
 check_transition_worldmap_1760724209990_s0_apply_west:
     push de
-    call load_screen_pan2_760784762679
+    ld a, ((load_screen_pan2_760784762679 - #4000) / #2000)
+    ld hl, load_screen_pan2_760784762679
+    call mapper_call_hl_auto
     pop de
     ld a, 1
     ld (current_screen_index), a
@@ -14821,7 +15246,7 @@ check_transition_worldmap_1760724209990_s0_apply_west:
 check_transition_worldmap_1760724209990_s0_skip_west:
     ret
 
-.screen_1:
+check_transition_worldmap_1760724209990_screen_1:
     ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
@@ -14838,7 +15263,9 @@ check_transition_worldmap_1760724209990_s0_skip_west:
     jp c, check_transition_worldmap_1760724209990_s1_skip_east
 check_transition_worldmap_1760724209990_s1_apply_east:
     push de
-    call load_screen_pan1_760723005040
+    ld a, ((load_screen_pan1_760723005040 - #4000) / #2000)
+    ld hl, load_screen_pan1_760723005040
+    call mapper_call_hl_auto
     pop de
     ld a, 0
     ld (current_screen_index), a
@@ -14881,7 +15308,9 @@ check_transition_worldmap_1760724209990_s1_skip_east:
     jp nc, check_transition_worldmap_1760724209990_s1_skip_west
 check_transition_worldmap_1760724209990_s1_apply_west:
     push de
-    call load_screen_pan3_760799152493
+    ld a, ((load_screen_pan3_760799152493 - #4000) / #2000)
+    ld hl, load_screen_pan3_760799152493
+    call mapper_call_hl_auto
     pop de
     ld a, 2
     ld (current_screen_index), a
@@ -14910,7 +15339,7 @@ check_transition_worldmap_1760724209990_s1_apply_west:
 check_transition_worldmap_1760724209990_s1_skip_west:
     ret
 
-.screen_2:
+check_transition_worldmap_1760724209990_screen_2:
     ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
@@ -14927,7 +15356,9 @@ check_transition_worldmap_1760724209990_s1_skip_west:
     jp c, check_transition_worldmap_1760724209990_s2_skip_east
 check_transition_worldmap_1760724209990_s2_apply_east:
     push de
-    call load_screen_pan2_760784762679
+    ld a, ((load_screen_pan2_760784762679 - #4000) / #2000)
+    ld hl, load_screen_pan2_760784762679
+    call mapper_call_hl_auto
     pop de
     ld a, 1
     ld (current_screen_index), a
@@ -14963,7 +15394,9 @@ check_transition_worldmap_1760724209990_s2_skip_east:
     jp c, check_transition_worldmap_1760724209990_s2_skip_south
 check_transition_worldmap_1760724209990_s2_apply_south:
     push de
-    call load_screen_pan4_760799516565
+    ld a, ((load_screen_pan4_760799516565 - #4000) / #2000)
+    ld hl, load_screen_pan4_760799516565
+    call mapper_call_hl_auto
     pop de
     ld a, 3
     ld (current_screen_index), a
@@ -14992,7 +15425,7 @@ check_transition_worldmap_1760724209990_s2_apply_south:
 check_transition_worldmap_1760724209990_s2_skip_south:
     ret
 
-.screen_3:
+check_transition_worldmap_1760724209990_screen_3:
     ; West exit: X near left edge and leftward input
     ld a, (input_state)
     cp STICK_LEFT
@@ -15009,7 +15442,9 @@ check_transition_worldmap_1760724209990_s2_skip_south:
     jp nc, check_transition_worldmap_1760724209990_s3_skip_west
 check_transition_worldmap_1760724209990_s3_apply_west:
     push de
-    call load_screen_pan7_761471728391
+    ld a, ((load_screen_pan7_761471728391 - #4000) / #2000)
+    ld hl, load_screen_pan7_761471728391
+    call mapper_call_hl_auto
     pop de
     ld a, 6
     ld (current_screen_index), a
@@ -15045,7 +15480,9 @@ check_transition_worldmap_1760724209990_s3_skip_west:
     jp c, check_transition_worldmap_1760724209990_s3_skip_south
 check_transition_worldmap_1760724209990_s3_apply_south:
     push de
-    call load_screen_pan5_760961565333
+    ld a, ((load_screen_pan5_760961565333 - #4000) / #2000)
+    ld hl, load_screen_pan5_760961565333
+    call mapper_call_hl_auto
     pop de
     ld a, 4
     ld (current_screen_index), a
@@ -15081,7 +15518,9 @@ check_transition_worldmap_1760724209990_s3_skip_south:
     jp nc, check_transition_worldmap_1760724209990_s3_skip_north
 check_transition_worldmap_1760724209990_s3_apply_north:
     push de
-    call load_screen_pan3_760799152493
+    ld a, ((load_screen_pan3_760799152493 - #4000) / #2000)
+    ld hl, load_screen_pan3_760799152493
+    call mapper_call_hl_auto
     pop de
     ld a, 2
     ld (current_screen_index), a
@@ -15110,7 +15549,7 @@ check_transition_worldmap_1760724209990_s3_apply_north:
 check_transition_worldmap_1760724209990_s3_skip_north:
     ret
 
-.screen_4:
+check_transition_worldmap_1760724209990_screen_4:
     ; West exit: X near left edge and leftward input
     ld a, (input_state)
     cp STICK_LEFT
@@ -15127,7 +15566,9 @@ check_transition_worldmap_1760724209990_s3_skip_north:
     jp nc, check_transition_worldmap_1760724209990_s4_skip_west
 check_transition_worldmap_1760724209990_s4_apply_west:
     push de
-    call load_screen_pan62_761237904051
+    ld a, ((load_screen_pan62_761237904051 - #4000) / #2000)
+    ld hl, load_screen_pan62_761237904051
+    call mapper_call_hl_auto
     pop de
     ld a, 5
     ld (current_screen_index), a
@@ -15163,7 +15604,9 @@ check_transition_worldmap_1760724209990_s4_skip_west:
     jp nc, check_transition_worldmap_1760724209990_s4_skip_north
 check_transition_worldmap_1760724209990_s4_apply_north:
     push de
-    call load_screen_pan4_760799516565
+    ld a, ((load_screen_pan4_760799516565 - #4000) / #2000)
+    ld hl, load_screen_pan4_760799516565
+    call mapper_call_hl_auto
     pop de
     ld a, 3
     ld (current_screen_index), a
@@ -15192,7 +15635,7 @@ check_transition_worldmap_1760724209990_s4_apply_north:
 check_transition_worldmap_1760724209990_s4_skip_north:
     ret
 
-.screen_5:
+check_transition_worldmap_1760724209990_screen_5:
     ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
@@ -15209,7 +15652,9 @@ check_transition_worldmap_1760724209990_s4_skip_north:
     jp c, check_transition_worldmap_1760724209990_s5_skip_east
 check_transition_worldmap_1760724209990_s5_apply_east:
     push de
-    call load_screen_pan5_760961565333
+    ld a, ((load_screen_pan5_760961565333 - #4000) / #2000)
+    ld hl, load_screen_pan5_760961565333
+    call mapper_call_hl_auto
     pop de
     ld a, 4
     ld (current_screen_index), a
@@ -15245,7 +15690,9 @@ check_transition_worldmap_1760724209990_s5_skip_east:
     jp nc, check_transition_worldmap_1760724209990_s5_skip_north
 check_transition_worldmap_1760724209990_s5_apply_north:
     push de
-    call load_screen_pan7_761471728391
+    ld a, ((load_screen_pan7_761471728391 - #4000) / #2000)
+    ld hl, load_screen_pan7_761471728391
+    call mapper_call_hl_auto
     pop de
     ld a, 6
     ld (current_screen_index), a
@@ -15274,7 +15721,7 @@ check_transition_worldmap_1760724209990_s5_apply_north:
 check_transition_worldmap_1760724209990_s5_skip_north:
     ret
 
-.screen_6:
+check_transition_worldmap_1760724209990_screen_6:
     ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
@@ -15291,7 +15738,9 @@ check_transition_worldmap_1760724209990_s5_skip_north:
     jp c, check_transition_worldmap_1760724209990_s6_skip_east
 check_transition_worldmap_1760724209990_s6_apply_east:
     push de
-    call load_screen_pan4_760799516565
+    ld a, ((load_screen_pan4_760799516565 - #4000) / #2000)
+    ld hl, load_screen_pan4_760799516565
+    call mapper_call_hl_auto
     pop de
     ld a, 3
     ld (current_screen_index), a
@@ -15327,7 +15776,9 @@ check_transition_worldmap_1760724209990_s6_skip_east:
     jp c, check_transition_worldmap_1760724209990_s6_skip_south
 check_transition_worldmap_1760724209990_s6_apply_south:
     push de
-    call load_screen_pan62_761237904051
+    ld a, ((load_screen_pan62_761237904051 - #4000) / #2000)
+    ld hl, load_screen_pan62_761237904051
+    call mapper_call_hl_auto
     pop de
     ld a, 5
     ld (current_screen_index), a

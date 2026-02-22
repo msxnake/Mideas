@@ -223,7 +223,9 @@ function emitDirectionalTransitionCode(
 
   return `${conditionCode}${applyLabel}:
     push de
-    call ${targetLoadRoutine}
+    ld a, ((${targetLoadRoutine} - #4000) / #2000)
+    ld hl, ${targetLoadRoutine}
+    call mapper_call_hl_auto
     pop de
     ld a, ${targetScreenIndex}
     ld (current_screen_index), a
@@ -375,7 +377,9 @@ load_world_${toRoutineLabel(worldId)}:
     const worldImportedHudFrameDrawRoutine = getWorldImportedHudFrameDrawRoutineName(world, analysis);
 
     code += `    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
-    call ${loadRoutine}
+    ld a, ((${loadRoutine} - #4000) / #2000)
+    ld hl, ${loadRoutine}
+    call mapper_call_hl_auto
 
 `;
     if (worldImportedHudFrameDrawRoutine) {
@@ -460,7 +464,9 @@ load_world_${toRoutineLabel(worldId)}:
 
       code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
 transition_${toRoutineLabel(worldId)}_${connIndex}:
-    call ${toLoadRoutine}
+    ld a, ((${toLoadRoutine} - #4000) / #2000)
+    ld hl, ${toLoadRoutine}
+    call mapper_call_hl_auto
 
     ld a, ${toScreenIndex}
     ld (current_screen_index), a
@@ -594,8 +600,9 @@ check_world_screen_transition:
     code += `    ld a, (current_screen_index)
 `;
     nodes.forEach((_: any, idx: number) => {
+      const screenLabel = `check_transition_${worldLabel}_screen_${idx}`;
       code += `    cp ${idx}
-    jp z, .screen_${idx}
+    jp z, ${screenLabel}
 `;
     });
     code += `    ret
@@ -604,7 +611,8 @@ check_world_screen_transition:
 
     nodes.forEach((node: any, idx: number) => {
       const transitions = transitionMap.get(idx) || {};
-      code += `.screen_${idx}:
+      const screenLabel = `check_transition_${worldLabel}_screen_${idx}`;
+      code += `${screenLabel}:
 `;
 
       const directions: WorldDirection[] = ['east', 'west', 'south', 'north'];

@@ -1475,7 +1475,13 @@ get_behavior_tile:
     ld e, c
     ld d, 0
     add hl, de                    ; HL = row base + column
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
     ld a, (hl)                    ; A = behavior value
+    push af
+    call mapper_pop_p2
+    pop af
     pop de
     pop hl
     ret
@@ -4637,7 +4643,13 @@ get_tile_at_position:
     ; Read actual tile from current screen layout
     ld de, (current_screen_layout) ; DE = pointer to screen layout data
     add hl, de                    ; HL = pointer to tile at position
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
     ld a, (hl)                    ; A = tile ID from screen map
+    push af
+    call mapper_pop_p2
+    pop af
 
     or a                          ; Set flags based on tile ID
     ret                           ; Z flag set if tile == 0 (empty)

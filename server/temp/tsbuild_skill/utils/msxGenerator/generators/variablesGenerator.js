@@ -85,6 +85,22 @@ function generateVariablesFile(analysis) {
 `;
     code += `ROM_slot            EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ROM slot number (for SETPAGES32K)\n`;
     currentAddress++;
+    code += `mapper_bank_p1_current EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper current bank for page/window 1\n`;
+    currentAddress++;
+    code += `mapper_bank_p2_current EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper current bank for page/window 2\n`;
+    currentAddress++;
+    code += `mapper_bank_p3_current EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper current bank for page/window 3\n`;
+    currentAddress++;
+    code += `mapper_bank_p4_current EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper current bank for page/window 4\n`;
+    currentAddress++;
+    code += `mapper_saved_bank    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Saved mapper bank for push/pop helpers\n`;
+    currentAddress++;
+    code += `mapper_saved_bank_p1 EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Saved mapper bank for page/window 1 helpers\n`;
+    currentAddress++;
+    code += `mapper_saved_bank_p3 EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Saved mapper bank for page/window 3 helpers\n`;
+    currentAddress++;
+    code += `mapper_saved_bank_p4 EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Saved mapper bank for page/window 4 helpers\n`;
+    currentAddress++;
     code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
     currentAddress += 2;
     // Screen map pointers
@@ -95,8 +111,12 @@ function generateVariablesFile(analysis) {
 `;
     code += `current_screen_layout   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pointer to current screen layout data (16-bit)\n`;
     currentAddress += 2;
+    code += `current_screen_layout_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper bank for current screen layout data\n`;
+    currentAddress++;
     code += `current_behavior_map    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Pointer to current behavior map data (16-bit)\n`;
     currentAddress += 2;
+    code += `current_behavior_map_bank EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mapper bank for current behavior map data\n`;
+    currentAddress++;
     code += `behavior_cache_row     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached behavior row (255=invalid)\n`;
     currentAddress++;
     code += `behavior_cache_map_l   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached behavior map pointer low byte\n`;

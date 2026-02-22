@@ -33,7 +33,10 @@ include "constants.asm"
 ; 3. Variables (depends on constants)
 include "variables.asm"
 
-; 3.5. Interrupt System (Konami-style task system)
+; 3.5. Mapper runtime API
+include "mapper.asm"
+
+; 3.6. Interrupt System (Konami-style task system)
 include "interrupt.asm"
 
 ; 4. ROM Header (depends on variables and interrupt system)

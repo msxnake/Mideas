@@ -291,12 +291,14 @@ function generateSpritesFile(analysis) {
         code += `\n; Sprite Asset ${index}: ${sprite.name}\n${spriteASM}`;
         if (firstDrawableLayerIndex >= 0) {
             code += `\n; Unified pattern label for sprite ${index}
-SPRITE_${index}_PATTERN EQU ${safeSpriteName}_F0_LAYER${firstDrawableLayerIndex}\n`;
+SPRITE_${index}_PATTERN EQU ${safeSpriteName}_F0_LAYER${firstDrawableLayerIndex}
+SPRITE_${index}_PATTERN_BANK EQU ((SPRITE_${index}_PATTERN - #4000) / #2000)\n`;
         }
         else {
             code += `\n; WARNING: No valid pattern layers found for sprite ${index}
 SPRITE_${index}_PATTERN:
-    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0\n`;
+    db 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0
+SPRITE_${index}_PATTERN_BANK EQU ((SPRITE_${index}_PATTERN - #4000) / #2000)\n`;
         }
     });
     // Generate placeholder sprite pattern (white 16x16 square for missing sprites)
@@ -314,11 +316,13 @@ SPRITE_PLACEHOLDER_PATTERN:
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
     ; Right half bottom (8x8)
     db #FF, #FF, #FF, #FF, #FF, #FF, #FF, #FF
+SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #2000)
 
 `;
     if (sprites.length === 0) {
         code += `; No sprite assets found - using placeholder pattern only 
-SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN\n`;
+SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN
+SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)\n`;
     }
     // Sprite animation metadata tables
     code += `
@@ -452,6 +456,7 @@ init_sprites:
 
 load_sprite_patterns:
     ; Load patterns for all active entities
+    call mapper_push_p2
 `;
     let patternsGenerated = false;
     entityAllocations.forEach(alloc => {
@@ -464,6 +469,8 @@ load_sprite_patterns:
             : `SPRITE_${alloc.spriteAssetIndex}_PATTERN`;
         code += `    ; Entity ${alloc.entityIndex}: ${alloc.spriteName} (${alloc.layerCount} layers)
     ; Base HW Sprite: ${alloc.baseHwSpriteIndex}
+    ld a, ${patternLabel}_BANK
+    call mapper_set_bank_p2
     ld hl, ${patternLabel}
     ld de, SPRPAT + (${alloc.baseHwSpriteIndex} * 32)
     ld bc, ${alloc.layerCount * 32} ; Load ${alloc.layerCount} layers (32 bytes each)
@@ -485,6 +492,8 @@ load_sprite_patterns:
                 const frameCount = sprite.frames?.length || 1;
                 const bytesToCopy = layerCount * frameCount * 32; // 32 bytes per 16x16 layer per frame
                 code += `    ; Sprite Asset ${index}: ${sprite.name} (${frameCount} frames, ${layerCount} layers)
+    ld a, SPRITE_${index}_PATTERN_BANK
+    call mapper_set_bank_p2
     ld hl, SPRITE_${index}_PATTERN
     ld de, SPRPAT + (${fallbackPatternIndex} * 32)
     ld bc, ${bytesToCopy}
@@ -494,7 +503,8 @@ load_sprite_patterns:
             });
         }
     }
-    code += `    ret
+    code += `    call mapper_pop_p2
+    ret
 
 ; ==================================================================
 ; SPRITE MANAGEMENT FUNCTIONS

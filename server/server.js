@@ -92,6 +92,58 @@ function hasEquSymbol(sourceCode, symbolName) {
   return re.test(sourceCode);
 }
 
+function parseSourceRomConfig(sourceCode) {
+  if (typeof sourceCode !== 'string' || sourceCode.length === 0) return null;
+
+  const normalizeRomMode = (value) => {
+    const v = String(value || '').trim().toLowerCase();
+    return ['auto', 'simple32k', 'megarom'].includes(v) ? v : null;
+  };
+  const normalizeMapper = (value) => {
+    const v = String(value || '').trim().toLowerCase();
+    return ['konami', 'ascii8', 'ascii16'].includes(v) ? v : null;
+  };
+  const normalizeYesNo = (value) => {
+    const v = String(value || '').trim().toLowerCase();
+    if (v === 'yes' || v === 'true') return true;
+    if (v === 'no' || v === 'false') return false;
+    return null;
+  };
+
+  const unifiedRomMode = normalizeRomMode(
+    sourceCode.match(/^\s*;\s*ROM Mode:\s*(auto|simple32k|megarom)\s*$/im)?.[1]
+  );
+  const unifiedMapper = normalizeMapper(
+    sourceCode.match(/^\s*;\s*Mapper Target:\s*(konami|ascii8|ascii16)\s*$/im)?.[1]
+  );
+  const unifiedAutoMega = normalizeYesNo(
+    sourceCode.match(/^\s*;\s*Auto MegaROM:\s*(Yes|No)\s*$/im)?.[1]
+  );
+
+  const mapperAsmTarget = normalizeMapper(
+    sourceCode.match(/^\s*;\s*Target mapper:\s*(konami|ascii8|ascii16)\s*$/im)?.[1]
+  );
+  const mapperAsmModeMatch = sourceCode.match(
+    /^\s*;\s*ROM mode:\s*(auto|simple32k|megarom)\s*\(autoMegaROM=(true|false)\)\s*$/im
+  );
+  const mapperAsmRomMode = normalizeRomMode(mapperAsmModeMatch?.[1]);
+  const mapperAsmAutoMega = normalizeYesNo(mapperAsmModeMatch?.[2]);
+
+  const romMode = unifiedRomMode || mapperAsmRomMode;
+  const targetFormat = unifiedMapper || mapperAsmTarget;
+  const autoMegaROM = unifiedAutoMega !== null ? unifiedAutoMega : mapperAsmAutoMega;
+
+  if (!romMode && !targetFormat && autoMegaROM === null) {
+    return null;
+  }
+
+  return {
+    romMode: romMode || null,
+    targetFormat: targetFormat || null,
+    autoMegaROM
+  };
+}
+
 function collectAsmDataBlocks(lines, labelRegex) {
   const blocks = [];
 
@@ -799,16 +851,29 @@ app.get('/', (req, res) => {
  * @function
  */
 app.post('/compile', (req, res) => {
-  const { code, generateSymbols, projectName, screenCompression } = req.body;
+  const { code, generateSymbols, projectName, screenCompression, romMode, targetFormat, autoMegaROM } = req.body;
 
   console.log('📨 Compilation request received');
   console.log('  projectName:', projectName);
   console.log('  generateSymbols parameter:', generateSymbols);
+  console.log('  requested ROM config:', {
+    romMode: romMode || 'auto',
+    targetFormat: targetFormat || 'konami',
+    autoMegaROM: autoMegaROM !== false
+  });
   console.log('  Code length:', code?.length || 0);
 
   if (!code) {
     return res.status(400).send({ error: 'No code provided' });
   }
+
+  const normalizedRomMode = ['auto', 'simple32k', 'megarom'].includes(String(romMode))
+    ? String(romMode)
+    : 'auto';
+  const normalizedTargetFormat = ['konami', 'ascii8', 'ascii16'].includes(String(targetFormat))
+    ? String(targetFormat)
+    : 'konami';
+  const normalizedAutoMegaROM = autoMegaROM !== false;
 
   const tempDir = path.join(__dirname, 'temp');
   if (!fs.existsSync(tempDir)) {
@@ -936,6 +1001,11 @@ app.post('/compile', (req, res) => {
             fullStdout: stdout,
             errorCode: error.code,
             signal: error.signal,
+            requestedRomConfig: {
+              romMode: normalizedRomMode,
+              targetFormat: normalizedTargetFormat,
+              autoMegaROM: normalizedAutoMegaROM
+            },
             screenCompressionInfo: screenCompressionInfo,
             compressedAsmFileInfo: compressedAsmFileInfo
           };
@@ -986,6 +1056,51 @@ app.post('/compile', (req, res) => {
         const mapperHint = exceedsSimpleRomLimit
           ? 'ROM exceeds 32KB simple layout. Use mapper-aware build/runtime (Konami/ASCII).'
           : null;
+        const sourceRomConfig = parseSourceRomConfig(codeToCompile);
+        let sourceConfigMismatchWarning = null;
+        if (sourceRomConfig) {
+          const sourceRomMode = sourceRomConfig.romMode || 'unknown';
+          const sourceTargetFormat = sourceRomConfig.targetFormat || 'unknown';
+          const sourceAutoMega = sourceRomConfig.autoMegaROM === null ? 'unknown' : String(sourceRomConfig.autoMegaROM);
+          if (
+            sourceRomConfig.romMode !== null && sourceRomConfig.romMode !== normalizedRomMode ||
+            sourceRomConfig.targetFormat !== null && sourceRomConfig.targetFormat !== normalizedTargetFormat ||
+            sourceRomConfig.autoMegaROM !== null && sourceRomConfig.autoMegaROM !== normalizedAutoMegaROM
+          ) {
+            sourceConfigMismatchWarning =
+              `Source ASM config (mode=${sourceRomMode}, mapper=${sourceTargetFormat}, autoMegaROM=${sourceAutoMega}) differs from compile request ` +
+              `(mode=${normalizedRomMode}, mapper=${normalizedTargetFormat}, autoMegaROM=${normalizedAutoMegaROM}).`;
+          }
+        }
+
+        let romModeConflictWarning = null;
+        if (normalizedRomMode === 'simple32k' && exceedsSimpleRomLimit) {
+          romModeConflictWarning = 'Requested simple32k, but final ROM exceeds 32KB and requires a mapper.';
+        }
+
+        let resolvedRomMode = 'simple32k';
+        let mapperResolutionReason = 'ROM fits in 32KB simple layout.';
+        if (normalizedRomMode === 'megarom') {
+          resolvedRomMode = 'megarom';
+          mapperResolutionReason = 'Forced megarom by request.';
+        } else if (normalizedRomMode === 'simple32k') {
+          if (exceedsSimpleRomLimit) {
+            resolvedRomMode = 'megarom_required';
+            mapperResolutionReason = 'ROM exceeds 32KB; simple32k request is not valid.';
+          } else {
+            resolvedRomMode = 'simple32k';
+            mapperResolutionReason = 'Forced simple32k by request and ROM fits.';
+          }
+        } else {
+          if (exceedsSimpleRomLimit) {
+            resolvedRomMode = 'megarom';
+            mapperResolutionReason = 'Auto mode switched to megarom because ROM exceeds 32KB.';
+          } else {
+            resolvedRomMode = 'simple32k';
+            mapperResolutionReason = 'Auto mode kept simple32k because ROM fits in 32KB.';
+          }
+        }
+        const mapperActive = resolvedRomMode !== 'simple32k';
 
         console.log('ROM diagnostics:', {
           sizeMod8192,
@@ -993,7 +1108,16 @@ app.post('/compile', (req, res) => {
           romOrigin: `0x${ROM_ORIGIN.toString(16).toUpperCase()}`,
           endAddress: `0x${endAddress.toString(16).toUpperCase()}`,
           simpleRomLimitBytes: SIMPLE_ROM_LIMIT_BYTES,
-          exceedsSimpleRomLimit
+          exceedsSimpleRomLimit,
+          requestedRomMode: normalizedRomMode,
+          requestedTargetFormat: normalizedTargetFormat,
+          requestedAutoMegaROM: normalizedAutoMegaROM,
+          romModeConflictWarning,
+          resolvedRomMode,
+          mapperActive,
+          mapperResolutionReason,
+          sourceRomConfig,
+          sourceConfigMismatchWarning
         });
 
         // Check if symbol file was generated
@@ -1068,6 +1192,21 @@ app.post('/compile', (req, res) => {
           romPath: outputFilePath,
           downloadUrl: `/download/${romFileName}`,
           screenCompressionInfo: screenCompressionInfo,
+          requestedRomConfig: {
+            romMode: normalizedRomMode,
+            targetFormat: normalizedTargetFormat,
+            autoMegaROM: normalizedAutoMegaROM
+          },
+          sourceRomConfig: sourceRomConfig,
+          sourceConfigMismatchWarning: sourceConfigMismatchWarning,
+          resolvedRomConfig: {
+            requestedRomMode: normalizedRomMode,
+            resolvedRomMode: resolvedRomMode,
+            targetFormat: normalizedTargetFormat,
+            mapperActive: mapperActive,
+            reason: mapperResolutionReason
+          },
+          romModeConflictWarning: romModeConflictWarning,
           romSizeInfo: {
             originalSize: originalSize,
             paddedSize: paddedData.length,

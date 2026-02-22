@@ -828,7 +828,8 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
       case 'Start':
         code += `gameflow_handle_start:
     ; Start node - Initialize game state and systems
-    ; DE = node data pointer (initialization config)
+    ; DE = node data pointer:
+    ;   [init_routine_ptr DW][init_routine_bank DB]
     ; BC = connection table
 
     push bc         ; Save connection table
@@ -839,21 +840,19 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
     ld e, (hl)
     inc hl
     ld d, (hl)      ; DE = initialization routine address
+    inc hl
+    ld b, (hl)      ; B = initialization routine bank
+    ld h, d
+    ld l, e         ; HL = initialization routine address
 
     ; Call initialization routine (if not null)
-    ld a, d
-    or e
+    ld a, h
+    or l
     jr z, .skip_init
 
-    ; Call the initialization routine
-    push de
-    ex de, hl
-    ld de, .after_init
-    push de
-    jp (hl)         ; Indirect call, returns to .after_init
-
-.after_init:
-    pop de
+    ; Mapper-safe far call (auto window from HL address)
+    ld a, b
+    call mapper_call_hl_auto
 
 .skip_init:
     ; Continue to next node
@@ -870,23 +869,29 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis): s
       case 'WorldLink':
         code += `gameflow_handle_worldlink:
     ; WorldLink node - load world and enter game loop
-    ; DE = world data pointer (contains load_world_X routine address)
+    ; DE = world data pointer:
+    ;   [load_world_ptr DW][load_world_bank DB]
     ; BC = connection table (for exit)
 
     push bc         ; Save connection table
 
     ; Load the world
-    ; DE points to: dw load_world_X
+    ; DE points to: dw load_world_X, db load_world_bank
     ex de, hl
-    ld a, (hl)
+    ld e, (hl)
     inc hl
-    ld h, (hl)
-    ld l, a         ; HL = load_world_X address
+    ld d, (hl)
+    inc hl
+    ld b, (hl)      ; B = load_world_X bank
+    ld h, d
+    ld l, e         ; HL = load_world_X address
 
-    ; Call the load routine
-    ld de, .after_load
-    push de
-    jp (hl)          ; Indirect call, returns to .after_load
+    ; Mapper-safe far call to world load routine
+    ld a, h
+    or l
+    jr z, .after_load
+    ld a, b
+    call mapper_call_hl_auto
 
 .after_load:
     ; Set game state
@@ -1083,6 +1088,7 @@ str_credits:
     ; DE points to SubMenu data:
     ;   [bg_color][cursor_sprite_idx][cursor_layer_count]
     ;   [cursor_layer_offsets x4][cursor_colors x4]
+    ;   [bg_screen_fn DW][bg_screen_bank DB]
     ;   [option_count][initial_selection][title_ptr][option_ptr_0]...
     push bc
     call show_menu_placeholder
@@ -1106,6 +1112,7 @@ str_credits:
 ;   Format: DB bg_color, DB cursor_sprite_idx, DB cursor_layer_count,
 ;           DB cursor_src_off0..cursor_src_off3,
 ;           DB cursor_color0..cursor_color3,
+;           DW bg_screen_fn, DB bg_screen_bank,
 ;           DB option_count, DB initial_selection,
 ;           DW title_ptr, DW option_ptr[n]
 ; Output: gameflow_menu_selection = selected index (0..5)
@@ -1121,8 +1128,8 @@ show_menu_placeholder:
     ld (gameflow_submenu_data_ptr), hl
 
     ; Cache option count (clamped to supported range)
-    ; option_count is at offset +13 in submenu header (+11-12 = bg_screen_fn DW)
-    ld bc, 13
+    ; option_count is at offset +14 (+11-12 = bg_screen_fn DW, +13 = bg_screen_bank)
+    ld bc, 14
     add hl, bc
     ld a, (hl)
     cp 6
@@ -1236,7 +1243,7 @@ render_submenu_screen:
     call init_char0_color
 
     ; Load background screen (if configured) or clear solid background.
-    ; bg_screen_fn DW is at offset +11; option_count is at offset +13.
+    ; bg_screen_fn DW is at +11, bg_screen_bank is +13, option_count is +14.
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 11
     add hl, bc
@@ -1244,16 +1251,16 @@ render_submenu_screen:
     inc hl
     ld h, (hl)
     ld l, a                       ; HL = bg_screen_fn (0 if none)
+    inc hl
+    ld a, (hl)
+    ld d, a                       ; D = bg_screen_bank
     ld a, h
     or l
-    jr z, .rss_clear_screen       ; no bg screen → solid clear
+    jr z, .rss_clear_screen       ; no bg screen -> solid clear
 
-    ; Call background screen loader (loads tiles + screen map).
-    ; Returns here when done.
-    ld de, .rss_bg_done
-    push de
-    jp (hl)                       ; indirect call to load_screen_X
-.rss_bg_done:
+    ; Mapper-safe call to background screen loader.
+    ld a, d
+    call mapper_call_hl_auto
     jr .rss_read_count
 
 .rss_clear_screen:
@@ -1271,7 +1278,7 @@ render_submenu_screen:
 
 .rss_read_count:
     ld hl, (gameflow_submenu_data_ptr)
-    ld bc, 13                     ; offset to option_count (+11-12 = bg_screen_fn)
+    ld bc, 14                     ; offset to option_count (+11-12 fn, +13 bank)
     add hl, bc
     ld a, (hl)                    ; option_count
     cp 6
@@ -1587,10 +1594,10 @@ submenu_update_cursor_sprite:
     ld c, a                       ; C = Y (pixels)
 
     ; Resolve selected option pointer and centered text start column.
-    ; Header layout (with bg_screen_fn DW at +11-12):
-    ; +17 = first option DW pointer
+    ; Header layout (bg_screen_fn DW at +11-12, bg_screen_bank at +13):
+    ; +18 = first option DW pointer
     ld hl, (gameflow_submenu_data_ptr)
-    ld de, 17
+    ld de, 18
     add hl, de
     ld a, (gameflow_menu_selection)
     add a, a                      ; *2 (DW stride)
@@ -1760,7 +1767,7 @@ ${submenuCursorPatternTable}
 ; show_text_screen
 ; Display full text screen with optional background screen asset
 ; Input: DE = text data pointer
-;   Format: DB bgColor, DW screen_load_ptr (0=none), DB numLines
+;   Format: DB bgColor, DW screen_load_ptr (0=none), DB screen_load_bank, DB numLines
 ;           Per line: DB row, DB col, DW string_ptr
 ; If screen_load_ptr != 0: calls that function to load background screen
 ; (the load_screen function sets VDP colors and name table from screen asset)
@@ -1773,35 +1780,37 @@ show_text_screen:
 
     ex de, hl                     ; HL = data pointer
 
-    ; Read bgColor and screen load function pointer
+    ; Read bgColor, screen load function pointer, and screen load bank
     ld a, (hl)                    ; A = bgColor
     inc hl
     ld c, (hl)                    ; C = screen_load_ptr low
     inc hl
     ld b, (hl)                    ; B = screen_load_ptr high
     inc hl                        ; BC = load function ptr (0 = no bg screen)
+    ld e, (hl)                    ; E = screen_load_bank
+    inc hl
 
     push hl                       ; (1) Save pointer to numLines
     push af                       ; (2) Save bgColor
     push bc                       ; (3) Save function pointer
+    push de                       ; (4) Save bank byte (E)
 
     ; Disable screen before any VRAM write
     call DISSCR
 
     ; Check if we have a background screen to load
+    pop de                        ; (4) Restore bank byte (E)
     pop bc                        ; (3) Restore function pointer
     ld a, b
     or c
     jr z, .sts_no_bg_screen
 
-    ; Has background screen: call load_screen_X via HL
+    ; Has background screen: mapper-safe call to load_screen_X
     ; (load_screen sets VDP colors + writes name table)
     ld h, b
     ld l, c                       ; HL = function address
-    ld de, .sts_after_bg
-    push de                       ; push return address
-    jp (hl)                       ; call load_screen_X; returns to .sts_after_bg
-.sts_after_bg:
+    ld a, e                       ; A = screen_load_bank
+    call mapper_call_hl_auto
     pop af                        ; (2) Discard saved bgColor (screen set its own colors)
     jp .sts_render
 
@@ -2745,6 +2754,7 @@ ${nodeLabel}:
       case 'Start':
         // Generate Start node initialization data
         code += `    dw ${nodeLabel}_init    ; Initialization routine address\n`;
+        code += `    db ((${nodeLabel}_init - #4000) / #2000)    ; Initialization routine bank\n`;
 
         // Generate initialization routine after the data structure
         // This will be appended after the switch
@@ -2753,6 +2763,7 @@ ${nodeLabel}:
       case 'WorldLink':
         const worldAssetId = node.worldAssetId || 'default';
         code += `    dw load_world_${sanitizeId(worldAssetId)}\n`;
+        code += `    db ((load_world_${sanitizeId(worldAssetId)} - #4000) / #2000)\n`;
         break;
 
       case 'SubMenu':
@@ -2800,6 +2811,9 @@ ${nodeLabel}:
               submenuBgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
             }
           }
+          const submenuBgScreenBankExpr = submenuBgScreenLabel === '0'
+            ? '0'
+            : `((${submenuBgScreenLabel} - #4000) / #2000)`;
 
           code += `    db ${submenuBgColor}    ; Background color (MSX index)\n`;
           code += `    db ${cursorSpriteIndex}    ; Cursor sprite asset index (#FF = use text marker)\n`;
@@ -2807,6 +2821,7 @@ ${nodeLabel}:
           code += `    db ${cursorLayerOffsets[0]}, ${cursorLayerOffsets[1]}, ${cursorLayerOffsets[2]}, ${cursorLayerOffsets[3]}    ; Cursor source layer offsets\n`;
           code += `    db ${cursorLayerColors[0]}, ${cursorLayerColors[1]}, ${cursorLayerColors[2]}, ${cursorLayerColors[3]}    ; Cursor layer colors\n`;
           code += `    dw ${submenuBgScreenLabel}    ; Background screen load function (0=none)\n`;
+          code += `    db ${submenuBgScreenBankExpr}    ; Background screen load bank\n`;
           code += `    db ${optionCount}    ; Number of options (max 6)\n`;
           code += `    db ${fallbackIndex}    ; Initial selected option\n`;
           code += `    dw submenu_${nodeId}_title\n`;
@@ -2877,10 +2892,14 @@ ${nodeLabel}:
             bgScreenLabel = `load_screen_${sName.toLowerCase()}${sIdSuffix.toLowerCase()}`;
           }
         }
+        const bgScreenBankExpr = bgScreenLabel === '0'
+          ? '0'
+          : `((${bgScreenLabel} - #4000) / #2000)`;
 
-        // Generate data table: bgColor, DW screen_load_ptr, numLines, then per line: row, col, DW string_ptr
+        // Generate data table: bgColor, DW screen_load_ptr, DB screen_load_bank, numLines...
         code += `    DB ${bgColor}                  ; Background color (MSX index from ${bgHex})\n`;
         code += `    DW ${bgScreenLabel}            ; Background screen load function (0=none)\n`;
+        code += `    DB ${bgScreenBankExpr}         ; Background screen load bank\n`;
         code += `    DB ${allLines.length}                  ; Number of lines\n`;
 
         for (const line of allLines) {

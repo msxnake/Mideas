@@ -108,6 +108,9 @@ restart_rom:
     ld sp, #F380
 
 restart_rom_continue:
+    ; Initialize mapper runtime state (safe no-op in simple32k mode)
+    call mapper_runtime_init
+
     ; Reset some interrupts to ensure compatibility
     ; with MSX computers with disk controllers
     ld a, #C9

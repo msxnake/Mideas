@@ -4,6 +4,7 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import { buildBankPackReport, formatBankPackReportAsAsmComments } from '../utils/bankPacker';
 
 /**
  * Convert routine name to lowercase (for labels, CALL, JP, JR targets)
@@ -19,6 +20,7 @@ export interface GeneratedASMFiles {
     'bios.asm': string;
     'constants.asm': string;
     'variables.asm': string;
+    'mapper.asm': string;
     'interrupt.asm': string;
     'header.asm': string;
     'components.asm': string;
@@ -41,15 +43,34 @@ export interface GeneratedASMFiles {
     'unitedFiles.asm'?: string;
 }
 
+export type UnifiedMapperFormat = 'konami' | 'ascii8' | 'ascii16';
+export type UnifiedRomMode = 'auto' | 'simple32k' | 'megarom';
+
+export interface UnifiedGenerationConfig {
+    romMode: UnifiedRomMode;
+    targetFormat: UnifiedMapperFormat;
+    autoMegaROM: boolean;
+}
+
 /**
  * Generate unified file (unitedFiles.asm) - optional all-in-one file
  *
  * @param files - All generated ASM files
  * @param projectName - Name of the project
  * @param analysis - Project analysis with assets and configuration
+ * @param config - ROM mode/mapper configuration
  * @returns ASM code string with all files combined
  */
-export function generateUnifiedFile(files: GeneratedASMFiles, projectName: string, analysis: ProjectAnalysis): string {
+export function generateUnifiedFile(
+    files: GeneratedASMFiles,
+    projectName: string,
+    analysis: ProjectAnalysis,
+    config: UnifiedGenerationConfig = {
+        romMode: 'auto',
+        targetFormat: 'konami',
+        autoMegaROM: true
+    }
+): string {
     // Check what features are needed
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen =>
@@ -59,6 +80,8 @@ export function generateUnifiedFile(files: GeneratedASMFiles, projectName: strin
         screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0
     );
     const needsFont = hasMenus || hasText || hasHud;
+    const bankPackReport = buildBankPackReport(files as unknown as Record<string, string>);
+    const bankPackComments = formatBankPackReportAsAsmComments(bankPackReport);
 
     return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
@@ -74,7 +97,11 @@ export function generateUnifiedFile(files: GeneratedASMFiles, projectName: strin
 ; Menus: ${hasMenus ? 'Yes' : 'No'}
 ; HUD: ${hasHud ? 'Yes' : 'No'}
 ; State Machines: ${analysis.stateMachines?.length || 0}
+; ROM Mode: ${config.romMode}
+; Mapper Target: ${config.targetFormat}
+; Auto MegaROM: ${config.autoMegaROM ? 'Yes' : 'No'}
 ; ==================================================================
+${bankPackComments}
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -85,6 +112,8 @@ ${files['bios.asm']}
 ${files['constants.asm']}
 
 ${files['variables.asm']}
+
+${files['mapper.asm']}
 
 ${files['interrupt.asm']}
 

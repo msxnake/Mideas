@@ -5,6 +5,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateUnifiedFile = generateUnifiedFile;
+const bankPacker_1 = require("../utils/bankPacker");
 /**
  * Convert routine name to lowercase (for labels, CALL, JP, JR targets)
  */
@@ -17,14 +18,21 @@ function toRoutineLabel(name) {
  * @param files - All generated ASM files
  * @param projectName - Name of the project
  * @param analysis - Project analysis with assets and configuration
+ * @param config - ROM mode/mapper configuration
  * @returns ASM code string with all files combined
  */
-function generateUnifiedFile(files, projectName, analysis) {
+function generateUnifiedFile(files, projectName, analysis, config = {
+    romMode: 'auto',
+    targetFormat: 'konami',
+    autoMegaROM: true
+}) {
     // Check what features are needed
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
     const hasText = analysis.screenMaps?.some(screen => screen.layers?.text || screen.textElements?.length > 0);
     const hasHud = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
     const needsFont = hasMenus || hasText || hasHud;
+    const bankPackReport = (0, bankPacker_1.buildBankPackReport)(files);
+    const bankPackComments = (0, bankPacker_1.formatBankPackReportAsAsmComments)(bankPackReport);
     return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
 ; File: unitedFiles.asm
@@ -39,7 +47,11 @@ function generateUnifiedFile(files, projectName, analysis) {
 ; Menus: ${hasMenus ? 'Yes' : 'No'}
 ; HUD: ${hasHud ? 'Yes' : 'No'}
 ; State Machines: ${analysis.stateMachines?.length || 0}
+; ROM Mode: ${config.romMode}
+; Mapper Target: ${config.targetFormat}
+; Auto MegaROM: ${config.autoMegaROM ? 'Yes' : 'No'}
 ; ==================================================================
+${bankPackComments}
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -50,6 +62,8 @@ ${files['bios.asm']}
 ${files['constants.asm']}
 
 ${files['variables.asm']}
+
+${files['mapper.asm']}
 
 ${files['interrupt.asm']}
 

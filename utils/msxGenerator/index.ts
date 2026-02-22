@@ -14,6 +14,7 @@ import { generateVariablesFile } from './generators/variablesGenerator';
 import { generateHeaderFile } from './generators/headerGenerator';
 import { generateGameFlowFile } from './generators/gameFlowGenerator';
 import { generateMainFile } from './generators/mainGenerator';
+import { generateMapperFile } from './generators/mapperGenerator';
 import { generatePatternsFile } from './generators/patternsGenerator';
 import { generateColorsFile } from './generators/colorsGenerator';
 import { generateUnifiedFile } from './generators/unifiedGenerator';
@@ -35,9 +36,14 @@ import { generateParticlesFile } from './generators/particlesGenerator';
 /**
  * MSX Modular Configuration
  */
+export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
+export type MSXRomMode = 'auto' | 'simple32k' | 'megarom';
+
 export interface MSXModularConfig {
   generateUnified?: boolean;
-  targetFormat?: 'konami' | 'ascii8' | 'ascii16';
+  targetFormat?: MSXMapperFormat;
+  romMode?: MSXRomMode;
+  autoMegaROM?: boolean;
   interruptDrivenComponents?: boolean;
   hardwareMode?: 'bios' | 'direct' | 'hybrid'; // Hardware access mode
   optimizeLevel?: 'safe' | 'aggressive'; // Optimization level for direct mode
@@ -149,14 +155,19 @@ export function generateModularASM(
   const interruptDrivenComponents = config.interruptDrivenComponents ?? true;
   const hardwareMode = config.hardwareMode || 'hybrid'; // Default to hybrid mode
   const optimizeLevel = config.optimizeLevel || 'safe';
+  const targetFormat: MSXMapperFormat = config.targetFormat || 'konami';
+  const romMode: MSXRomMode = config.romMode || 'auto';
+  const autoMegaROM = config.autoMegaROM ?? true;
 
   // Generate individual files
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
   console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
+  console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
   const files: GeneratedASMFiles = {
     'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
+    'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents }),
     'header.asm': generateHeaderFile(projectName, analysis),
     'patterns.asm': generatePatternsFile(analysis),
@@ -183,7 +194,11 @@ export function generateModularASM(
 
   // Generate unified file if requested
   if (config.generateUnified) {
-    files['unitedFiles.asm'] = generateUnifiedFile(files, projectName, analysis);
+    files['unitedFiles.asm'] = generateUnifiedFile(files, projectName, analysis, {
+      romMode,
+      targetFormat,
+      autoMegaROM
+    });
   }
 
   console.log('✅ Modular ASM files generated successfully!');
@@ -229,11 +244,18 @@ export function generateModularASMFromSummary(
 
   console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
 
+  const targetFormat: MSXMapperFormat = config.targetFormat || 'konami';
+  const romMode: MSXRomMode = config.romMode || 'auto';
+  const autoMegaROM = config.autoMegaROM ?? true;
+
+  console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
+
   // Generate files using same logic as generateModularASM
   const files: GeneratedASMFiles = {
     'bios.asm': generateBIOSFile({ hardwareMode: { mode: hardwareMode, optimizeLevel } }),
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
+    'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
     'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents }),
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis),
     'patterns.asm': generatePatternsFile(analysis),
@@ -260,7 +282,11 @@ export function generateModularASMFromSummary(
 
   // Generate unified file if requested
   if (config.generateUnified) {
-    files['unitedFiles.asm'] = generateUnifiedFile(files, summary.projectInfo.name, analysis);
+    files['unitedFiles.asm'] = generateUnifiedFile(files, summary.projectInfo.name, analysis, {
+      romMode,
+      targetFormat,
+      autoMegaROM
+    });
   }
 
   console.log('✅ Modular ASM files from summary generated successfully!');

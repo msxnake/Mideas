@@ -29,6 +29,8 @@ function generatePatternsFile(analysis) {
 ; ${analysis.tiles?.length || 0} tiles detected
 ; ==================================================================
 
+PATTERN_DATA_BANK EQU ((tile_pattern_bank0 - #4000) / #2000)
+
 ; ==================================================================
 ; TILE PATTERN BANK 0 (Base patterns)
 ; ==================================================================
@@ -69,6 +71,9 @@ ${analysis.tiles.map((tile, index) => {
 load_pattern_bank0:
     ; Load pattern bank 0 to VRAM (base patterns)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, PATTERN_DATA_BANK
+    call mapper_set_bank_p2
     ld hl, tile_pattern_bank0
     ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -77,11 +82,15 @@ load_pattern_bank0:
         return total + (charsWide * charsHigh * 8);
     }, 0)}    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_pattern_bank1:
     ; Load pattern bank 1: same patterns as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, PATTERN_DATA_BANK
+    call mapper_set_bank_p2
     ld hl, tile_pattern_bank0     ; Same source as Bank 0
     ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -90,11 +99,15 @@ load_pattern_bank1:
         return total + (charsWide * charsHigh * 8);
     }, 0)}    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_pattern_bank2:
     ; Load pattern bank 2: same patterns as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, PATTERN_DATA_BANK
+    call mapper_set_bank_p2
     ld hl, tile_pattern_bank0     ; Same source as Bank 0
     ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -103,6 +116,7 @@ load_pattern_bank2:
         return total + (charsWide * charsHigh * 8);
     }, 0)}    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_patterns_to_vram:

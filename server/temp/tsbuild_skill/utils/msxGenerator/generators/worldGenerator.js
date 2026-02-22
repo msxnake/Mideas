@@ -177,15 +177,8 @@ function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targe
 `;
     }
     else if (direction === 'south') {
-        conditionCode = `    ; South exit: Y near bottom edge and downward input
-    ld a, (input_state)
-    cp STICK_DOWN
-    jr z, .dir_ok_${skipLabel}
-    cp STICK_DOWNLEFT
-    jr z, .dir_ok_${skipLabel}
-    cp STICK_DOWNRIGHT
-    jp nz, ${skipLabel}
-.dir_ok_${skipLabel}:
+        conditionCode = `    ; South exit: Y near bottom edge
+    ; No input-direction gate: supports gravity/platform-driven movement
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
@@ -199,15 +192,8 @@ function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targe
 `;
     }
     else {
-        conditionCode = `    ; North exit: Y near top edge and upward input
-    ld a, (input_state)
-    cp STICK_UP
-    jr z, .dir_ok_${skipLabel}
-    cp STICK_UPLEFT
-    jr z, .dir_ok_${skipLabel}
-    cp STICK_UPRIGHT
-    jp nz, ${skipLabel}
-.dir_ok_${skipLabel}:
+        conditionCode = `    ; North exit: Y near top edge
+    ; No input-direction gate: supports velocity-driven movement
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
@@ -222,7 +208,9 @@ function emitDirectionalTransitionCode(worldLabel, screenIndex, direction, targe
     }
     return `${conditionCode}${applyLabel}:
     push de
-    call ${targetLoadRoutine}
+    ld a, ((${targetLoadRoutine} - #4000) / #2000)
+    ld hl, ${targetLoadRoutine}
+    call mapper_call_hl_auto
     pop de
     ld a, ${targetScreenIndex}
     ld (current_screen_index), a
@@ -306,8 +294,12 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
 `;
         // Generate constants for each screen node in the world
         if (world.nodes && world.nodes.length > 0) {
+            const nodeNameCounts = new Map();
             world.nodes.forEach((node, nodeIndex) => {
-                const nodeName = toConstantName(node.name || `screen_${nodeIndex}`);
+                const baseNodeName = toConstantName(node.name || `screen_${nodeIndex}`);
+                const seenCount = nodeNameCounts.get(baseNodeName) || 0;
+                const nodeName = seenCount === 0 ? baseNodeName : `${baseNodeName}_${seenCount + 1}`;
+                nodeNameCounts.set(baseNodeName, seenCount + 1);
                 code += `WORLD_${worldName}_SCREEN_${nodeName}_ID EQU ${nodeIndex}
 `;
             });
@@ -353,7 +345,9 @@ load_world_${toRoutineLabel(worldId)}:
         const loadRoutine = getScreenLoadRoutineName(startScreenAssetId, analysis);
         const worldImportedHudFrameDrawRoutine = getWorldImportedHudFrameDrawRoutineName(world, analysis);
         code += `    ; Load start screen: ${startNode.name || 'unknown'} (${startScreenAssetId})
-    call ${loadRoutine}
+    ld a, ((${loadRoutine} - #4000) / #2000)
+    ld hl, ${loadRoutine}
+    call mapper_call_hl_auto
 
 `;
         if (worldImportedHudFrameDrawRoutine) {
@@ -427,7 +421,9 @@ load_world_${toRoutineLabel(worldId)}:
             const toLoadRoutine = getScreenLoadRoutineName(toScreenId, analysis);
             code += `; Transition: ${fromNode.name || 'screen'} -> ${toNode.name || 'screen'}
 transition_${toRoutineLabel(worldId)}_${connIndex}:
-    call ${toLoadRoutine}
+    ld a, ((${toLoadRoutine} - #4000) / #2000)
+    ld hl, ${toLoadRoutine}
+    call mapper_call_hl_auto
 
     ld a, ${toScreenIndex}
     ld (current_screen_index), a
@@ -550,8 +546,9 @@ check_world_screen_transition:
         code += `    ld a, (current_screen_index)
 `;
         nodes.forEach((_, idx) => {
+            const screenLabel = `check_transition_${worldLabel}_screen_${idx}`;
             code += `    cp ${idx}
-    jp z, .screen_${idx}
+    jp z, ${screenLabel}
 `;
         });
         code += `    ret
@@ -559,7 +556,8 @@ check_world_screen_transition:
 `;
         nodes.forEach((node, idx) => {
             const transitions = transitionMap.get(idx) || {};
-            code += `.screen_${idx}:
+            const screenLabel = `check_transition_${worldLabel}_screen_${idx}`;
+            code += `${screenLabel}:
 `;
             const directions = ['east', 'west', 'south', 'north'];
             let emittedAny = false;

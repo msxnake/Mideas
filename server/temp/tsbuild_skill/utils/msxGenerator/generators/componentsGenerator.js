@@ -74,7 +74,8 @@ update_all_entities:
     code += `
 ; ------------------------------------------------------------------
 ; rebuild_used_entity_list
-; Build compact list of entity slots that are in use (mask_l|mask_h != 0)
+; Build compact list of ACTIVE entity slots that are in use
+; (entity_active != 0 and mask_l|mask_h != 0)
 ; Output:
 ;   active_entity_list[]   = entity indices with components
 ;   active_entity_count    = number of entries
@@ -91,6 +92,12 @@ rebuild_used_entity_list:
 
     ld e, c
     ld d, 0
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .next_entity
+
     ld hl, entity_comp_masks
     add hl, de
     ld a, (hl)
@@ -1450,7 +1457,13 @@ get_behavior_tile:
     ld e, c
     ld d, 0
     add hl, de                    ; HL = row base + column
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
     ld a, (hl)                    ; A = behavior value
+    push af
+    call mapper_pop_p2
+    pop af
     pop de
     pop hl
     ret
@@ -2922,8 +2935,10 @@ function generateJumpSystem() {
 
             ; If entity has Gravity, set gravity velocity to negative jump impulse
             ; Jump impulse: -1024 (8.8 fixed) => #FC00 (~4 tiles height with gravity #40)
-            pop hl                        ; restore hl pointer to high mask for this entity
-            push hl
+            ld hl, entity_comp_masks_hi
+            ld e, c
+            ld d, 0
+            add hl, de
             ld a, (hl)
             and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
             jr z, jump_done_entity
@@ -4557,7 +4572,13 @@ get_tile_at_position:
     ; Read actual tile from current screen layout
     ld de, (current_screen_layout) ; DE = pointer to screen layout data
     add hl, de                    ; HL = pointer to tile at position
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
     ld a, (hl)                    ; A = tile ID from screen map
+    push af
+    call mapper_pop_p2
+    pop af
 
     or a                          ; Set flags based on tile ID
     ret                           ; Z flag set if tile == 0 (empty)

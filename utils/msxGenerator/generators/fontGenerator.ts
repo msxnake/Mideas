@@ -178,6 +178,9 @@ print_string_screen2:
 ; Description: Font pattern data generated from project assets
 ; ==================================================================
 
+FONT_PATTERN_DATA_BANK EQU ((FONT_PATTERN_DATA - #4000) / #2000)
+FONT_COLOR_DATA_BANK   EQU ((FONT_COLOR_DATA - #4000) / #2000)
+
 ; ==================================================================
 ; FONT PATTERN DATA
 ; ==================================================================
@@ -222,6 +225,9 @@ load_all_font_banks:
 ; Helper: Load font patterns to a specific bank
 ; Input: DE = Bank Base Address
 load_font_patterns_to_bank:
+    call mapper_push_p2
+    ld a, FONT_PATTERN_DATA_BANK
+    call mapper_set_bank_p2
     ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     ld iy, FONT_PATTERN_DATA      ; Pointer to pattern data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
@@ -258,6 +264,7 @@ load_font_patterns_to_bank:
     pop de                        ; Restore bank base
     pop bc                        ; Restore loop counter
     djnz .load_loop
+    call mapper_pop_p2
     ret
 
 ; ==================================================================
@@ -285,6 +292,9 @@ load_font_colors_all_banks:
 ; Helper: Load font colors to a specific bank
 ; Input: DE = Bank Base Address
 load_font_colors_to_bank:
+    call mapper_push_p2
+    ld a, FONT_COLOR_DATA_BANK
+    call mapper_set_bank_p2
     ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
     ld iy, FONT_COLOR_DATA        ; Pointer to color data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
@@ -321,6 +331,7 @@ load_font_colors_to_bank:
     pop de                        ; Restore bank base
     pop bc                        ; Restore loop counter
     djnz .load_colors_loop
+    call mapper_pop_p2
     ret
 
 ; ==================================================================

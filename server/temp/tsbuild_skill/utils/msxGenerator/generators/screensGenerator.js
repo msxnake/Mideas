@@ -55,6 +55,8 @@ load_screen_default:
         analysis.screenMaps.forEach((screen, index) => {
             const screenName = screen.name.toUpperCase().replace(/[^A-Z0-9]/g, '_');
             code += `SCREEN_${screenName}_${index}_ID EQU ${index}
+SCREEN_${screenName}_${index}_LAYOUT_BANK EQU ((SCREEN_${screenName}_${index}_LAYOUT - #4000) / #2000)
+BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ((BEHAVIOR_${screenName}_${index}_DATA - #4000) / #2000)
 `;
         });
         code += `
@@ -494,19 +496,27 @@ ${importedHudFrameLabelBase}_draw:
                 }
                 if (activeAreaWidth === 32) {
                     code += `    ; Load active game area (contiguous rows)
+    call mapper_push_p2
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    call mapper_set_bank_p2
     ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
     ld de, NAMETBL + ${activeAreaOffset}
     ld bc, ${activeAreaBytes}
     call FAST_LDIRVM
+    call mapper_pop_p2
 `;
                 }
                 else {
                     code += `    ; Load active game area (rectangular copy by rows)
+    call mapper_push_p2
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    call mapper_set_bank_p2
     ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
     ld de, NAMETBL + ${activeAreaOffset}
     ld a, ${activeAreaHeight}
     ld c, ${activeAreaWidth}
     call copy_layout_rect_to_vram
+    call mapper_pop_p2
 `;
                 }
                 if (hasImportedHudFrame) {
@@ -516,8 +526,12 @@ ${importedHudFrameLabelBase}_draw:
                 code += `    ; Initialize collision system pointers for this screen
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld (current_screen_layout), hl
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ld hl, BEHAVIOR_${screenName}_${index}_DATA
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h
@@ -546,10 +560,14 @@ ${importedHudFrameLabelBase}_draw:
 `;
                 }
                 code += `    ; Now load screen layout (full 32x24)
+    call mapper_push_p2
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    call mapper_set_bank_p2
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld de, NAMETBL
     ld bc, SCREEN_${screenName}_${index}_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
 `;
                 if (hasImportedHudFrame) {
                     code += `    ; Imported HUD frame is drawn on world/game start only
@@ -558,8 +576,12 @@ ${importedHudFrameLabelBase}_draw:
                 code += `    ; Initialize collision system pointers for this screen
     ld hl, SCREEN_${screenName}_${index}_LAYOUT
     ld (current_screen_layout), hl
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    ld (current_screen_layout_bank), a
     ld hl, BEHAVIOR_${screenName}_${index}_DATA
     ld (current_behavior_map), hl
+    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
+    ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
     ld a, h

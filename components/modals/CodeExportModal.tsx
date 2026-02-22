@@ -38,6 +38,13 @@ interface CodeExportModalProps {
 }
 
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'msx_main_asm' | 'msx_full_project' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
+type RomMode = 'auto' | 'simple32k' | 'megarom';
+type MapperFormat = 'konami' | 'ascii8' | 'ascii16';
+type RomBuildConfig = {
+  romMode: RomMode;
+  targetFormat: MapperFormat;
+  autoMegaROM: boolean;
+};
 
 interface GeneratedFile {
   name: string;
@@ -62,6 +69,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [compilationResult, setCompilationResult] = useState<{ success: boolean; message: string; data?: string } | null>(null);
   const [asmCompressionResult, setAsmCompressionResult] = useState<any>(null);
   const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
+  const [romMode, setRomMode] = useState<RomMode>('auto');
+  const [mapperFormat, setMapperFormat] = useState<MapperFormat>('konami');
+  const [lastGeneratedRomConfig, setLastGeneratedRomConfig] = useState<RomBuildConfig | null>(null);
+  const [isQuickValidating, setIsQuickValidating] = useState(false);
+  const [quickValidationSummary, setQuickValidationSummary] = useState<string | null>(null);
 
   // Function to download ZIP with all modular files
   const downloadModularZip = async (modularFiles: Record<string, string>, projectName: string) => {
@@ -100,6 +112,192 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
+  const buildCurrentRomConfig = (): RomBuildConfig => ({
+    romMode,
+    targetFormat: mapperFormat,
+    autoMegaROM: romMode === 'auto'
+  });
+
+  const isRomConfigDifferent = (generatedConfig: RomBuildConfig | null, currentConfig: RomBuildConfig) => {
+    if (!generatedConfig) return false;
+    return generatedConfig.romMode !== currentConfig.romMode ||
+      generatedConfig.targetFormat !== currentConfig.targetFormat ||
+      generatedConfig.autoMegaROM !== currentConfig.autoMegaROM;
+  };
+
+  const formatRomConfig = (config: RomBuildConfig | null) => {
+    if (!config) return 'N/A';
+    return `mode=${config.romMode}, mapper=${config.targetFormat}, autoMegaROM=${config.autoMegaROM}`;
+  };
+
+  const getEnhancedAssets = () => {
+    const enhancedAssets = [...assets];
+
+    if (projectData?.entityTemplates && Array.isArray(projectData.entityTemplates)) {
+      projectData.entityTemplates.forEach((template: any) => {
+        enhancedAssets.push({
+          id: template.id,
+          type: 'entitytemplate',
+          name: template.name || template.id,
+          data: template
+        } as ProjectAsset);
+      });
+    }
+
+    if (projectData?.componentDefinitions && Array.isArray(projectData.componentDefinitions)) {
+      projectData.componentDefinitions.forEach((compDef: any) => {
+        if (!enhancedAssets.find(a => a.id === compDef.id && a.type === 'componentdefinition')) {
+          enhancedAssets.push({
+            id: compDef.id,
+            type: 'componentdefinition',
+            name: compDef.name || compDef.id,
+            data: compDef
+          } as ProjectAsset);
+        }
+      });
+    }
+
+    return enhancedAssets;
+  };
+
+  const getModularFileOrder = () => [
+    'unitedFiles.asm',
+    'main.asm',
+    'bios.asm',
+    'constants.asm',
+    'variables.asm',
+    'mapper.asm',
+    'interrupt.asm',
+    'header.asm',
+    'patterns.asm',
+    'colors.asm',
+    'sprites.asm',
+    'components.asm',
+    'entities.asm',
+    'worlds.asm',
+    'screens.asm',
+    'font.asm',
+    'hud.asm',
+    'menus.asm',
+    'statemachine.asm',
+    'gameflow.asm'
+  ];
+
+  const generateMapperReadyBundle = async (projectNameInput?: string, romConfigInput?: RomBuildConfig) => {
+    const projectName = projectNameInput || currentProjectName || 'MSX_Game';
+    const romConfig = romConfigInput || buildCurrentRomConfig();
+    const { generateModularASM } = await import('../../utils/msxGenerator');
+
+    const modularFiles = generateModularASM(projectName, getEnhancedAssets(), {
+      generateUnified: true,
+      ...romConfig
+    });
+
+    const files = getModularFileOrder()
+      .filter(fileName => modularFiles[fileName])
+      .map(fileName => ({
+        name: fileName,
+        content: modularFiles[fileName]
+      }));
+
+    const mainCode = modularFiles['unitedFiles.asm'] || modularFiles['main.asm'] || 'Error generating main file';
+    const preferredIndex = files.findIndex(f => f.name === 'unitedFiles.asm');
+
+    return {
+      projectName,
+      romConfig,
+      modularFiles,
+      files,
+      mainCode,
+      activeIndex: preferredIndex >= 0 ? preferredIndex : 0
+    };
+  };
+
+  const runCompileRequest = async (sourceCode: string, romConfig: RomBuildConfig, projectNameInput?: string) => {
+    const response = await fetch('http://localhost:3001/compile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        code: sourceCode,
+        generateSymbols: options.generateSymbols || false,
+        projectName: projectNameInput || currentProjectName || 'MSX_Game',
+        romMode: romConfig.romMode,
+        targetFormat: romConfig.targetFormat,
+        autoMegaROM: romConfig.autoMegaROM
+      }),
+    });
+
+    const responseText = await response.text();
+    let result: any;
+
+    try {
+      result = JSON.parse(responseText);
+    } catch (jsonError) {
+      console.error('Failed to parse JSON response:', jsonError);
+      console.error('Raw response:', responseText);
+      return {
+        success: false,
+        message: `Server response error: ${responseText}`,
+        fullDetails: { jsonError, responseText, status: response.status }
+      };
+    }
+
+    if (!response.ok || !result.success) {
+      console.error('Glass compilation failed:', result);
+      return {
+        success: false,
+        message: result.details || result.error || 'Unknown compilation error',
+        fullDetails: result,
+        requestedRomConfig: result.requestedRomConfig,
+        sourceRomConfig: result.sourceRomConfig,
+        sourceConfigMismatchWarning: result.sourceConfigMismatchWarning,
+        resolvedRomConfig: result.resolvedRomConfig,
+        romModeConflictWarning: result.romModeConflictWarning,
+        romSizeInfo: result.romSizeInfo
+      };
+    }
+
+    return result;
+  };
+
+  const buildMapperSummary = (compileResult: any, projectNameInput?: string) => {
+    const projectName = projectNameInput || currentProjectName || 'MSX_Game';
+    const requested = compileResult?.requestedRomConfig || {};
+    const resolved = compileResult?.resolvedRomConfig || {};
+    const sizeInfo = compileResult?.romSizeInfo || {};
+    const sourceWarning = compileResult?.sourceConfigMismatchWarning;
+
+    const lines: string[] = [];
+    lines.push(`Project: ${projectName}`);
+    lines.push(`Compile status: ${compileResult?.success ? 'OK' : 'FAILED'}`);
+    lines.push(`Requested: mode=${requested.romMode ?? 'unknown'}, mapper=${requested.targetFormat ?? 'unknown'}, autoMegaROM=${requested.autoMegaROM ?? 'unknown'}`);
+    lines.push(`Resolved: mode=${resolved.resolvedRomMode ?? 'unknown'}, mapper=${resolved.targetFormat ?? 'unknown'}, mapperActive=${resolved.mapperActive ?? 'unknown'}`);
+
+    if (resolved.reason) {
+      lines.push(`Reason: ${resolved.reason}`);
+    }
+
+    if (sizeInfo.paddedSize) {
+      lines.push(`ROM size: ${sizeInfo.paddedSize} bytes (${sizeInfo.banks8KB ?? '?'} x 8KB)`);
+    }
+
+    if (compileResult?.romModeConflictWarning) {
+      lines.push(`ROM mode warning: ${compileResult.romModeConflictWarning}`);
+    }
+
+    if (sourceWarning) {
+      lines.push(`Source mismatch warning: ${sourceWarning}`);
+    }
+
+    if (!compileResult?.success && compileResult?.message) {
+      lines.push(`Error: ${compileResult.message}`);
+    }
+
+    return lines.join('\n');
+  };
+
   const handleGenerateCode = async () => {
     setIsGenerating(true);
     setAsmCompressionResult(null);
@@ -107,6 +305,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     try {
       let code = '';
       let files: GeneratedFile[] = [];
+      let generatedRomConfig: RomBuildConfig | null = null;
 
       const projectName = currentProjectName || "MSX_Project";
 
@@ -258,86 +457,10 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           break;
 
         case 'asm_all_in_one':
-          // Use new modular system - show ALL modular files + unified
-          console.log('🔄 Using new modular ASM generator...');
-          console.log('📊 Switch case debug:');
-          console.log('  projectName:', projectName);
-          console.log('  assets:', assets);
-          console.log('  assets length:', assets?.length);
-          console.log('  options:', options);
-
-          // CRITICAL FIX: Add entityTemplates to assets array
-          // entityTemplates are stored separately in projectData but need to be in assets for analyzeProject
-          const enhancedAssets = [...assets];
-          if (projectData?.entityTemplates && Array.isArray(projectData.entityTemplates)) {
-            console.log(`📦 Adding ${projectData.entityTemplates.length} entity templates to assets`);
-            projectData.entityTemplates.forEach((template: any) => {
-              enhancedAssets.push({
-                id: template.id,
-                type: 'entitytemplate',
-                name: template.name || template.id,
-                data: template
-              });
-            });
-          }
-
-          // Also add componentDefinitions if they exist separately
-          if (projectData?.componentDefinitions && Array.isArray(projectData.componentDefinitions)) {
-            console.log(`📦 Adding ${projectData.componentDefinitions.length} component definitions to assets`);
-            projectData.componentDefinitions.forEach((compDef: any) => {
-              // Check if not already in assets
-              if (!enhancedAssets.find(a => a.id === compDef.id && a.type === 'componentdefinition')) {
-                enhancedAssets.push({
-                  id: compDef.id,
-                  type: 'componentdefinition',
-                  name: compDef.name || compDef.id,
-                  data: compDef
-                });
-              }
-            });
-          }
-
-          const { generateModularASM } = await import('../../utils/msxGenerator');
-          const modularFiles = generateModularASM(projectName, enhancedAssets, {
-            projectName,
-            targetMSX: options.msxModel as any,
-            generateUnified: true,
-            outputDir: './asm/'
-          });
-
-          // Convert modular files to GeneratedFile array with logical ordering
-          const fileOrder = [
-            'unitedFiles.asm', // Unified file first (for compilation)
-            'main.asm',        // Main file with includes
-            'bios.asm',        // Core system files
-            'constants.asm',
-            'variables.asm',
-            'interrupt.asm',   // Interrupt task system
-            'header.asm',
-            'patterns.asm',    // Asset files
-            'colors.asm',
-            'sprites.asm',
-            'components.asm',  // Logic files
-            'entities.asm',
-            'worlds.asm',
-            'screens.asm',
-            'font.asm',
-            'hud.asm',
-            'menus.asm',
-            'statemachine.asm',
-            'gameflow.asm'     // GameFlow state machine
-          ];
-
-          files = fileOrder
-            .filter(fileName => modularFiles[fileName]) // Only include existing files
-            .map(fileName => ({
-              name: fileName,
-              content: modularFiles[fileName]
-            }));
-
-          // Set unitedFiles.asm for compilation (contains all code in one file)
-          // or fallback to main.asm for display
-          code = modularFiles['unitedFiles.asm'] || modularFiles['main.asm'] || 'Error generating main file';
+          const asmBundle = await generateMapperReadyBundle(projectName, buildCurrentRomConfig());
+          generatedRomConfig = asmBundle.romConfig;
+          files = asmBundle.files;
+          code = asmBundle.mainCode;
           break;
 
         case 'entities':
@@ -358,11 +481,13 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       setGeneratedCode(code);
       setGeneratedFiles(files);
       setActiveFileIndex(0);
+      setLastGeneratedRomConfig(generatedRomConfig);
     } catch (error) {
       const errorCode = `; Error generating code: ${error}`;
       setGeneratedCode(errorCode);
       setGeneratedFiles([{ name: 'error.asm', content: errorCode }]);
       setActiveFileIndex(0);
+      setLastGeneratedRomConfig(null);
     } finally {
       setIsGenerating(false);
     }
@@ -376,52 +501,23 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
     setIsCompiling(true);
     setCompilationResult(null);
+    setQuickValidationSummary(null);
 
     try {
-      const response = await fetch('http://localhost:3001/compile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code: generatedCode,
-          generateSymbols: options.generateSymbols || false,
-          projectName: currentProjectName || 'MSX_Game'
-        }),
-      });
-
-      // Get response as text first, then try to parse as JSON
-      const responseText = await response.text();
-      let result;
-
-      try {
-        result = JSON.parse(responseText);
-      } catch (jsonError) {
-        // Handle non-JSON responses
-        console.error('Failed to parse JSON response:', jsonError);
-        console.error('Raw response:', responseText);
-
-        setCompilationResult({
-          success: false,
-          message: `Server response error: ${responseText}`,
-          fullDetails: { jsonError, responseText, status: response.status }
-        });
-        return;
+      const currentRomConfig = buildCurrentRomConfig();
+      if (exportType === 'asm_all_in_one' && isRomConfigDifferent(lastGeneratedRomConfig, currentRomConfig)) {
+        const proceed = window.confirm(
+          `Current compile config (${formatRomConfig(currentRomConfig)}) differs from the last generated ASM config (${formatRomConfig(lastGeneratedRomConfig)}).\n\n` +
+          'Regenerate ASM to avoid mismatch. Compile anyway?'
+        );
+        if (!proceed) {
+          setIsCompiling(false);
+          return;
+        }
       }
 
-      // Enhanced error logging for Glass compilation issues
-      if (!response.ok || !result.success) {
-        console.error('Glass compilation failed:', result);
-
-        // Show detailed error information
-        setCompilationResult({
-          success: false,
-          message: result.details || result.error || 'Unknown compilation error',
-          fullDetails: result
-        });
-      } else {
-        setCompilationResult(result);
-      }
+      const result = await runCompileRequest(generatedCode, currentRomConfig);
+      setCompilationResult(result);
     } catch (error) {
       setCompilationResult({
         success: false,
@@ -429,6 +525,44 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       });
     } finally {
       setIsCompiling(false);
+    }
+  };
+
+  const handleQuickValidateMapper = async () => {
+    if (exportType !== 'asm_all_in_one') {
+      alert('Quick mapper validation is only available for ASM (all in one).');
+      return;
+    }
+
+    setIsQuickValidating(true);
+    setIsGenerating(true);
+    setIsCompiling(true);
+    setCompilationResult(null);
+    setQuickValidationSummary(null);
+
+    try {
+      const romConfig = buildCurrentRomConfig();
+      const bundle = await generateMapperReadyBundle(currentProjectName || 'MSX_Game', romConfig);
+
+      setGeneratedCode(bundle.mainCode);
+      setGeneratedFiles(bundle.files);
+      setActiveFileIndex(bundle.activeIndex);
+      setLastGeneratedRomConfig(bundle.romConfig);
+
+      const compileResult = await runCompileRequest(bundle.mainCode, bundle.romConfig, bundle.projectName);
+      setCompilationResult(compileResult);
+      setQuickValidationSummary(buildMapperSummary(compileResult, bundle.projectName));
+    } catch (error) {
+      const failure = {
+        success: false,
+        message: `Quick validation failed: ${error}`
+      };
+      setCompilationResult(failure);
+      setQuickValidationSummary(buildMapperSummary(failure, currentProjectName || 'MSX_Game'));
+    } finally {
+      setIsCompiling(false);
+      setIsGenerating(false);
+      setIsQuickValidating(false);
     }
   };
 
@@ -591,6 +725,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     return assets.filter(a => a.type === type).length;
   };
 
+  const currentRomConfig = buildCurrentRomConfig();
+  const hasRomConfigDrift = isRomConfigDifferent(lastGeneratedRomConfig, currentRomConfig);
+
   if (!isOpen) return null;
 
   return (
@@ -623,7 +760,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     onChange={(e) => setExportType(e.target.value as ExportType)}
                     className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
                   >
-                    <option value="asm_all_in_one">🔧 ASM (all in one) - Konami ROM</option>
+                    <option value="asm_all_in_one">🔧 ASM (all in one) - Mapper-ready ROM</option>
                   </select>
                 </div>
 
@@ -700,6 +837,48 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     placeholder="#4000"
                     className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary font-mono"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-msx-textsecondary mb-2">
+                    ROM Mode:
+                  </label>
+                  <select
+                    value={romMode}
+                    onChange={(e) => setRomMode(e.target.value as RomMode)}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                  >
+                    <option value="auto">Auto (32KB -&gt; MegaROM)</option>
+                    <option value="simple32k">Force Simple 32KB</option>
+                    <option value="megarom">Force MegaROM</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-msx-textsecondary mb-2">
+                    Mapper Target:
+                  </label>
+                  <select
+                    value={mapperFormat}
+                    onChange={(e) => setMapperFormat(e.target.value as MapperFormat)}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                  >
+                    <option value="konami">Konami 8KB</option>
+                    <option value="ascii8">ASCII 8KB</option>
+                    <option value="ascii16">ASCII 16KB</option>
+                  </select>
+                </div>
+
+                <div className="bg-msx-bgcolor bg-opacity-40 border border-msx-border rounded p-2 text-xs text-msx-textsecondary">
+                  Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>
+                  <div className="mt-1">
+                    Last generated ASM config: <strong>{formatRomConfig(lastGeneratedRomConfig)}</strong>
+                  </div>
+                  {hasRomConfigDrift && (
+                    <div className="mt-1 text-yellow-300">
+                      Warning: current ROM config differs from the last generated ASM. Regenerate before compiling.
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -834,7 +1013,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       <li>• 🎯 Ready to compile with glass.jar</li>
                       <li>• 🚀 Game Flow integration for main menu</li>
                       <li>• 💾 Creates .ROM file for MSX emulators/flash carts</li>
+                      <li>• ROM mode selected: <strong>{romMode}</strong></li>
+                      <li>• Mapper selected: <strong>{mapperFormat}</strong></li>
                     </ul>
+                    {romMode === 'simple32k' && (
+                      <p className="mt-2 text-yellow-300">
+                        ⚠️ Force Simple 32KB is active. If the compiled ROM exceeds 32KB, a mapper conflict warning will appear.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -844,7 +1030,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
               <div className="p-3 space-y-2">
                 <Button
                   onClick={handleGenerateCode}
-                  disabled={isGenerating}
+                  disabled={isGenerating || isQuickValidating}
                   variant="primary"
                   icon={<CodeIcon />}
                   className="w-full"
@@ -858,6 +1044,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     isCompressingAsm ||
                     isGenerating ||
                     isCompiling ||
+                    isQuickValidating ||
                     !generatedCode.trim() ||
                     exportType !== 'asm_all_in_one'
                   }
@@ -869,7 +1056,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                 <Button
                   onClick={handleCompileCode}
-                  disabled={isCompiling || !generatedCode.trim()}
+                  disabled={isCompiling || isQuickValidating || !generatedCode.trim()}
                   variant="secondary"
                   icon={<CompilerIcon />}
                   className="w-full"
@@ -877,15 +1064,33 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   {isCompiling ? 'Compiling...' : 'Compile with Glass'}
                 </Button>
 
+                {exportType === 'asm_all_in_one' && (
+                  <Button
+                    onClick={handleQuickValidateMapper}
+                    disabled={isGenerating || isCompiling || isQuickValidating}
+                    variant="secondary"
+                    className="w-full"
+                  >
+                    {isQuickValidating ? 'Running quick validation...' : 'Generate + Compile + Mapper Summary'}
+                  </Button>
+                )}
+
                 <Button
                   onClick={handleSaveCode}
-                  disabled={!generatedCode.trim()}
+                  disabled={isQuickValidating || !generatedCode.trim()}
                   variant="ghost"
                   icon={<SaveIcon />}
                   className="w-full"
                 >
                   Save Assembly File
                 </Button>
+
+                {quickValidationSummary && (
+                  <div className="p-2 rounded text-xs bg-blue-900 bg-opacity-30 border border-blue-600 text-msx-textsecondary whitespace-pre-wrap">
+                    <div className="font-semibold text-blue-300 mb-1">Quick Mapper Validation</div>
+                    {quickValidationSummary}
+                  </div>
+                )}
 
                 {asmCompressionResult?.applied && (
                   <div className="p-2 rounded text-xs bg-green-900 bg-opacity-30 border border-green-600 text-msx-textsecondary">
@@ -1127,132 +1332,44 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 {exportType === 'asm_all_in_one' && (
                   <Button
                     onClick={async () => {
+                      setIsGenerating(true);
                       try {
-                        const projectName = currentProjectName || "MSX_Game";
-                        // Use new modular system for compilation
-                        console.log('🔄 Using new modular ASM generator for compilation...');
-                        console.log('📊 Debug info:');
-                        console.log('  projectName:', projectName);
-                        console.log('  assets:', assets);
-                        console.log('  assets length:', assets?.length);
-                        console.log('  options:', options);
+                        const bundle = await generateMapperReadyBundle(currentProjectName || 'MSX_Game', buildCurrentRomConfig());
 
-                        const { generateModularASM } = await import('../../utils/msxGenerator');
+                        setGeneratedCode(bundle.mainCode);
+                        setGeneratedFiles(bundle.files);
+                        setActiveFileIndex(bundle.activeIndex);
+                        setLastGeneratedRomConfig(bundle.romConfig);
 
-                        // CRITICAL FIX: Add entityTemplates and componentDefinitions to assets
-                        // (same as the preview path above)
-                        const compileAssets = [...assets];
-                        if (projectData?.entityTemplates && Array.isArray(projectData.entityTemplates)) {
-                          projectData.entityTemplates.forEach((template: any) => {
-                            compileAssets.push({
-                              id: template.id,
-                              type: 'entitytemplate',
-                              name: template.name || template.id,
-                              data: template
-                            });
-                          });
-                        }
-                        if (projectData?.componentDefinitions && Array.isArray(projectData.componentDefinitions)) {
-                          projectData.componentDefinitions.forEach((compDef: any) => {
-                            if (!compileAssets.find(a => a.id === compDef.id && a.type === 'componentdefinition')) {
-                              compileAssets.push({
-                                id: compDef.id,
-                                type: 'componentdefinition',
-                                name: compDef.name || compDef.id,
-                                data: compDef
-                              });
-                            }
-                          });
-                        }
-
-                        const modularFiles = generateModularASM(projectName, compileAssets, {
-                          projectName,
-                          targetMSX: options.msxModel as any,
-                          generateUnified: true,
-                          outputDir: './asm/'
-                        });
-
-                        // Convert all modular files to GeneratedFile array with logical ordering
-                        const fileOrder = [
-                          'unitedFiles.asm', // Unified file first (for easy viewing)
-                          'main.asm',        // Main file
-                          'bios.asm',        // Core system files
-                          'constants.asm',
-                          'variables.asm',
-                          'interrupt.asm',   // Interrupt task system
-                          'header.asm',
-                          'patterns.asm',    // Asset files
-                          'colors.asm',
-                          'sprites.asm',
-                          'components.asm',  // Logic files
-                          'entities.asm',
-                          'worlds.asm',
-                          'screens.asm',
-                          'font.asm',
-                          'hud.asm',
-                          'menus.asm',
-                          'statemachine.asm',
-                          'gameflow.asm'     // GameFlow state machine
-                        ];
-
-                        const allFiles = fileOrder
-                          .filter(fileName => modularFiles[fileName]) // Only include existing files
-                          .map(fileName => ({
-                            name: fileName,
-                            content: modularFiles[fileName]
-                          }));
-
-
-                        // Debug: Check what files were generated
-                        console.log('🔍 Generated modular files:', Object.keys(modularFiles));
-                        console.log('📝 unitedFiles.asm exists:', !!modularFiles['unitedFiles.asm']);
-                        console.log('📝 main.asm exists:', !!modularFiles['main.asm']);
-                        console.log('📝 gameflow.asm exists:', !!modularFiles['gameflow.asm']);
-                        console.log('📝 gameflow.asm length:', modularFiles['gameflow.asm']?.length || 0);
-
-
-                        // Use unitedFiles.asm for compilation (contains all code in one file)
-                        // or fallback to main.asm for display/download
-                        const mainCode = modularFiles['unitedFiles.asm'] || modularFiles['main.asm'] || 'Error generating main file';
-
-                        console.log('📄 Using file for compilation:', modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm');
-                        console.log('📏 Code length:', mainCode.length);
-
-                        // Show all generated files in tabs
-                        setGeneratedCode(mainCode);
-                        setGeneratedFiles(allFiles);
-                        setActiveFileIndex(allFiles.findIndex(f => f.name === 'main.asm'));
-
-                        // Also download the main file (unitedFiles.asm for compilation)
-                        const blob = new Blob([mainCode], { type: 'text/plain' });
+                        const blob = new Blob([bundle.mainCode], { type: 'text/plain' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm';
+                        a.download = bundle.modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm';
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
                         URL.revokeObjectURL(url);
 
-                        // Generate and download ZIP with all modular files
-                        const zipSuccess = await downloadModularZip(modularFiles, projectName);
+                        const zipSuccess = await downloadModularZip(bundle.modularFiles, bundle.projectName);
+                        const mainFileName = bundle.modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm';
 
-                        const message = zipSuccess
-                          ? `🔧 Modular ASM Project Generated!\n\n📄 Main file: ${modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm'}\n📦 ZIP downloaded: ${projectName.toLowerCase()}_modular_project.zip\n\n🎮 Contains:\n- All modular .asm files\n- unitedFiles.asm (for compilation)\n- Complete project structure\n\n⚡ Ready for glass.jar compilation\nCommand: glass unitedFiles.asm ${projectName.toLowerCase()}.rom`
-                          : `🔧 ASM files generated!\n\n📄 File downloaded as: ${modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm'}\n⚠️ ZIP generation failed - check console\n\n⚡ Ready for glass.jar compilation\nCommand: glass ${modularFiles['unitedFiles.asm'] ? 'unitedFiles.asm' : 'main.asm'} ${projectName.toLowerCase()}.rom`;
-
-                        alert(message);
+                        alert(
+                          zipSuccess
+                            ? `Modular ASM project generated.\n\nMain file: ${mainFileName}\nZIP: ${bundle.projectName.toLowerCase()}_modular_project.zip\n\nReady for glass.jar compile.`
+                            : `ASM generated as ${mainFileName}, but ZIP generation failed.`
+                        );
                       } catch (error) {
                         alert(`Error generating ASM: ${error instanceof Error ? error.message : 'Unknown error'}`);
                       } finally {
                         setIsGenerating(false);
                       }
                     }}
-                    disabled={isGenerating}
+                    disabled={isGenerating || isQuickValidating}
                     variant="primary"
                     className="w-full"
                   >
-                    🔧 Generate & Download Project ZIP
+                    Generate & Download Project ZIP
                   </Button>
                 )}
 
@@ -1266,16 +1383,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         modularFiles[file.name] = file.content;
                       });
 
-                      const zipSuccess = await downloadModularZip(modularFiles, projectName || 'MSX_Game');
+                      const projectNameForZip = currentProjectName || 'MSX_Game';
+                      const zipSuccess = await downloadModularZip(modularFiles, projectNameForZip);
                       alert(zipSuccess
-                        ? `📦 ZIP downloaded: ${(projectName || 'MSX_Game').toLowerCase()}_modular_project.zip`
-                        : '⚠️ ZIP generation failed - check console'
+                        ? `ZIP downloaded: ${projectNameForZip.toLowerCase()}_modular_project.zip`
+                        : 'ZIP generation failed - check console'
                       );
                     }}
+                    disabled={isQuickValidating}
                     variant="secondary"
                     className="w-full mt-2"
                   >
-                    📦 Download ZIP Only
+                    Download ZIP Only
                   </Button>
                 )}
               </div>
@@ -1290,6 +1409,38 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                   <div className="text-xs text-msx-textsecondary mt-1 font-mono whitespace-pre-wrap">
                     {compilationResult.message}
                   </div>
+
+                  {((compilationResult as any).requestedRomConfig ||
+                    (compilationResult as any).sourceRomConfig ||
+                    (compilationResult as any).resolvedRomConfig) && (
+                      <div className="mt-2 p-2 bg-msx-bgcolor bg-opacity-30 rounded text-xs text-msx-textsecondary space-y-1">
+                        {(compilationResult as any).requestedRomConfig && (
+                          <div>
+                            Requested config: mode=<strong>{(compilationResult as any).requestedRomConfig.romMode}</strong>, mapper=<strong>{(compilationResult as any).requestedRomConfig.targetFormat}</strong>, autoMegaROM=<strong>{String((compilationResult as any).requestedRomConfig.autoMegaROM)}</strong>
+                          </div>
+                        )}
+                        {(compilationResult as any).sourceRomConfig && (
+                          <div>
+                            Source ASM config: mode=<strong>{(compilationResult as any).sourceRomConfig.romMode ?? 'unknown'}</strong>, mapper=<strong>{(compilationResult as any).sourceRomConfig.targetFormat ?? 'unknown'}</strong>, autoMegaROM=<strong>{(compilationResult as any).sourceRomConfig.autoMegaROM === null ? 'unknown' : String((compilationResult as any).sourceRomConfig.autoMegaROM)}</strong>
+                          </div>
+                        )}
+                        {(compilationResult as any).resolvedRomConfig && (
+                          <>
+                            <div>
+                              Resolved config: mode=<strong>{(compilationResult as any).resolvedRomConfig.resolvedRomMode}</strong>, mapper=<strong>{(compilationResult as any).resolvedRomConfig.targetFormat}</strong>, mapperActive=<strong>{String((compilationResult as any).resolvedRomConfig.mapperActive)}</strong>
+                            </div>
+                            <div>
+                              Reason: {(compilationResult as any).resolvedRomConfig.reason}
+                            </div>
+                          </>
+                        )}
+                        {(compilationResult as any).sourceConfigMismatchWarning && (
+                          <div className="text-yellow-300">
+                            Warning: {(compilationResult as any).sourceConfigMismatchWarning}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                   {/* Enhanced error details for debugging */}
                   {!compilationResult.success && (compilationResult as any).fullDetails && (
@@ -1324,6 +1475,25 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             <span className="text-yellow-400">
                               {' '}(+{(compilationResult as any).romSizeInfo.paddingAdded} padding)
                             </span>
+                          )}
+                          <div className="mt-1">
+                            Banks (8KB): {(compilationResult as any).romSizeInfo.banks8KB}
+                          </div>
+                          <div>
+                            End address: #{Number((compilationResult as any).romSizeInfo.endAddress).toString(16).toUpperCase()}
+                          </div>
+                          {(compilationResult as any).romSizeInfo.exceedsSimpleRomLimit && (
+                            <div className="mt-1 text-yellow-300">
+                              ⚠️ ROM exceeds simple 32KB limit.
+                              {(compilationResult as any).romSizeInfo.mapperHint && (
+                                <span> {(compilationResult as any).romSizeInfo.mapperHint}</span>
+                              )}
+                            </div>
+                          )}
+                          {(compilationResult as any).romModeConflictWarning && (
+                            <div className="mt-1 text-red-300">
+                              ⚠️ {(compilationResult as any).romModeConflictWarning}
+                            </div>
                           )}
                         </div>
                       )}

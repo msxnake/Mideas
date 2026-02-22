@@ -30,6 +30,8 @@ export function generateColorsFile(analysis: ProjectAnalysis): string {
 ; ${analysis.tiles?.length || 0} tiles detected
 ; ==================================================================
 
+COLOR_DATA_BANK EQU ((tile_color_bank0 - #4000) / #2000)
+
 ; ==================================================================
 ; TILE COLOR BANK 0 (Base colors)
 ; ==================================================================
@@ -52,6 +54,9 @@ ${analysis.tiles.map((tile, index) => {
 load_color_bank0:
     ; Load color bank 0 to VRAM (base colors)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, COLOR_DATA_BANK
+    call mapper_set_bank_p2
     ld hl, tile_color_bank0
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -60,11 +65,15 @@ load_color_bank0:
     return total + (charsWide * charsHigh * 8);
   }, 0)}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_color_bank1:
     ; Load color bank 1: same colors as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, COLOR_DATA_BANK
+    call mapper_set_bank_p2
     ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -73,11 +82,15 @@ load_color_bank1:
     return total + (charsWide * charsHigh * 8);
   }, 0)}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_color_bank2:
     ; Load color bank 2: same colors as bank 0 (MSX Screen 2 standard)
     ; Fast direct port access (no BIOS overhead)
+    call mapper_push_p2
+    ld a, COLOR_DATA_BANK
+    call mapper_set_bank_p2
     ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
     ld bc, ${analysis.tiles.reduce((total, tile) => {
@@ -86,6 +99,7 @@ load_color_bank2:
     return total + (charsWide * charsHigh * 8);
   }, 0)}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
+    call mapper_pop_p2
     ret
 
 load_colors_to_vram:
