@@ -80,7 +80,8 @@ update_all_entities:
     code += `
 ; ------------------------------------------------------------------
 ; rebuild_used_entity_list
-; Build compact list of entity slots that are in use (mask_l|mask_h != 0)
+; Build compact list of ACTIVE entity slots that are in use
+; (entity_active != 0 and mask_l|mask_h != 0)
 ; Output:
 ;   active_entity_list[]   = entity indices with components
 ;   active_entity_count    = number of entries
@@ -97,6 +98,12 @@ rebuild_used_entity_list:
 
     ld e, c
     ld d, 0
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .next_entity
+
     ld hl, entity_comp_masks
     add hl, de
     ld a, (hl)

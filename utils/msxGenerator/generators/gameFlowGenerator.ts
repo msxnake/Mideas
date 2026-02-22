@@ -243,6 +243,38 @@ function getScreenLoadRoutineName(screen: { name?: string; id?: string }): strin
 }
 
 /**
+ * Resolve a global variable reference used by GameFlow nodes to a valid ASM symbol.
+ * Returns null when the variable does not exist in analysis.globalVariables.
+ */
+function resolveGlobalVariableAsmName(variableName: any, analysis: ProjectAnalysis): string | null {
+  const rawName = String(variableName || '').trim();
+  if (!rawName) return null;
+
+  const toDefaultAsmName = (name: string): string =>
+    `global_var_${name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '').replace(/[^a-z0-9_]/g, '_')}`;
+
+  const normalizedInput = rawName.toLowerCase();
+  const expectedAsmName = toDefaultAsmName(rawName);
+  const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+
+  for (const v of globals) {
+    const candidateName = String(v?.name || '').trim();
+    const candidateAsmName = String(v?.asmName || '').trim();
+    if (candidateName && candidateName.toLowerCase() === normalizedInput) {
+      return candidateAsmName || toDefaultAsmName(candidateName);
+    }
+    if (candidateAsmName && candidateAsmName.toLowerCase() === normalizedInput) {
+      return candidateAsmName;
+    }
+    if (candidateName && toDefaultAsmName(candidateName) === expectedAsmName) {
+      return candidateAsmName || toDefaultAsmName(candidateName);
+    }
+  }
+
+  return null;
+}
+
+/**
  * Get imported HUD frame draw routine name for a screen.
  * Returns null when screen has no imported HUD frame snapshot.
  */
@@ -2639,6 +2671,47 @@ music_loop_flag:
     }
   });
 
+  const needsPrintStringVram = nodeTypes.includes('Text') || nodeTypes.includes('SubMenu');
+  const hasEndNode = nodeTypes.includes('End');
+  if (needsPrintStringVram && !hasEndNode) {
+    code += `; ------------------------------------------------------------------
+; Shared helper: Print string to VRAM
+; Input: HL = string pointer (null-terminated)
+;        DE = VRAM destination
+; ------------------------------------------------------------------
+print_string_vram:
+    push bc
+    push de
+    push hl
+
+.psv_loop:
+    ld a, (hl)                    ; Get character
+    or a                          ; Check for null terminator
+    jr z, .psv_done
+
+    ; Write character to VRAM
+    push hl
+    push de
+    push af                       ; Save character
+    ex de, hl                     ; HL = VRAM address (from DE)
+    pop af                        ; Restore character to A
+    call WRTVRM                   ; Write A to VRAM at HL
+    pop de
+    pop hl
+
+    inc hl                        ; Next character
+    inc de                        ; Next VRAM position
+    jr .psv_loop
+
+.psv_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+`;
+  }
+
   return code;
 }
 
@@ -2827,23 +2900,42 @@ ${nodeLabel}:
 
       case 'IfThenElse':
         const varName = node.variableName || 'unknown';
-        const asmVarName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+        const asmVarName = resolveGlobalVariableAsmName(varName, analysis);
         const compareValue = node.compareValue || 0;
-        code += `    dw ${asmVarName}    ; Variable to check\n`;
+        if (asmVarName) {
+          code += `    dw ${asmVarName}    ; Variable to check\n`;
+        } else {
+          code += `    dw 0                 ; WARNING: Missing global variable "${varName}"\n`;
+        }
         code += `    db ${compareValue}   ; Compare value\n`;
         code += `    db 0                 ; Operator (0=equals)\n`;
         break;
 
       case 'Globals':
         if (node.variables && node.variables.length > 0) {
-          code += `    db ${node.variables.length}    ; Number of assignments\n`;
-          node.variables.forEach((v: any) => {
-            const vName = v.variableName || v.name || 'unknown';
-            const vAsmName = `global_var_${vName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
-            const vValue = v.value || 0;
-            code += `    dw ${vAsmName}\n`;
-            code += `    db ${vValue}\n`;
+          const resolvedAssignments = node.variables
+            .map((v: any) => {
+              const vName = v.variableName || v.name || 'unknown';
+              const vAsmName = resolveGlobalVariableAsmName(vName, analysis);
+              const vValue = v.value || 0;
+              return { vName, vAsmName, vValue };
+            })
+            .filter((entry: any) => !!entry.vAsmName);
+
+          code += `    db ${resolvedAssignments.length}    ; Number of assignments\n`;
+          resolvedAssignments.forEach((entry: any) => {
+            code += `    dw ${entry.vAsmName}\n`;
+            code += `    db ${entry.vValue}\n`;
           });
+
+          const missingAssignments = node.variables.length - resolvedAssignments.length;
+          if (missingAssignments > 0) {
+            code += `    ; WARNING: ${missingAssignments} Globals assignment(s) skipped (undefined global variable)\n`;
+          }
+
+          if (resolvedAssignments.length === 0) {
+            code += `    ; No valid global assignments found\n`;
+          }
         } else {
           code += `    db 0    ; No assignments\n`;
         }

@@ -58,7 +58,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [activeFileIndex, setActiveFileIndex] = useState<number>(0);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCompiling, setIsCompiling] = useState(false);
+  const [isCompressingAsm, setIsCompressingAsm] = useState(false);
   const [compilationResult, setCompilationResult] = useState<{ success: boolean; message: string; data?: string } | null>(null);
+  const [asmCompressionResult, setAsmCompressionResult] = useState<any>(null);
   const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
 
   // Function to download ZIP with all modular files
@@ -100,6 +102,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
   const handleGenerateCode = async () => {
     setIsGenerating(true);
+    setAsmCompressionResult(null);
 
     try {
       let code = '';
@@ -426,6 +429,97 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       });
     } finally {
       setIsCompiling(false);
+    }
+  };
+
+  const handleCompressUnifiedAsm = async () => {
+    const unifiedFile = generatedFiles.find(f => f.name === 'unitedFiles.asm');
+    const sourceCode = unifiedFile?.content || generatedCode;
+
+    if (!sourceCode.trim()) {
+      alert('Generate code first before compressing');
+      return;
+    }
+
+    setIsCompressingAsm(true);
+    setAsmCompressionResult(null);
+
+    try {
+      const response = await fetch('http://localhost:3001/compress-unified-asm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: sourceCode,
+          projectName: currentProjectName || 'MSX_Game'
+        }),
+      });
+
+      const responseText = await response.text();
+      let result: any;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        console.error('Raw response:', responseText);
+        alert(`Compression response error: ${responseText}`);
+        return;
+      }
+
+      if (!response.ok || !result.success) {
+        alert(`Compression failed: ${result.details || result.error || 'Unknown error'}`);
+        return;
+      }
+
+      setAsmCompressionResult(result);
+
+      if (!result.applied || !result.compressedCode) {
+        alert(result.message || 'Compression skipped (no net gain)');
+        return;
+      }
+
+      const compressedFileName = result.unitedCompressedAsmFile || 'unitedCompressedFiles.asm';
+      const compressedContent = result.compressedCode as string;
+
+      const existingWithoutCompressed = generatedFiles.filter(
+        f => f.name !== compressedFileName && f.name !== (result.compressedAsmFile || '')
+      );
+
+      const unifiedIndex = existingWithoutCompressed.findIndex(f => f.name === 'unitedFiles.asm');
+      const compressedFileEntry: GeneratedFile = { name: compressedFileName, content: compressedContent };
+
+      const nextFiles = unifiedIndex >= 0
+        ? [
+            ...existingWithoutCompressed.slice(0, unifiedIndex + 1),
+            compressedFileEntry,
+            ...existingWithoutCompressed.slice(unifiedIndex + 1)
+          ]
+        : [compressedFileEntry, ...existingWithoutCompressed];
+
+      setGeneratedFiles(nextFiles);
+      const compressedIndex = nextFiles.findIndex(f => f.name === compressedFileName);
+      setActiveFileIndex(compressedIndex >= 0 ? compressedIndex : 0);
+      setGeneratedCode(compressedContent);
+
+      const info = result.compressionInfo || {};
+      alert(
+        `ZX0 compression applied.\n\n` +
+        `Screens: ${info.compressedScreens || 0}/${info.candidateScreens || 0}\n` +
+        `Behavior maps: ${info.compressedBehaviorMaps || 0}/${info.candidateBehaviorMaps || 0}\n` +
+        `Tile patterns: ${info.compressedTilePatterns || 0}/${info.candidateTilePatterns || 0}\n` +
+        `Tile colors: ${info.compressedTileColors || 0}/${info.candidateTileColors || 0}\n` +
+        `Font patterns: ${info.compressedFontPatterns || 0}/${info.candidateFontPatterns || 0}\n` +
+        `Font colors: ${info.compressedFontColors || 0}/${info.candidateFontColors || 0}\n` +
+        `Sprite patterns: ${info.compressedSpritePatterns || 0}/${info.candidateSpritePatterns || 0}\n` +
+        `${info.warning ? `Warning: ${info.warning}\n` : ''}` +
+        `Saved bytes (net): ${info.netSavedBytes || 0}`
+      );
+    } catch (error) {
+      alert(`Compression failed: ${error}`);
+    } finally {
+      setIsCompressingAsm(false);
     }
   };
 
@@ -759,6 +853,21 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 </Button>
 
                 <Button
+                  onClick={handleCompressUnifiedAsm}
+                  disabled={
+                    isCompressingAsm ||
+                    isGenerating ||
+                    isCompiling ||
+                    !generatedCode.trim() ||
+                    exportType !== 'asm_all_in_one'
+                  }
+                  variant="secondary"
+                  className="w-full"
+                >
+                  {isCompressingAsm ? 'Compressing...' : 'Compress Screen + Behavior + Tiles + Font (ZX0)'}
+                </Button>
+
+                <Button
                   onClick={handleCompileCode}
                   disabled={isCompiling || !generatedCode.trim()}
                   variant="secondary"
@@ -777,6 +886,57 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 >
                   Save Assembly File
                 </Button>
+
+                {asmCompressionResult?.applied && (
+                  <div className="p-2 rounded text-xs bg-green-900 bg-opacity-30 border border-green-600 text-msx-textsecondary">
+                    <div className="font-semibold text-green-400">ZX0 Compression Applied</div>
+                    <div>
+                      Screens: {asmCompressionResult?.compressionInfo?.compressedScreens ?? 0}/{asmCompressionResult?.compressionInfo?.candidateScreens ?? 0}
+                    </div>
+                    <div>
+                      Behavior: {asmCompressionResult?.compressionInfo?.compressedBehaviorMaps ?? 0}/{asmCompressionResult?.compressionInfo?.candidateBehaviorMaps ?? 0}
+                    </div>
+                    <div>
+                      Tile patterns: {asmCompressionResult?.compressionInfo?.compressedTilePatterns ?? 0}/{asmCompressionResult?.compressionInfo?.candidateTilePatterns ?? 0}
+                    </div>
+                    <div>
+                      Tile colors: {asmCompressionResult?.compressionInfo?.compressedTileColors ?? 0}/{asmCompressionResult?.compressionInfo?.candidateTileColors ?? 0}
+                    </div>
+                    <div>
+                      Font patterns: {asmCompressionResult?.compressionInfo?.compressedFontPatterns ?? 0}/{asmCompressionResult?.compressionInfo?.candidateFontPatterns ?? 0}
+                    </div>
+                    <div>
+                      Font colors: {asmCompressionResult?.compressionInfo?.compressedFontColors ?? 0}/{asmCompressionResult?.compressionInfo?.candidateFontColors ?? 0}
+                    </div>
+                    <div>
+                      Sprite patterns: {asmCompressionResult?.compressionInfo?.compressedSpritePatterns ?? 0}/{asmCompressionResult?.compressionInfo?.candidateSpritePatterns ?? 0}
+                    </div>
+                    {asmCompressionResult?.compressionInfo?.warning && (
+                      <div className="text-yellow-300">
+                        Warning: {asmCompressionResult.compressionInfo.warning}
+                      </div>
+                    )}
+                    <div>
+                      Net saved: {asmCompressionResult?.compressionInfo?.netSavedBytes ?? 0} bytes
+                    </div>
+                    {asmCompressionResult?.unitedCompressedAsmDownloadUrl && (
+                      <button
+                        onClick={() => {
+                          const downloadUrl = `http://localhost:3001${asmCompressionResult.unitedCompressedAsmDownloadUrl}`;
+                          const link = document.createElement('a');
+                          link.href = downloadUrl;
+                          link.download = asmCompressionResult.unitedCompressedAsmFile || 'unitedCompressedFiles.asm';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                        className="mt-2 px-3 py-1 bg-green-600 hover:bg-green-500 text-white text-xs rounded transition-colors"
+                      >
+                        Download unitedCompressedFiles.asm
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 {(exportType === 'statemachine_only' || exportType === 'complete_with_statemachine') && (
                   <Button

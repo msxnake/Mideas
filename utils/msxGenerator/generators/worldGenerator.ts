@@ -192,15 +192,8 @@ function emitDirectionalTransitionCode(
     ld (hl), 238
 `;
   } else if (direction === 'south') {
-    conditionCode = `    ; South exit: Y near bottom edge and downward input
-    ld a, (input_state)
-    cp STICK_DOWN
-    jr z, .dir_ok_${skipLabel}
-    cp STICK_DOWNLEFT
-    jr z, .dir_ok_${skipLabel}
-    cp STICK_DOWNRIGHT
-    jp nz, ${skipLabel}
-.dir_ok_${skipLabel}:
+    conditionCode = `    ; South exit: Y near bottom edge
+    ; No input-direction gate: supports gravity/platform-driven movement
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
@@ -213,15 +206,8 @@ function emitDirectionalTransitionCode(
     ld (hl), 2
 `;
   } else {
-    conditionCode = `    ; North exit: Y near top edge and upward input
-    ld a, (input_state)
-    cp STICK_UP
-    jr z, .dir_ok_${skipLabel}
-    cp STICK_UPLEFT
-    jr z, .dir_ok_${skipLabel}
-    cp STICK_UPRIGHT
-    jp nz, ${skipLabel}
-.dir_ok_${skipLabel}:
+    conditionCode = `    ; North exit: Y near top edge
+    ; No input-direction gate: supports velocity-driven movement
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
@@ -330,8 +316,12 @@ WORLD_${worldName}_SCREEN_COUNT EQU ${world.nodes?.length || 0}
 
     // Generate constants for each screen node in the world
     if (world.nodes && world.nodes.length > 0) {
+      const nodeNameCounts = new Map<string, number>();
       world.nodes.forEach((node: any, nodeIndex: number) => {
-        const nodeName = toConstantName(node.name || `screen_${nodeIndex}`);
+        const baseNodeName = toConstantName(node.name || `screen_${nodeIndex}`);
+        const seenCount = nodeNameCounts.get(baseNodeName) || 0;
+        const nodeName = seenCount === 0 ? baseNodeName : `${baseNodeName}_${seenCount + 1}`;
+        nodeNameCounts.set(baseNodeName, seenCount + 1);
         code += `WORLD_${worldName}_SCREEN_${nodeName}_ID EQU ${nodeIndex}
 `;
       });

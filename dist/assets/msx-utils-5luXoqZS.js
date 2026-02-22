@@ -1,4 +1,4 @@
-const Gl=[16,24,32];var X=(t=>(t.Score="Score",t.HighScore="HighScore",t.Lives="Lives",t.EnergyBar="EnergyBar",t.ItemDisplay="ItemDisplay",t.SceneName="SceneName",t.MiniMap="MiniMap",t.CoinCounter="CoinCounter",t.BossEnergyBar="BossEnergyBar",t.PhaseIndicator="PhaseIndicator",t.AttackAlert="AttackAlert",t.TextBox="TextBox",t.NumericField="NumericField",t.CustomCounter="CustomCounter",t))(X||{});const Nt={water:{bit:0,label:"Water Effect",maskValue:1,color:"rgba(50, 100, 200, 0.4)"},customGravity:{bit:1,label:"Custom Gravity",maskValue:2,color:"rgba(150, 50, 200, 0.4)"},icePhysics:{bit:2,label:"Ice Physics",maskValue:4,color:"rgba(100, 200, 255, 0.4)"},spriteConceal:{bit:3,label:"Sprite Concealment",maskValue:8,color:"rgba(100, 100, 100, 0.4)"}};var wt=(t=>(t.None="None",t.Tile="Tile",t.Sprite="Sprite",t.Screen="Screen",t.Code="Code",t.Attributes="Attributes",t.Sound="Sound",t.Platformer="Platformer",t.WorldMap="WorldMap",t.Track="Track",t.HUD="HUD",t.TileBanks="TileBanks",t.Font="Font",t.HelpDocs="HelpDocs",t.BehaviorEditor="BehaviorEditor",t.ComponentDefinitionEditor="ComponentDefinitionEditor",t.EntityTemplateEditor="EntityTemplateEditor",t.Boss="Boss",t.WorldView="WorldView",t.GameFlow="GameFlow",t.MainMenu="MainMenu",t.StateMachine="StateMachine",t.GlobalVariables="GlobalVariables",t.Palette="Palette",t))(wt||{});const Yl=[1,3,5,7],Wl=[{id:0,name:"NoSolid (Passable)",isSolid:!1},{id:1,name:"Solid (Wall/Ground)",isSolid:!0},{id:2,name:"Platform (Top-Solid)",isSolid:!0},{id:3,name:"Slope (Solid)",isSolid:!0}],Ql={isBreakable:{bit:0,label:"Breakable"},isMovable:{bit:1,label:"Movable"},causesDamage:{bit:2,label:"Deadly"},isInteractiveSwitch:{bit:3,label:"Interactable"}},Xl="0.267",ye=[{name:"Transparent",hex:"rgba(0,0,0,0)"},{name:"Black",hex:"#000000"},{name:"Medium Green",hex:"#3EB847"},{name:"Light Green",hex:"#74D07D"},{name:"Dark Blue",hex:"#2F2FC1"},{name:"Light Blue",hex:"#5858FC"},{name:"Dark Red",hex:"#B63125"},{name:"Cyan",hex:"#68D2DA"},{name:"Medium Red",hex:"#FC584A"},{name:"Light Red",hex:"#FF8E81"},{name:"Dark Yellow",hex:"#C0BF3B"},{name:"Light Yellow",hex:"#E7E474"},{name:"Dark Green",hex:"#309337"},{name:"Magenta",hex:"#B640C8"},{name:"Gray",hex:"#999999"},{name:"White",hex:"#FFFFFF"}],W=[{name:"Transparent (Backdrop)",hex:"rgba(0,0,0,0)",index:0},{name:"Black",hex:"#000000",index:1},{name:"Medium Green",hex:"#21C842",index:2},{name:"Light Green",hex:"#5EDC78",index:3},{name:"Dark Blue",hex:"#5455ED",index:4},{name:"Light Blue",hex:"#7D76FC",index:5},{name:"Dark Red",hex:"#D4524D",index:6},{name:"Cyan",hex:"#42EBF5",index:7},{name:"Medium Red",hex:"#FC5554",index:8},{name:"Light Red",hex:"#FF7978",index:9},{name:"Dark Yellow",hex:"#D4C154",index:10},{name:"Light Yellow",hex:"#E6CE80",index:11},{name:"Dark Green",hex:"#21B03B",index:12},{name:"Magenta",hex:"#C95BBA",index:13},{name:"Gray",hex:"#CCCCCC",index:14},{name:"White",hex:"#FFFFFF",index:15}],ne=[0,36,73,109,146,182,219,255],me=t=>t.toString(16).padStart(2,"0").toUpperCase(),Kl=(()=>{const t=[];for(let e=0;e<ne.length;e++)for(let a=0;a<ne.length;a++)for(let l=0;l<ne.length;l++){const i=e<<6|a<<3|l;t.push({index:i,hex:`#${me(ne[e])}${me(ne[a])}${me(ne[l])}`,rLevel:e,gLevel:a,bLevel:l})}return t})(),Me=t=>{let e=0,a=1/0;return ne.forEach((l,i)=>{const o=Math.abs(l-t);o<a&&(a=o,e=i)}),e},xt=t=>!t||!t.startsWith("#")||t.length!==7?"#000000":t.toUpperCase(),Ot=t=>{const e=xt(t),a=parseInt(e.slice(1,3),16),l=parseInt(e.slice(3,5),16),i=parseInt(e.slice(5,7),16),o=Me(a),r=Me(l),n=Me(i),p=`#${me(ne[o])}${me(ne[r])}${me(ne[n])}`,s=o<<6|r<<3|n;return{hex:p,masterIndex:s}},Zl=ye.map((t,e)=>{if(e===0)return{slotIndex:0,masterIndex:-1,hex:"rgba(0,0,0,0)"};const a=Ot(t.hex);return{slotIndex:e,masterIndex:a.masterIndex,hex:a.hex}}),Jl=[8,16,24,32],ql=16,eo=16,to=16,pe=32,Ie=24,ue=8,he=255,ao="SCREEN 2 (Graphics I)",lo=["ADC","ADD","AND","BIT","CALL","CCF","CP","CPD","CPDR","CPI","CPIR","CPL","DAA","DEC","DI","DJNZ","EI","EX","EXX","HALT","IM","IN","INC","IND","INDR","INI","INIR","JP","JR","LD","LDD","LDDR","LDI","LDIR","NEG","NOP","OR","OTDR","OTIR","OUT","OUTD","OUTI","POP","PUSH","RES","RET","RETI","RETN","RL","RLA","RLC","RLCA","RLD","RR","RRA","RRC","RRCA","RRD","RST","SBC","SCF","SET","SLA","SLL","SRA","SRL","SUB","XOR"],oo=["A","F","B","C","D","E","H","L","AF","BC","DE","HL","IXH","IXL","IYH","IYL","IX","IY","SP","PC","I","R","AF'"],no=["NZ","Z","NC","C","PO","PE","P","M"],io=[".ORG","ORG","END",".END",".EQU","EQU",".DB","DB",".BYTE","BYTE","DEFB",".DW","DW",".WORD","WORD","DEFW",".DS","DS",".BLOCK","BLOCK","DEFS",".DEFINE","DEFINE",".MACRO","MACRO",".ENDM","ENDM",".IF","IF",".ENDIF","ENDIF",".ELSE","ELSE",".INCLUDE","INCLUDE",".DEFM","DEFM",".ZILOG",".PHASE",".REPT",".ENDR",".SEARCH",".RANDOM",".ROM",".MEGAROM",".BASIC",".CAS",".WAV",".MSXDOS"],ro=[{id:"pac_man_collection",name:"Pac-Man Tile Collection",code:`; Pac-Man Style Tile Collection System for MSX
+const Yl=[16,24,32];var X=(t=>(t.Score="Score",t.HighScore="HighScore",t.Lives="Lives",t.EnergyBar="EnergyBar",t.ItemDisplay="ItemDisplay",t.SceneName="SceneName",t.MiniMap="MiniMap",t.CoinCounter="CoinCounter",t.BossEnergyBar="BossEnergyBar",t.PhaseIndicator="PhaseIndicator",t.AttackAlert="AttackAlert",t.TextBox="TextBox",t.NumericField="NumericField",t.CustomCounter="CustomCounter",t))(X||{});const wt={water:{bit:0,label:"Water Effect",maskValue:1,color:"rgba(50, 100, 200, 0.4)"},customGravity:{bit:1,label:"Custom Gravity",maskValue:2,color:"rgba(150, 50, 200, 0.4)"},icePhysics:{bit:2,label:"Ice Physics",maskValue:4,color:"rgba(100, 200, 255, 0.4)"},spriteConceal:{bit:3,label:"Sprite Concealment",maskValue:8,color:"rgba(100, 100, 100, 0.4)"}};var xt=(t=>(t.None="None",t.Tile="Tile",t.Sprite="Sprite",t.Screen="Screen",t.Code="Code",t.Attributes="Attributes",t.Sound="Sound",t.Platformer="Platformer",t.WorldMap="WorldMap",t.Track="Track",t.HUD="HUD",t.TileBanks="TileBanks",t.Font="Font",t.HelpDocs="HelpDocs",t.BehaviorEditor="BehaviorEditor",t.ComponentDefinitionEditor="ComponentDefinitionEditor",t.EntityTemplateEditor="EntityTemplateEditor",t.Boss="Boss",t.WorldView="WorldView",t.GameFlow="GameFlow",t.MainMenu="MainMenu",t.StateMachine="StateMachine",t.GlobalVariables="GlobalVariables",t.Palette="Palette",t))(xt||{});const Wl=[1,3,5,7],Ql=[{id:0,name:"NoSolid (Passable)",isSolid:!1},{id:1,name:"Solid (Wall/Ground)",isSolid:!0},{id:2,name:"Platform (Top-Solid)",isSolid:!0},{id:3,name:"Slope (Solid)",isSolid:!0}],Xl={isBreakable:{bit:0,label:"Breakable"},isMovable:{bit:1,label:"Movable"},causesDamage:{bit:2,label:"Deadly"},isInteractiveSwitch:{bit:3,label:"Interactable"}},Kl="0.267",ye=[{name:"Transparent",hex:"rgba(0,0,0,0)"},{name:"Black",hex:"#000000"},{name:"Medium Green",hex:"#3EB847"},{name:"Light Green",hex:"#74D07D"},{name:"Dark Blue",hex:"#2F2FC1"},{name:"Light Blue",hex:"#5858FC"},{name:"Dark Red",hex:"#B63125"},{name:"Cyan",hex:"#68D2DA"},{name:"Medium Red",hex:"#FC584A"},{name:"Light Red",hex:"#FF8E81"},{name:"Dark Yellow",hex:"#C0BF3B"},{name:"Light Yellow",hex:"#E7E474"},{name:"Dark Green",hex:"#309337"},{name:"Magenta",hex:"#B640C8"},{name:"Gray",hex:"#999999"},{name:"White",hex:"#FFFFFF"}],W=[{name:"Transparent (Backdrop)",hex:"rgba(0,0,0,0)",index:0},{name:"Black",hex:"#000000",index:1},{name:"Medium Green",hex:"#21C842",index:2},{name:"Light Green",hex:"#5EDC78",index:3},{name:"Dark Blue",hex:"#5455ED",index:4},{name:"Light Blue",hex:"#7D76FC",index:5},{name:"Dark Red",hex:"#D4524D",index:6},{name:"Cyan",hex:"#42EBF5",index:7},{name:"Medium Red",hex:"#FC5554",index:8},{name:"Light Red",hex:"#FF7978",index:9},{name:"Dark Yellow",hex:"#D4C154",index:10},{name:"Light Yellow",hex:"#E6CE80",index:11},{name:"Dark Green",hex:"#21B03B",index:12},{name:"Magenta",hex:"#C95BBA",index:13},{name:"Gray",hex:"#CCCCCC",index:14},{name:"White",hex:"#FFFFFF",index:15}],ne=[0,36,73,109,146,182,219,255],me=t=>t.toString(16).padStart(2,"0").toUpperCase(),Zl=(()=>{const t=[];for(let e=0;e<ne.length;e++)for(let a=0;a<ne.length;a++)for(let l=0;l<ne.length;l++){const i=e<<6|a<<3|l;t.push({index:i,hex:`#${me(ne[e])}${me(ne[a])}${me(ne[l])}`,rLevel:e,gLevel:a,bLevel:l})}return t})(),Me=t=>{let e=0,a=1/0;return ne.forEach((l,i)=>{const n=Math.abs(l-t);n<a&&(a=n,e=i)}),e},Ot=t=>!t||!t.startsWith("#")||t.length!==7?"#000000":t.toUpperCase(),Mt=t=>{const e=Ot(t),a=parseInt(e.slice(1,3),16),l=parseInt(e.slice(3,5),16),i=parseInt(e.slice(5,7),16),n=Me(a),r=Me(l),o=Me(i),d=`#${me(ne[n])}${me(ne[r])}${me(ne[o])}`,s=n<<6|r<<3|o;return{hex:d,masterIndex:s}},Jl=ye.map((t,e)=>{if(e===0)return{slotIndex:0,masterIndex:-1,hex:"rgba(0,0,0,0)"};const a=Mt(t.hex);return{slotIndex:e,masterIndex:a.masterIndex,hex:a.hex}}),ql=[8,16,24,32],eo=16,to=16,ao=16,pe=32,Ie=24,ue=8,he=255,lo="SCREEN 2 (Graphics I)",oo=["ADC","ADD","AND","BIT","CALL","CCF","CP","CPD","CPDR","CPI","CPIR","CPL","DAA","DEC","DI","DJNZ","EI","EX","EXX","HALT","IM","IN","INC","IND","INDR","INI","INIR","JP","JR","LD","LDD","LDDR","LDI","LDIR","NEG","NOP","OR","OTDR","OTIR","OUT","OUTD","OUTI","POP","PUSH","RES","RET","RETI","RETN","RL","RLA","RLC","RLCA","RLD","RR","RRA","RRC","RRCA","RRD","RST","SBC","SCF","SET","SLA","SLL","SRA","SRL","SUB","XOR"],no=["A","F","B","C","D","E","H","L","AF","BC","DE","HL","IXH","IXL","IYH","IYL","IX","IY","SP","PC","I","R","AF'"],io=["NZ","Z","NC","C","PO","PE","P","M"],ro=[".ORG","ORG","END",".END",".EQU","EQU",".DB","DB",".BYTE","BYTE","DEFB",".DW","DW",".WORD","WORD","DEFW",".DS","DS",".BLOCK","BLOCK","DEFS",".DEFINE","DEFINE",".MACRO","MACRO",".ENDM","ENDM",".IF","IF",".ENDIF","ENDIF",".ELSE","ELSE",".INCLUDE","INCLUDE",".DEFM","DEFM",".ZILOG",".PHASE",".REPT",".ENDR",".SEARCH",".RANDOM",".ROM",".MEGAROM",".BASIC",".CAS",".WAV",".MSXDOS"],so=[{id:"pac_man_collection",name:"Pac-Man Tile Collection",code:`; Pac-Man Style Tile Collection System for MSX
 ; Optimized for MSX hardware limitations
 ; Uses: DE = Player position, HL = Screen map address
 
@@ -148,20 +148,22 @@ COLLECTION_COUNT:   DB 0       ; Items collected this frame
 SCORE:              DW 0       ; Player score
 DOT_COUNT:          DB 0       ; Total dots collected
 FRUIT_COUNT:        DB 0       ; Total fruits collected
-POWER_MODE:         DB 0       ; Power-up mode active flag`}],so=[],Re=8,Ee=15,ge=1;var gt;const co=((gt=W.find(t=>t.index===Ee))==null?void 0:gt.hex)||W[15].hex;var St;const po=((St=W.find(t=>t.index===ge))==null?void 0:St.hex)||W[1].hex,ve=new Map(W.map(t=>[t.hex,t])),_o=new Map(W.map(t=>[t.index,t])),ho=W[1],uo=32,mo=125,fo=6,bo=31,yo=15,Eo=["A","B","C"],go=["1","2","3","4","5"],So=["C-","C#","D-","D#","E-","F-","F#","G-","G#","A-","A#","B-"],Ao=32,To={q:{noteNameIndex:0,baseOctave:5},w:{noteNameIndex:1,baseOctave:5},e:{noteNameIndex:2,baseOctave:5},r:{noteNameIndex:3,baseOctave:5},t:{noteNameIndex:4,baseOctave:5},y:{noteNameIndex:5,baseOctave:5},u:{noteNameIndex:6,baseOctave:5},i:{noteNameIndex:7,baseOctave:5},o:{noteNameIndex:8,baseOctave:5},p:{noteNameIndex:9,baseOctave:5},"[":{noteNameIndex:10,baseOctave:5},"]":{noteNameIndex:11,baseOctave:5},a:{noteNameIndex:0,baseOctave:4},s:{noteNameIndex:1,baseOctave:4},d:{noteNameIndex:2,baseOctave:4},f:{noteNameIndex:3,baseOctave:4},g:{noteNameIndex:4,baseOctave:4},h:{noteNameIndex:5,baseOctave:4},j:{noteNameIndex:6,baseOctave:4},k:{noteNameIndex:7,baseOctave:4},l:{noteNameIndex:8,baseOctave:4},ñ:{noteNameIndex:9,baseOctave:4},";":{noteNameIndex:9,baseOctave:4},"'":{noteNameIndex:10,baseOctave:4},z:{noteNameIndex:0,baseOctave:3},x:{noteNameIndex:1,baseOctave:3},c:{noteNameIndex:2,baseOctave:3},v:{noteNameIndex:3,baseOctave:3},b:{noteNameIndex:4,baseOctave:3},n:{noteNameIndex:5,baseOctave:3},m:{noteNameIndex:6,baseOctave:3},",":{noteNameIndex:7,baseOctave:3},".":{noteNameIndex:8,baseOctave:3},2:{noteNameIndex:1,baseOctave:5},3:{noteNameIndex:3,baseOctave:5},5:{noteNameIndex:6,baseOctave:5},6:{noteNameIndex:8,baseOctave:5},7:{noteNameIndex:10,baseOctave:5}},Co={min:-2,max:2},Io=[{id:1,name:"Piano",volumeEnvelope:[15,14,13,11,9,7,5,3,2,1,0],toneEnvelope:[0],volumeLoop:255,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:0},{id:2,name:"Electric Bass",volumeEnvelope:[15,14,13,12,11,10,9,8],toneEnvelope:[0],volumeLoop:3,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:12},{id:3,name:"Lead Vibrato",volumeEnvelope:[0,5,10,15,15,15,14,13,12],toneEnvelope:[0,1,2,1,0,-1,-2,-1],volumeLoop:4,toneLoop:0,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:13},{id:4,name:"Strings Pad",volumeEnvelope:[0,2,4,6,8,10,12,14,15,15,15],toneEnvelope:[0,0,1,1,0,0,-1,-1],volumeLoop:8,toneLoop:0,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:13},{id:5,name:"Kick Drum",volumeEnvelope:[15,13,10,7,4,2,0],toneEnvelope:[12,10,8,6,4,2,0],volumeLoop:255,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:0},{id:6,name:"Snare Drum",volumeEnvelope:[15,12,9,6,3,1,0],toneEnvelope:[0],volumeLoop:255,toneLoop:255,ayToneEnabled:!1,ayNoiseEnabled:!0,ayEnvelopeShape:0},{id:7,name:"Hi-Hat",volumeEnvelope:[12,10,8,6,4,2,0],toneEnvelope:[0],volumeLoop:255,toneLoop:255,ayToneEnabled:!1,ayNoiseEnabled:!0,ayEnvelopeShape:0},{id:8,name:"Arpeggio",volumeEnvelope:[15,15,14,14,13,13,12,12],toneEnvelope:[0,4,7,12,7,4,0],volumeLoop:0,toneLoop:0,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:10},{id:9,name:"Organ",volumeEnvelope:[15,15,15,15,15],toneEnvelope:[0],volumeLoop:0,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:13},{id:10,name:"Bell",volumeEnvelope:[15,14,12,10,8,6,4,3,2,1,0],toneEnvelope:[0,12,0],volumeLoop:255,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:0}],Mt=[{id:"bank_0",name:"Bank 0 - HUD/Fonts",enabled:!0,vramPatternStart:0,vramColorStart:8192,screenZone:{x:0,y:0,width:pe,height:8},charsetRangeStart:0,charsetRangeEnd:255,defaultFgColorIndex:15,defaultBgColorIndex:4,isLocked:!1,assignedTiles:{}},{id:"bank_1",name:"Bank 1 - Game Tileset",enabled:!0,vramPatternStart:2048,vramColorStart:10240,screenZone:{x:0,y:8,width:pe,height:8},charsetRangeStart:0,charsetRangeEnd:255,defaultFgColorIndex:2,defaultBgColorIndex:1,isLocked:!1,assignedTiles:{}},{id:"bank_2",name:"Bank 2 - Background/Status",enabled:!0,vramPatternStart:4096,vramColorStart:12288,screenZone:{x:0,y:16,width:pe,height:8},charsetRangeStart:0,charsetRangeEnd:255,defaultFgColorIndex:11,defaultBgColorIndex:6,isLocked:!1,assignedTiles:{}}],vo={isEnabled:!0,options:[{id:"start",label:"INICIAR PARTIDA",enabled:!0},{id:"continue",label:"CONTINUAR",enabled:!0},{id:"settings",label:"AJUSTES",enabled:!0},{id:"help",label:"AYUDA",enabled:!1}],keyMapping:{up:"ArrowUp",down:"ArrowDown",left:"ArrowLeft",right:"ArrowRight",fire1:" ",fire2:"m"},settings:{volume:12},continueScreen:{title:"CONTINUAR PARTIDA",prompt:"INTRODUCE TU CODIGO"},introScreen:{text:`EN EL ANO 2084, LA CORPORACION CYBERNETICA DOMINA EL MUNDO...
+POWER_MODE:         DB 0       ; Power-up mode active flag`}],co=[],Re=8,Ee=15,ge=1;var St;const po=((St=W.find(t=>t.index===Ee))==null?void 0:St.hex)||W[15].hex;var At;const _o=((At=W.find(t=>t.index===ge))==null?void 0:At.hex)||W[1].hex,ve=new Map(W.map(t=>[t.hex,t])),ho=new Map(W.map(t=>[t.index,t])),uo=W[1],mo=32,fo=125,bo=6,yo=31,Eo=15,go=["A","B","C"],So=["1","2","3","4","5"],Ao=["C-","C#","D-","D#","E-","F-","F#","G-","G#","A-","A#","B-"],To=32,Co={q:{noteNameIndex:0,baseOctave:5},w:{noteNameIndex:1,baseOctave:5},e:{noteNameIndex:2,baseOctave:5},r:{noteNameIndex:3,baseOctave:5},t:{noteNameIndex:4,baseOctave:5},y:{noteNameIndex:5,baseOctave:5},u:{noteNameIndex:6,baseOctave:5},i:{noteNameIndex:7,baseOctave:5},o:{noteNameIndex:8,baseOctave:5},p:{noteNameIndex:9,baseOctave:5},"[":{noteNameIndex:10,baseOctave:5},"]":{noteNameIndex:11,baseOctave:5},a:{noteNameIndex:0,baseOctave:4},s:{noteNameIndex:1,baseOctave:4},d:{noteNameIndex:2,baseOctave:4},f:{noteNameIndex:3,baseOctave:4},g:{noteNameIndex:4,baseOctave:4},h:{noteNameIndex:5,baseOctave:4},j:{noteNameIndex:6,baseOctave:4},k:{noteNameIndex:7,baseOctave:4},l:{noteNameIndex:8,baseOctave:4},ñ:{noteNameIndex:9,baseOctave:4},";":{noteNameIndex:9,baseOctave:4},"'":{noteNameIndex:10,baseOctave:4},z:{noteNameIndex:0,baseOctave:3},x:{noteNameIndex:1,baseOctave:3},c:{noteNameIndex:2,baseOctave:3},v:{noteNameIndex:3,baseOctave:3},b:{noteNameIndex:4,baseOctave:3},n:{noteNameIndex:5,baseOctave:3},m:{noteNameIndex:6,baseOctave:3},",":{noteNameIndex:7,baseOctave:3},".":{noteNameIndex:8,baseOctave:3},2:{noteNameIndex:1,baseOctave:5},3:{noteNameIndex:3,baseOctave:5},5:{noteNameIndex:6,baseOctave:5},6:{noteNameIndex:8,baseOctave:5},7:{noteNameIndex:10,baseOctave:5}},Io={min:-2,max:2},vo=[{id:1,name:"Piano",volumeEnvelope:[15,14,13,11,9,7,5,3,2,1,0],toneEnvelope:[0],volumeLoop:255,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:0},{id:2,name:"Electric Bass",volumeEnvelope:[15,14,13,12,11,10,9,8],toneEnvelope:[0],volumeLoop:3,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:12},{id:3,name:"Lead Vibrato",volumeEnvelope:[0,5,10,15,15,15,14,13,12],toneEnvelope:[0,1,2,1,0,-1,-2,-1],volumeLoop:4,toneLoop:0,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:13},{id:4,name:"Strings Pad",volumeEnvelope:[0,2,4,6,8,10,12,14,15,15,15],toneEnvelope:[0,0,1,1,0,0,-1,-1],volumeLoop:8,toneLoop:0,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:13},{id:5,name:"Kick Drum",volumeEnvelope:[15,13,10,7,4,2,0],toneEnvelope:[12,10,8,6,4,2,0],volumeLoop:255,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:0},{id:6,name:"Snare Drum",volumeEnvelope:[15,12,9,6,3,1,0],toneEnvelope:[0],volumeLoop:255,toneLoop:255,ayToneEnabled:!1,ayNoiseEnabled:!0,ayEnvelopeShape:0},{id:7,name:"Hi-Hat",volumeEnvelope:[12,10,8,6,4,2,0],toneEnvelope:[0],volumeLoop:255,toneLoop:255,ayToneEnabled:!1,ayNoiseEnabled:!0,ayEnvelopeShape:0},{id:8,name:"Arpeggio",volumeEnvelope:[15,15,14,14,13,13,12,12],toneEnvelope:[0,4,7,12,7,4,0],volumeLoop:0,toneLoop:0,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:10},{id:9,name:"Organ",volumeEnvelope:[15,15,15,15,15],toneEnvelope:[0],volumeLoop:0,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:13},{id:10,name:"Bell",volumeEnvelope:[15,14,12,10,8,6,4,3,2,1,0],toneEnvelope:[0,12,0],volumeLoop:255,toneLoop:255,ayToneEnabled:!0,ayNoiseEnabled:!1,ayEnvelopeShape:0}],Pt=[{id:"bank_0",name:"Bank 0 - HUD/Fonts",enabled:!0,vramPatternStart:0,vramColorStart:8192,screenZone:{x:0,y:0,width:pe,height:8},charsetRangeStart:0,charsetRangeEnd:255,defaultFgColorIndex:15,defaultBgColorIndex:4,isLocked:!1,assignedTiles:{}},{id:"bank_1",name:"Bank 1 - Game Tileset",enabled:!0,vramPatternStart:2048,vramColorStart:10240,screenZone:{x:0,y:8,width:pe,height:8},charsetRangeStart:0,charsetRangeEnd:255,defaultFgColorIndex:2,defaultBgColorIndex:1,isLocked:!1,assignedTiles:{}},{id:"bank_2",name:"Bank 2 - Background/Status",enabled:!0,vramPatternStart:4096,vramColorStart:12288,screenZone:{x:0,y:16,width:pe,height:8},charsetRangeStart:0,charsetRangeEnd:255,defaultFgColorIndex:11,defaultBgColorIndex:6,isLocked:!1,assignedTiles:{}}],Do={isEnabled:!0,options:[{id:"start",label:"INICIAR PARTIDA",enabled:!0},{id:"continue",label:"CONTINUAR",enabled:!0},{id:"settings",label:"AJUSTES",enabled:!0},{id:"help",label:"AYUDA",enabled:!1}],keyMapping:{up:"ArrowUp",down:"ArrowDown",left:"ArrowLeft",right:"ArrowRight",fire1:" ",fire2:"m"},settings:{volume:12},continueScreen:{title:"CONTINUAR PARTIDA",prompt:"INTRODUCE TU CODIGO"},introScreen:{text:`EN EL ANO 2084, LA CORPORACION CYBERNETICA DOMINA EL MUNDO...
 
-SOLO UN HEROE PUEDE DETENERLOS.`,backgroundAssetId:null},menuScreenAssetId:null,cursorSpriteAssetId:null,menuColors:{text:W[15].hex,background:W[4].hex,highlightText:W[11].hex,highlightBackground:W[5].hex,border:W[15].hex}},Do=Nt,Lo="HELP_DOCS_SYSTEM_ASSET",Ro=[{id:"getting_started",title:"Getting Started",articles:[{id:"welcome",title:"Welcome to MSX Retro IDE",content:`
+SOLO UN HEROE PUEDE DETENERLOS.`,backgroundAssetId:null},menuScreenAssetId:null,cursorSpriteAssetId:null,menuColors:{text:W[15].hex,background:W[4].hex,highlightText:W[11].hex,highlightBackground:W[5].hex,border:W[15].hex}},Lo=wt,Ro="HELP_DOCS_SYSTEM_ASSET",No=[{id:"getting_started",title:"Getting Started",articles:[{id:"welcome",title:"Welcome to MSX Retro IDE",content:`
           <h2>Welcome!</h2>
           <p>This IDE is designed to help you create games for the MSX (MSX1/MSX2) platform.</p>
           <p>Key features include:</p>
           <ul>
-            <li>Visual Tile Editor</li>
+            <li>Visual Tile Editor with Tile Banks support</li>
             <li>Sprite Editor with animation support</li>
-            <li>Screen Map Editor with Effect Zones</li>
+            <li>Screen Map Editor with Effect Zones and HUD config</li>
             <li>Integrated Z80 Code Editor with snippets</li>
-            <li>PT3 Music Tracker</li>
+            <li>World Map Editor for connecting screens</li>
+            <li>GameFlow and State Machine systems for logic</li>
+            <li>Entity Component System (ECS)</li>
+            <li>PT3 Music Tracker and Sound FX Editors</li>
             <li>Font Editor</li>
-            <li>And more!</li>
           </ul>
           <p>Use the <strong>File Explorer</strong> on the left to manage your assets. Create new assets using the <strong>Toolbar</strong> at the top.</p>
           <p>Select an asset to open its dedicated editor. Properties for the selected asset or element will appear in the <strong>Properties Panel</strong> on the right.</p>
@@ -171,13 +173,11 @@ SOLO UN HEROE PUEDE DETENERLOS.`,backgroundAssetId:null},menuScreenAssetId:null,
           <ul>
             <li><strong>New Project</strong>: Clears current work and sets up a new project structure (main.asm, etc.).</li>
             <li><strong>Load/Save/Save As</strong>: Standard project file operations (saves as .json).</li>
-            <li><strong>New Asset</strong>: Dropdown to create Tiles, Sprites, Screen Maps, Code files, etc.</li>
+            <li><strong>New Asset</strong>: Dropdown to create State Machines, Tiles, Sprites, Fonts, Screen Maps, World Maps, GameFlows, Tile Banks, Sound FX, Music Tracks, and Code files.</li>
             <li><strong>Undo/Redo</strong>: Reverts or reapplies recent changes.</li>
-            <li><strong>Tile Banks/Font Editor</strong>: Opens specialized editors for Screen 2 graphics management and MSX1 font editing.</li>
-            <li><strong>Compile (Mock)</strong>: Placeholder for future compilation integration.</li>
-            <li><strong>Debug/Run (Mock)</strong>: Placeholders for debugging and emulator launching.</li>
-            <li><strong>Configure</strong>: Dropdown for IDE settings (Data Output, Autosave, Theme, etc.).</li>
-            <li><strong>Tutorials</strong>: Opens this Help & Documentation viewer.</li>
+            <li><strong>System Tools</strong>: Access World View, Component Definitions, and Entity Templates.</li>
+            <li><strong>Configure</strong>: Dropdown for IDE settings (Data Output, Autosave, Theme, ASM Compiler, MSX Emulator).</li>
+            <li><strong>Help</strong>: Opens this Help & Documentation viewer.</li>
           </ul>
         `,tags:["toolbar","ide","ui"]}]},{id:"sprite_editor",title:"Sprite Editor",articles:[{id:"sprite_basics",title:"Sprite Editor Basics",content:`
           <h2>Sprite Editor Basics</h2>
@@ -221,7 +221,7 @@ SOLO UN HEROE PUEDE DETENERLOS.`,backgroundAssetId:null},menuScreenAssetId:null,
           <h3>Tools & Panels:</h3>
           <ul>
             <li><strong>Tileset Panel (Left)</strong>: Shows available tiles. Click a tile to select it for drawing on Background/Collision layers. Hidden when 'Effects' layer is active.</li>
-            <li><strong>Entity Types Panel (Right, when Entity layer active)</strong>: Lists mock entity types. Select one to place instances on the map.</li>
+            <li><strong>Entity Types Panel (Right, when Entity layer active)</strong>: Lists your configured Entity Templates. Select one to place instances on the map.</li>
             <li><strong>Properties Panel (Right)</strong>: Shows properties of the selected map, entity instance, or effect zone.</li>
             <li><strong>Active Area</strong>: Defines the playable portion of the screen map. Areas outside can be used for HUD elements. Editable via input fields in the toolbar.</li>
             <li><strong>Toolbar (Screen Editor)</strong>: Contains layer selectors, zoom, active area inputs, HUD editor button, and export options. When 'Effects' layer is active, an "Add Effect Zone" button appears.</li>
@@ -240,7 +240,62 @@ SOLO UN HEROE PUEDE DETENERLOS.`,backgroundAssetId:null},menuScreenAssetId:null,
             <li><strong>Tile Banks</strong> become crucial for managing character codes and colors. Assign your 8x8 tiles to banks. The Screen Editor will use these bank assignments to resolve tile placements into character codes for export.</li>
             <li>The editor's base cell dimension is 8x8.</li>
           </ul>
-        `,tags:["screenmap","level design","tiles","effect zones"]}]},{id:"gameflow",title:"GameFlow System",articles:[{id:"gameflow_intro",title:"Introduction to GameFlow",content:`
+        `,tags:["screenmap","level design","tiles","effect zones"]},{id:"screen_hud",title:"HUD Configuration",content:`
+          <h2>HUD Configuration</h2>
+          <p>The HUD (Heads-Up Display) mode is available from the Screen Editor toolbar. It allows you to place UI elements like Score, Lives, and text on parts of the screen outside the active gameplay area.</p>
+          <h3>Features:</h3>
+          <ul>
+            <li>Add specific HUD elements (Score, HighScore, Lives, Custom Text, etc.).</li>
+            <li>In MSX SCREEN 2, you can import an external screen as a background template for your HUD.</li>
+            <li>Assign TileBanks to specific screen sectors to manage character sets appropriately over 3 sectors.</li>
+          </ul>
+        `,tags:["screenmap","hud","ui"]}]},{id:"ecs_system",title:"Entity Component System (ECS)",articles:[{id:"ecs_intro",title:"Introduction to ECS",content:`
+          <h2>Entity Component System (ECS)</h2>
+          <p>Mideas uses an ECS architecture to manage game objects. This involves two main concepts:</p>
+          <h3>Component Definitions</h3>
+          <p>Found under System Tools. Here you define reusable data structures (e.g., Position, Health, Renderable). A component defines properties like byte, word, boolean, or references to other assets.</p>
+          <h3>Entity Templates</h3>
+          <p>Found under System Tools. An entity template combines multiple components to form a specific type of game object (e.g., Player, Enemy). You assign default values to the components included in the template.</p>
+          <h3>Entity Instances</h3>
+          <p>Once you have created an Entity Template, you can place instances of it onto a Screen Map using the Screen Editor's Entity layer. Each instance can optionally override the default component values.</p>
+        `,tags:["ecs","components","entities","game logic"]}]},{id:"world_and_logic",title:"World & Logic",articles:[{id:"world_map",title:"World Map Editor",content:`
+          <h2>World Map Editor</h2>
+          <p>The World Map editor allows you to visually connect multiple Screen Maps to form your game's world layout.</p>
+          <ul>
+            <li><strong>Nodes</strong>: Each node represents a Screen Map instance.</li>
+            <li><strong>Connections</strong>: Draw lines between nodes to specify how screens connect (North, South, East, West).</li>
+            <li><strong>Start Screen</strong>: Right-click a node to set it as the starting screen of the game.</li>
+          </ul>
+        `,tags:["world map","levels","graph"]},{id:"state_machine",title:"State Machine Editor",content:`
+          <h2>State Machine Editor</h2>
+          <p>State Machines define complex behavior for your game entities without writing code manually.</p>
+          <ul>
+            <li><strong>States</strong>: Represent a behavior phase (e.g., Idle, Walking, Attacking). Each state can execute Z80 logic.</li>
+            <li><strong>Transitions</strong>: Define conditions under which an entity moves from one state to another (e.g., If KeyPressed(Right) -> WalkRight).</li>
+            <li><strong>Actions</strong>: Assign specific actions when entering, exiting, or running a state.</li>
+          </ul>
+        `,tags:["state machine","logic","behavior"]},{id:"global_variables",title:"Global Variables",content:`
+          <h2>Global Variables</h2>
+          <p>Global Variables allow you to define system-wide parameters (like Score, Lives, Goal status) that can be accessed by both GameFlow logic and State Machines.</p>
+          <p>You can create variables of different types (boolean, byte, word) and reference them conditionally to branch your game's logic flow.</p>
+        `,tags:["variables","logic","state"]}]},{id:"music_and_sound",title:"Music & Sound",articles:[{id:"pt3_tracker",title:"PT3 Music Tracker",content:`
+          <h2>PT3 Music Tracker</h2>
+          <p>The PT3 Music Tracker allows you to compose music for the MSX PSG (AY-3-8910) or SCC chips.</p>
+          <ul>
+            <li><strong>Patterns</strong>: Compose repeating blocks of music across 3 channels (PSG) or 5 channels (SCC).</li>
+            <li><strong>Instruments</strong>: Define sound properties such as volume/tone envelopes and hardware shapes.</li>
+            <li><strong>Ornaments</strong>: Define pitch modulations.</li>
+            <li>You can use your PC keyboard as a piano to input notes when the tracker has focus.</li>
+          </ul>
+        `,tags:["music","tracker","audio","pt3"]},{id:"sound_fx",title:"Sound FX Editor",content:`
+          <h2>Sound FX Editor</h2>
+          <p>Create sound effects using a step-based sequence for the PSG chip.</p>
+          <ul>
+            <li>Define sequences of tone and noise periods alongside volume levels.</li>
+            <li>Can utilize hardware envelopes for specific effects.</li>
+            <li>Useful for jumps, explosions, shots, and other gameplay sounds.</li>
+          </ul>
+        `,tags:["sound","sfx","audio"]}]},{id:"gameflow",title:"GameFlow System",articles:[{id:"gameflow_intro",title:"Introduction to GameFlow",content:`
           <h2>GameFlow System</h2>
           <p><strong>GameFlow</strong> is the game flow control system in Mideas MSX. It allows you to create your game's logic using a visual system based on <strong>nodes</strong> and <strong>connections</strong>, without writing ASM code.</p>
 
@@ -593,14 +648,14 @@ SubMenu (Main Menu)
             <li>Ensure unique IDs for each node</li>
             <li>Verify targets exist in node list</li>
           </ul>
-        `,tags:["gameflow","troubleshooting","problems"]}]}],No=50,Pe=[{name:"Goal",asmName:"global_var_goal",constantPrefix:"GOAL_",type:"byte",description:"Current objective status",category:"objective",values:[{label:"Failure",value:0,asmConstant:"GOAL_FAILURE"},{label:"Completed",value:1,asmConstant:"GOAL_COMPLETED"},{label:"Partial",value:2,asmConstant:"GOAL_PARTIAL"}]},{name:"MissionStatus",asmName:"global_var_mission_status",constantPrefix:"MISSION_",type:"byte",description:"Current mission state",category:"objective",values:[{label:"NotStarted",value:0,asmConstant:"MISSION_NOT_STARTED"},{label:"Active",value:1,asmConstant:"MISSION_ACTIVE"},{label:"Completed",value:2,asmConstant:"MISSION_COMPLETED"},{label:"Failed",value:3,asmConstant:"MISSION_FAILED"}]},{name:"LevelCompleted",asmName:"global_var_level_completed",constantPrefix:"BOOL_",type:"byte",description:"Level completion flag",category:"objective",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"BossDefeated",asmName:"global_var_boss_defeated",constantPrefix:"BOOL_",type:"byte",description:"Boss defeated flag",category:"objective",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"AllItemsCollected",asmName:"global_var_all_items_collected",constantPrefix:"BOOL_",type:"byte",description:"All items collected flag",category:"objective",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"Score",asmName:"global_var_score",constantPrefix:"SCORE_",type:"word",description:"Current player score (0-65535)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"HiScore",asmName:"global_var_hi_score",constantPrefix:"HISCORE_",type:"word",description:"High score record (0-65535)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"ComboMultiplier",asmName:"global_var_combo_multiplier",constantPrefix:"COMBO_",type:"byte",description:"Combo multiplier (1x, 2x, 3x...)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"Coins",asmName:"global_var_coins",constantPrefix:"COINS_",type:"byte",description:"Coins collected (0-255)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"Gems",asmName:"global_var_gems",constantPrefix:"GEMS_",type:"byte",description:"Gems collected (0-255)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"Lives",asmName:"global_var_lives",constantPrefix:"LIVES_",type:"byte",description:"Remaining lives (0-255)",category:"player",values:[{label:"Custom Value",value:"number"}]},{name:"Health",asmName:"global_var_health",constantPrefix:"HEALTH_",type:"byte",description:"Current health (0-255)",category:"player",values:[{label:"Custom Value",value:"number"}]},{name:"Energy",asmName:"global_var_energy",constantPrefix:"ENERGY_",type:"byte",description:"Current energy/mana (0-255)",category:"player",values:[{label:"Custom Value",value:"number"}]},{name:"Shield",asmName:"global_var_shield",constantPrefix:"BOOL_",type:"byte",description:"Shield active flag",category:"player",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"HasKey",asmName:"global_var_has_key",constantPrefix:"BOOL_",type:"byte",description:"Has key item",category:"inventory",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"HasSword",asmName:"global_var_has_sword",constantPrefix:"BOOL_",type:"byte",description:"Has sword item",category:"inventory",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"HasMap",asmName:"global_var_has_map",constantPrefix:"BOOL_",type:"byte",description:"Has map item",category:"inventory",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"ItemCount",asmName:"global_var_item_count",constantPrefix:"ITEMS_",type:"byte",description:"Special items collected (0-255)",category:"inventory",values:[{label:"Custom Value",value:"number"}]},{name:"PowerUpActive",asmName:"global_var_powerup_active",constantPrefix:"POWERUP_",type:"byte",description:"Active power-up type",category:"inventory",values:[{label:"None",value:0,asmConstant:"POWERUP_NONE"},{label:"Speed",value:1,asmConstant:"POWERUP_SPEED"},{label:"Jump",value:2,asmConstant:"POWERUP_JUMP"},{label:"Invincible",value:3,asmConstant:"POWERUP_INVINCIBLE"}]},{name:"CurrentWorld",asmName:"global_var_current_world",constantPrefix:"WORLD_",type:"byte",description:"Current world number (1-8)",category:"progress",values:[{label:"Custom Value",value:"number"}]},{name:"CurrentLevel",asmName:"global_var_current_level",constantPrefix:"LEVEL_",type:"byte",description:"Current level number (0-255)",category:"progress",values:[{label:"Custom Value",value:"number"}]},{name:"CheckpointReached",asmName:"global_var_checkpoint",constantPrefix:"CHECKPOINT_",type:"byte",description:"Checkpoint reached (0-255)",category:"progress",values:[{label:"Custom Value",value:"number"}]},{name:"SecretFound",asmName:"global_var_secret_found",constantPrefix:"BOOL_",type:"byte",description:"Secret area found flag",category:"progress",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"DoorsUnlocked",asmName:"global_var_doors_unlocked",constantPrefix:"DOORS_",type:"byte",description:"Doors unlocked bitmask (0-255)",category:"progress",values:[{label:"Custom Value",value:"number"}]},{name:"TimeRemaining",asmName:"global_var_time_remaining",constantPrefix:"TIME_",type:"word",description:"Time remaining in seconds (0-65535)",category:"time",values:[{label:"Custom Value",value:"number"}]},{name:"TimeLimitActive",asmName:"global_var_time_limit_active",constantPrefix:"BOOL_",type:"byte",description:"Time limit active flag",category:"time",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"DayNightCycle",asmName:"global_var_day_night_cycle",constantPrefix:"TIME_",type:"byte",description:"Day/night cycle state (0-23)",category:"time",values:[{label:"Custom Value",value:"number"}]},{name:"DifficultyLevel",asmName:"global_var_difficulty",constantPrefix:"DIFFICULTY_",type:"byte",description:"Game difficulty level",category:"difficulty",values:[{label:"Easy",value:0,asmConstant:"DIFFICULTY_EASY"},{label:"Normal",value:1,asmConstant:"DIFFICULTY_NORMAL"},{label:"Hard",value:2,asmConstant:"DIFFICULTY_HARD"},{label:"Expert",value:3,asmConstant:"DIFFICULTY_EXPERT"}]},{name:"EnemiesDefeated",asmName:"global_var_enemies_defeated",constantPrefix:"ENEMIES_",type:"word",description:"Enemies defeated count (0-65535)",category:"special",values:[{label:"Custom Value",value:"number"}]},{name:"PerfectRun",asmName:"global_var_perfect_run",constantPrefix:"BOOL_",type:"byte",description:"Perfect run (no damage) flag",category:"special",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]}],G=8,Pt=t=>{let e=t.toString(16).toUpperCase();return e.length===1&&(e="0"+e),e},wo=(t,e,a)=>{var h,c;if(!t.lineAttributes)return`;; ERROR: Tile ${e} is missing line attributes required for SCREEN 2 export.
+        `,tags:["gameflow","troubleshooting","problems"]}]}],wo=50,Pe=[{name:"Goal",asmName:"global_var_goal",constantPrefix:"GOAL_",type:"byte",description:"Current objective status",category:"objective",values:[{label:"Failure",value:0,asmConstant:"GOAL_FAILURE"},{label:"Completed",value:1,asmConstant:"GOAL_COMPLETED"},{label:"Partial",value:2,asmConstant:"GOAL_PARTIAL"}]},{name:"MissionStatus",asmName:"global_var_mission_status",constantPrefix:"MISSION_",type:"byte",description:"Current mission state",category:"objective",values:[{label:"NotStarted",value:0,asmConstant:"MISSION_NOT_STARTED"},{label:"Active",value:1,asmConstant:"MISSION_ACTIVE"},{label:"Completed",value:2,asmConstant:"MISSION_COMPLETED"},{label:"Failed",value:3,asmConstant:"MISSION_FAILED"}]},{name:"LevelCompleted",asmName:"global_var_level_completed",constantPrefix:"BOOL_",type:"byte",description:"Level completion flag",category:"objective",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"BossDefeated",asmName:"global_var_boss_defeated",constantPrefix:"BOOL_",type:"byte",description:"Boss defeated flag",category:"objective",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"AllItemsCollected",asmName:"global_var_all_items_collected",constantPrefix:"BOOL_",type:"byte",description:"All items collected flag",category:"objective",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"Score",asmName:"global_var_score",constantPrefix:"SCORE_",type:"word",description:"Current player score (0-65535)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"HiScore",asmName:"global_var_hi_score",constantPrefix:"HISCORE_",type:"word",description:"High score record (0-65535)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"ComboMultiplier",asmName:"global_var_combo_multiplier",constantPrefix:"COMBO_",type:"byte",description:"Combo multiplier (1x, 2x, 3x...)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"Coins",asmName:"global_var_coins",constantPrefix:"COINS_",type:"byte",description:"Coins collected (0-255)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"Gems",asmName:"global_var_gems",constantPrefix:"GEMS_",type:"byte",description:"Gems collected (0-255)",category:"score",values:[{label:"Custom Value",value:"number"}]},{name:"Lives",asmName:"global_var_lives",constantPrefix:"LIVES_",type:"byte",description:"Remaining lives (0-255)",category:"player",values:[{label:"Custom Value",value:"number"}]},{name:"Health",asmName:"global_var_health",constantPrefix:"HEALTH_",type:"byte",description:"Current health (0-255)",category:"player",values:[{label:"Custom Value",value:"number"}]},{name:"Energy",asmName:"global_var_energy",constantPrefix:"ENERGY_",type:"byte",description:"Current energy/mana (0-255)",category:"player",values:[{label:"Custom Value",value:"number"}]},{name:"Shield",asmName:"global_var_shield",constantPrefix:"BOOL_",type:"byte",description:"Shield active flag",category:"player",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"HasKey",asmName:"global_var_has_key",constantPrefix:"BOOL_",type:"byte",description:"Has key item",category:"inventory",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"HasSword",asmName:"global_var_has_sword",constantPrefix:"BOOL_",type:"byte",description:"Has sword item",category:"inventory",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"HasMap",asmName:"global_var_has_map",constantPrefix:"BOOL_",type:"byte",description:"Has map item",category:"inventory",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"ItemCount",asmName:"global_var_item_count",constantPrefix:"ITEMS_",type:"byte",description:"Special items collected (0-255)",category:"inventory",values:[{label:"Custom Value",value:"number"}]},{name:"PowerUpActive",asmName:"global_var_powerup_active",constantPrefix:"POWERUP_",type:"byte",description:"Active power-up type",category:"inventory",values:[{label:"None",value:0,asmConstant:"POWERUP_NONE"},{label:"Speed",value:1,asmConstant:"POWERUP_SPEED"},{label:"Jump",value:2,asmConstant:"POWERUP_JUMP"},{label:"Invincible",value:3,asmConstant:"POWERUP_INVINCIBLE"}]},{name:"CurrentWorld",asmName:"global_var_current_world",constantPrefix:"WORLD_",type:"byte",description:"Current world number (1-8)",category:"progress",values:[{label:"Custom Value",value:"number"}]},{name:"CurrentLevel",asmName:"global_var_current_level",constantPrefix:"LEVEL_",type:"byte",description:"Current level number (0-255)",category:"progress",values:[{label:"Custom Value",value:"number"}]},{name:"CheckpointReached",asmName:"global_var_checkpoint",constantPrefix:"CHECKPOINT_",type:"byte",description:"Checkpoint reached (0-255)",category:"progress",values:[{label:"Custom Value",value:"number"}]},{name:"SecretFound",asmName:"global_var_secret_found",constantPrefix:"BOOL_",type:"byte",description:"Secret area found flag",category:"progress",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"DoorsUnlocked",asmName:"global_var_doors_unlocked",constantPrefix:"DOORS_",type:"byte",description:"Doors unlocked bitmask (0-255)",category:"progress",values:[{label:"Custom Value",value:"number"}]},{name:"TimeRemaining",asmName:"global_var_time_remaining",constantPrefix:"TIME_",type:"word",description:"Time remaining in seconds (0-65535)",category:"time",values:[{label:"Custom Value",value:"number"}]},{name:"TimeLimitActive",asmName:"global_var_time_limit_active",constantPrefix:"BOOL_",type:"byte",description:"Time limit active flag",category:"time",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]},{name:"DayNightCycle",asmName:"global_var_day_night_cycle",constantPrefix:"TIME_",type:"byte",description:"Day/night cycle state (0-23)",category:"time",values:[{label:"Custom Value",value:"number"}]},{name:"DifficultyLevel",asmName:"global_var_difficulty",constantPrefix:"DIFFICULTY_",type:"byte",description:"Game difficulty level",category:"difficulty",values:[{label:"Easy",value:0,asmConstant:"DIFFICULTY_EASY"},{label:"Normal",value:1,asmConstant:"DIFFICULTY_NORMAL"},{label:"Hard",value:2,asmConstant:"DIFFICULTY_HARD"},{label:"Expert",value:3,asmConstant:"DIFFICULTY_EXPERT"}]},{name:"EnemiesDefeated",asmName:"global_var_enemies_defeated",constantPrefix:"ENEMIES_",type:"word",description:"Enemies defeated count (0-65535)",category:"special",values:[{label:"Custom Value",value:"number"}]},{name:"PerfectRun",asmName:"global_var_perfect_run",constantPrefix:"BOOL_",type:"byte",description:"Perfect run (no damage) flag",category:"special",values:[{label:"False",value:0,asmConstant:"BOOL_FALSE"},{label:"True",value:1,asmConstant:"BOOL_TRUE"}]}],G=8,kt=t=>{let e=t.toString(16).toUpperCase();return e.length===1&&(e="0"+e),e},xo=(t,e,a)=>{var h,c;if(!t.lineAttributes)return`;; ERROR: Tile ${e} is missing line attributes required for SCREEN 2 export.
 `;const l=e.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();let i=`;; Tile: ${e} (${t.width}x${t.height})
 `;i+=`;; Structure: ${t.width/G}x${t.height/G} character blocks (8x8 pixels each)
 `,i+=`;; Data format: ${a.toUpperCase()}
 
-`;const o=t.width/G,r=t.height/G,n=_=>a==="hex"?`$${Pt(_)}`:_.toString(10),p=[],s=[];for(let _=0;_<r;_++)for(let E=0;E<o;E++){const A=`;; Character Block (${E}, ${_}) for ${l}`,u=[];for(let b=0;b<G;b++){const g=_*G+b;let d=0;if(t.lineAttributes[g]&&t.lineAttributes[g][E]){const m=t.lineAttributes[g][E].fg;for(let T=0;T<G;T++){const v=E*G+T;t.data[g]&&t.data[g][v]!==void 0&&t.data[g][v]===m&&(d|=1<<7-T)}}u.push(d)}const S=u.map(n).join(",");p.push({comment:`${A} - PATTERN Data (8 bytes):`,dataString:`DB ${S}`});const f=[];for(let b=0;b<G;b++){const g=_*G+b;let d=Ee<<4|ge;if(t.lineAttributes[g]&&t.lineAttributes[g][E]){const m=t.lineAttributes[g][E],T=((h=ve.get(m.fg))==null?void 0:h.index)??Ee,v=((c=ve.get(m.bg))==null?void 0:c.index)??ge;d=T<<4|v}f.push(d)}const y=f.map(n).join(",");s.push({comment:`${A} - COLOR Attribute Data (8 bytes - FG|BG):`,dataString:`DB ${y}`})}return i+=`;; --- PATTERN DATA ---
-`,p.length>0?(i+=`${l}_PATTERN_DATA:
-`,p.forEach(_=>{i+=`${_.comment}
+`;const n=t.width/G,r=t.height/G,o=_=>a==="hex"?`$${kt(_)}`:_.toString(10),d=[],s=[];for(let _=0;_<r;_++)for(let E=0;E<n;E++){const A=`;; Character Block (${E}, ${_}) for ${l}`,u=[];for(let b=0;b<G;b++){const g=_*G+b;let p=0;if(t.lineAttributes[g]&&t.lineAttributes[g][E]){const m=t.lineAttributes[g][E].fg;for(let T=0;T<G;T++){const v=E*G+T;t.data[g]&&t.data[g][v]!==void 0&&t.data[g][v]===m&&(p|=1<<7-T)}}u.push(p)}const S=u.map(o).join(",");d.push({comment:`${A} - PATTERN Data (8 bytes):`,dataString:`DB ${S}`});const f=[];for(let b=0;b<G;b++){const g=_*G+b;let p=Ee<<4|ge;if(t.lineAttributes[g]&&t.lineAttributes[g][E]){const m=t.lineAttributes[g][E],T=((h=ve.get(m.fg))==null?void 0:h.index)??Ee,v=((c=ve.get(m.bg))==null?void 0:c.index)??ge;p=T<<4|v}f.push(p)}const y=f.map(o).join(",");s.push({comment:`${A} - COLOR Attribute Data (8 bytes - FG|BG):`,dataString:`DB ${y}`})}return i+=`;; --- PATTERN DATA ---
+`,d.length>0?(i+=`${l}_PATTERN_DATA:
+`,d.forEach(_=>{i+=`${_.comment}
 `,i+=`    ${_.dataString}
 `})):i+=`;; No pattern data generated.
 `,i+=`
@@ -611,51 +666,51 @@ SubMenu (Main Menu)
 `})):i+=`;; No color attribute data generated.
 `,i+=`
 ;; End of Tile Data for ${l}
-`,i},xo=(t,e,a,l)=>{const i=Math.max(1,t/Re);return Array(e).fill(null).map(()=>Array(i).fill(null).map(()=>({fg:a,bg:l})))},kt=(t,e)=>{var r,n,p,s;const a=[],l=t.width/G,i=t.height/G,o=e==="SCREEN 2 (Graphics I)";for(let h=0;h<i;h++)for(let c=0;c<l;c++)for(let _=0;_<G;_++){const E=h*G+_;let A=0,u;o&&t.lineAttributes&&t.lineAttributes[E]&&t.lineAttributes[E][c]&&(u=t.lineAttributes[E][c].fg);for(let S=0;S<G;S++){const f=c*G+S,y=(r=t.data[E])==null?void 0:r[f];if(y!==void 0){let b=!1;o&&u?b=y===u:o||(b=y!==ye[0].hex&&y!==((s=(p=(n=t.lineAttributes)==null?void 0:n[0])==null?void 0:p[0])==null?void 0:s.bg)),b&&(A|=1<<7-S)}}a.push(A)}return new Uint8Array(a)},fe=(t,e)=>{var o,r;const a=t.length;if(a===0)return[];const l=((o=t[0])==null?void 0:o.length)||0;if(l===0)return[[]];const i=t.map(n=>[...n]);for(let n=0;n<a;n++)for(let p=0;p<l;p++){const s=Math.floor(p/Re),h=(r=e[n])==null?void 0:r[s],c=i[n][p];h&&c!==h.fg&&c!==h.bg&&(i[n][p]=h.fg)}return i},Oo=(t,e,a)=>{if(t.length<2)return t;const i=t.slice(1);return i.push([...t[0]]),a==="SCREEN 2 (Graphics I)"&&e?fe(i,e):i},Mo=(t,e,a)=>{const l=t.length;if(l<2)return t;const i=t.slice(0,l-1);return i.unshift([...t[l-1]]),a==="SCREEN 2 (Graphics I)"&&e?fe(i,e):i},Po=(t,e,a)=>{if(t.length===0)return[];const l=t.map(i=>{if(i.length<2)return[...i];const o=i.slice(1);return o.push(i[0]),o});return a==="SCREEN 2 (Graphics I)"&&e?fe(l,e):l},ko=(t,e,a)=>{if(t.length===0)return[];const l=t.map(i=>{const o=i.length;if(o<2)return[...i];const r=i.slice(0,o-1);return r.unshift(i[o-1]),r});return a==="SCREEN 2 (Graphics I)"&&e?fe(l,e):l},Uo=(t,e,a)=>{if(t.length===0)return[];const l=t.map(i=>[...i].reverse());return a==="SCREEN 2 (Graphics I)"&&e?fe(l,e):l},Fo=(t,e,a)=>{if(t.length===0)return[];const l=[...t].reverse();return a==="SCREEN 2 (Graphics I)"&&e?fe(l,e):l},Ut=t=>{var i,o,r;if(!t.lineAttributes)return null;const e=[],a=t.width/G,l=t.height/G;for(let n=0;n<l;n++)for(let p=0;p<a;p++)for(let s=0;s<G;s++){const h=n*G+s;let c=Ee<<4|ge;const _=(i=t.lineAttributes[h])==null?void 0:i[p];if(_){const E=((o=ve.get(_.fg))==null?void 0:o.index)??Ee,A=((r=ve.get(_.bg))==null?void 0:r.index)??ge;c=E<<4|A}e.push(c)}return new Uint8Array(e)},Bo=t=>{const e=[];t.frames.forEach(l=>{var i,o,r,n,p;for(let s=0;s<t.spritePalette.length;s++){const h=t.spritePalette[s];if(h===t.backgroundColor)continue;let c=!1;const _=[],E=t.size.width,A=t.size.height;if(E===16&&A===16){for(let u=0;u<8;u++){let S=0;for(let f=0;f<8;f++)((i=l.data[u])==null?void 0:i[f])===h&&(S|=1<<7-f,c=!0);_.push(S)}for(let u=8;u<16;u++){let S=0;for(let f=0;f<8;f++)((o=l.data[u])==null?void 0:o[f])===h&&(S|=1<<7-f,c=!0);_.push(S)}for(let u=0;u<8;u++){let S=0;for(let f=0;f<8;f++)((r=l.data[u])==null?void 0:r[8+f])===h&&(S|=1<<7-f,c=!0);_.push(S)}for(let u=8;u<16;u++){let S=0;for(let f=0;f<8;f++)((n=l.data[u])==null?void 0:n[8+f])===h&&(S|=1<<7-f,c=!0);_.push(S)}}else for(let u=0;u<A;u++)for(let S=0;S<Math.ceil(E/8);S++){let f=0;for(let y=0;y<8;y++){const b=S*8+y;b<E&&((p=l.data[u])==null?void 0:p[b])===h&&(f|=1<<7-y,c=!0)}_.push(f)}c&&e.push(_)}});const a=e.flat();return new Uint8Array(a)},nt=t=>t.map(e=>[...e].reverse()),it=t=>[...t].reverse(),Ft=/_(left|right|up|down)$/i,At=t=>{if(!t)return;const e=t.trim().toLowerCase();if(e==="left"||e==="right"||e==="up"||e==="down")return e},Bt=t=>{const e=t.match(Ft);return e?{baseName:t.slice(0,-e[0].length),suffixDirection:At(e[1])}:{baseName:t}},$t=(t,e,a,l)=>({...t,id:`${t.id}__auto_${a}`,name:e,facingDirection:a,frames:t.frames.map((i,o)=>({...i,id:`${i.id||`f${o}`}_${a}_auto`,data:l(i.data)}))}),ke=(t,e,a,l)=>{if(!e)return;(e===e.toLowerCase()?[e]:[e,e.toLowerCase()]).forEach(o=>{const r=t[o];if(r===void 0){t[o]=a;return}r!==a&&l.push(`Name alias collision for "${o}" between indexes ${r} and ${a}. Keeping first mapping.`)})},je=t=>{const e=[],a=new Set,l=[],i=new Map,o=(c,_,E)=>{if(!a.has(c))return c;if(!a.has(_))return e.push(`Name "${c}" already exists. Using fallback "${_}" for ${E}.`),_;let A=1,u=`${c}_${A}`;for(;a.has(u);)A+=1,u=`${c}_${A}`;return e.push(`Name "${c}" already exists. Using "${u}" for ${E}.`),u};t.forEach((c,_)=>{const E=c.name||`sprite_${_}`,{baseName:A,suffixDirection:u}=Bt(E),S=At(c.facingDirection);S&&u&&S!==u&&e.push(`Sprite "${E}" has suffix "${u}" but facing "${S}". Using facing direction.`);const f=S||u,y=u?A:E,b=f?`${y}_${f}`:E,g=o(b,E,`sprite "${E}"`),d=new Set;E!==g&&d.add(E);const T={sprite:{...c,name:g,facingDirection:f||c.facingDirection},baseName:y,direction:f,aliases:d};if(l.push(T),a.add(g),f){const v=i.get(y)||{};v[f]===void 0?(v[f]=l.length-1,i.set(y,v)):e.push(`Duplicate directional sprite for "${y}_${f}". Keeping first occurrence.`)}}),i.forEach((c,_)=>{const E=(A,u,S,f)=>{if(u===void 0||c[A]!==void 0)return;const y=`${_}_${A}`;if(a.has(y)){e.push(`Cannot auto-generate "${y}" because the name already exists.`);return}const b=l[u],d={sprite:$t(b.sprite,y,A,S),baseName:_,direction:A,aliases:new Set};l.push(d),c[A]=l.length-1,a.add(y),e.push(`Auto-generated "${y}" from "${b.sprite.name}" using ${f}.`)};c.right!==void 0&&c.left===void 0?E("left",c.right,nt,"horizontal mirror"):c.left!==void 0&&c.right===void 0&&E("right",c.left,nt,"horizontal mirror"),c.up!==void 0&&c.down===void 0?E("down",c.up,it,"vertical mirror"):c.down!==void 0&&c.up===void 0&&E("up",c.down,it,"vertical mirror")});const r={};l.forEach((c,_)=>{ke(r,c.sprite.name,_,e),ke(r,c.sprite.id,_,e)}),l.forEach((c,_)=>{c.aliases.forEach(E=>ke(r,E,_,e))});const n=l.map((c,_)=>_),p=l.map((c,_)=>_),s=l.map((c,_)=>_),h=l.map((c,_)=>_);return l.forEach((c,_)=>{const E=i.get(c.baseName);E&&(E.left!==void 0&&(n[_]=E.left),E.right!==void 0&&(p[_]=E.right),E.up!==void 0&&(s[_]=E.up),E.down!==void 0&&(h[_]=E.down))}),{sprites:l.map(c=>c.sprite),nameToIndex:r,directionalLookupTables:{left:n,right:p,up:s,down:h},warnings:e}},Ht=t=>{let e=t.toString(16).toUpperCase();return e.length===1&&(e="0"+e),e},jt=(t,e,a,l,i,o,r="hex")=>{var c,_,E,A,u;const p=t.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();let s=`;; ---- Sprite Frame: ${t} ----
-`;s+=`;; Size: ${i}x${o}
-`;let h=0;for(let S=0;S<a.length;S++){const f=a[S];if(f===l)continue;const y=[];if(i===16&&o===16){for(let b=0;b<8;b++){let g=0;for(let d=0;d<8;d++){const m=d;((c=e[b])==null?void 0:c[m])===f&&(g|=1<<7-d)}y.push(g)}for(let b=8;b<16;b++){let g=0;for(let d=0;d<8;d++){const m=d;((_=e[b])==null?void 0:_[m])===f&&(g|=1<<7-d)}y.push(g)}for(let b=0;b<8;b++){let g=0;for(let d=0;d<8;d++){const m=8+d;((E=e[b])==null?void 0:E[m])===f&&(g|=1<<7-d)}y.push(g)}for(let b=8;b<16;b++){let g=0;for(let d=0;d<8;d++){const m=8+d;((A=e[b])==null?void 0:A[m])===f&&(g|=1<<7-d)}y.push(g)}}else for(let b=0;b<o;b++)for(let g=0;g<Math.ceil(i/8);g++){let d=0;for(let m=0;m<8;m++){const T=g*8+m;T<i&&((u=e[b])==null?void 0:u[T])===f&&(d|=1<<7-m)}y.push(d)}h+=1,s+=`${p}_LAYER${S}: ; Brush Color Index ${S} (Actual Color: ${f})
+`,i},Oo=(t,e,a,l)=>{const i=Math.max(1,t/Re);return Array(e).fill(null).map(()=>Array(i).fill(null).map(()=>({fg:a,bg:l})))},Ut=(t,e)=>{var r,o,d,s;const a=[],l=t.width/G,i=t.height/G,n=e==="SCREEN 2 (Graphics I)";for(let h=0;h<i;h++)for(let c=0;c<l;c++)for(let _=0;_<G;_++){const E=h*G+_;let A=0,u;n&&t.lineAttributes&&t.lineAttributes[E]&&t.lineAttributes[E][c]&&(u=t.lineAttributes[E][c].fg);for(let S=0;S<G;S++){const f=c*G+S,y=(r=t.data[E])==null?void 0:r[f];if(y!==void 0){let b=!1;n&&u?b=y===u:n||(b=y!==ye[0].hex&&y!==((s=(d=(o=t.lineAttributes)==null?void 0:o[0])==null?void 0:d[0])==null?void 0:s.bg)),b&&(A|=1<<7-S)}}a.push(A)}return new Uint8Array(a)},fe=(t,e)=>{var n,r;const a=t.length;if(a===0)return[];const l=((n=t[0])==null?void 0:n.length)||0;if(l===0)return[[]];const i=t.map(o=>[...o]);for(let o=0;o<a;o++)for(let d=0;d<l;d++){const s=Math.floor(d/Re),h=(r=e[o])==null?void 0:r[s],c=i[o][d];h&&c!==h.fg&&c!==h.bg&&(i[o][d]=h.fg)}return i},Mo=(t,e,a)=>{if(t.length<2)return t;const i=t.slice(1);return i.push([...t[0]]),a==="SCREEN 2 (Graphics I)"&&e?fe(i,e):i},Po=(t,e,a)=>{const l=t.length;if(l<2)return t;const i=t.slice(0,l-1);return i.unshift([...t[l-1]]),a==="SCREEN 2 (Graphics I)"&&e?fe(i,e):i},ko=(t,e,a)=>{if(t.length===0)return[];const l=t.map(i=>{if(i.length<2)return[...i];const n=i.slice(1);return n.push(i[0]),n});return a==="SCREEN 2 (Graphics I)"&&e?fe(l,e):l},Uo=(t,e,a)=>{if(t.length===0)return[];const l=t.map(i=>{const n=i.length;if(n<2)return[...i];const r=i.slice(0,n-1);return r.unshift(i[n-1]),r});return a==="SCREEN 2 (Graphics I)"&&e?fe(l,e):l},Fo=(t,e,a)=>{if(t.length===0)return[];const l=t.map(i=>[...i].reverse());return a==="SCREEN 2 (Graphics I)"&&e?fe(l,e):l},Bo=(t,e,a)=>{if(t.length===0)return[];const l=[...t].reverse();return a==="SCREEN 2 (Graphics I)"&&e?fe(l,e):l},Ft=t=>{var i,n,r;if(!t.lineAttributes)return null;const e=[],a=t.width/G,l=t.height/G;for(let o=0;o<l;o++)for(let d=0;d<a;d++)for(let s=0;s<G;s++){const h=o*G+s;let c=Ee<<4|ge;const _=(i=t.lineAttributes[h])==null?void 0:i[d];if(_){const E=((n=ve.get(_.fg))==null?void 0:n.index)??Ee,A=((r=ve.get(_.bg))==null?void 0:r.index)??ge;c=E<<4|A}e.push(c)}return new Uint8Array(e)},$o=t=>{const e=[];t.frames.forEach(l=>{var i,n,r,o,d;for(let s=0;s<t.spritePalette.length;s++){const h=t.spritePalette[s];if(h===t.backgroundColor)continue;let c=!1;const _=[],E=t.size.width,A=t.size.height;if(E===16&&A===16){for(let u=0;u<8;u++){let S=0;for(let f=0;f<8;f++)((i=l.data[u])==null?void 0:i[f])===h&&(S|=1<<7-f,c=!0);_.push(S)}for(let u=8;u<16;u++){let S=0;for(let f=0;f<8;f++)((n=l.data[u])==null?void 0:n[f])===h&&(S|=1<<7-f,c=!0);_.push(S)}for(let u=0;u<8;u++){let S=0;for(let f=0;f<8;f++)((r=l.data[u])==null?void 0:r[8+f])===h&&(S|=1<<7-f,c=!0);_.push(S)}for(let u=8;u<16;u++){let S=0;for(let f=0;f<8;f++)((o=l.data[u])==null?void 0:o[8+f])===h&&(S|=1<<7-f,c=!0);_.push(S)}}else for(let u=0;u<A;u++)for(let S=0;S<Math.ceil(E/8);S++){let f=0;for(let y=0;y<8;y++){const b=S*8+y;b<E&&((d=l.data[u])==null?void 0:d[b])===h&&(f|=1<<7-y,c=!0)}_.push(f)}c&&e.push(_)}});const a=e.flat();return new Uint8Array(a)},nt=t=>t.map(e=>[...e].reverse()),it=t=>[...t].reverse(),Bt=/_(left|right|up|down)$/i,Tt=t=>{if(!t)return;const e=t.trim().toLowerCase();if(e==="left"||e==="right"||e==="up"||e==="down")return e},$t=t=>{const e=t.match(Bt);return e?{baseName:t.slice(0,-e[0].length),suffixDirection:Tt(e[1])}:{baseName:t}},Ht=(t,e,a,l)=>({...t,id:`${t.id}__auto_${a}`,name:e,facingDirection:a,frames:t.frames.map((i,n)=>({...i,id:`${i.id||`f${n}`}_${a}_auto`,data:l(i.data)}))}),ke=(t,e,a,l)=>{if(!e)return;(e===e.toLowerCase()?[e]:[e,e.toLowerCase()]).forEach(n=>{const r=t[n];if(r===void 0){t[n]=a;return}r!==a&&l.push(`Name alias collision for "${n}" between indexes ${r} and ${a}. Keeping first mapping.`)})},je=t=>{const e=[],a=new Set,l=[],i=new Map,n=(c,_,E)=>{if(!a.has(c))return c;if(!a.has(_))return e.push(`Name "${c}" already exists. Using fallback "${_}" for ${E}.`),_;let A=1,u=`${c}_${A}`;for(;a.has(u);)A+=1,u=`${c}_${A}`;return e.push(`Name "${c}" already exists. Using "${u}" for ${E}.`),u};t.forEach((c,_)=>{const E=c.name||`sprite_${_}`,{baseName:A,suffixDirection:u}=$t(E),S=Tt(c.facingDirection);S&&u&&S!==u&&e.push(`Sprite "${E}" has suffix "${u}" but facing "${S}". Using facing direction.`);const f=S||u,y=u?A:E,b=f?`${y}_${f}`:E,g=n(b,E,`sprite "${E}"`),p=new Set;E!==g&&p.add(E);const T={sprite:{...c,name:g,facingDirection:f||c.facingDirection},baseName:y,direction:f,aliases:p};if(l.push(T),a.add(g),f){const v=i.get(y)||{};v[f]===void 0?(v[f]=l.length-1,i.set(y,v)):e.push(`Duplicate directional sprite for "${y}_${f}". Keeping first occurrence.`)}}),i.forEach((c,_)=>{const E=(A,u,S,f)=>{if(u===void 0||c[A]!==void 0)return;const y=`${_}_${A}`;if(a.has(y)){e.push(`Cannot auto-generate "${y}" because the name already exists.`);return}const b=l[u],p={sprite:Ht(b.sprite,y,A,S),baseName:_,direction:A,aliases:new Set};l.push(p),c[A]=l.length-1,a.add(y),e.push(`Auto-generated "${y}" from "${b.sprite.name}" using ${f}.`)};c.right!==void 0&&c.left===void 0?E("left",c.right,nt,"horizontal mirror"):c.left!==void 0&&c.right===void 0&&E("right",c.left,nt,"horizontal mirror"),c.up!==void 0&&c.down===void 0?E("down",c.up,it,"vertical mirror"):c.down!==void 0&&c.up===void 0&&E("up",c.down,it,"vertical mirror")});const r={};l.forEach((c,_)=>{ke(r,c.sprite.name,_,e),ke(r,c.sprite.id,_,e)}),l.forEach((c,_)=>{c.aliases.forEach(E=>ke(r,E,_,e))});const o=l.map((c,_)=>_),d=l.map((c,_)=>_),s=l.map((c,_)=>_),h=l.map((c,_)=>_);return l.forEach((c,_)=>{const E=i.get(c.baseName);E&&(E.left!==void 0&&(o[_]=E.left),E.right!==void 0&&(d[_]=E.right),E.up!==void 0&&(s[_]=E.up),E.down!==void 0&&(h[_]=E.down))}),{sprites:l.map(c=>c.sprite),nameToIndex:r,directionalLookupTables:{left:o,right:d,up:s,down:h},warnings:e}},jt=t=>{let e=t.toString(16).toUpperCase();return e.length===1&&(e="0"+e),e},Vt=(t,e,a,l,i,n,r="hex")=>{var c,_,E,A,u;const d=t.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();let s=`;; ---- Sprite Frame: ${t} ----
+`;s+=`;; Size: ${i}x${n}
+`;let h=0;for(let S=0;S<a.length;S++){const f=a[S];if(f===l)continue;const y=[];if(i===16&&n===16){for(let b=0;b<8;b++){let g=0;for(let p=0;p<8;p++){const m=p;((c=e[b])==null?void 0:c[m])===f&&(g|=1<<7-p)}y.push(g)}for(let b=8;b<16;b++){let g=0;for(let p=0;p<8;p++){const m=p;((_=e[b])==null?void 0:_[m])===f&&(g|=1<<7-p)}y.push(g)}for(let b=0;b<8;b++){let g=0;for(let p=0;p<8;p++){const m=8+p;((E=e[b])==null?void 0:E[m])===f&&(g|=1<<7-p)}y.push(g)}for(let b=8;b<16;b++){let g=0;for(let p=0;p<8;p++){const m=8+p;((A=e[b])==null?void 0:A[m])===f&&(g|=1<<7-p)}y.push(g)}}else for(let b=0;b<n;b++)for(let g=0;g<Math.ceil(i/8);g++){let p=0;for(let m=0;m<8;m++){const T=g*8+m;T<i&&((u=e[b])==null?void 0:u[T])===f&&(p|=1<<7-m)}y.push(p)}h+=1,s+=`${d}_LAYER${S}: ; Brush Color Index ${S} (Actual Color: ${f})
 `,i%8!==0&&(s+=`;; WARNING: Sprite width ${i} is not a multiple of 8. Bitmask generation might be problematic for standard VDP.
-`);for(let b=0;b<y.length;b+=16){const d=y.slice(b,b+16).map(m=>r==="hex"?`#${Ht(m)}`:m.toString());s+=`    DB ${d.join(",")}
+`);for(let b=0;b<y.length;b+=16){const p=y.slice(b,b+16).map(m=>r==="hex"?`#${jt(m)}`:m.toString());s+=`    DB ${p.join(",")}
 `}s+=`
 `}return h===0&&(s+=`;; NO DRAWABLE LAYERS EXPORTED for ${t} - Palette may match background color.
 `),s+=`;; ---- End of Frame: ${t} ----
 
-`,s},Vt=(t,e="hex",a)=>{let l=`;; Sprite: ${t.name}
+`,s},zt=(t,e="hex",a)=>{let l=`;; Sprite: ${t.name}
 `;l+=`;; Total Frames: ${t.frames.length}
 `,l+=`;; Size: ${t.size.width}x${t.size.height}
 `,l+=`;; Background Color (not exported as a layer): ${t.backgroundColor}
 `,l+=`;; Drawable Palette (Hex): C0=${t.spritePalette[0]}, C1=${t.spritePalette[1]}, C2=${t.spritePalette[2]}, C3=${t.spritePalette[3]}
 
-`;const i=a!==void 0?`_${a}`:"",o=t.name+i,r=o.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();return l+=`SPRITE_${r}_WIDTH     EQU ${t.size.width}
+`;const i=a!==void 0?`_${a}`:"",n=t.name+i,r=n.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();return l+=`SPRITE_${r}_WIDTH     EQU ${t.size.width}
 `,l+=`SPRITE_${r}_HEIGHT    EQU ${t.size.height}
 `,l+=`SPRITE_${r}_FRAMES    EQU ${t.frames.length}
 
-`,t.frames.forEach((n,p)=>{l+=jt(`${o}_F${p}`,n.data,t.spritePalette,t.backgroundColor,t.size.width,t.size.height,e)}),l},Ue=16,Tt="SCREEN 2 (Graphics I)",zt="SCREEN 5 (Graphics III)",ce=8,Gt={pixelWidth:pe*Ue,pixelHeight:Ie*Ue,widthTiles:pe,heightTiles:Ie,baseTileSize:Ue},rt={[Tt]:{pixelWidth:pe*ue,pixelHeight:Ie*ue,widthTiles:pe,heightTiles:Ie,baseTileSize:ue},[zt]:{pixelWidth:256,pixelHeight:212,widthTiles:32,heightTiles:27,baseTileSize:ue},"SCREEN 0 (Text 40)":{pixelWidth:240,pixelHeight:192,widthTiles:40,heightTiles:24,baseTileSize:ce},"SCREEN 1 (Text 32)":{pixelWidth:256,pixelHeight:192,widthTiles:32,heightTiles:24,baseTileSize:ce},"SCREEN 3 (Multicolor)":{pixelWidth:256,pixelHeight:192,widthTiles:32,heightTiles:24,baseTileSize:ce},"SCREEN 4 (Graphics II)":{pixelWidth:256,pixelHeight:192,widthTiles:32,heightTiles:24,baseTileSize:ce},"SCREEN 6 (Graphics IV)":{pixelWidth:512,pixelHeight:212,widthTiles:64,heightTiles:27,baseTileSize:ce},"SCREEN 7 (Graphics V)":{pixelWidth:512,pixelHeight:212,widthTiles:64,heightTiles:27,baseTileSize:ce},"SCREEN 8 (Graphics VI)":{pixelWidth:256,pixelHeight:212,widthTiles:32,heightTiles:27,baseTileSize:ce}};function $o(t){const e=typeof t=="string"?t.trim():"";return e&&rt[e]?rt[e]:Gt}const De=t=>t===Tt,Yt=t=>De(t)?W:ye,Wt=(t,e)=>{const a=Yt(e);if(t===void 0||t<0||t>=a.length)return De(e)?W[1].hex:ye[4].hex;const l=a[t];return(l==null?void 0:l.hex)??(De(e)?W[1].hex:ye[4].hex)},Ho=(t,e,a,l)=>{var _;const i=t.layers.background,o=t.activeAreaX??0,r=t.activeAreaY??0,n=t.activeAreaWidth??t.width,p=t.activeAreaHeight??t.height,s=[];let h=0;const c=new Map;for(let E=0;E<p;E++){const A=r+E;for(let u=0;u<n;u++){const S=o+u;if(A>=i.length||S>=((_=i[A])==null?void 0:_.length)){s.push(he);continue}const f=i[A][S];if(!f||!f.tileId)s.push(he);else{let y=he;const b=e.find(g=>g.id===f.tileId);if(l==="SCREEN 2 (Graphics I)"&&a&&b){let g=!1,d={tileId:f.tileId,position:{x:S,y:A},attempts:[],banksReceived:a.length};typeof globalThis.screenUtils_firstTileLogged>"u"&&(console.log("🔍 First tile structure check:",{tileId:f.tileId,position:{x:S,y:A},banksCount:a.length,banks:a.map(m=>({name:m.name,assignedTileIds:Object.keys(m.assignedTiles||{}),hasThisTile:!!(m.assignedTiles&&m.assignedTiles[f.tileId]),assignedTilesType:typeof m.assignedTiles,assignedTilesSample:m.assignedTiles?Object.entries(m.assignedTiles).slice(0,2):[]}))}),globalThis.screenUtils_firstTileLogged=!0);for(const m of a)if((m.enabled??!0)&&m.assignedTiles[f.tileId]){const T=m.assignedTiles[f.tileId].charCode,v=Math.ceil(b.width/ue),D=f.subTileX||0,L=f.subTileY||0;y=T+L*v+D;const N=y>=m.charsetRangeStart&&y<=m.charsetRangeEnd;if(d.attempts.push({bankName:m.name,baseCharCode:T,calculated:y,range:`${m.charsetRangeStart}-${m.charsetRangeEnd}`,inRange:N}),N){g=!0;break}else y=he}else d.attempts.push({bankName:m.name,reason:"Tile not assigned to this bank"});g||(console.warn("⚠️ Tile not found in valid range:",d),y=he)}else if(l!=="SCREEN 2 (Graphics I)"){const g=`${f.tileId}_${f.subTileX??0}_${f.subTileY??0}`;c.has(g)?y=c.get(g):h>255?y=he:(c.set(g,h),y=h++)}s.push(y)}}}return new Uint8Array(s)},Qt=(t,e,a,l,i,o="hex")=>{const n=t.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();let p=`;; MAP: ${t} (${e}x${a} tiles)
-`;p+=`;; Total size: ${l.length} bytes
+`,t.frames.forEach((o,d)=>{l+=Vt(`${n}_F${d}`,o.data,t.spritePalette,t.backgroundColor,t.size.width,t.size.height,e)}),l},Ue=16,Ct="SCREEN 2 (Graphics I)",Gt="SCREEN 5 (Graphics III)",ce=8,Yt={pixelWidth:pe*Ue,pixelHeight:Ie*Ue,widthTiles:pe,heightTiles:Ie,baseTileSize:Ue},rt={[Ct]:{pixelWidth:pe*ue,pixelHeight:Ie*ue,widthTiles:pe,heightTiles:Ie,baseTileSize:ue},[Gt]:{pixelWidth:256,pixelHeight:212,widthTiles:32,heightTiles:27,baseTileSize:ue},"SCREEN 0 (Text 40)":{pixelWidth:240,pixelHeight:192,widthTiles:40,heightTiles:24,baseTileSize:ce},"SCREEN 1 (Text 32)":{pixelWidth:256,pixelHeight:192,widthTiles:32,heightTiles:24,baseTileSize:ce},"SCREEN 3 (Multicolor)":{pixelWidth:256,pixelHeight:192,widthTiles:32,heightTiles:24,baseTileSize:ce},"SCREEN 4 (Graphics II)":{pixelWidth:256,pixelHeight:192,widthTiles:32,heightTiles:24,baseTileSize:ce},"SCREEN 6 (Graphics IV)":{pixelWidth:512,pixelHeight:212,widthTiles:64,heightTiles:27,baseTileSize:ce},"SCREEN 7 (Graphics V)":{pixelWidth:512,pixelHeight:212,widthTiles:64,heightTiles:27,baseTileSize:ce},"SCREEN 8 (Graphics VI)":{pixelWidth:256,pixelHeight:212,widthTiles:32,heightTiles:27,baseTileSize:ce}};function Ho(t){const e=typeof t=="string"?t.trim():"";return e&&rt[e]?rt[e]:Yt}const De=t=>t===Ct,Wt=t=>De(t)?W:ye,Qt=(t,e)=>{const a=Wt(e);if(t===void 0||t<0||t>=a.length)return De(e)?W[1].hex:ye[4].hex;const l=a[t];return(l==null?void 0:l.hex)??(De(e)?W[1].hex:ye[4].hex)},jo=(t,e,a,l)=>{var _;const i=t.layers.background,n=t.activeAreaX??0,r=t.activeAreaY??0,o=t.activeAreaWidth??t.width,d=t.activeAreaHeight??t.height,s=[];let h=0;const c=new Map;for(let E=0;E<d;E++){const A=r+E;for(let u=0;u<o;u++){const S=n+u;if(A>=i.length||S>=((_=i[A])==null?void 0:_.length)){s.push(he);continue}const f=i[A][S];if(!f||!f.tileId)s.push(he);else{let y=he;const b=e.find(g=>g.id===f.tileId);if(l==="SCREEN 2 (Graphics I)"&&a&&b){let g=!1,p={tileId:f.tileId,position:{x:S,y:A},attempts:[],banksReceived:a.length};typeof globalThis.screenUtils_firstTileLogged>"u"&&(console.log("🔍 First tile structure check:",{tileId:f.tileId,position:{x:S,y:A},banksCount:a.length,banks:a.map(m=>({name:m.name,assignedTileIds:Object.keys(m.assignedTiles||{}),hasThisTile:!!(m.assignedTiles&&m.assignedTiles[f.tileId]),assignedTilesType:typeof m.assignedTiles,assignedTilesSample:m.assignedTiles?Object.entries(m.assignedTiles).slice(0,2):[]}))}),globalThis.screenUtils_firstTileLogged=!0);for(const m of a)if((m.enabled??!0)&&m.assignedTiles[f.tileId]){const T=m.assignedTiles[f.tileId].charCode,v=Math.ceil(b.width/ue),D=f.subTileX||0,L=f.subTileY||0;y=T+L*v+D;const N=y>=m.charsetRangeStart&&y<=m.charsetRangeEnd;if(p.attempts.push({bankName:m.name,baseCharCode:T,calculated:y,range:`${m.charsetRangeStart}-${m.charsetRangeEnd}`,inRange:N}),N){g=!0;break}else y=he}else p.attempts.push({bankName:m.name,reason:"Tile not assigned to this bank"});g||(console.warn("⚠️ Tile not found in valid range:",p),y=he)}else if(l!=="SCREEN 2 (Graphics I)"){const g=`${f.tileId}_${f.subTileX??0}_${f.subTileY??0}`;c.has(g)?y=c.get(g):h>255?y=he:(c.set(g,h),y=h++)}s.push(y)}}}return new Uint8Array(s)},Xt=(t,e,a,l,i,n="hex")=>{const o=t.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();let d=`;; MAP: ${t} (${e}x${a} tiles)
+`;d+=`;; Total size: ${l.length} bytes
 
-`,i.length>0&&(p+=`;; --- TILE INDEX REFERENCES for ${n} ---
-`,p+=i.join(`
+`,i.length>0&&(d+=`;; --- TILE INDEX REFERENCES for ${o} ---
+`,d+=i.join(`
 `)+`
 
-`),p+=`SCREEN_${n}_WIDTH     EQU ${e}
-`,p+=`SCREEN_${n}_HEIGHT    EQU ${a}
-`,p+=`SCREEN_${n}_SIZE      EQU ${l.length}
+`),d+=`SCREEN_${o}_WIDTH     EQU ${e}
+`,d+=`SCREEN_${o}_HEIGHT    EQU ${a}
+`,d+=`SCREEN_${o}_SIZE      EQU ${l.length}
 
-`,p+=`SCREEN_${n}_LAYOUT:
-`;for(let s=0;s<l.length;s+=16){const c=l.slice(s,s+16).map(_=>o==="hex"?`#${_.toString(16).padStart(2,"0").toUpperCase()}`:_.toString());p+=`    DB ${c.join(",")}
-`}return p},Xt=(t,e,a,l,i="hex")=>{const r=t.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();let n=`;; BEHAVIOR MAP: ${t} (${e}x${a} tiles)
-`;n+=`;; Total size: ${l.length} bytes (Map IDs 0-255)
-`,n+=`;; Data format: ${i.toUpperCase()}
+`,d+=`SCREEN_${o}_LAYOUT:
+`;for(let s=0;s<l.length;s+=16){const c=l.slice(s,s+16).map(_=>n==="hex"?`#${_.toString(16).padStart(2,"0").toUpperCase()}`:_.toString());d+=`    DB ${c.join(",")}
+`}return d},Kt=(t,e,a,l,i="hex")=>{const r=t.replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase();let o=`;; BEHAVIOR MAP: ${t} (${e}x${a} tiles)
+`;o+=`;; Total size: ${l.length} bytes (Map IDs 0-255)
+`,o+=`;; Data format: ${i.toUpperCase()}
 
-`,n+=`BEHAVIOR_${r}_WIDTH     EQU ${e}
-`,n+=`BEHAVIOR_${r}_HEIGHT    EQU ${a}
-`,n+=`BEHAVIOR_${r}_SIZE      EQU ${l.length}
+`,o+=`BEHAVIOR_${r}_WIDTH     EQU ${e}
+`,o+=`BEHAVIOR_${r}_HEIGHT    EQU ${a}
+`,o+=`BEHAVIOR_${r}_SIZE      EQU ${l.length}
 
-`,n+=`BEHAVIOR_${r}_DATA:
-`;const p=s=>i==="hex"?`#${s.toString(16).padStart(2,"0").toUpperCase()}`:s.toString(10);for(let s=0;s<l.length;s+=16){const c=l.slice(s,s+16).map(p);n+=`    DB ${c.join(",")}
-`}return n+=`
+`,o+=`BEHAVIOR_${r}_DATA:
+`;const d=s=>i==="hex"?`#${s.toString(16).padStart(2,"0").toUpperCase()}`:s.toString(10);for(let s=0;s<l.length;s+=16){const c=l.slice(s,s+16).map(d);o+=`    DB ${c.join(",")}
+`}return o+=`
 ;; End of Behavior Map Data for ${t}
-`,n},jo=(t,e)=>{if(t.width!==e.width||t.height!==e.height||t.data.length!==e.data.length)return!1;for(let a=0;a<t.height;a++){if(t.data[a].length!==e.data[a].length)return!1;for(let l=0;l<t.width;l++)if(t.data[a][l]!==e.data[a][l])return!1}if(t.lineAttributes&&e.lineAttributes){if(t.lineAttributes.length!==e.lineAttributes.length)return!1;for(let a=0;a<t.lineAttributes.length;a++){if(t.lineAttributes[a].length!==e.lineAttributes[a].length)return!1;for(let l=0;l<t.lineAttributes[a].length;l++)if(t.lineAttributes[a][l].fg!==e.lineAttributes[a][l].fg||t.lineAttributes[a][l].bg!==e.lineAttributes[a][l].bg)return!1}}else if(t.lineAttributes!==e.lineAttributes)return!1;return JSON.stringify(t.logicalProperties)===JSON.stringify(e.logicalProperties)};function Vo(t,e,a,l,i,o,r){const{data:n,width:p,height:s,lineAttributes:h}=t;if(!n||s===0||p===0)return"";const c=document.createElement("canvas");c.width=o,c.height=o;const _=c.getContext("2d");if(!_)return"";_.imageSmoothingEnabled=!1;const E=(e??0)*o,A=(a??0)*o;for(let f=0;f<o;f++)for(let y=0;y<o;y++){const b=E+y,g=A+f;if(g>=0&&g<s&&b>=0&&b<p){let d=n[g][b];if(r==="SCREEN 2 (Graphics I)"&&h&&h[g]){const m=Math.floor(b/Re),T=h[g][m];T&&d!==T.fg&&d!==T.bg&&(d=T.fg)}_.fillStyle=d,_.fillRect(y,f,1,1)}}if(c.width===l&&c.height===i)return c.toDataURL();const u=document.createElement("canvas");u.width=l,u.height=i;const S=u.getContext("2d");return S?(S.imageSmoothingEnabled=!1,S.drawImage(c,0,0,l,i),u.toDataURL()):c.toDataURL()}function zo(t,e,a){var o;if(!t||a===0||e===0)return"";const l=document.createElement("canvas");l.width=e,l.height=a;const i=l.getContext("2d");if(!i)return"";i.imageSmoothingEnabled=!1;for(let r=0;r<a;r++)for(let n=0;n<e;n++){const p=(o=t[r])==null?void 0:o[n];p&&p!=="rgba(0,0,0,0)"&&(i.fillStyle=p,i.fillRect(n,r,1,1))}return l.toDataURL()}const Go=(t,e,a,l,i,o,r)=>{var c,_;const n=De(l);t.width=e.width*i,t.height=e.height*i;const p=t.getContext("2d");if(!p)return;p.imageSmoothingEnabled=!1;const s=Wt(e.backgroundColor,l);p.fillStyle=s,p.fillRect(0,0,t.width,t.height);const h=e.layers.background;for(let E=0;E<e.height;E++)for(let A=0;A<e.width;A++){const u=(c=h[E])==null?void 0:c[A];if(!(u!=null&&u.tileId))continue;const S=a.find(D=>D.id===u.tileId);if(!S)continue;const{data:f,width:y,height:b,lineAttributes:g}=S;if(!f)continue;const d=u.subTileX??0,m=u.subTileY??0,T=d*i,v=m*i;for(let D=0;D<i;D++)for(let L=0;L<i;L++){const N=T+L,M=v+D;if(M<b&&N<y){let C=(_=f[M])==null?void 0:_[N];if(C===void 0)continue;if(n&&g&&g[M]){const P=Math.floor(N/Re),F=g[M][P];F&&C!==F.fg&&C!==F.bg&&(C=F.fg)}p.fillStyle=C,p.fillRect(A*i+L,E*i+D,1,1)}}}};function Kt(t){const e=t.find(r=>r.type==="globalvariables");if(!e||!e.data)return[...Pe];const a=e.data.customVariables||[],l=new Map;Pe.forEach(r=>{l.set(r.name,r)}),a.forEach(r=>{l.set(r.name,r)});const i=Pe.map(r=>r.name),o=[];return i.forEach(r=>{const n=l.get(r);n&&(o.push(n),l.delete(r))}),l.forEach(r=>{o.push(r)}),o}function Yo(t){const e=t.find(l=>l.type==="globalvariables");return!e||!e.data?[]:e.data.customVariables||[]}function Zt(t){const e=Kt(t);if(e.length===0)return[];const a=[];t.filter(h=>h.type==="screenmap").forEach(h=>{var _,E;(((E=(_=h.data)==null?void 0:_.layers)==null?void 0:E.entities)||[]).forEach(A=>{var u,S;(S=(u=A.components)==null?void 0:u.Behavior)!=null&&S.behaviorCode&&a.push(A.components.Behavior.behaviorCode)})});const i=t.find(h=>h.type==="gameflow"),o=new Set,r=new Set;if(i!=null&&i.data){const h=i.data;h.nodes&&Array.isArray(h.nodes)&&h.nodes.forEach(c=>{var _;c.type==="StateMachine"&&((_=c.data)!=null&&_.customCode)&&a.push(c.data.customCode),c.type==="IfThenElse"&&c.variableName&&o.add(c.variableName),c.type==="Globals"&&c.variables&&Array.isArray(c.variables)&&c.variables.forEach(E=>{E.variableName&&r.add(E.variableName)})})}t.filter(h=>h.type==="componentdefinition").forEach(h=>{const c=h.data;c.customCode&&a.push(c.customCode)});const p=[],s=new Set;return e.forEach(h=>{const c=a.some(A=>new RegExp(`\\b${h.asmName}\\b`,"i").test(A)),_=o.has(h.name),E=r.has(h.name);(c||_||E)&&!s.has(h.name)&&(p.push(h),s.add(h.name))}),r.forEach(h=>{if(!s.has(h)){const c=`global_var_${h.replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"")}`;p.push({name:h,asmName:c,constantPrefix:`${h.replace(/[^A-Za-z0-9]/g,"_").toUpperCase()}_`,type:"8bit",description:"Auto-generated variable from Globals node",values:[{label:"0",value:0}],category:"special"}),s.add(h)}}),o.forEach(h=>{if(!s.has(h)){const c=`global_var_${h.replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"")}`;p.push({name:h,asmName:c,constantPrefix:`${h.replace(/[^A-Za-z0-9]/g,"_").toUpperCase()}_`,type:"8bit",description:"Auto-generated variable from IfThenElse node",values:[{label:"0",value:0}],category:"special"}),s.add(h)}}),p}const $={AND:"AND",OR:"OR",XOR:"XOR",NOT:"NOT",KEY_PRESSED:"KEY_PRESSED",KEY_RELEASED:"KEY_RELEASED",TIME_OUT:"TIME_OUT",CAN_MOVE_DIRECTION:"CAN_MOVE_DIRECTION",HAS_COLLISION:"HAS_COLLISION",PATH_CLEAR:"PATH_CLEAR",ON_WALL_COLLISION:"ON_WALL_COLLISION",HAS_DEADLY_TILE_COLLISION:"HAS_DEADLY_TILE_COLLISION",ANIMATION_COMPLETE:"ANIMATION_COMPLETE",KEY_AND_MOVEMENT:"KEY_AND_MOVEMENT",VARIABLE_COMPARE:"VARIABLE_COMPARE"},R={SET_POSITION:"SET_POSITION",MOVE_BY:"MOVE_BY",SET_VELOCITY:"SET_VELOCITY",APPLY_FORCE:"APPLY_FORCE",CHANGE_SPRITE:"CHANGE_SPRITE",PLAY_ANIMATION:"PLAY_ANIMATION",SET_ANIMATION_SPEED:"SET_ANIMATION_SPEED",TOGGLE_ANIMATION:"TOGGLE_ANIMATION",PLAY_SOUND:"PLAY_SOUND",PLAY_MUSIC:"PLAY_MUSIC",MUTE_MUSIC:"MUTE_MUSIC",STOP_MUSIC:"STOP_MUSIC",SET_VARIABLE:"SET_VARIABLE",INCREMENT_VARIABLE:"INCREMENT_VARIABLE",DECREMENT_VARIABLE:"DECREMENT_VARIABLE",SET_COMPONENT_PROPERTY:"SET_COMPONENT_PROPERTY",WAIT:"WAIT",GOTO_STATE:"GOTO_STATE",DESTROY_ENTITY:"DESTROY_ENTITY",SPAWN_ENTITY:"SPAWN_ENTITY",GET_RANDOM_ENTITY_POSITION:"GET_RANDOM_ENTITY_POSITION",CHANGE_GAME_FLOW_NODE:"CHANGE_GAME_FLOW_NODE",DECREASE_LIVES:"DECREASE_LIVES",INCREASE_LIVES:"INCREASE_LIVES",RESPAWN_PLAYER:"RESPAWN_PLAYER",BREAK_TILE:"BREAK_TILE",REPLACE_TILE:"REPLACE_TILE",RND:"RND",POINT_AT:"POINT_AT",ADD_VARIABLES:"ADD_VARIABLES",SUBTRACT_VARIABLES:"SUBTRACT_VARIABLES",MULTIPLY_VARIABLES:"MULTIPLY_VARIABLES",DIVIDE_VARIABLES:"DIVIDE_VARIABLES",MODULO_VARIABLES:"MODULO_VARIABLES",ASSIGN_VARIABLE:"ASSIGN_VARIABLE"};function Ve(t,e){const a=e.filter(C=>C.type==="componentdefinition").map(C=>C.data),l=e.filter(C=>C.type==="entitytemplate").map(C=>C.data),i=e.filter(C=>C.type==="sprite").map(C=>C.data),o=e.filter(C=>C.type==="tile").map(C=>C.data),r=e.filter(C=>C.type==="screenmap").map(C=>C.data),n=e.filter(C=>C.type==="worldmap").map(C=>C.data),p=e.filter(C=>C.type==="statemachine").map(C=>C.data),s=[],h=new Set,c=(C,P,F)=>{var te,H;if(C!=null&&C.id)return String(C.id);const w=((te=C==null?void 0:C.position)==null?void 0:te.x)??"",x=((H=C==null?void 0:C.position)==null?void 0:H.y)??"",j=(C==null?void 0:C.entityTemplateId)??"",U=(C==null?void 0:C.name)??"";return`${(P==null?void 0:P.id)??`screen_${F}`}|${j}|${U}|${w}|${x}`},_=(C,P,F)=>{if(!C||typeof C!="object")return;const w=c(C,P,F);h.has(w)||(h.add(w),s.push({...C,screenAssetId:C.screenAssetId||(P==null?void 0:P.id),screenIndex:typeof C.screenIndex=="number"?C.screenIndex:F}))};r.forEach((C,P)=>{var F;(F=C.layers)!=null&&F.entities&&Array.isArray(C.layers.entities)&&C.layers.entities.forEach(w=>_(w,C,P)),C.entities&&Array.isArray(C.entities)&&C.entities.forEach(w=>_(w,C,P))});const E=e.find(C=>C.type==="gameflow"),A=E==null?void 0:E.data,u=s.length>0,S=a.length>0||u,f=r.length>1,y=i.length>0,b=o.length>0,g=r.length>0,d=a.length>0,m=!!A,T=e.some(C=>C.type==="font"),v=i.some(C=>C.frames.length>1),D=r.some(C=>C.layers.collision.some(P=>P.some(F=>F!==null))),L=l.some(C=>C.name.toLowerCase().includes("menu")),N=[];a.forEach(C=>{C.name.toLowerCase().includes("state")&&N.push(C.name.replace(/[^a-zA-Z0-9]/g,"").toUpperCase())});const M=Zt(e);return{projectName:t,components:a,templates:l,sprites:i,tiles:o,screenMaps:r,screens:r,worldmaps:n,entities:s,fonts:e.filter(C=>C.type==="font"),gameFlow:A,stateMachines:p,hasECS:S,hasMultipleScreens:f,hasSprites:y,hasTiles:b,hasScreens:g,hasEntities:u,hasComponents:d,hasGameFlow:m,hasMenus:L,hasFonts:T,hasAnimations:v,hasCollisions:D,hasMenuSystem:L,customStates:N,globalVariables:M}}const Jt=t=>{if(!t.hasECS)return`    ; No ECS system - basic entity updates
+`,o},Vo=(t,e)=>{if(t.width!==e.width||t.height!==e.height||t.data.length!==e.data.length)return!1;for(let a=0;a<t.height;a++){if(t.data[a].length!==e.data[a].length)return!1;for(let l=0;l<t.width;l++)if(t.data[a][l]!==e.data[a][l])return!1}if(t.lineAttributes&&e.lineAttributes){if(t.lineAttributes.length!==e.lineAttributes.length)return!1;for(let a=0;a<t.lineAttributes.length;a++){if(t.lineAttributes[a].length!==e.lineAttributes[a].length)return!1;for(let l=0;l<t.lineAttributes[a].length;l++)if(t.lineAttributes[a][l].fg!==e.lineAttributes[a][l].fg||t.lineAttributes[a][l].bg!==e.lineAttributes[a][l].bg)return!1}}else if(t.lineAttributes!==e.lineAttributes)return!1;return JSON.stringify(t.logicalProperties)===JSON.stringify(e.logicalProperties)};function zo(t,e,a,l,i,n,r){const{data:o,width:d,height:s,lineAttributes:h}=t;if(!o||s===0||d===0)return"";const c=document.createElement("canvas");c.width=n,c.height=n;const _=c.getContext("2d");if(!_)return"";_.imageSmoothingEnabled=!1;const E=(e??0)*n,A=(a??0)*n;for(let f=0;f<n;f++)for(let y=0;y<n;y++){const b=E+y,g=A+f;if(g>=0&&g<s&&b>=0&&b<d){let p=o[g][b];if(r==="SCREEN 2 (Graphics I)"&&h&&h[g]){const m=Math.floor(b/Re),T=h[g][m];T&&p!==T.fg&&p!==T.bg&&(p=T.fg)}_.fillStyle=p,_.fillRect(y,f,1,1)}}if(c.width===l&&c.height===i)return c.toDataURL();const u=document.createElement("canvas");u.width=l,u.height=i;const S=u.getContext("2d");return S?(S.imageSmoothingEnabled=!1,S.drawImage(c,0,0,l,i),u.toDataURL()):c.toDataURL()}function Go(t,e,a){var n;if(!t||a===0||e===0)return"";const l=document.createElement("canvas");l.width=e,l.height=a;const i=l.getContext("2d");if(!i)return"";i.imageSmoothingEnabled=!1;for(let r=0;r<a;r++)for(let o=0;o<e;o++){const d=(n=t[r])==null?void 0:n[o];d&&d!=="rgba(0,0,0,0)"&&(i.fillStyle=d,i.fillRect(o,r,1,1))}return l.toDataURL()}const Yo=(t,e,a,l,i,n,r)=>{var c,_;const o=De(l);t.width=e.width*i,t.height=e.height*i;const d=t.getContext("2d");if(!d)return;d.imageSmoothingEnabled=!1;const s=Qt(e.backgroundColor,l);d.fillStyle=s,d.fillRect(0,0,t.width,t.height);const h=e.layers.background;for(let E=0;E<e.height;E++)for(let A=0;A<e.width;A++){const u=(c=h[E])==null?void 0:c[A];if(!(u!=null&&u.tileId))continue;const S=a.find(D=>D.id===u.tileId);if(!S)continue;const{data:f,width:y,height:b,lineAttributes:g}=S;if(!f)continue;const p=u.subTileX??0,m=u.subTileY??0,T=p*i,v=m*i;for(let D=0;D<i;D++)for(let L=0;L<i;L++){const N=T+L,O=v+D;if(O<b&&N<y){let C=(_=f[O])==null?void 0:_[N];if(C===void 0)continue;if(o&&g&&g[O]){const P=Math.floor(N/Re),F=g[O][P];F&&C!==F.fg&&C!==F.bg&&(C=F.fg)}d.fillStyle=C,d.fillRect(A*i+L,E*i+D,1,1)}}}};function Zt(t){const e=t.find(r=>r.type==="globalvariables");if(!e||!e.data)return[...Pe];const a=e.data.customVariables||[],l=new Map;Pe.forEach(r=>{l.set(r.name,r)}),a.forEach(r=>{l.set(r.name,r)});const i=Pe.map(r=>r.name),n=[];return i.forEach(r=>{const o=l.get(r);o&&(n.push(o),l.delete(r))}),l.forEach(r=>{n.push(r)}),n}function Wo(t){const e=t.find(l=>l.type==="globalvariables");return!e||!e.data?[]:e.data.customVariables||[]}function Jt(t){const e=Zt(t);if(e.length===0)return[];const a=[];t.filter(h=>h.type==="screenmap").forEach(h=>{var _,E;(((E=(_=h.data)==null?void 0:_.layers)==null?void 0:E.entities)||[]).forEach(A=>{var u,S;(S=(u=A.components)==null?void 0:u.Behavior)!=null&&S.behaviorCode&&a.push(A.components.Behavior.behaviorCode)})});const i=t.find(h=>h.type==="gameflow"),n=new Set,r=new Set;if(i!=null&&i.data){const h=i.data;h.nodes&&Array.isArray(h.nodes)&&h.nodes.forEach(c=>{var _;c.type==="StateMachine"&&((_=c.data)!=null&&_.customCode)&&a.push(c.data.customCode),c.type==="IfThenElse"&&c.variableName&&n.add(c.variableName),c.type==="Globals"&&c.variables&&Array.isArray(c.variables)&&c.variables.forEach(E=>{E.variableName&&r.add(E.variableName)})})}t.filter(h=>h.type==="componentdefinition").forEach(h=>{const c=h.data;c.customCode&&a.push(c.customCode)});const d=[],s=new Set;return e.forEach(h=>{const c=a.some(A=>new RegExp(`\\b${h.asmName}\\b`,"i").test(A)),_=n.has(h.name),E=r.has(h.name);(c||_||E)&&!s.has(h.name)&&(d.push(h),s.add(h.name))}),r.forEach(h=>{if(!s.has(h)){const c=`global_var_${h.replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"")}`;d.push({name:h,asmName:c,constantPrefix:`${h.replace(/[^A-Za-z0-9]/g,"_").toUpperCase()}_`,type:"8bit",description:"Auto-generated variable from Globals node",values:[{label:"0",value:0}],category:"special"}),s.add(h)}}),n.forEach(h=>{if(!s.has(h)){const c=`global_var_${h.replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"")}`;d.push({name:h,asmName:c,constantPrefix:`${h.replace(/[^A-Za-z0-9]/g,"_").toUpperCase()}_`,type:"8bit",description:"Auto-generated variable from IfThenElse node",values:[{label:"0",value:0}],category:"special"}),s.add(h)}}),d}const $={AND:"AND",OR:"OR",XOR:"XOR",NOT:"NOT",KEY_PRESSED:"KEY_PRESSED",KEY_RELEASED:"KEY_RELEASED",TIME_OUT:"TIME_OUT",CAN_MOVE_DIRECTION:"CAN_MOVE_DIRECTION",HAS_COLLISION:"HAS_COLLISION",PATH_CLEAR:"PATH_CLEAR",ON_WALL_COLLISION:"ON_WALL_COLLISION",HAS_DEADLY_TILE_COLLISION:"HAS_DEADLY_TILE_COLLISION",ANIMATION_COMPLETE:"ANIMATION_COMPLETE",KEY_AND_MOVEMENT:"KEY_AND_MOVEMENT",VARIABLE_COMPARE:"VARIABLE_COMPARE"},R={SET_POSITION:"SET_POSITION",MOVE_BY:"MOVE_BY",SET_VELOCITY:"SET_VELOCITY",APPLY_FORCE:"APPLY_FORCE",CHANGE_SPRITE:"CHANGE_SPRITE",PLAY_ANIMATION:"PLAY_ANIMATION",SET_ANIMATION_SPEED:"SET_ANIMATION_SPEED",TOGGLE_ANIMATION:"TOGGLE_ANIMATION",PLAY_SOUND:"PLAY_SOUND",PLAY_MUSIC:"PLAY_MUSIC",MUTE_MUSIC:"MUTE_MUSIC",STOP_MUSIC:"STOP_MUSIC",SET_VARIABLE:"SET_VARIABLE",INCREMENT_VARIABLE:"INCREMENT_VARIABLE",DECREMENT_VARIABLE:"DECREMENT_VARIABLE",SET_COMPONENT_PROPERTY:"SET_COMPONENT_PROPERTY",WAIT:"WAIT",GOTO_STATE:"GOTO_STATE",DESTROY_ENTITY:"DESTROY_ENTITY",SPAWN_ENTITY:"SPAWN_ENTITY",GET_RANDOM_ENTITY_POSITION:"GET_RANDOM_ENTITY_POSITION",CHANGE_GAME_FLOW_NODE:"CHANGE_GAME_FLOW_NODE",DECREASE_LIVES:"DECREASE_LIVES",INCREASE_LIVES:"INCREASE_LIVES",RESPAWN_PLAYER:"RESPAWN_PLAYER",BREAK_TILE:"BREAK_TILE",REPLACE_TILE:"REPLACE_TILE",RND:"RND",POINT_AT:"POINT_AT",ADD_VARIABLES:"ADD_VARIABLES",SUBTRACT_VARIABLES:"SUBTRACT_VARIABLES",MULTIPLY_VARIABLES:"MULTIPLY_VARIABLES",DIVIDE_VARIABLES:"DIVIDE_VARIABLES",MODULO_VARIABLES:"MODULO_VARIABLES",ASSIGN_VARIABLE:"ASSIGN_VARIABLE"};function Ve(t,e){const a=e.filter(C=>C.type==="componentdefinition").map(C=>C.data),l=e.filter(C=>C.type==="entitytemplate").map(C=>C.data),i=e.filter(C=>C.type==="sprite").map(C=>C.data),n=e.filter(C=>C.type==="tile").map(C=>C.data),r=e.filter(C=>C.type==="screenmap").map(C=>C.data),o=e.filter(C=>C.type==="worldmap").map(C=>C.data),d=e.filter(C=>C.type==="statemachine").map(C=>C.data),s=[],h=new Set,c=(C,P,F)=>{var te,H;if(C!=null&&C.id)return String(C.id);const w=((te=C==null?void 0:C.position)==null?void 0:te.x)??"",x=((H=C==null?void 0:C.position)==null?void 0:H.y)??"",j=(C==null?void 0:C.entityTemplateId)??"",U=(C==null?void 0:C.name)??"";return`${(P==null?void 0:P.id)??`screen_${F}`}|${j}|${U}|${w}|${x}`},_=(C,P,F)=>{if(!C||typeof C!="object")return;const w=c(C,P,F);h.has(w)||(h.add(w),s.push({...C,screenAssetId:C.screenAssetId||(P==null?void 0:P.id),screenIndex:typeof C.screenIndex=="number"?C.screenIndex:F}))};r.forEach((C,P)=>{var F;(F=C.layers)!=null&&F.entities&&Array.isArray(C.layers.entities)&&C.layers.entities.forEach(w=>_(w,C,P)),C.entities&&Array.isArray(C.entities)&&C.entities.forEach(w=>_(w,C,P))});const E=e.find(C=>C.type==="gameflow"),A=E==null?void 0:E.data,u=s.length>0,S=a.length>0||u,f=r.length>1,y=i.length>0,b=n.length>0,g=r.length>0,p=a.length>0,m=!!A,T=e.some(C=>C.type==="font"),v=i.some(C=>C.frames.length>1),D=r.some(C=>C.layers.collision.some(P=>P.some(F=>F!==null))),L=l.some(C=>C.name.toLowerCase().includes("menu")),N=[];a.forEach(C=>{C.name.toLowerCase().includes("state")&&N.push(C.name.replace(/[^a-zA-Z0-9]/g,"").toUpperCase())});const O=Jt(e);return{projectName:t,components:a,templates:l,sprites:i,tiles:n,screenMaps:r,screens:r,worldmaps:o,entities:s,fonts:e.filter(C=>C.type==="font"),gameFlow:A,stateMachines:d,hasECS:S,hasMultipleScreens:f,hasSprites:y,hasTiles:b,hasScreens:g,hasEntities:u,hasComponents:p,hasGameFlow:m,hasMenus:L,hasFonts:T,hasAnimations:v,hasCollisions:D,hasMenuSystem:L,customStates:N,globalVariables:O}}const qt=t=>{if(!t.hasECS)return`    ; No ECS system - basic entity updates
     RET`;let e=`    ; ECS-based entity updates
     ; Update all active entities with their components
     LD HL, ENTITY_BUFFER
@@ -680,7 +735,7 @@ entity_update_skip:
     ADD HL, DE
     POP BC
     DJNZ entity_update_loop
-    RET`,e},qt=t=>{if(!t.hasSprites)return`    ; No sprites to update
+    RET`,e},ea=t=>{if(!t.hasSprites)return`    ; No sprites to update
     RET`;let e=`    ; Update sprite animations and positions
     LD B, ${t.sprites.length}    ; Number of sprites
     LD HL, SPRITE_DATA_TABLE
@@ -732,7 +787,7 @@ sprite_no_frame_advance:`;return t.hasAnimations&&(e+=`
     ADD HL, DE
     POP BC
     DJNZ sprite_update_loop
-    RET`,e},ea=t=>t.hasCollisions?`    ; Check player collision with environment
+    RET`,e},ta=t=>t.hasCollisions?`    ; Check player collision with environment
     LD A, (player_x)
     LD B, A
     LD A, (player_y) 
@@ -771,7 +826,7 @@ sprite_no_frame_advance:`;return t.hasAnimations&&(e+=`
     LD A, STATE_DYING
     LD (current_game_state), A
     RET`:`    ; No collision system needed
-    RET`,ta=t=>{let e=`    ; Read MSX joystick/keyboard input
+    RET`,aa=t=>{let e=`    ; Read MSX joystick/keyboard input
     ; Store previous state
     LD A, (input_state)
     LD (prev_input_state), A
@@ -841,7 +896,7 @@ input_no_fire1:`;return t.hasMenuSystem&&(e+=`
     LD (input_state), A
     
 input_no_pause:`),e+=`
-    RET`,e},aa=t=>t.hasMenuSystem?`    ; Update menu graphics and cursor
+    RET`,e},la=t=>t.hasMenuSystem?`    ; Update menu graphics and cursor
     LD A, (menu_cursor_position)
     LD B, A
     
@@ -876,13 +931,13 @@ menu_draw_cursor:
     CALL CHPUT
     
     RET`:`    ; No menu system
-    RET`,la=t=>{if(t.customStates.length===0)return"; No custom states detected";let e=`; Custom state handlers for project-specific logic
+    RET`,oa=t=>{if(t.customStates.length===0)return"; No custom states detected";let e=`; Custom state handlers for project-specific logic
 `;return t.customStates.forEach(a=>{e+=`
 logic_${a.toLowerCase()}:
     ; Custom logic for ${a} state
     ; TODO: Implement ${a} specific logic
     RET
-`}),e},oa=[{marker:"{{ENTITY_UPDATES}}",generator:Jt,description:"Entity update system based on ECS components"},{marker:"{{SPRITE_UPDATES}}",generator:qt,description:"Sprite animation and movement updates"},{marker:"{{COLLISION_CHECK}}",generator:ea,description:"Collision detection system"},{marker:"{{INPUT_HANDLING}}",generator:ta,description:"Input handling with project-specific controls"},{marker:"{{MENU_SYSTEM}}",generator:aa,description:"Menu system updates and rendering"},{marker:"{{CUSTOM_STATES}}",generator:la,description:"Custom state handlers detected from project"}];function na(t,e,a,l=oa){const i=Ve(e,a);let o=t;return o=o.replace(/{{PROJECT_NAME}}/g,e.toUpperCase()),o=o.replace(/{{PROJECT_NAME_LOWER}}/g,e.toLowerCase()),o=o.replace(/{{GENERATION_DATE}}/g,new Date().toISOString()),l.forEach(r=>{if(o.includes(r.marker)){const n=r.generator(i);o=o.replace(new RegExp(ra(r.marker),"g"),n)}}),o}function ia(){return`;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+`}),e},na=[{marker:"{{ENTITY_UPDATES}}",generator:qt,description:"Entity update system based on ECS components"},{marker:"{{SPRITE_UPDATES}}",generator:ea,description:"Sprite animation and movement updates"},{marker:"{{COLLISION_CHECK}}",generator:ta,description:"Collision detection system"},{marker:"{{INPUT_HANDLING}}",generator:aa,description:"Input handling with project-specific controls"},{marker:"{{MENU_SYSTEM}}",generator:la,description:"Menu system updates and rendering"},{marker:"{{CUSTOM_STATES}}",generator:oa,description:"Custom state handlers detected from project"}];function ia(t,e,a,l=na){const i=Ve(e,a);let n=t;return n=n.replace(/{{PROJECT_NAME}}/g,e.toUpperCase()),n=n.replace(/{{PROJECT_NAME_LOWER}}/g,e.toLowerCase()),n=n.replace(/{{GENERATION_DATE}}/g,new Date().toISOString()),l.forEach(r=>{if(n.includes(r.marker)){const o=r.generator(i);n=n.replace(new RegExp(sa(r.marker),"g"),o)}}),n}function ra(){return`;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Dynamic State Machine System for {{PROJECT_NAME}}
 ;; Generated by MSX Retro Game IDE on {{GENERATION_DATE}}
 ;;
@@ -1371,7 +1426,7 @@ SPRITE_DATA_TABLE:
 ; Collision map data (will be loaded from project)
 COLLISION_MAP_DATA:
     DS 1024                     ; 32x32 collision map
-`}function ra(t){return t.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}function Wo(t,e){const a=ia(),l=na(a,t,e),o=`${t.toLowerCase().replace(/[^a-z0-9]/g,"_")}_dynamic_system.asm`,r=Ve(t,e);return{filename:o,content:l,analysis:r}}function sa(t={mode:"hybrid"}){const{mode:e,optimizeLevel:a="safe",includeDebug:l=!1}=t;let i=`; ==================================================================
+`}function sa(t){return t.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}function Qo(t,e){const a=ra(),l=ia(a,t,e),n=`${t.toLowerCase().replace(/[^a-z0-9]/g,"_")}_dynamic_system.asm`,r=Ve(t,e);return{filename:n,content:l,analysis:r}}function da(t={mode:"hybrid"}){const{mode:e,optimizeLevel:a="safe",includeDebug:l=!1}=t;let i=`; ==================================================================
 ; DIRECT HARDWARE ACCESS ROUTINES
 ; ==================================================================
 ; Mode: ${e.toUpperCase()}
@@ -1390,11 +1445,11 @@ COLLISION_MAP_DATA:
 ; Compatibility: MSX1, MSX2, MSX2+
 ; ==================================================================
 
-`;return i+=da(),i+=pa(),i+=_a(),i+=ha(),i+=ua(),a==="aggressive"&&(i+=ca(),i+=ma()),l&&(i+=fa()),i+=`
+`;return i+=ca(),i+=_a(),i+=ha(),i+=ua(),i+=ma(),a==="aggressive"&&(i+=pa(),i+=fa()),l&&(i+=ba()),i+=`
 ; ==================================================================
 ; END OF DIRECT HARDWARE ROUTINES
 ; ==================================================================
-`,i}function da(){return`
+`,i}function ca(){return`
 ; ==================================================================
 ; FAST_LDIRVM - Fast Block Transfer to VRAM
 ; ==================================================================
@@ -1439,7 +1494,7 @@ FAST_LDIRVM:
     jr nz, .ldirvm_loop    ; Loop if not zero (12/7 cycles)
     ret
 
-`}function ca(){return`
+`}function pa(){return`
 ; ==================================================================
 ; FAST_LDIRVM_256 - Optimized for exactly 256 bytes
 ; ==================================================================
@@ -1477,7 +1532,7 @@ FAST_LDIRVM_256:
     djnz .ldirvm_256_loop  ; Faster than dec bc + check (13/8 cycles)
     ret
 
-`}function pa(){return`
+`}function _a(){return`
 ; ==================================================================
 ; FAST_WRTVRM - Write Single Byte to VRAM
 ; ==================================================================
@@ -1512,7 +1567,7 @@ FAST_WRTVRM:
     ret                    ; (10 cycles)
                            ; Total: ~40 cycles
 
-`}function _a(){return`
+`}function ha(){return`
 ; ==================================================================
 ; FAST_RDVRM - Read Single Byte from VRAM
 ; ==================================================================
@@ -1543,7 +1598,7 @@ FAST_RDVRM:
     in a, (#98)            ; Read from VRAM data port
     ret
 
-`}function ha(){return`
+`}function ua(){return`
 ; ==================================================================
 ; FAST_WRTVDP - Write VDP Register
 ; ==================================================================
@@ -1575,7 +1630,7 @@ FAST_WRTVDP:
     ret                    ; (10 cycles)
                            ; Total: ~25 cycles
 
-`}function ua(){return`
+`}function ma(){return`
 ; ==================================================================
 ; FAST_GTSTCK - Read Joystick Direction
 ; ==================================================================
@@ -1656,7 +1711,7 @@ joystick_direction_table:
     db 0  ; 1110 = Invalid
     db 0  ; 1111 = All directions (invalid)
 
-`}function ma(){return`
+`}function fa(){return`
 ; ==================================================================
 ; COPY_SPRITE_PATTERN_UNROLLED - Ultra-fast sprite pattern copy
 ; ==================================================================
@@ -1724,7 +1779,7 @@ COPY_SPRITE_PATTERN_UNROLLED:
     ld a, (hl) : out (#98), a : inc hl
     ret
 
-`}function fa(){return`
+`}function ba(){return`
 ; ==================================================================
 ; DEBUG HELPERS
 ; ==================================================================
@@ -1782,7 +1837,7 @@ DEBUG_STOP_TIMER:
 debug_timer_start:  dw 0
 debug_timer_result: dw 0
 
-`}function ba(t={}){const{hardwareMode:e}=t;let a=`; ==================================================================
+`}function ya(t={}){const{hardwareMode:e}=t;let a=`; ==================================================================
 ; MSX BIOS FUNCTIONS AND ADDRESSES
 ; File: bios.asm
 ; Description: Standard MSX BIOS function definitions
@@ -1887,13 +1942,13 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ; END OF BIOS DEFINITIONS
 ; ==================================================================
 `;return e&&(e.mode==="direct"||e.mode==="hybrid")?a+`
-`+sa(e):a}function ya(t){let e="";if(!t.globalVariables||t.globalVariables.length===0)return e+=`; Goal Variable Values (default)
+`+da(e):a}function Ea(t){let e="";if(!t.globalVariables||t.globalVariables.length===0)return e+=`; Goal Variable Values (default)
 `,e+=`GOAL_FAILURE            EQU 0    ; Goal = "Failure"
 `,e+=`GOAL_COMPLETED          EQU 1    ; Goal = "Completed"
 `,e;const a=new Set;return t.globalVariables.forEach(l=>{l.values&&l.values.length>0&&(e+=`
 ; ${l.name} - ${l.description||"Variable values"}
-`,l.values.forEach(i=>{const o=(i.asmConstant||"UNKNOWN").trim(),r=typeof i.value=="number"?i.value:0;a.has(o)||(e+=`${o.padEnd(24)}EQU ${r}    ; ${l.name} = "${i.label}"
-`,a.add(o))}))}),e}function Ea(t){var a,l;const e=je(t.sprites||[]).sprites.length;return`; ==================================================================
+`,l.values.forEach(i=>{const n=(i.asmConstant||"UNKNOWN").trim(),r=typeof i.value=="number"?i.value:0;a.has(n)||(e+=`${n.padEnd(24)}EQU ${r}    ; ${l.name} = "${i.label}"
+`,a.add(n))}))}),e}function ga(t){var a,l;const e=je(t.sprites||[]).sprites.length;return`; ==================================================================
 ; MSX SYSTEM CONSTANTS
 ; File: constants.asm
 ; Description: MSX hardware constants and project-specific definitions
@@ -1933,7 +1988,7 @@ SCREEN3     EQU 3        ; 64x48 multicolor
 ; ==================================================================
 ${t.tiles&&t.tiles.length>0?`
 ; Project-specific tile dimensions detected:
-${t.tiles.map((i,o)=>`; Tile ${o}: ${i.name} = ${i.width}x${i.height}px (${Math.ceil(i.width/8)}x${Math.ceil(i.height/8)} MSX chars)`).join(`
+${t.tiles.map((i,n)=>`; Tile ${n}: ${i.name} = ${i.width}x${i.height}px (${Math.ceil(i.width/8)}x${Math.ceil(i.height/8)} MSX chars)`).join(`
 `)}
 
 ; Using primary tile size: ${t.tiles[0].width}x${t.tiles[0].height}px
@@ -2021,7 +2076,7 @@ COLL_FROM_RIGHT     EQU #08    ; Entity approaching from right
 ; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
 ; ==================================================================
 
-${ya(t)}
+${Ea(t)}
 
 ; ==================================================================
 ; GAME FLOW STATES (PROJECT-SPECIFIC)
@@ -2046,6 +2101,11 @@ NODE_TYPE_TEXT          EQU 4    ; Text node (displays text)
 NODE_TYPE_TRANSITION    EQU 5    ; Transition node
 NODE_TYPE_RESTART       EQU 6    ; Restart node (restart game/level)
 NODE_TYPE_END           EQU 7    ; End node (game over, victory, credits)
+NODE_TYPE_IF_THEN_ELSE  EQU 8    ; IfThenElse node (conditional branch)
+NODE_TYPE_GLOBALS       EQU 9    ; Globals node (global variable ops)
+NODE_TYPE_WAYPOINT      EQU 10   ; Waypoint node (routing marker)
+NODE_TYPE_GROUP         EQU 11   ; Group node (nested flow)
+NODE_TYPE_MUSIC         EQU 12   ; Music node (audio command)
 NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ${t.gameFlow?`
 ; Additional Game Flow States detected in project
@@ -2066,7 +2126,7 @@ TOTAL_SCREENS           EQU ${((l=t.screenMaps)==null?void 0:l.length)||0}
 ; ==================================================================
 ; END OF CONSTANTS
 ; ==================================================================
-`}function ga(t){let e=`; ==================================================================
+`}function Sa(t){let e=`; ==================================================================
 ; RAM VARIABLES DEFINITIONS
 ; File: variables.asm
 ; Description: Dynamic variable allocation using EQU addresses
@@ -2095,7 +2155,7 @@ TOTAL_SCREENS           EQU ${((l=t.screenMaps)==null?void 0:l.length)||0}
 ; ==================================================================
 ; MIDEAS GLOBAL VARIABLES (DEFAULTS + CUSTOM)
 ; ==================================================================
-`,t.globalVariables&&t.globalVariables.length>0?t.globalVariables.forEach(l=>{const i=l.type==="16bit"?2:1,o=l.type==="16bit"?" (16-bit)":" (8-bit)",r=l.description||l.name;e+=`${l.asmName.padEnd(20)} EQU #${a.toString(16).toUpperCase().padStart(4,"0")}   ; ${r}${o}
+`,t.globalVariables&&t.globalVariables.length>0?t.globalVariables.forEach(l=>{const i=l.type==="16bit"?2:1,n=l.type==="16bit"?" (16-bit)":" (8-bit)",r=l.description||l.name;e+=`${l.asmName.padEnd(20)} EQU #${a.toString(16).toUpperCase().padStart(4,"0")}   ; ${r}${n}
 `,a+=i}):(e+=`global_var_goal     EQU #${a.toString(16).toUpperCase().padStart(4,"0")}   ; Goal status (0=Failure, 1=Completed)
 `,a++),e+=`
 ; ==================================================================
@@ -2274,13 +2334,13 @@ RAM_USAGE_END       EQU #${a.toString(16).toUpperCase().padStart(4,"0")}   ; End
 ;       RAM space is used at runtime, NOT reserved in ROM.
 ;       Do NOT use ORG #C000 in cartridge ROMs!
 ; ==================================================================
-`,e}function Sa(t){if(!t)return"";let e="";return e+=`    ld a, 0
+`,e}function Aa(t){if(!t)return"";let e="";return e+=`    ld a, 0
 `,e+=`    ld hl, task_update_input
 `,e+=`    call enable_task
 
-`,e}function Aa(t,e){var l;let a="";if(e!=null&&e.gameFlow){const i=e.gameFlow;a=`
-; GameFlow Integration: Using "${i.name}" as execution orchestrator`;const o=i.nodes.find(r=>r.type==="Start");if(o){const r=i.connections.find(n=>{var p;return((p=n.from)==null?void 0:p.nodeId)===o.id||typeof n.from=="string"&&n.from===o.id});if(r){const n=((l=r.to)==null?void 0:l.nodeId)||r.to,p=i.nodes.find(s=>s.id===n);p&&(a+=`
-; Flow: Start → ${p.type} (${p.title||p.name||p.id})`)}}}return`; ==================================================================
+`,e}function Ta(t,e){var l;let a="";if(e!=null&&e.gameFlow){const i=e.gameFlow;a=`
+; GameFlow Integration: Using "${i.name}" as execution orchestrator`;const n=i.nodes.find(r=>r.type==="Start");if(n){const r=i.connections.find(o=>{var d;return((d=o.from)==null?void 0:d.nodeId)===n.id||typeof o.from=="string"&&o.from===n.id});if(r){const o=((l=r.to)==null?void 0:l.nodeId)||r.to,d=i.nodes.find(s=>s.id===o);d&&(a+=`
+; Flow: Start → ${d.type} (${d.title||d.name||d.id})`)}}}return`; ==================================================================
 ; MSX CARTRIDGE ROM HEADER
 ; File: header.asm
 ; Description: Standard MSX cartridge initialization${a}
@@ -2366,7 +2426,7 @@ restart_rom_continue:
     di
 
     ; Register default tasks based on project needs
-    ${Sa(e)}
+    ${Aa(e)}
     ei
 
 ${e.hasGameFlow?`    ; ====================================================
@@ -2461,14 +2521,14 @@ vdpLoop:
 ; ==================================================================
 ; END OF HEADER
 ; ==================================================================
-`}function se(t){return t.replace(/[^a-zA-Z0-9]/g,"_")}function st(t){return String(t||"").replace(/"/g,"").replace(/\r?\n/g," ").trim()}function dt(t){const e=String(t||"").trim();if(!e||e.toLowerCase().startsWith("rgba(0,0,0,0"))return null;const a=e.replace("#","");if(a.length!==6)return null;const l=parseInt(a.substring(0,2),16),i=parseInt(a.substring(2,4),16),o=parseInt(a.substring(4,6),16);return[l,i,o].some(r=>Number.isNaN(r))?null:{r:l,g:i,b:o}}function Ct(t,e=!0){const a=String(t||"").trim();if(!a||a.toLowerCase().startsWith("rgba(0,0,0,0"))return e?0:1;const l=a.toUpperCase(),i=W.find(p=>p.hex.toUpperCase()===l);if(i)return i.index;const o=dt(a);if(!o)return e?0:1;let r=e?0:1,n=1/0;for(const p of W){if(!e&&p.index===0)continue;const s=dt(p.hex);if(!s)continue;const h=(o.r-s.r)**2+(o.g-s.g)**2+(o.b-s.b)**2;h<n&&(n=h,r=p.index)}return r}function ct(t){const e=Ct(t,!1);return e===0?1:e}function Ta(t,e){const a=String(e||"").trim();return a?(Array.isArray(t.sprites)?t.sprites:[]).findIndex(i=>String((i==null?void 0:i.id)||"").trim()===a):-1}function Ca(t){var r;const e=(t==null?void 0:t.spritePalette)||[],a=t==null?void 0:t.backgroundColor,l=(t==null?void 0:t.frames)||[];if(!e.length||!l.length)return null;let i=-1,o=-1;for(let n=0;n<e.length;n++){const p=e[n];if(!p||p===a)continue;let s=!1;for(const h of l)if(h!=null&&h.data){for(let c=0;c<(h.data.length||0)&&!s;c++)for(let _=0;_<(((r=h.data[c])==null?void 0:r.length)||0)&&!s;_++)h.data[c][_]===p&&(s=!0);if(s)break}s&&(i===-1&&(i=n),o=n)}return i===-1||o===-1?null:{first:i,last:o}}function Ia(t){var s;const e=(t==null?void 0:t.spritePalette)||[],a=t==null?void 0:t.backgroundColor,l=(t==null?void 0:t.frames)||[],i=Ca(t);if(!i)return{layerOffsets:[0],layerColors:[15]};const o=[];for(let h=i.first;h<=i.last;h++){const c=e[h];if(!c||a&&c===a)continue;let _=!1;for(const E of l)if(E!=null&&E.data){for(let A=0;A<(E.data.length||0)&&!_;A++)for(let u=0;u<(((s=E.data[A])==null?void 0:s.length)||0)&&!_;u++)E.data[A][u]===c&&(_=!0);if(_)break}_&&o.push(h)}const r=o.slice(0,4);if(r.length===0)return{layerOffsets:[0],layerColors:[15]};const n=r.map(h=>Math.max(0,h-i.first)),p=r.map(h=>{const c=e[h];return c?Ct(c,!0):15});return{layerOffsets:n,layerColors:p}}function va(t){var l,i,o;const e=((l=t==null?void 0:t.appearance)==null?void 0:l.selectorType)??((i=t==null?void 0:t.appearance)==null?void 0:i.cursorType)??((o=t==null?void 0:t.appearance)==null?void 0:o.cursorMode)??(t==null?void 0:t.selectorType)??(t==null?void 0:t.cursorType)??(t==null?void 0:t.cursorMode),a=String(e||"").trim().toLowerCase();return a==="char"||a==="character"||a==="text"||a==="glyph"?"char":a==="sprite"||a==="image"?"sprite":"auto"}function Da(t){var i;const e=Array.isArray(t==null?void 0:t.options)?t.options:[];if(e.length===0)return 0;const a=(t==null?void 0:t.initialSelection)??(t==null?void 0:t.initialSelectedOption)??((i=t==null?void 0:t.appearance)==null?void 0:i.initialSelection)??0,l=Number(a);return!Number.isFinite(l)||l<0||l>=e.length?0:Math.floor(l)}function It(t){return`NODE_TYPE_${t.replace(/([a-z])([A-Z])/g,"$1_$2").toUpperCase()}`}function La(t){const e=(t.name||"DEFAULT").toUpperCase().replace(/[^A-Z0-9]/g,"_"),a=t.id?`_${t.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";return`load_screen_${e.toLowerCase()}${a.toLowerCase()}`}function Ra(t){var i,o;const e=(o=(i=t==null?void 0:t.hudConfiguration)==null?void 0:i.importedFrame)==null?void 0:o.cells;if(!Array.isArray(e)||e.length===0)return null;const a=(t.name||"DEFAULT").toUpperCase().replace(/[^A-Z0-9]/g,"_"),l=t.id?`_${t.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";return`hud_imported_frame_${a.toLowerCase()}${l.toLowerCase()}_draw`}function Na(t){var o,r,n,p;if(!t.gameFlow)return Ma(t);const e=t.gameFlow;let a=`; ==================================================================
+`}function se(t){return t.replace(/[^a-zA-Z0-9]/g,"_")}function st(t){return String(t||"").replace(/"/g,"").replace(/\r?\n/g," ").trim()}function dt(t){const e=String(t||"").trim();if(!e||e.toLowerCase().startsWith("rgba(0,0,0,0"))return null;const a=e.replace("#","");if(a.length!==6)return null;const l=parseInt(a.substring(0,2),16),i=parseInt(a.substring(2,4),16),n=parseInt(a.substring(4,6),16);return[l,i,n].some(r=>Number.isNaN(r))?null:{r:l,g:i,b:n}}function It(t,e=!0){const a=String(t||"").trim();if(!a||a.toLowerCase().startsWith("rgba(0,0,0,0"))return e?0:1;const l=a.toUpperCase(),i=W.find(d=>d.hex.toUpperCase()===l);if(i)return i.index;const n=dt(a);if(!n)return e?0:1;let r=e?0:1,o=1/0;for(const d of W){if(!e&&d.index===0)continue;const s=dt(d.hex);if(!s)continue;const h=(n.r-s.r)**2+(n.g-s.g)**2+(n.b-s.b)**2;h<o&&(o=h,r=d.index)}return r}function ct(t){const e=It(t,!1);return e===0?1:e}function Ca(t,e){const a=String(e||"").trim();return a?(Array.isArray(t.sprites)?t.sprites:[]).findIndex(i=>String((i==null?void 0:i.id)||"").trim()===a):-1}function Ia(t){var r;const e=(t==null?void 0:t.spritePalette)||[],a=t==null?void 0:t.backgroundColor,l=(t==null?void 0:t.frames)||[];if(!e.length||!l.length)return null;let i=-1,n=-1;for(let o=0;o<e.length;o++){const d=e[o];if(!d||d===a)continue;let s=!1;for(const h of l)if(h!=null&&h.data){for(let c=0;c<(h.data.length||0)&&!s;c++)for(let _=0;_<(((r=h.data[c])==null?void 0:r.length)||0)&&!s;_++)h.data[c][_]===d&&(s=!0);if(s)break}s&&(i===-1&&(i=o),n=o)}return i===-1||n===-1?null:{first:i,last:n}}function va(t){var s;const e=(t==null?void 0:t.spritePalette)||[],a=t==null?void 0:t.backgroundColor,l=(t==null?void 0:t.frames)||[],i=Ia(t);if(!i)return{layerOffsets:[0],layerColors:[15]};const n=[];for(let h=i.first;h<=i.last;h++){const c=e[h];if(!c||a&&c===a)continue;let _=!1;for(const E of l)if(E!=null&&E.data){for(let A=0;A<(E.data.length||0)&&!_;A++)for(let u=0;u<(((s=E.data[A])==null?void 0:s.length)||0)&&!_;u++)E.data[A][u]===c&&(_=!0);if(_)break}_&&n.push(h)}const r=n.slice(0,4);if(r.length===0)return{layerOffsets:[0],layerColors:[15]};const o=r.map(h=>Math.max(0,h-i.first)),d=r.map(h=>{const c=e[h];return c?It(c,!0):15});return{layerOffsets:o,layerColors:d}}function Da(t){var l,i,n;const e=((l=t==null?void 0:t.appearance)==null?void 0:l.selectorType)??((i=t==null?void 0:t.appearance)==null?void 0:i.cursorType)??((n=t==null?void 0:t.appearance)==null?void 0:n.cursorMode)??(t==null?void 0:t.selectorType)??(t==null?void 0:t.cursorType)??(t==null?void 0:t.cursorMode),a=String(e||"").trim().toLowerCase();return a==="char"||a==="character"||a==="text"||a==="glyph"?"char":a==="sprite"||a==="image"?"sprite":"auto"}function La(t){var i;const e=Array.isArray(t==null?void 0:t.options)?t.options:[];if(e.length===0)return 0;const a=(t==null?void 0:t.initialSelection)??(t==null?void 0:t.initialSelectedOption)??((i=t==null?void 0:t.appearance)==null?void 0:i.initialSelection)??0,l=Number(a);return!Number.isFinite(l)||l<0||l>=e.length?0:Math.floor(l)}function vt(t){return`NODE_TYPE_${t.replace(/([a-z])([A-Z])/g,"$1_$2").toUpperCase()}`}function Ra(t){const e=(t.name||"DEFAULT").toUpperCase().replace(/[^A-Z0-9]/g,"_"),a=t.id?`_${t.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";return`load_screen_${e.toLowerCase()}${a.toLowerCase()}`}function pt(t,e){const a=String(t||"").trim();if(!a)return null;const l=o=>`global_var_${o.replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"").replace(/[^a-z0-9_]/g,"_")}`,i=a.toLowerCase(),n=l(a),r=Array.isArray(e.globalVariables)?e.globalVariables:[];for(const o of r){const d=String((o==null?void 0:o.name)||"").trim(),s=String((o==null?void 0:o.asmName)||"").trim();if(d&&d.toLowerCase()===i)return s||l(d);if(s&&s.toLowerCase()===i)return s;if(d&&l(d)===n)return s||l(d)}return null}function Na(t){var i,n;const e=(n=(i=t==null?void 0:t.hudConfiguration)==null?void 0:i.importedFrame)==null?void 0:n.cells;if(!Array.isArray(e)||e.length===0)return null;const a=(t.name||"DEFAULT").toUpperCase().replace(/[^A-Z0-9]/g,"_"),l=t.id?`_${t.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";return`hud_imported_frame_${a.toLowerCase()}${l.toLowerCase()}_draw`}function wa(t){var n,r,o,d;if(!t.gameFlow)return Pa(t);const e=t.gameFlow;let a=`; ==================================================================
 ; GAMEFLOW EXECUTION ENGINE
 ; File: gameflow.asm
 ; Description: GameFlow-based game orchestration system
 ; ==================================================================
 ;
 ; GameFlow: ${e.name||"Unnamed"}
-; Total Nodes: ${((o=e.nodes)==null?void 0:o.length)||0}
+; Total Nodes: ${((n=e.nodes)==null?void 0:n.length)||0}
 ; Total Connections: ${((r=e.connections)==null?void 0:r.length)||0}
 ; Start Node: ${e.startNodeId||"NONE"}
 ;
@@ -2527,7 +2587,7 @@ gameflow_execute_node:
     
     ; DE = node data, BC = connection table
     ; Dispatch based on node type
-`;const l=Array.from(new Set(((n=e.nodes)==null?void 0:n.map(s=>s.type))||[]));l.forEach(s=>{const h=`gameflow_handle_${s.toLowerCase()}`;a+=`    cp ${It(s)}
+`;const l=Array.from(new Set(((o=e.nodes)==null?void 0:o.map(s=>s.type))||[]));l.forEach(s=>{const h=`gameflow_handle_${s.toLowerCase()}`;a+=`    cp ${vt(s)}
     jp z, ${h}
 `}),a+=`    
     ; Unknown node type - error
@@ -2540,7 +2600,7 @@ gameflow_execute_node:
 ;   BC = connection table pointer
 ; ==================================================================
 
-`,a+=wa(l,t),a+=`; ==================================================================
+`,a+=xa(l,t),a+=`; ==================================================================
 ; CONNECTION UTILITIES
 ; ==================================================================
 
@@ -2619,7 +2679,7 @@ CONNECTION_END          EQU 255
 gameflow_no_data:
     db #C9                        ; RET instruction - returns immediately
 
-`;const i=(p=t.screenMaps)==null?void 0:p.some(s=>{var h;return((h=s.hudConfiguration)==null?void 0:h.elements)&&s.hudConfiguration.elements.length>0});return a+=`; ==================================================================
+`;const i=(d=t.screenMaps)==null?void 0:d.some(s=>{var h;return((h=s.hudConfiguration)==null?void 0:h.elements)&&s.hudConfiguration.elements.length>0});return a+=`; ==================================================================
 ; GAME LOOP (WorldLink nodes only)
 ; ==================================================================
 
@@ -2657,7 +2717,7 @@ ${i?`
 ; Each node has: type byte, data pointer, connection table pointer
 ; ==================================================================
 
-`,e.nodes&&e.nodes.length>0&&e.nodes.forEach(s=>{a+=xa(s,e,t)}),a+=`
+`,e.nodes&&e.nodes.length>0&&e.nodes.forEach(s=>{a+=Oa(s,e,t)}),a+=`
 ; ==================================================================
 ; INITIALIZATION UTILITY FUNCTIONS
 ; ==================================================================
@@ -2873,7 +2933,7 @@ empty_row_data:
 ; ==================================================================
 ; END OF GAMEFLOW
 ; ==================================================================
-`,a}function wa(t,e){var i;let a="";const l=(i=e.screenMaps)==null?void 0:i.some(o=>{var r;return((r=o.hudConfiguration)==null?void 0:r.elements)&&o.hudConfiguration.elements.length>0});return t.forEach(o=>{var r;switch(o){case"Start":a+=`gameflow_handle_start:
+`,a}function xa(t,e){var r;let a="";const l=(r=e.screenMaps)==null?void 0:r.some(o=>{var d;return((d=o.hudConfiguration)==null?void 0:d.elements)&&o.hudConfiguration.elements.length>0});t.forEach(o=>{var d;switch(o){case"Start":a+=`gameflow_handle_start:
     ; Start node - Initialize game state and systems
     ; DE = node data pointer (initialization config)
     ; BC = connection table
@@ -3102,7 +3162,7 @@ str_credits:
     ; Restart node - safe runtime reinit entry (no cold page remap).
     jp restart_rom
 
-`;break;case"SubMenu":{const n=Math.max(((r=e.sprites)==null?void 0:r.length)||0,1);let p="";for(let s=0;s<n;s++)p+=`    dw SPRITE_${s}_PATTERN
+`;break;case"SubMenu":{const s=Math.max(((d=e.sprites)==null?void 0:d.length)||0,1);let h="";for(let c=0;c<s;c++)h+=`    dw SPRITE_${c}_PATTERN
 `;a+=`gameflow_handle_submenu:
     ; SubMenu node - interactive navigation
     ; DE points to SubMenu data:
@@ -3750,10 +3810,10 @@ submenu_get_cursor_pattern_ptr:
 
 SUBMENU_CURSOR_BASE_SPRITE EQU 28
 SUBMENU_CURSOR_MAX_LAYERS  EQU 4
-SUBMENU_CURSOR_PATTERN_COUNT EQU ${n}
+SUBMENU_CURSOR_PATTERN_COUNT EQU ${s}
 
 submenu_cursor_sprite_pattern_table:
-${p}
+${h}
 
 `;break}case"Text":a+=`gameflow_handle_text:
     ; Text node - show text screen and wait for fire
@@ -4658,96 +4718,134 @@ music_loop_flag:
     ret z
     jp gameflow_execute_node
 
-`;break}}),a}function xa(t,e,a){var s,h,c,_,E,A,u,S,f,y,b,g;const l=`gameflow_node_${se(t.id)}`,i=`${l}_conn`,o=["Start","WorldLink","SubMenu","Text","IfThenElse","Globals","Transition"].includes(t.type)||t.type==="Globals"&&t.variables&&t.variables.length>0,r=o?`${l}_data`:"gameflow_no_data";let n=`; Node: ${t.type} - "${t.title||t.name||t.id}"
+`;break}});const i=t.includes("Text")||t.includes("SubMenu"),n=t.includes("End");return i&&!n&&(a+=`; ------------------------------------------------------------------
+; Shared helper: Print string to VRAM
+; Input: HL = string pointer (null-terminated)
+;        DE = VRAM destination
+; ------------------------------------------------------------------
+print_string_vram:
+    push bc
+    push de
+    push hl
+
+.psv_loop:
+    ld a, (hl)                    ; Get character
+    or a                          ; Check for null terminator
+    jr z, .psv_done
+
+    ; Write character to VRAM
+    push hl
+    push de
+    push af                       ; Save character
+    ex de, hl                     ; HL = VRAM address (from DE)
+    pop af                        ; Restore character to A
+    call WRTVRM                   ; Write A to VRAM at HL
+    pop de
+    pop hl
+
+    inc hl                        ; Next character
+    inc de                        ; Next VRAM position
+    jr .psv_loop
+
+.psv_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+`),a}function Oa(t,e,a){var s,h,c,_,E,A,u,S,f,y,b,g;const l=`gameflow_node_${se(t.id)}`,i=`${l}_conn`,n=["Start","WorldLink","SubMenu","Text","IfThenElse","Globals","Transition"].includes(t.type)||t.type==="Globals"&&t.variables&&t.variables.length>0,r=n?`${l}_data`:"gameflow_no_data";let o=`; Node: ${t.type} - "${t.title||t.name||t.id}"
 ${l}:
-    db ${It(t.type)}
+    db ${vt(t.type)}
     dw ${r}
     dw ${i}
 
-`;if(o){switch(n+=`${l}_data:
-`,t.type){case"Start":n+=`    dw ${l}_init    ; Initialization routine address
-`;break;case"WorldLink":const d=t.worldAssetId||"default";n+=`    dw load_world_${se(d)}
-`;break;case"SubMenu":{const D=se(t.id),L=(Array.isArray(t.options)?t.options:[]).slice(0,6),N=L.length,M=Da(t),C=N>0?Math.min(M,N-1):0,P=st(t.title||t.name||"MENU").toUpperCase(),F=((h=(s=t==null?void 0:t.appearance)==null?void 0:s.colors)==null?void 0:h.background)||"#000000",w=ct(F),x=va(t),j=(c=t==null?void 0:t.appearance)==null?void 0:c.cursorSpriteAssetId,U=Ta(a,j),ie=U>=0?(_=a.sprites)==null?void 0:_[U]:null,te=x==="char"?!1:U>=0,H=te?U:255,B=te&&ie?Ia(ie):{layerOffsets:[],layerColors:[]},V=B.layerOffsets.slice(0,4),K=B.layerColors.slice(0,4),re=Math.min(K.length,4);for(;V.length<4;)V.push(0);for(;K.length<4;)K.push(0);const ae=(E=t==null?void 0:t.appearance)==null?void 0:E.backgroundScreenAssetId;let le="0";if(ae&&a.screenMaps){const z=a.screenMaps.find(oe=>oe.id===ae);if(z){const oe=z.name.toUpperCase().replace(/[^A-Z0-9]/g,"_"),_e=z.id?`_${z.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";le=`load_screen_${oe.toLowerCase()}${_e.toLowerCase()}`}}n+=`    db ${w}    ; Background color (MSX index)
-`,n+=`    db ${H}    ; Cursor sprite asset index (#FF = use text marker)
-`,n+=`    db ${re}    ; Cursor sprite layer count (max 4)
-`,n+=`    db ${V[0]}, ${V[1]}, ${V[2]}, ${V[3]}    ; Cursor source layer offsets
-`,n+=`    db ${K[0]}, ${K[1]}, ${K[2]}, ${K[3]}    ; Cursor layer colors
-`,n+=`    dw ${le}    ; Background screen load function (0=none)
-`,n+=`    db ${N}    ; Number of options (max 6)
-`,n+=`    db ${C}    ; Initial selected option
-`,n+=`    dw submenu_${D}_title
-`,L.forEach((z,oe)=>{n+=`    dw submenu_${D}_opt${oe}
-`}),n+=`
+`;if(n){switch(o+=`${l}_data:
+`,t.type){case"Start":o+=`    dw ${l}_init    ; Initialization routine address
+`;break;case"WorldLink":const p=t.worldAssetId||"default";o+=`    dw load_world_${se(p)}
+`;break;case"SubMenu":{const D=se(t.id),L=(Array.isArray(t.options)?t.options:[]).slice(0,6),N=L.length,O=La(t),C=N>0?Math.min(O,N-1):0,P=st(t.title||t.name||"MENU").toUpperCase(),F=((h=(s=t==null?void 0:t.appearance)==null?void 0:s.colors)==null?void 0:h.background)||"#000000",w=ct(F),x=Da(t),j=(c=t==null?void 0:t.appearance)==null?void 0:c.cursorSpriteAssetId,U=Ca(a,j),ie=U>=0?(_=a.sprites)==null?void 0:_[U]:null,te=x==="char"?!1:U>=0,H=te?U:255,B=te&&ie?va(ie):{layerOffsets:[],layerColors:[]},V=B.layerOffsets.slice(0,4),K=B.layerColors.slice(0,4),re=Math.min(K.length,4);for(;V.length<4;)V.push(0);for(;K.length<4;)K.push(0);const ae=(E=t==null?void 0:t.appearance)==null?void 0:E.backgroundScreenAssetId;let le="0";if(ae&&a.screenMaps){const z=a.screenMaps.find(oe=>oe.id===ae);if(z){const oe=z.name.toUpperCase().replace(/[^A-Z0-9]/g,"_"),_e=z.id?`_${z.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";le=`load_screen_${oe.toLowerCase()}${_e.toLowerCase()}`}}o+=`    db ${w}    ; Background color (MSX index)
+`,o+=`    db ${H}    ; Cursor sprite asset index (#FF = use text marker)
+`,o+=`    db ${re}    ; Cursor sprite layer count (max 4)
+`,o+=`    db ${V[0]}, ${V[1]}, ${V[2]}, ${V[3]}    ; Cursor source layer offsets
+`,o+=`    db ${K[0]}, ${K[1]}, ${K[2]}, ${K[3]}    ; Cursor layer colors
+`,o+=`    dw ${le}    ; Background screen load function (0=none)
+`,o+=`    db ${N}    ; Number of options (max 6)
+`,o+=`    db ${C}    ; Initial selected option
+`,o+=`    dw submenu_${D}_title
+`,L.forEach((z,oe)=>{o+=`    dw submenu_${D}_opt${oe}
+`}),o+=`
 submenu_${D}_title:
-`,n+=`    db "${P}", 0
-`,L.forEach((z,oe)=>{const _e=st((z==null?void 0:z.text)||(z==null?void 0:z.label)||(z==null?void 0:z.name)||(z==null?void 0:z.id)||`OPTION ${oe+1}`).toUpperCase();n+=`submenu_${D}_opt${oe}:
-`,n+=`    db "${_e}", 0
-`})}break;case"Text":{const D=se(t.id),L=(t.title||t.name||"").replace(/"/g,"").replace(/\r?\n/g," ").trim().toUpperCase()||"TEXT",N=(t.message||"").replace(/"/g,"").replace(/\r?\n/g," "),M=((u=(A=t.appearance)==null?void 0:A.colors)==null?void 0:u.background)||"#000000",C=ct(M),P=28,F=N.split(" "),w=[];let x="";for(const H of F){const B=H.toUpperCase(),V=x?x+" "+B:B;V.length>P&&x?(w.push(x),x=B):x=V}x.trim()&&w.push(x);const j="PRESS FIRE TO CONTINUE",U=[];U.push({row:3,text:L,label:`text_${D}_title`}),w.forEach((H,B)=>{U.push({row:7+B,text:H,label:`text_${D}_msg${B}`})}),U.push({row:20,text:j,label:`text_${D}_prompt`});const ie=(S=t.appearance)==null?void 0:S.backgroundScreenAssetId;let te="0";if(ie&&a.screenMaps){const H=a.screenMaps.find(B=>B.id===ie);if(H){const B=H.name.toUpperCase().replace(/[^A-Z0-9]/g,"_"),V=H.id?`_${H.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";te=`load_screen_${B.toLowerCase()}${V.toLowerCase()}`}}n+=`    DB ${C}                  ; Background color (MSX index from ${M})
-`,n+=`    DW ${te}            ; Background screen load function (0=none)
-`,n+=`    DB ${U.length}                  ; Number of lines
-`;for(const H of U){const B=Math.max(0,Math.floor((32-H.text.length)/2));n+=`    DB ${H.row}, ${B}              ; Row ${H.row}, Col ${B}
-`,n+=`    DW ${H.label}          ; -> "${H.text}"
-`}n+=`
-`;for(const H of U)n+=`${H.label}:
-`,n+=`    DB "${H.text}", 0
-`;break}case"IfThenElse":const T=`global_var_${(t.variableName||"unknown").replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"")}`,v=t.compareValue||0;n+=`    dw ${T}    ; Variable to check
-`,n+=`    db ${v}   ; Compare value
-`,n+=`    db 0                 ; Operator (0=equals)
-`;break;case"Globals":t.variables&&t.variables.length>0?(n+=`    db ${t.variables.length}    ; Number of assignments
-`,t.variables.forEach(D=>{const N=`global_var_${(D.variableName||D.name||"unknown").replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"")}`,M=D.value||0;n+=`    dw ${N}
-`,n+=`    db ${M}
-`})):n+=`    db 0    ; No assignments
-`;break;case"Transition":{const D={cls:0,dissolve_pixels:1,dissolve_chars:2,vertical_lines:3,horizontal_lines:4,spiral:5,fill_white_squares:6},L={cls:1,dissolve_pixels:8,dissolve_chars:8,vertical_lines:16,horizontal_lines:24,spiral:96,fill_white_squares:4},N=D[t.effect]??0,M=L[t.effect]??8,C=t.duration??1e3,P=Math.max(1,Math.min(255,Math.round(C/M/20)));n+=`    db ${N}              ; Effect: ${t.effect||"cls"}
-`,n+=`    db ${P}              ; Frames per step (duration ${C}ms / ${M} steps / 20ms)
-`;break}}n+=`
-`}n+=`${i}:
-`;const p=((f=e.connections)==null?void 0:f.filter(d=>{var m;return(((m=d.from)==null?void 0:m.nodeId)||d.from)===t.id}))||[];if(t.type==="IfThenElse"){const d=p.find(T=>{var v,D;return((v=T.from)==null?void 0:v.sourceId)==="then"||!((D=T.from)!=null&&D.sourceId)}),m=p.find(T=>{var v;return((v=T.from)==null?void 0:v.sourceId)==="else"});n+=`    db CONNECTION_THEN
-`,n+=`    dw ${d?`gameflow_node_${se(((y=d.to)==null?void 0:y.nodeId)||d.to)}`:"0"}
-`,n+=`    db CONNECTION_ELSE
-`,n+=`    dw ${m?`gameflow_node_${se(((b=m.to)==null?void 0:b.nodeId)||m.to)}`:"0"}
-`}else if(t.type==="SubMenu")(Array.isArray(t.options)?t.options:[]).slice(0,6).forEach((m,T)=>{var D;const v=p.find(L=>{var N;return((N=L.from)==null?void 0:N.sourceId)===m.id});n+=`    db CONNECTION_OPTION_${T}
-`,n+=`    dw ${v?`gameflow_node_${se(((D=v.to)==null?void 0:D.nodeId)||v.to)}`:"0"}
-`});else{const d=p[0];n+=`    db CONNECTION_DEFAULT
-`,n+=`    dw ${d?`gameflow_node_${se(((g=d.to)==null?void 0:g.nodeId)||d.to)}`:"0"}
-`}return n+=`    db CONNECTION_END
+`,o+=`    db "${P}", 0
+`,L.forEach((z,oe)=>{const _e=st((z==null?void 0:z.text)||(z==null?void 0:z.label)||(z==null?void 0:z.name)||(z==null?void 0:z.id)||`OPTION ${oe+1}`).toUpperCase();o+=`submenu_${D}_opt${oe}:
+`,o+=`    db "${_e}", 0
+`})}break;case"Text":{const D=se(t.id),L=(t.title||t.name||"").replace(/"/g,"").replace(/\r?\n/g," ").trim().toUpperCase()||"TEXT",N=(t.message||"").replace(/"/g,"").replace(/\r?\n/g," "),O=((u=(A=t.appearance)==null?void 0:A.colors)==null?void 0:u.background)||"#000000",C=ct(O),P=28,F=N.split(" "),w=[];let x="";for(const H of F){const B=H.toUpperCase(),V=x?x+" "+B:B;V.length>P&&x?(w.push(x),x=B):x=V}x.trim()&&w.push(x);const j="PRESS FIRE TO CONTINUE",U=[];U.push({row:3,text:L,label:`text_${D}_title`}),w.forEach((H,B)=>{U.push({row:7+B,text:H,label:`text_${D}_msg${B}`})}),U.push({row:20,text:j,label:`text_${D}_prompt`});const ie=(S=t.appearance)==null?void 0:S.backgroundScreenAssetId;let te="0";if(ie&&a.screenMaps){const H=a.screenMaps.find(B=>B.id===ie);if(H){const B=H.name.toUpperCase().replace(/[^A-Z0-9]/g,"_"),V=H.id?`_${H.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";te=`load_screen_${B.toLowerCase()}${V.toLowerCase()}`}}o+=`    DB ${C}                  ; Background color (MSX index from ${O})
+`,o+=`    DW ${te}            ; Background screen load function (0=none)
+`,o+=`    DB ${U.length}                  ; Number of lines
+`;for(const H of U){const B=Math.max(0,Math.floor((32-H.text.length)/2));o+=`    DB ${H.row}, ${B}              ; Row ${H.row}, Col ${B}
+`,o+=`    DW ${H.label}          ; -> "${H.text}"
+`}o+=`
+`;for(const H of U)o+=`${H.label}:
+`,o+=`    DB "${H.text}", 0
+`;break}case"IfThenElse":const m=t.variableName||"unknown",T=pt(m,a),v=t.compareValue||0;T?o+=`    dw ${T}    ; Variable to check
+`:o+=`    dw 0                 ; WARNING: Missing global variable "${m}"
+`,o+=`    db ${v}   ; Compare value
+`,o+=`    db 0                 ; Operator (0=equals)
+`;break;case"Globals":if(t.variables&&t.variables.length>0){const D=t.variables.map(N=>{const O=N.variableName||N.name||"unknown",C=pt(O,a),P=N.value||0;return{vName:O,vAsmName:C,vValue:P}}).filter(N=>!!N.vAsmName);o+=`    db ${D.length}    ; Number of assignments
+`,D.forEach(N=>{o+=`    dw ${N.vAsmName}
+`,o+=`    db ${N.vValue}
+`});const L=t.variables.length-D.length;L>0&&(o+=`    ; WARNING: ${L} Globals assignment(s) skipped (undefined global variable)
+`),D.length===0&&(o+=`    ; No valid global assignments found
+`)}else o+=`    db 0    ; No assignments
+`;break;case"Transition":{const D={cls:0,dissolve_pixels:1,dissolve_chars:2,vertical_lines:3,horizontal_lines:4,spiral:5,fill_white_squares:6},L={cls:1,dissolve_pixels:8,dissolve_chars:8,vertical_lines:16,horizontal_lines:24,spiral:96,fill_white_squares:4},N=D[t.effect]??0,O=L[t.effect]??8,C=t.duration??1e3,P=Math.max(1,Math.min(255,Math.round(C/O/20)));o+=`    db ${N}              ; Effect: ${t.effect||"cls"}
+`,o+=`    db ${P}              ; Frames per step (duration ${C}ms / ${O} steps / 20ms)
+`;break}}o+=`
+`}o+=`${i}:
+`;const d=((f=e.connections)==null?void 0:f.filter(p=>{var m;return(((m=p.from)==null?void 0:m.nodeId)||p.from)===t.id}))||[];if(t.type==="IfThenElse"){const p=d.find(T=>{var v,D;return((v=T.from)==null?void 0:v.sourceId)==="then"||!((D=T.from)!=null&&D.sourceId)}),m=d.find(T=>{var v;return((v=T.from)==null?void 0:v.sourceId)==="else"});o+=`    db CONNECTION_THEN
+`,o+=`    dw ${p?`gameflow_node_${se(((y=p.to)==null?void 0:y.nodeId)||p.to)}`:"0"}
+`,o+=`    db CONNECTION_ELSE
+`,o+=`    dw ${m?`gameflow_node_${se(((b=m.to)==null?void 0:b.nodeId)||m.to)}`:"0"}
+`}else if(t.type==="SubMenu")(Array.isArray(t.options)?t.options:[]).slice(0,6).forEach((m,T)=>{var D;const v=d.find(L=>{var N;return((N=L.from)==null?void 0:N.sourceId)===m.id});o+=`    db CONNECTION_OPTION_${T}
+`,o+=`    dw ${v?`gameflow_node_${se(((D=v.to)==null?void 0:D.nodeId)||v.to)}`:"0"}
+`});else{const p=d[0];o+=`    db CONNECTION_DEFAULT
+`,o+=`    dw ${p?`gameflow_node_${se(((g=p.to)==null?void 0:g.nodeId)||p.to)}`:"0"}
+`}return o+=`    db CONNECTION_END
 
-`,t.type==="Start"&&(n+=Oa(t,l)),n}function Oa(t,e,a){let l=`; ------------------------------------------------------------------
+`,t.type==="Start"&&(o+=Ma(t,l)),o}function Ma(t,e,a){let l=`; ------------------------------------------------------------------
 ; ${e}_init
 ; Initialization routine for Start node
 ; Initializes global variables and MSX systems
 ; ------------------------------------------------------------------
 ${e}_init:
-`;const i=t.initializeGlobals,o=t.systemConfig;return l+=`    ; === Core Game Systems Initialization (ALWAYS required) ===
+`;const i=t.initializeGlobals,n=t.systemConfig;return l+=`    ; === Core Game Systems Initialization (ALWAYS required) ===
 `,l+=`    call init_game_systems
 
-`,o&&(l+=`    ; === MSX System Initialization ===
-`,o.initPSG&&(l+=`    ; Initialize PSG (silence all channels)
+`,n&&(l+=`    ; === MSX System Initialization ===
+`,n.initPSG&&(l+=`    ; Initialize PSG (silence all channels)
 `,l+=`    call init_psg_silence
 
-`),o.clearSprites&&(l+=`    ; Clear sprite attribute table
+`),n.clearSprites&&(l+=`    ; Clear sprite attribute table
 `,l+=`    call clear_sprite_table
 
-`),o.clearVRAM&&(l+=`    ; Clear VRAM areas
+`),n.clearVRAM&&(l+=`    ; Clear VRAM areas
 `,l+=`    call clear_vram_areas
 
-`),o.resetVDP&&(l+=`    ; Reset VDP registers to default
+`),n.resetVDP&&(l+=`    ; Reset VDP registers to default
 `,l+=`    call reset_vdp_registers
 
 `)),i&&i.enabled&&(l+=`    ; === Global Variables Initialization ===
-`,i.variables&&i.variables.length>0?i.variables.forEach(r=>{const n=r.variableName,p=`global_var_${n.replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"")}`,s=typeof r.value=="boolean"?r.value?1:0:r.value;l+=`    ld a, ${s}
-`,l+=`    ld (${p}), a    ; ${n} = ${r.value}
+`,i.variables&&i.variables.length>0?i.variables.forEach(r=>{const o=r.variableName,d=`global_var_${o.replace(/([A-Z])/g,"_$1").toLowerCase().replace(/^_/,"")}`,s=typeof r.value=="boolean"?r.value?1:0:r.value;l+=`    ld a, ${s}
+`,l+=`    ld (${d}), a    ; ${o} = ${r.value}
 `}):(l+=`    ; Initialize all global variables to default values
 `,l+=`    call init_all_global_variables
 `),l+=`
-`),o&&o.initialDelayFrames&&o.initialDelayFrames>0&&(l+=`    ; Initial delay
-`,l+=`    ld b, ${o.initialDelayFrames}
+`),n&&n.initialDelayFrames&&n.initialDelayFrames>0&&(l+=`    ; Initial delay
+`,l+=`    ld b, ${n.initialDelayFrames}
 `,l+=`.delay_loop:
 `,l+=`    halt    ; Wait for V-blank
 `,l+=`    djnz .delay_loop
 
 `),l+=`    ret
 
-`,l}function Ma(t){var o;const e=(o=t.screenMaps)==null?void 0:o.some(r=>{var n;return((n=r.hudConfiguration)==null?void 0:n.elements)&&r.hudConfiguration.elements.length>0}),a=t.screenMaps&&t.screenMaps.length>0?t.screenMaps[0]:null,l=a?Ra(a):null;return`; ==================================================================
+`,l}function Pa(t){var n;const e=(n=t.screenMaps)==null?void 0:n.some(r=>{var o;return((o=r.hudConfiguration)==null?void 0:o.elements)&&r.hudConfiguration.elements.length>0}),a=t.screenMaps&&t.screenMaps.length>0?t.screenMaps[0]:null,l=a?Na(a):null;return`; ==================================================================
 ; DEFAULT GAMEFLOW (No GameFlow defined in project)
 ; ==================================================================
 
@@ -4756,7 +4854,7 @@ gameflow_init:
 
 gameflow_start:
     ; Load first available screen/world
-${a?`    call ${La(a)}
+${a?`    call ${Ra(a)}
 `:`    ; No screens available
 `}${l?`    ; Draw imported HUD frame once at game start
     call ${l}
@@ -4781,7 +4879,7 @@ ${e?`    call render_hud
 ; ==================================================================
 ; END OF DEFAULT GAMEFLOW
 ; ==================================================================
-`}function Pa(t,e){return`; ==================================================================
+`}function ka(t,e){return`; ==================================================================
 ; ${t.toUpperCase()} - MAIN ASSEMBLY FILE
 ; File: main.asm
 ; Description: Main file with ordered imports for MSX cartridge
@@ -4990,7 +5088,7 @@ clear_memory_a:
 ; END OF MAIN PROGRAM
 ; ==================================================================
     end                 ; End of assembly
-`}function ka(t){var e;return!t.tiles||t.tiles.length===0?`; ==================================================================
+`}function Ua(t){var e;return!t.tiles||t.tiles.length===0?`; ==================================================================
 ; PATTERN DATA (EMPTY - NO TILES DETECTED)
 ; File: patterns.asm
 ; ==================================================================
@@ -5007,10 +5105,10 @@ clear_memory_a:
 ; TILE PATTERN BANK 0 (Base patterns)
 ; ==================================================================
 tile_pattern_bank0:
-${t.tiles.map((a,l)=>{const i=kt(a,"SCREEN 2 (Graphics I)"),o=Math.ceil(a.width/8),r=Math.ceil(a.height/8),n=o*r;(a.width%8!==0||a.height%8!==0)&&console.warn(`⚠️  Tile ${a.name} size ${a.width}x${a.height} is not multiple of 8px - may cause visual artifacts`);const p=Array.from(i).map(h=>`#${h.toString(16).padStart(2,"0").toUpperCase()}`);let s="";if(n>1){s=`
-    ; Character layout: ${o}×${r} grid`;for(let h=0;h<r;h++){s+=`
-    ; Row ${h}: `;for(let c=0;c<o;c++){const _=h*o+c;s+=`Char${_} `}}}return`    ; Tile ${l}: ${a.name} (${a.width}x${a.height}px = ${o}×${r} chars = ${n} MSX characters)${s}
-    db ${p.join(", ")}
+${t.tiles.map((a,l)=>{const i=Ut(a,"SCREEN 2 (Graphics I)"),n=Math.ceil(a.width/8),r=Math.ceil(a.height/8),o=n*r;(a.width%8!==0||a.height%8!==0)&&console.warn(`⚠️  Tile ${a.name} size ${a.width}x${a.height} is not multiple of 8px - may cause visual artifacts`);const d=Array.from(i).map(h=>`#${h.toString(16).padStart(2,"0").toUpperCase()}`);let s="";if(o>1){s=`
+    ; Character layout: ${n}×${r} grid`;for(let h=0;h<r;h++){s+=`
+    ; Row ${h}: `;for(let c=0;c<n;c++){const _=h*n+c;s+=`Char${_} `}}}return`    ; Tile ${l}: ${a.name} (${a.width}x${a.height}px = ${n}×${r} chars = ${o} MSX characters)${s}
+    db ${d.join(", ")}
 `}).join("")}
 
 ; ==================================================================
@@ -5021,7 +5119,7 @@ load_pattern_bank0:
     ; Fast direct port access (no BIOS overhead)
     ld hl, tile_pattern_bank0
     ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
-    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),o=Math.ceil(l.height/8);return a+i*o*8},0)}    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
+    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),n=Math.ceil(l.height/8);return a+i*n*8},0)}    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -5030,7 +5128,7 @@ load_pattern_bank1:
     ; Fast direct port access (no BIOS overhead)
     ld hl, tile_pattern_bank0     ; Same source as Bank 0
     ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
-    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),o=Math.ceil(l.height/8);return a+i*o*8},0)}    ; Total bytes for all tile characters
+    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),n=Math.ceil(l.height/8);return a+i*n*8},0)}    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -5039,7 +5137,7 @@ load_pattern_bank2:
     ; Fast direct port access (no BIOS overhead)
     ld hl, tile_pattern_bank0     ; Same source as Bank 0
     ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
-    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),o=Math.ceil(l.height/8);return a+i*o*8},0)}    ; Total bytes for all tile characters
+    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),n=Math.ceil(l.height/8);return a+i*n*8},0)}    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -5054,7 +5152,7 @@ load_patterns_to_vram:
 ; ==================================================================
 ; END OF PATTERN DATA
 ; ==================================================================
-`}function Ua(t){var e;return!t.tiles||t.tiles.length===0?`; ==================================================================
+`}function Fa(t){var e;return!t.tiles||t.tiles.length===0?`; ==================================================================
 ; COLOR DATA (EMPTY - NO TILES DETECTED)
 ; File: colors.asm
 ; ==================================================================
@@ -5071,8 +5169,8 @@ load_patterns_to_vram:
 ; TILE COLOR BANK 0 (Base colors)
 ; ==================================================================
 tile_color_bank0:
-${t.tiles.map((a,l)=>{const i=Ut(a),o=i?Array.from(i).map(r=>`#${r.toString(16).padStart(2,"0").toUpperCase()}`):["#F0","#F0","#F0","#F0","#F0","#F0","#F0","#F0"];return`    ; Tile ${l}: ${a.name} colors (fg/bg pairs)
-    db ${o.join(", ")}
+${t.tiles.map((a,l)=>{const i=Ft(a),n=i?Array.from(i).map(r=>`#${r.toString(16).padStart(2,"0").toUpperCase()}`):["#F0","#F0","#F0","#F0","#F0","#F0","#F0","#F0"];return`    ; Tile ${l}: ${a.name} colors (fg/bg pairs)
+    db ${n.join(", ")}
 `}).join("")}
 
 ; ==================================================================
@@ -5083,7 +5181,7 @@ load_color_bank0:
     ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
-    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),o=Math.ceil(l.height/8);return a+i*o*8},0)}     ; Total color bytes for all tile characters
+    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),n=Math.ceil(l.height/8);return a+i*n*8},0)}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -5092,7 +5190,7 @@ load_color_bank1:
     ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
-    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),o=Math.ceil(l.height/8);return a+i*o*8},0)}     ; Total color bytes for all tile characters
+    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),n=Math.ceil(l.height/8);return a+i*n*8},0)}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -5101,7 +5199,7 @@ load_color_bank2:
     ; Fast direct port access (no BIOS overhead)
     ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
-    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),o=Math.ceil(l.height/8);return a+i*o*8},0)}     ; Total color bytes for all tile characters
+    ld bc, ${t.tiles.reduce((a,l)=>{const i=Math.ceil(l.width/8),n=Math.ceil(l.height/8);return a+i*n*8},0)}     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
     ret
 
@@ -5116,7 +5214,7 @@ load_colors_to_vram:
 ; ==================================================================
 ; END OF COLOR DATA
 ; ==================================================================
-`}function Fa(t,e,a){var n,p,s,h,c,_,E,A,u,S;const l=(p=(n=a.gameFlow)==null?void 0:n.nodes)==null?void 0:p.some(f=>f.type==="SubMenu"),i=(s=a.screenMaps)==null?void 0:s.some(f=>{var y,b;return((y=f.layers)==null?void 0:y.text)||((b=f.textElements)==null?void 0:b.length)>0}),o=(h=a.screenMaps)==null?void 0:h.some(f=>{var y;return((y=f.hudConfiguration)==null?void 0:y.elements)&&f.hudConfiguration.elements.length>0}),r=l||i||o;return`; ==================================================================
+`}function Ba(t,e,a){var o,d,s,h,c,_,E,A,u,S;const l=(d=(o=a.gameFlow)==null?void 0:o.nodes)==null?void 0:d.some(f=>f.type==="SubMenu"),i=(s=a.screenMaps)==null?void 0:s.some(f=>{var y,b;return((y=f.layers)==null?void 0:y.text)||((b=f.textElements)==null?void 0:b.length)>0}),n=(h=a.screenMaps)==null?void 0:h.some(f=>{var y;return((y=f.hudConfiguration)==null?void 0:y.elements)&&f.hudConfiguration.elements.length>0}),r=l||i||n;return`; ==================================================================
 ; ${e.toUpperCase()} - UNIFIED FILE
 ; File: unitedFiles.asm
 ; Description: All-in-one file combining all modular files
@@ -5128,7 +5226,7 @@ load_colors_to_vram:
 ; Screens: ${((E=a.screenMaps)==null?void 0:E.length)||0}
 ; Entities: ${((A=a.entities)==null?void 0:A.length)||0}
 ; Menus: ${l?"Yes":"No"}
-; HUD: ${o?"Yes":"No"}
+; HUD: ${n?"Yes":"No"}
 ; State Machines: ${((u=a.stateMachines)==null?void 0:u.length)||0}
 ; ==================================================================
 
@@ -5166,7 +5264,7 @@ ${l?t["menus.asm"]:`; [menus.asm skipped - no menus]
 ${r?t["font.asm"]:`; [font.asm skipped - no text/menus]
 `}
 
-${o?t["hud.asm"]:`; [hud.asm skipped - no HUD elements]
+${n?t["hud.asm"]:`; [hud.asm skipped - no HUD elements]
 `}
 
 ${t["sound.asm"]}
@@ -5223,7 +5321,7 @@ ${a.screenMaps&&a.screenMaps.length>0?`    ; Load the first game screen
 ${r?`    ; Initialize font system
     call init_font_system
 `:`    ; No text/menus - skip font initialization
-`}${o?`    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
+`}${n?`    ; HUD dirty flag - will be rendered after screen loading (by GameFlow WorldLink)
     ld a, 1
     ld (hud_dirty_flag), a
 `:""}    call ENASCR               ; Re-enable screen after VRAM updates
@@ -5239,11 +5337,11 @@ load_game_screen:
     ret
 
     end                 ; End of assembly
-`}const Le={comp_pos:"Position",comp_position:"Position",comp_render:"Sprite",comp_sprite:"Sprite",comp_movement:"Movement",comp_velocity:"Movement",comp_collision:"Collision",comp_wall_collision:"WallCollision",comp_player_input:"Input",comp_input:"Input",comp_ai_behavior:"Behavior",comp_behavior:"Behavior",comp_health:"Health",comp_animation:"Animation",comp_gravity:"Gravity",comp_jump:"Jump",comp_damage:"Damage",comp_statemachine:"StateMachine",comp_cursors:"Cursors",comp_carry:"Carry",comp_collectible:"Collectible",comp_patrol:"Patrol"};function Ba(t,e){var r,n,p;const a=(r=e==null?void 0:e.components)==null?void 0:r.find(s=>s.definitionId==="comp_sprite"||s.definitionId==="comp_render");if(!a)return;const l=a.defaultValues||{},i=((n=t.componentOverrides)==null?void 0:n.comp_sprite)||((p=t.componentOverrides)==null?void 0:p.comp_render)||{},o={...l,...i};return o.spriteId||o.spriteAssetId||o.sprite||o.spriteName}function Ne(t){var o;const e=new Set,a=new Set,l=[],i=new Map;return console.log("🔍 Analyzing component usage..."),console.log(`📊 Total entities in project: ${((o=t.entities)==null?void 0:o.length)||0}`),t.entities&&t.entities.length>0&&t.entities.forEach(r=>{console.log(`  - Entity: ${r.name} (template: ${r.entityTemplateId})`),l.push(r),r.entityTemplateId&&a.add(r.entityTemplateId)}),console.log(`✅ Active entities: ${l.length}`),console.log(`✅ Used templates: ${Array.from(a).join(", ")}`),l.forEach(r=>{var s;const n=r.name||r.id,p=(s=t.templates)==null?void 0:s.find(h=>h.id===r.entityTemplateId);p?(console.log(`  📦 Analyzing template "${p.name}" for entity "${n}"`),p.components&&Array.isArray(p.components)&&p.components.forEach(h=>{const c=h.definitionId||h.componentDefinitionId;if(c){const _=Le[c]||c;console.log(`    - Component: ${c} → ${_}`),e.add(_),i.has(_)||i.set(_,new Set),i.get(_).add(n)}}),r.componentOverrides&&Object.keys(r.componentOverrides).forEach(h=>{const c=Le[h]||h;console.log(`    - Override: ${h} → ${c}`),e.add(c),i.has(c)||i.set(c,new Set),i.get(c).add(n)})):console.warn(`  ⚠️  Template "${r.entityTemplateId}" not found for entity "${n}"`)}),console.log("📊 Component usage summary:"),console.log(`  - Total used components: ${e.size}`),e.forEach(r=>{const n=i.get(r);console.log(`    • ${r}: ${(n==null?void 0:n.size)||0} entities`)}),{usedComponents:e,usedTemplates:a,activeEntities:l,componentToEntitiesMap:i}}function pt(t,e,a){var r;let l=0;const i={Position:0,Sprite:1,Movement:2,Collision:3,Input:4,Behavior:5,Health:6,Animation:7,Jump:8,Gravity:9};let o=!1;if(e&&e.components&&e.components.forEach(n=>{const p=n.definitionId||n.componentDefinitionId,s=Le[p];s&&i[s]!==void 0&&(l|=1<<i[s],s==="Sprite"&&(o=!0)),s==="Patrol"&&(l|=1<<i.Movement)}),t.componentOverrides&&Object.keys(t.componentOverrides).forEach(n=>{const p=Le[n];p&&i[p]!==void 0&&(l|=1<<i[p],p==="Sprite"&&(o=!0))}),l|=1<<i.Position,o)l|=1<<i.Sprite;else{const n=Ba(t,e);n&&((r=a.sprites)==null?void 0:r.some(s=>s.id===n||s.name===n))&&(l|=1<<i.Sprite)}return l}const $a=224,Ha="hex",vt=t=>{var r;const e=(t==null?void 0:t.spritePalette)||[],a=t==null?void 0:t.backgroundColor,l=(t==null?void 0:t.frames)||[];if(!e.length||!l.length)return null;let i=-1,o=-1;for(let n=0;n<e.length;n++){const p=e[n];if(!p||p===a)continue;let s=!1;for(const h of l)if(h!=null&&h.data){for(let c=0;c<(h.data.length||0)&&!s;c++)for(let _=0;_<(((r=h.data[c])==null?void 0:r.length)||0)&&!s;_++)h.data[c][_]===p&&(s=!0);if(s)break}s&&(i===-1&&(i=n),o=n)}return i===-1||o===-1?null:{first:i,last:o}},_t=t=>{const e=vt(t);return e?e.first:-1};function ja(t){var b,g;const e=t.sprites||[],a=je(e),l=a.sprites,i=a.nameToIndex,o=a.directionalLookupTables;a.warnings.forEach(d=>{console.warn(`[Sprites Generator] ${d}`)}),console.log("🎨 generateSpritesFile() called:"),console.log(`  - analysis.sprites.length: ${e.length}`),console.log(`  - expandedSprites.length: ${l.length}`),console.log(`  - analysis.entities.length: ${((b=t.entities)==null?void 0:b.length)||0}`),console.log(`  - analysis.templates.length: ${((g=t.templates)==null?void 0:g.length)||0}`);const{activeEntities:r}=Ne(t);console.log(`  - activeEntities.length: ${r.length}`);const n=d=>{if(!d||d.startsWith("rgba"))return null;const m=d.replace("#","");return m.length!==6?null:{r:parseInt(m.substring(0,2),16),g:parseInt(m.substring(2,4),16),b:parseInt(m.substring(4,6),16)}},p=d=>{if(!d)return 0;const m=W.find(L=>L.hex.toUpperCase()===d.toUpperCase());if(m)return m.index;const T=n(d);if(!T)return 15;let v=15,D=1/0;for(const L of W){if(L.index===0)continue;const N=n(L.hex);if(!N)continue;const M=(T.r-N.r)**2+(T.g-N.g)**2+(T.b-N.b)**2;M<D&&(D=M,v=L.index)}return v},s=d=>{if(!d)return[15];const m=d.spritePalette||[],T=d.backgroundColor,v=vt(d);if(!v)return[15];const D=[];for(let L=v.first;L<=v.last;L++){const N=m[L];!N||T&&N===T?D.push(0):D.push(p(N))}return D.length>0?D:[15]},h=(d,m)=>{let T=`${d}:
+`}const Le={comp_pos:"Position",comp_position:"Position",comp_render:"Sprite",comp_sprite:"Sprite",comp_movement:"Movement",comp_velocity:"Movement",comp_collision:"Collision",comp_wall_collision:"WallCollision",comp_player_input:"Input",comp_input:"Input",comp_ai_behavior:"Behavior",comp_behavior:"Behavior",comp_health:"Health",comp_animation:"Animation",comp_gravity:"Gravity",comp_jump:"Jump",comp_damage:"Damage",comp_statemachine:"StateMachine",comp_cursors:"Cursors",comp_carry:"Carry",comp_collectible:"Collectible",comp_patrol:"Patrol"};function $a(t,e){var r,o,d;const a=(r=e==null?void 0:e.components)==null?void 0:r.find(s=>s.definitionId==="comp_sprite"||s.definitionId==="comp_render");if(!a)return;const l=a.defaultValues||{},i=((o=t.componentOverrides)==null?void 0:o.comp_sprite)||((d=t.componentOverrides)==null?void 0:d.comp_render)||{},n={...l,...i};return n.spriteId||n.spriteAssetId||n.sprite||n.spriteName}function Ne(t){var n;const e=new Set,a=new Set,l=[],i=new Map;return console.log("🔍 Analyzing component usage..."),console.log(`📊 Total entities in project: ${((n=t.entities)==null?void 0:n.length)||0}`),t.entities&&t.entities.length>0&&t.entities.forEach(r=>{console.log(`  - Entity: ${r.name} (template: ${r.entityTemplateId})`),l.push(r),r.entityTemplateId&&a.add(r.entityTemplateId)}),console.log(`✅ Active entities: ${l.length}`),console.log(`✅ Used templates: ${Array.from(a).join(", ")}`),l.forEach(r=>{var s;const o=r.name||r.id,d=(s=t.templates)==null?void 0:s.find(h=>h.id===r.entityTemplateId);d?(console.log(`  📦 Analyzing template "${d.name}" for entity "${o}"`),d.components&&Array.isArray(d.components)&&d.components.forEach(h=>{const c=h.definitionId||h.componentDefinitionId;if(c){const _=Le[c]||c;console.log(`    - Component: ${c} → ${_}`),e.add(_),i.has(_)||i.set(_,new Set),i.get(_).add(o)}}),r.componentOverrides&&Object.keys(r.componentOverrides).forEach(h=>{const c=Le[h]||h;console.log(`    - Override: ${h} → ${c}`),e.add(c),i.has(c)||i.set(c,new Set),i.get(c).add(o)})):console.warn(`  ⚠️  Template "${r.entityTemplateId}" not found for entity "${o}"`)}),console.log("📊 Component usage summary:"),console.log(`  - Total used components: ${e.size}`),e.forEach(r=>{const o=i.get(r);console.log(`    • ${r}: ${(o==null?void 0:o.size)||0} entities`)}),{usedComponents:e,usedTemplates:a,activeEntities:l,componentToEntitiesMap:i}}function _t(t,e,a){var r;let l=0;const i={Position:0,Sprite:1,Movement:2,Collision:3,Input:4,Behavior:5,Health:6,Animation:7,Jump:8,Gravity:9};let n=!1;if(e&&e.components&&e.components.forEach(o=>{const d=o.definitionId||o.componentDefinitionId,s=Le[d];s&&i[s]!==void 0&&(l|=1<<i[s],s==="Sprite"&&(n=!0)),s==="Patrol"&&(l|=1<<i.Movement)}),t.componentOverrides&&Object.keys(t.componentOverrides).forEach(o=>{const d=Le[o];d&&i[d]!==void 0&&(l|=1<<i[d],d==="Sprite"&&(n=!0))}),l|=1<<i.Position,n)l|=1<<i.Sprite;else{const o=$a(t,e);o&&((r=a.sprites)==null?void 0:r.some(s=>s.id===o||s.name===o))&&(l|=1<<i.Sprite)}return l}const Ha=224,ja="hex",Dt=t=>{var r;const e=(t==null?void 0:t.spritePalette)||[],a=t==null?void 0:t.backgroundColor,l=(t==null?void 0:t.frames)||[];if(!e.length||!l.length)return null;let i=-1,n=-1;for(let o=0;o<e.length;o++){const d=e[o];if(!d||d===a)continue;let s=!1;for(const h of l)if(h!=null&&h.data){for(let c=0;c<(h.data.length||0)&&!s;c++)for(let _=0;_<(((r=h.data[c])==null?void 0:r.length)||0)&&!s;_++)h.data[c][_]===d&&(s=!0);if(s)break}s&&(i===-1&&(i=o),n=o)}return i===-1||n===-1?null:{first:i,last:n}},ht=t=>{const e=Dt(t);return e?e.first:-1};function Va(t){var b,g;const e=t.sprites||[],a=je(e),l=a.sprites,i=a.nameToIndex,n=a.directionalLookupTables;a.warnings.forEach(p=>{console.warn(`[Sprites Generator] ${p}`)}),console.log("🎨 generateSpritesFile() called:"),console.log(`  - analysis.sprites.length: ${e.length}`),console.log(`  - expandedSprites.length: ${l.length}`),console.log(`  - analysis.entities.length: ${((b=t.entities)==null?void 0:b.length)||0}`),console.log(`  - analysis.templates.length: ${((g=t.templates)==null?void 0:g.length)||0}`);const{activeEntities:r}=Ne(t);console.log(`  - activeEntities.length: ${r.length}`);const o=p=>{if(!p||p.startsWith("rgba"))return null;const m=p.replace("#","");return m.length!==6?null:{r:parseInt(m.substring(0,2),16),g:parseInt(m.substring(2,4),16),b:parseInt(m.substring(4,6),16)}},d=p=>{if(!p)return 0;const m=W.find(L=>L.hex.toUpperCase()===p.toUpperCase());if(m)return m.index;const T=o(p);if(!T)return 15;let v=15,D=1/0;for(const L of W){if(L.index===0)continue;const N=o(L.hex);if(!N)continue;const O=(T.r-N.r)**2+(T.g-N.g)**2+(T.b-N.b)**2;O<D&&(D=O,v=L.index)}return v},s=p=>{if(!p)return[15];const m=p.spritePalette||[],T=p.backgroundColor,v=Dt(p);if(!v)return[15];const D=[];for(let L=v.first;L<=v.last;L++){const N=m[L];!N||T&&N===T?D.push(0):D.push(d(N))}return D.length>0?D:[15]},h=(p,m)=>{let T=`${p}:
 `;if(m.length===0)return T+=`    db 0
 `,T;const v=16;for(let D=0;D<m.length;D+=v){const L=m.slice(D,D+v);T+=`    db ${L.join(", ")}
-`}return T},c=d=>{var L,N,M,C,P,F;console.log(`
-🔍 getEntitySpriteInfo for entity: "${d.name}" (template: ${d.entityTemplateId})`),console.log(`   Available sprites: ${l.map(w=>`"${w.name}" (${w.id})`).join(", ")||"NONE"}`);const m=(L=t.templates)==null?void 0:L.find(w=>w.id===d.entityTemplateId);if(!m)return console.log("   ❌ Template not found!"),null;console.log(`   Template found: "${m.name}"`),console.log(`   Template components: ${((N=m.components)==null?void 0:N.map(w=>w.definitionId).join(", "))||"NONE"}`);const T=t.components||[];let v;if(d.componentOverrides)for(const w in d.componentOverrides){const x=T.find(U=>U.id===w),j=(M=x==null?void 0:x.properties)==null?void 0:M.find(U=>U.type==="sprite_ref");if(j&&((C=d.componentOverrides[w])!=null&&C[j.name])){v=d.componentOverrides[w][j.name],console.log(`   ✅ Found spriteAssetId in overrides: "${v}"`);break}}if(!v)for(const w of m.components||[]){const x=T.find(U=>U.id===w.definitionId),j=(P=x==null?void 0:x.properties)==null?void 0:P.find(U=>U.type==="sprite_ref");if(j&&((F=w.defaultValues)!=null&&F[j.name])){v=w.defaultValues[j.name],console.log(`   ✅ Found spriteAssetId in template defaults: "${v}"`);break}}if(console.log(`   Resolved spriteAssetId: "${v||"undefined"}"`),!v)return console.log("   ⚠️ No sprite_ref property found in any component"),l.length>0?(console.log(`   ⚠️ Defaulting to first sprite "${l[0].name}"`),{spriteAssetIndex:0,spriteName:l[0].name,colors:s(l[0])}):null;let D=i[v];if(D===void 0&&(D=i[v.toLowerCase()]),D===void 0){const w=v.toLowerCase();D=l.findIndex(x=>{var j,U;return((j=x.name)==null?void 0:j.toLowerCase().includes(w))||w.includes(((U=x.name)==null?void 0:U.toLowerCase())||"")})}return D!==void 0&&D>=0?(console.log(`   ✅ Found sprite "${l[D].name}" at index ${D}`),{spriteAssetIndex:D,spriteName:l[D].name,colors:s(l[D])}):(console.log(`   ❌ Sprite "${v}" not found in project assets`),{spriteAssetIndex:-1,spriteName:`MISSING_${v}`,colors:[15]})},_=[];let E=0;r.forEach((d,m)=>{const T=c(d);if(!T){_.push({entityIndex:m,spriteName:"PLACEHOLDER",spriteAssetIndex:-1,baseHwSpriteIndex:E,layerCount:1,colors:[15]}),E+=1;return}_.push({entityIndex:m,spriteName:T.spriteName,spriteAssetIndex:T.spriteAssetIndex,baseHwSpriteIndex:E,layerCount:T.colors.length,colors:T.colors}),E+=T.colors.length});const A=32;let u=`; ==================================================================
+`}return T},c=p=>{var L,N,O,C,P,F;console.log(`
+🔍 getEntitySpriteInfo for entity: "${p.name}" (template: ${p.entityTemplateId})`),console.log(`   Available sprites: ${l.map(w=>`"${w.name}" (${w.id})`).join(", ")||"NONE"}`);const m=(L=t.templates)==null?void 0:L.find(w=>w.id===p.entityTemplateId);if(!m)return console.log("   ❌ Template not found!"),null;console.log(`   Template found: "${m.name}"`),console.log(`   Template components: ${((N=m.components)==null?void 0:N.map(w=>w.definitionId).join(", "))||"NONE"}`);const T=t.components||[];let v;if(p.componentOverrides)for(const w in p.componentOverrides){const x=T.find(U=>U.id===w),j=(O=x==null?void 0:x.properties)==null?void 0:O.find(U=>U.type==="sprite_ref");if(j&&((C=p.componentOverrides[w])!=null&&C[j.name])){v=p.componentOverrides[w][j.name],console.log(`   ✅ Found spriteAssetId in overrides: "${v}"`);break}}if(!v)for(const w of m.components||[]){const x=T.find(U=>U.id===w.definitionId),j=(P=x==null?void 0:x.properties)==null?void 0:P.find(U=>U.type==="sprite_ref");if(j&&((F=w.defaultValues)!=null&&F[j.name])){v=w.defaultValues[j.name],console.log(`   ✅ Found spriteAssetId in template defaults: "${v}"`);break}}if(console.log(`   Resolved spriteAssetId: "${v||"undefined"}"`),!v)return console.log("   ⚠️ No sprite_ref property found in any component"),l.length>0?(console.log(`   ⚠️ Defaulting to first sprite "${l[0].name}"`),{spriteAssetIndex:0,spriteName:l[0].name,colors:s(l[0])}):null;let D=i[v];if(D===void 0&&(D=i[v.toLowerCase()]),D===void 0){const w=v.toLowerCase();D=l.findIndex(x=>{var j,U;return((j=x.name)==null?void 0:j.toLowerCase().includes(w))||w.includes(((U=x.name)==null?void 0:U.toLowerCase())||"")})}return D!==void 0&&D>=0?(console.log(`   ✅ Found sprite "${l[D].name}" at index ${D}`),{spriteAssetIndex:D,spriteName:l[D].name,colors:s(l[D])}):(console.log(`   ❌ Sprite "${v}" not found in project assets`),{spriteAssetIndex:-1,spriteName:`MISSING_${v}`,colors:[15]})},_=[];let E=0;r.forEach((p,m)=>{const T=c(p);if(!T){_.push({entityIndex:m,spriteName:"PLACEHOLDER",spriteAssetIndex:-1,baseHwSpriteIndex:E,layerCount:1,colors:[15]}),E+=1;return}_.push({entityIndex:m,spriteName:T.spriteName,spriteAssetIndex:T.spriteAssetIndex,baseHwSpriteIndex:E,layerCount:T.colors.length,colors:T.colors}),E+=T.colors.length});const A=32;let u=`; ==================================================================
 ; SPRITE DATA
 ; File: sprites.asm
 ; Description: Sprite pattern and animation data
@@ -5254,8 +5352,8 @@ load_game_screen:
 ; ==================================================================
 ; SPRITE PATTERN DATA
 ; ==================================================================
-`;l.forEach((d,m)=>{const T=`_${m}`,D=(d.name+T).replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase(),L=Vt(d,Ha,m),N=_t(d);u+=`
-; Sprite Asset ${m}: ${d.name}
+`;l.forEach((p,m)=>{const T=`_${m}`,D=(p.name+T).replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase(),L=zt(p,ja,m),N=ht(p);u+=`
+; Sprite Asset ${m}: ${p.name}
 ${L}`,N>=0?u+=`
 ; Unified pattern label for sprite ${m}
 SPRITE_${m}_PATTERN EQU ${D}_F0_LAYER${N}
@@ -5288,16 +5386,16 @@ SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN
 ; Table: Sprite Asset Frame Counts
 ; Format: db frame_count
 sprite_asset_frame_count:
-`,l.forEach((d,m)=>{var v;const T=((v=d.frames)==null?void 0:v.length)||1;u+=`    db ${T} ; Sprite ${m}: ${d.name}
+`,l.forEach((p,m)=>{var v;const T=((v=p.frames)==null?void 0:v.length)||1;u+=`    db ${T} ; Sprite ${m}: ${p.name}
 `}),l.length===0&&(u+=`    db 1 ; Placeholder
 `),u+=`
 ; Table: Sprite Asset Frame Pointer List Table
 ; Format: dw SPRITE_<id>_FRAME_PTRS
 sprite_asset_frame_ptr_table:
-`,l.forEach((d,m)=>{u+=`    dw SPRITE_${m}_FRAME_PTRS
+`,l.forEach((p,m)=>{u+=`    dw SPRITE_${m}_FRAME_PTRS
 `}),l.length===0&&(u+=`    dw SPRITE_0_FRAME_PTRS
-`),l.forEach((d,m)=>{var M;const T=`_${m}`,D=(d.name+T).replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase(),L=_t(d),N=((M=d.frames)==null?void 0:M.length)||1;u+=`
-; Sprite ${m}: ${d.name} frame pointers
+`),l.forEach((p,m)=>{var O;const T=`_${m}`,D=(p.name+T).replace(/[^a-zA-Z0-9_]/g,"_").toUpperCase(),L=ht(p),N=((O=p.frames)==null?void 0:O.length)||1;u+=`
+; Sprite ${m}: ${p.name} frame pointers
 SPRITE_${m}_FRAME_PTRS:
 `;for(let C=0;C<N;C++)L>=0?u+=`    dw ${D}_F${C}_LAYER${L}
 `:u+=`    dw SPRITE_PLACEHOLDER_PATTERN
@@ -5310,10 +5408,10 @@ SPRITE_0_FRAME_PTRS:
 ; Maps any sprite asset index to its directional variant index.
 ; If no directional variant exists, table points back to same index.
 ; ==================================================================
-`,u+=h("sprite_dir_left_table",o.left),u+=`
-`,u+=h("sprite_dir_right_table",o.right),u+=`
-`,u+=h("sprite_dir_up_table",o.up),u+=`
-`,u+=h("sprite_dir_down_table",o.down),u+=`
+`,u+=h("sprite_dir_left_table",n.left),u+=`
+`,u+=h("sprite_dir_right_table",n.right),u+=`
+`,u+=h("sprite_dir_up_table",n.up),u+=`
+`,u+=h("sprite_dir_down_table",n.down),u+=`
 `,u+=` 
 ; ================================================================== 
 ; SPRITE CONFIGURATION TABLES 
@@ -5322,21 +5420,21 @@ SPRITE_0_FRAME_PTRS:
 ; Table: Entity Sprite Configuration 
 ; Format: db base_hw_sprite_index, layer_count 
 entity_sprite_config: 
-`,_.forEach(d=>{const m=d.baseHwSpriteIndex>=0?d.baseHwSpriteIndex:0;u+=`    db ${m}, ${d.layerCount} ; Entity ${d.entityIndex} (${d.spriteName})
+`,_.forEach(p=>{const m=p.baseHwSpriteIndex>=0?p.baseHwSpriteIndex:0;u+=`    db ${m}, ${p.layerCount} ; Entity ${p.entityIndex} (${p.spriteName})
 `}),_.length<32&&(u+=`    ds ${(32-_.length)*2}, 0 ; Padding
 `),u+=`
 ; Table: Entity -> Sprite Asset Index (ROM initial values)
 ; Copied to RAM entity_sprite_asset_index at init
 ; Format: db sprite_asset_index (#FF = none)
 entity_sprite_asset_index_init:
-`,_.forEach(d=>{const m=d.spriteAssetIndex>=0?d.spriteAssetIndex:255;u+=`    db #${m.toString(16).toUpperCase().padStart(2,"0")} ; Entity ${d.entityIndex} (${d.spriteName})
+`,_.forEach(p=>{const m=p.spriteAssetIndex>=0?p.spriteAssetIndex:255;u+=`    db #${m.toString(16).toUpperCase().padStart(2,"0")} ; Entity ${p.entityIndex} (${p.spriteName})
 `}),_.length<32&&(u+=`    ds ${32-_.length}, #FF ; Padding
 `),u+=` 
 ; Table: Hardware Sprite Layer Colors 
 ; Format: db color_index 
 sprite_layer_colors: 
-`;let S=0;_.forEach(d=>{d.layerCount>0&&(u+=`    ; Entity ${d.entityIndex} (${d.spriteName}) layers:
-`,d.colors.forEach((m,T)=>{u+=`    db ${m} ; Layer ${T}
+`;let S=0;_.forEach(p=>{p.layerCount>0&&(u+=`    ; Entity ${p.entityIndex} (${p.spriteName}) layers:
+`,p.colors.forEach((m,T)=>{u+=`    db ${m} ; Layer ${T}
 `,S+=1}))});const f=A-S;f>0&&(u+=`    ds ${f}, 0 ; Padding
 `),u+=`
 ; ==================================================================
@@ -5352,20 +5450,20 @@ init_sprites:
 
 load_sprite_patterns:
     ; Load patterns for all active entities
-`;let y=!1;if(_.forEach(d=>{if(d.layerCount===0)return;const m=d.spriteAssetIndex<0?"SPRITE_PLACEHOLDER_PATTERN":`SPRITE_${d.spriteAssetIndex}_PATTERN`;u+=`    ; Entity ${d.entityIndex}: ${d.spriteName} (${d.layerCount} layers)
-    ; Base HW Sprite: ${d.baseHwSpriteIndex}
+`;let y=!1;if(_.forEach(p=>{if(p.layerCount===0)return;const m=p.spriteAssetIndex<0?"SPRITE_PLACEHOLDER_PATTERN":`SPRITE_${p.spriteAssetIndex}_PATTERN`;u+=`    ; Entity ${p.entityIndex}: ${p.spriteName} (${p.layerCount} layers)
+    ; Base HW Sprite: ${p.baseHwSpriteIndex}
     ld hl, ${m}
-    ld de, SPRPAT + (${d.baseHwSpriteIndex} * 32)
-    ld bc, ${d.layerCount*32} ; Load ${d.layerCount} layers (32 bytes each)
+    ld de, SPRPAT + (${p.baseHwSpriteIndex} * 32)
+    ld bc, ${p.layerCount*32} ; Load ${p.layerCount} layers (32 bytes each)
     call FAST_LDIRVM
 `,y=!0}),!y)if(l.length===0)u+=`    ; No sprites to load
 `;else{u+=`    ; No active entities detected, load all sprite assets sequentially
-`;let d=0;l.forEach((m,T)=>{var N;const v=s(m).length||1,D=((N=m.frames)==null?void 0:N.length)||1,L=v*D*32;u+=`    ; Sprite Asset ${T}: ${m.name} (${D} frames, ${v} layers)
+`;let p=0;l.forEach((m,T)=>{var N;const v=s(m).length||1,D=((N=m.frames)==null?void 0:N.length)||1,L=v*D*32;u+=`    ; Sprite Asset ${T}: ${m.name} (${D} frames, ${v} layers)
     ld hl, SPRITE_${T}_PATTERN
-    ld de, SPRPAT + (${d} * 32)
+    ld de, SPRPAT + (${p} * 32)
     ld bc, ${L}
     call FAST_LDIRVM
-`,d+=v*D})}return u+=`    ret
+`,p+=v*D})}return u+=`    ret
 
 ; ==================================================================
 ; SPRITE MANAGEMENT FUNCTIONS
@@ -5462,7 +5560,7 @@ update_sprites_to_vram:
 ; ==================================================================
 ; SPRITE CONSTANTS
 ; ==================================================================
-SPRITE_INVISIBLE    EQU ${$a}
+SPRITE_INVISIBLE    EQU ${Ha}
 
 ; ==================================================================
 ; RAM REQUIREMENTS
@@ -5470,7 +5568,7 @@ SPRITE_INVISIBLE    EQU ${$a}
 ; sprite_attributes: ds ${A*4}
 ; active_sprite_count: db 0
 ; sprites_dirty: db 0
-`,u}function Va(t){let e=`
+`,u}function za(t){let e=`
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
 ; ==================================================================
@@ -5479,7 +5577,7 @@ SPRITE_INVISIBLE    EQU ${$a}
 update_all_entities:
     ; Build entity list once per frame (slots with non-zero component masks)
     call rebuild_used_entity_list
-`;const a=[["Input","update_input_component","1. Input (player control)"],["Shoot","update_shoot_component","2. Shooting"],["Behavior","update_behavior_component","3. Behavior/AI"],["Patrol","update_entities","3b. Patrol/per-entity update"],["Jump","update_jump_component","4. Jump impulse"],["Movement","update_movement_component","5. Movement"],["Cursors","update_cursors_component","5b. Cursors movement"],["Gravity","update_gravity_component","6. Gravity"],["Position","update_position_component","7. Apply velocity"],["Collision","prepare_platform_detection","8a. Clear platform refs"],["Collision","update_collision_component","8b. Collision detection"],["Collision","update_platform_riding","8c. Platform riding"],["WallCollision","update_wallcollision_component","8d. Wall collision"],["Health","update_health_component","9. Health/Death"],["Damage","update_damage_component","10. Damage"],["Animation","update_animation_component","11. Animation"],["AutoDestroy","update_auto_destroy_component","12. Auto-destroy"],["Sprite","update_sprite_component","13. Sprite rendering"]];let l=0;const i=new Set;for(const[o,r,n]of a)(o==="Position"||o==="Sprite"||t.has(o))&&(i.has(r)||(i.add(r),e+=`    call ${r.padEnd(30)} ; ${n}
+`;const a=[["Input","update_input_component","1. Input (player control)"],["Shoot","update_shoot_component","2. Shooting"],["Behavior","update_behavior_component","3. Behavior/AI"],["Patrol","update_entities","3b. Patrol/per-entity update"],["Jump","update_jump_component","4. Jump impulse"],["Movement","update_movement_component","5. Movement"],["Cursors","update_cursors_component","5b. Cursors movement"],["Gravity","update_gravity_component","6. Gravity"],["Position","update_position_component","7. Apply velocity"],["Collision","prepare_platform_detection","8a. Clear platform refs"],["Collision","update_collision_component","8b. Collision detection"],["Collision","update_platform_riding","8c. Platform riding"],["WallCollision","update_wallcollision_component","8d. Wall collision"],["Health","update_health_component","9. Health/Death"],["Damage","update_damage_component","10. Damage"],["Animation","update_animation_component","11. Animation"],["AutoDestroy","update_auto_destroy_component","12. Auto-destroy"],["Sprite","update_sprite_component","13. Sprite rendering"]];let l=0;const i=new Set;for(const[n,r,o]of a)(n==="Position"||n==="Sprite"||t.has(n))&&(i.has(r)||(i.add(r),e+=`    call ${r.padEnd(30)} ; ${o}
 `,r==="update_shoot_component"&&(e+=`    ; Shooting may spawn entities, rebuild used-entity list for later phases
 `,e+=`    call rebuild_used_entity_list
 `),l++));return e+=`    ret
@@ -5488,7 +5586,8 @@ update_all_entities:
 `,e+=`
 ; ------------------------------------------------------------------
 ; rebuild_used_entity_list
-; Build compact list of entity slots that are in use (mask_l|mask_h != 0)
+; Build compact list of ACTIVE entity slots that are in use
+; (entity_active != 0 and mask_l|mask_h != 0)
 ; Output:
 ;   active_entity_list[]   = entity indices with components
 ;   active_entity_count    = number of entries
@@ -5505,6 +5604,12 @@ rebuild_used_entity_list:
 
     ld e, c
     ld d, 0
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .next_entity
+
     ld hl, entity_comp_masks
     add hl, de
     ld a, (hl)
@@ -5529,7 +5634,7 @@ rebuild_used_entity_list:
 .next_entity:
     inc c
     jr .rebuild_loop
-`,e}function za(){return`
+`,e}function Ga(){return`
 ; ==================================================================
 ; POSITION COMPONENT SYSTEM (Based on SpriteEditor position handling)
 ; ==================================================================
@@ -5625,9 +5730,10 @@ position_update_loop:
     pop bc
 
 position_next_entity:
-    djnz position_update_loop
+    dec b
+    jp nz, position_update_loop
     ret
-`}function Ga(t){return`
+`}function Ya(t){return`
 ; ==================================================================
 ; SPRITE COMPONENT SYSTEM (Based on SpriteEditor rendering)
 ; ==================================================================
@@ -5794,7 +5900,8 @@ sprite_continue:
     pop bc
 
 sprite_next_entity:
-    djnz sprite_update_loop
+    dec b
+    jp nz, sprite_update_loop
 
     ret
 
@@ -5877,7 +5984,7 @@ force_sprite_done:
     pop de
     pop bc
     ret
-`}function Ya(){return`
+`}function Wa(){return`
         ; ==================================================================
         ; MOVEMENT COMPONENT SYSTEM (Based on movement physics)
         ; ==================================================================
@@ -5967,10 +6074,11 @@ force_sprite_done:
             pop bc
 
         movement_next_entity:
-            djnz movement_update_loop
+            dec b
+            jp nz, movement_update_loop
     ret
-    `}function Wa(t){const o=Array.from({length:3},(p,s)=>`    srl a                      ; A = X / ${Math.pow(2,s+1)}`).join(`
-`),r=Array.from({length:3},(p,s)=>`    srl a                      ; A = Y / ${Math.pow(2,s+1)}`).join(`
+    `}function Qa(t){const n=Array.from({length:3},(d,s)=>`    srl a                      ; A = X / ${Math.pow(2,s+1)}`).join(`
+`),r=Array.from({length:3},(d,s)=>`    srl a                      ; A = Y / ${Math.pow(2,s+1)}`).join(`
 `);return`
         ; ==================================================================
 ; COLLISION COMPONENT SYSTEM(Based on ScreenEditor collision detection)
@@ -6154,7 +6262,8 @@ force_sprite_done:
 
     collision_next_entity:
     pop hl                        ; Restore list pointer
-    djnz collision_update_loop
+    dec b
+    jp nz, collision_update_loop
 
     ; Run lightweight entity-entity collision pass for all collidable entities
     call update_entity_collision_fast
@@ -6541,7 +6650,7 @@ update_entity_collision_fast:
     ; Always divide by 8 to convert pixels to character column/row
     ; Convert X to tile column (divide by 8)
 
-${o}
+${n}
     ld c, a; C = tile column
 
         ; Convert Y to tile row (divide by 8)
@@ -6755,7 +6864,7 @@ ${r}
     pop bc
     ret
 
-        `}function Qa(){return`
+        `}function Xa(){return`
     ; ------------------------------------------------------------------
     ; get_behavior_tile
     ; Get behavior value for tile at (B=row, C=column)
@@ -6827,7 +6936,7 @@ get_behavior_tile:
 .bt_out_of_bounds:
     xor a                         ; A = 0 (passable)
     ret
-    `}function Xa(){return`
+    `}function Ka(){return`
         ; ==================================================================
         ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
         ; ==================================================================
@@ -7070,9 +7179,10 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             pop bc
 
         input_next_entity:
-            djnz input_update_loop
+            dec b
+            jp nz, input_update_loop
             ret
-    `}function Ka(){return`
+    `}function Za(){return`
     ; ==================================================================
         ; BEHAVIOR COMPONENT SYSTEM(Based on BehaviorEditor logic)
     ; ==================================================================
@@ -7106,9 +7216,10 @@ behavior_update_loop:
     ; TODO: State machines, pathfinding, decision trees
 
 behavior_next_entity:
-            djnz behavior_update_loop
+            dec b
+            jp nz, behavior_update_loop
             ret
-    `}function Za(){return`
+    `}function Ja(){return`
     ; ==================================================================
         ; GRAVITY COMPONENT SYSTEM(Constant downward acceleration)
     ; ==================================================================
@@ -7234,9 +7345,10 @@ gravity_done:
             pop bc
 
 gravity_next_entity:
-            djnz gravity_update_loop
+            dec b
+            jp nz, gravity_update_loop
     ret
-    `}function Ja(){return`
+    `}function qa(){return`
     ; ==================================================================
     ; HEALTH COMPONENT SYSTEM
     ; ==================================================================
@@ -7323,7 +7435,8 @@ update_health_component:
     pop bc
 
 .health_next_entity:
-    djnz .health_update_loop
+    dec b
+    jp nz, .health_update_loop
     ret
 
 ; ==================================================================
@@ -7385,7 +7498,7 @@ increase_entity_lives:
     ld (hl), b                    ; Store clamped health
     pop bc
     ret
-    `}function qa(){return`
+    `}function el(){return`
     ; ==================================================================
     ; DAMAGE COMPONENT SYSTEM
     ; ==================================================================
@@ -7455,7 +7568,8 @@ update_damage_component:
     pop bc
 
 .damage_next_entity:
-    djnz .damage_update_loop
+    dec b
+    jp nz, .damage_update_loop
     ret
 
 ; ==================================================================
@@ -7508,7 +7622,7 @@ check_entity_invincible:
 
     ld a, 1                       ; Return 1 if invincible
     ret
-    `}function el(){return`
+    `}function tl(){return`
     ; ==================================================================
     ; SHOOT COMPONENT SYSTEM
     ; ==================================================================
@@ -7756,9 +7870,10 @@ update_shoot_component:
     pop bc
 
 .shoot_next_entity:
-    djnz .shoot_update_loop
+    dec b
+    jp nz, .shoot_update_loop
     ret
-    `}function tl(){return`
+    `}function al(){return`
     ; ==================================================================
     ; PLATFORM RIDING SYSTEM
     ; ==================================================================
@@ -7850,7 +7965,7 @@ update_platform_riding:
     inc c
     djnz .grace_loop
     ret
-    `}function al(){return`
+    `}function ll(){return`
     ; ==================================================================
         ; ANIMATION COMPONENT SYSTEM
     ; ==================================================================
@@ -8106,9 +8221,10 @@ anim_done_entity:
             pop bc
 
         .anim_next_entity:
-            djnz .anim_loop
+            dec b
+            jp nz, .anim_loop
     ret
-    `}function ll(){return`
+    `}function ol(){return`
     ; ==================================================================
         ; JUMP COMPONENT SYSTEM
     ; ==================================================================
@@ -8231,8 +8347,10 @@ anim_done_entity:
 
             ; If entity has Gravity, set gravity velocity to negative jump impulse
             ; Jump impulse: -1024 (8.8 fixed) => #FC00 (~4 tiles height with gravity #40)
-            pop hl                        ; restore hl pointer to high mask for this entity
-            push hl
+            ld hl, entity_comp_masks_hi
+            ld e, c
+            ld d, 0
+            add hl, de
             ld a, (hl)
             and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
             jr z, jump_done_entity
@@ -8251,9 +8369,10 @@ jump_done_entity:
             pop bc
 
         jump_next_entity:
-            djnz jump_update_loop
+            dec b
+            jp nz, jump_update_loop
     ret
-    `}function ol(){return`
+    `}function nl(){return`
     ; ==================================================================
     ; AUTO-DESTROY COMPONENT SYSTEM
     ; ==================================================================
@@ -8340,9 +8459,10 @@ auto_destroy_done:
         pop bc
 
 auto_destroy_next:
-        djnz auto_destroy_loop
+        dec b
+        jp nz, auto_destroy_loop
         ret
-    `}function nl(){return`
+    `}function il(){return`
     ; ==================================================================
     ; CURSORS COMPONENT SYSTEM
     ; ==================================================================
@@ -8361,7 +8481,7 @@ init_cursors_system:
 ; ------------------------------------------------------------------
 update_cursors_component:
     ret
-    `}function il(){return`
+    `}function rl(){return`
     ; ==================================================================
     ; CARRY COMPONENT SYSTEM
     ; ==================================================================
@@ -8440,7 +8560,7 @@ update_carry_component:
 .carry_next:
     inc c
     jr .carry_loop
-    `}function rl(){return`
+    `}function sl(){return`
     ; ==================================================================
     ; WALL COLLISION COMPONENT SYSTEM
     ; ==================================================================
@@ -8810,7 +8930,7 @@ update_wallcollision_component:
 .wall_next:
     inc e
     jp .wall_loop
-    `}function sl(){return`
+    `}function dl(){return`
     ; ==================================================================
     ; COLLECTIBLE COMPONENT SYSTEM
     ; ==================================================================
@@ -8907,7 +9027,7 @@ update_collectible_component:
 .collect_next:
     inc c
     jr .collect_loop
-    `}function dl(){return` 
+    `}function cl(){return` 
     ; ================================================================== 
         ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system) 
     ; ================================================================== 
@@ -8965,7 +9085,7 @@ update_collectible_component:
             add hl, de
             ld (hl), 15; White color
     ret
-    `}function cl(t){const e=t.usedComponents;let a=`init_components: 
+    `}function pl(t){const e=t.usedComponents;let a=`init_components: 
 ; Initialize component systems(OPTIMIZED - only used components) 
     ; Used: ${Array.from(e).join(", ")} 
  
@@ -9027,7 +9147,7 @@ update_collectible_component:
     call init_collectible_system
     `),a+=`
     ret
-    `,a}function Dt(t){if(!t.entities||t.entities.length===0)return`; ==================================================================
+    `,a}function Lt(t){if(!t.entities||t.entities.length===0)return`; ==================================================================
 ; GAME COMPONENT SYSTEMS(SKIPPED - NO ENTITIES DETECTED)
     ; File: components.asm
         ; ==================================================================
@@ -9186,7 +9306,7 @@ entity_last_collision_entity EQU temp_byte_24
     ; ==================================================================
 ; END OF COMPONENTS(MINIMAL VERSION)
     ; ==================================================================
-        `;const e=Ne(t),a=e.usedComponents,l=(s,h)=>{if(!s||typeof s!="object")return!1;const c=String(s.type||"").toUpperCase();if(h.has(c))return!0;const _=Array.isArray(s.conditions)?s.conditions:[];for(const E of _)if(l(E,h))return!0;return!1},i=Array.isArray(t.stateMachines)?t.stateMachines:[],o=new Set(["HAS_COLLISION","HAS_DEADLY_TILE_COLLISION"]);i.some(s=>(Array.isArray(s==null?void 0:s.transitions)?s.transitions:[]).some(c=>l(c==null?void 0:c.conditions,o)))&&!a.has("Collision")&&(console.log("  - Forcing Collision system: required by state machine conditions"),a.add("Collision")),console.log("🎯 Generating optimized components.asm..."),console.log(`  - Active entities: ${e.activeEntities.length} `),console.log(`  - Used components: ${Array.from(a).join(", ")} `),console.log(`  - Filtered out: ${8-a.size} unused components`);let n=`; ==================================================================
+        `;const e=Ne(t),a=e.usedComponents,l=(s,h)=>{if(!s||typeof s!="object")return!1;const c=String(s.type||"").toUpperCase();if(h.has(c))return!0;const _=Array.isArray(s.conditions)?s.conditions:[];for(const E of _)if(l(E,h))return!0;return!1},i=Array.isArray(t.stateMachines)?t.stateMachines:[],n=new Set(["HAS_COLLISION","HAS_DEADLY_TILE_COLLISION"]);i.some(s=>(Array.isArray(s==null?void 0:s.transitions)?s.transitions:[]).some(c=>l(c==null?void 0:c.conditions,n)))&&!a.has("Collision")&&(console.log("  - Forcing Collision system: required by state machine conditions"),a.add("Collision")),console.log("🎯 Generating optimized components.asm..."),console.log(`  - Active entities: ${e.activeEntities.length} `),console.log(`  - Used components: ${Array.from(a).join(", ")} `),console.log(`  - Filtered out: ${8-a.size} unused components`);let o=`; ==================================================================
 ; GAME COMPONENT SYSTEMS - MSX ECS ENGINE
     ; File: components.asm
         ; Description: Component systems based on Mideas React.js architecture
@@ -9289,8 +9409,8 @@ entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=
 ; CORE ECS SYSTEM FUNCTIONS
     ; ==================================================================
 
-        ${cl(e)}
-`;n+=za();const p=t.sprites&&t.sprites.length>0;return a.has("Sprite")||p?n+=Ga():n+=`
+        ${pl(e)}
+`;o+=Ga();const d=t.sprites&&t.sprites.length>0;return a.has("Sprite")||d?o+=Ya():o+=`
     ; Sprite system filtered out(not used)
 init_sprite_system:
     ret
@@ -9300,70 +9420,70 @@ update_sprite_component:
 
 force_update_entity_sprite:
     ret
-    `,a.has("Movement")?n+=Ya():n+=`
+    `,a.has("Movement")?o+=Wa():o+=`
     ; Movement system filtered out(not used)
 init_movement_system:
     ret
 
 update_movement_component:
     ret
-    `,a.has("Collision")?n+=Wa():n+=`
+    `,a.has("Collision")?o+=Qa():o+=`
     ; Collision system filtered out(not used)
 init_collision_system:
     ret
 
 update_collision_component:
     ret
-    `,(a.has("Collision")||a.has("WallCollision"))&&(n+=Qa()),a.has("Input")?n+=Xa():n+=`
+    `,(a.has("Collision")||a.has("WallCollision"))&&(o+=Xa()),a.has("Input")?o+=Ka():o+=`
     ; Input system filtered out(not used)
 init_input_system:
     ret
 
 update_input_component:
     ret
-    `,a.has("Behavior")?n+=Ka():n+=`
+    `,a.has("Behavior")?o+=Za():o+=`
     ; Behavior system filtered out(not used)
 init_behavior_system:
     ret
 
 update_behavior_component:
     ret
-    `,a.has("Health")?n+=Ja():n+=`
+    `,a.has("Health")?o+=qa():o+=`
     ; Health system filtered out(not used)
 init_health_system:
     ret
 
 update_health_component:
     ret
-    `,a.has("Animation")?n+=al():n+=`
+    `,a.has("Animation")?o+=ll():o+=`
     ; Animation system filtered out(not used)
 init_animation_system:
     ret
 
 update_animation_component:
     ret
-    `,a.has("Jump")?n+=ll():n+=`
+    `,a.has("Jump")?o+=ol():o+=`
     ; Jump system filtered out(not used)
 init_jump_system:
     ret
 
 update_jump_component:
     ret
-    `,a.has("Gravity")?n+=Za():n+=`
+    `,a.has("Gravity")?o+=Ja():o+=`
     ; Gravity system filtered out(not used)
 init_gravity_system:
     ret
 
 update_gravity_component:
     ret
-    `,n+=ol(),a.has("Cursors")?n+=nl():n+=`
+    `,o+=nl(),a.has("Cursors")?o+=il():o+=`
     ; Cursors system filtered out(not used)
 init_cursors_system:
     ret
 
 update_cursors_component:
     ret
-    `,a.has("StateMachine")?n+=`
+    `,a.has("StateMachine")?o+=`
     ; StateMachine system (integrates with stateMachineGenerator.ts)
     ; Note: The actual SM_Update runtime is in statemachine.asm
     ; This component iterates entities and calls SM_Update for each one
@@ -9425,49 +9545,49 @@ update_statemachine_component:
 .sm_comp_next:
     inc c
     jr .sm_comp_loop
-    `:n+=`
+    `:o+=`
     ; StateMachine system filtered out(not used)
 init_statemachine_system:
     ret
 
 update_statemachine_component:
     ret
-    `,a.has("Carry")?n+=il():n+=`
+    `,a.has("Carry")?o+=rl():o+=`
     ; Carry system filtered out(not used)
 init_carry_system:
     ret
 
 update_carry_component:
     ret
-    `,a.has("Damage")?n+=qa():n+=`
+    `,a.has("Damage")?o+=el():o+=`
     ; Damage system filtered out(not used)
 init_damage_system:
     ret
 
 update_damage_component:
     ret
-    `,a.has("Shoot")?n+=el():n+=`
+    `,a.has("Shoot")?o+=tl():o+=`
     ; Shoot system filtered out(not used)
 init_shoot_system:
     ret
 
 update_shoot_component:
     ret
-    `,n+=tl(),a.has("WallCollision")?n+=rl():n+=`
+    `,o+=al(),a.has("WallCollision")?o+=sl():o+=`
     ; WallCollision system filtered out(not used)
 init_wallcollision_system:
     ret
 
 update_wallcollision_component:
     ret
-    `,a.has("Collectible")?n+=sl():n+=`
+    `,a.has("Collectible")?o+=dl():o+=`
     ; Collectible system filtered out(not used)
 init_collectible_system:
     ret
 
 update_collectible_component:
     ret
-    `,n+=dl(),n+=Va(a),n+=`
+    `,o+=cl(),o+=za(a),o+=`
 ; ==================================================================
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
 ; ==================================================================
@@ -9515,11 +9635,12 @@ execute_all_state_machines:
 .skip_entity:
     pop bc                        ; Restore loop counter
     pop hl                        ; Restore list pointer
-    djnz .sm_loop                 ; Loop for all used entities
+    dec b
+    jp nz, .sm_loop               ; Loop for all used entities
     
     ret
 
-`,n+=`
+`,o+=`
 ; ==================================================================
 ; TILE COLLISION SYSTEM
 ; ==================================================================
@@ -9713,11 +9834,11 @@ div_a_by_c:
     ld a, b
     ret
 
-`,n+=`
+`,o+=`
     ; ==================================================================
 ; END OF COMPONENT SYSTEMS
     ; ==================================================================
-        `,n}function pl(t){var E,A,u,S;const e=(f,y)=>{if(typeof f=="boolean")return f;if(typeof f=="number")return f!==0;if(typeof f=="string"){const b=f.trim().toLowerCase();if(b==="true")return!0;if(b==="false")return!1;const g=parseInt(b,10);if(!Number.isNaN(g))return g!==0}return y},a=(f,y)=>{const b=typeof f=="number"?f:parseInt(String(f??""),10);return Number.isNaN(b)?y:Math.max(0,Math.min(255,b|0))},l=(f,y)=>{const b=typeof f=="number"?f:parseInt(String(f??""),10);return Number.isNaN(b)?y&255:b<0?256+Math.max(-128,Math.min(-1,b|0))&255:Math.max(0,Math.min(255,b|0))},i=f=>(f&255).toString(16).toUpperCase().padStart(2,"0"),o=f=>{const y=(f==null?void 0:f.screenAssetId)||(f==null?void 0:f.screenId)||(f==null?void 0:f.screenMapId);if(y){const m=t.worldmaps||[];for(const T of m){const D=((T==null?void 0:T.nodes)||[]).findIndex(L=>(L==null?void 0:L.screenAssetId)===y);if(D>=0)return D}}if(typeof(f==null?void 0:f.screenIndex)=="number"&&f.screenIndex>=0)return f.screenIndex;let b=0,g=null;if(t.screenMaps&&t.screenMaps.forEach((m,T)=>{var D;(((D=m==null?void 0:m.layers)==null?void 0:D.entities)||[]).some(L=>L.id===f.id)&&(b=T,g=m.id||null)}),!g)return b;const d=t.worldmaps||[];for(const m of d){const v=((m==null?void 0:m.nodes)||[]).findIndex(D=>(D==null?void 0:D.screenAssetId)===g);if(v>=0)return v}return b},n=Ne(t).activeEntities,p=2,s=f=>String(f??"entity").toUpperCase().replace(/[^A-Z0-9]/g,"_").replace(/^_+|_+$/g,"")||"ENTITY",h=new Map,c=n.map((f,y)=>{const b=s((f==null?void 0:f.name)||`ENTITY_${y}`),g=(h.get(b)||0)+1;return h.set(b,g),g===1?b:`${b}_${g}`});console.log("🎯 Generating optimized entities.asm..."),console.log(`  - Total entity templates in JSON: ${((E=t.templates)==null?void 0:E.length)||0}`),console.log(`  - Actually instantiated entities: ${n.length}`),console.log(`  - Filtered out: ${(((A=t.templates)==null?void 0:A.length)||0)-n.length} unused templates`);let _=`; ==================================================================
+        `,o}function _l(t){var E,A,u,S;const e=(f,y)=>{if(typeof f=="boolean")return f;if(typeof f=="number")return f!==0;if(typeof f=="string"){const b=f.trim().toLowerCase();if(b==="true")return!0;if(b==="false")return!1;const g=parseInt(b,10);if(!Number.isNaN(g))return g!==0}return y},a=(f,y)=>{const b=typeof f=="number"?f:parseInt(String(f??""),10);return Number.isNaN(b)?y:Math.max(0,Math.min(255,b|0))},l=(f,y)=>{const b=typeof f=="number"?f:parseInt(String(f??""),10);return Number.isNaN(b)?y&255:b<0?256+Math.max(-128,Math.min(-1,b|0))&255:Math.max(0,Math.min(255,b|0))},i=f=>(f&255).toString(16).toUpperCase().padStart(2,"0"),n=f=>{const y=(f==null?void 0:f.screenAssetId)||(f==null?void 0:f.screenId)||(f==null?void 0:f.screenMapId);if(y){const m=t.worldmaps||[];for(const T of m){const D=((T==null?void 0:T.nodes)||[]).findIndex(L=>(L==null?void 0:L.screenAssetId)===y);if(D>=0)return D}}if(typeof(f==null?void 0:f.screenIndex)=="number"&&f.screenIndex>=0)return f.screenIndex;let b=0,g=null;if(t.screenMaps&&t.screenMaps.forEach((m,T)=>{var D;(((D=m==null?void 0:m.layers)==null?void 0:D.entities)||[]).some(L=>L.id===f.id)&&(b=T,g=m.id||null)}),!g)return b;const p=t.worldmaps||[];for(const m of p){const v=((m==null?void 0:m.nodes)||[]).findIndex(D=>(D==null?void 0:D.screenAssetId)===g);if(v>=0)return v}return b},o=Ne(t).activeEntities,d=2,s=f=>String(f??"entity").toUpperCase().replace(/[^A-Z0-9]/g,"_").replace(/^_+|_+$/g,"")||"ENTITY",h=new Map,c=o.map((f,y)=>{const b=s((f==null?void 0:f.name)||`ENTITY_${y}`),g=(h.get(b)||0)+1;return h.set(b,g),g===1?b:`${b}_${g}`});console.log("🎯 Generating optimized entities.asm..."),console.log(`  - Total entity templates in JSON: ${((E=t.templates)==null?void 0:E.length)||0}`),console.log(`  - Actually instantiated entities: ${o.length}`),console.log(`  - Filtered out: ${(((A=t.templates)==null?void 0:A.length)||0)-o.length} unused templates`);let _=`; ==================================================================
 ; GAME ENTITIES
 ; File: entities.asm
 ; Description: Game entity definitions and behavior
@@ -9725,16 +9846,16 @@ div_a_by_c:
 ;
 ; INTELLIGENT FILTERING ACTIVE:
 ;   Entity templates in project: ${((u=t.templates)==null?void 0:u.length)||0}
-;   Actually instantiated: ${n.length}
-;   Filtered out: ${(((S=t.templates)==null?void 0:S.length)||0)-n.length} unused templates
+;   Actually instantiated: ${o.length}
+;   Filtered out: ${(((S=t.templates)==null?void 0:S.length)||0)-o.length} unused templates
 ;
 ; ==================================================================
 
-`;if(n.length>0){_+=`; ==================================================================
+`;if(o.length>0){_+=`; ==================================================================
 ; ENTITY DEFINITIONS
 ; ==================================================================
 
-`,n.forEach((y,b)=>{var T;const g=c[b],d=(T=t.templates)==null?void 0:T.find(v=>v.id===y.entityTemplateId),m=pt(y,d,t);_+=`; Entity: ${y.name} (instance from template: ${y.entityTemplateId})
+`,o.forEach((y,b)=>{var T;const g=c[b],p=(T=t.templates)==null?void 0:T.find(v=>v.id===y.entityTemplateId),m=_t(y,p,t);_+=`; Entity: ${y.name} (instance from template: ${y.entityTemplateId})
 ENTITY_${g}_ID EQU ${b}
 ENTITY_${g}_COMP_MASK EQU #${m.toString(16).toUpperCase().padStart(2,"0")}  ; Component mask: ${m.toString(2).padStart(8,"0")}b
 `,y.entityTemplateId&&(_+=`; Template: ${y.entityTemplateId}
@@ -9746,7 +9867,7 @@ ENTITY_${g}_Y EQU ${y.position.y}
 ; ==================================================================
 
 init_entities:
-    ; Initialize all active game entities (${n.length} entities)
+    ; Initialize all active game entities (${o.length} entities)
 
     ; Ensure sprite system is reset whenever entities are initialized
     call init_sprites
@@ -9797,13 +9918,13 @@ init_entities:
     ld (hl), 0
     ldir
     
-`,n.length>0?n.forEach((y,b)=>{const g=c[b];_+=`    call init_${g.toLowerCase()}
+`,o.length>0?o.forEach((y,b)=>{const g=c[b];_+=`    call init_${g.toLowerCase()}
 `}):_+=`    ; No entities to initialize
 `,_+=`    ret
 
 update_entities:
-    ; Update all active entities (${n.length} entities)
-`,n.length>0?n.forEach((y,b)=>{const g=c[b];_+=`    ; Skip entity update if entity belongs to another screen
+    ; Update all active entities (${o.length} entities)
+`,o.length>0?o.forEach((y,b)=>{const g=c[b];_+=`    ; Skip entity update if entity belongs to another screen
     ld hl, entity_screen_id + ${b}
     ld a, (hl)
     ld hl, current_screen_id
@@ -9814,7 +9935,7 @@ update_entities:
 `}):_+=`    ; No entities to update
 `,_+=`    ret
 
-`;let f=!1;n.forEach((y,b)=>{var Ge,Ye,We,Qe,Xe,Ke,Ze,Je,qe,et,tt,at,lt;const g=c[b],d=(Ge=t.templates)==null?void 0:Ge.find(O=>O.id===y.entityTemplateId),m=pt(y,d,t),T=(m&p)!==0,v=((Ye=y.position)==null?void 0:Ye.x)||100,D=((We=y.position)==null?void 0:We.y)||100,L=8,N=8,M=v*L,C=D*N,P=Math.min(M,240),F=Math.min(C,191);(M!==P||C!==F)&&console.warn(`Entity ${y.name} position clamped: (${M},${C}) → (${P},${F})`);const w=[];m&1&&w.push("Position"),m&2&&w.push("Sprite"),m&4&&w.push("Movement"),m&8&&w.push("Collision"),m&16&&w.push("Input"),m&32&&w.push("Behavior"),m&64&&w.push("Health"),m&128&&w.push("Animation"),m&256&&w.push("Jump"),m&512&&w.push("Gravity");let x=15;if(m&16){const O=d==null?void 0:d.components.find(Y=>Y.definitionId==="comp_cursors"||Y.definitionId==="comp_input"||Y.definitionId==="comp_player_input");if(O){const Y=O.defaultValues||{},Z=((Qe=y.componentOverrides)==null?void 0:Qe.comp_cursors)||{},k={...Y,...Z};x=0,k.allowUp!==!1&&(x|=1),k.allowDown!==!1&&(x|=2),k.allowLeft!==!1&&(x|=4),k.allowRight!==!1&&(x|=8)}}const j=[];x&1&&j.push("UP"),x&2&&j.push("DOWN"),x&4&&j.push("LEFT"),x&8&&j.push("RIGHT");const U=j.length===4?"All directions":j.join("+");let ie="";if(m&128){const O=(Xe=d==null?void 0:d.components)==null?void 0:Xe.find(Se=>Se.definitionId==="comp_animation"||Se.definitionName==="Animation"),Y=(O==null?void 0:O.defaultValues)||(O==null?void 0:O.values)||{},Z=((Ke=y.componentOverrides)==null?void 0:Ke.comp_animation)||{},k={...Y,...Z},J=a(k.currentFrameIndex??k.currentFrame??0,0),ee=Math.max(1,a(k.animationSpeed??6,6)),q=e(k.loops,!0),de=e(k.isPlaying,!0),be=e(k.animateOnlyWhenMoving,!1),Oe=(de?1:0)|(q?2:0)|(be?4:0);ie=`
+`;let f=!1;o.forEach((y,b)=>{var Ge,Ye,We,Qe,Xe,Ke,Ze,Je,qe,et,tt,at,lt;const g=c[b],p=(Ge=t.templates)==null?void 0:Ge.find(M=>M.id===y.entityTemplateId),m=_t(y,p,t),T=(m&d)!==0,v=((Ye=y.position)==null?void 0:Ye.x)||100,D=((We=y.position)==null?void 0:We.y)||100,L=8,N=8,O=v*L,C=D*N,P=Math.min(O,240),F=Math.min(C,191);(O!==P||C!==F)&&console.warn(`Entity ${y.name} position clamped: (${O},${C}) → (${P},${F})`);const w=[];m&1&&w.push("Position"),m&2&&w.push("Sprite"),m&4&&w.push("Movement"),m&8&&w.push("Collision"),m&16&&w.push("Input"),m&32&&w.push("Behavior"),m&64&&w.push("Health"),m&128&&w.push("Animation"),m&256&&w.push("Jump"),m&512&&w.push("Gravity");let x=15;if(m&16){const M=p==null?void 0:p.components.find(Y=>Y.definitionId==="comp_cursors"||Y.definitionId==="comp_input"||Y.definitionId==="comp_player_input");if(M){const Y=M.defaultValues||{},Z=((Qe=y.componentOverrides)==null?void 0:Qe.comp_cursors)||{},k={...Y,...Z};x=0,k.allowUp!==!1&&(x|=1),k.allowDown!==!1&&(x|=2),k.allowLeft!==!1&&(x|=4),k.allowRight!==!1&&(x|=8)}}const j=[];x&1&&j.push("UP"),x&2&&j.push("DOWN"),x&4&&j.push("LEFT"),x&8&&j.push("RIGHT");const U=j.length===4?"All directions":j.join("+");let ie="";if(m&128){const M=(Xe=p==null?void 0:p.components)==null?void 0:Xe.find(Se=>Se.definitionId==="comp_animation"||Se.definitionName==="Animation"),Y=(M==null?void 0:M.defaultValues)||(M==null?void 0:M.values)||{},Z=((Ke=y.componentOverrides)==null?void 0:Ke.comp_animation)||{},k={...Y,...Z},J=a(k.currentFrameIndex??k.currentFrame??0,0),ee=Math.max(1,a(k.animationSpeed??6,6)),q=e(k.loops,!0),de=e(k.isPlaying,!0),be=e(k.animateOnlyWhenMoving,!1),Oe=(de?1:0)|(q?2:0)|(be?4:0);ie=`
     ; Initialize Animation component
     ld hl, entity_anim_frame
     add hl, de
@@ -9831,7 +9952,7 @@ update_entities:
     ld hl, entity_anim_flags
     add hl, de
     ld (hl), #${Oe.toString(16).toUpperCase().padStart(2,"0")}           ; flags (playing/loop/onlyWhenMoving)
-`}let te="",H=!1,B=0,V=0,K=0,re=0,ae=0,le=0;const z=(Ze=d==null?void 0:d.components)==null?void 0:Ze.find(O=>O.definitionId==="comp_patrol");if(z){H=!0;const O=z.defaultValues||{},Y=((Je=y.componentOverrides)==null?void 0:Je.comp_patrol)||{},Z={...O,...Y};B=Math.max(0,Math.min(255,Number(Z.waypoint1_x)||0)),V=Math.max(0,Math.min(191,Number(Z.waypoint1_y)||0)),K=Math.max(0,Math.min(255,Number(Z.waypoint2_x??B))),re=Math.max(0,Math.min(191,Number(Z.waypoint2_y??V)));const k=K-B,J=re-V,ee=Math.sqrt(k*k+J*J),q=Number(Z.speed)||1;ee>0&&(ae=Math.round(k/ee*q),le=Math.round(J/ee*q),k!==0&&ae===0&&(ae=k>0?1:-1),J!==0&&le===0&&(le=J>0?1:-1));const de=ae>=0?ae:256+ae,be=le>=0?le:256+le;te=`
+`}let te="",H=!1,B=0,V=0,K=0,re=0,ae=0,le=0;const z=(Ze=p==null?void 0:p.components)==null?void 0:Ze.find(M=>M.definitionId==="comp_patrol");if(z){H=!0;const M=z.defaultValues||{},Y=((Je=y.componentOverrides)==null?void 0:Je.comp_patrol)||{},Z={...M,...Y};B=Math.max(0,Math.min(255,Number(Z.waypoint1_x)||0)),V=Math.max(0,Math.min(191,Number(Z.waypoint1_y)||0)),K=Math.max(0,Math.min(255,Number(Z.waypoint2_x??B))),re=Math.max(0,Math.min(191,Number(Z.waypoint2_y??V)));const k=K-B,J=re-V,ee=Math.sqrt(k*k+J*J),q=Number(Z.speed)||1;ee>0&&(ae=Math.round(k/ee*q),le=Math.round(J/ee*q),k!==0&&ae===0&&(ae=k>0?1:-1),J!==0&&le===0&&(le=J>0?1:-1));const de=ae>=0?ae:256+ae,be=le>=0?le:256+le;te=`
     ; === Patrol Component Init ===
     ; Waypoints: (${B}, ${V}) -> (${K}, ${re})
     ; Override position with waypoint1
@@ -9851,7 +9972,7 @@ update_entities:
     ld hl, entity_vel_y
     add hl, de
     ld (hl), ${be}           ; VelY = ${le>=0?"+":""}${le}
-`}let oe="";if(m&8){const O=(qe=d==null?void 0:d.components)==null?void 0:qe.find(ot=>ot.definitionId==="comp_collision"||ot.definitionName==="Collision"),Y=(O==null?void 0:O.defaultValues)||{},Z=((et=y.componentOverrides)==null?void 0:et.comp_collision)||{},k={...Y,...Z},J=a(k.hitboxWidth,16),ee=a(k.hitboxHeight,16),q=l(k.offsetX,0),de=l(k.offsetY,0),be=q>=128?q-256:q,Oe=de>=128?de-256:de,Se=a(k.collisionLayer,1),Rt=a(k.collidesWith,255);oe=`
+`}let oe="";if(m&8){const M=(qe=p==null?void 0:p.components)==null?void 0:qe.find(ot=>ot.definitionId==="comp_collision"||ot.definitionName==="Collision"),Y=(M==null?void 0:M.defaultValues)||{},Z=((et=y.componentOverrides)==null?void 0:et.comp_collision)||{},k={...Y,...Z},J=a(k.hitboxWidth,16),ee=a(k.hitboxHeight,16),q=l(k.offsetX,0),de=l(k.offsetY,0),be=q>=128?q-256:q,Oe=de>=128?de-256:de,Se=a(k.collisionLayer,1),Nt=a(k.collidesWith,255);oe=`
     ; Initialize Collision component (hitbox + layer masks)
     ld hl, entity_collision_hitbox_w
     add hl, de
@@ -9875,15 +9996,15 @@ update_entities:
 
     ld hl, entity_collides_with
     add hl, de
-    ld (hl), #${i(Rt)}      ; collidesWith
-`}let _e="";const we=(tt=y.componentOverrides)==null?void 0:tt.comp_statemachine,xe=(at=d==null?void 0:d.components)==null?void 0:at.find(O=>O.definitionId==="comp_statemachine"),ze=(we==null?void 0:we.stateMachineAssetId)||((lt=xe==null?void 0:xe.defaultValues)==null?void 0:lt.stateMachineAssetId);if(ze&&t.stateMachines){const O=t.stateMachines.find(Y=>Y.id===ze);if(O&&O.states&&O.states.length>0){let Y=O.states[0];if(O.initialStateId){const J=O.states.find(ee=>ee.id===O.initialStateId);J&&(Y=J)}const k=`SM_${O.name.replace(/[^a-zA-Z0-9]/g,"_")}_${Y.id.replace(/[^a-zA-Z0-9]/g,"_")}`;_e=`
-    ; Initialize State Machine pointer to initial state (${O.name})
+    ld (hl), #${i(Nt)}      ; collidesWith
+`}let _e="";const we=(tt=y.componentOverrides)==null?void 0:tt.comp_statemachine,xe=(at=p==null?void 0:p.components)==null?void 0:at.find(M=>M.definitionId==="comp_statemachine"),ze=(we==null?void 0:we.stateMachineAssetId)||((lt=xe==null?void 0:xe.defaultValues)==null?void 0:lt.stateMachineAssetId);if(ze&&t.stateMachines){const M=t.stateMachines.find(Y=>Y.id===ze);if(M&&M.states&&M.states.length>0){let Y=M.states[0];if(M.initialStateId){const J=M.states.find(ee=>ee.id===M.initialStateId);J&&(Y=J)}const k=`SM_${M.name.replace(/[^a-zA-Z0-9]/g,"_")}_${Y.id.replace(/[^a-zA-Z0-9]/g,"_")}`;_e=`
+    ; Initialize State Machine pointer to initial state (${M.name})
     ld hl, ${k}          ; HL = initial state address
     ld a, l
     ld (entity_sm_ptr_l + ${b}), a   ; SM ptr low byte
     ld a, h
     ld (entity_sm_ptr_h + ${b}), a   ; SM ptr high byte
-`}}let I="";if(H){T&&(f=!0);const O=Math.min(B,K),Y=Math.max(B,K),Z=Math.min(V,re),k=Math.max(V,re),J=B!==K,ee=V!==re,q=ee?`.patrol_check_y_${b}`:`.patrol_end_${b}`;I=`update_${g.toLowerCase()}:
+`}}let I="";if(H){T&&(f=!0);const M=Math.min(B,K),Y=Math.max(B,K),Z=Math.min(V,re),k=Math.max(V,re),J=B!==K,ee=V!==re,q=ee?`.patrol_check_y_${b}`:`.patrol_end_${b}`;I=`update_${g.toLowerCase()}:
 `,I+=`    ; Update ${y.name} - Patrol bounce
 `,I+=`    ; Waypoints: (${B}, ${V}) -> (${K}, ${re})
 `,I+=`    ld e, ${b}             ; Entity index
@@ -9913,11 +10034,11 @@ update_entities:
 `,I+=`    jp ${q}
 `,I+=`
 .patrol_chk_min_x_${b}:
-`,I+=`    ; Moving left: x <= ${O}?
+`,I+=`    ; Moving left: x <= ${M}?
 `,I+=`    ld hl, entity_x_pos
 `,I+=`    add hl, de
 `,I+=`    ld a, (hl)
-`,I+=`    cp ${O+1}
+`,I+=`    cp ${M+1}
 `,I+=`    jp nc, ${q}
 `,I+=`    ; Bounce: negate vel_x
 `,I+=`    ld hl, entity_vel_x
@@ -9985,7 +10106,7 @@ update_entities:
 `,I+=`    ; Input velocity is already calculated in UPDATE_INPUT_COMPONENT
 `,I+=`    ; Position update happens in UPDATE_POSITION_COMPONENT
 `,I+=`    ret
-`;const Lt=o(y);_+=`init_${g.toLowerCase()}:
+`;const Rt=n(y);_+=`init_${g.toLowerCase()}:
     ; Initialize ${y.name} at real position from JSON
     ; JSON position: (${v}, ${D}) tiles = (${P}, ${F}) pixels
     ; Template: ${y.entityTemplateId}
@@ -10013,7 +10134,7 @@ update_entities:
     ; Set entity screen ID (for multi-screen support)
     ld hl, entity_screen_id
     add hl, de
-    ld (hl), ${Lt}                 ; Screen ID (world node index / fallback screen index)
+    ld (hl), ${Rt}                 ; Screen ID (world node index / fallback screen index)
 
 ${ie}
 ${te}
@@ -10156,7 +10277,7 @@ update_player:
 `;return _+=`; ==================================================================
 ; END OF ENTITIES
 ; ==================================================================
-`,_}function _l(t){const e=!!t.sprites&&t.sprites.length>0;if(!t.screenMaps||t.screenMaps.length===0)return`; ==================================================================
+`,_}function hl(t){const e=!!t.sprites&&t.sprites.length>0;if(!t.screenMaps||t.screenMaps.length===0)return`; ==================================================================
 ; SCREEN MAPS (SKIPPED - NO SCREENS DETECTED)
 ; File: screens.asm
 ; ==================================================================
@@ -10183,14 +10304,14 @@ load_screen_default:
 ; SCREEN MAP CONSTANTS
 ; ==================================================================
 
-`,t.screenMaps.forEach((l,i)=>{const o=l.name.toUpperCase().replace(/[^A-Z0-9]/g,"_");a+=`SCREEN_${o}_${i}_ID EQU ${i}
+`,t.screenMaps.forEach((l,i)=>{const n=l.name.toUpperCase().replace(/[^A-Z0-9]/g,"_");a+=`SCREEN_${n}_${i}_ID EQU ${i}
 `}),a+=`
 ; ==================================================================
 ; SCREEN MAP DATA
 ; ==================================================================
 
-`,t.screenMaps.forEach(l=>{var i,o;if(l.layers&&l.layers.background){const r=[];if(t.tiles&&t.tiles.length>0){const S={...Mt[1],assignedTiles:{},charsetRangeStart:128,charsetRangeEnd:255,enabled:!0};let f=128;t.tiles.forEach(b=>{if(b&&b.id){const g=Math.ceil(b.width/8),d=Math.ceil(b.height/8);S.assignedTiles[b.id]={charCode:f,assignedAt:Date.now()},f+=g*d}});const y={id:"global_auto_bank",name:"Global Auto Bank",banks:[S,S,S]};r.push(y),console.log(`✅ Created GLOBAL tile bank with ${Object.keys(S.assignedTiles).length} assigned tiles`)}const n=[];l.activeAreaX,l.activeAreaY,l.activeAreaWidth??l.width,l.activeAreaHeight??l.height;const p=32,s=24;for(let u=0;u<s;u++)for(let S=0;S<p;S++){const f=(i=l.layers.background[u])==null?void 0:i[S];if(!f||!f.tileId)n.push(0);else{let y=0;const b=(o=t.tiles)==null?void 0:o.find(d=>d.id===f.tileId),g=r.length>0?r[0].banks:void 0;if(g&&b){let d=!1;for(const m of g)if((m.enabled??!0)&&m.assignedTiles[f.tileId]){const T=m.assignedTiles[f.tileId].charCode,v=Math.ceil(b.width/ue),D=f.subTileX||0,L=f.subTileY||0;if(y=T+L*v+D,y>=m.charsetRangeStart&&y<=m.charsetRangeEnd){d=!0;break}else y=0}d||(y=0)}else y=0;n.push(y)}}const h=n.filter(u=>u!==255).length,c=new Set(n);console.log(`📊 Generated ${n.length} bytes: ${h} non-FF (${(h/n.length*100).toFixed(1)}%)`),console.log(`🎯 Unique byte values: [${Array.from(c).sort((u,S)=>u-S).join(", ")}]`);const _=[];_.push('; Generated using exact Screen Editor "Download ASM" logic'),_.push("; Byte values represent actual character codes in VRAM");const E=`${l.name}_${t.screenMaps.indexOf(l)}`,A=Qt(E,p,s,n,_,"hex");if(a+=A,l.layers.collision&&t.tiles){const u=l.layers.collision,S=[];u.forEach(y=>{y.forEach(b=>{b.tileId?S.push(1):S.push(0)})});const f=Xt(E,l.width,l.height,S,"hex");a+=`
-${f}`}}else{const r=t.screenMaps.indexOf(l),n=l.name.toUpperCase().replace(/[^A-Z0-9]/g,"_");a+=`SCREEN_${n}_${r}_LAYOUT:
+`,t.screenMaps.forEach(l=>{var i,n;if(l.layers&&l.layers.background){const r=[];if(t.tiles&&t.tiles.length>0){const S={...Pt[1],assignedTiles:{},charsetRangeStart:128,charsetRangeEnd:255,enabled:!0};let f=128;t.tiles.forEach(b=>{if(b&&b.id){const g=Math.ceil(b.width/8),p=Math.ceil(b.height/8);S.assignedTiles[b.id]={charCode:f,assignedAt:Date.now()},f+=g*p}});const y={id:"global_auto_bank",name:"Global Auto Bank",banks:[S,S,S]};r.push(y),console.log(`✅ Created GLOBAL tile bank with ${Object.keys(S.assignedTiles).length} assigned tiles`)}const o=[];l.activeAreaX,l.activeAreaY,l.activeAreaWidth??l.width,l.activeAreaHeight??l.height;const d=32,s=24;for(let u=0;u<s;u++)for(let S=0;S<d;S++){const f=(i=l.layers.background[u])==null?void 0:i[S];if(!f||!f.tileId)o.push(0);else{let y=0;const b=(n=t.tiles)==null?void 0:n.find(p=>p.id===f.tileId),g=r.length>0?r[0].banks:void 0;if(g&&b){let p=!1;for(const m of g)if((m.enabled??!0)&&m.assignedTiles[f.tileId]){const T=m.assignedTiles[f.tileId].charCode,v=Math.ceil(b.width/ue),D=f.subTileX||0,L=f.subTileY||0;if(y=T+L*v+D,y>=m.charsetRangeStart&&y<=m.charsetRangeEnd){p=!0;break}else y=0}p||(y=0)}else y=0;o.push(y)}}const h=o.filter(u=>u!==255).length,c=new Set(o);console.log(`📊 Generated ${o.length} bytes: ${h} non-FF (${(h/o.length*100).toFixed(1)}%)`),console.log(`🎯 Unique byte values: [${Array.from(c).sort((u,S)=>u-S).join(", ")}]`);const _=[];_.push('; Generated using exact Screen Editor "Download ASM" logic'),_.push("; Byte values represent actual character codes in VRAM");const E=`${l.name}_${t.screenMaps.indexOf(l)}`,A=Xt(E,d,s,o,_,"hex");if(a+=A,l.layers.collision&&t.tiles){const u=l.layers.collision,S=[];u.forEach(y=>{y.forEach(b=>{b.tileId?S.push(1):S.push(0)})});const f=Kt(E,l.width,l.height,S,"hex");a+=`
+${f}`}}else{const r=t.screenMaps.indexOf(l),o=l.name.toUpperCase().replace(/[^A-Z0-9]/g,"_");a+=`SCREEN_${o}_${r}_LAYOUT:
     ; Screen data for ${l.name}
     ; TODO: Add actual screen map data
     db 0, 0, 0, 0, 0, 0, 0, 0
@@ -10377,14 +10498,14 @@ load_screen:
     ; TODO: Implement screen loading logic
     ret
 
-`,t.screenMaps.forEach((l,i)=>{var v,D;const o=l.name.toUpperCase().replace(/[^A-Z0-9]/g,"_"),r=l.backgroundColor!==void 0?l.backgroundColor:1,n=l.borderColor!==void 0?l.borderColor:1,p=l.id?`_${l.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"",s=l.activeAreaX??0,h=l.activeAreaY??0,c=l.activeAreaWidth??l.width??32,_=l.activeAreaHeight??l.height??24,E=Math.max(0,Math.min(31,s)),A=Math.max(0,Math.min(23,h)),u=Math.max(0,Math.min(32-E,c)),S=Math.max(0,Math.min(24-A,_)),y=(E>0||A>0||u<32||S<24)&&u>0&&S>0,b=A*32+E,g=u*S,d=(((D=(v=l.hudConfiguration)==null?void 0:v.importedFrame)==null?void 0:D.cells)||[]).filter(L=>typeof(L==null?void 0:L.x)=="number"&&typeof(L==null?void 0:L.y)=="number"&&typeof(L==null?void 0:L.charCode)=="number"&&L.x>=0&&L.x<32&&L.y>=0&&L.y<24).map(L=>({x:L.x|0,y:L.y|0,charCode:L.charCode&255})),m=d.length>0,T=`hud_imported_frame_${o.toLowerCase()}${p.toLowerCase()}`;m&&(a+=`${T}_data:
-    ; Imported HUD frame snapshot for ${l.name} (${d.length} cells)
-`,d.forEach(L=>{const N=L.y*32+L.x,M=N&255,C=N>>8&255,P=L.charCode&255;a+=`    DB #${M.toString(16).padStart(2,"0").toUpperCase()},#${C.toString(16).padStart(2,"0").toUpperCase()},#${P.toString(16).padStart(2,"0").toUpperCase()}
+`,t.screenMaps.forEach((l,i)=>{var v,D;const n=l.name.toUpperCase().replace(/[^A-Z0-9]/g,"_"),r=l.backgroundColor!==void 0?l.backgroundColor:1,o=l.borderColor!==void 0?l.borderColor:1,d=l.id?`_${l.id.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"",s=l.activeAreaX??0,h=l.activeAreaY??0,c=l.activeAreaWidth??l.width??32,_=l.activeAreaHeight??l.height??24,E=Math.max(0,Math.min(31,s)),A=Math.max(0,Math.min(23,h)),u=Math.max(0,Math.min(32-E,c)),S=Math.max(0,Math.min(24-A,_)),y=(E>0||A>0||u<32||S<24)&&u>0&&S>0,b=A*32+E,g=u*S,p=(((D=(v=l.hudConfiguration)==null?void 0:v.importedFrame)==null?void 0:D.cells)||[]).filter(L=>typeof(L==null?void 0:L.x)=="number"&&typeof(L==null?void 0:L.y)=="number"&&typeof(L==null?void 0:L.charCode)=="number"&&L.x>=0&&L.x<32&&L.y>=0&&L.y<24).map(L=>({x:L.x|0,y:L.y|0,charCode:L.charCode&255})),m=p.length>0,T=`hud_imported_frame_${n.toLowerCase()}${d.toLowerCase()}`;m&&(a+=`${T}_data:
+    ; Imported HUD frame snapshot for ${l.name} (${p.length} cells)
+`,p.forEach(L=>{const N=L.y*32+L.x,O=N&255,C=N>>8&255,P=L.charCode&255;a+=`    DB #${O.toString(16).padStart(2,"0").toUpperCase()},#${C.toString(16).padStart(2,"0").toUpperCase()},#${P.toString(16).padStart(2,"0").toUpperCase()}
 `}),a+=`
 ${T}_draw:
     ; Draw imported HUD frame chars into Name Table
     ld hl, ${T}_data
-    ld bc, ${d.length}
+    ld bc, ${p.length}
 
 .draw_loop:
     ld a, b
@@ -10409,13 +10530,13 @@ ${T}_draw:
     dec bc
     jr .draw_loop
 
-`),y?(a+=`load_screen_${o.toLowerCase()}${p.toLowerCase()}:
+`),y?(a+=`load_screen_${n.toLowerCase()}${d.toLowerCase()}:
     ; Load ${l.name} screen (fast direct port access)
     ; Active Area: X=${E}, Y=${A}, W=${u}, H=${S}
     ; Preserve HUD/non-active area: only overwrite active game area
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${r}           ; Background color
-    ld b, ${n}       ; Border color
+    ld b, ${o}       ; Border color
     call set_screen_colors
     ; Initialize character 0 (empty cells) with background color
     ld a, ${r}           ; Background color for char 0
@@ -10424,21 +10545,21 @@ ${T}_draw:
     call clear_all_sprites
     call update_sprites_to_vram
 `),u===32?a+=`    ; Load active game area (contiguous rows)
-    ld hl, SCREEN_${o}_${i}_LAYOUT + ${b}
+    ld hl, SCREEN_${n}_${i}_LAYOUT + ${b}
     ld de, NAMETBL + ${b}
     ld bc, ${g}
     call FAST_LDIRVM
 `:a+=`    ; Load active game area (rectangular copy by rows)
-    ld hl, SCREEN_${o}_${i}_LAYOUT + ${b}
+    ld hl, SCREEN_${n}_${i}_LAYOUT + ${b}
     ld de, NAMETBL + ${b}
     ld a, ${S}
     ld c, ${u}
     call copy_layout_rect_to_vram
 `,m&&(a+=`    ; Imported HUD frame is drawn on world/game start only
 `),a+=`    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_${o}_${i}_LAYOUT
+    ld hl, SCREEN_${n}_${i}_LAYOUT
     ld (current_screen_layout), hl
-    ld hl, BEHAVIOR_${o}_${i}_DATA
+    ld hl, BEHAVIOR_${n}_${i}_DATA
     ld (current_behavior_map), hl
     ld a, l
     ld (behavior_cache_map_l), a
@@ -10448,11 +10569,11 @@ ${T}_draw:
     ld (behavior_cache_row), a
     ret
 
-`):(a+=`load_screen_${o.toLowerCase()}${p.toLowerCase()}:
+`):(a+=`load_screen_${n.toLowerCase()}${d.toLowerCase()}:
     ; Load ${l.name} screen (fast direct port access)
     ; Set VDP colors FIRST (before loading screen data)
     ld a, ${r}           ; Background color
-    ld b, ${n}       ; Border color
+    ld b, ${o}       ; Border color
     call set_screen_colors
     ; Initialize character 0 (empty cells) with background color
     ld a, ${r}           ; Background color for char 0
@@ -10461,15 +10582,15 @@ ${T}_draw:
     call clear_all_sprites
     call update_sprites_to_vram
 `),a+=`    ; Now load screen layout (full 32x24)
-    ld hl, SCREEN_${o}_${i}_LAYOUT
+    ld hl, SCREEN_${n}_${i}_LAYOUT
     ld de, NAMETBL
-    ld bc, SCREEN_${o}_${i}_SIZE
+    ld bc, SCREEN_${n}_${i}_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
 `,m&&(a+=`    ; Imported HUD frame is drawn on world/game start only
 `),a+=`    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_${o}_${i}_LAYOUT
+    ld hl, SCREEN_${n}_${i}_LAYOUT
     ld (current_screen_layout), hl
-    ld hl, BEHAVIOR_${o}_${i}_DATA
+    ld hl, BEHAVIOR_${n}_${i}_DATA
     ld (current_behavior_map), hl
     ld a, l
     ld (behavior_cache_map_l), a
@@ -10509,7 +10630,7 @@ load_screen_game:
 ; ==================================================================
 ; END OF SCREENS
 ; ==================================================================
-`,a}function hl(t){var c,_,E,A;const e=(_=(c=t.gameFlow)==null?void 0:c.nodes)==null?void 0:_.some(u=>u.type==="SubMenu"),a=(E=t.screenMaps)==null?void 0:E.some(u=>{var S,f;return((S=u.layers)==null?void 0:S.text)||((f=u.textElements)==null?void 0:f.length)>0}),l=(A=t.screenMaps)==null?void 0:A.some(u=>{var S;return((S=u.hudConfiguration)==null?void 0:S.elements)&&u.hudConfiguration.elements.length>0});if(!e&&!a&&!l)return`; ==================================================================
+`,a}function ul(t){var c,_,E,A;const e=(_=(c=t.gameFlow)==null?void 0:c.nodes)==null?void 0:_.some(u=>u.type==="SubMenu"),a=(E=t.screenMaps)==null?void 0:E.some(u=>{var S,f;return((S=u.layers)==null?void 0:S.text)||((f=u.textElements)==null?void 0:f.length)>0}),l=(A=t.screenMaps)==null?void 0:A.some(u=>{var S;return((S=u.hudConfiguration)==null?void 0:S.elements)&&u.hudConfiguration.elements.length>0});if(!e&&!a&&!l)return`; ==================================================================
 ; MSX FONT DATA (SKIPPED - NO TEXT/MENUS/HUD DETECTED)
 ; File: font.asm
 ; ==================================================================
@@ -10530,13 +10651,13 @@ print_string_screen2:
 ; ==================================================================
 ; END OF FONT (MINIMAL VERSION)
 ; ==================================================================
-`;const i=new Map,o=new Map,r=[{code:32,pattern:[0,0,0,0,0,0,0,0]},{code:43,pattern:[0,16,16,124,16,16,0,0]},{code:45,pattern:[0,0,0,126,0,0,0,0]},{code:62,pattern:[0,48,24,12,24,48,0,0]},{code:124,pattern:[24,24,24,24,24,24,24,24]}];if(r.forEach(u=>{i.set(u.code,u.pattern),o.set(u.code,[240,240,240,240,240,240,240,240])}),t.fonts&&t.fonts.length>0){const u=t.fonts[0],S=u.data.fontData||{},f=u.data.fontColorAttributes||{},y=b=>{if(b.startsWith("rgba(0,0,0,0)"))return 0;const g=b.toUpperCase();return{"RGBA(0,0,0,0)":0,"#000000":1,"#21C842":2,"#5EDC78":3,"#5455ED":4,"#7D76FC":5,"#D4524D":6,"#42EBF5":7,"#FC5554":8,"#FF7978":9,"#D4C154":10,"#E6CE80":11,"#21B03B":12,"#C95BBA":13,"#CCCCCC":14,"#FFFFFF":15}[g]??15};Object.keys(S).forEach(b=>{const g=parseInt(b,10),d=S[g];if(Array.isArray(d)&&d.length===8)if(i.set(g,d),f[g]&&Array.isArray(f[g])){const m=f[g],T=[];for(let v=0;v<8;v++)if(m[v]&&typeof m[v]=="object"){const D=m[v].fg,L=m[v].bg,N=y(D),M=y(L);T.push(N<<4|M)}else T.push(240);o.set(g,T)}else o.set(g,[240,240,240,240,240,240,240,240])})}else{for(let u=48;u<=57;u++)i.set(u,[62,127,115,115,115,127,62,0]);for(let u=65;u<=90;u++)i.set(u,[62,127,99,127,127,99,99,0]);r.forEach(u=>i.set(u.code,u.pattern))}let n=`FONT_PATTERN_DATA:
-`,p=`FONT_COLOR_DATA:
+`;const i=new Map,n=new Map,r=[{code:32,pattern:[0,0,0,0,0,0,0,0]},{code:43,pattern:[0,16,16,124,16,16,0,0]},{code:45,pattern:[0,0,0,126,0,0,0,0]},{code:62,pattern:[0,48,24,12,24,48,0,0]},{code:124,pattern:[24,24,24,24,24,24,24,24]}];if(r.forEach(u=>{i.set(u.code,u.pattern),n.set(u.code,[240,240,240,240,240,240,240,240])}),t.fonts&&t.fonts.length>0){const u=t.fonts[0],S=u.data.fontData||{},f=u.data.fontColorAttributes||{},y=b=>{if(b.startsWith("rgba(0,0,0,0)"))return 0;const g=b.toUpperCase();return{"RGBA(0,0,0,0)":0,"#000000":1,"#21C842":2,"#5EDC78":3,"#5455ED":4,"#7D76FC":5,"#D4524D":6,"#42EBF5":7,"#FC5554":8,"#FF7978":9,"#D4C154":10,"#E6CE80":11,"#21B03B":12,"#C95BBA":13,"#CCCCCC":14,"#FFFFFF":15}[g]??15};Object.keys(S).forEach(b=>{const g=parseInt(b,10),p=S[g];if(Array.isArray(p)&&p.length===8)if(i.set(g,p),f[g]&&Array.isArray(f[g])){const m=f[g],T=[];for(let v=0;v<8;v++)if(m[v]&&typeof m[v]=="object"){const D=m[v].fg,L=m[v].bg,N=y(D),O=y(L);T.push(N<<4|O)}else T.push(240);n.set(g,T)}else n.set(g,[240,240,240,240,240,240,240,240])})}else{for(let u=48;u<=57;u++)i.set(u,[62,127,115,115,115,127,62,0]);for(let u=65;u<=90;u++)i.set(u,[62,127,99,127,127,99,99,0]);r.forEach(u=>i.set(u.code,u.pattern))}let o=`FONT_PATTERN_DATA:
+`,d=`FONT_COLOR_DATA:
 `,s=`FONT_CHAR_INDEX:
-    DB `;const h=Array.from(i.keys()).filter(u=>u<128).sort((u,S)=>u-S);return h.forEach((u,S)=>{const f=i.get(u),y=o.get(u)||[240,240,240,240,240,240,240,240];n+=`    ; Char ${u} ('${String.fromCharCode(u)}')
-`,n+=`    DB ${f.map(b=>"#"+b.toString(16).padStart(2,"0").toUpperCase()).join(", ")}
-`,p+=`    ; Char ${u}
-`,p+=`    DB ${y.map(b=>"#"+b.toString(16).padStart(2,"0").toUpperCase()).join(", ")}
+    DB `;const h=Array.from(i.keys()).filter(u=>u<128).sort((u,S)=>u-S);return h.forEach((u,S)=>{const f=i.get(u),y=n.get(u)||[240,240,240,240,240,240,240,240];o+=`    ; Char ${u} ('${String.fromCharCode(u)}')
+`,o+=`    DB ${f.map(b=>"#"+b.toString(16).padStart(2,"0").toUpperCase()).join(", ")}
+`,d+=`    ; Char ${u}
+`,d+=`    DB ${y.map(b=>"#"+b.toString(16).padStart(2,"0").toUpperCase()).join(", ")}
 `,s+=`${u}${S<h.length-1?", ":""}`}),s+=`
 FONT_CHAR_COUNT EQU ${h.length}
 `,`; ==================================================================
@@ -10549,7 +10670,7 @@ FONT_CHAR_COUNT EQU ${h.length}
 ; FONT PATTERN DATA
 ; ==================================================================
 
-${n}
+${o}
 
 ; Character index table (for quick lookup)
 ${s}
@@ -10631,7 +10752,7 @@ load_font_patterns_to_bank:
 ; FONT COLOR ATTRIBUTES
 ; ==================================================================
 
-${p}
+${d}
 
 load_font_colors:
     ld de, CLRTBL2                ; Bank 0 Base
@@ -10737,7 +10858,7 @@ init_font_system:
 ; ==================================================================
 ; END OF FONT DATA
 ; ==================================================================
-`}function ul(t){var i,o,r;const e=[],a=new Map;if(console.log(`🎯 [HUD Generator] Total screens: ${((i=t.screenMaps)==null?void 0:i.length)||0}`),(o=t.screenMaps)==null||o.forEach(n=>{var h;const p=!!n.hudConfiguration,s=((h=n.hudConfiguration)==null?void 0:h.elements)||[];console.log(`  📺 Screen "${n.name}" (${n.id}): hudConfiguration=${p}, elements=${s.length}`),s.length>0&&(s.forEach((c,_)=>console.log(`    📝 Element[${_}]: type=${c.type}, name="${c.name}", text="${c.text||""}" pos=(${c.position.x},${c.position.y}) visible=${c.visible}`)),e.push(...s),a.set(n.id,s))}),console.log(`🎯 [HUD Generator] Total HUD elements found: ${e.length}`),e.length===0)return`; ==================================================================
+`}function ml(t){var i,n,r;const e=[],a=new Map;if(console.log(`🎯 [HUD Generator] Total screens: ${((i=t.screenMaps)==null?void 0:i.length)||0}`),(n=t.screenMaps)==null||n.forEach(o=>{var h;const d=!!o.hudConfiguration,s=((h=o.hudConfiguration)==null?void 0:h.elements)||[];console.log(`  📺 Screen "${o.name}" (${o.id}): hudConfiguration=${d}, elements=${s.length}`),s.length>0&&(s.forEach((c,_)=>console.log(`    📝 Element[${_}]: type=${c.type}, name="${c.name}", text="${c.text||""}" pos=(${c.position.x},${c.position.y}) visible=${c.visible}`)),e.push(...s),a.set(o.id,s))}),console.log(`🎯 [HUD Generator] Total HUD elements found: ${e.length}`),e.length===0)return`; ==================================================================
 ; HUD SYSTEM (EMPTY - No HUD elements defined)
 ; ==================================================================
 render_hud:
@@ -10756,7 +10877,7 @@ update_hud_lives:
 ; Each element can be positioned anywhere on screen (256x192 pixels)
 ; ==================================================================
 
-`;return l+=ml(e),(r=t.screenMaps)==null||r.forEach(n=>{n.activeAreaY}),l+=fl(),l+=bl(),l+=yl(e),l}function ml(t){let e=`; ------------------------------------------------------------------
+`;return l+=fl(e),(r=t.screenMaps)==null||r.forEach(o=>{o.activeAreaY}),l+=bl(),l+=yl(),l+=El(e),l}function fl(t){let e=`; ------------------------------------------------------------------
 ; HUD DATA STRUCTURES
 ; ------------------------------------------------------------------
 
@@ -10765,16 +10886,16 @@ update_hud_lives:
 `,e+=`; HUD Element Data Table
 `,e+=`; Format: [Type:1][X:1][Y:1][Width:1][Height:1][Flags:1][TextPtr:2][Visible:1]
 `,e+=`hud_element_data:
-`,t.forEach((a,l)=>{const i=El(a.type),o=a.position.x,r=a.position.y,n=a.visible?1:0,p=`hud_text_${l}`;let s=0,h=1,c=0;const _=a.details||{};(_.border||_.borderColor||_.overallBorderColor)&&(c|=1),a.text?s=a.text.length:_.width?s=Math.ceil(_.width/8):s=10,e+=`    DB ${i}, ${o}, ${r}    ; Element ${l}: ${a.type} at (${o},${r})
+`,t.forEach((a,l)=>{const i=gl(a.type),n=a.position.x,r=a.position.y,o=a.visible?1:0,d=`hud_text_${l}`;let s=0,h=1,c=0;const _=a.details||{};(_.border||_.borderColor||_.overallBorderColor)&&(c|=1),a.text?s=a.text.length:_.width?s=Math.ceil(_.width/8):s=10,e+=`    DB ${i}, ${n}, ${r}    ; Element ${l}: ${a.type} at (${n},${r})
 `,e+=`    DB ${s}, ${h}, ${c} ; W, H, Flags
-`,e+=`    DW ${p}             ; Text pointer
-`,e+=`    DB ${n}                ; Visible
+`,e+=`    DW ${d}             ; Text pointer
+`,e+=`    DB ${o}                ; Visible
 `}),e+=`
 `,e+=`; HUD Text Strings
-`,t.forEach((a,l)=>{const i=a.text||a.name||"",o=`hud_text_${l}`;e+=`${o}:
+`,t.forEach((a,l)=>{const i=a.text||a.name||"",n=`hud_text_${l}`;e+=`${n}:
 `,e+=`    DB "${i}", 0
 `}),e+=`
-`,e}function fl(t){return`; ------------------------------------------------------------------
+`,e}function bl(t){return`; ------------------------------------------------------------------
 ; imprimir_marco
 ; Draw HUD frame borders (called once per screen load)
 ; ------------------------------------------------------------------
@@ -10849,7 +10970,7 @@ imprimir_marco:
     pop af
     ret
 
-`}function bl(t,e){return`; ------------------------------------------------------------------
+`}function yl(t,e){return`; ------------------------------------------------------------------
 ; render_hud
 ; Main HUD rendering function
 ; Only redraws when hud_dirty_flag is set
@@ -10989,7 +11110,7 @@ render_hud:
     pop af
     ret
 
-`}function yl(t){const e=t.findIndex(o=>o.type===X.Score),a=t.findIndex(o=>o.type===X.Lives),l=e>=0?`hud_text_${e}`:null,i=a>=0?`hud_text_${a}`:null;return`; ------------------------------------------------------------------
+`}function El(t){const e=t.findIndex(n=>n.type===X.Score),a=t.findIndex(n=>n.type===X.Lives),l=e>=0?`hud_text_${e}`:null,i=a>=0?`hud_text_${a}`:null;return`; ------------------------------------------------------------------
 ; hud_print_string
 ; Print a null-terminated string to Screen 2 Name Table
 ; Input: HL = VRAM address, DE = String pointer (RAM)
@@ -11264,79 +11385,65 @@ ${i?`    push af
     pop af`:"    ; No Lives element defined in HUD"}
     ret
 
-`}function El(t){return{[X.Score]:1,[X.HighScore]:2,[X.Lives]:3,[X.EnergyBar]:4,[X.ItemDisplay]:5,[X.SceneName]:6,[X.MiniMap]:7,[X.CoinCounter]:8,[X.BossEnergyBar]:9,[X.PhaseIndicator]:10,[X.AttackAlert]:11,[X.TextBox]:12,[X.NumericField]:13,[X.CustomCounter]:14}[t]||0}function Ae(t){return t.toLowerCase().replace(/[^a-z0-9]/g,"_")}function Te(t){return t.toUpperCase().replace(/[^A-Z0-9]/g,"_")}function ht(t){switch(String(t??"").trim().toLowerCase()){case"north":case"up":return"north";case"south":case"down":return"south";case"east":case"right":return"east";case"west":case"left":return"west";default:return null}}function Ce(t,e){const a=e==="from"?"fromNodeId":"toNodeId",l=t==null?void 0:t[a];if(typeof l=="string"&&l.length>0)return l;const i=t==null?void 0:t[e];return typeof i=="string"&&i.length>0?i:i&&typeof i.nodeId=="string"&&i.nodeId.length>0?i.nodeId:null}function ut(t,e){const a=e==="from"?"fromDirection":"toDirection",l=t==null?void 0:t[a],i=ht(l);if(i)return i;const o=t==null?void 0:t[e];return ht(o==null?void 0:o.direction)}function Fe(t,e){var o,r;const a=(o=e.screens)==null?void 0:o.find(n=>n.id===t),l=((r=a==null?void 0:a.name)==null?void 0:r.toUpperCase().replace(/[^A-Z0-9]/g,"_"))||"UNKNOWN",i=t?`_${t.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";return`load_screen_${l.toLowerCase()}${i.toLowerCase()}`}function gl(t,e){var r,n,p,s;const a=(r=e.screens)==null?void 0:r.find(h=>h.id===t),l=(p=(n=a==null?void 0:a.hudConfiguration)==null?void 0:n.importedFrame)==null?void 0:p.cells;if(!Array.isArray(l)||l.length===0)return null;const i=((s=a==null?void 0:a.name)==null?void 0:s.toUpperCase().replace(/[^A-Z0-9]/g,"_"))||"UNKNOWN",o=t?`_${t.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";return`hud_imported_frame_${i.toLowerCase()}${o.toLowerCase()}_draw`}function Sl(t,e){const a=Array.isArray(t==null?void 0:t.nodes)?t.nodes:[];if(a.length===0)return null;const l=[],i=t==null?void 0:t.startScreenNodeId,o=a.find(r=>(r==null?void 0:r.id)===i);o&&l.push(o),a.forEach(r=>{(!o||(r==null?void 0:r.id)!==o.id)&&l.push(r)});for(const r of l){const n=r==null?void 0:r.screenAssetId;if(!n)continue;const p=gl(n,e);if(p)return p}return null}function Al(t,e,a,l,i){const o=`check_transition_${t}_s${e}_skip_${a}`,r=`check_transition_${t}_s${e}_apply_${a}`;let n="",p="";return a==="east"?(n=`    ; East exit: X near right edge and rightward input
+`}function gl(t){return{[X.Score]:1,[X.HighScore]:2,[X.Lives]:3,[X.EnergyBar]:4,[X.ItemDisplay]:5,[X.SceneName]:6,[X.MiniMap]:7,[X.CoinCounter]:8,[X.BossEnergyBar]:9,[X.PhaseIndicator]:10,[X.AttackAlert]:11,[X.TextBox]:12,[X.NumericField]:13,[X.CustomCounter]:14}[t]||0}function Ae(t){return t.toLowerCase().replace(/[^a-z0-9]/g,"_")}function Te(t){return t.toUpperCase().replace(/[^A-Z0-9]/g,"_")}function ut(t){switch(String(t??"").trim().toLowerCase()){case"north":case"up":return"north";case"south":case"down":return"south";case"east":case"right":return"east";case"west":case"left":return"west";default:return null}}function Ce(t,e){const a=e==="from"?"fromNodeId":"toNodeId",l=t==null?void 0:t[a];if(typeof l=="string"&&l.length>0)return l;const i=t==null?void 0:t[e];return typeof i=="string"&&i.length>0?i:i&&typeof i.nodeId=="string"&&i.nodeId.length>0?i.nodeId:null}function mt(t,e){const a=e==="from"?"fromDirection":"toDirection",l=t==null?void 0:t[a],i=ut(l);if(i)return i;const n=t==null?void 0:t[e];return ut(n==null?void 0:n.direction)}function Fe(t,e){var n,r;const a=(n=e.screens)==null?void 0:n.find(o=>o.id===t),l=((r=a==null?void 0:a.name)==null?void 0:r.toUpperCase().replace(/[^A-Z0-9]/g,"_"))||"UNKNOWN",i=t?`_${t.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";return`load_screen_${l.toLowerCase()}${i.toLowerCase()}`}function Sl(t,e){var r,o,d,s;const a=(r=e.screens)==null?void 0:r.find(h=>h.id===t),l=(d=(o=a==null?void 0:a.hudConfiguration)==null?void 0:o.importedFrame)==null?void 0:d.cells;if(!Array.isArray(l)||l.length===0)return null;const i=((s=a==null?void 0:a.name)==null?void 0:s.toUpperCase().replace(/[^A-Z0-9]/g,"_"))||"UNKNOWN",n=t?`_${t.replace(/[^a-zA-Z0-9]/g,"_").slice(-12)}`:"";return`hud_imported_frame_${i.toLowerCase()}${n.toLowerCase()}_draw`}function Al(t,e){const a=Array.isArray(t==null?void 0:t.nodes)?t.nodes:[];if(a.length===0)return null;const l=[],i=t==null?void 0:t.startScreenNodeId,n=a.find(r=>(r==null?void 0:r.id)===i);n&&l.push(n),a.forEach(r=>{(!n||(r==null?void 0:r.id)!==n.id)&&l.push(r)});for(const r of l){const o=r==null?void 0:r.screenAssetId;if(!o)continue;const d=Sl(o,e);if(d)return d}return null}function Tl(t,e,a,l,i){const n=`check_transition_${t}_s${e}_skip_${a}`,r=`check_transition_${t}_s${e}_apply_${a}`;let o="",d="";return a==="east"?(o=`    ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
-    jr z, .dir_ok_${o}
+    jr z, .dir_ok_${n}
     cp STICK_UPRIGHT
-    jr z, .dir_ok_${o}
+    jr z, .dir_ok_${n}
     cp STICK_DOWNRIGHT
-    jp nz, ${o}
-.dir_ok_${o}:
+    jp nz, ${n}
+.dir_ok_${n}:
     ld hl, entity_x_pos
     add hl, de
     ld a, (hl)
     cp 240
-    jp c, ${o}
-`,p=`    ; Enter from west edge
+    jp c, ${n}
+`,d=`    ; Enter from west edge
     ld hl, entity_x_pos
     add hl, de
     ld (hl), 2
-`):a==="west"?(n=`    ; West exit: X near left edge and leftward input
+`):a==="west"?(o=`    ; West exit: X near left edge and leftward input
     ld a, (input_state)
     cp STICK_LEFT
-    jr z, .dir_ok_${o}
+    jr z, .dir_ok_${n}
     cp STICK_UPLEFT
-    jr z, .dir_ok_${o}
+    jr z, .dir_ok_${n}
     cp STICK_DOWNLEFT
-    jp nz, ${o}
-.dir_ok_${o}:
+    jp nz, ${n}
+.dir_ok_${n}:
     ld hl, entity_x_pos
     add hl, de
     ld a, (hl)
     cp 2
-    jp nc, ${o}
-`,p=`    ; Enter from east edge (256 - 16 - 2 = 238)
+    jp nc, ${n}
+`,d=`    ; Enter from east edge (256 - 16 - 2 = 238)
     ld hl, entity_x_pos
     add hl, de
     ld (hl), 238
-`):a==="south"?(n=`    ; South exit: Y near bottom edge and downward input
-    ld a, (input_state)
-    cp STICK_DOWN
-    jr z, .dir_ok_${o}
-    cp STICK_DOWNLEFT
-    jr z, .dir_ok_${o}
-    cp STICK_DOWNRIGHT
-    jp nz, ${o}
-.dir_ok_${o}:
+`):a==="south"?(o=`    ; South exit: Y near bottom edge
+    ; No input-direction gate: supports gravity/platform-driven movement
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
     cp 176
-    jp c, ${o}
-`,p=`    ; Enter from north edge
+    jp c, ${n}
+`,d=`    ; Enter from north edge
     ld hl, entity_y_pos
     add hl, de
     ld (hl), 2
-`):(n=`    ; North exit: Y near top edge and upward input
-    ld a, (input_state)
-    cp STICK_UP
-    jr z, .dir_ok_${o}
-    cp STICK_UPLEFT
-    jr z, .dir_ok_${o}
-    cp STICK_UPRIGHT
-    jp nz, ${o}
-.dir_ok_${o}:
+`):(o=`    ; North exit: Y near top edge
+    ; No input-direction gate: supports velocity-driven movement
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
     cp 2
-    jp nc, ${o}
-`,p=`    ; Enter from south edge (192 - 16 - 2 = 174)
+    jp nc, ${n}
+`,d=`    ; Enter from south edge (192 - 16 - 2 = 174)
     ld hl, entity_y_pos
     add hl, de
     ld (hl), 174
-`),`${n}${r}:
+`),`${o}${r}:
     push de
     call ${i}
     pop de
@@ -11346,7 +11453,7 @@ ${i?`    push af
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
-${p}    ; Reset player velocity after transition
+${d}    ; Reset player velocity after transition
     xor a
     ld hl, entity_vel_x
     add hl, de
@@ -11360,8 +11467,8 @@ ${p}    ; Reset player velocity after transition
     ld (screen_transition_cooldown), a
     ret
 
-${o}:
-`}function Tl(t){var i;const e=t.worldmaps||[],a=!!((i=t.screenMaps)!=null&&i.some(o=>{var r;return Array.isArray((r=o==null?void 0:o.hudConfiguration)==null?void 0:r.elements)&&o.hudConfiguration.elements.length>0}));if(e.length===0)return`; ==================================================================
+${n}:
+`}function Cl(t){var i;const e=t.worldmaps||[],a=!!((i=t.screenMaps)!=null&&i.some(n=>{var r;return Array.isArray((r=n==null?void 0:n.hudConfiguration)==null?void 0:r.elements)&&n.hudConfiguration.elements.length>0}));if(e.length===0)return`; ==================================================================
 ; WORLD MAPS (SKIPPED - NO WORLDS DETECTED)
 ; File: worlds.asm
 ; ==================================================================
@@ -11389,29 +11496,29 @@ check_world_screen_transition:
 ; WORLD MAP CONSTANTS
 ; ==================================================================
 
-`,e.forEach((o,r)=>{var s;const n=Te(o.name||`world_${r}`),p=o.id||`world_${r}`;l+=`; World: ${o.name||"Unnamed"} (${p})
-WORLD_${n}_ID EQU ${r}
-WORLD_${n}_SCREEN_COUNT EQU ${((s=o.nodes)==null?void 0:s.length)||0}
-`,o.nodes&&o.nodes.length>0&&o.nodes.forEach((h,c)=>{const _=Te(h.name||`screen_${c}`);l+=`WORLD_${n}_SCREEN_${_}_ID EQU ${c}
-`}),l+=`
+`,e.forEach((n,r)=>{var s;const o=Te(n.name||`world_${r}`),d=n.id||`world_${r}`;if(l+=`; World: ${n.name||"Unnamed"} (${d})
+WORLD_${o}_ID EQU ${r}
+WORLD_${o}_SCREEN_COUNT EQU ${((s=n.nodes)==null?void 0:s.length)||0}
+`,n.nodes&&n.nodes.length>0){const h=new Map;n.nodes.forEach((c,_)=>{const E=Te(c.name||`screen_${_}`),A=h.get(E)||0,u=A===0?E:`${E}_${A+1}`;h.set(E,A+1),l+=`WORLD_${o}_SCREEN_${u}_ID EQU ${_}
+`})}l+=`
 `}),l+=`; ==================================================================
 ; WORLD LOADING FUNCTIONS
 ; ==================================================================
 
-`,e.forEach(o=>{const r=o.id||"unknown",n=o.startScreenNodeId,p=o.nodes||[];if(l+=`; ------------------------------------------------------------------
-; Load World: ${o.name||"Unnamed"}
+`,e.forEach(n=>{const r=n.id||"unknown",o=n.startScreenNodeId,d=n.nodes||[];if(l+=`; ------------------------------------------------------------------
+; Load World: ${n.name||"Unnamed"}
 ; World ID: ${r}
-; Screens: ${p.length}
-; Start Screen Node: ${n||"none"}
+; Screens: ${d.length}
+; Start Screen Node: ${o||"none"}
 ; ------------------------------------------------------------------
 load_world_${Ae(r)}:
-`,p.length===0){l+=`    ; No screens in this world
+`,d.length===0){l+=`    ; No screens in this world
     ret
 
-`;return}const s=p.find(A=>A.id===n)||p[0],h=Math.max(0,p.findIndex(A=>A.id===s.id)),c=s.screenAssetId;if(!c){l+=`    ; No valid start screen found
+`;return}const s=d.find(A=>A.id===o)||d[0],h=Math.max(0,d.findIndex(A=>A.id===s.id)),c=s.screenAssetId;if(!c){l+=`    ; No valid start screen found
     ret
 
-`;return}const _=Fe(c,t),E=Sl(o,t);l+=`    ; Load start screen: ${s.name||"unknown"} (${c})
+`;return}const _=Fe(c,t),E=Al(n,t);l+=`    ; Load start screen: ${s.name||"unknown"} (${c})
     call ${_}
 
 `,E&&(l+=`    ; Draw imported HUD frame once at world start
@@ -11421,7 +11528,7 @@ load_world_${Ae(r)}:
     call imprimir_marco
 
 `),l+=`    ; Initialize world state
-    ld a, WORLD_${Te(o.name||"unnamed")}_ID
+    ld a, WORLD_${Te(n.name||"unnamed")}_ID
     ld (current_world_id), a
 
     ld a, ${h}
@@ -11437,18 +11544,18 @@ load_world_${Ae(r)}:
 ; SCREEN TRANSITION FUNCTIONS
 ; ==================================================================
 
-`,e.forEach(o=>{const r=o.id||"unknown",n=o.nodes||[],p=o.connections||[];if(p.length===0){l+=`; World ${o.name||"Unnamed"} has no screen connections
+`,e.forEach(n=>{const r=n.id||"unknown",o=n.nodes||[],d=n.connections||[];if(d.length===0){l+=`; World ${n.name||"Unnamed"} has no screen connections
 
 `;return}l+=`; ------------------------------------------------------------------
-; World: ${o.name||"Unnamed"}
-; Connections: ${p.length}
+; World: ${n.name||"Unnamed"}
+; Connections: ${d.length}
 ; ------------------------------------------------------------------
 
-`,p.forEach((s,h)=>{const c=Ce(s,"from"),_=Ce(s,"to");if(!c||!_){l+=`; Invalid connection ${h}: missing endpoint IDs
+`,d.forEach((s,h)=>{const c=Ce(s,"from"),_=Ce(s,"to");if(!c||!_){l+=`; Invalid connection ${h}: missing endpoint IDs
 
-`;return}const E=n.find(y=>y.id===c),A=n.find(y=>y.id===_);if(!E||!A){l+=`; Invalid connection ${h}: missing nodes
+`;return}const E=o.find(y=>y.id===c),A=o.find(y=>y.id===_);if(!E||!A){l+=`; Invalid connection ${h}: missing nodes
 
-`;return}const u=A.screenAssetId,S=n.findIndex(y=>y.id===A.id),f=Fe(u,t);l+=`; Transition: ${E.name||"screen"} -> ${A.name||"screen"}
+`;return}const u=A.screenAssetId,S=o.findIndex(y=>y.id===A.id),f=Fe(u,t);l+=`; Transition: ${E.name||"screen"} -> ${A.name||"screen"}
 transition_${Ae(r)}_${h}:
     call ${f}
 
@@ -11511,20 +11618,20 @@ check_world_screen_transition:
 
 .dispatch_world:
     ld a, (current_world_id)
-`,e.forEach((o,r)=>{const n=Te(o.name||`world_${r}`),p=o.id||`world_${r}`,s=`check_transition_world_${Ae(p)}`;l+=`    cp WORLD_${n}_ID
+`,e.forEach((n,r)=>{const o=Te(n.name||`world_${r}`),d=n.id||`world_${r}`,s=`check_transition_world_${Ae(d)}`;l+=`    cp WORLD_${o}_ID
     jp z, ${s}
 `}),l+=`    ret
 
-`,e.forEach((o,r)=>{const n=o.id||`world_${r}`,p=Ae(n),s=o.nodes||[],h=o.connections||[];if(l+=`check_transition_world_${p}:
+`,e.forEach((n,r)=>{const o=n.id||`world_${r}`,d=Ae(o),s=n.nodes||[],h=n.connections||[];if(l+=`check_transition_world_${d}:
 `,s.length===0||h.length===0){l+=`    ret
 
-`;return}const c=new Map;s.forEach((E,A)=>c.set(E.id,A));const _=new Map;s.forEach((E,A)=>_.set(A,{})),h.forEach(E=>{const A=Ce(E,"from"),u=Ce(E,"to"),S=ut(E,"from"),f=ut(E,"to");if(!A||!u)return;const y=c.get(A),b=c.get(u);if(!(y===void 0||b===void 0)){if(S){const g=_.get(y);g&&g[S]===void 0&&(g[S]=b)}if(f){const g=_.get(b);g&&g[f]===void 0&&(g[f]=y)}}}),l+=`    ld a, (current_screen_index)
+`;return}const c=new Map;s.forEach((E,A)=>c.set(E.id,A));const _=new Map;s.forEach((E,A)=>_.set(A,{})),h.forEach(E=>{const A=Ce(E,"from"),u=Ce(E,"to"),S=mt(E,"from"),f=mt(E,"to");if(!A||!u)return;const y=c.get(A),b=c.get(u);if(!(y===void 0||b===void 0)){if(S){const g=_.get(y);g&&g[S]===void 0&&(g[S]=b)}if(f){const g=_.get(b);g&&g[f]===void 0&&(g[f]=y)}}}),l+=`    ld a, (current_screen_index)
 `,s.forEach((E,A)=>{l+=`    cp ${A}
     jp z, .screen_${A}
 `}),l+=`    ret
 
 `,s.forEach((E,A)=>{const u=_.get(A)||{};l+=`.screen_${A}:
-`;const S=["east","west","south","north"];let f=!1;S.forEach(y=>{const b=u[y];if(b===void 0)return;const g=s[b];if(!(g!=null&&g.screenAssetId))return;const d=Fe(g.screenAssetId,t);l+=Al(p,A,y,b,d),f=!0}),l+=`    ret
+`;const S=["east","west","south","north"];let f=!1;S.forEach(y=>{const b=u[y];if(b===void 0)return;const g=s[b];if(!(g!=null&&g.screenAssetId))return;const p=Fe(g.screenAssetId,t);l+=Tl(d,A,y,b,p),f=!0}),l+=`    ret
 
 `})}),l+=`; ==================================================================
 ; WORLD HELPER FUNCTIONS
@@ -11552,7 +11659,7 @@ set_current_screen:
 ; ==================================================================
 ; END OF WORLDS
 ; ==================================================================
-`,l}function mt(t){t=t.replace("#","");const e=parseInt(t.substring(0,2),16),a=parseInt(t.substring(2,4),16),l=parseInt(t.substring(4,6),16);if(e<50&&a<50&&l<50)return 1;if(e>200&&a>200&&l>200)return 15;if(e>200&&a<100&&l<100)return 8;if(e<100&&a>200&&l<100)return 3;if(e<100&&a<100&&l>200)return 5;if(e>200&&a>200&&l<100)return 10;if(e>150&&a<100&&l>150)return 13;if(e<100&&a>150&&l>150)return 7;const i=(e+a+l)/3;return i<64?1:i<128?14:15}function Cl(t){const e=t.gameFlow&&t.gameFlow.nodes&&t.gameFlow.nodes.some(l=>l.type==="SubMenu");if(!e)return`; ==================================================================
+`,l}function ft(t){t=t.replace("#","");const e=parseInt(t.substring(0,2),16),a=parseInt(t.substring(2,4),16),l=parseInt(t.substring(4,6),16);if(e<50&&a<50&&l<50)return 1;if(e>200&&a>200&&l>200)return 15;if(e>200&&a<100&&l<100)return 8;if(e<100&&a>200&&l<100)return 3;if(e<100&&a<100&&l>200)return 5;if(e>200&&a>200&&l<100)return 10;if(e>150&&a<100&&l>150)return 13;if(e<100&&a>150&&l>150)return 7;const i=(e+a+l)/3;return i<64?1:i<128?14:15}function Il(t){const e=t.gameFlow&&t.gameFlow.nodes&&t.gameFlow.nodes.some(l=>l.type==="SubMenu");if(!e)return`; ==================================================================
 ; GAME MENUS (SKIPPED - NO MENUS DETECTED)
 ; File: menus.asm
 ; ==================================================================
@@ -11583,14 +11690,14 @@ update_menu_state:
 ; MENU CONSTANTS
 ; ==================================================================
 
-`,t.gameFlow.nodes.filter(o=>o.type==="SubMenu").forEach((o,r)=>{const n=(o.title||o.id).toUpperCase().replace(/[^A-Z0-9]/g,"_");a+=`MENU_${n}_ID EQU ${r}
+`,t.gameFlow.nodes.filter(n=>n.type==="SubMenu").forEach((n,r)=>{const o=(n.title||n.id).toUpperCase().replace(/[^A-Z0-9]/g,"_");a+=`MENU_${o}_ID EQU ${r}
 `}),a+=`
 ; ==================================================================
 ; MENU FUNCTIONS
 ; ==================================================================
 
-`,t.gameFlow.nodes.filter(o=>o.type==="SubMenu").forEach(o=>{var c,_,E,A;(o.title||o.id).toUpperCase().replace(/[^A-Z0-9]/g,"_");const r=o.id.replace(/[^a-zA-Z0-9]/g,"_"),n=((_=(c=o.appearance)==null?void 0:c.colors)==null?void 0:_.background)||"#000000",p=((A=(E=o.appearance)==null?void 0:E.colors)==null?void 0:A.border)||"#FFFFFF",s=mt(n),h=mt(p);a+=`show_menu_${r}:
-    ; Display ${o.title||o.id} menu
+`,t.gameFlow.nodes.filter(n=>n.type==="SubMenu").forEach(n=>{var c,_,E,A;(n.title||n.id).toUpperCase().replace(/[^A-Z0-9]/g,"_");const r=n.id.replace(/[^a-zA-Z0-9]/g,"_"),o=((_=(c=n.appearance)==null?void 0:c.colors)==null?void 0:_.background)||"#000000",d=((A=(E=n.appearance)==null?void 0:E.colors)==null?void 0:A.border)||"#FFFFFF",s=ft(o),h=ft(d);a+=`show_menu_${r}:
+    ; Display ${n.title||n.id} menu
     ; Set background color using VDP
     ld b, ${s*16+h} ; Background (high) | Border (low)
     ld c, 7                     ; VDP Register 7
@@ -11620,10 +11727,10 @@ update_menu_state:
     ret
 
 menu_${r}_title:
-    db "${(o.title||"Menu").replace(/"/g,'\\"')}", 0
+    db "${(n.title||"Menu").replace(/"/g,'\\"')}", 0
 
 handle_menu_${r}:
-    ; Handle ${o.title||o.id} menu input
+    ; Handle ${n.title||n.id} menu input
     call GTSTCK
     ; TODO: Implement input handling
     ret
@@ -11772,7 +11879,7 @@ print_loop:
 `,a+=`; ==================================================================
 ; END OF MENUS
 ; ==================================================================
-`,a}const Il={[R.SET_POSITION]:1,[R.MOVE_BY]:2,[R.SET_VELOCITY]:3,[R.APPLY_FORCE]:4,[R.CHANGE_SPRITE]:5,[R.PLAY_ANIMATION]:6,[R.SET_ANIMATION_SPEED]:7,[R.TOGGLE_ANIMATION]:8,[R.PLAY_SOUND]:9,[R.PLAY_MUSIC]:10,[R.MUTE_MUSIC]:11,[R.STOP_MUSIC]:12,[R.SET_VARIABLE]:13,[R.INCREMENT_VARIABLE]:14,[R.DECREMENT_VARIABLE]:15,[R.SET_COMPONENT_PROPERTY]:16,[R.WAIT]:17,[R.GOTO_STATE]:18,[R.DESTROY_ENTITY]:19,[R.SPAWN_ENTITY]:20,[R.GET_RANDOM_ENTITY_POSITION]:21,[R.CHANGE_GAME_FLOW_NODE]:22,[R.DECREASE_LIVES]:23,[R.INCREASE_LIVES]:24,[R.RESPAWN_PLAYER]:25,[R.BREAK_TILE]:26,[R.REPLACE_TILE]:27,[R.RND]:28,[R.POINT_AT]:29,[R.ADD_VARIABLES]:30,[R.SUBTRACT_VARIABLES]:31,[R.MULTIPLY_VARIABLES]:32,[R.DIVIDE_VARIABLES]:33,[R.MODULO_VARIABLES]:34,[R.ASSIGN_VARIABLE]:35,END:255},vl={[$.AND]:1,[$.OR]:2,[$.NOT]:3,[$.KEY_PRESSED]:4,[$.KEY_RELEASED]:5,[$.TIME_OUT]:6,[$.CAN_MOVE_DIRECTION]:7,[$.HAS_COLLISION]:8,[$.PATH_CLEAR]:9,[$.ON_WALL_COLLISION]:10,[$.HAS_DEADLY_TILE_COLLISION]:11,[$.ANIMATION_COMPLETE]:12,[$.KEY_AND_MOVEMENT]:13,[$.VARIABLE_COMPARE]:14},Dl={x:0,y:1,vx:2,vy:3,isOnGround:4,health:5},ft={"==":0,"!=":1,">":2,"<":3,">=":4,"<=":5},bt={up:1,arrowup:1,down:5,arrowdown:5,left:7,arrowleft:7,right:3,arrowright:3,fire:9,space:9},Be={up:1,down:5,left:7,right:3},yt={any:0,up:1,down:5,left:7,right:3},Et={any:0,wall:1,enemy:2,item:3,entity:4};function Ll(t){const e={...Dl};return t&&t.length>0&&t.forEach((a,l)=>{const i=6+l;e[a.name]=i,a.asmName&&(e[a.asmName]=i)}),e}const Rl=`
+`,a}const vl={[R.SET_POSITION]:1,[R.MOVE_BY]:2,[R.SET_VELOCITY]:3,[R.APPLY_FORCE]:4,[R.CHANGE_SPRITE]:5,[R.PLAY_ANIMATION]:6,[R.SET_ANIMATION_SPEED]:7,[R.TOGGLE_ANIMATION]:8,[R.PLAY_SOUND]:9,[R.PLAY_MUSIC]:10,[R.MUTE_MUSIC]:11,[R.STOP_MUSIC]:12,[R.SET_VARIABLE]:13,[R.INCREMENT_VARIABLE]:14,[R.DECREMENT_VARIABLE]:15,[R.SET_COMPONENT_PROPERTY]:16,[R.WAIT]:17,[R.GOTO_STATE]:18,[R.DESTROY_ENTITY]:19,[R.SPAWN_ENTITY]:20,[R.GET_RANDOM_ENTITY_POSITION]:21,[R.CHANGE_GAME_FLOW_NODE]:22,[R.DECREASE_LIVES]:23,[R.INCREASE_LIVES]:24,[R.RESPAWN_PLAYER]:25,[R.BREAK_TILE]:26,[R.REPLACE_TILE]:27,[R.RND]:28,[R.POINT_AT]:29,[R.ADD_VARIABLES]:30,[R.SUBTRACT_VARIABLES]:31,[R.MULTIPLY_VARIABLES]:32,[R.DIVIDE_VARIABLES]:33,[R.MODULO_VARIABLES]:34,[R.ASSIGN_VARIABLE]:35,END:255},Dl={[$.AND]:1,[$.OR]:2,[$.NOT]:3,[$.KEY_PRESSED]:4,[$.KEY_RELEASED]:5,[$.TIME_OUT]:6,[$.CAN_MOVE_DIRECTION]:7,[$.HAS_COLLISION]:8,[$.PATH_CLEAR]:9,[$.ON_WALL_COLLISION]:10,[$.HAS_DEADLY_TILE_COLLISION]:11,[$.ANIMATION_COMPLETE]:12,[$.KEY_AND_MOVEMENT]:13,[$.VARIABLE_COMPARE]:14},Ll={x:0,y:1,vx:2,vy:3,isOnGround:4,health:5},bt={"==":0,"!=":1,">":2,"<":3,">=":4,"<=":5},yt={up:1,arrowup:1,down:5,arrowdown:5,left:7,arrowleft:7,right:3,arrowright:3,fire:9,space:9},Be={up:1,down:5,left:7,right:3},Et={any:0,up:1,down:5,left:7,right:3},gt={any:0,wall:1,enemy:2,item:3,entity:4};function Rl(t){const e={...Ll};return t&&t.length>0&&t.forEach((a,l)=>{const i=6+l;e[a.name]=i,a.asmName&&(e[a.asmName]=i)}),e}const Nl=`
     ; ------------------------------------------------------------------
     ; SM_Update
     ; Main State Machine Update Routine
@@ -12148,7 +12255,7 @@ SM_ExecuteActions_Loop:
     ; Jump to Handler (B = Entity Index, HL = Params)
     push de
     ret
-    `,Nl=`
+    `,wl=`
     ; ------------------------------------------------------------------
 ; SM_Dispatch
     ; Dispatches to the handler for Action A
@@ -14297,15 +14404,15 @@ Condition_VariableCompare:
 .return_false:
     ld a, 0
     ret
-    `;function wl(t,e,a){let l=Rl+`
-`+Nl+`
+    `;function xl(t,e,a){let l=Nl+`
+`+wl+`
 
-`;const i=je(a||[]),o=i.nameToIndex;i.warnings.forEach(n=>{console.warn(`[State Machine Generator] ${n}`)}),l+=`; ==================================================================
+`;const i=je(a||[]),n=i.nameToIndex;i.warnings.forEach(o=>{console.warn(`[State Machine Generator] ${o}`)}),l+=`; ==================================================================
 `,l+=`; GLOBAL VARIABLES TABLE
 `,l+=`; ==================================================================
 `,e&&e.length>0?(l+=`; Maps variable IDs (6+) to their RAM addresses
 `,l+=`SM_GlobalVarTable:
-`,e.forEach((n,p)=>{const s=6+p;l+=`    DW ${n.asmName}            ; ID ${s}: ${n.name}
+`,e.forEach((o,d)=>{const s=6+d;l+=`    DW ${o.asmName}            ; ID ${s}: ${o.name}
 `}),l+=`
 `):(l+=`; No global variables defined
 `,l+=`SM_GlobalVarTable:
@@ -14315,73 +14422,73 @@ Condition_VariableCompare:
 `,l+=`; STATE MACHINE DATA
 `,l+=`; ==================================================================
 
-`;const r=Ll(e);for(const n of t)l+=xl(n,r,o);return l}function xl(t,e,a){let l=`; State Machine: ${t.name} (${t.id}) 
-`;const i=t.name.replace(/[^a-zA-Z0-9]/g,"_"),o=r=>{if(!r)return!1;const n=r.trim().toLowerCase();return n==="any"||n==="__any_state__"||n==="any state (*)"};for(const r of t.states){const n=`SM_${i}_${r.id.replace(/[^a-zA-Z0-9]/g,"_")}`,p=`${n}_OnEnter`,s=`${n}_OnExit`,h=`${n}_Transitions`;l+=`${n}: 
+`;const r=Rl(e);for(const o of t)l+=Ol(o,r,n);return l}function Ol(t,e,a){let l=`; State Machine: ${t.name} (${t.id}) 
+`;const i=t.name.replace(/[^a-zA-Z0-9]/g,"_"),n=r=>{if(!r)return!1;const o=r.trim().toLowerCase();return o==="any"||o==="__any_state__"||o==="any state (*)"};for(const r of t.states){const o=`SM_${i}_${r.id.replace(/[^a-zA-Z0-9]/g,"_")}`,d=`${o}_OnEnter`,s=`${o}_OnExit`,h=`${o}_Transitions`;l+=`${o}: 
 `,l+=`    DB 0; ID(unused) 
-`,l+=`    DW ${r.onEnter&&r.onEnter.length>0?p:0} 
+`,l+=`    DW ${r.onEnter&&r.onEnter.length>0?d:0} 
 `,l+=`    DW ${r.onExit&&r.onExit.length>0?s:0} 
-`;const c=t.transitions.filter(_=>_.fromStateId===r.id?!0:o(_.fromStateId)?_.toStateId!==r.id:!1);if(l+=`    DW ${c.length>0?h:0} 
-`,r.onEnter&&r.onEnter.length>0){l+=`${p}: 
+`;const c=t.transitions.filter(_=>_.fromStateId===r.id?!0:n(_.fromStateId)?_.toStateId!==r.id:!1);if(l+=`    DW ${c.length>0?h:0} 
+`,r.onEnter&&r.onEnter.length>0){l+=`${d}: 
 `;for(const _ of r.onEnter)l+=$e(_,t.name,e,a);l+=`    DB 0xFF; END
 `}if(r.onExit&&r.onExit.length>0){l+=`${s}: 
 `;for(const _ of r.onExit)l+=$e(_,t.name,e,a);l+=`    DB 0xFF; END
 `}c.length>0&&(l+=`${h}: 
 `,l+=`    DB ${c.length}; Count
-`,c.forEach((_,E)=>{const u=o(_.fromStateId)&&o(_.toStateId)?"0":`SM_${i}_${_.toStateId.replace(/[^a-zA-Z0-9]/g,"_")}`,S=_.actions&&_.actions.length>0?`${h}_Actions_${E}`:"0";if(_.conditions?l+=He(_.conditions,e):l+=`    DB 0; Empty Condition(Always True) 
+`,c.forEach((_,E)=>{const u=n(_.fromStateId)&&n(_.toStateId)?"0":`SM_${i}_${_.toStateId.replace(/[^a-zA-Z0-9]/g,"_")}`,S=_.actions&&_.actions.length>0?`${h}_Actions_${E}`:"0";if(_.conditions?l+=He(_.conditions,e):l+=`    DB 0; Empty Condition(Always True) 
 `,l+=`    DW ${u} 
 `,l+=`    DW ${S} 
 `,S!=="0"){l+=`${S}: 
 `;for(const f of _.actions||[])l+=$e(f,t.name,e,a);l+=`    DB 0xFF; END
 `}})),l+=`
-`}return l}function Q(t){if(typeof t=="number")return t.toString();if(typeof t=="boolean")return t?"1":"0";if(typeof t=="string"){if(t==="true")return"1";if(t==="false")return"0";const e=parseInt(t,10);return isNaN(e)?"0":e.toString()}return"0"}function $e(t,e="",a,l){var r;const i=Il[t.type];if(!i)return`; Unknown Action: ${t.type} 
-`;let o=`    DB ${i}; ${t.type} 
-`;switch(t.type){case R.SET_POSITION:case R.MOVE_BY:case R.SET_VELOCITY:case R.APPLY_FORCE:o+=`    DB ${Q(t.params.x)}, ${Q(t.params.y)} 
-`;break;case R.CHANGE_SPRITE:{const n=t.params.sprite||t.params.spriteId||"";let p=0;if(l&&typeof n=="string"){const s=l[n],h=l[n.toLowerCase()];s!==void 0?p=s:h!==void 0?p=h:p=Q(n)==="0"?0:parseInt(Q(n),10)||0}else p=Q(n)==="0"?0:parseInt(Q(n),10)||0;o+=`    DB ${p}; sprite: ${n} 
-`;break}case R.PLAY_ANIMATION:o+=`    DB ${Q(t.params.animationName)} 
-`;break;case R.SET_ANIMATION_SPEED:o+=`    DB ${Q(t.params.speed)} 
-`;break;case R.TOGGLE_ANIMATION:o+=`    DB ${Q(t.params.playing)} 
-`;break;case R.PLAY_SOUND:o+=`    DB ${Q(t.params.soundId)} 
-`;break;case R.SET_VARIABLE:case R.INCREMENT_VARIABLE:case R.DECREMENT_VARIABLE:{const n=t.params.variable||t.params.variableName||t.params.name,p=(a==null?void 0:a[n])??0,s=t.params.value??t.params.amount??0;o+=`    DB ${p}, ${Q(s)}        ; ${n} (ID ${p})
-`;break}case R.WAIT:o+=`    DB ${Q(t.params.duration)} 
-`;break;case R.GOTO_STATE:if(e&&t.params.stateId){const n=`SM_${e.replace(/[^a-zA-Z0-9]/g,"_")}_${t.params.stateId.replace(/[^a-zA-Z0-9]/g,"_")} `;o+=`    DW ${n} 
-`}else o+=`    DW 0; Invalid GOTO target
-`;break;case R.SPAWN_ENTITY:o+=`    DB ${Q(t.params.entityId)}, ${Q(t.params.x)}, ${Q(t.params.y)} 
-`;break;case R.DESTROY_ENTITY:{const n=((r=t.params)==null?void 0:r.target)||"self";o+=`    DB ${n==="other"?1:0}          ; Target: ${n}
-`;break}case R.ADD_VARIABLES:case R.SUBTRACT_VARIABLES:case R.MULTIPLY_VARIABLES:case R.DIVIDE_VARIABLES:case R.MODULO_VARIABLES:{const n=t.params.destination||t.params.dest||t.params.result,p=t.params.source1||t.params.src1||t.params.operand1,s=t.params.source2||t.params.src2||t.params.operand2,h=(a==null?void 0:a[n])??0,c=(a==null?void 0:a[p])??0,_=(a==null?void 0:a[s])??0,E=t.type===R.ADD_VARIABLES?"ADD":t.type===R.SUBTRACT_VARIABLES?"SUB":t.type===R.MULTIPLY_VARIABLES?"MUL":t.type===R.DIVIDE_VARIABLES?"DIV":"MOD";o+=`    DB ${h}, ${c}, ${_}        ; ${n} = ${p} ${E} ${s}
-`;break}default:o+=`    ; Params not implemented for ${t.type}
-`;break}return o}function He(t,e){var i,o,r,n,p,s,h,c,_,E,A,u,S,f,y,b,g;const a=vl[t.type];if(!a)return console.warn(`[State Machine Generator] Unknown condition "${t.type}". Falling back to NOP condition.`),`    DB 0; FALLBACK NOP for unknown condition ${t.type}
+`}return l}function Q(t){if(typeof t=="number")return t.toString();if(typeof t=="boolean")return t?"1":"0";if(typeof t=="string"){if(t==="true")return"1";if(t==="false")return"0";const e=parseInt(t,10);return isNaN(e)?"0":e.toString()}return"0"}function $e(t,e="",a,l){var r;const i=vl[t.type];if(!i)return`; Unknown Action: ${t.type} 
+`;let n=`    DB ${i}; ${t.type} 
+`;switch(t.type){case R.SET_POSITION:case R.MOVE_BY:case R.SET_VELOCITY:case R.APPLY_FORCE:n+=`    DB ${Q(t.params.x)}, ${Q(t.params.y)} 
+`;break;case R.CHANGE_SPRITE:{const o=t.params.sprite||t.params.spriteId||"";let d=0;if(l&&typeof o=="string"){const s=l[o],h=l[o.toLowerCase()];s!==void 0?d=s:h!==void 0?d=h:d=Q(o)==="0"?0:parseInt(Q(o),10)||0}else d=Q(o)==="0"?0:parseInt(Q(o),10)||0;n+=`    DB ${d}; sprite: ${o} 
+`;break}case R.PLAY_ANIMATION:n+=`    DB ${Q(t.params.animationName)} 
+`;break;case R.SET_ANIMATION_SPEED:n+=`    DB ${Q(t.params.speed)} 
+`;break;case R.TOGGLE_ANIMATION:n+=`    DB ${Q(t.params.playing)} 
+`;break;case R.PLAY_SOUND:n+=`    DB ${Q(t.params.soundId)} 
+`;break;case R.SET_VARIABLE:case R.INCREMENT_VARIABLE:case R.DECREMENT_VARIABLE:{const o=t.params.variable||t.params.variableName||t.params.name,d=(a==null?void 0:a[o])??0,s=t.params.value??t.params.amount??0;n+=`    DB ${d}, ${Q(s)}        ; ${o} (ID ${d})
+`;break}case R.WAIT:n+=`    DB ${Q(t.params.duration)} 
+`;break;case R.GOTO_STATE:if(e&&t.params.stateId){const o=`SM_${e.replace(/[^a-zA-Z0-9]/g,"_")}_${t.params.stateId.replace(/[^a-zA-Z0-9]/g,"_")} `;n+=`    DW ${o} 
+`}else n+=`    DW 0; Invalid GOTO target
+`;break;case R.SPAWN_ENTITY:n+=`    DB ${Q(t.params.entityId)}, ${Q(t.params.x)}, ${Q(t.params.y)} 
+`;break;case R.DESTROY_ENTITY:{const o=((r=t.params)==null?void 0:r.target)||"self";n+=`    DB ${o==="other"?1:0}          ; Target: ${o}
+`;break}case R.ADD_VARIABLES:case R.SUBTRACT_VARIABLES:case R.MULTIPLY_VARIABLES:case R.DIVIDE_VARIABLES:case R.MODULO_VARIABLES:{const o=t.params.destination||t.params.dest||t.params.result,d=t.params.source1||t.params.src1||t.params.operand1,s=t.params.source2||t.params.src2||t.params.operand2,h=(a==null?void 0:a[o])??0,c=(a==null?void 0:a[d])??0,_=(a==null?void 0:a[s])??0,E=t.type===R.ADD_VARIABLES?"ADD":t.type===R.SUBTRACT_VARIABLES?"SUB":t.type===R.MULTIPLY_VARIABLES?"MUL":t.type===R.DIVIDE_VARIABLES?"DIV":"MOD";n+=`    DB ${h}, ${c}, ${_}        ; ${o} = ${d} ${E} ${s}
+`;break}default:n+=`    ; Params not implemented for ${t.type}
+`;break}return n}function He(t,e){var i,n,r,o,d,s,h,c,_,E,A,u,S,f,y,b,g;const a=Dl[t.type];if(!a)return console.warn(`[State Machine Generator] Unknown condition "${t.type}". Falling back to NOP condition.`),`    DB 0; FALLBACK NOP for unknown condition ${t.type}
 `;let l=`    DB ${a}; ${t.type} 
-`;switch(t.type){case $.KEY_PRESSED:case $.KEY_RELEASED:{const d=(o=(i=t.params)==null?void 0:i.key)==null?void 0:o.toLowerCase(),m=bt[d]??0;l+=`    DB ${m}          ; Key: ${d||"unknown"}
+`;switch(t.type){case $.KEY_PRESSED:case $.KEY_RELEASED:{const p=(n=(i=t.params)==null?void 0:i.key)==null?void 0:n.toLowerCase(),m=yt[p]??0;l+=`    DB ${m}          ; Key: ${p||"unknown"}
 `;break}case $.TIME_OUT:l+=`    DB ${Q((r=t.params)==null?void 0:r.duration)} 
-`;break;case $.CAN_MOVE_DIRECTION:{const d=String(((n=t.params)==null?void 0:n.direction)||"").toLowerCase(),m=Be[d]??0;d&&m===0&&console.warn(`[State Machine Generator] Unknown direction "${d}" in CAN_MOVE_DIRECTION. Using 0 (no direction).`),l+=`    DB ${m}          ; Direction: ${d||"none"}
-`;break}case $.ON_WALL_COLLISION:{const d=String(((p=t.params)==null?void 0:p.direction)||"any").toLowerCase(),m=yt[d]??0;d in yt||console.warn(`[State Machine Generator] Unknown direction "${d}" in ON_WALL_COLLISION. Using any.`),l+=`    DB ${m}          ; Wall direction: ${d}
-`;break}case $.HAS_COLLISION:{const d=String(((s=t.params)==null?void 0:s.collisionType)||"any").toLowerCase();let m=Et[d];m===void 0&&(console.warn(`[State Machine Generator] Unknown collisionType "${d}" in HAS_COLLISION. Using any.`),m=Et.any),l+=`    DB ${m}          ; collisionType: ${d}
-`;break}case $.PATH_CLEAR:{const d=String(((h=t.params)==null?void 0:h.direction)||"").toLowerCase(),m=Be[d]??0;d&&m===0&&console.warn(`[State Machine Generator] Unknown direction "${d}" in PATH_CLEAR. Using auto-deduce (0).`),l+=`    DB ${m}          ; Direction (0=auto): ${d||"auto"}
-`;break}case $.KEY_AND_MOVEMENT:{const d=String(((c=t.params)==null?void 0:c.key)||"").toLowerCase(),m=bt[d]??0,T=String(((_=t.params)==null?void 0:_.direction)||"").toLowerCase();let v=Be[T]??0;!T&&m!==9&&(v=m),T&&v===0&&console.warn(`[State Machine Generator] Unknown direction "${T}" in KEY_AND_MOVEMENT. Using 0.`),l+=`    DB ${m}, ${v}          ; key=${d||"unknown"}, dir=${T||"auto"}
+`;break;case $.CAN_MOVE_DIRECTION:{const p=String(((o=t.params)==null?void 0:o.direction)||"").toLowerCase(),m=Be[p]??0;p&&m===0&&console.warn(`[State Machine Generator] Unknown direction "${p}" in CAN_MOVE_DIRECTION. Using 0 (no direction).`),l+=`    DB ${m}          ; Direction: ${p||"none"}
+`;break}case $.ON_WALL_COLLISION:{const p=String(((d=t.params)==null?void 0:d.direction)||"any").toLowerCase(),m=Et[p]??0;p in Et||console.warn(`[State Machine Generator] Unknown direction "${p}" in ON_WALL_COLLISION. Using any.`),l+=`    DB ${m}          ; Wall direction: ${p}
+`;break}case $.HAS_COLLISION:{const p=String(((s=t.params)==null?void 0:s.collisionType)||"any").toLowerCase();let m=gt[p];m===void 0&&(console.warn(`[State Machine Generator] Unknown collisionType "${p}" in HAS_COLLISION. Using any.`),m=gt.any),l+=`    DB ${m}          ; collisionType: ${p}
+`;break}case $.PATH_CLEAR:{const p=String(((h=t.params)==null?void 0:h.direction)||"").toLowerCase(),m=Be[p]??0;p&&m===0&&console.warn(`[State Machine Generator] Unknown direction "${p}" in PATH_CLEAR. Using auto-deduce (0).`),l+=`    DB ${m}          ; Direction (0=auto): ${p||"auto"}
+`;break}case $.KEY_AND_MOVEMENT:{const p=String(((c=t.params)==null?void 0:c.key)||"").toLowerCase(),m=yt[p]??0,T=String(((_=t.params)==null?void 0:_.direction)||"").toLowerCase();let v=Be[T]??0;!T&&m!==9&&(v=m),T&&v===0&&console.warn(`[State Machine Generator] Unknown direction "${T}" in KEY_AND_MOVEMENT. Using 0.`),l+=`    DB ${m}, ${v}          ; key=${p||"unknown"}, dir=${T||"auto"}
 `;break}case $.AND:case $.OR:if(t.conditions){l+=`    DB ${t.conditions.length} 
-`;for(const d of t.conditions)l+=He(d,e)}else l+=`    DB 0
+`;for(const p of t.conditions)l+=He(p,e)}else l+=`    DB 0
 `;break;case $.NOT:t.conditions&&t.conditions.length>0?(l+=`    DB 1 
 `,l+=He(t.conditions[0],e)):(l+=`    DB 1 
 `,l+=`    DB 0; Fallback NOP subcondition for NOT
-`);break;case $.VARIABLE_COMPARE:{const d=((E=t.params)==null?void 0:E.variable)||"x",m=e==null?void 0:e[d];if(m===void 0)console.warn(`[State Machine Generator] Unknown variable "${d}" in VARIABLE_COMPARE. Using x (ID 0) as fallback.`),l+=`    DB 0, ${ft[((A=t.params)==null?void 0:A.operator)||"=="]||0}, ${Q(((u=t.params)==null?void 0:u.value)||0)}; FALLBACK: unknown var "${d}" -> x ${((S=t.params)==null?void 0:S.operator)||"=="} ${((f=t.params)==null?void 0:f.value)||0}
-`;else{const T=ft[((y=t.params)==null?void 0:y.operator)||"=="]||0,v=((b=t.params)==null?void 0:b.value)||0;l+=`    DB ${m}, ${T}, ${Q(v)}; ${d} (ID ${m}) ${((g=t.params)==null?void 0:g.operator)||"=="} ${v}
-`}break}}return l}function Ol(t,e={}){console.log("ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...");let a="";return a+=`; ==================================================================
+`);break;case $.VARIABLE_COMPARE:{const p=((E=t.params)==null?void 0:E.variable)||"x",m=e==null?void 0:e[p];if(m===void 0)console.warn(`[State Machine Generator] Unknown variable "${p}" in VARIABLE_COMPARE. Using x (ID 0) as fallback.`),l+=`    DB 0, ${bt[((A=t.params)==null?void 0:A.operator)||"=="]||0}, ${Q(((u=t.params)==null?void 0:u.value)||0)}; FALLBACK: unknown var "${p}" -> x ${((S=t.params)==null?void 0:S.operator)||"=="} ${((f=t.params)==null?void 0:f.value)||0}
+`;else{const T=bt[((y=t.params)==null?void 0:y.operator)||"=="]||0,v=((b=t.params)==null?void 0:b.value)||0;l+=`    DB ${m}, ${T}, ${Q(v)}; ${p} (ID ${m}) ${((g=t.params)==null?void 0:g.operator)||"=="} ${v}
+`}break}}return l}function Ml(t,e={}){console.log("ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...");let a="";return a+=`; ==================================================================
 `,a+=`; INTERRUPT TASK SYSTEM - File: interrupt.asm
 `,a+=`; Konami-style technique: Hook H.TIMI for 50/60Hz task execution
 `,a+=`; ==================================================================
 
-`,a+=Ml(),a+=Pl(),a+=kl(),a+=Ul(),a+=Fl(),a+=Bl(t),e.interruptDrivenComponents&&(a+=`
+`,a+=Pl(),a+=kl(),a+=Ul(),a+=Fl(),a+=Bl(),a+=$l(t),e.interruptDrivenComponents&&(a+=`
 ; ==================================================================
 `,a+=`; COMPONENT SYSTEMS (INLINED)
 `,a+=`; Generated inside interrupt.asm because interruptDrivenComponents=true
 `,a+=`; ==================================================================
 
-`,a+=Dt(t),a+=`
+`,a+=Lt(t),a+=`
 ; ==================================================================
 `,a+=`; END OF INLINED COMPONENT SYSTEMS
 `,a+=`; ==================================================================
 
-`),console.log(`ƒo. [INTERRUPT GENERATOR] Generated interrupt.asm (${a.length} chars)`),a}function Ml(){return`; ==================================================================
+`),console.log(`ƒo. [INTERRUPT GENERATOR] Generated interrupt.asm (${a.length} chars)`),a}function Pl(){return`; ==================================================================
 ; INTERRUPT SYSTEM MEMORY LAYOUT
 ; Variables are defined in variables.asm (dynamically allocated)
 ; This avoids RAM overlap with entity system arrays
@@ -14391,7 +14498,7 @@ Condition_VariableCompare:
 ;        task_exec_time, vblank_flag
 ; ==================================================================
 
-`}function Pl(){return`; ==================================================================
+`}function kl(){return`; ==================================================================
 ; INIT_INTERRUPT_SYSTEM - Install H.TIMI hook
 ; ==================================================================
 ; Inputs: None
@@ -14434,7 +14541,7 @@ init_interrupt_system:
     ei                          ; Re-enable interrupts
     ret
 
-`}function kl(){return`; ==================================================================
+`}function Ul(){return`; ==================================================================
 ; STOP_INTERRUPT_SYSTEM - Restore original H.TIMI hook
 ; ==================================================================
 ; Inputs: None
@@ -14457,7 +14564,7 @@ stop_interrupt_system:
     ei                          ; Re-enable interrupts
     ret
 
-`}function Ul(){return`; ==================================================================
+`}function Fl(){return`; ==================================================================
 ; INTERRUPT_DISPATCHER - Main ISR (60Hz/50Hz)
 ; ==================================================================
 ; This routine executes on each V-Blank
@@ -14540,7 +14647,7 @@ interrupt_dispatcher:
 .call_task:
     jp (hl)                     ; Jump to task (task will RET back here)
 
-`}function Fl(){return`; ==================================================================
+`}function Bl(){return`; ==================================================================
 ; TASK MANAGEMENT FUNCTIONS
 ; ==================================================================
 
@@ -14644,7 +14751,7 @@ get_frame_count:
     ld hl, (interrupt_counter)
     ret
 
-`}function Bl(t){let e="";if(e+=`; ==================================================================
+`}function $l(t){let e="";if(e+=`; ==================================================================
 `,e+=`; DEFAULT INTERRUPT TASKS (60Hz Execution)
 `,e+=`; ==================================================================
 
@@ -14759,7 +14866,7 @@ get_frame_count:
 `,e+=`    pop af
 `,e+=`    ret
 
-`,t.hasEntities){const l=Ne(t).usedComponents,i=l.has("Jump"),o=l.has("Movement")||l.has("Cursors"),r=l.has("Gravity");i||o||r?(e+=`; ==================================================================
+`,t.hasEntities){const l=Ne(t).usedComponents,i=l.has("Jump"),n=l.has("Movement")||l.has("Cursors"),r=l.has("Gravity");i||n||r?(e+=`; ==================================================================
 `,e+=`; TASK_UPDATE_PHYSICS - Apply vx, vy -> X, Y (OPTIMIZED)
 `,e+=`; ==================================================================
 `,e+=`; Only calls physics systems that are actually used in this project
@@ -14773,7 +14880,7 @@ get_frame_count:
 `,e+=`    ; Keep system loops in sync with current component masks
 `,e+=`    call rebuild_used_entity_list
 `,i&&(e+=`    call update_jump_component      ; Jump impulse
-`),o&&(e+=`    call update_movement_component  ; Movement/velocity
+`),n&&(e+=`    call update_movement_component  ; Movement/velocity
 `),r&&(e+=`    call update_gravity_component   ; Gravity acceleration
 `),e+=`    call update_position_component  ; Apply velocity to position
 
@@ -14860,7 +14967,7 @@ get_frame_count:
 `,e+=`;   CALL enable_task
 `,e+=`; ==================================================================
 
-`,e}function $l(t){return`; ==================================================================
+`,e}function Hl(t){return`; ==================================================================
 ; PSG SOUND SYSTEM
 ; File: sound.asm
 ; Description: AY-3-8910 PSG control and sound effects
@@ -15257,7 +15364,7 @@ sfx_update:
 ; ==================================================================
 ; END OF PSG SOUND SYSTEM
 ; ==================================================================
-`}function Hl(t){var l,i,o,r;const e=((i=(l=t.tiles)==null?void 0:l[0])==null?void 0:i.width)||8,a=((r=(o=t.tiles)==null?void 0:o[0])==null?void 0:r.height)||8;return`; ==================================================================
+`}function jl(t){var l,i,n,r;const e=((i=(l=t.tiles)==null?void 0:l[0])==null?void 0:i.width)||8,a=((r=(n=t.tiles)==null?void 0:n[0])==null?void 0:r.height)||8;return`; ==================================================================
 ; SCROLL SYSTEM
 ; File: scroll.asm
 ; Description: Viewport management and screen scrolling for large worlds
@@ -15623,7 +15730,7 @@ multiply_a_by_b:
 ; ==================================================================
 ; END OF SCROLL SYSTEM
 ; ==================================================================
-`}function jl(t){var e,a,l,i;return(a=(e=t.tiles)==null?void 0:e[0])!=null&&a.width,(i=(l=t.tiles)==null?void 0:l[0])!=null&&i.height,`; ==================================================================
+`}function Vl(t){var e,a,l,i;return(a=(e=t.tiles)==null?void 0:e[0])!=null&&a.width,(i=(l=t.tiles)==null?void 0:l[0])!=null&&i.height,`; ==================================================================
 ; ANIMATED TILES SYSTEM
 ; File: animtiles.asm
 ; Description: Background tile animation for water, lava, fire, etc.
@@ -16001,7 +16108,7 @@ get_tile_animation_frame:
 ; ==================================================================
 ; END OF ANIMATED TILES SYSTEM
 ; ==================================================================
-`}function Vl(t){var e,a,l,i;return(a=(e=t.tiles)==null?void 0:e[0])!=null&&a.width,(i=(l=t.tiles)==null?void 0:l[0])!=null&&i.height,`; ==================================================================
+`}function zl(t){var e,a,l,i;return(a=(e=t.tiles)==null?void 0:e[0])!=null&&a.width,(i=(l=t.tiles)==null?void 0:l[0])!=null&&i.height,`; ==================================================================
 ; PARTICLE SYSTEM (VRAM Pattern Redefinition)
 ; File: particles.asm
 ; Description: Visual effects using dynamic tile pattern updates
@@ -16646,6 +16753,6 @@ spawn_muzzle_flash:
 ; END OF PARTICLE SYSTEM
 ; ==================================================================
 ; Note: particle_pool variable is defined in variables.asm
-`}function zl(t,e,a={}){var p;if(console.log("🔧 Generating modular ASM files..."),!t)throw console.error("❌ projectName is required"),new Error("projectName is required");if(!e)throw console.error("❌ assets is undefined or null"),new Error("assets array is required");if(!Array.isArray(e))throw console.error("❌ assets is not an array"),new Error("assets must be an array");console.log(`📊 Project: ${t}, Assets: ${e.length}, Config:`,a);let l;try{l=Ve(t,e),console.log(`🔍 Analysis complete: ${l.sprites.length} sprites, ${l.tiles.length} tiles`)}catch(s){console.error("❌ Error analyzing project:",s),l={hasSprites:!1,hasTiles:!1,hasScreens:!1,hasEntities:!1,hasComponents:!1,hasGameFlow:!1,hasMenus:!1,hasFonts:!1,hasECS:!1,hasMultipleScreens:!1,hasAnimations:!1,hasCollisions:!1,hasMenuSystem:!1,components:[],templates:[],entities:[],sprites:[],tiles:[],screens:[],screenMaps:[],projectName:t,customStates:[],stateMachines:[],globalVariables:[]},console.log("🔄 Using fallback empty analysis")}const i=a.interruptDrivenComponents??!0,o=a.hardwareMode||"hybrid",r=a.optimizeLevel||"safe";console.log("📝 [MSX GENERATOR] Generating all ASM files..."),console.log(`🔧 Hardware Mode: ${o.toUpperCase()}, Optimize: ${r}`);const n={"bios.asm":ba({hardwareMode:{mode:o,optimizeLevel:r}}),"constants.asm":Ea(l),"variables.asm":ga(l),"interrupt.asm":Ol(l,{interruptDrivenComponents:i}),"header.asm":Aa(t,l),"patterns.asm":ka(l),"colors.asm":Ua(l),"components.asm":i?`; Components are generated inside interrupt.asm (interruptDrivenComponents=true)
-`:Dt(l),"entities.asm":pl(l),"worlds.asm":Tl(l),"screens.asm":_l(l),"sprites.asm":ja(l),"font.asm":hl(l),"hud.asm":ul(l),"menus.asm":Cl(l),"sound.asm":$l(),"scroll.asm":Hl(l),"animtiles.asm":jl(l),"particles.asm":Vl(l),"statemachine.asm":l.stateMachines?wl(l.stateMachines,l.globalVariables,l.sprites):`; No State Machines
-`,"gameflow.asm":Na(l),"main.asm":Pa(t,l),"unitedFiles.asm":""};return a.generateUnified&&(n["unitedFiles.asm"]=Fa(n,t,l)),console.log("✅ Modular ASM files generated successfully!"),console.log(`📊 Generated ${Object.keys(n).filter(s=>n[s]).length} files`),console.log("📋 [DEBUG] Files generated:",Object.keys(n)),console.log("🎯 [DEBUG] interrupt.asm length:",((p=n["interrupt.asm"])==null?void 0:p.length)||"MISSING!"),n}const Qo=Object.freeze(Object.defineProperty({__proto__:null,generateModularASM:zl},Symbol.toStringTag,{value:"Module"}));export{To as $,nt as A,ue as B,it as C,Zl as D,Jl as E,Qt as F,Xt as G,X as H,Vo as I,ho as J,_o as K,Wt as L,Kl as M,Do as N,De as O,Ql as P,$o as Q,jo as R,Re as S,Ho as T,wt as U,Eo as V,uo as W,fo as X,mo as Y,oo as Z,So as _,no as a,bo as a0,yo as a1,Ao as a2,go as a3,Co as a4,pe as a5,Ie as a6,so as a7,Go as a8,eo as a9,ql as aa,Pe as ab,Yo as ac,vo as ad,Kt as ae,$ as af,R as ag,Xl as ah,Ve as ai,Wo as aj,Lo as ak,ao as al,Mt as am,ro as an,Ro as ao,Io as ap,to as aq,No as ar,Qo as as,lo as b,io as c,ye as d,xo as e,co as f,wo as g,po as h,kt as i,Ut as j,W as k,Yl as l,Wl as m,ve as n,Mo as o,Po as p,ko as q,Uo as r,Oo as s,Fo as t,Ee as u,ge as v,Vt as w,Bo as x,Gl as y,zo as z};
+`}function Gl(t,e,a={}){var d;if(console.log("🔧 Generating modular ASM files..."),!t)throw console.error("❌ projectName is required"),new Error("projectName is required");if(!e)throw console.error("❌ assets is undefined or null"),new Error("assets array is required");if(!Array.isArray(e))throw console.error("❌ assets is not an array"),new Error("assets must be an array");console.log(`📊 Project: ${t}, Assets: ${e.length}, Config:`,a);let l;try{l=Ve(t,e),console.log(`🔍 Analysis complete: ${l.sprites.length} sprites, ${l.tiles.length} tiles`)}catch(s){console.error("❌ Error analyzing project:",s),l={hasSprites:!1,hasTiles:!1,hasScreens:!1,hasEntities:!1,hasComponents:!1,hasGameFlow:!1,hasMenus:!1,hasFonts:!1,hasECS:!1,hasMultipleScreens:!1,hasAnimations:!1,hasCollisions:!1,hasMenuSystem:!1,components:[],templates:[],entities:[],sprites:[],tiles:[],screens:[],screenMaps:[],projectName:t,customStates:[],stateMachines:[],globalVariables:[]},console.log("🔄 Using fallback empty analysis")}const i=a.interruptDrivenComponents??!0,n=a.hardwareMode||"hybrid",r=a.optimizeLevel||"safe";console.log("📝 [MSX GENERATOR] Generating all ASM files..."),console.log(`🔧 Hardware Mode: ${n.toUpperCase()}, Optimize: ${r}`);const o={"bios.asm":ya({hardwareMode:{mode:n,optimizeLevel:r}}),"constants.asm":ga(l),"variables.asm":Sa(l),"interrupt.asm":Ml(l,{interruptDrivenComponents:i}),"header.asm":Ta(t,l),"patterns.asm":Ua(l),"colors.asm":Fa(l),"components.asm":i?`; Components are generated inside interrupt.asm (interruptDrivenComponents=true)
+`:Lt(l),"entities.asm":_l(l),"worlds.asm":Cl(l),"screens.asm":hl(l),"sprites.asm":Va(l),"font.asm":ul(l),"hud.asm":ml(l),"menus.asm":Il(l),"sound.asm":Hl(),"scroll.asm":jl(l),"animtiles.asm":Vl(l),"particles.asm":zl(l),"statemachine.asm":l.stateMachines?xl(l.stateMachines,l.globalVariables,l.sprites):`; No State Machines
+`,"gameflow.asm":wa(l),"main.asm":ka(t,l),"unitedFiles.asm":""};return a.generateUnified&&(o["unitedFiles.asm"]=Ba(o,t,l)),console.log("✅ Modular ASM files generated successfully!"),console.log(`📊 Generated ${Object.keys(o).filter(s=>o[s]).length} files`),console.log("📋 [DEBUG] Files generated:",Object.keys(o)),console.log("🎯 [DEBUG] interrupt.asm length:",((d=o["interrupt.asm"])==null?void 0:d.length)||"MISSING!"),o}const Xo=Object.freeze(Object.defineProperty({__proto__:null,generateModularASM:Gl},Symbol.toStringTag,{value:"Module"}));export{Co as $,nt as A,ue as B,it as C,Jl as D,ql as E,Xt as F,Kt as G,X as H,zo as I,uo as J,ho as K,Qt as L,Zl as M,Lo as N,De as O,Xl as P,Ho as Q,Vo as R,Re as S,jo as T,xt as U,go as V,mo as W,bo as X,fo as Y,no as Z,Ao as _,io as a,yo as a0,Eo as a1,To as a2,So as a3,Io as a4,pe as a5,Ie as a6,co as a7,Yo as a8,to as a9,eo as aa,Pe as ab,Wo as ac,Do as ad,Zt as ae,$ as af,R as ag,Kl as ah,Ve as ai,Qo as aj,Ro as ak,lo as al,Pt as am,so as an,No as ao,vo as ap,ao as aq,wo as ar,Xo as as,oo as b,ro as c,ye as d,Oo as e,po as f,xo as g,_o as h,Ut as i,Ft as j,W as k,Wl as l,Ql as m,ve as n,Po as o,ko as p,Uo as q,Fo as r,Mo as s,Bo as t,Ee as u,ge as v,zt as w,$o as x,Yl as y,Go as z};

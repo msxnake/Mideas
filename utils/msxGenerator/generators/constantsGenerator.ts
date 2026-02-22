@@ -210,6 +210,11 @@ NODE_TYPE_TEXT          EQU 4    ; Text node (displays text)
 NODE_TYPE_TRANSITION    EQU 5    ; Transition node
 NODE_TYPE_RESTART       EQU 6    ; Restart node (restart game/level)
 NODE_TYPE_END           EQU 7    ; End node (game over, victory, credits)
+NODE_TYPE_IF_THEN_ELSE  EQU 8    ; IfThenElse node (conditional branch)
+NODE_TYPE_GLOBALS       EQU 9    ; Globals node (global variable ops)
+NODE_TYPE_WAYPOINT      EQU 10   ; Waypoint node (routing marker)
+NODE_TYPE_GROUP         EQU 11   ; Group node (nested flow)
+NODE_TYPE_MUSIC         EQU 12   ; Music node (audio command)
 NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ${analysis.gameFlow ? `
 ; Additional Game Flow States detected in project
