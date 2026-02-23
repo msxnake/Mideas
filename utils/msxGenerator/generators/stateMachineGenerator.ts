@@ -3979,7 +3979,6 @@ export function generateStateMachineSystem(
     const tileIdToCharCode = buildTileIdToBaseCharMap(tiles);
     const templateTokenMap = buildTemplateTokenMap(templates);
     const templateProfiles = buildTemplateProfileTables(templates, spriteNameToIndex, templateTokenMap);
-
     const formatDbTable = (label: string, values: number[]): string => {
         const escapedValues = values.map((v) => Math.max(0, Math.min(255, v | 0)));
         return `${label}:\n    DB ${escapedValues.join(', ')}\n`;

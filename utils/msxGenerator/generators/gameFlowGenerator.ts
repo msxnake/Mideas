@@ -1009,10 +1009,8 @@ print_string_vram:
     ; Write character to VRAM
     push hl
     push de
-    push af                       ; Save character
     ex de, hl                     ; HL = VRAM address (from DE)
-    pop af                        ; Restore character to A
-    call WRTVRM                   ; Write A to VRAM at HL
+    call FAST_WRTVRM              ; Write A to VRAM at HL (direct port)
     pop de
     pop hl
 
@@ -1221,13 +1219,14 @@ render_submenu_screen:
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 11
     add hl, bc
-    ld a, (hl)
+    ld e, (hl)                    ; E = bg_screen_fn low
     inc hl
-    ld h, (hl)
-    ld l, a                       ; HL = bg_screen_fn (0 if none)
+    ld d, (hl)                    ; D = bg_screen_fn high
     inc hl
-    ld a, (hl)
-    ld d, a                       ; D = bg_screen_bank
+    ld a, (hl)                    ; A = bg_screen_bank
+    ld c, a
+    ex de, hl                     ; HL = bg_screen_fn (0 if none)
+    ld d, c                       ; D = bg_screen_bank
     ld a, h
     or l
     jr z, .rss_clear_screen       ; no bg screen -> solid clear
@@ -1251,6 +1250,10 @@ render_submenu_screen:
     djnz .rss_clear_loop
 
 .rss_read_count:
+    ; Background loaders may overwrite character patterns/colors used for text.
+    ; Restore font before printing title/options in submenu.
+    call init_font_system
+
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 14                     ; offset to option_count (+11-12 fn, +13 bank)
     add hl, bc
@@ -1771,6 +1774,10 @@ show_text_screen:
     djnz .sts_clear_loop
 
 .sts_render:
+    ; Background loaders may overwrite character patterns/colors used for text.
+    ; Restore font before rendering text lines.
+    call init_font_system
+
     ; Now render each text line
     pop hl                        ; (1) HL = pointer to numLines
     ld a, (hl)                    ; A = numLines
@@ -2636,10 +2643,8 @@ print_string_vram:
     ; Write character to VRAM
     push hl
     push de
-    push af                       ; Save character
     ex de, hl                     ; HL = VRAM address (from DE)
-    pop af                        ; Restore character to A
-    call WRTVRM                   ; Write A to VRAM at HL
+    call FAST_WRTVRM              ; Write A to VRAM at HL (direct port)
     pop de
     pop hl
 

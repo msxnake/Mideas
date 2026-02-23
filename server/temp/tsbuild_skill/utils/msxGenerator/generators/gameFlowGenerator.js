@@ -1190,6 +1190,10 @@ render_submenu_screen:
     djnz .rss_clear_loop
 
 .rss_read_count:
+    ; Background loaders may overwrite character patterns/colors used for text.
+    ; Restore font before printing title/options in submenu.
+    call init_font_system
+
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 14                     ; offset to option_count (+11-12 fn, +13 bank)
     add hl, bc

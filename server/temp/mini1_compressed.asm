@@ -19,37 +19,36 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 103769
-; Estimated banks used: 13
+; Estimated payload bytes: 98257
+; Estimated banks used: 12
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1940 bytes)
 ; BANK 00 @#0794 : colors.asm (1525 bytes)
 ; BANK 00 @#0D89 : components.asm (22 bytes)
 ; BANK 00 @#0D9F : entities.asm part 1/2 (4705 bytes)
-; BANK 01 @#0000 : entities.asm part 2/2 (4372 bytes)
-; BANK 01 @#1114 : worlds.asm (3820 bytes)
-; BANK 02 @#0000 : worlds.asm (2739 bytes)
-; BANK 02 @#0AB3 : screens.asm part 1/3 (5453 bytes)
+; BANK 01 @#0000 : entities.asm part 2/2 (4694 bytes)
+; BANK 01 @#1256 : worlds.asm (3498 bytes)
+; BANK 02 @#0000 : worlds.asm (3061 bytes)
+; BANK 02 @#0BF5 : screens.asm part 1/3 (5131 bytes)
 ; BANK 03 @#0000 : screens.asm part 2/3 (8192 bytes)
-; BANK 04 @#0000 : screens.asm part 3/3 (5223 bytes)
-; BANK 04 @#1467 : sprites.asm part 1/4 (2969 bytes)
-; BANK 05 @#0000 : sprites.asm part 2/4 (8192 bytes)
-; BANK 06 @#0000 : sprites.asm part 3/4 (8192 bytes)
-; BANK 07 @#0000 : sprites.asm part 4/4 (8192 bytes)
-; BANK 08 @#0000 : sprites.asm part 5/4 (1822 bytes)
-; BANK 08 @#071E : font.asm (174 bytes)
-; BANK 08 @#07CC : hud.asm (71 bytes)
-; BANK 08 @#0813 : menus.asm (168 bytes)
-; BANK 08 @#08BB : sound.asm (3184 bytes)
-; BANK 08 @#152B : scroll.asm (2353 bytes)
-; BANK 08 @#1E5C : animtiles.asm (420 bytes)
-; BANK 09 @#0000 : animtiles.asm (2929 bytes)
-; BANK 09 @#0B71 : particles.asm (4963 bytes)
-; BANK 09 @#1ED4 : statemachine.asm part 1/3 (300 bytes)
-; BANK 10 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 11 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 12 @#0000 : statemachine.asm part 4/3 (420 bytes)
-; BANK 12 @#01A4 : gameflow.asm (5045 bytes)
+; BANK 04 @#0000 : screens.asm part 3/3 (6433 bytes)
+; BANK 04 @#1921 : sprites.asm part 1/2 (1759 bytes)
+; BANK 05 @#0000 : sprites.asm part 2/2 (8192 bytes)
+; BANK 06 @#0000 : sprites.asm part 3/2 (6416 bytes)
+; BANK 06 @#1910 : font.asm (174 bytes)
+; BANK 06 @#19BE : hud.asm (71 bytes)
+; BANK 06 @#1A05 : menus.asm (168 bytes)
+; BANK 06 @#1AAD : sound.asm (1363 bytes)
+; BANK 07 @#0000 : sound.asm (1821 bytes)
+; BANK 07 @#071D : scroll.asm (2353 bytes)
+; BANK 07 @#104E : animtiles.asm (3349 bytes)
+; BANK 07 @#1D63 : particles.asm (669 bytes)
+; BANK 08 @#0000 : particles.asm (4294 bytes)
+; BANK 08 @#10C6 : statemachine.asm part 1/3 (3898 bytes)
+; BANK 09 @#0000 : statemachine.asm part 2/3 (8192 bytes)
+; BANK 10 @#0000 : statemachine.asm part 3/3 (8192 bytes)
+; BANK 11 @#0000 : statemachine.asm part 4/3 (3127 bytes)
+; BANK 11 @#0C37 : gameflow.asm (5018 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -833,175 +832,179 @@ behavior_cache_row     EQU #C022   ; Cached behavior row (255=invalid)
 behavior_cache_map_l   EQU #C023   ; Cached behavior map pointer low byte
 behavior_cache_map_h   EQU #C024   ; Cached behavior map pointer high byte
 behavior_cache_row_base EQU #C025   ; Cached row base address in behavior map (16-bit)
+RUNTIME_SCREEN_MAP_SIZE EQU 768
+runtime_screen_layout  EQU #C027   ; Mutable copy of current screen layout (32x24)
+runtime_behavior_map   EQU #C327   ; Mutable copy of current behavior map (32x24)
 
 ; ==================================================================
 ; VIEWPORT/CAMERA VARIABLES (for scroll system)
 ; ==================================================================
-camera_x            EQU #C027   ; Camera X position in pixels (16-bit)
-camera_y            EQU #C029   ; Camera Y position in pixels (16-bit)
-camera_tile_x       EQU #C02B   ; Camera tile X (column)
-camera_tile_y       EQU #C02C   ; Camera tile Y (row)
-world_width_tiles   EQU #C02D   ; World width in tiles
-world_height_tiles  EQU #C02E   ; World height in tiles
-scroll_dirty_flag   EQU #C02F   ; 1=viewport changed, needs redraw
-hud_dirty_flag      EQU #C030   ; 1=HUD needs redraw, 0=clean
+camera_x            EQU #C627   ; Camera X position in pixels (16-bit)
+camera_y            EQU #C629   ; Camera Y position in pixels (16-bit)
+camera_tile_x       EQU #C62B   ; Camera tile X (column)
+camera_tile_y       EQU #C62C   ; Camera tile Y (row)
+world_width_tiles   EQU #C62D   ; World width in tiles
+world_height_tiles  EQU #C62E   ; World height in tiles
+scroll_dirty_flag   EQU #C62F   ; 1=viewport changed, needs redraw
+hud_dirty_flag      EQU #C630   ; 1=HUD needs redraw, 0=clean
 
 ; ==================================================================
 ; ANIMATED TILES VARIABLES
 ; ==================================================================
-anim_tile_timer     EQU #C031   ; Animation frame timer
-anim_tile_frame     EQU #C032   ; Current animation frame (0-3)
-anim_tile_speed     EQU #C033   ; Frames between animation updates
+anim_tile_timer     EQU #C631   ; Animation frame timer
+anim_tile_frame     EQU #C632   ; Current animation frame (0-3)
+anim_tile_speed     EQU #C633   ; Frames between animation updates
 
 ; ==================================================================
 ; PARTICLE SYSTEM VARIABLES
 ; ==================================================================
-particle_pool       EQU #C034   ; Particle pool (8 particles * 8 bytes = 64 bytes)
+particle_pool       EQU #C634   ; Particle pool (8 particles * 8 bytes = 64 bytes)
 
 ; ==================================================================
 ; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
 ; ==================================================================
 MAX_ENTITIES        EQU 32
-entity_active       EQU #C074   ; Entity active flags (32 bytes, 0=inactive, 1=active)
-entity_x_pos        EQU #C094   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #C0B4   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #C0D4   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #C0F4   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #C114   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #C134   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #C154   ; Entity screen ID (32 bytes)
-entity_dir_mask     EQU #C174   ; Entity direction mask (32 bytes)
-entity_health       EQU #C194   ; Entity health (32 bytes)
-entity_anim_frame   EQU #C1B4   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #C1D4   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #C1F4   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #C214   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #C234   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #C254   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #C274   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #C294   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #C2B4   ; Entity State Wait Timer (32 bytes)
-entity_lifetime     EQU #C2D4   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_carried_by   EQU #C2F4   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_sm_var_0     EQU #C314   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #C334   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #C354   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #C374   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #C394   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #C3B4   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #C3D4   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #C3F4   ; Entity Variable 7 (32 bytes)
+entity_active       EQU #C674   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_x_pos        EQU #C694   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #C6B4   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #C6D4   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #C6F4   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #C714   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #C734   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #C754   ; Entity screen ID (32 bytes)
+entity_dir_mask     EQU #C774   ; Entity direction mask (32 bytes)
+entity_health       EQU #C794   ; Entity health (32 bytes)
+entity_anim_frame   EQU #C7B4   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #C7D4   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #C7F4   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #C814   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #C834   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #C854   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #C874   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #C894   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #C8B4   ; Entity State Wait Timer (32 bytes)
+entity_lifetime     EQU #C8D4   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_carried_by   EQU #C8F4   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #C914   ; Entity template token (32 bytes, 0=unknown)
+entity_sm_var_0     EQU #C934   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #C954   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #C974   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #C994   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #C9B4   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #C9D4   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #C9F4   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #CA14   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #C414   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #C434   ; Number of sprites currently active
-sprites_dirty      EQU #C435   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #C436   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #C456   ; Sprite colors (32 bytes)
-sprite_attributes   EQU #C476   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #CA34   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #CA54   ; Number of sprites currently active
+sprites_dirty      EQU #CA55   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #CA56   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #CA76   ; Sprite colors (32 bytes)
+sprite_attributes   EQU #CA96   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (7 screens detected)
 ; ==================================================================
-current_screen_id   EQU #C4F6   ; Currently displayed screen ID
-screen_dirty_flag   EQU #C4F7   ; Screen needs redraw flag
-screen_transition_cooldown EQU #C4F8   ; Cooldown frames after screen transition
-current_world_id    EQU #C4F9   ; Current world ID (for multi-world support)
-current_screen_index EQU #C4FA   ; Current screen index within world
+current_screen_id   EQU #CB16   ; Currently displayed screen ID
+screen_dirty_flag   EQU #CB17   ; Screen needs redraw flag
+screen_transition_cooldown EQU #CB18   ; Cooldown frames after screen transition
+current_world_id    EQU #CB19   ; Current world ID (for multi-world support)
+current_screen_index EQU #CB1A   ; Current screen index within world
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #C4FB   ; Player X position (16-bit)
-player_y            EQU #C4FD   ; Player Y position (16-bit)
-player_health       EQU #C4FF   ; Player health points
-player_score        EQU #C500   ; Player score (16-bit)
+player_x            EQU #CB1B   ; Player X position (16-bit)
+player_y            EQU #CB1D   ; Player Y position (16-bit)
+player_health       EQU #CB1F   ; Player health points
+player_score        EQU #CB20   ; Player score (16-bit)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #C502   ; Deterministic mode flag
+deterministic        EQU #CB22   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #C503   ; Temporary 16-bit storage
-temp_word_2         EQU #C505   ; Temporary 16-bit storage
-temp_byte_1         EQU #C507   ; Temporary 8-bit storage
-temp_byte_2         EQU #C508   ; Temporary 8-bit storage
-temp_byte_3         EQU #C509   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #C529   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #C549   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #C569   ; Temporary 8-bit storage (32 bytes)
-temp_byte_7         EQU #C589   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #C5A9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #C5C9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #C5E9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #C609   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #C629   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #C649   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #C669   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #C689   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #C6A9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #C6C9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #C6E9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #C709   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #C729   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #C749   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #C769   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #C789   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #C7A9   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #C7C9   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #C809   ; Temporary 16-bit storage (64 bytes)
+temp_word_1         EQU #CB23   ; Temporary 16-bit storage
+temp_word_2         EQU #CB25   ; Temporary 16-bit storage
+temp_byte_1         EQU #CB27   ; Temporary 8-bit storage
+temp_byte_2         EQU #CB28   ; Temporary 8-bit storage
+temp_byte_3         EQU #CB29   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #CB49   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #CB69   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #CB89   ; Temporary 8-bit storage (32 bytes)
+temp_byte_7         EQU #CBA9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #CBC9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #CBE9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #CC09   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #CC29   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #CC49   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #CC69   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #CC89   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #CCA9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #CCC9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #CCE9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #CD09   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #CD29   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #CD49   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #CD69   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #CD89   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #CDA9   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #CDC9   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #CDE9   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #CE29   ; Temporary 16-bit storage (64 bytes)
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #C849   ; Cached entity X for wall checks
-wall_temp_y         EQU #C84A   ; Cached entity Y for wall checks
+wall_temp_x         EQU #CE69   ; Cached entity X for wall checks
+wall_temp_y         EQU #CE6A   ; Cached entity Y for wall checks
 
 ; Unified update helpers
-active_entity_list  EQU #C84B   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #C86B   ; Number of entries in active_entity_list
+active_entity_list  EQU #CE6B   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #CE8B   ; Number of entries in active_entity_list
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #C86C   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #C88C   ; Number of entities in coll_list
-coll_src_left       EQU #C88D   ; Source AABB left edge (scratch)
-coll_src_right      EQU #C88E   ; Source AABB right edge (scratch)
-coll_src_top        EQU #C88F   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #C890   ; Source AABB bottom edge (scratch)
+coll_list           EQU #CE8C   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #CEAC   ; Number of entities in coll_list
+coll_src_left       EQU #CEAD   ; Source AABB left edge (scratch)
+coll_src_right      EQU #CEAE   ; Source AABB right edge (scratch)
+coll_src_top        EQU #CEAF   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #CEB0   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #C891   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #C891   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #C893   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #C895   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #C897   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #C899   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #C89B   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #C89D   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #C89F   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #C8A1   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #C8A2   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #C8A7   ; Frame counter (16-bit)
-task_exec_time          EQU #C8A9   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #C8AB   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #C8AC   ; End of interrupt system
+task_table              EQU #CEB1   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #CEB1   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #CEB3   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #CEB5   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #CEB7   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #CEB9   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #CEBB   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #CEBD   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #CEBF   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #CEC1   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #CEC2   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #CEC7   ; Frame counter (16-bit)
+task_exec_time          EQU #CEC9   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #CECB   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #CECC   ; End of interrupt system
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #C8AC   ; End of project variables (2220 bytes used)
+RAM_USAGE_END       EQU #CECC   ; End of project variables (3788 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#C8AC: Project variables (2220 bytes)
-;   #C8AC-#F37F: Free RAM (~10964 bytes available)
+;   #C000-#CECC: Project variables (3788 bytes)
+;   #CECC-#F37F: Free RAM (~9396 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -1734,6 +1737,7 @@ COMP_MASK_AUTO_DESTROY EQU #0400; Binary: 0000010000000000
 ANIM_FLAG_PLAYING            EQU #01
 ANIM_FLAG_LOOP               EQU #02
 ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
+ANIM_FLAG_COMPLETED          EQU #08
 ANIM_DEFAULT_SPEED           EQU 8
 
     ; ==================================================================
@@ -3493,6 +3497,17 @@ update_health_component:
             push de                    ; Keep balanced
             ld a, d
             dec a                      ; frame = frameCount-1
+            push af                    ; Preserve clamped frame index
+
+            ; Mark one-shot completion and stop playback for non-loop anim.
+            ; State machine condition ANIMATION_COMPLETE consumes this flag.
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            set 3, (hl)                ; ANIM_FLAG_COMPLETED
+            res 0, (hl)                ; clear ANIM_FLAG_PLAYING
+            pop af
 
         .store_frame:
             pop de                     ; Clean stack (discard frameCount)
@@ -3570,7 +3585,7 @@ update_health_component:
             ex de, hl                  ; DE = VRAM destination
             pop hl                     ; restore source
 
-            call FAST_LDIRVM           ; copy pattern data to VRAM
+    call COPY_SPRITE_SRC_TO_VRAM
 
 anim_done_entity:
             pop hl
@@ -4632,7 +4647,7 @@ update_all_entities:
     call update_animation_component     ; 11. Animation
     call update_sprite_component        ; 13. Sprite rendering
     ret
-; Total systems called: 11 (optimized from 15)
+; Total systems called: 11 (optimized from 16)
 
 
 ; ------------------------------------------------------------------
@@ -5417,46 +5432,10 @@ SPRITE_HERO_LEFT_0_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: hero_left_0_F0 ----
 ;; Size: 16x16
-HERO_LEFT_0_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_LEFT_0_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_LEFT_0_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#03,#07,#00,#00,#00,#02
-    DB #E0,#E0,#AC,#3A,#01,#00,#00,#C0,#40,#C0,#E0,#F0,#00,#80,#00,#80
-
-HERO_LEFT_0_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_left_0_F0 ----
-
-;; ---- Sprite Frame: hero_left_0_F1 ----
-;; Size: 16x16
-HERO_LEFT_0_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_LEFT_0_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#0A,#00,#08,#10
-    DB #00,#00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#28,#04,#00,#00
-
-HERO_LEFT_0_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #03,#1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#07,#05,#08,#00,#28
-    DB #C0,#E0,#E1,#95,#2A,#00,#00,#00,#C0,#40,#E0,#F0,#D4,#00,#04,#00
-
-HERO_LEFT_0_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_left_0_F1 ----
-
-
-; Unified pattern label for sprite 0
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_LEFT_0_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_LEFT_0_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_LEFT_0_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_LEFT_0_F1_DATA (32 bytes)
 SPRITE_0_PATTERN EQU HERO_LEFT_0_F0_LAYER1
 SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)
 
@@ -5473,86 +5452,10 @@ SPRITE_BIRD_1_FRAMES    EQU 4
 
 ;; ---- Sprite Frame: bird_1_F0 ----
 ;; Size: 16x16
-BIRD_1_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#1E,#21,#01,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#F0,#08,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: bird_1_F0 ----
-
-;; ---- Sprite Frame: bird_1_F1 ----
-;; Size: 16x16
-BIRD_1_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#0E,#11,#21,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#E0,#10,#08,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: bird_1_F1 ----
-
-;; ---- Sprite Frame: bird_1_F2 ----
-;; Size: 16x16
-BIRD_1_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#06,#09,#11,#10,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#C0,#20,#10,#10,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: bird_1_F2 ----
-
-;; ---- Sprite Frame: bird_1_F3 ----
-;; Size: 16x16
-BIRD_1_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#06,#09,#11,#10,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#C0,#20,#10,#10,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: bird_1_F3 ----
-
-
-; Unified pattern label for sprite 1
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BIRD_1_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BIRD_1_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BIRD_1_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BIRD_1_F3_DATA (32 bytes)
 SPRITE_1_PATTERN EQU BIRD_1_F0_LAYER1
 SPRITE_1_PATTERN_BANK EQU ((SPRITE_1_PATTERN - #4000) / #2000)
 
@@ -5573,42 +5476,11 @@ BOT2_RIGHT_2_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #FFFFFF)
     DB #1F,#7F,#CF,#8F,#07,#00,#2F,#6F,#6F,#6F,#00,#0C,#FC,#FC,#C0,#C0
     DB #E0,#B0,#B0,#F0,#E0,#00,#F0,#BD,#BD,#F0,#00,#1C,#1C,#07,#07,#07
 
-BOT2_RIGHT_2_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_RIGHT_2_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #3EB847)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_RIGHT_2_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: bot2_right_2_F0 ----
 
 ;; ---- Sprite Frame: bot2_right_2_F1 ----
 ;; Size: 16x16
-BOT2_RIGHT_2_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #FFFFFF)
-    DB #1F,#FF,#CF,#0F,#07,#00,#2F,#6F,#6F,#6E,#00,#01,#01,#01,#01,#01
-    DB #E0,#B0,#B0,#F0,#E0,#00,#F0,#F0,#F0,#70,#00,#80,#80,#80,#E0,#E0
-
-BOT2_RIGHT_2_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_RIGHT_2_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #3EB847)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_RIGHT_2_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: bot2_right_2_F1 ----
-
-
-; Unified pattern label for sprite 2
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BOT2_RIGHT_2_F1_DATA (32 bytes)
 SPRITE_2_PATTERN EQU BOT2_RIGHT_2_F0_LAYER0
 SPRITE_2_PATTERN_BANK EQU ((SPRITE_2_PATTERN - #4000) / #2000)
 
@@ -5625,326 +5497,22 @@ SPRITE_HERO_DEAD2_3_FRAMES    EQU 16
 
 ;; ---- Sprite Frame: hero_dead2_3_F0 ----
 ;; Size: 16x16
-HERO_DEAD2_3_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_DEAD2_3_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F0 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F1 ----
-;; Size: 16x16
-HERO_DEAD2_3_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_DEAD2_3_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F1 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F2 ----
-;; Size: 16x16
-HERO_DEAD2_3_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_DEAD2_3_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F2 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F3 ----
-;; Size: 16x16
-HERO_DEAD2_3_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_DEAD2_3_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F3 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F4 ----
-;; Size: 16x16
-HERO_DEAD2_3_F4_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#16,#36,#3E,#1E,#02,#00,#00,#00,#52,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#20,#60,#40,#40,#00,#00,#00,#00,#00,#00,#00,#40,#00,#00
-
-HERO_DEAD2_3_F4_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F4_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F4 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F5 ----
-;; Size: 16x16
-HERO_DEAD2_3_F5_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F5_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#16,#36,#3E,#1E,#02,#00,#00,#00,#52,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#20,#60,#40,#40,#00,#00,#00,#00,#00,#00,#00,#40,#00,#00
-
-HERO_DEAD2_3_F5_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F5_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F5 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F6 ----
-;; Size: 16x16
-HERO_DEAD2_3_F6_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F6_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#36,#3E,#1E,#02,#00,#00,#00,#12,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#20,#60,#40,#40,#00,#00,#00,#00,#00,#00,#00,#40,#00,#00
-
-HERO_DEAD2_3_F6_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F6_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F6 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F7 ----
-;; Size: 16x16
-HERO_DEAD2_3_F7_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F7_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#36,#3E,#1E,#02,#00,#00,#00,#12,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#20,#60,#40,#40,#00,#00,#00,#00,#00,#00,#00,#40,#00,#00
-
-HERO_DEAD2_3_F7_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F7_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F7 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F8 ----
-;; Size: 16x16
-HERO_DEAD2_3_F8_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F8_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#3C,#3C,#04,#00,#00,#00,#00,#00,#24,#00,#00,#00,#00,#00
-    DB #00,#00,#30,#20,#20,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F8_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F8_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F8 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F9 ----
-;; Size: 16x16
-HERO_DEAD2_3_F9_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F9_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#3C,#3C,#04,#00,#00,#00,#00,#00,#24,#00,#00,#00,#00,#00
-    DB #00,#00,#30,#20,#20,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F9_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F9_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F9 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F10 ----
-;; Size: 16x16
-HERO_DEAD2_3_F10_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F10_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#1C,#04,#00,#00,#00,#00,#00,#04,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#20,#20,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F10_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F10_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F10 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F11 ----
-;; Size: 16x16
-HERO_DEAD2_3_F11_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F11_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#1C,#04,#00,#00,#00,#00,#00,#04,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#20,#20,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F11_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F11_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F11 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F12 ----
-;; Size: 16x16
-HERO_DEAD2_3_F12_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F12_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#08,#00,#00,#00,#00,#00,#00,#00,#08,#00,#00,#00,#00
-    DB #00,#00,#00,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F12_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F12_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F12 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F13 ----
-;; Size: 16x16
-HERO_DEAD2_3_F13_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F13_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#08,#00,#00,#00,#00,#00,#00,#00,#08,#00,#00,#00,#00
-    DB #00,#00,#00,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F13_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F13_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F13 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F14 ----
-;; Size: 16x16
-HERO_DEAD2_3_F14_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F14_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#08,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F14_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F14_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F14 ----
-
-;; ---- Sprite Frame: hero_dead2_3_F15 ----
-;; Size: 16x16
-HERO_DEAD2_3_F15_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F15_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F15_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD2_3_F15_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_dead2_3_F15 ----
-
-
-; Unified pattern label for sprite 3
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F3_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F4_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F5_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F6_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F7_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F8_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F9_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F10_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F11_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F12_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F13_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F14_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_DEAD2_3_F15_DATA (32 bytes)
 SPRITE_3_PATTERN EQU HERO_DEAD2_3_F0_LAYER1
 SPRITE_3_PATTERN_BANK EQU ((SPRITE_3_PATTERN - #4000) / #2000)
 
@@ -5961,62 +5529,8 @@ SPRITE_NEW_SPRITE_4_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: New Sprite_4_F0 ----
 ;; Size: 32x16
-NEW_SPRITE_4_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_4_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#7F,#FF,#FF,#FE
-    DB #DB,#6D,#B6,#DB,#7F,#FF,#FF,#FE,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_4_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_4_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: New Sprite_4_F0 ----
-
-;; ---- Sprite Frame: New Sprite_4_F1 ----
-;; Size: 32x16
-NEW_SPRITE_4_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_4_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#7F,#FF,#FF,#FE
-    DB #D2,#49,#24,#93,#7F,#FF,#FF,#FE,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_4_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_4_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: New Sprite_4_F1 ----
-
-
-; Unified pattern label for sprite 4
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_4_F0_DATA (64 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_4_F1_DATA (64 bytes)
 SPRITE_4_PATTERN EQU NEW_SPRITE_4_F0_LAYER1
 SPRITE_4_PATTERN_BANK EQU ((SPRITE_4_PATTERN - #4000) / #2000)
 
@@ -6033,41 +5547,10 @@ SPRITE_GEMA1_5_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: gema1_5_F0 ----
 ;; Size: 16x16
-GEMA1_5_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-GEMA1_5_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-GEMA1_5_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#01,#03,#06,#05,#06,#07,#07,#03,#01,#00,#00,#00,#00
-    DB #00,#00,#80,#C0,#E0,#F0,#D0,#D0,#90,#90,#20,#40,#80,#00,#00,#00
-
-GEMA1_5_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: gema1_5_F0 ----
-
-;; ---- Sprite Frame: gema1_5_F1 ----
-;; Size: 16x16
-GEMA1_5_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-GEMA1_5_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_GEMA1_5_F0_DATA (32 bytes)
 GEMA1_5_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
     DB #00,#10,#08,#01,#03,#06,#05,#66,#07,#07,#03,#01,#08,#10,#00,#00
     DB #00,#04,#88,#C0,#E0,#F0,#D0,#D3,#90,#90,#20,#40,#88,#04,#00,#00
-
-GEMA1_5_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: gema1_5_F1 ----
 
@@ -6093,14 +5576,6 @@ BOX_6_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
     DB #00,#3F,#01,#01,#01,#7F,#41,#7E,#5F,#5B,#51,#5A,#5D,#5F,#40,#7F
     DB #00,#FC,#80,#80,#80,#FE,#82,#7E,#FE,#DA,#8A,#5A,#BA,#FA,#02,#FE
 
-BOX_6_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOX_6_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: Box_6_F0 ----
 
 ;; ---- Sprite Frame: Box_6_F1 ----
@@ -6109,34 +5584,11 @@ BOX_6_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
     DB #00,#00,#00,#3F,#01,#7F,#41,#7E,#5F,#5B,#55,#5A,#5D,#5F,#40,#7F
     DB #00,#00,#00,#FC,#80,#FE,#82,#7E,#FE,#DA,#AA,#5A,#BA,#FA,#02,#FE
 
-BOX_6_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOX_6_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: Box_6_F1 ----
 
 ;; ---- Sprite Frame: Box_6_F2 ----
 ;; Size: 16x16
-BOX_6_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
-    DB #00,#00,#00,#00,#00,#7F,#41,#7E,#5F,#5B,#55,#5A,#5D,#5F,#40,#7F
-    DB #00,#00,#00,#00,#00,#FE,#82,#7E,#FE,#DA,#AA,#5A,#BA,#FA,#02,#FE
-
-BOX_6_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOX_6_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: Box_6_F2 ----
-
-
-; Unified pattern label for sprite 6
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BOX_6_F2_DATA (32 bytes)
 SPRITE_6_PATTERN EQU BOX_6_F0_LAYER1
 SPRITE_6_PATTERN_BANK EQU ((SPRITE_6_PATTERN - #4000) / #2000)
 
@@ -6153,46 +5605,8 @@ SPRITE_FIRE_7_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: fire_7_F0 ----
 ;; Size: 16x16
-FIRE_7_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE_7_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#80,#C0,#80,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE_7_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE_7_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire_7_F0 ----
-
-;; ---- Sprite Frame: fire_7_F1 ----
-;; Size: 16x16
-FIRE_7_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE_7_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#01,#00,#01,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#40,#80,#40,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE_7_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE_7_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire_7_F1 ----
-
-
-; Unified pattern label for sprite 7
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE_7_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE_7_F1_DATA (32 bytes)
 SPRITE_7_PATTERN EQU FIRE_7_F0_LAYER1
 SPRITE_7_PATTERN_BANK EQU ((SPRITE_7_PATTERN - #4000) / #2000)
 
@@ -6209,106 +5623,11 @@ SPRITE_FIRE2_LEFT_8_FRAMES    EQU 5
 
 ;; ---- Sprite Frame: fire2_left_8_F0 ----
 ;; Size: 16x16
-FIRE2_LEFT_8_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#40,#00,#40,#00,#40,#00,#40,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_left_8_F0 ----
-
-;; ---- Sprite Frame: fire2_left_8_F1 ----
-;; Size: 16x16
-FIRE2_LEFT_8_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#10,#00,#10,#40,#10,#40,#10,#00,#10,#00,#00,#00
-
-FIRE2_LEFT_8_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_left_8_F1 ----
-
-;; ---- Sprite Frame: fire2_left_8_F2 ----
-;; Size: 16x16
-FIRE2_LEFT_8_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#04,#00,#10,#00,#14,#20,#50,#24,#10,#00,#14,#00,#04,#00
-
-FIRE2_LEFT_8_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_left_8_F2 ----
-
-;; ---- Sprite Frame: fire2_left_8_F3 ----
-;; Size: 16x16
-FIRE2_LEFT_8_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#04,#00,#10,#00,#04,#00,#00,#04,#00,#00,#14,#00,#04,#00
-
-FIRE2_LEFT_8_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_left_8_F3 ----
-
-;; ---- Sprite Frame: fire2_left_8_F4 ----
-;; Size: 16x16
-FIRE2_LEFT_8_F4_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#01,#00,#00,#04,#00,#00,#00,#00,#00,#00,#04,#00,#00,#01,#00
-
-FIRE2_LEFT_8_F4_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_LEFT_8_F4_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_left_8_F4 ----
-
-
-; Unified pattern label for sprite 8
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F3_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F4_DATA (32 bytes)
 SPRITE_8_PATTERN EQU FIRE2_LEFT_8_F0_LAYER1
 SPRITE_8_PATTERN_BANK EQU ((SPRITE_8_PATTERN - #4000) / #2000)
 
@@ -6325,26 +5644,8 @@ SPRITE_NEW_SPRITE_LEFT_9_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: New Sprite_left_9_F0 ----
 ;; Size: 16x16
-NEW_SPRITE_LEFT_9_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_LEFT_9_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #CCCCCC)
-    DB #00,#00,#00,#00,#00,#20,#3F,#3F,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#FC,#8E,#FC,#00,#48,#08,#08,#08,#00,#00,#00
-
-NEW_SPRITE_LEFT_9_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4C154)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_LEFT_9_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #7D76FC)
-    DB #00,#00,#00,#00,#00,#1F,#40,#40,#01,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#02,#50,#00,#3C,#B4,#34,#34,#34,#38,#00,#00
-
-;; ---- End of Frame: New Sprite_left_9_F0 ----
-
-
-; Unified pattern label for sprite 9
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_LEFT_9_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_LEFT_9_F0_DATA (32 bytes)
 SPRITE_9_PATTERN EQU NEW_SPRITE_LEFT_9_F0_LAYER1
 SPRITE_9_PATTERN_BANK EQU ((SPRITE_9_PATTERN - #4000) / #2000)
 
@@ -6361,46 +5662,8 @@ SPRITE_NEW_SPRITE_1_10_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: New Sprite_1_10_F0 ----
 ;; Size: 16x16
-NEW_SPRITE_1_10_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_1_10_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_1_10_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#07,#0F,#0F,#0F,#0F,#0F,#0F,#0F,#07,#00,#00,#00,#00
-    DB #00,#00,#00,#F0,#F8,#F8,#F8,#F8,#F8,#F8,#F8,#F0,#00,#00,#00,#00
-
-NEW_SPRITE_1_10_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: New Sprite_1_10_F0 ----
-
-;; ---- Sprite Frame: New Sprite_1_10_F1 ----
-;; Size: 16x16
-NEW_SPRITE_1_10_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_1_10_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_1_10_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#07,#0F,#0E,#0C,#0C,#0C,#0E,#0F,#07,#00,#00,#00,#00
-    DB #00,#00,#00,#F0,#F8,#38,#18,#18,#18,#38,#F8,#F0,#00,#00,#00,#00
-
-NEW_SPRITE_1_10_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: New Sprite_1_10_F1 ----
-
-
-; Unified pattern label for sprite 10
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_1_10_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_1_10_F1_DATA (32 bytes)
 SPRITE_10_PATTERN EQU NEW_SPRITE_1_10_F0_LAYER2
 SPRITE_10_PATTERN_BANK EQU ((SPRITE_10_PATTERN - #4000) / #2000)
 
@@ -6417,26 +5680,8 @@ SPRITE_HERO_JUMP_LEFT_11_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: hero_jump_left_11_F0 ----
 ;; Size: 16x16
-HERO_JUMP_LEFT_11_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_JUMP_LEFT_11_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#AA,#00,#00,#00
-    DB #00,#00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#28,#02,#00,#00
-
-HERO_JUMP_LEFT_11_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #03,#1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#87,#55,#00,#00,#00
-    DB #C0,#E0,#E0,#95,#2A,#01,#01,#00,#C0,#40,#E0,#F0,#D6,#00,#02,#00
-
-HERO_JUMP_LEFT_11_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_jump_left_11_F0 ----
-
-
-; Unified pattern label for sprite 11
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_JUMP_LEFT_11_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_JUMP_LEFT_11_F0_DATA (32 bytes)
 SPRITE_11_PATTERN EQU HERO_JUMP_LEFT_11_F0_LAYER1
 SPRITE_11_PATTERN_BANK EQU ((SPRITE_11_PATTERN - #4000) / #2000)
 
@@ -6453,66 +5698,12 @@ SPRITE_HERO_GROUND_LEFT_12_FRAMES    EQU 3
 
 ;; ---- Sprite Frame: hero_ground_left_12_F0 ----
 ;; Size: 16x16
-HERO_GROUND_LEFT_12_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_GROUND_LEFT_12_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#20,#19
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#84,#18
-
-HERO_GROUND_LEFT_12_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#03,#07,#00,#00,#00,#02
-    DB #E0,#E0,#AC,#3A,#01,#00,#00,#C0,#40,#C0,#E0,#F0,#00,#80,#00,#80
-
-HERO_GROUND_LEFT_12_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_ground_left_12_F0 ----
-
-;; ---- Sprite Frame: hero_ground_left_12_F1 ----
-;; Size: 16x16
-HERO_GROUND_LEFT_12_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_GROUND_LEFT_12_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#40,#A0,#40,#00,#01
-    DB #00,#00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#02,#05,#82,#00,#80
-
-HERO_GROUND_LEFT_12_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#03,#07,#00,#00,#02
-    DB #00,#E0,#E0,#AC,#3B,#00,#00,#00,#C0,#40,#C0,#E0,#F0,#00,#80,#00
-
-HERO_GROUND_LEFT_12_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_ground_left_12_F1 ----
-
-;; ---- Sprite Frame: hero_ground_left_12_F2 ----
-;; Size: 16x16
-HERO_GROUND_LEFT_12_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_GROUND_LEFT_12_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00
-
-HERO_GROUND_LEFT_12_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#03,#07,#00,#02
-    DB #00,#00,#E0,#E0,#AD,#3A,#00,#00,#00,#C0,#40,#C0,#E0,#F0,#00,#80
-
-HERO_GROUND_LEFT_12_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_ground_left_12_F2 ----
-
-
-; Unified pattern label for sprite 12
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F2_DATA (32 bytes)
 SPRITE_12_PATTERN EQU HERO_GROUND_LEFT_12_F0_LAYER1
 SPRITE_12_PATTERN_BANK EQU ((SPRITE_12_PATTERN - #4000) / #2000)
 
@@ -6529,206 +5720,16 @@ SPRITE_HERO_FRAME_0_FRAME_1_13_FRAMES    EQU 10
 
 ;; ---- Sprite Frame: hero_frame_0_frame_1_13_F0 ----
 ;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#02,#1A,#1F,#0D,#01,#00,#29,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F0 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F1 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#03,#13,#1A,#0C,#01,#00,#28,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_FRAME_0_FRAME_1_13_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F1 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F2 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#06,#0A,#1B,#1B,#09,#01,#00,#09,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#C0,#00,#00,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_FRAME_0_FRAME_1_13_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F2 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F3 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#03,#08,#13,#07,#02,#01,#00,#29,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#C0,#00,#80,#00,#00,#00,#00,#00,#80,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F3 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F4 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F4_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#07,#0B,#19,#02,#0B,#01,#00,#09,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#80,#00,#80,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F4_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F4_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F4 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F5 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F5_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F5_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#04,#00,#02,#02,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#40,#80,#00,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_FRAME_0_FRAME_1_13_F5_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F5_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F5 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F6 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F6_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F6_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#04,#01,#00,#10,#06,#00,#00,#28,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#40,#00,#80,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F6_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F6_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F6 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F7 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F7_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F7_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#02,#01,#00,#09,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#80,#00,#00,#00,#00,#00,#80,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F7_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F7_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F7 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F8 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F8_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F8_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#40,#00,#80,#00,#00,#00,#00,#00,#00,#80,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F8_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F8_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F8 ----
-
-;; ---- Sprite Frame: hero_frame_0_frame_1_13_F9 ----
-;; Size: 16x16
-HERO_FRAME_0_FRAME_1_13_F9_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F9_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F9_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_FRAME_0_FRAME_1_13_F9_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_frame_0_frame_1_13_F9 ----
-
-
-; Unified pattern label for sprite 13
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F3_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F4_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F5_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F6_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F7_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F8_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F9_DATA (32 bytes)
 SPRITE_13_PATTERN EQU HERO_FRAME_0_FRAME_1_13_F0_LAYER1
 SPRITE_13_PATTERN_BANK EQU ((SPRITE_13_PATTERN - #4000) / #2000)
 
@@ -6745,126 +5746,18 @@ SPRITE_DUST_SPR_14_FRAMES    EQU 6
 
 ;; ---- Sprite Frame: dust_spr_14_F0 ----
 ;; Size: 16x16
-DUST_SPR_14_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #CCCCCC)
-    DB #00,#00,#00,#00,#00,#00,#00,#40,#E0,#44,#0E,#44,#E0,#E0,#40,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#03,#03,#01,#08,#1C
-
-DUST_SPR_14_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #E6CE80)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #FF7978)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: dust_spr_14_F0 ----
-
-;; ---- Sprite Frame: dust_spr_14_F1 ----
-;; Size: 16x16
-DUST_SPR_14_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #CCCCCC)
-    DB #00,#00,#00,#00,#00,#00,#00,#80,#C0,#94,#08,#C0,#E0,#40,#00,#06
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#03,#03,#03,#01,#00,#00,#18
-
-DUST_SPR_14_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#08,#08,#40,#20,#00,#00,#02,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00,#00,#00,#08,#04
-
-DUST_SPR_14_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #E6CE80)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #FF7978)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: dust_spr_14_F1 ----
-
-;; ---- Sprite Frame: dust_spr_14_F2 ----
-;; Size: 16x16
-DUST_SPR_14_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #CCCCCC)
-    DB #00,#00,#00,#00,#00,#00,#00,#80,#C0,#80,#00,#C0,#E0,#40,#00,#02
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#18
-
-DUST_SPR_14_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#40,#20,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #E6CE80)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #FF7978)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: dust_spr_14_F2 ----
-
-;; ---- Sprite Frame: dust_spr_14_F3 ----
-;; Size: 16x16
-DUST_SPR_14_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #CCCCCC)
-    DB #00,#00,#00,#00,#00,#00,#00,#80,#C0,#80,#00,#C0,#E0,#40,#00,#02
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#18
-
-DUST_SPR_14_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#40,#20,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #E6CE80)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #FF7978)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: dust_spr_14_F3 ----
-
-;; ---- Sprite Frame: dust_spr_14_F4 ----
-;; Size: 16x16
-DUST_SPR_14_F4_LAYER0: ; Brush Color Index 0 (Actual Color: #CCCCCC)
-    DB #00,#00,#00,#00,#00,#00,#00,#80,#80,#00,#00,#C0,#40,#00,#00,#02
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#18
-
-DUST_SPR_14_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#40,#20,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F4_LAYER2: ; Brush Color Index 2 (Actual Color: #E6CE80)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F4_LAYER3: ; Brush Color Index 3 (Actual Color: #FF7978)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: dust_spr_14_F4 ----
-
-;; ---- Sprite Frame: dust_spr_14_F5 ----
-;; Size: 16x16
-DUST_SPR_14_F5_LAYER0: ; Brush Color Index 0 (Actual Color: #CCCCCC)
-    DB #00,#00,#00,#00,#00,#00,#00,#80,#00,#00,#00,#80,#00,#00,#00,#02
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00,#00,#00,#08
-
-DUST_SPR_14_F5_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F5_LAYER2: ; Brush Color Index 2 (Actual Color: #E6CE80)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-DUST_SPR_14_F5_LAYER3: ; Brush Color Index 3 (Actual Color: #FF7978)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: dust_spr_14_F5 ----
-
-
-; Unified pattern label for sprite 14
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F3_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F3_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F4_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F4_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F5_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_DUST_SPR_14_F5_DATA (32 bytes)
 SPRITE_14_PATTERN EQU DUST_SPR_14_F0_LAYER0
 SPRITE_14_PATTERN_BANK EQU ((SPRITE_14_PATTERN - #4000) / #2000)
 
@@ -6881,46 +5774,12 @@ SPRITE_HERO_GUN_15_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: hero_gun_15_F0 ----
 ;; Size: 16x16
-HERO_GUN_15_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_GUN_15_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#00,#80,#00,#80,#00
-
-HERO_GUN_15_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#03,#07,#00,#00,#00,#02
-    DB #E0,#E0,#AC,#3A,#01,#00,#00,#C0,#40,#C0,#E0,#F0,#00,#80,#00,#80
-
-HERO_GUN_15_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#E0,#40,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_gun_15_F0 ----
-
-;; ---- Sprite Frame: hero_gun_15_F1 ----
-;; Size: 16x16
-HERO_GUN_15_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_GUN_15_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#00,#0A,#00,#08,#10
-    DB #00,#00,#00,#00,#40,#C0,#80,#80,#00,#00,#00,#00,#28,#04,#00,#00
-
-HERO_GUN_15_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #03,#1F,#00,#00,#00,#00,#00,#00,#03,#16,#03,#07,#05,#08,#00,#28
-    DB #C0,#E0,#E1,#95,#2A,#00,#00,#00,#C0,#40,#E0,#F0,#D4,#00,#04,#00
-
-HERO_GUN_15_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#E0,#40,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_gun_15_F1 ----
-
-
-; Unified pattern label for sprite 15
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GUN_15_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GUN_15_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GUN_15_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GUN_15_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GUN_15_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GUN_15_F1_DATA (32 bytes)
 SPRITE_15_PATTERN EQU HERO_GUN_15_F0_LAYER1
 SPRITE_15_PATTERN_BANK EQU ((SPRITE_15_PATTERN - #4000) / #2000)
 
@@ -6937,46 +5796,10 @@ SPRITE_HERO_COLLECTOR_LEFT_16_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: hero_collector_left_16_F0 ----
 ;; Size: 16x16
-HERO_COLLECTOR_LEFT_16_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_COLLECTOR_LEFT_16_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#0F,#0B,#1B,#1F,#0F,#21,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #C0,#00,#40,#40,#40,#40,#44,#40,#C0,#00,#00,#00,#80,#00,#80,#00
-
-HERO_COLLECTOR_LEFT_16_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #1F,#00,#00,#00,#00,#00,#00,#03,#03,#03,#03,#07,#00,#00,#00,#02
-    DB #20,#E0,#AC,#3A,#01,#20,#20,#00,#00,#C0,#E0,#F0,#00,#80,#00,#80
-
-HERO_COLLECTOR_LEFT_16_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_collector_left_16_F0 ----
-
-;; ---- Sprite Frame: hero_collector_left_16_F1 ----
-;; Size: 16x16
-HERO_COLLECTOR_LEFT_16_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_COLLECTOR_LEFT_16_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #01,#00,#0F,#0B,#1B,#1F,#0F,#01,#80,#00,#00,#00,#28,#00,#20,#00
-    DB #C0,#C0,#00,#40,#40,#40,#40,#40,#40,#C1,#00,#00,#00,#2A,#00,#00
-
-HERO_COLLECTOR_LEFT_16_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #06,#1F,#00,#00,#00,#00,#00,#00,#03,#03,#03,#03,#17,#20,#00,#60
-    DB #00,#20,#E0,#AC,#3A,#01,#20,#20,#00,#00,#C0,#E0,#F0,#14,#02,#00
-
-HERO_COLLECTOR_LEFT_16_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_collector_left_16_F1 ----
-
-
-; Unified pattern label for sprite 16
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_COLLECTOR_LEFT_16_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_COLLECTOR_LEFT_16_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_COLLECTOR_LEFT_16_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_COLLECTOR_LEFT_16_F1_DATA (32 bytes)
 SPRITE_16_PATTERN EQU HERO_COLLECTOR_LEFT_16_F0_LAYER1
 SPRITE_16_PATTERN_BANK EQU ((SPRITE_16_PATTERN - #4000) / #2000)
 
@@ -6993,46 +5816,10 @@ SPRITE_HERO_RIGHT_17_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: hero_right_17_F0 ----
 ;; Size: 16x16
-HERO_RIGHT_17_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_RIGHT_17_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#00,#00,#01,#00,#01,#00
-    DB #00,#F0,#D0,#D8,#F8,#F0,#80,#00,#94,#00,#00,#00,#00,#00,#00,#80
-
-HERO_RIGHT_17_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #07,#07,#35,#5C,#80,#00,#00,#03,#02,#03,#07,#0F,#00,#01,#00,#01
-    DB #F8,#00,#00,#00,#00,#00,#00,#C0,#68,#C0,#C0,#E0,#00,#00,#00,#40
-
-HERO_RIGHT_17_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_right_17_F0 ----
-
-;; ---- Sprite Frame: hero_right_17_F1 ----
-;; Size: 16x16
-HERO_RIGHT_17_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_RIGHT_17_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#00,#14,#20,#00,#00
-    DB #00,#00,#F0,#D0,#D8,#F8,#F0,#80,#00,#94,#00,#00,#50,#00,#10,#08
-
-HERO_RIGHT_17_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #03,#07,#87,#A9,#54,#00,#00,#00,#03,#02,#07,#0F,#2B,#00,#20,#00
-    DB #C0,#F8,#00,#00,#00,#00,#00,#00,#C0,#68,#C0,#E0,#A0,#10,#00,#14
-
-HERO_RIGHT_17_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_right_17_F1 ----
-
-
-; Unified pattern label for sprite 17
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_RIGHT_17_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_RIGHT_17_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_RIGHT_17_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_RIGHT_17_F1_DATA (32 bytes)
 SPRITE_17_PATTERN EQU HERO_RIGHT_17_F0_LAYER1
 SPRITE_17_PATTERN_BANK EQU ((SPRITE_17_PATTERN - #4000) / #2000)
 
@@ -7053,42 +5840,11 @@ BOT2_LEFT_18_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #FFFFFF)
     DB #07,#0D,#0D,#0F,#07,#00,#0F,#BD,#BD,#0F,#00,#38,#38,#E0,#E0,#E0
     DB #F8,#FE,#F3,#F1,#E0,#00,#F4,#F6,#F6,#F6,#00,#30,#3F,#3F,#03,#03
 
-BOT2_LEFT_18_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_LEFT_18_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #3EB847)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_LEFT_18_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: bot2_left_18_F0 ----
 
 ;; ---- Sprite Frame: bot2_left_18_F1 ----
 ;; Size: 16x16
-BOT2_LEFT_18_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #FFFFFF)
-    DB #07,#0D,#0D,#0F,#07,#00,#0F,#0F,#0F,#0E,#00,#01,#01,#01,#07,#07
-    DB #F8,#FF,#F3,#F0,#E0,#00,#F4,#F6,#F6,#76,#00,#80,#80,#80,#80,#80
-
-BOT2_LEFT_18_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_LEFT_18_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #3EB847)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_LEFT_18_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: bot2_left_18_F1 ----
-
-
-; Unified pattern label for sprite 18
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BOT2_LEFT_18_F1_DATA (32 bytes)
 SPRITE_18_PATTERN EQU BOT2_LEFT_18_F0_LAYER0
 SPRITE_18_PATTERN_BANK EQU ((SPRITE_18_PATTERN - #4000) / #2000)
 
@@ -7105,106 +5861,11 @@ SPRITE_FIRE2_RIGHT_19_FRAMES    EQU 5
 
 ;; ---- Sprite Frame: fire2_right_19_F0 ----
 ;; Size: 16x16
-FIRE2_RIGHT_19_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#02,#00,#02,#00,#02,#00,#02,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_right_19_F0 ----
-
-;; ---- Sprite Frame: fire2_right_19_F1 ----
-;; Size: 16x16
-FIRE2_RIGHT_19_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#08,#00,#08,#02,#08,#02,#08,#00,#08,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_right_19_F1 ----
-
-;; ---- Sprite Frame: fire2_right_19_F2 ----
-;; Size: 16x16
-FIRE2_RIGHT_19_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#20,#00,#08,#00,#28,#04,#0A,#24,#08,#00,#28,#00,#20,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_right_19_F2 ----
-
-;; ---- Sprite Frame: fire2_right_19_F3 ----
-;; Size: 16x16
-FIRE2_RIGHT_19_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#20,#00,#08,#00,#20,#00,#00,#20,#00,#00,#28,#00,#20,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_right_19_F3 ----
-
-;; ---- Sprite Frame: fire2_right_19_F4 ----
-;; Size: 16x16
-FIRE2_RIGHT_19_F4_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#80,#00,#00,#20,#00,#00,#00,#00,#00,#00,#20,#00,#00,#80,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F4_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-FIRE2_RIGHT_19_F4_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: fire2_right_19_F4 ----
-
-
-; Unified pattern label for sprite 19
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F3_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F4_DATA (32 bytes)
 SPRITE_19_PATTERN EQU FIRE2_RIGHT_19_F0_LAYER1
 SPRITE_19_PATTERN_BANK EQU ((SPRITE_19_PATTERN - #4000) / #2000)
 
@@ -7221,26 +5882,8 @@ SPRITE_NEW_SPRITE_RIGHT_20_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: New Sprite_right_20_F0 ----
 ;; Size: 16x16
-NEW_SPRITE_RIGHT_20_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_RIGHT_20_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #CCCCCC)
-    DB #00,#00,#00,#00,#00,#3F,#71,#3F,#00,#12,#10,#10,#10,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#04,#FC,#FC,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_RIGHT_20_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4C154)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_RIGHT_20_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #7D76FC)
-    DB #00,#00,#00,#00,#00,#40,#0A,#00,#3C,#2D,#2C,#2C,#2C,#1C,#00,#00
-    DB #00,#00,#00,#00,#00,#F8,#02,#02,#80,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: New Sprite_right_20_F0 ----
-
-
-; Unified pattern label for sprite 20
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_20_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_20_F0_DATA (32 bytes)
 SPRITE_20_PATTERN EQU NEW_SPRITE_RIGHT_20_F0_LAYER1
 SPRITE_20_PATTERN_BANK EQU ((SPRITE_20_PATTERN - #4000) / #2000)
 
@@ -7257,26 +5900,8 @@ SPRITE_HERO_JUMP_RIGHT_21_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: hero_jump_right_21_F0 ----
 ;; Size: 16x16
-HERO_JUMP_RIGHT_21_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_JUMP_RIGHT_21_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#00,#14,#40,#00,#00
-    DB #00,#00,#F0,#D0,#D8,#F8,#F0,#80,#00,#94,#00,#00,#55,#00,#00,#00
-
-HERO_JUMP_RIGHT_21_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #03,#07,#07,#A9,#54,#80,#80,#00,#03,#02,#07,#0F,#6B,#00,#40,#00
-    DB #C0,#F8,#00,#00,#00,#00,#00,#00,#C0,#68,#C0,#E1,#AA,#00,#00,#00
-
-HERO_JUMP_RIGHT_21_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_jump_right_21_F0 ----
-
-
-; Unified pattern label for sprite 21
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_JUMP_RIGHT_21_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_JUMP_RIGHT_21_F0_DATA (32 bytes)
 SPRITE_21_PATTERN EQU HERO_JUMP_RIGHT_21_F0_LAYER1
 SPRITE_21_PATTERN_BANK EQU ((SPRITE_21_PATTERN - #4000) / #2000)
 
@@ -7293,66 +5918,12 @@ SPRITE_HERO_GROUND_RIGHT_22_FRAMES    EQU 3
 
 ;; ---- Sprite Frame: hero_ground_right_22_F0 ----
 ;; Size: 16x16
-HERO_GROUND_RIGHT_22_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_GROUND_RIGHT_22_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#00,#00,#01,#00,#21,#18
-    DB #00,#F0,#D0,#D8,#F8,#F0,#80,#00,#94,#00,#00,#00,#00,#00,#04,#98
-
-HERO_GROUND_RIGHT_22_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #07,#07,#35,#5C,#80,#00,#00,#03,#02,#03,#07,#0F,#00,#01,#00,#01
-    DB #F8,#00,#00,#00,#00,#00,#00,#C0,#68,#C0,#C0,#E0,#00,#00,#00,#40
-
-HERO_GROUND_RIGHT_22_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_ground_right_22_F0 ----
-
-;; ---- Sprite Frame: hero_ground_right_22_F1 ----
-;; Size: 16x16
-HERO_GROUND_RIGHT_22_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_GROUND_RIGHT_22_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#40,#A0,#41,#00,#01
-    DB #00,#00,#F0,#D0,#D8,#F8,#F0,#80,#00,#94,#00,#02,#05,#02,#00,#80
-
-HERO_GROUND_RIGHT_22_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#07,#07,#35,#DC,#00,#00,#00,#03,#02,#03,#07,#0F,#00,#01,#00
-    DB #00,#F8,#00,#00,#00,#00,#00,#00,#C0,#68,#C0,#C0,#E0,#00,#00,#40
-
-HERO_GROUND_RIGHT_22_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_ground_right_22_F1 ----
-
-;; ---- Sprite Frame: hero_ground_right_22_F2 ----
-;; Size: 16x16
-HERO_GROUND_RIGHT_22_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_GROUND_RIGHT_22_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#02,#03,#01,#01,#00,#00,#00,#00,#00,#01,#00
-    DB #00,#00,#00,#F0,#D0,#D8,#F8,#F0,#80,#00,#94,#00,#00,#00,#00,#80
-
-HERO_GROUND_RIGHT_22_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#00,#07,#07,#B5,#5C,#00,#00,#00,#03,#02,#03,#07,#0F,#00,#01
-    DB #00,#00,#F8,#00,#00,#00,#00,#00,#00,#C0,#68,#C0,#C0,#E0,#00,#40
-
-HERO_GROUND_RIGHT_22_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_ground_right_22_F2 ----
-
-
-; Unified pattern label for sprite 22
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F2_DATA (32 bytes)
 SPRITE_22_PATTERN EQU HERO_GROUND_RIGHT_22_F0_LAYER1
 SPRITE_22_PATTERN_BANK EQU ((SPRITE_22_PATTERN - #4000) / #2000)
 
@@ -7369,46 +5940,10 @@ SPRITE_HERO_COLLECTOR_RIGHT_23_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: hero_collector_right_23_F0 ----
 ;; Size: 16x16
-HERO_COLLECTOR_RIGHT_23_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_COLLECTOR_RIGHT_23_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #03,#00,#02,#02,#02,#02,#22,#02,#03,#00,#00,#00,#01,#00,#01,#00
-    DB #00,#F0,#D0,#D8,#F8,#F0,#84,#00,#00,#00,#00,#00,#00,#00,#00,#80
-
-HERO_COLLECTOR_RIGHT_23_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #04,#07,#35,#5C,#80,#04,#04,#00,#00,#03,#07,#0F,#00,#01,#00,#01
-    DB #F8,#00,#00,#00,#00,#00,#00,#C0,#C0,#C0,#C0,#E0,#00,#00,#00,#40
-
-HERO_COLLECTOR_RIGHT_23_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_collector_right_23_F0 ----
-
-;; ---- Sprite Frame: hero_collector_right_23_F1 ----
-;; Size: 16x16
-HERO_COLLECTOR_RIGHT_23_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_COLLECTOR_RIGHT_23_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #03,#03,#00,#02,#02,#02,#02,#02,#02,#83,#00,#00,#00,#54,#00,#00
-    DB #80,#00,#F0,#D0,#D8,#F8,#F0,#80,#01,#00,#00,#00,#14,#00,#04,#00
-
-HERO_COLLECTOR_RIGHT_23_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #D4524D)
-    DB #00,#04,#07,#35,#5C,#80,#04,#04,#00,#00,#03,#07,#0F,#28,#40,#00
-    DB #60,#F8,#00,#00,#00,#00,#00,#00,#C0,#C0,#C0,#C0,#E8,#04,#00,#06
-
-HERO_COLLECTOR_RIGHT_23_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #5455ED)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-;; ---- End of Frame: hero_collector_right_23_F1 ----
-
-
-; Unified pattern label for sprite 23
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_COLLECTOR_RIGHT_23_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_COLLECTOR_RIGHT_23_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_COLLECTOR_RIGHT_23_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_HERO_COLLECTOR_RIGHT_23_F1_DATA (32 bytes)
 SPRITE_23_PATTERN EQU HERO_COLLECTOR_RIGHT_23_F0_LAYER1
 SPRITE_23_PATTERN_BANK EQU ((SPRITE_23_PATTERN - #4000) / #2000)
 
@@ -7737,7 +6272,7 @@ load_sprite_patterns:
     ld hl, SPRITE_0_PATTERN
     ld de, SPRPAT + (0 * 32)
     ld bc, 64 ; Load 2 layers (32 bytes each)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 1: gema1 (1 layers)
     ; Base HW Sprite: 2
     ld a, SPRITE_5_PATTERN_BANK
@@ -7745,7 +6280,7 @@ load_sprite_patterns:
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (2 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 2: gema1 (1 layers)
     ; Base HW Sprite: 3
     ld a, SPRITE_5_PATTERN_BANK
@@ -7753,7 +6288,7 @@ load_sprite_patterns:
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (3 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 3: gema1 (1 layers)
     ; Base HW Sprite: 4
     ld a, SPRITE_5_PATTERN_BANK
@@ -7761,7 +6296,7 @@ load_sprite_patterns:
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (4 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 4: gema1 (1 layers)
     ; Base HW Sprite: 5
     ld a, SPRITE_5_PATTERN_BANK
@@ -7769,7 +6304,7 @@ load_sprite_patterns:
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (5 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 5: gema1 (1 layers)
     ; Base HW Sprite: 6
     ld a, SPRITE_5_PATTERN_BANK
@@ -7777,7 +6312,7 @@ load_sprite_patterns:
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (6 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 6: gema1 (1 layers)
     ; Base HW Sprite: 7
     ld a, SPRITE_5_PATTERN_BANK
@@ -7785,7 +6320,7 @@ load_sprite_patterns:
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (7 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 7: gema1 (1 layers)
     ; Base HW Sprite: 8
     ld a, SPRITE_5_PATTERN_BANK
@@ -7793,7 +6328,7 @@ load_sprite_patterns:
     ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (8 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
-    call FAST_LDIRVM
+    call COPY_SPRITE_SRC_TO_VRAM
     call mapper_pop_p2
     ret
 
@@ -7950,12 +6485,12 @@ SCREEN_PAN1_0_HEIGHT    EQU 24
 SCREEN_PAN1_0_SIZE      EQU 768
 
 SCREEN_PAN1_0_LAYOUT:
-    ; ZX0 compressed layout (768 -> 80 bytes)
+    ; ZX0 compressed layout (768 -> 70 bytes)
     DB #91,#00,#60,#F1,#80,#81,#95,#96,#C0,#60,#94,#82,#83,#97,#98,#23
-    DB #9D,#9E,#C5,#C4,#E2,#F9,#9F,#A0,#23,#B1,#B2,#D1,#80,#89,#B3,#B4
-    DB #53,#C5,#00,#3D,#80,#55,#CE,#4A,#65,#95,#96,#A0,#1E,#FD,#E5,#9E
-    DB #8E,#7E,#FD,#FA,#B8,#81,#00,#5A,#82,#FF,#93,#FC,#B6,#FA,#D8,#10
-    DB #FE,#60,#FC,#5F,#59,#60,#EE,#79,#FC,#7F,#41,#FE,#05,#1D,#55,#56
+    DB #9D,#9E,#C5,#C4,#E2,#F9,#9F,#A0,#3D,#80,#45,#33,#4A,#99,#95,#96
+    DB #A0,#47,#B9,#FD,#9E,#8E,#5F,#FD,#AE,#FA,#81,#00,#16,#BF,#82,#93
+    DB #FC,#ED,#FA,#84,#D8,#3F,#60,#97,#FC,#D8,#59,#EE,#1E,#FC,#5F,#41
+    DB #C1,#FE,#47,#55,#55,#80
 BEHAVIOR_PAN1_0_WIDTH     EQU 32
 BEHAVIOR_PAN1_0_HEIGHT    EQU 24
 BEHAVIOR_PAN1_0_SIZE      EQU 768
@@ -8310,11 +6845,19 @@ load_screen_pan1_760723005040:
     ld bc, SCREEN_PAN1_0_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, ZX0_SCREEN_BUFFER
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN1_0_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
+    call mapper_set_bank_p2
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_PAN1_0_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN1_0_DATA
@@ -8322,8 +6865,18 @@ load_screen_pan1_760723005040:
     call dzx0_standard
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_PAN1_0_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8360,11 +6913,19 @@ load_screen_pan2_760784762679:
     ld bc, SCREEN_PAN2_1_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, ZX0_SCREEN_BUFFER
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN2_1_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
+    call mapper_set_bank_p2
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_PAN2_1_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN2_1_DATA
@@ -8372,8 +6933,18 @@ load_screen_pan2_760784762679:
     call dzx0_standard
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_PAN2_1_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8410,11 +6981,19 @@ load_screen_pan3_760799152493:
     ld bc, SCREEN_PAN3_2_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, ZX0_SCREEN_BUFFER
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN3_2_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
+    call mapper_set_bank_p2
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_PAN3_2_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN3_2_DATA
@@ -8422,8 +7001,18 @@ load_screen_pan3_760799152493:
     call dzx0_standard
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_PAN3_2_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8460,11 +7049,19 @@ load_screen_pan4_760799516565:
     ld bc, SCREEN_PAN4_3_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, ZX0_SCREEN_BUFFER
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN4_3_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
+    call mapper_set_bank_p2
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_PAN4_3_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN4_3_DATA
@@ -8472,8 +7069,18 @@ load_screen_pan4_760799516565:
     call dzx0_standard
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_PAN4_3_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8510,11 +7117,19 @@ load_screen_pan5_760961565333:
     ld bc, SCREEN_PAN5_4_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, ZX0_SCREEN_BUFFER
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN5_4_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
+    call mapper_set_bank_p2
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_PAN5_4_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN5_4_DATA
@@ -8522,8 +7137,18 @@ load_screen_pan5_760961565333:
     call dzx0_standard
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_PAN5_4_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8560,11 +7185,19 @@ load_screen_pan62_761237904051:
     ld bc, SCREEN_PAN62_5_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, ZX0_SCREEN_BUFFER
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN62_5_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
+    call mapper_set_bank_p2
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_PAN62_5_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN62_5_DATA
@@ -8572,8 +7205,18 @@ load_screen_pan62_761237904051:
     call dzx0_standard
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_PAN62_5_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8610,11 +7253,19 @@ load_screen_pan7_761471728391:
     ld bc, SCREEN_PAN7_6_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, ZX0_SCREEN_BUFFER
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN7_6_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
+    call mapper_set_bank_p2
+    ld hl, ZX0_SCREEN_BUFFER
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_PAN7_6_DATA_BANK
+    call mapper_set_bank_p2
     ; Decompress ZX0 behavior map into RAM buffer
     di
     ld hl, BEHAVIOR_PAN7_6_DATA
@@ -8622,8 +7273,18 @@ load_screen_pan7_761471728391:
     call dzx0_standard
     ei
     ld hl, ZX0_BEHAVIOR_BUFFER
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_PAN7_6_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8742,6 +7403,13 @@ init_entities:
     ; Clear entity screen IDs to prevent ghost entities on restart
     ld hl, entity_screen_id
     ld de, entity_screen_id+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear entity template tokens
+    ld hl, entity_template_token
+    ld de, entity_template_token+1
     ld bc, 31
     ld (hl), 0
     ldir
@@ -8879,6 +7547,11 @@ init_player_1:
     add hl, de
     ld (hl), 0                 ; Screen ID (world node index / fallback screen index)
 
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 1
+
 
     ; Initialize Animation component
     ld hl, entity_anim_frame
@@ -8976,6 +7649,11 @@ init_item:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 2                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
 
 
     ; Initialize Animation component
@@ -9100,6 +7778,11 @@ init_key_item_2:
     add hl, de
     ld (hl), 2                 ; Screen ID (world node index / fallback screen index)
 
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
     ; Initialize Animation component
     ld hl, entity_anim_frame
@@ -9222,6 +7905,11 @@ init_key_item_3:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 2                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
 
 
     ; Initialize Animation component
@@ -9346,6 +8034,11 @@ init_key_item_1:
     add hl, de
     ld (hl), 4                 ; Screen ID (world node index / fallback screen index)
 
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
     ; Initialize Animation component
     ld hl, entity_anim_frame
@@ -9468,6 +8161,11 @@ init_key_item_2_2:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 4                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
 
 
     ; Initialize Animation component
@@ -9592,6 +8290,11 @@ init_key_item_1_2:
     add hl, de
     ld (hl), 5                 ; Screen ID (world node index / fallback screen index)
 
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
     ; Initialize Animation component
     ld hl, entity_anim_frame
@@ -9714,6 +8417,11 @@ init_key_item_2_3:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 5                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
 
 
     ; Initialize Animation component
@@ -12183,6 +10891,11 @@ Action_ChangeSprite:
     add hl, bc
     ld (hl), 0              ; entity_anim_tick[entity] = 0
 
+    ; Clear one-shot animation completion event on sprite change
+    ld hl, entity_anim_flags
+    add hl, bc
+    res 3, (hl)             ; clear ANIM_FLAG_COMPLETED
+
     pop hl                  ; Restore Params Ptr
     ret
 
@@ -12202,6 +10915,7 @@ Action_PlayAnimation:
     add hl, bc
     ld a, (hl)
     or ANIM_FLAG_PLAYING    ; Set bit 0 (PLAYING)
+    and #F7                 ; Clear bit 3 (ANIM_FLAG_COMPLETED)
     ld (hl), a
 
     ; Reset animation to frame 0
@@ -12265,6 +10979,7 @@ Action_ToggleAnim:
     ; Set PLAYING flag (bit 0)
     ld a, e
     or ANIM_FLAG_PLAYING
+    and #F7                 ; Clear bit 3 (ANIM_FLAG_COMPLETED)
     ld (hl), a
     jr .done_toggle
 
@@ -12282,26 +10997,75 @@ Action_PlaySound:
 ; Params: Sound ID(1 byte)
     ld a, (hl)
     inc hl
-    ; TODO: Call Sound Driver
-    ; call AFX_PLAY
+
+    push hl
+
+    ; Simple built-in SFX mapping by ID
+    ; 0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
+    cp 1
+    jr z, .play_jump
+    cp 2
+    jr z, .play_shoot
+    cp 3
+    jr z, .play_explosion
+    cp 4
+    jr z, .play_coin
+    cp 5
+    jr z, .play_damage
+
+.play_beep:
+    call SM_PlaySfx_Beep
+    jr .play_sound_done
+.play_jump:
+    call SM_PlaySfx_Jump
+    jr .play_sound_done
+.play_shoot:
+    call SM_PlaySfx_Shoot
+    jr .play_sound_done
+.play_explosion:
+    call SM_PlaySfx_Explosion
+    jr .play_sound_done
+.play_coin:
+    call SM_PlaySfx_Coin
+    jr .play_sound_done
+.play_damage:
+    call SM_PlaySfx_Damage
+
+.play_sound_done:
+    pop hl
     ret
 
 Action_PlayMusic:
 ; Params: Music ID(1 byte)
     ld a, (hl)
     inc hl
-    ; TODO: Call Music Driver
-    ; call PT3_INIT
+
+    push hl
+    ld (SM_MusicTrack), a
+    ld a, 1
+    ld (SM_MusicState), a
+    ; Audible acknowledgement until full tracker driver is wired.
+    call SM_PlaySfx_Coin
+    pop hl
     ret
 
 Action_MuteMusic:
 ; No params
-    ; call PT3_MUTE
+    push hl
+    call SM_SilencePSG
+    ld a, 2
+    ld (SM_MusicState), a
+    pop hl
     ret
 
 Action_StopMusic:
 ; No params
-    ; call PT3_STOP
+    push hl
+    call SM_SilencePSG
+    xor a
+    ld (SM_MusicState), a
+    ld (SM_MusicTrack), a
+    pop hl
     ret
 
 Action_SetVariable:
@@ -12449,6 +11213,8 @@ Action_IncVariable:
     jr z, .inc_entity_vx
     dec a
     jr z, .inc_entity_vy
+    dec a
+    jr z, .inc_entity_on_ground
     jr .inc_entity_health   ; Default to health
 
 .inc_entity_x:
@@ -12462,6 +11228,9 @@ Action_IncVariable:
     jr .do_inc_entity
 .inc_entity_vy:
     ld hl, entity_vel_y
+    jr .do_inc_entity
+.inc_entity_on_ground:
+    ld hl, entity_on_ground
     jr .do_inc_entity
 .inc_entity_health:
     ld hl, entity_health_current
@@ -12526,6 +11295,8 @@ Action_DecVariable:
     jr z, .dec_entity_vx
     dec a
     jr z, .dec_entity_vy
+    dec a
+    jr z, .dec_entity_on_ground
     jr .dec_entity_health
 
 .dec_entity_x:
@@ -12539,6 +11310,9 @@ Action_DecVariable:
     jr .do_dec_entity
 .dec_entity_vy:
     ld hl, entity_vel_y
+    jr .do_dec_entity
+.dec_entity_on_ground:
+    ld hl, entity_on_ground
     jr .do_dec_entity
 .dec_entity_health:
     ld hl, entity_health_current
@@ -12608,17 +11382,175 @@ Action_GotoState:
     ret
 
 Action_SetCompProp:
+; Params: ComponentID(1 byte), PropertyID(1 byte), Value(1 byte)
+; Supports a compact set of common runtime fields.
+; Property IDs:
+;   1=x, 2=y, 3=vx, 4=vy, 5=sprite, 6=isVisible, 7=frame,
+;   8=animSpeed, 9=isPlaying, 10=healthCurrent, 11=healthMax.
+    ld d, (hl)              ; D = ComponentID
     inc hl
+    ld e, (hl)              ; E = PropertyID
     inc hl
-    ld d, (hl)
+    ld c, (hl)              ; C = Value
     inc hl
-    
-    push hl; Save Params Ptr
-    
-    ld a, b; A = Entity Index
-    call SM_ChangeState
-    
-    pop hl          ; Restore Params Ptr
+
+    push hl                 ; Save Params Ptr
+
+    ld a, e                 ; A = PropertyID
+    cp 1
+    jp z, .scp_set_x
+    cp 2
+    jp z, .scp_set_y
+    cp 3
+    jp z, .scp_set_vx
+    cp 4
+    jp z, .scp_set_vy
+    cp 5
+    jp z, .scp_set_sprite
+    cp 6
+    jp z, .scp_set_visible
+    cp 7
+    jp z, .scp_set_frame
+    cp 8
+    jp z, .scp_set_anim_speed
+    cp 9
+    jp z, .scp_set_anim_playing
+    cp 10
+    jp z, .scp_set_health_current
+    cp 11
+    jp z, .scp_set_health_max
+
+    ; Fallback by component when PropertyID is unknown.
+    ld a, d                 ; A = ComponentID
+    cp 1
+    jp z, .scp_set_x
+    cp 2
+    jp z, .scp_set_vx
+    cp 3
+    jp z, .scp_set_sprite
+    cp 4
+    jp z, .scp_set_anim_playing
+    cp 5
+    jp z, .scp_set_health_current
+    jp .scp_done
+
+.scp_set_x:
+    ld l, b
+    ld h, 0
+    ld de, entity_x_pos
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_y:
+    ld l, b
+    ld h, 0
+    ld de, entity_y_pos
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_vx:
+    ld l, b
+    ld h, 0
+    ld de, entity_vel_x
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_vy:
+    ld l, b
+    ld h, 0
+    ld de, entity_vel_y
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_sprite:
+    ld l, b
+    ld h, 0
+    ld de, entity_sprite_asset_index
+    add hl, de
+    ld (hl), c
+    ; Reset animation progression when sprite changes.
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+    jp .scp_done
+
+.scp_set_visible:
+    ld l, b
+    ld h, 0
+    ld de, entity_active
+    add hl, de
+    ld a, c
+    or a
+    jp z, .scp_hide
+    ld (hl), 1
+    jp .scp_done
+.scp_hide:
+    ld (hl), 0
+    jp .scp_done
+
+.scp_set_frame:
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_frame
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_anim_speed:
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_speed
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_anim_playing:
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_flags
+    add hl, de
+    ld a, c
+    or a
+    jp z, .scp_pause_anim
+    ld a, (hl)
+    or ANIM_FLAG_PLAYING
+    and #F7                 ; Clear completed flag when forcing play
+    ld (hl), a
+    jp .scp_done
+.scp_pause_anim:
+    ld a, (hl)
+    and #FE
+    ld (hl), a
+    jp .scp_done
+
+.scp_set_health_current:
+    ld l, b
+    ld h, 0
+    ld de, entity_health_current
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_health_max:
+    ld l, b
+    ld h, 0
+    ld de, entity_health_max
+    add hl, de
+    ld (hl), c
+
+.scp_done:
+    pop hl
     ret
 
 Action_DestroyEntity:
@@ -12680,7 +11612,6 @@ Action_DestroyEntity:
 Action_SpawnEntity:
 ; Params: TemplateID(1 byte), X(1 byte), Y(1 byte)
 ; Spawns a new entity at specified position
-; TODO: Full template-based spawning with component copying
     ld d, (hl)          ; D = Template ID
     inc hl
     ld e, (hl)          ; E = X position
@@ -12764,8 +11695,16 @@ Action_SpawnEntity:
     add hl, de
     ld (hl), 0          ; High byte = 0
 
-    ; TODO: Copy template data (velocity, sprite pattern, etc.)
-    ; For now, entity is spawned with basic components only
+    ; Store template token for template-aware runtime queries
+    ld h, 0
+    ld l, c
+    ld de, entity_template_token
+    add hl, de
+    ld (hl), d
+
+    ; Apply template profile defaults (sprite/anim/health)
+    ld a, d                 ; A = template token
+    call SM_ApplyTemplateDefaultsToEntity
 
     pop bc
     pop de
@@ -12774,45 +11713,803 @@ Action_SpawnEntity:
     ret
 
 Action_GetRandomPos:
+; Params: TemplateToken(1 byte, 0=any), TargetVarX(1 byte), TargetVarY(1 byte)
+    ld c, (hl)              ; C = template token filter
+    inc hl
+    ld d, (hl)              ; D = TargetVarX ID
+    inc hl
+    ld e, (hl)              ; E = TargetVarY ID
+    inc hl
+
+    push hl                 ; Save params ptr
+    push de                 ; Save target var IDs
+
+    ld a, c
+    call SM_RandomActiveEntityByTemplate
+    jr c, .grp_has_entity
+
+    ; No active entity found: write 0,0
+    pop de
+    push de
+    ld c, 0
+    ld a, d
+    call SM_WriteVar
+    pop de
+    ld c, 0
+    ld a, e
+    call SM_WriteVar
+    pop hl
+    ret
+
+.grp_has_entity:
+    ld b, a                 ; B = random entity index
+
+    ; Read random entity X and write to target variable X
+    ld a, 0                 ; VarID 0 = entity x
+    call SM_ReadVar         ; A = x
+    pop de                  ; DE = target var IDs
+    push de
+    ld c, a
+    ld a, d                 ; TargetVarX
+    call SM_WriteVar
+
+    ; Read random entity Y and write to target variable Y
+    ld a, 1                 ; VarID 1 = entity y
+    call SM_ReadVar         ; A = y
+    pop de
+    ld c, a
+    ld a, e                 ; TargetVarY
+    call SM_WriteVar
+
+    pop hl
     ret
 
 Action_ChangeGameFlow:
+; Params: NodeID(1 byte), 255 = START
+; Minimal runtime bridge: update flow state registers.
+    ld a, (hl)
     inc hl
+    push hl
+    push af
+    ld a, (current_flow_state)
+    ld (prev_flow_state), a
+    pop af
+    cp 255
+    jr nz, .cgf_store
+    xor a
+.cgf_store:
+    ld (current_flow_state), a
+    pop hl
     ret
 
 Action_DecLives:
+; Params: Amount(1 byte)
+; Decrease entity health/lives with clamp to 0
+    ld a, (hl)              ; A = amount
+    inc hl
+    or a
+    jr nz, .dec_lives_have_amount
+    ld a, 1                 ; Default amount
+.dec_lives_have_amount:
+    ld c, a                 ; C = amount
+
+    ; Compute entity_health_current[entity] -= amount, clamp at 0
+    ld e, b                 ; DE = entity index
+    ld d, 0
+    ld hl, entity_health_current
+    add hl, de
+    ld a, (hl)              ; A = current health
+    sub c
+    jr nc, .dec_lives_store
+    xor a
+.dec_lives_store:
+    ld (hl), a
     ret
 
 Action_IncLives:
+; Params: Amount(1 byte)
+; Increase entity health/lives with clamp to entity_health_max
+    ld a, (hl)              ; A = amount
+    inc hl
+    or a
+    jr nz, .inc_lives_have_amount
+    ld a, 1                 ; Default amount
+.inc_lives_have_amount:
+    ld c, a                 ; C = amount
+
+    ; DE = entity index
+    ld e, b
+    ld d, 0
+
+    ; result = current + amount
+    ld hl, entity_health_current
+    add hl, de
+    ld a, (hl)              ; A = current
+    add a, c
+    ld c, a                 ; C = tentative result
+
+    ; compare with max
+    ld hl, entity_health_max
+    add hl, de
+    ld a, (hl)              ; A = max
+    cp c
+    jr nc, .inc_lives_store_result
+    ld c, a                 ; clamp to max
+
+.inc_lives_store_result:
+    ld hl, entity_health_current
+    add hl, de
+    ld (hl), c
     ret
 
 Action_Respawn:
+; Params: X(1 byte), Y(1 byte)
+; 255 means "keep current coordinate"
+; Also clears velocity/wait timer and re-activates entity.
+    ld d, (hl)              ; D = respawn X
+    inc hl
+    ld e, (hl)              ; E = respawn Y
+    inc hl
+
+    push hl                 ; Save params ptr
+    push de                 ; Save X/Y
+
+    ; BC = entity index
+    ld c, b
+    ld b, 0
+
+    pop de                  ; Restore X/Y
+
+    ; Optional X update
+    ld a, d
+    cp 255
+    jr z, .respawn_skip_x
+    ld hl, entity_x_pos
+    add hl, bc
+    ld (hl), a
+
+.respawn_skip_x:
+    ; Optional Y update
+    ld a, e
+    cp 255
+    jr z, .respawn_skip_y
+    ld hl, entity_y_pos
+    add hl, bc
+    ld (hl), a
+
+.respawn_skip_y:
+    ; Reset velocity
+    ld hl, entity_vel_x
+    add hl, bc
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, bc
+    ld (hl), 0
+
+    ; Clear wait timer so FSM resumes immediately
+    ld hl, entity_sm_wait_timer
+    add hl, bc
+    ld (hl), 0
+
+    ; Ensure entity is active
+    ld hl, entity_active
+    add hl, bc
+    ld (hl), 1
+
+    ; If entity was fully destroyed, restore minimal Position+Sprite mask
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld a, (hl)
+    ld d, a
+    ld hl, entity_comp_masks_hi
+    add hl, bc
+    ld a, (hl)
+    or d
+    jr nz, .respawn_done
+
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld (hl), #03            ; COMP_MASK_POSITION | COMP_MASK_SPRITE
+    ld hl, entity_comp_masks_hi
+    add hl, bc
+    ld (hl), 0
+
+.respawn_done:
+    pop hl
     ret
 
 Action_BreakTile:
+; Params: TileID(1 byte), Direction(1 byte)
+; BREAK_TILE is serialized as TileID=0.
+    ld a, (hl)              ; A = replacement tile ID (0 for break)
     inc hl
+    ld c, (hl)              ; C = direction (0..7)
     inc hl
+    push hl
+    call SM_WriteTileRelativeToEntity
+    pop hl
     ret
 
 Action_ReplaceTile:
 ; Params: TileID(1 byte), Direction(1 byte)
+    ld a, (hl)              ; A = replacement tile ID
     inc hl
+    ld c, (hl)              ; C = direction (0..7)
     inc hl
+    push hl
+    call SM_WriteTileRelativeToEntity
+    pop hl
     ret
 
 Action_Rnd:
 ; Params: VarID(1 byte), DataType(1 byte)
+    ld a, (hl)              ; A = VarID
     inc hl
-    inc hl
+    inc hl                  ; Skip DataType for now (numeric random)
+
+    push hl                 ; Save params ptr
+    push af                 ; Save VarID
+
+    call SM_RandomByte      ; A = pseudorandom 0..255
+    ld c, a                 ; C = value
+
+    pop af                  ; Restore VarID
+    call SM_WriteVar        ; Write random value to var
+
+    pop hl                  ; Restore params ptr
     ret
 
 Action_PointAt:
 ; Params: X1, Y1, X2, Y2, Speed (5 bytes)
+    ld d, (hl)              ; D = x1
     inc hl
+    ld e, (hl)              ; E = y1
     inc hl
+    ld c, (hl)              ; C = x2
     inc hl
+    ld a, (hl)              ; A = y2
     inc hl
+    ld l, (hl)              ; L = speed
     inc hl
+
+    push hl                 ; Save params ptr
+    ld h, a                 ; H = y2
+
+    ; Compute VX using sign(dx) * speed
+    ld a, c
+    sub d                   ; A = dx = x2 - x1
+    ld d, 0                 ; Default VX = 0
+    jr z, .pointat_vx_done
+    bit 7, a
+    jr z, .pointat_vx_pos
+    ld a, l
+    cpl
+    inc a
+    ld d, a
+    jr .pointat_vx_done
+.pointat_vx_pos:
+    ld d, l
+
+.pointat_vx_done:
+    ; Compute VY using sign(dy) * speed
+    ld a, h
+    sub e                   ; A = dy = y2 - y1
+    ld e, 0                 ; Default VY = 0
+    jr z, .pointat_vy_done
+    bit 7, a
+    jr z, .pointat_vy_pos
+    ld a, l
+    cpl
+    inc a
+    ld e, a
+    jr .pointat_vy_done
+.pointat_vy_pos:
+    ld e, l
+
+.pointat_vy_done:
+    ; Store velocity in current entity
+    ld c, b
+    ld b, 0
+    ld hl, entity_vel_x
+    add hl, bc
+    ld a, d
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, bc
+    ld a, e
+    ld (hl), a
+
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; STATE MACHINE AUDIO HELPERS (self-contained, no sound.asm dependency)
+; ------------------------------------------------------------------
+SM_MusicState:
+    db 0                    ; 0=stopped, 1=playing, 2=muted
+SM_MusicTrack:
+    db 0
+SM_RandSeed:
+    db #5A
+SM_TemplateFilterToken:
+    db 0
+
+SM_SilencePSG:
+    xor a
+    ld e, a
+    ld a, 8                 ; Volume A
+    call WRTPSG
+    xor a
+    ld e, a
+    ld a, 9                 ; Volume B
+    call WRTPSG
+    xor a
+    ld e, a
+    ld a, 10                ; Volume C
+    call WRTPSG
+    ld a, #3F               ; Disable all tone/noise
+    ld e, a
+    ld a, 7                 ; Mixer register
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Beep:
+    ld a, 0                 ; Tone A low
+    ld e, #1C               ; NOTE_A4 low (284)
+    call WRTPSG
+    ld a, 1                 ; Tone A high
+    ld e, #01
+    call WRTPSG
+    ld a, 8                 ; Volume A
+    ld e, 12
+    call WRTPSG
+    ld a, 7                 ; Mixer
+    ld e, #3E               ; Tone A on
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Jump:
+    ld a, 0
+    ld e, #DD               ; NOTE_C4 low (477)
+    call WRTPSG
+    ld a, 1
+    ld e, #01
+    call WRTPSG
+    ld a, 8
+    ld e, 10
+    call WRTPSG
+    ld a, 7
+    ld e, #3E
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Shoot:
+    ld a, 0
+    ld e, #64               ; Tone A low (period 100)
+    call WRTPSG
+    ld a, 1
+    ld e, 0
+    call WRTPSG
+    ld a, 6                 ; Noise period
+    ld e, 5
+    call WRTPSG
+    ld a, 8                 ; Volume A
+    ld e, 8
+    call WRTPSG
+    ld a, 7
+    ld e, #36               ; Tone A + Noise A on
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Explosion:
+    ld a, 6
+    ld e, 10
+    call WRTPSG
+    ld a, 8
+    ld e, 15
+    call WRTPSG
+    ld a, 7
+    ld e, #39               ; Noise A only
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Coin:
+    ld a, 2                 ; Tone B low
+    ld e, #7B               ; NOTE_E4 low (379)
+    call WRTPSG
+    ld a, 3                 ; Tone B high
+    ld e, #01
+    call WRTPSG
+    ld a, 9                 ; Volume B
+    ld e, 10
+    call WRTPSG
+    ld a, 7
+    ld e, #3D               ; Tone B on
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Damage:
+    ld a, 6                 ; Noise period
+    ld e, 3
+    call WRTPSG
+    ld a, 10                ; Volume C
+    ld e, 12
+    call WRTPSG
+    ld a, 7
+    ld e, #1F               ; Noise C on
+    call WRTPSG
+    ret
+
+SM_RandomByte:
+    ; Lightweight local PRNG for state machine actions.
+    ld hl, SM_RandSeed
+    ld a, (hl)
+    add a, 37
+    xor #A7
+    ld (hl), a
+    ret
+
+SM_RandomActiveEntity:
+    ; Picks a random-ish active entity slot.
+    ; Output: A = entity index, Carry set if found
+    ;         A = 0, Carry clear if none found
+    call SM_RandomByte
+    and 31                  ; MAX_ENTITIES-1 (32 slots)
+    ld c, a                 ; C = candidate index
+    ld b, 32                ; Probe all slots at most once
+
+.srae_loop:
+    ld e, c
+    ld d, 0
+
+    ; Must be active
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .srae_next
+
+    ; Must have non-zero component mask
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    or (hl)
+    jr z, .srae_next
+
+    ; Found
+    ld a, c
+    scf
+    ret
+
+.srae_next:
+    inc c
+    ld a, c
+    and 31
+    ld c, a
+    djnz .srae_loop
+
+    xor a
+    or a                    ; Clear carry
+    ret
+
+SM_RandomActiveEntityByTemplate:
+    ; Input: A = template token filter (0 = any)
+    or a
+    jp z, SM_RandomActiveEntity
+    ld (SM_TemplateFilterToken), a
+
+    call SM_RandomByte
+    and 31
+    ld c, a                 ; C = candidate index
+    ld b, 32
+
+.sraet_loop:
+    ld e, c
+    ld d, 0
+
+    ; Must be active
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .sraet_next
+
+    ; Must have non-zero component mask
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    or (hl)
+    jr z, .sraet_next
+
+    ; Must match template token
+    ld hl, entity_template_token
+    add hl, de
+    ld a, (SM_TemplateFilterToken)
+    cp (hl)
+    jr nz, .sraet_next
+
+    ld a, c
+    scf
+    ret
+
+.sraet_next:
+    inc c
+    ld a, c
+    and 31
+    ld c, a
+    djnz .sraet_loop
+
+    xor a
+    or a                    ; Clear carry
+    ret
+
+SM_ApplyTemplateDefaultsToEntity:
+    ; Input: A = template token, C = entity index
+    ; Applies sprite/animation/health defaults from template profile tables.
+    or a
+    ret z
+    cp SM_TemplateProfileCount + 1
+    ret nc
+    ld (SM_TemplateFilterToken), a
+
+    ; Sprite index
+    ld a, (SM_TemplateFilterToken)
+    ld e, a
+    ld d, 0
+    ld hl, SM_TemplateSpriteTable
+    add hl, de
+    ld a, (hl)
+    ld l, c
+    ld h, 0
+    ld de, entity_sprite_asset_index
+    add hl, de
+    ld (hl), a
+
+    ; Animation speed
+    ld a, (SM_TemplateFilterToken)
+    ld e, a
+    ld d, 0
+    ld hl, SM_TemplateAnimSpeedTable
+    add hl, de
+    ld a, (hl)
+    ld l, c
+    ld h, 0
+    ld de, entity_anim_speed
+    add hl, de
+    ld (hl), a
+
+    ; Reset animation counters and force playing-loop state
+    ld l, c
+    ld h, 0
+    ld de, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld l, c
+    ld h, 0
+    ld de, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+    ld l, c
+    ld h, 0
+    ld de, entity_anim_flags
+    add hl, de
+    ld (hl), ANIM_FLAG_PLAYING | ANIM_FLAG_LOOP
+
+    ; Health current
+    ld a, (SM_TemplateFilterToken)
+    ld e, a
+    ld d, 0
+    ld hl, SM_TemplateHealthCurrentTable
+    add hl, de
+    ld a, (hl)
+    ld l, c
+    ld h, 0
+    ld de, entity_health_current
+    add hl, de
+    ld (hl), a
+
+    ; Health max
+    ld a, (SM_TemplateFilterToken)
+    ld e, a
+    ld d, 0
+    ld hl, SM_TemplateHealthMaxTable
+    add hl, de
+    ld a, (hl)
+    ld l, c
+    ld h, 0
+    ld de, entity_health_max
+    add hl, de
+    ld (hl), a
+    ret
+
+SM_WriteTileRelativeToEntity:
+    ; Input: A = tile char ID, B = entity index, C = direction (0..7)
+    ; Writes directly to VRAM Name Table at target cell.
+    push af                 ; Save tile ID
+    push bc                 ; Save direction + entity index
+
+    ; Read entity center in pixels (approx center for 16x16 sprites)
+    ld e, b
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld b, a                 ; B = center X pixel
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld c, a                 ; C = center Y pixel
+
+    ; Convert to tile coordinates (8x8 grid)
+    ld a, b
+    srl a
+    srl a
+    srl a
+    ld b, a                 ; B = tile X
+    ld a, c
+    srl a
+    srl a
+    srl a
+    ld c, a                 ; C = tile Y
+
+    ; Restore direction in A (from pushed BC high byte via stack)
+    pop de                  ; D = old B(entity), E = old C(direction)
+    ld a, e                 ; A = direction
+
+    ; Apply direction offset with bounds checks
+    or a
+    jr z, .swt_up
+    cp 1
+    jr z, .swt_down
+    cp 2
+    jr z, .swt_left
+    cp 3
+    jr z, .swt_right
+    cp 4
+    jr z, .swt_up_right
+    cp 5
+    jr z, .swt_up_left
+    cp 6
+    jr z, .swt_down_right
+    cp 7
+    jr z, .swt_down_left
+    jp .swt_out
+
+.swt_up:
+    ld a, c
+    or a
+    jp z, .swt_out
+    dec c
+    jr .swt_apply
+
+.swt_down:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    inc c
+    jr .swt_apply
+
+.swt_left:
+    ld a, b
+    or a
+    jp z, .swt_out
+    dec b
+    jr .swt_apply
+
+.swt_right:
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    inc b
+    jr .swt_apply
+
+.swt_up_right:
+    ld a, c
+    or a
+    jp z, .swt_out
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    dec c
+    inc b
+    jr .swt_apply
+
+.swt_up_left:
+    ld a, c
+    or a
+    jp z, .swt_out
+    ld a, b
+    or a
+    jp z, .swt_out
+    dec c
+    dec b
+    jr .swt_apply
+
+.swt_down_right:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    inc c
+    inc b
+    jr .swt_apply
+
+.swt_down_left:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    ld a, b
+    or a
+    jp z, .swt_out
+    inc c
+    dec b
+
+.swt_apply:
+    ; HL = tile offset = (tileY * 32) + tileX
+    ld l, c
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl              ; *32
+    ld e, b
+    ld d, 0
+    add hl, de
+
+    pop af                  ; A = tile char ID
+    ld b, a                 ; Preserve tile ID in B
+
+    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    or a
+    jr z, .store_behavior_passable
+    ld a, 1
+.store_behavior_passable:
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Invalidate cached behavior row after map mutation
+    ld a, #FF
+    ld (behavior_cache_row), a
+
+    ; Write tile character to VRAM Name Table
+    ld de, NAMETBL
+    add hl, de
+    ld a, b
+    call WRTVRM
+    ret
+
+.swt_out:
+    pop af
     ret
 
 ; ==================================================================
@@ -13292,8 +12989,27 @@ Action_ModVars:
 
 
 Action_AssignVar:
+; Params: DestVarID, SrcVarID (2 bytes)
+; DestVar = SrcVar
+    ld c, (hl)              ; C = DestVarID
     inc hl
+    ld d, (hl)              ; D = SrcVarID
     inc hl
+
+    push hl                 ; Save params ptr
+    push bc                 ; Save DestVarID (in C) and entity index (in B)
+
+    ; Read source variable value
+    ld a, d
+    call SM_ReadVar         ; A = source value
+    ld c, a                 ; C = value to write
+
+    ; Write to destination variable
+    pop de                  ; E = DestVarID
+    ld a, e
+    call SM_WriteVar
+
+    pop hl
     ret
 
     ; ------------------------------------------------------------------
@@ -13316,6 +13032,7 @@ SM_ConditionTable:
     DW Condition_AnimComplete   ; 12
     DW Condition_KeyAndMove     ; 13
     DW Condition_VariableCompare; 14
+    DW Condition_Xor            ; 15
 
     ; ------------------------------------------------------------------
     ; CONDITION HANDLERS IMPLEMENTATION
@@ -13389,6 +13106,42 @@ Condition_Or:
 
 .or_done:
     ld a, d                 ; A = OR result
+    ret
+
+Condition_Xor:
+    ; XOR compound condition
+    ; Data format: DB subcondition_count, then N subconditions inline
+    ; Returns true if an odd number of subconditions are true.
+    ; Input: B = Entity Index, HL = Params (points to count byte)
+    ; Output: A = 1 (odd true count) or 0 (even true count), HL advanced
+    ld c, (hl)              ; C = subcondition count
+    inc hl
+    xor a
+    ld d, a                 ; D = XOR accumulator (0 = even)
+
+.xor_loop:
+    ld a, c
+    or a
+    jr z, .xor_done
+
+    push bc                 ; Save count/entity index
+    push de                 ; Save accumulator
+
+    ld a, b                 ; A = Entity Index
+    call SM_EvaluateCondition ; A = subcondition result, HL advanced
+    and 1
+
+    pop de                  ; Restore accumulator in D
+    xor d                   ; Toggle parity if result is 1
+    and 1
+    ld d, a
+
+    pop bc
+    dec c
+    jr .xor_loop
+
+.xor_done:
+    ld a, d
     ret
 
 Condition_Not:
@@ -13896,8 +13649,24 @@ Condition_DeadlyTile:
     ret                           ; A = 1 if deadly, 0 if safe
 
 Condition_AnimComplete:
-    ; TODO: Implement animation complete check
+    ; One-shot event latched by update_animation_component when
+    ; a non-loop animation reaches its final frame.
+    ; Consume-on-read semantics prevents repeated transitions.
+    push hl
+    ld hl, entity_anim_flags
+    ld e, b
+    ld d, 0
+    add hl, de
+    bit 3, (hl)                    ; ANIM_FLAG_COMPLETED
+    jr z, .anim_complete_false
+    res 3, (hl)                    ; consume event
     ld a, 1
+    pop hl
+    ret
+
+.anim_complete_false:
+    xor a
+    pop hl
     ret
 
 Condition_KeyAndMove:
@@ -14131,6 +13900,19 @@ SM_GlobalVarTable:
 ; STATE MACHINE DATA
 ; ==================================================================
 
+; ==================================================================
+; TEMPLATE PROFILE TABLES
+; ==================================================================
+SM_TemplateProfileCount EQU 16
+SM_TemplateSpriteTable:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 6, 9, 9, 10, 14
+SM_TemplateAnimSpeedTable:
+    DB 6, 8, 10, 15, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6
+SM_TemplateHealthCurrentTable:
+    DB 1, 1, 1, 1, 1, 3, 1, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1
+SM_TemplateHealthMaxTable:
+    DB 1, 1, 1, 1, 1, 3, 1, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1
+
 ; State Machine: player_sm (statemachine_1761075121583) 
 SM_player_sm_state_1761075124676: 
     DB 0; ID(unused) 
@@ -14153,7 +13935,7 @@ SM_player_sm_state_1761075124676_Transitions_Actions_0:
     DW SM_player_sm_state_1761075124676_Transitions_Actions_1 
 SM_player_sm_state_1761075124676_Transitions_Actions_1: 
     DB 26; BREAK_TILE 
-    ; Params not implemented for BREAK_TILE
+    DB 0, 2        ; BREAK_TILE dir=left
     DB 0xFF; END
     DB 4; KEY_PRESSED 
     DB 0          ; Key: keyn
@@ -14161,7 +13943,7 @@ SM_player_sm_state_1761075124676_Transitions_Actions_1:
     DW SM_player_sm_state_1761075124676_Transitions_Actions_2 
 SM_player_sm_state_1761075124676_Transitions_Actions_2: 
     DB 26; BREAK_TILE 
-    ; Params not implemented for BREAK_TILE
+    DB 0, 3        ; BREAK_TILE dir=right
     DB 0xFF; END
     DB 11; HAS_DEADLY_TILE_COLLISION 
     DW SM_player_sm_state_1761075128298 
@@ -14205,7 +13987,7 @@ SM_player_sm_state_1761075128298_Transitions:
     DW SM_player_sm_state_1761075128298_Transitions_Actions_0 
 SM_player_sm_state_1761075128298_Transitions_Actions_0: 
     DB 25; RESPAWN_PLAYER 
-    ; Params not implemented for RESPAWN_PLAYER
+    DB 255, 255 
     DB 0xFF; END
 
 SM_player_sm_state_1761164765068: 
@@ -14263,7 +14045,7 @@ SM_player_sm_state_1763385068415_Transitions_Actions_0:
     DB 9; PLAY_SOUND 
     DB 0 
     DB 20; SPAWN_ENTITY 
-    DB 0, 0, 0 
+    DB 16, 0, 0        ; template=tpl_1763706862797_tv8ij=>16
     DB 0xFF; END
 
 ; State Machine: box_sm (statemachine_1762195602243) 
@@ -14575,10 +14357,8 @@ print_string_vram:
     ; Write character to VRAM
     push hl
     push de
-    push af                       ; Save character
     ex de, hl                     ; HL = VRAM address (from DE)
-    pop af                        ; Restore character to A
-    call WRTVRM                   ; Write A to VRAM at HL
+    call FAST_WRTVRM              ; Write A to VRAM at HL (direct port)
     pop de
     pop hl
 
@@ -15879,28 +15659,555 @@ load_game_screen:
     ret
 
 ; ==================================================================
+; ZX0 SPRITE FRAME BLOBS (AUTO-INJECTED)
+; ==================================================================
+ZX0_SPRITE_FRAME_DATA_START:
+ZX0_SPRITE_FRAME_HERO_LEFT_0_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_LEFT_0_F0 (64 -> 47 bytes)
+    DB #12,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#1F,#EF,#9B,#FF,#40
+    DB #C0,#80,#8F,#E6,#F5,#AE,#FD,#1F,#FE,#26,#03,#16,#03,#88,#07,#00
+    DB #8A,#02,#E0,#3A,#AC,#3A,#B6,#88,#C0,#FD,#E0,#F0,#BE,#55,#56
+ZX0_SPRITE_FRAME_HERO_LEFT_0_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_LEFT_0_F1 (64 -> 55 bytes)
+    DB #A0,#00,#68,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#66,#0A,#00,#08
+    DB #10,#00,#6F,#40,#C0,#80,#F0,#8E,#28,#04,#F9,#23,#03,#1F,#E2,#FC
+    DB #03,#16,#9E,#07,#05,#08,#DB,#1E,#C0,#E0,#E1,#95,#2A,#B6,#A9,#C0
+    DB #BD,#E0,#F0,#D4,#BF,#55,#56
+ZX0_SPRITE_FRAME_BIRD_1_F0_DATA:
+    ; ZX0 compressed sprite frame BIRD_1_F0 (32 -> 15 bytes)
+    DB #86,#00,#09,#1E,#21,#01,#00,#09,#97,#F0,#08,#00,#55,#55,#80
+ZX0_SPRITE_FRAME_BIRD_1_F1_DATA:
+    ; ZX0 compressed sprite frame BIRD_1_F1 (32 -> 16 bytes)
+    DB #86,#00,#09,#0E,#11,#21,#00,#09,#F3,#E0,#10,#08,#EC,#55,#55,#80
+ZX0_SPRITE_FRAME_BIRD_1_F2_DATA:
+    ; ZX0 compressed sprite frame BIRD_1_F2 (32 -> 17 bytes)
+    DB #82,#00,#18,#06,#09,#11,#10,#00,#59,#F7,#C0,#20,#10,#E0,#55,#55
+    DB #80
+ZX0_SPRITE_FRAME_BIRD_1_F3_DATA:
+    ; ZX0 compressed sprite frame BIRD_1_F3 (32 -> 17 bytes)
+    DB #82,#00,#18,#06,#09,#11,#10,#00,#59,#F7,#C0,#20,#10,#E0,#55,#55
+    DB #80
+ZX0_SPRITE_FRAME_BOT2_RIGHT_2_F1_DATA:
+    ; ZX0 compressed sprite frame BOT2_RIGHT_2_F1 (32 -> 30 bytes)
+    DB #02,#1F,#FF,#CF,#0F,#07,#00,#2F,#6F,#98,#6E,#00,#01,#22,#E0,#B0
+    DB #82,#F0,#E0,#00,#F0,#26,#70,#00,#80,#2B,#E0,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F0 (32 -> 25 bytes)
+    DB #12,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#1F,#EF,#9B,#FF,#40
+    DB #C0,#80,#8F,#E6,#F5,#D5,#FD,#55,#60
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F1 (32 -> 25 bytes)
+    DB #12,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#1F,#EF,#9B,#FF,#40
+    DB #C0,#80,#8F,#E6,#F5,#D5,#FD,#55,#60
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F2_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F2 (32 -> 23 bytes)
+    DB #12,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#06,#6E,#40,#C0,#80
+    DB #EE,#3F,#F5,#FD,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F3_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F3 (32 -> 23 bytes)
+    DB #12,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#06,#6E,#40,#C0,#80
+    DB #EE,#3F,#F5,#FD,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F4_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F4 (32 -> 21 bytes)
+    DB #58,#00,#16,#36,#3E,#1E,#02,#00,#89,#52,#00,#66,#20,#60,#40,#F3
+    DB #EA,#B5,#F0,#55,#58
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F5_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F5 (32 -> 21 bytes)
+    DB #58,#00,#16,#36,#3E,#1E,#02,#00,#89,#52,#00,#66,#20,#60,#40,#F3
+    DB #EA,#B5,#F0,#55,#58
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F6_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F6 (32 -> 21 bytes)
+    DB #A1,#00,#88,#36,#3E,#1E,#02,#00,#96,#12,#00,#6F,#20,#60,#40,#EA
+    DB #3B,#F0,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F7_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F7 (32 -> 21 bytes)
+    DB #A1,#00,#88,#36,#3E,#1E,#02,#00,#96,#12,#00,#6F,#20,#60,#40,#EA
+    DB #3B,#F0,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F8_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F8 (32 -> 17 bytes)
+    DB #AA,#00,#3C,#20,#04,#00,#89,#24,#00,#22,#30,#20,#A1,#00,#35,#55
+    DB #58
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F9_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F9 (32 -> 17 bytes)
+    DB #AA,#00,#3C,#20,#04,#00,#89,#24,#00,#22,#30,#20,#A1,#00,#35,#55
+    DB #58
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F10_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F10 (32 -> 15 bytes)
+    DB #89,#00,#83,#1C,#04,#00,#F2,#F5,#FE,#A8,#20,#00,#4D,#55,#56
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F11_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F11 (32 -> 15 bytes)
+    DB #89,#00,#83,#1C,#04,#00,#F2,#F5,#FE,#A8,#20,#00,#4D,#55,#56
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F12_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F12 (32 -> 13 bytes)
+    DB #88,#00,#9E,#08,#00,#F0,#4A,#10,#E4,#FE,#D5,#55,#60
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F13_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F13 (32 -> 13 bytes)
+    DB #88,#00,#9E,#08,#00,#F0,#4A,#10,#E4,#FE,#D5,#55,#60
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F14_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F14 (32 -> 9 bytes)
+    DB #84,#00,#88,#08,#00,#17,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_DEAD2_3_F15_DATA:
+    ; ZX0 compressed sprite frame HERO_DEAD2_3_F15 (32 -> 5 bytes)
+    DB #95,#00,#75,#55,#58
+ZX0_SPRITE_FRAME_NEW_SPRITE_4_F0_DATA:
+    ; ZX0 compressed sprite frame NEW_SPRITE_4_F0 (64 -> 17 bytes)
+    DB #91,#00,#62,#7F,#FF,#87,#FE,#DB,#6D,#B6,#DB,#F9,#F0,#B8,#5D,#55
+    DB #56
+ZX0_SPRITE_FRAME_NEW_SPRITE_4_F1_DATA:
+    ; ZX0 compressed sprite frame NEW_SPRITE_4_F1 (64 -> 17 bytes)
+    DB #91,#00,#62,#7F,#FF,#87,#FE,#D2,#49,#24,#93,#F9,#F0,#B8,#5D,#55
+    DB #56
+ZX0_SPRITE_FRAME_GEMA1_5_F0_DATA:
+    ; ZX0 compressed sprite frame GEMA1_5_F0 (32 -> 28 bytes)
+    DB #89,#00,#29,#01,#03,#06,#05,#06,#07,#86,#03,#01,#00,#1A,#80,#C0
+    DB #E0,#F0,#D0,#A7,#90,#20,#40,#80,#B5,#E4,#55,#58
+ZX0_SPRITE_FRAME_BOX_6_F2_DATA:
+    ; ZX0 compressed sprite frame BOX_6_F2 (32 -> 30 bytes)
+    DB #82,#00,#17,#7F,#41,#7E,#5F,#5B,#55,#5A,#5D,#5F,#40,#7F,#88,#E0
+    DB #A6,#FE,#82,#FE,#DA,#AA,#83,#BA,#FA,#02,#FE,#55,#55,#80
+ZX0_SPRITE_FRAME_FIRE_7_F0_DATA:
+    ; ZX0 compressed sprite frame FIRE_7_F0 (32 -> 13 bytes)
+    DB #86,#00,#24,#01,#00,#67,#80,#C0,#80,#DD,#EA,#55,#56
+ZX0_SPRITE_FRAME_FIRE_7_F1_DATA:
+    ; ZX0 compressed sprite frame FIRE_7_F1 (32 -> 14 bytes)
+    DB #BA,#00,#FC,#9A,#01,#00,#16,#2F,#40,#80,#EA,#75,#55,#58
+ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F0_DATA:
+    ; ZX0 compressed sprite frame FIRE2_LEFT_8_F0 (32 -> 10 bytes)
+    DB #84,#00,#2F,#40,#FC,#3B,#FE,#55,#55,#80
+ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F1_DATA:
+    ; ZX0 compressed sprite frame FIRE2_LEFT_8_F1 (32 -> 12 bytes)
+    DB #81,#00,#6E,#10,#FD,#9E,#40,#F0,#F5,#FF,#55,#58
+ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F2_DATA:
+    ; ZX0 compressed sprite frame FIRE2_LEFT_8_F2 (32 -> 16 bytes)
+    DB #95,#00,#EA,#F5,#04,#A0,#10,#9E,#14,#20,#50,#24,#E8,#D5,#55,#60
+ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F3_DATA:
+    ; ZX0 compressed sprite frame FIRE2_LEFT_8_F3 (32 -> 14 bytes)
+    DB #95,#00,#EA,#F9,#04,#9F,#10,#FA,#BB,#14,#F6,#55,#55,#80
+ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F4_DATA:
+    ; ZX0 compressed sprite frame FIRE2_LEFT_8_F4 (32 -> 12 bytes)
+    DB #80,#00,#2E,#01,#E7,#92,#04,#83,#04,#55,#55,#80
+ZX0_SPRITE_FRAME_NEW_SPRITE_LEFT_9_F0_DATA:
+    ; ZX0 compressed sprite frame NEW_SPRITE_LEFT_9_F0 (64 -> 35 bytes)
+    DB #82,#00,#2A,#20,#3F,#00,#42,#48,#FC,#8E,#FC,#00,#48,#08,#A5,#00
+    DB #8A,#1F,#40,#21,#01,#00,#64,#8B,#02,#50,#00,#3C,#B4,#34,#38,#D5
+    DB #EB,#55,#60
+ZX0_SPRITE_FRAME_NEW_SPRITE_1_10_F0_DATA:
+    ; ZX0 compressed sprite frame NEW_SPRITE_1_10_F0 (32 -> 17 bytes)
+    DB #88,#00,#92,#07,#0F,#24,#07,#00,#89,#F0,#F8,#2F,#F0,#E6,#D5,#55
+    DB #60
+ZX0_SPRITE_FRAME_NEW_SPRITE_1_10_F1_DATA:
+    ; ZX0 compressed sprite frame NEW_SPRITE_1_10_F1 (32 -> 25 bytes)
+    DB #88,#00,#22,#07,#0F,#0E,#0C,#09,#0E,#0F,#07,#00,#20,#89,#F0,#F8
+    DB #38,#18,#FD,#38,#F8,#F0,#E6,#55,#56
+ZX0_SPRITE_FRAME_HERO_JUMP_LEFT_11_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_JUMP_LEFT_11_F0 (64 -> 51 bytes)
+    DB #A0,#00,#68,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#92,#AA,#00,#6F
+    DB #40,#C0,#80,#F0,#8E,#28,#02,#D9,#21,#03,#1F,#E0,#F1,#99,#16,#03
+    DB #87,#55,#62,#C0,#E0,#E0,#95,#2A,#01,#01,#A7,#40,#F0,#D6,#00,#D5
+    DB #BF,#55,#60
+ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_GROUND_LEFT_12_F0 (64 -> 52 bytes)
+    DB #12,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#09,#89,#20,#19,#00
+    DB #B8,#40,#C0,#80,#E4,#E6,#F5,#84,#18,#1F,#E2,#FE,#68,#03,#16,#03
+    DB #88,#07,#00,#A7,#02,#E0,#AC,#3A,#01,#A2,#B7,#C0,#3F,#E0,#F0,#BF
+    DB #FD,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_GROUND_LEFT_12_F1 (64 -> 54 bytes)
+    DB #A5,#00,#66,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#40,#A0,#40,#00
+    DB #01,#00,#6E,#40,#C0,#80,#F0,#82,#02,#05,#82,#00,#2B,#1F,#89,#FE
+    DB #AE,#03,#16,#03,#07,#D8,#87,#00,#E0,#E0,#AC,#3B,#A8,#B6,#C0,#8E
+    DB #E0,#F0,#C2,#D5,#55,#60
+ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F2_DATA:
+    ; ZX0 compressed sprite frame HERO_GROUND_LEFT_12_F2 (64 -> 47 bytes)
+    DB #88,#00,#19,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#FE,#F3,#FE,#6E
+    DB #40,#C0,#80,#EE,#3E,#F4,#B8,#1F,#FE,#9A,#03,#16,#03,#78,#07,#00
+    DB #02,#B7,#26,#E0,#E0,#AD,#3A,#88,#C0,#F5,#E0,#F0,#BF,#55,#58
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F0 (32 -> 24 bytes)
+    DB #12,#00,#0F,#02,#1A,#1F,#0D,#01,#00,#29,#00,#1F,#EF,#9B,#FF,#40
+    DB #C0,#80,#8F,#E6,#F4,#D5,#55,#60
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F1 (32 -> 25 bytes)
+    DB #12,#00,#0F,#03,#13,#1A,#0C,#01,#00,#28,#00,#1F,#EF,#9B,#FF,#40
+    DB #C0,#80,#8F,#E6,#F5,#D5,#FD,#55,#60
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F2_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F2 (32 -> 22 bytes)
+    DB #0A,#00,#06,#0A,#1B,#18,#09,#01,#00,#09,#00,#6F,#01,#F6,#A7,#C0
+    DB #E9,#FC,#80,#D5,#55,#60
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F3_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F3 (32 -> 22 bytes)
+    DB #12,#00,#03,#08,#13,#07,#02,#01,#00,#29,#00,#1B,#01,#EA,#F2,#C0
+    DB #83,#80,#8D,#F4,#55,#56
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F4_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F4 (32 -> 22 bytes)
+    DB #12,#00,#07,#0B,#19,#02,#0B,#01,#00,#09,#00,#1B,#01,#E9,#FB,#FD
+    DB #80,#F7,#FE,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F5_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F5 (32 -> 17 bytes)
+    DB #0A,#00,#04,#00,#02,#94,#00,#98,#40,#80,#00,#7F,#F3,#FD,#55,#55
+    DB #80
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F6_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F6 (32 -> 19 bytes)
+    DB #5A,#00,#04,#01,#00,#10,#06,#00,#20,#28,#00,#3A,#E9,#40,#A0,#80
+    DB #75,#55,#58
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F7_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F7 (32 -> 15 bytes)
+    DB #82,#00,#19,#02,#01,#00,#09,#00,#0B,#80,#83,#F4,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F8_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F8 (32 -> 11 bytes)
+    DB #94,#00,#FA,#EE,#40,#A4,#80,#FD,#F2,#55,#56
+ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F9_DATA:
+    ; ZX0 compressed sprite frame HERO_FRAME_0_FRAME_1_13_F9 (32 -> 5 bytes)
+    DB #95,#00,#75,#55,#58
+ZX0_SPRITE_FRAME_DUST_SPR_14_F0_DATA:
+    ; ZX0 compressed sprite frame DUST_SPR_14_F0 (64 -> 24 bytes)
+    DB #92,#00,#4A,#40,#E0,#44,#0E,#44,#E0,#21,#40,#00,#22,#01,#03,#82
+    DB #01,#08,#1C,#00,#55,#D5,#55,#60
+ZX0_SPRITE_FRAME_DUST_SPR_14_F1_DATA:
+    ; ZX0 compressed sprite frame DUST_SPR_14_F1 (64 -> 37 bytes)
+    DB #92,#00,#12,#80,#C0,#94,#08,#C0,#E0,#40,#00,#06,#00,#02,#8B,#03
+    DB #01,#BD,#F5,#18,#E2,#82,#08,#08,#40,#20,#22,#02,#01,#4E,#D5,#92
+    DB #01,#D5,#04,#55,#60
+ZX0_SPRITE_FRAME_DUST_SPR_14_F2_DATA:
+    ; ZX0 compressed sprite frame DUST_SPR_14_F2 (64 -> 31 bytes)
+    DB #92,#00,#12,#80,#C0,#80,#00,#C0,#E0,#40,#00,#02,#00,#02,#BE,#01
+    DB #F4,#F7,#18,#E2,#88,#D5,#40,#20,#3D,#E4,#F7,#EE,#55,#55,#80
+ZX0_SPRITE_FRAME_DUST_SPR_14_F3_DATA:
+    ; ZX0 compressed sprite frame DUST_SPR_14_F3 (64 -> 31 bytes)
+    DB #92,#00,#12,#80,#C0,#80,#00,#C0,#E0,#40,#00,#02,#00,#02,#BE,#01
+    DB #F4,#F7,#18,#E2,#88,#D5,#40,#20,#3D,#E4,#F7,#EE,#55,#55,#80
+ZX0_SPRITE_FRAME_DUST_SPR_14_F4_DATA:
+    ; ZX0 compressed sprite frame DUST_SPR_14_F4 (64 -> 28 bytes)
+    DB #92,#00,#B8,#80,#F9,#EB,#C0,#40,#ED,#02,#DA,#FE,#01,#FB,#F4,#18
+    DB #DE,#E2,#D5,#20,#40,#20,#F7,#E4,#DD,#EE,#55,#56
+ZX0_SPRITE_FRAME_DUST_SPR_14_F5_DATA:
+    ; ZX0 compressed sprite frame DUST_SPR_14_F5 (64 -> 18 bytes)
+    DB #92,#00,#F2,#80,#F8,#F3,#02,#E0,#A1,#F5,#01,#AF,#08,#FE,#53,#55
+    DB #55,#80
+ZX0_SPRITE_FRAME_HERO_GUN_15_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_GUN_15_F0 (96 -> 54 bytes)
+    DB #12,#00,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#1F,#EF,#9B,#FF,#40
+    DB #C0,#80,#8F,#E6,#F5,#AE,#FD,#1F,#FE,#26,#03,#16,#03,#88,#07,#00
+    DB #8A,#02,#E0,#3A,#AC,#3A,#B6,#88,#C0,#E3,#E0,#F0,#BE,#99,#FE,#85
+    DB #E0,#40,#00,#35,#55,#58
+ZX0_SPRITE_FRAME_HERO_GUN_15_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_GUN_15_F1 (96 -> 62 bytes)
+    DB #A0,#00,#68,#0F,#0B,#1B,#1F,#0F,#01,#00,#29,#00,#66,#0A,#00,#08
+    DB #10,#00,#6F,#40,#C0,#80,#F0,#8E,#28,#04,#F9,#23,#03,#1F,#E2,#FC
+    DB #03,#16,#9E,#07,#05,#08,#DB,#1E,#C0,#E0,#E1,#95,#2A,#B6,#A9,#C0
+    DB #BF,#E0,#F0,#D4,#BF,#FE,#66,#E0,#40,#00,#11,#D5,#55,#60
+ZX0_SPRITE_FRAME_HERO_COLLECTOR_LEFT_16_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_COLLECTOR_LEFT_16_F0 (64 -> 48 bytes)
+    DB #02,#00,#0F,#0B,#1B,#1F,#0F,#21,#00,#58,#26,#01,#C0,#00,#40,#3E
+    DB #44,#40,#F1,#FF,#EA,#80,#FC,#1F,#E2,#FE,#9B,#03,#07,#A1,#BE,#28
+    DB #02,#20,#E0,#AC,#3A,#01,#20,#20,#00,#00,#83,#E0,#F0,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_COLLECTOR_LEFT_16_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_COLLECTOR_LEFT_16_F1 (64 -> 54 bytes)
+    DB #12,#01,#00,#0F,#0B,#1B,#1F,#0F,#01,#80,#00,#21,#A2,#28,#00,#20
+    DB #00,#C0,#00,#40,#1B,#C1,#AE,#DE,#2A,#FB,#2E,#06,#1F,#FE,#29,#03
+    DB #BB,#17,#C3,#60,#93,#BB,#E0,#AC,#3A,#01,#20,#20,#86,#CD,#C0,#E0
+    DB #F0,#14,#02,#D5,#55,#60
+ZX0_SPRITE_FRAME_HERO_RIGHT_17_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_RIGHT_17_F0 (64 -> 48 bytes)
+    DB #89,#00,#A8,#02,#03,#01,#00,#3E,#F5,#F0,#92,#F0,#D0,#D8,#F8,#F0
+    DB #80,#BF,#94,#DE,#86,#E5,#80,#07,#07,#35,#5C,#E8,#B7,#03,#8F,#07
+    DB #0F,#BE,#AE,#F8,#FE,#26,#C0,#68,#C0,#BA,#E0,#F0,#D5,#40,#55,#60
+ZX0_SPRITE_FRAME_HERO_RIGHT_17_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_RIGHT_17_F1 (64 -> 53 bytes)
+    DB #99,#00,#BE,#02,#03,#01,#F0,#3E,#14,#20,#E4,#4A,#F0,#D0,#D8,#F8
+    DB #F0,#80,#EA,#94,#E9,#50,#5E,#10,#08,#03,#07,#87,#A9,#54,#B6,#A9
+    DB #03,#B8,#07,#0F,#2B,#BF,#BE,#C0,#F8,#9A,#58,#00,#C0,#68,#C0,#E0
+    DB #A0,#10,#D5,#55,#60
+ZX0_SPRITE_FRAME_BOT2_LEFT_18_F1_DATA:
+    ; ZX0 compressed sprite frame BOT2_LEFT_18_F1 (32 -> 30 bytes)
+    DB #28,#07,#0D,#22,#0F,#07,#00,#0F,#62,#0E,#00,#01,#A0,#07,#29,#F8
+    DB #FF,#F3,#F0,#E0,#00,#F4,#F6,#83,#76,#00,#80,#55,#55,#80
+ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F0_DATA:
+    ; ZX0 compressed sprite frame FIRE2_RIGHT_19_F0 (32 -> 10 bytes)
+    DB #BA,#00,#FC,#97,#02,#84,#FE,#D5,#55,#60
+ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F1_DATA:
+    ; ZX0 compressed sprite frame FIRE2_RIGHT_19_F1 (32 -> 12 bytes)
+    DB #9B,#00,#08,#A7,#FD,#02,#B8,#F0,#FE,#1D,#55,#56
+ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F2_DATA:
+    ; ZX0 compressed sprite frame FIRE2_RIGHT_19_F2 (32 -> 18 bytes)
+    DB #A0,#00,#3B,#20,#00,#08,#00,#28,#04,#0A,#24,#F4,#BD,#E8,#FE,#75
+    DB #55,#58
+ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F3_DATA:
+    ; ZX0 compressed sprite frame FIRE2_RIGHT_19_F3 (32 -> 15 bytes)
+    DB #A7,#00,#20,#00,#08,#BE,#F8,#FA,#EF,#28,#F6,#FE,#5D,#55,#56
+ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F4_DATA:
+    ; ZX0 compressed sprite frame FIRE2_RIGHT_19_F4 (32 -> 14 bytes)
+    DB #68,#00,#80,#00,#9F,#20,#00,#F2,#EF,#E6,#FE,#5D,#55,#56
+ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_20_F0_DATA:
+    ; ZX0 compressed sprite frame NEW_SPRITE_RIGHT_20_F0 (64 -> 35 bytes)
+    DB #82,#00,#48,#3F,#71,#3F,#00,#12,#10,#A5,#00,#8A,#04,#FC,#90,#00
+    DB #92,#40,#0A,#00,#3C,#2D,#2C,#2F,#1C,#C0,#20,#97,#F8,#02,#02,#80
+    DB #55,#55,#80
+ZX0_SPRITE_FRAME_HERO_JUMP_RIGHT_21_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_JUMP_RIGHT_21_F0 (64 -> 51 bytes)
+    DB #99,#00,#BE,#02,#03,#01,#F0,#3E,#14,#40,#E4,#4A,#F0,#D0,#D8,#F8
+    DB #F0,#80,#EB,#94,#E9,#55,#8A,#FF,#03,#07,#6E,#A9,#54,#80,#F1,#A7
+    DB #02,#0F,#6B,#00,#8B,#BF,#C0,#F8,#F8,#FE,#F1,#27,#68,#C0,#E1,#AA
+    DB #55,#55,#80
+ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_GROUND_RIGHT_22_F0 (64 -> 52 bytes)
+    DB #89,#00,#A8,#02,#03,#01,#00,#38,#F5,#A0,#21,#18,#38,#F0,#D0,#D8
+    DB #F8,#F0,#80,#00,#94,#DC,#97,#04,#98,#07,#07,#35,#5C,#80,#A2,#B7
+    DB #03,#3A,#07,#0F,#BE,#2E,#01,#F8,#FE,#26,#C0,#68,#C0,#BA,#E0,#F0
+    DB #D5,#40,#55,#60
+ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_GROUND_RIGHT_22_F1 (64 -> 51 bytes)
+    DB #99,#00,#BA,#02,#03,#01,#F0,#09,#40,#A0,#41,#00,#92,#F0,#D0,#D8
+    DB #F8,#F0,#80,#92,#94,#00,#02,#05,#02,#00,#20,#EA,#07,#07,#35,#DC
+    DB #B6,#03,#23,#07,#0F,#EF,#C2,#F8,#FB,#E1,#98,#9D,#C0,#68,#C0,#C0
+    DB #E0,#55,#56
+ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F2_DATA:
+    ; ZX0 compressed sprite frame HERO_GROUND_RIGHT_22_F2 (64 -> 47 bytes)
+    DB #82,#00,#6E,#02,#03,#01,#EE,#38,#F4,#80,#FA,#F0,#D0,#D8,#F8,#F0
+    DB #80,#00,#94,#DE,#80,#20,#EA,#07,#07,#B5,#5C,#B6,#03,#23,#07,#0F
+    DB #EB,#BE,#F8,#89,#FE,#A7,#C0,#68,#C0,#E0,#00,#40,#55,#55,#80
+ZX0_SPRITE_FRAME_HERO_COLLECTOR_RIGHT_23_F0_DATA:
+    ; ZX0 compressed sprite frame HERO_COLLECTOR_RIGHT_23_F0 (64 -> 48 bytes)
+    DB #66,#03,#00,#02,#3E,#22,#02,#F1,#FF,#F9,#01,#FD,#F7,#7C,#F0,#D0
+    DB #D8,#F8,#F0,#84,#00,#FE,#96,#80,#04,#07,#35,#5C,#80,#04,#E7,#ED
+    DB #03,#07,#0F,#EB,#BE,#F8,#8A,#FE,#C0,#6E,#E0,#F0,#B5,#40,#55,#58
+ZX0_SPRITE_FRAME_HERO_COLLECTOR_RIGHT_23_F1_DATA:
+    ; ZX0 compressed sprite frame HERO_COLLECTOR_RIGHT_23_F1 (64 -> 51 bytes)
+    DB #A2,#03,#00,#02,#18,#8B,#83,#00,#54,#A9,#FB,#80,#7A,#F0,#D0,#D8
+    DB #F8,#F0,#80,#01,#E2,#AE,#14,#04,#F7,#1B,#04,#07,#35,#5C,#80,#AA
+    DB #EE,#03,#4B,#0F,#28,#40,#00,#60,#F8,#8A,#FE,#C0,#6E,#E8,#D5,#D5
+    DB #06,#55,#60
+ZX0_SPRITE_FRAME_DATA_END_LABEL:
+    DB #00
+
+; ==================================================================
 ; ZX0 SCREEN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for screen layout decompression (768 bytes)
 ; ==================================================================
-ZX0_SCREEN_BUFFER EQU #C900
+ZX0_SCREEN_BUFFER EQU #CF00
 
 ; ==================================================================
 ; ZX0 BEHAVIOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for behavior map decompression (768 bytes)
 ; ==================================================================
-ZX0_BEHAVIOR_BUFFER EQU #CC00
+ZX0_BEHAVIOR_BUFFER EQU #D200
 
 ; ==================================================================
 ; ZX0 TILE PATTERN BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for tile pattern data decompression (424 bytes)
 ; ==================================================================
-ZX0_TILE_PATTERN_BUFFER EQU #CF00
+ZX0_TILE_PATTERN_BUFFER EQU #D500
 
 ; ==================================================================
 ; ZX0 TILE COLOR BUFFER (AUTO-INJECTED)
 ; Free RAM buffer for tile color data decompression (424 bytes)
 ; ==================================================================
-ZX0_TILE_COLOR_BUFFER EQU #D100
+ZX0_TILE_COLOR_BUFFER EQU #D700
+
+; ==================================================================
+; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
+; Shared RAM buffer for per-frame sprite decompression before VRAM upload (96 bytes)
+; ==================================================================
+ZX0_SPRITE_FRAME_BUFFER EQU #D900
+
+; ==================================================================
+; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)
+; Frame entry labels now point to ZX0-compressed frame blobs
+; ==================================================================
+; Frame group: HERO_LEFT_0_F0
+HERO_LEFT_0_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_LEFT_0_F0_DATA
+; Frame group: HERO_LEFT_0_F1
+HERO_LEFT_0_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_LEFT_0_F1_DATA
+; Frame group: BIRD_1_F0
+BIRD_1_F0_LAYER1 EQU ZX0_SPRITE_FRAME_BIRD_1_F0_DATA
+; Frame group: BIRD_1_F1
+BIRD_1_F1_LAYER1 EQU ZX0_SPRITE_FRAME_BIRD_1_F1_DATA
+; Frame group: BIRD_1_F2
+BIRD_1_F2_LAYER1 EQU ZX0_SPRITE_FRAME_BIRD_1_F2_DATA
+; Frame group: BIRD_1_F3
+BIRD_1_F3_LAYER1 EQU ZX0_SPRITE_FRAME_BIRD_1_F3_DATA
+; Frame group: BOT2_RIGHT_2_F1
+BOT2_RIGHT_2_F1_LAYER0 EQU ZX0_SPRITE_FRAME_BOT2_RIGHT_2_F1_DATA
+; Frame group: HERO_DEAD2_3_F0
+HERO_DEAD2_3_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F0_DATA
+; Frame group: HERO_DEAD2_3_F1
+HERO_DEAD2_3_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F1_DATA
+; Frame group: HERO_DEAD2_3_F2
+HERO_DEAD2_3_F2_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F2_DATA
+; Frame group: HERO_DEAD2_3_F3
+HERO_DEAD2_3_F3_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F3_DATA
+; Frame group: HERO_DEAD2_3_F4
+HERO_DEAD2_3_F4_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F4_DATA
+; Frame group: HERO_DEAD2_3_F5
+HERO_DEAD2_3_F5_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F5_DATA
+; Frame group: HERO_DEAD2_3_F6
+HERO_DEAD2_3_F6_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F6_DATA
+; Frame group: HERO_DEAD2_3_F7
+HERO_DEAD2_3_F7_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F7_DATA
+; Frame group: HERO_DEAD2_3_F8
+HERO_DEAD2_3_F8_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F8_DATA
+; Frame group: HERO_DEAD2_3_F9
+HERO_DEAD2_3_F9_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F9_DATA
+; Frame group: HERO_DEAD2_3_F10
+HERO_DEAD2_3_F10_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F10_DATA
+; Frame group: HERO_DEAD2_3_F11
+HERO_DEAD2_3_F11_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F11_DATA
+; Frame group: HERO_DEAD2_3_F12
+HERO_DEAD2_3_F12_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F12_DATA
+; Frame group: HERO_DEAD2_3_F13
+HERO_DEAD2_3_F13_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F13_DATA
+; Frame group: HERO_DEAD2_3_F14
+HERO_DEAD2_3_F14_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F14_DATA
+; Frame group: HERO_DEAD2_3_F15
+HERO_DEAD2_3_F15_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_DEAD2_3_F15_DATA
+; Frame group: NEW_SPRITE_4_F0
+NEW_SPRITE_4_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_4_F0_DATA
+; Frame group: NEW_SPRITE_4_F1
+NEW_SPRITE_4_F1_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_4_F1_DATA
+; Frame group: GEMA1_5_F0
+GEMA1_5_F0_LAYER2 EQU ZX0_SPRITE_FRAME_GEMA1_5_F0_DATA
+; Frame group: BOX_6_F2
+BOX_6_F2_LAYER1 EQU ZX0_SPRITE_FRAME_BOX_6_F2_DATA
+; Frame group: FIRE_7_F0
+FIRE_7_F0_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE_7_F0_DATA
+; Frame group: FIRE_7_F1
+FIRE_7_F1_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE_7_F1_DATA
+; Frame group: FIRE2_LEFT_8_F0
+FIRE2_LEFT_8_F0_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F0_DATA
+; Frame group: FIRE2_LEFT_8_F1
+FIRE2_LEFT_8_F1_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F1_DATA
+; Frame group: FIRE2_LEFT_8_F2
+FIRE2_LEFT_8_F2_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F2_DATA
+; Frame group: FIRE2_LEFT_8_F3
+FIRE2_LEFT_8_F3_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F3_DATA
+; Frame group: FIRE2_LEFT_8_F4
+FIRE2_LEFT_8_F4_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_LEFT_8_F4_DATA
+; Frame group: NEW_SPRITE_LEFT_9_F0
+NEW_SPRITE_LEFT_9_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_LEFT_9_F0_DATA
+; Frame group: NEW_SPRITE_1_10_F0
+NEW_SPRITE_1_10_F0_LAYER2 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_1_10_F0_DATA
+; Frame group: NEW_SPRITE_1_10_F1
+NEW_SPRITE_1_10_F1_LAYER2 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_1_10_F1_DATA
+; Frame group: HERO_JUMP_LEFT_11_F0
+HERO_JUMP_LEFT_11_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_JUMP_LEFT_11_F0_DATA
+; Frame group: HERO_GROUND_LEFT_12_F0
+HERO_GROUND_LEFT_12_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F0_DATA
+; Frame group: HERO_GROUND_LEFT_12_F1
+HERO_GROUND_LEFT_12_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F1_DATA
+; Frame group: HERO_GROUND_LEFT_12_F2
+HERO_GROUND_LEFT_12_F2_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_GROUND_LEFT_12_F2_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F0
+HERO_FRAME_0_FRAME_1_13_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F0_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F1
+HERO_FRAME_0_FRAME_1_13_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F1_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F2
+HERO_FRAME_0_FRAME_1_13_F2_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F2_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F3
+HERO_FRAME_0_FRAME_1_13_F3_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F3_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F4
+HERO_FRAME_0_FRAME_1_13_F4_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F4_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F5
+HERO_FRAME_0_FRAME_1_13_F5_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F5_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F6
+HERO_FRAME_0_FRAME_1_13_F6_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F6_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F7
+HERO_FRAME_0_FRAME_1_13_F7_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F7_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F8
+HERO_FRAME_0_FRAME_1_13_F8_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F8_DATA
+; Frame group: HERO_FRAME_0_FRAME_1_13_F9
+HERO_FRAME_0_FRAME_1_13_F9_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_FRAME_0_FRAME_1_13_F9_DATA
+; Frame group: DUST_SPR_14_F0
+DUST_SPR_14_F0_LAYER0 EQU ZX0_SPRITE_FRAME_DUST_SPR_14_F0_DATA
+; Frame group: DUST_SPR_14_F1
+DUST_SPR_14_F1_LAYER0 EQU ZX0_SPRITE_FRAME_DUST_SPR_14_F1_DATA
+; Frame group: DUST_SPR_14_F2
+DUST_SPR_14_F2_LAYER0 EQU ZX0_SPRITE_FRAME_DUST_SPR_14_F2_DATA
+; Frame group: DUST_SPR_14_F3
+DUST_SPR_14_F3_LAYER0 EQU ZX0_SPRITE_FRAME_DUST_SPR_14_F3_DATA
+; Frame group: DUST_SPR_14_F4
+DUST_SPR_14_F4_LAYER0 EQU ZX0_SPRITE_FRAME_DUST_SPR_14_F4_DATA
+; Frame group: DUST_SPR_14_F5
+DUST_SPR_14_F5_LAYER0 EQU ZX0_SPRITE_FRAME_DUST_SPR_14_F5_DATA
+; Frame group: HERO_GUN_15_F0
+HERO_GUN_15_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_GUN_15_F0_DATA
+; Frame group: HERO_GUN_15_F1
+HERO_GUN_15_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_GUN_15_F1_DATA
+; Frame group: HERO_COLLECTOR_LEFT_16_F0
+HERO_COLLECTOR_LEFT_16_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_COLLECTOR_LEFT_16_F0_DATA
+; Frame group: HERO_COLLECTOR_LEFT_16_F1
+HERO_COLLECTOR_LEFT_16_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_COLLECTOR_LEFT_16_F1_DATA
+; Frame group: HERO_RIGHT_17_F0
+HERO_RIGHT_17_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_RIGHT_17_F0_DATA
+; Frame group: HERO_RIGHT_17_F1
+HERO_RIGHT_17_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_RIGHT_17_F1_DATA
+; Frame group: BOT2_LEFT_18_F1
+BOT2_LEFT_18_F1_LAYER0 EQU ZX0_SPRITE_FRAME_BOT2_LEFT_18_F1_DATA
+; Frame group: FIRE2_RIGHT_19_F0
+FIRE2_RIGHT_19_F0_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F0_DATA
+; Frame group: FIRE2_RIGHT_19_F1
+FIRE2_RIGHT_19_F1_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F1_DATA
+; Frame group: FIRE2_RIGHT_19_F2
+FIRE2_RIGHT_19_F2_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F2_DATA
+; Frame group: FIRE2_RIGHT_19_F3
+FIRE2_RIGHT_19_F3_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F3_DATA
+; Frame group: FIRE2_RIGHT_19_F4
+FIRE2_RIGHT_19_F4_LAYER1 EQU ZX0_SPRITE_FRAME_FIRE2_RIGHT_19_F4_DATA
+; Frame group: NEW_SPRITE_RIGHT_20_F0
+NEW_SPRITE_RIGHT_20_F0_LAYER1 EQU ZX0_SPRITE_FRAME_NEW_SPRITE_RIGHT_20_F0_DATA
+; Frame group: HERO_JUMP_RIGHT_21_F0
+HERO_JUMP_RIGHT_21_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_JUMP_RIGHT_21_F0_DATA
+; Frame group: HERO_GROUND_RIGHT_22_F0
+HERO_GROUND_RIGHT_22_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F0_DATA
+; Frame group: HERO_GROUND_RIGHT_22_F1
+HERO_GROUND_RIGHT_22_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F1_DATA
+; Frame group: HERO_GROUND_RIGHT_22_F2
+HERO_GROUND_RIGHT_22_F2_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_GROUND_RIGHT_22_F2_DATA
+; Frame group: HERO_COLLECTOR_RIGHT_23_F0
+HERO_COLLECTOR_RIGHT_23_F0_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_COLLECTOR_RIGHT_23_F0_DATA
+; Frame group: HERO_COLLECTOR_RIGHT_23_F1
+HERO_COLLECTOR_RIGHT_23_F1_LAYER1 EQU ZX0_SPRITE_FRAME_HERO_COLLECTOR_RIGHT_23_F1_DATA
+
+; ==================================================================
+; ZX0 SPRITE COPY HELPER (AUTO-INJECTED)
+; - If HL points to a compressed sprite frame blob, decompress frame
+;   to ZX0_SPRITE_FRAME_BUFFER and then upload to VRAM.
+; - Otherwise copy raw frame data directly to VRAM.
+; Input: HL=source (ROM), DE=VRAM destination, BC=byte count
+; ==================================================================
+COPY_SPRITE_SRC_TO_VRAM:
+    push de
+    ; source < ZX0_SPRITE_FRAME_DATA_START => raw copy
+    push hl
+    ld de, ZX0_SPRITE_FRAME_DATA_START
+    or a
+    sbc hl, de
+    pop hl
+    jr c, COPY_SPRITE_SRC_TO_VRAM_RAW
+
+    ; source >= ZX0_SPRITE_FRAME_DATA_END_LABEL => raw copy
+    push hl
+    ld de, ZX0_SPRITE_FRAME_DATA_END_LABEL
+    or a
+    sbc hl, de
+    pop hl
+    jr nc, COPY_SPRITE_SRC_TO_VRAM_RAW
+
+    ; Compressed frame: decompress to shared RAM buffer, then upload
+    pop de
+    push bc
+    push de
+    push hl
+    ld de, ZX0_SPRITE_FRAME_BUFFER
+    call dzx0_standard
+    pop hl
+    pop de
+    pop bc
+    ld hl, ZX0_SPRITE_FRAME_BUFFER
+    jp FAST_LDIRVM
+
+COPY_SPRITE_SRC_TO_VRAM_RAW:
+    pop de
+    jp FAST_LDIRVM
 
 ; ==================================================================
 ; ZX0 DECOMPRESSOR (AUTO-INJECTED)
@@ -15966,6 +16273,8 @@ dzx0s_elias_backtrack:
         rl      b
         jr      dzx0s_elias_loop
 ; -----------------------------------------------------------------------------
+
+
 
 
 

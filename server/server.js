@@ -833,8 +833,13 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   }
 
   if (buffersToAllocate.length > 0) {
-    const RAM_BUFFER_BASE = 0xC900;
+    const DEFAULT_RAM_BUFFER_BASE = 0xC900;
     const RAM_BUFFER_LIMIT = 0xF380;
+    const ramUsageMatch = finalCode.match(/^\s*RAM_USAGE_END\s+EQU\s+#([0-9A-Fa-f]+)/im);
+    const ramUsageEnd = ramUsageMatch ? Number.parseInt(ramUsageMatch[1], 16) : DEFAULT_RAM_BUFFER_BASE;
+    // Keep buffers above project RAM variables to avoid corrupting runtime systems
+    // (interrupt hooks/task table, entity arrays, etc.).
+    const RAM_BUFFER_BASE = Math.max(DEFAULT_RAM_BUFFER_BASE, (ramUsageEnd + 0xFF) & 0xFF00);
     let nextAddress = RAM_BUFFER_BASE;
 
     const allocated = [];

@@ -3379,6 +3379,10 @@ render_submenu_screen:
     djnz .rss_clear_loop
 
 .rss_read_count:
+    ; Background loaders may overwrite character patterns/colors used for text.
+    ; Restore font before printing title/options in submenu.
+    call init_font_system
+
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 14                     ; offset to option_count (+11-12 fn, +13 bank)
     add hl, bc
@@ -5811,11 +5815,11 @@ SPRITE_INVISIBLE    EQU ${al}
 update_all_entities:
     ; Build entity list once per frame (slots with non-zero component masks)
     call rebuild_used_entity_list
-`;const a=[["Input","update_input_component","1. Input (player control)"],["Shoot","update_shoot_component","2. Shooting"],["Behavior","update_behavior_component","3. Behavior/AI"],["Patrol","update_entities","3b. Patrol/per-entity update"],["Jump","update_jump_component","4. Jump impulse"],["Movement","update_movement_component","5. Movement"],["Cursors","update_cursors_component","5b. Cursors movement"],["Gravity","update_gravity_component","6. Gravity"],["Position","update_position_component","7. Apply velocity"],["Collision","prepare_platform_detection","8a. Clear platform refs"],["Collision","update_collision_component","8b. Collision detection"],["Collision","update_platform_riding","8c. Platform riding"],["WallCollision","update_wallcollision_component","8d. Wall collision"],["Health","update_health_component","9. Health/Death"],["Damage","update_damage_component","10. Damage"],["Animation","update_animation_component","11. Animation"],["AutoDestroy","update_auto_destroy_component","12. Auto-destroy"],["Sprite","update_sprite_component","13. Sprite rendering"]];let l=0;const n=new Set;for(const[o,s,i]of a)(o==="Position"||o==="Sprite"||e.has(o))&&(n.has(s)||(n.add(s),t+=`    call ${s.padEnd(30)} ; ${i}
+`;const a=[["Input","update_input_component","1. Input (player control)"],["Shoot","update_shoot_component","2. Shooting"],["Behavior","update_behavior_component","3. Behavior/AI"],["Patrol","update_entities","3b. Patrol/per-entity update"],["StateMachine","update_statemachine_component","3c. State machine logic"],["Jump","update_jump_component","4. Jump impulse"],["Movement","update_movement_component","5. Movement"],["Cursors","update_cursors_component","5b. Cursors movement"],["Gravity","update_gravity_component","6. Gravity"],["Position","update_position_component","7. Apply velocity"],["Collision","prepare_platform_detection","8a. Clear platform refs"],["Collision","update_collision_component","8b. Collision detection"],["Collision","update_platform_riding","8c. Platform riding"],["WallCollision","update_wallcollision_component","8d. Wall collision"],["Health","update_health_component","9. Health/Death"],["Damage","update_damage_component","10. Damage"],["Animation","update_animation_component","11. Animation"],["AutoDestroy","update_auto_destroy_component","12. Auto-destroy"],["Sprite","update_sprite_component","13. Sprite rendering"]];let l=0;const n=new Set;for(const[o,s,i]of a)(o==="Position"||o==="Sprite"||e.has(o))&&(n.has(s)||(n.add(s),t+=`    call ${s.padEnd(30)} ; ${i}
 `,s==="update_shoot_component"&&(t+=`    ; Shooting may spawn entities, rebuild used-entity list for later phases
 `,t+=`    call rebuild_used_entity_list
 `),l++));return t+=`    ret
-`,t+=`; Total systems called: ${l} (optimized from 15)
+`,t+=`; Total systems called: ${l} (optimized from 16)
 
 `,t+=`
 ; ------------------------------------------------------------------
@@ -14304,43 +14308,43 @@ SM_WriteTileRelativeToEntity:
     jr z, .swt_down_right
     cp 7
     jr z, .swt_down_left
-    jr .swt_out
+    jp .swt_out
 
 .swt_up:
     ld a, c
     or a
-    jr z, .swt_out
+    jp z, .swt_out
     dec c
     jr .swt_apply
 
 .swt_down:
     ld a, c
     cp 23
-    jr nc, .swt_out
+    jp nc, .swt_out
     inc c
     jr .swt_apply
 
 .swt_left:
     ld a, b
     or a
-    jr z, .swt_out
+    jp z, .swt_out
     dec b
     jr .swt_apply
 
 .swt_right:
     ld a, b
     cp 31
-    jr nc, .swt_out
+    jp nc, .swt_out
     inc b
     jr .swt_apply
 
 .swt_up_right:
     ld a, c
     or a
-    jr z, .swt_out
+    jp z, .swt_out
     ld a, b
     cp 31
-    jr nc, .swt_out
+    jp nc, .swt_out
     dec c
     inc b
     jr .swt_apply
@@ -14348,10 +14352,10 @@ SM_WriteTileRelativeToEntity:
 .swt_up_left:
     ld a, c
     or a
-    jr z, .swt_out
+    jp z, .swt_out
     ld a, b
     or a
-    jr z, .swt_out
+    jp z, .swt_out
     dec c
     dec b
     jr .swt_apply
@@ -14359,10 +14363,10 @@ SM_WriteTileRelativeToEntity:
 .swt_down_right:
     ld a, c
     cp 23
-    jr nc, .swt_out
+    jp nc, .swt_out
     ld a, b
     cp 31
-    jr nc, .swt_out
+    jp nc, .swt_out
     inc c
     inc b
     jr .swt_apply
@@ -14370,10 +14374,10 @@ SM_WriteTileRelativeToEntity:
 .swt_down_left:
     ld a, c
     cp 23
-    jr nc, .swt_out
+    jp nc, .swt_out
     ld a, b
     or a
-    jr z, .swt_out
+    jp z, .swt_out
     inc c
     dec b
 

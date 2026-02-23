@@ -36,6 +36,7 @@ update_all_entities:
         ['Shoot', 'update_shoot_component', '2. Shooting'],
         ['Behavior', 'update_behavior_component', '3. Behavior/AI'],
         ['Patrol', 'update_entities', '3b. Patrol/per-entity update'],
+        ['StateMachine', 'update_statemachine_component', '3c. State machine logic'],
         ['Jump', 'update_jump_component', '4. Jump impulse'],
         ['Movement', 'update_movement_component', '5. Movement'],
         ['Cursors', 'update_cursors_component', '5b. Cursors movement'], // comp_cursors
@@ -70,7 +71,7 @@ update_all_entities:
         }
     }
     code += `    ret\n`;
-    code += `; Total systems called: ${callCount} (optimized from 15)\n\n`;
+    code += `; Total systems called: ${callCount} (optimized from 16)\n\n`;
     code += `
 ; ------------------------------------------------------------------
 ; rebuild_used_entity_list
