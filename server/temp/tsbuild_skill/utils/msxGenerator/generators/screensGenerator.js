@@ -519,18 +519,37 @@ ${importedHudFrameLabelBase}_draw:
     call mapper_pop_p2
 `;
                 }
+                code += `    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    call mapper_set_bank_p2
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+`;
                 if (hasImportedHudFrame) {
                     code += `    ; Imported HUD frame is drawn on world/game start only
 `;
                 }
                 code += `    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld hl, runtime_screen_layout
     ld (current_screen_layout), hl
-    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    ld a, #FF
     ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -569,18 +588,37 @@ ${importedHudFrameLabelBase}_draw:
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
 `;
+                code += `    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
+    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    call mapper_set_bank_p2
+    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
+    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+`;
                 if (hasImportedHudFrame) {
                     code += `    ; Imported HUD frame is drawn on world/game start only
 `;
                 }
                 code += `    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_${screenName}_${index}_LAYOUT
+    ld hl, runtime_screen_layout
     ld (current_screen_layout), hl
-    ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
+    ld a, #FF
     ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_${screenName}_${index}_DATA
+    ld hl, runtime_behavior_map
     ld (current_behavior_map), hl
-    ld a, BEHAVIOR_${screenName}_${index}_DATA_BANK
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a

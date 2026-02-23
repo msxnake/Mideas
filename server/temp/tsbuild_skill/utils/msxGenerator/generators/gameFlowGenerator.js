@@ -87,16 +87,15 @@ function findSpriteAssetIndex(analysis, spriteAssetId) {
     return sprites.findIndex((s) => String(s?.id || '').trim() === id);
 }
 /**
- * Analyze first..last drawable layer range in a sprite.
+ * Analyze drawable layer indexes in a sprite (used at least once).
  */
-function analyzeDrawableLayerRange(sprite) {
+function analyzeDrawableLayerIndexes(sprite) {
     const palette = sprite?.spritePalette || [];
     const bg = sprite?.backgroundColor;
     const frames = sprite?.frames || [];
     if (!palette.length || !frames.length)
-        return null;
-    let first = -1;
-    let last = -1;
+        return [];
+    const used = [];
     for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
         const layerColor = palette[layerIdx];
         if (!layerColor || layerColor === bg)
@@ -115,15 +114,11 @@ function analyzeDrawableLayerRange(sprite) {
             if (hasPixels)
                 break;
         }
-        if (!hasPixels)
-            continue;
-        if (first === -1)
-            first = layerIdx;
-        last = layerIdx;
+        if (hasPixels) {
+            used.push(layerIdx);
+        }
     }
-    if (first === -1 || last === -1)
-        return null;
-    return { first, last };
+    return used;
 }
 /**
  * Build submenu cursor layer config (source pattern offsets + colors).
@@ -132,42 +127,20 @@ function analyzeDrawableLayerRange(sprite) {
 function getSpriteLayerConfigForSubmenuCursor(sprite) {
     const palette = sprite?.spritePalette || [];
     const bg = sprite?.backgroundColor;
-    const frames = sprite?.frames || [];
-    const range = analyzeDrawableLayerRange(sprite);
-    if (!range) {
+    const usedLayerIndexes = analyzeDrawableLayerIndexes(sprite);
+    if (usedLayerIndexes.length === 0) {
         return { layerOffsets: [0], layerColors: [15] };
-    }
-    const usedLayerIndexes = [];
-    for (let i = range.first; i <= range.last; i++) {
-        const layerColor = palette[i];
-        if (!layerColor || (bg && layerColor === bg))
-            continue;
-        let hasPixels = false;
-        for (const frame of frames) {
-            if (!frame?.data)
-                continue;
-            for (let y = 0; y < (frame.data.length || 0) && !hasPixels; y++) {
-                for (let x = 0; x < (frame.data[y]?.length || 0) && !hasPixels; x++) {
-                    if (frame.data[y][x] === layerColor) {
-                        hasPixels = true;
-                    }
-                }
-            }
-            if (hasPixels)
-                break;
-        }
-        if (hasPixels) {
-            usedLayerIndexes.push(i);
-        }
     }
     const selectedLayers = usedLayerIndexes.slice(0, 4);
     if (selectedLayers.length === 0) {
         return { layerOffsets: [0], layerColors: [15] };
     }
-    const layerOffsets = selectedLayers.map((idx) => Math.max(0, idx - range.first));
+    const layerOffsets = selectedLayers.map((_idx, compactIndex) => compactIndex);
     const layerColors = selectedLayers.map((idx) => {
         const hex = palette[idx];
-        return hex ? hexToMSX1Index(hex, true) : 15;
+        if (!hex || (bg && hex === bg))
+            return 0;
+        return hexToMSX1Index(hex, true);
     });
     return { layerOffsets, layerColors };
 }
@@ -1434,61 +1407,22 @@ submenu_prepare_cursor_sprite:
     ld (gameflow_submenu_cursor_layer_count), a
 
     ; Copy selected source layers to reserved cursor slots.
-    ; Header offsets:
-    ;   +3..+6 = source layer offsets (from SPRITE_n_PATTERN base)
-    ;   +7..+10 = layer colors
-    pop de                        ; DE = source pattern base
-    ld hl, (gameflow_submenu_data_ptr)
-    ld bc, 3
-    add hl, bc                    ; HL = first source layer offset
+    ; Header offsets +3..+6 are kept for format compatibility, but sprite
+    ; export is compact (layer0..layerN-1), so we upload a contiguous block:
+    ; bytes = layer_count * 32.
+    ; In ZX0-compressed exports, server-side preprocessing rewrites this
+    ; FAST_LDIRVM call to COPY_SPRITE_SRC_TO_VRAM.
+    pop hl                        ; HL = source pattern base
     ld a, (gameflow_submenu_cursor_layer_count)
-    ld b, a                       ; B = remaining layers
-    ld c, 0                       ; C = destination layer index
-.sps_copy_layer_loop:
-    ld a, b
-    or a
-    jr z, .sps_enable_cursor
-    push bc                       ; [1] save B=remaining, C=dest_index
-    push hl                       ; [2] save offset byte ptr
-    ; DE = base pattern ptr (preserved across iterations)
-
-    ld a, (hl)                    ; source offset from base pattern
-    push de                       ; [3] save base ptr for next iteration
-    ld l, a
-    ld h, 0
-    add hl, hl                    ; *2
-    add hl, hl                    ; *4
-    add hl, hl                    ; *8
-    add hl, hl                    ; *16
-    add hl, hl                    ; *32
-    add hl, de                    ; HL = source layer ptr (base + offset*32)
-
-    push hl                       ; [4] save source ptr
-
-    ld a, c
-    add a, SUBMENU_CURSOR_BASE_SPRITE
-    ld l, a
-    ld h, 0
-    add hl, hl                    ; *2
-    add hl, hl                    ; *4
-    add hl, hl                    ; *8
-    add hl, hl                    ; *16
-    add hl, hl                    ; *32
-    ld de, SPRPAT
-    add hl, de
-    ex de, hl                     ; DE = destination VRAM
-    pop hl                        ; [4] HL = source layer ptr
-
-    ld bc, 32
-    call FAST_LDIRVM              ; clobbers HL, DE, BC
-
-    pop de                        ; [3] restore base ptr for next iteration!
-    pop hl                        ; [2] restore offset byte ptr
-    inc hl                        ; next source offset byte
-    pop bc                        ; [1] restore remaining/index
-    dec b
-    inc c
-    jr .sps_copy_layer_loop
+    add a, a                      ; *2
+    add a, a                      ; *4
+    add a, a                      ; *8
+    add a, a                      ; *16
+    add a, a                      ; *32
+    ld c, a
+    ld b, 0
+    ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
+    call FAST_LDIRVM
 
 .sps_enable_cursor:
 

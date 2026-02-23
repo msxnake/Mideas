@@ -2745,6 +2745,17 @@ function generateAnimationSystem(): string {
             push de                    ; Keep balanced
             ld a, d
             dec a                      ; frame = frameCount-1
+            push af                    ; Preserve clamped frame index
+
+            ; Mark one-shot completion and stop playback for non-loop anim.
+            ; State machine condition ANIMATION_COMPLETE consumes this flag.
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            set 3, (hl)                ; ANIM_FLAG_COMPLETED
+            res 0, (hl)                ; clear ANIM_FLAG_PLAYING
+            pop af
 
         .store_frame:
             pop de                     ; Clean stack (discard frameCount)
@@ -3927,6 +3938,7 @@ export function generateComponentsFile(analysis: ProjectAnalysis): string {
 ANIM_FLAG_PLAYING            EQU #01
 ANIM_FLAG_LOOP               EQU #02
 ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
+ANIM_FLAG_COMPLETED          EQU #08
 ANIM_DEFAULT_SPEED           EQU 8
 
 COMP_POSITION   EQU 0
@@ -4159,6 +4171,7 @@ COMP_MASK_AUTO_DESTROY EQU #0400; Binary: 0000010000000000
 ANIM_FLAG_PLAYING            EQU #01
 ANIM_FLAG_LOOP               EQU #02
 ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
+ANIM_FLAG_COMPLETED          EQU #08
 ANIM_DEFAULT_SPEED           EQU 8
 
     ; ==================================================================

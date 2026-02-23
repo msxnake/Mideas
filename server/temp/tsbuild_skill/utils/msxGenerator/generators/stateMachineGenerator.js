@@ -64,6 +64,7 @@ const CONDITION_IDS = {
     [statemachine_types_1.ConditionTypes.ANIMATION_COMPLETE]: 12,
     [statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT]: 13,
     [statemachine_types_1.ConditionTypes.VARIABLE_COMPARE]: 14,
+    [statemachine_types_1.ConditionTypes.XOR]: 15,
 };
 // Variable IDs for VARIABLE_COMPARE condition
 const VARIABLE_IDS = {
@@ -117,6 +118,47 @@ const COLLISION_TYPE_IDS = {
     'item': 3,
     'entity': 4,
 };
+const TILE_DIRECTION_IDS = {
+    'up': 0,
+    'down': 1,
+    'left': 2,
+    'right': 3,
+    'up-right': 4,
+    'up-left': 5,
+    'down-right': 6,
+    'down-left': 7,
+};
+// Compact IDs for SET_COMPONENT_PROPERTY runtime encoding.
+const COMPONENT_IDS = {
+    'comp_pos': 1,
+    'position': 1,
+    'comp_physics': 2,
+    'physics': 2,
+    'comp_render': 3,
+    'render': 3,
+    'comp_animation': 4,
+    'animation': 4,
+    'comp_health': 5,
+    'health': 5,
+};
+const COMPONENT_PROPERTY_IDS = {
+    'x': 1,
+    'y': 2,
+    'vx': 3,
+    'velocityx': 3,
+    'vy': 4,
+    'velocityy': 4,
+    'sprite': 5,
+    'spriteassetid': 5,
+    'isvisible': 6,
+    'frame': 7,
+    'currentframeindex': 7,
+    'animationspeed': 8,
+    'speed': 8,
+    'isplaying': 9,
+    'current': 10,
+    'max': 11,
+};
 /**
  * Build complete variable ID map including global variables
  * @param globalVariables - Array of global variables from project
@@ -136,6 +178,129 @@ function buildVariableIdMap(globalVariables) {
         });
     }
     return map;
+}
+function buildTileIdToBaseCharMap(tiles) {
+    const map = {};
+    if (!tiles || tiles.length === 0)
+        return map;
+    let nextCharCode = 128;
+    tiles.forEach((tile) => {
+        if (!tile || !tile.id)
+            return;
+        map[tile.id] = nextCharCode;
+        if (tile.name) {
+            map[String(tile.name)] = nextCharCode;
+            map[String(tile.name).toLowerCase()] = nextCharCode;
+        }
+        const charsWide = Math.max(1, Math.ceil((Number(tile.width) || 8) / 8));
+        const charsHigh = Math.max(1, Math.ceil((Number(tile.height) || 8) / 8));
+        nextCharCode += charsWide * charsHigh;
+    });
+    return map;
+}
+function resolveComponentId(value) {
+    if (typeof value === 'string') {
+        const key = value.toLowerCase();
+        const mapped = COMPONENT_IDS[key];
+        if (mapped !== undefined)
+            return mapped;
+    }
+    return parseInt(serializeValue(value), 10) || 0;
+}
+function resolveComponentPropertyId(value) {
+    if (typeof value === 'string') {
+        const key = value.toLowerCase();
+        const mapped = COMPONENT_PROPERTY_IDS[key];
+        if (mapped !== undefined)
+            return mapped;
+    }
+    return parseInt(serializeValue(value), 10) || 0;
+}
+function resolveTileCharCode(value, tileIdToCharCode) {
+    if (typeof value === 'string' && tileIdToCharCode) {
+        if (tileIdToCharCode[value] !== undefined)
+            return tileIdToCharCode[value];
+        const lower = value.toLowerCase();
+        if (tileIdToCharCode[lower] !== undefined)
+            return tileIdToCharCode[lower];
+    }
+    const numeric = parseInt(serializeValue(value), 10);
+    return Number.isNaN(numeric) ? 0 : numeric;
+}
+function buildTemplateTokenMap(templates) {
+    const map = {};
+    if (!templates || templates.length === 0)
+        return map;
+    let token = 1;
+    templates.forEach((tpl) => {
+        if (!tpl || !tpl.id)
+            return;
+        if (map[tpl.id] !== undefined)
+            return;
+        map[tpl.id] = token;
+        if (tpl.name) {
+            map[String(tpl.name)] = token;
+            map[String(tpl.name).toLowerCase()] = token;
+        }
+        if (token < 255)
+            token += 1;
+    });
+    return map;
+}
+function buildTemplateProfileTables(templates, spriteNameToIndex, templateTokenMap) {
+    const tokenMap = templateTokenMap || buildTemplateTokenMap(templates);
+    let maxToken = 0;
+    Object.values(tokenMap).forEach((token) => {
+        if (token > maxToken)
+            maxToken = token;
+    });
+    const spriteByToken = new Array(maxToken + 1).fill(0);
+    const animSpeedByToken = new Array(maxToken + 1).fill(6);
+    const healthCurByToken = new Array(maxToken + 1).fill(1);
+    const healthMaxByToken = new Array(maxToken + 1).fill(1);
+    const clampByte = (value, fallback) => {
+        const num = Number(value);
+        if (!Number.isFinite(num))
+            return fallback;
+        return Math.max(0, Math.min(255, num | 0));
+    };
+    templates?.forEach((tpl) => {
+        if (!tpl?.id)
+            return;
+        const token = tokenMap[tpl.id];
+        if (!token)
+            return;
+        const components = Array.isArray(tpl.components) ? tpl.components : [];
+        const renderComp = components.find((c) => c?.definitionId === 'comp_render');
+        const renderDefaults = renderComp?.defaultValues || {};
+        const spriteRef = renderDefaults.spriteAssetId ?? renderDefaults.sprite ?? renderDefaults.spriteId;
+        if (typeof spriteRef === 'string' && spriteNameToIndex) {
+            const direct = spriteNameToIndex[spriteRef];
+            const lower = spriteNameToIndex[spriteRef.toLowerCase()];
+            if (direct !== undefined) {
+                spriteByToken[token] = direct & 0xFF;
+            }
+            else if (lower !== undefined) {
+                spriteByToken[token] = lower & 0xFF;
+            }
+        }
+        const animComp = components.find((c) => c?.definitionId === 'comp_animation');
+        const animDefaults = animComp?.defaultValues || {};
+        animSpeedByToken[token] = clampByte(animDefaults.animationSpeed ?? animDefaults.speed ?? 6, 6);
+        const healthComp = components.find((c) => c?.definitionId === 'comp_health');
+        const healthDefaults = healthComp?.defaultValues || {};
+        const cur = clampByte(healthDefaults.current ?? 1, 1);
+        const max = clampByte(healthDefaults.max ?? cur, cur);
+        healthCurByToken[token] = cur;
+        healthMaxByToken[token] = max >= cur ? max : cur;
+    });
+    return {
+        maxToken,
+        spriteByToken,
+        animSpeedByToken,
+        healthCurByToken,
+        healthMaxByToken,
+    };
 }
 // =============================================================================
 // Z80 RUNTIME ENGINE
@@ -734,6 +899,11 @@ Action_ChangeSprite:
     add hl, bc
     ld (hl), 0              ; entity_anim_tick[entity] = 0
 
+    ; Clear one-shot animation completion event on sprite change
+    ld hl, entity_anim_flags
+    add hl, bc
+    res 3, (hl)             ; clear ANIM_FLAG_COMPLETED
+
     pop hl                  ; Restore Params Ptr
     ret
 
@@ -753,6 +923,7 @@ Action_PlayAnimation:
     add hl, bc
     ld a, (hl)
     or ANIM_FLAG_PLAYING    ; Set bit 0 (PLAYING)
+    and #F7                 ; Clear bit 3 (ANIM_FLAG_COMPLETED)
     ld (hl), a
 
     ; Reset animation to frame 0
@@ -816,6 +987,7 @@ Action_ToggleAnim:
     ; Set PLAYING flag (bit 0)
     ld a, e
     or ANIM_FLAG_PLAYING
+    and #F7                 ; Clear bit 3 (ANIM_FLAG_COMPLETED)
     ld (hl), a
     jr .done_toggle
 
@@ -833,26 +1005,75 @@ Action_PlaySound:
 ; Params: Sound ID(1 byte)
     ld a, (hl)
     inc hl
-    ; TODO: Call Sound Driver
-    ; call AFX_PLAY
+
+    push hl
+
+    ; Simple built-in SFX mapping by ID
+    ; 0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
+    cp 1
+    jr z, .play_jump
+    cp 2
+    jr z, .play_shoot
+    cp 3
+    jr z, .play_explosion
+    cp 4
+    jr z, .play_coin
+    cp 5
+    jr z, .play_damage
+
+.play_beep:
+    call SM_PlaySfx_Beep
+    jr .play_sound_done
+.play_jump:
+    call SM_PlaySfx_Jump
+    jr .play_sound_done
+.play_shoot:
+    call SM_PlaySfx_Shoot
+    jr .play_sound_done
+.play_explosion:
+    call SM_PlaySfx_Explosion
+    jr .play_sound_done
+.play_coin:
+    call SM_PlaySfx_Coin
+    jr .play_sound_done
+.play_damage:
+    call SM_PlaySfx_Damage
+
+.play_sound_done:
+    pop hl
     ret
 
 Action_PlayMusic:
 ; Params: Music ID(1 byte)
     ld a, (hl)
     inc hl
-    ; TODO: Call Music Driver
-    ; call PT3_INIT
+
+    push hl
+    ld (SM_MusicTrack), a
+    ld a, 1
+    ld (SM_MusicState), a
+    ; Audible acknowledgement until full tracker driver is wired.
+    call SM_PlaySfx_Coin
+    pop hl
     ret
 
 Action_MuteMusic:
 ; No params
-    ; call PT3_MUTE
+    push hl
+    call SM_SilencePSG
+    ld a, 2
+    ld (SM_MusicState), a
+    pop hl
     ret
 
 Action_StopMusic:
 ; No params
-    ; call PT3_STOP
+    push hl
+    call SM_SilencePSG
+    xor a
+    ld (SM_MusicState), a
+    ld (SM_MusicTrack), a
+    pop hl
     ret
 
 Action_SetVariable:
@@ -1000,6 +1221,8 @@ Action_IncVariable:
     jr z, .inc_entity_vx
     dec a
     jr z, .inc_entity_vy
+    dec a
+    jr z, .inc_entity_on_ground
     jr .inc_entity_health   ; Default to health
 
 .inc_entity_x:
@@ -1013,6 +1236,9 @@ Action_IncVariable:
     jr .do_inc_entity
 .inc_entity_vy:
     ld hl, entity_vel_y
+    jr .do_inc_entity
+.inc_entity_on_ground:
+    ld hl, entity_on_ground
     jr .do_inc_entity
 .inc_entity_health:
     ld hl, entity_health_current
@@ -1077,6 +1303,8 @@ Action_DecVariable:
     jr z, .dec_entity_vx
     dec a
     jr z, .dec_entity_vy
+    dec a
+    jr z, .dec_entity_on_ground
     jr .dec_entity_health
 
 .dec_entity_x:
@@ -1090,6 +1318,9 @@ Action_DecVariable:
     jr .do_dec_entity
 .dec_entity_vy:
     ld hl, entity_vel_y
+    jr .do_dec_entity
+.dec_entity_on_ground:
+    ld hl, entity_on_ground
     jr .do_dec_entity
 .dec_entity_health:
     ld hl, entity_health_current
@@ -1159,17 +1390,175 @@ Action_GotoState:
     ret
 
 Action_SetCompProp:
+; Params: ComponentID(1 byte), PropertyID(1 byte), Value(1 byte)
+; Supports a compact set of common runtime fields.
+; Property IDs:
+;   1=x, 2=y, 3=vx, 4=vy, 5=sprite, 6=isVisible, 7=frame,
+;   8=animSpeed, 9=isPlaying, 10=healthCurrent, 11=healthMax.
+    ld d, (hl)              ; D = ComponentID
     inc hl
+    ld e, (hl)              ; E = PropertyID
     inc hl
-    ld d, (hl)
+    ld c, (hl)              ; C = Value
     inc hl
-    
-    push hl; Save Params Ptr
-    
-    ld a, b; A = Entity Index
-    call SM_ChangeState
-    
-    pop hl          ; Restore Params Ptr
+
+    push hl                 ; Save Params Ptr
+
+    ld a, e                 ; A = PropertyID
+    cp 1
+    jp z, .scp_set_x
+    cp 2
+    jp z, .scp_set_y
+    cp 3
+    jp z, .scp_set_vx
+    cp 4
+    jp z, .scp_set_vy
+    cp 5
+    jp z, .scp_set_sprite
+    cp 6
+    jp z, .scp_set_visible
+    cp 7
+    jp z, .scp_set_frame
+    cp 8
+    jp z, .scp_set_anim_speed
+    cp 9
+    jp z, .scp_set_anim_playing
+    cp 10
+    jp z, .scp_set_health_current
+    cp 11
+    jp z, .scp_set_health_max
+
+    ; Fallback by component when PropertyID is unknown.
+    ld a, d                 ; A = ComponentID
+    cp 1
+    jp z, .scp_set_x
+    cp 2
+    jp z, .scp_set_vx
+    cp 3
+    jp z, .scp_set_sprite
+    cp 4
+    jp z, .scp_set_anim_playing
+    cp 5
+    jp z, .scp_set_health_current
+    jp .scp_done
+
+.scp_set_x:
+    ld l, b
+    ld h, 0
+    ld de, entity_x_pos
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_y:
+    ld l, b
+    ld h, 0
+    ld de, entity_y_pos
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_vx:
+    ld l, b
+    ld h, 0
+    ld de, entity_vel_x
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_vy:
+    ld l, b
+    ld h, 0
+    ld de, entity_vel_y
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_sprite:
+    ld l, b
+    ld h, 0
+    ld de, entity_sprite_asset_index
+    add hl, de
+    ld (hl), c
+    ; Reset animation progression when sprite changes.
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+    jp .scp_done
+
+.scp_set_visible:
+    ld l, b
+    ld h, 0
+    ld de, entity_active
+    add hl, de
+    ld a, c
+    or a
+    jp z, .scp_hide
+    ld (hl), 1
+    jp .scp_done
+.scp_hide:
+    ld (hl), 0
+    jp .scp_done
+
+.scp_set_frame:
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_frame
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_anim_speed:
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_speed
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_anim_playing:
+    ld l, b
+    ld h, 0
+    ld de, entity_anim_flags
+    add hl, de
+    ld a, c
+    or a
+    jp z, .scp_pause_anim
+    ld a, (hl)
+    or ANIM_FLAG_PLAYING
+    and #F7                 ; Clear completed flag when forcing play
+    ld (hl), a
+    jp .scp_done
+.scp_pause_anim:
+    ld a, (hl)
+    and #FE
+    ld (hl), a
+    jp .scp_done
+
+.scp_set_health_current:
+    ld l, b
+    ld h, 0
+    ld de, entity_health_current
+    add hl, de
+    ld (hl), c
+    jp .scp_done
+
+.scp_set_health_max:
+    ld l, b
+    ld h, 0
+    ld de, entity_health_max
+    add hl, de
+    ld (hl), c
+
+.scp_done:
+    pop hl
     ret
 
 Action_DestroyEntity:
@@ -1231,7 +1620,6 @@ Action_DestroyEntity:
 Action_SpawnEntity:
 ; Params: TemplateID(1 byte), X(1 byte), Y(1 byte)
 ; Spawns a new entity at specified position
-; TODO: Full template-based spawning with component copying
     ld d, (hl)          ; D = Template ID
     inc hl
     ld e, (hl)          ; E = X position
@@ -1315,8 +1703,16 @@ Action_SpawnEntity:
     add hl, de
     ld (hl), 0          ; High byte = 0
 
-    ; TODO: Copy template data (velocity, sprite pattern, etc.)
-    ; For now, entity is spawned with basic components only
+    ; Store template token for template-aware runtime queries
+    ld h, 0
+    ld l, c
+    ld de, entity_template_token
+    add hl, de
+    ld (hl), d
+
+    ; Apply template profile defaults (sprite/anim/health)
+    ld a, d                 ; A = template token
+    call SM_ApplyTemplateDefaultsToEntity
 
     pop bc
     pop de
@@ -1325,45 +1721,803 @@ Action_SpawnEntity:
     ret
 
 Action_GetRandomPos:
+; Params: TemplateToken(1 byte, 0=any), TargetVarX(1 byte), TargetVarY(1 byte)
+    ld c, (hl)              ; C = template token filter
+    inc hl
+    ld d, (hl)              ; D = TargetVarX ID
+    inc hl
+    ld e, (hl)              ; E = TargetVarY ID
+    inc hl
+
+    push hl                 ; Save params ptr
+    push de                 ; Save target var IDs
+
+    ld a, c
+    call SM_RandomActiveEntityByTemplate
+    jr c, .grp_has_entity
+
+    ; No active entity found: write 0,0
+    pop de
+    push de
+    ld c, 0
+    ld a, d
+    call SM_WriteVar
+    pop de
+    ld c, 0
+    ld a, e
+    call SM_WriteVar
+    pop hl
+    ret
+
+.grp_has_entity:
+    ld b, a                 ; B = random entity index
+
+    ; Read random entity X and write to target variable X
+    ld a, 0                 ; VarID 0 = entity x
+    call SM_ReadVar         ; A = x
+    pop de                  ; DE = target var IDs
+    push de
+    ld c, a
+    ld a, d                 ; TargetVarX
+    call SM_WriteVar
+
+    ; Read random entity Y and write to target variable Y
+    ld a, 1                 ; VarID 1 = entity y
+    call SM_ReadVar         ; A = y
+    pop de
+    ld c, a
+    ld a, e                 ; TargetVarY
+    call SM_WriteVar
+
+    pop hl
     ret
 
 Action_ChangeGameFlow:
+; Params: NodeID(1 byte), 255 = START
+; Minimal runtime bridge: update flow state registers.
+    ld a, (hl)
     inc hl
+    push hl
+    push af
+    ld a, (current_flow_state)
+    ld (prev_flow_state), a
+    pop af
+    cp 255
+    jr nz, .cgf_store
+    xor a
+.cgf_store:
+    ld (current_flow_state), a
+    pop hl
     ret
 
 Action_DecLives:
+; Params: Amount(1 byte)
+; Decrease entity health/lives with clamp to 0
+    ld a, (hl)              ; A = amount
+    inc hl
+    or a
+    jr nz, .dec_lives_have_amount
+    ld a, 1                 ; Default amount
+.dec_lives_have_amount:
+    ld c, a                 ; C = amount
+
+    ; Compute entity_health_current[entity] -= amount, clamp at 0
+    ld e, b                 ; DE = entity index
+    ld d, 0
+    ld hl, entity_health_current
+    add hl, de
+    ld a, (hl)              ; A = current health
+    sub c
+    jr nc, .dec_lives_store
+    xor a
+.dec_lives_store:
+    ld (hl), a
     ret
 
 Action_IncLives:
+; Params: Amount(1 byte)
+; Increase entity health/lives with clamp to entity_health_max
+    ld a, (hl)              ; A = amount
+    inc hl
+    or a
+    jr nz, .inc_lives_have_amount
+    ld a, 1                 ; Default amount
+.inc_lives_have_amount:
+    ld c, a                 ; C = amount
+
+    ; DE = entity index
+    ld e, b
+    ld d, 0
+
+    ; result = current + amount
+    ld hl, entity_health_current
+    add hl, de
+    ld a, (hl)              ; A = current
+    add a, c
+    ld c, a                 ; C = tentative result
+
+    ; compare with max
+    ld hl, entity_health_max
+    add hl, de
+    ld a, (hl)              ; A = max
+    cp c
+    jr nc, .inc_lives_store_result
+    ld c, a                 ; clamp to max
+
+.inc_lives_store_result:
+    ld hl, entity_health_current
+    add hl, de
+    ld (hl), c
     ret
 
 Action_Respawn:
+; Params: X(1 byte), Y(1 byte)
+; 255 means "keep current coordinate"
+; Also clears velocity/wait timer and re-activates entity.
+    ld d, (hl)              ; D = respawn X
+    inc hl
+    ld e, (hl)              ; E = respawn Y
+    inc hl
+
+    push hl                 ; Save params ptr
+    push de                 ; Save X/Y
+
+    ; BC = entity index
+    ld c, b
+    ld b, 0
+
+    pop de                  ; Restore X/Y
+
+    ; Optional X update
+    ld a, d
+    cp 255
+    jr z, .respawn_skip_x
+    ld hl, entity_x_pos
+    add hl, bc
+    ld (hl), a
+
+.respawn_skip_x:
+    ; Optional Y update
+    ld a, e
+    cp 255
+    jr z, .respawn_skip_y
+    ld hl, entity_y_pos
+    add hl, bc
+    ld (hl), a
+
+.respawn_skip_y:
+    ; Reset velocity
+    ld hl, entity_vel_x
+    add hl, bc
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, bc
+    ld (hl), 0
+
+    ; Clear wait timer so FSM resumes immediately
+    ld hl, entity_sm_wait_timer
+    add hl, bc
+    ld (hl), 0
+
+    ; Ensure entity is active
+    ld hl, entity_active
+    add hl, bc
+    ld (hl), 1
+
+    ; If entity was fully destroyed, restore minimal Position+Sprite mask
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld a, (hl)
+    ld d, a
+    ld hl, entity_comp_masks_hi
+    add hl, bc
+    ld a, (hl)
+    or d
+    jr nz, .respawn_done
+
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld (hl), #03            ; COMP_MASK_POSITION | COMP_MASK_SPRITE
+    ld hl, entity_comp_masks_hi
+    add hl, bc
+    ld (hl), 0
+
+.respawn_done:
+    pop hl
     ret
 
 Action_BreakTile:
+; Params: TileID(1 byte), Direction(1 byte)
+; BREAK_TILE is serialized as TileID=0.
+    ld a, (hl)              ; A = replacement tile ID (0 for break)
     inc hl
+    ld c, (hl)              ; C = direction (0..7)
     inc hl
+    push hl
+    call SM_WriteTileRelativeToEntity
+    pop hl
     ret
 
 Action_ReplaceTile:
 ; Params: TileID(1 byte), Direction(1 byte)
+    ld a, (hl)              ; A = replacement tile ID
     inc hl
+    ld c, (hl)              ; C = direction (0..7)
     inc hl
+    push hl
+    call SM_WriteTileRelativeToEntity
+    pop hl
     ret
 
 Action_Rnd:
 ; Params: VarID(1 byte), DataType(1 byte)
+    ld a, (hl)              ; A = VarID
     inc hl
-    inc hl
+    inc hl                  ; Skip DataType for now (numeric random)
+
+    push hl                 ; Save params ptr
+    push af                 ; Save VarID
+
+    call SM_RandomByte      ; A = pseudorandom 0..255
+    ld c, a                 ; C = value
+
+    pop af                  ; Restore VarID
+    call SM_WriteVar        ; Write random value to var
+
+    pop hl                  ; Restore params ptr
     ret
 
 Action_PointAt:
 ; Params: X1, Y1, X2, Y2, Speed (5 bytes)
+    ld d, (hl)              ; D = x1
     inc hl
+    ld e, (hl)              ; E = y1
     inc hl
+    ld c, (hl)              ; C = x2
     inc hl
+    ld a, (hl)              ; A = y2
     inc hl
+    ld l, (hl)              ; L = speed
     inc hl
+
+    push hl                 ; Save params ptr
+    ld h, a                 ; H = y2
+
+    ; Compute VX using sign(dx) * speed
+    ld a, c
+    sub d                   ; A = dx = x2 - x1
+    ld d, 0                 ; Default VX = 0
+    jr z, .pointat_vx_done
+    bit 7, a
+    jr z, .pointat_vx_pos
+    ld a, l
+    cpl
+    inc a
+    ld d, a
+    jr .pointat_vx_done
+.pointat_vx_pos:
+    ld d, l
+
+.pointat_vx_done:
+    ; Compute VY using sign(dy) * speed
+    ld a, h
+    sub e                   ; A = dy = y2 - y1
+    ld e, 0                 ; Default VY = 0
+    jr z, .pointat_vy_done
+    bit 7, a
+    jr z, .pointat_vy_pos
+    ld a, l
+    cpl
+    inc a
+    ld e, a
+    jr .pointat_vy_done
+.pointat_vy_pos:
+    ld e, l
+
+.pointat_vy_done:
+    ; Store velocity in current entity
+    ld c, b
+    ld b, 0
+    ld hl, entity_vel_x
+    add hl, bc
+    ld a, d
+    ld (hl), a
+    ld hl, entity_vel_y
+    add hl, bc
+    ld a, e
+    ld (hl), a
+
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; STATE MACHINE AUDIO HELPERS (self-contained, no sound.asm dependency)
+; ------------------------------------------------------------------
+SM_MusicState:
+    db 0                    ; 0=stopped, 1=playing, 2=muted
+SM_MusicTrack:
+    db 0
+SM_RandSeed:
+    db #5A
+SM_TemplateFilterToken:
+    db 0
+
+SM_SilencePSG:
+    xor a
+    ld e, a
+    ld a, 8                 ; Volume A
+    call WRTPSG
+    xor a
+    ld e, a
+    ld a, 9                 ; Volume B
+    call WRTPSG
+    xor a
+    ld e, a
+    ld a, 10                ; Volume C
+    call WRTPSG
+    ld a, #3F               ; Disable all tone/noise
+    ld e, a
+    ld a, 7                 ; Mixer register
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Beep:
+    ld a, 0                 ; Tone A low
+    ld e, #1C               ; NOTE_A4 low (284)
+    call WRTPSG
+    ld a, 1                 ; Tone A high
+    ld e, #01
+    call WRTPSG
+    ld a, 8                 ; Volume A
+    ld e, 12
+    call WRTPSG
+    ld a, 7                 ; Mixer
+    ld e, #3E               ; Tone A on
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Jump:
+    ld a, 0
+    ld e, #DD               ; NOTE_C4 low (477)
+    call WRTPSG
+    ld a, 1
+    ld e, #01
+    call WRTPSG
+    ld a, 8
+    ld e, 10
+    call WRTPSG
+    ld a, 7
+    ld e, #3E
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Shoot:
+    ld a, 0
+    ld e, #64               ; Tone A low (period 100)
+    call WRTPSG
+    ld a, 1
+    ld e, 0
+    call WRTPSG
+    ld a, 6                 ; Noise period
+    ld e, 5
+    call WRTPSG
+    ld a, 8                 ; Volume A
+    ld e, 8
+    call WRTPSG
+    ld a, 7
+    ld e, #36               ; Tone A + Noise A on
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Explosion:
+    ld a, 6
+    ld e, 10
+    call WRTPSG
+    ld a, 8
+    ld e, 15
+    call WRTPSG
+    ld a, 7
+    ld e, #39               ; Noise A only
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Coin:
+    ld a, 2                 ; Tone B low
+    ld e, #7B               ; NOTE_E4 low (379)
+    call WRTPSG
+    ld a, 3                 ; Tone B high
+    ld e, #01
+    call WRTPSG
+    ld a, 9                 ; Volume B
+    ld e, 10
+    call WRTPSG
+    ld a, 7
+    ld e, #3D               ; Tone B on
+    call WRTPSG
+    ret
+
+SM_PlaySfx_Damage:
+    ld a, 6                 ; Noise period
+    ld e, 3
+    call WRTPSG
+    ld a, 10                ; Volume C
+    ld e, 12
+    call WRTPSG
+    ld a, 7
+    ld e, #1F               ; Noise C on
+    call WRTPSG
+    ret
+
+SM_RandomByte:
+    ; Lightweight local PRNG for state machine actions.
+    ld hl, SM_RandSeed
+    ld a, (hl)
+    add a, 37
+    xor #A7
+    ld (hl), a
+    ret
+
+SM_RandomActiveEntity:
+    ; Picks a random-ish active entity slot.
+    ; Output: A = entity index, Carry set if found
+    ;         A = 0, Carry clear if none found
+    call SM_RandomByte
+    and 31                  ; MAX_ENTITIES-1 (32 slots)
+    ld c, a                 ; C = candidate index
+    ld b, 32                ; Probe all slots at most once
+
+.srae_loop:
+    ld e, c
+    ld d, 0
+
+    ; Must be active
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .srae_next
+
+    ; Must have non-zero component mask
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    or (hl)
+    jr z, .srae_next
+
+    ; Found
+    ld a, c
+    scf
+    ret
+
+.srae_next:
+    inc c
+    ld a, c
+    and 31
+    ld c, a
+    djnz .srae_loop
+
+    xor a
+    or a                    ; Clear carry
+    ret
+
+SM_RandomActiveEntityByTemplate:
+    ; Input: A = template token filter (0 = any)
+    or a
+    jp z, SM_RandomActiveEntity
+    ld (SM_TemplateFilterToken), a
+
+    call SM_RandomByte
+    and 31
+    ld c, a                 ; C = candidate index
+    ld b, 32
+
+.sraet_loop:
+    ld e, c
+    ld d, 0
+
+    ; Must be active
+    ld hl, entity_active
+    add hl, de
+    ld a, (hl)
+    or a
+    jr z, .sraet_next
+
+    ; Must have non-zero component mask
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    or (hl)
+    jr z, .sraet_next
+
+    ; Must match template token
+    ld hl, entity_template_token
+    add hl, de
+    ld a, (SM_TemplateFilterToken)
+    cp (hl)
+    jr nz, .sraet_next
+
+    ld a, c
+    scf
+    ret
+
+.sraet_next:
+    inc c
+    ld a, c
+    and 31
+    ld c, a
+    djnz .sraet_loop
+
+    xor a
+    or a                    ; Clear carry
+    ret
+
+SM_ApplyTemplateDefaultsToEntity:
+    ; Input: A = template token, C = entity index
+    ; Applies sprite/animation/health defaults from template profile tables.
+    or a
+    ret z
+    cp SM_TemplateProfileCount + 1
+    ret nc
+    ld (SM_TemplateFilterToken), a
+
+    ; Sprite index
+    ld a, (SM_TemplateFilterToken)
+    ld e, a
+    ld d, 0
+    ld hl, SM_TemplateSpriteTable
+    add hl, de
+    ld a, (hl)
+    ld l, c
+    ld h, 0
+    ld de, entity_sprite_asset_index
+    add hl, de
+    ld (hl), a
+
+    ; Animation speed
+    ld a, (SM_TemplateFilterToken)
+    ld e, a
+    ld d, 0
+    ld hl, SM_TemplateAnimSpeedTable
+    add hl, de
+    ld a, (hl)
+    ld l, c
+    ld h, 0
+    ld de, entity_anim_speed
+    add hl, de
+    ld (hl), a
+
+    ; Reset animation counters and force playing-loop state
+    ld l, c
+    ld h, 0
+    ld de, entity_anim_frame
+    add hl, de
+    ld (hl), 0
+    ld l, c
+    ld h, 0
+    ld de, entity_anim_tick
+    add hl, de
+    ld (hl), 0
+    ld l, c
+    ld h, 0
+    ld de, entity_anim_flags
+    add hl, de
+    ld (hl), ANIM_FLAG_PLAYING | ANIM_FLAG_LOOP
+
+    ; Health current
+    ld a, (SM_TemplateFilterToken)
+    ld e, a
+    ld d, 0
+    ld hl, SM_TemplateHealthCurrentTable
+    add hl, de
+    ld a, (hl)
+    ld l, c
+    ld h, 0
+    ld de, entity_health_current
+    add hl, de
+    ld (hl), a
+
+    ; Health max
+    ld a, (SM_TemplateFilterToken)
+    ld e, a
+    ld d, 0
+    ld hl, SM_TemplateHealthMaxTable
+    add hl, de
+    ld a, (hl)
+    ld l, c
+    ld h, 0
+    ld de, entity_health_max
+    add hl, de
+    ld (hl), a
+    ret
+
+SM_WriteTileRelativeToEntity:
+    ; Input: A = tile char ID, B = entity index, C = direction (0..7)
+    ; Writes directly to VRAM Name Table at target cell.
+    push af                 ; Save tile ID
+    push bc                 ; Save direction + entity index
+
+    ; Read entity center in pixels (approx center for 16x16 sprites)
+    ld e, b
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld b, a                 ; B = center X pixel
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld c, a                 ; C = center Y pixel
+
+    ; Convert to tile coordinates (8x8 grid)
+    ld a, b
+    srl a
+    srl a
+    srl a
+    ld b, a                 ; B = tile X
+    ld a, c
+    srl a
+    srl a
+    srl a
+    ld c, a                 ; C = tile Y
+
+    ; Restore direction in A (from pushed BC high byte via stack)
+    pop de                  ; D = old B(entity), E = old C(direction)
+    ld a, e                 ; A = direction
+
+    ; Apply direction offset with bounds checks
+    or a
+    jr z, .swt_up
+    cp 1
+    jr z, .swt_down
+    cp 2
+    jr z, .swt_left
+    cp 3
+    jr z, .swt_right
+    cp 4
+    jr z, .swt_up_right
+    cp 5
+    jr z, .swt_up_left
+    cp 6
+    jr z, .swt_down_right
+    cp 7
+    jr z, .swt_down_left
+    jp .swt_out
+
+.swt_up:
+    ld a, c
+    or a
+    jp z, .swt_out
+    dec c
+    jr .swt_apply
+
+.swt_down:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    inc c
+    jr .swt_apply
+
+.swt_left:
+    ld a, b
+    or a
+    jp z, .swt_out
+    dec b
+    jr .swt_apply
+
+.swt_right:
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    inc b
+    jr .swt_apply
+
+.swt_up_right:
+    ld a, c
+    or a
+    jp z, .swt_out
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    dec c
+    inc b
+    jr .swt_apply
+
+.swt_up_left:
+    ld a, c
+    or a
+    jp z, .swt_out
+    ld a, b
+    or a
+    jp z, .swt_out
+    dec c
+    dec b
+    jr .swt_apply
+
+.swt_down_right:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    inc c
+    inc b
+    jr .swt_apply
+
+.swt_down_left:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    ld a, b
+    or a
+    jp z, .swt_out
+    inc c
+    dec b
+
+.swt_apply:
+    ; HL = tile offset = (tileY * 32) + tileX
+    ld l, c
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl              ; *32
+    ld e, b
+    ld d, 0
+    add hl, de
+
+    pop af                  ; A = tile char ID
+    ld b, a                 ; Preserve tile ID in B
+
+    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    or a
+    jr z, .store_behavior_passable
+    ld a, 1
+.store_behavior_passable:
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Invalidate cached behavior row after map mutation
+    ld a, #FF
+    ld (behavior_cache_row), a
+
+    ; Write tile character to VRAM Name Table
+    ld de, NAMETBL
+    add hl, de
+    ld a, b
+    call WRTVRM
+    ret
+
+.swt_out:
+    pop af
     ret
 
 ; ==================================================================
@@ -1843,8 +2997,27 @@ Action_ModVars:
 
 
 Action_AssignVar:
+; Params: DestVarID, SrcVarID (2 bytes)
+; DestVar = SrcVar
+    ld c, (hl)              ; C = DestVarID
     inc hl
+    ld d, (hl)              ; D = SrcVarID
     inc hl
+
+    push hl                 ; Save params ptr
+    push bc                 ; Save DestVarID (in C) and entity index (in B)
+
+    ; Read source variable value
+    ld a, d
+    call SM_ReadVar         ; A = source value
+    ld c, a                 ; C = value to write
+
+    ; Write to destination variable
+    pop de                  ; E = DestVarID
+    ld a, e
+    call SM_WriteVar
+
+    pop hl
     ret
 
     ; ------------------------------------------------------------------
@@ -1867,6 +3040,7 @@ SM_ConditionTable:
     DW Condition_AnimComplete   ; 12
     DW Condition_KeyAndMove     ; 13
     DW Condition_VariableCompare; 14
+    DW Condition_Xor            ; 15
 
     ; ------------------------------------------------------------------
     ; CONDITION HANDLERS IMPLEMENTATION
@@ -1940,6 +3114,42 @@ Condition_Or:
 
 .or_done:
     ld a, d                 ; A = OR result
+    ret
+
+Condition_Xor:
+    ; XOR compound condition
+    ; Data format: DB subcondition_count, then N subconditions inline
+    ; Returns true if an odd number of subconditions are true.
+    ; Input: B = Entity Index, HL = Params (points to count byte)
+    ; Output: A = 1 (odd true count) or 0 (even true count), HL advanced
+    ld c, (hl)              ; C = subcondition count
+    inc hl
+    xor a
+    ld d, a                 ; D = XOR accumulator (0 = even)
+
+.xor_loop:
+    ld a, c
+    or a
+    jr z, .xor_done
+
+    push bc                 ; Save count/entity index
+    push de                 ; Save accumulator
+
+    ld a, b                 ; A = Entity Index
+    call SM_EvaluateCondition ; A = subcondition result, HL advanced
+    and 1
+
+    pop de                  ; Restore accumulator in D
+    xor d                   ; Toggle parity if result is 1
+    and 1
+    ld d, a
+
+    pop bc
+    dec c
+    jr .xor_loop
+
+.xor_done:
+    ld a, d
     ret
 
 Condition_Not:
@@ -2447,8 +3657,24 @@ Condition_DeadlyTile:
     ret                           ; A = 1 if deadly, 0 if safe
 
 Condition_AnimComplete:
-    ; TODO: Implement animation complete check
+    ; One-shot event latched by update_animation_component when
+    ; a non-loop animation reaches its final frame.
+    ; Consume-on-read semantics prevents repeated transitions.
+    push hl
+    ld hl, entity_anim_flags
+    ld e, b
+    ld d, 0
+    add hl, de
+    bit 3, (hl)                    ; ANIM_FLAG_COMPLETED
+    jr z, .anim_complete_false
+    res 3, (hl)                    ; consume event
     ld a, 1
+    pop hl
+    ret
+
+.anim_complete_false:
+    xor a
+    pop hl
     ret
 
 Condition_KeyAndMove:
@@ -2676,7 +3902,7 @@ Condition_VariableCompare:
 /**
  * Generates the complete ASM file content for the State Machine system
  */
-function generateStateMachineSystem(stateMachines, globalVariables, sprites) {
+function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates) {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
     // Must match spritesGenerator directional expansion to keep indexes aligned.
@@ -2708,12 +3934,28 @@ function generateStateMachineSystem(stateMachines, globalVariables, sprites) {
     asm += '; ==================================================================\n\n';
     // Build variable ID map for serialization
     const variableIdMap = buildVariableIdMap(globalVariables);
+    const tileIdToCharCode = buildTileIdToBaseCharMap(tiles);
+    const templateTokenMap = buildTemplateTokenMap(templates);
+    const templateProfiles = buildTemplateProfileTables(templates, spriteNameToIndex, templateTokenMap);
+    const formatDbTable = (label, values) => {
+        const escapedValues = values.map((v) => Math.max(0, Math.min(255, v | 0)));
+        return `${label}:\n    DB ${escapedValues.join(', ')}\n`;
+    };
+    asm += '; ==================================================================\n';
+    asm += '; TEMPLATE PROFILE TABLES\n';
+    asm += '; ==================================================================\n';
+    asm += `SM_TemplateProfileCount EQU ${templateProfiles.maxToken}\n`;
+    asm += formatDbTable('SM_TemplateSpriteTable', templateProfiles.spriteByToken);
+    asm += formatDbTable('SM_TemplateAnimSpeedTable', templateProfiles.animSpeedByToken);
+    asm += formatDbTable('SM_TemplateHealthCurrentTable', templateProfiles.healthCurByToken);
+    asm += formatDbTable('SM_TemplateHealthMaxTable', templateProfiles.healthMaxByToken);
+    asm += '\n';
     for (const sm of stateMachines) {
-        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex);
+        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
     }
     return asm;
 }
-function generateStateMachineData(sm, variableIdMap, spriteNameToIndex) {
+function generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap) {
     let asm = `; State Machine: ${sm.name} (${sm.id}) \n`;
     const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
     const isAnyStateId = (value) => {
@@ -2747,14 +3989,14 @@ function generateStateMachineData(sm, variableIdMap, spriteNameToIndex) {
         if (state.onEnter && state.onEnter.length > 0) {
             asm += `${onEnterLabel}: \n`;
             for (const action of state.onEnter) {
-                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
             }
             asm += `    DB 0xFF; END\n`;
         }
         if (state.onExit && state.onExit.length > 0) {
             asm += `${onExitLabel}: \n`;
             for (const action of state.onExit) {
-                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
             }
             asm += `    DB 0xFF; END\n`;
         }
@@ -2781,7 +4023,7 @@ function generateStateMachineData(sm, variableIdMap, spriteNameToIndex) {
                 if (actionLabel !== '0') {
                     asm += `${actionLabel}: \n`;
                     for (const action of t.actions || []) {
-                        asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex);
+                        asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
                     }
                     asm += `    DB 0xFF; END\n`;
                 }
@@ -2812,7 +4054,7 @@ function serializeValue(value) {
     }
     return '0';
 }
-function generateActionBytes(action, smName = '', variableIdMap, spriteNameToIndex) {
+function generateActionBytes(action, smName = '', variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap) {
     const id = ACTION_IDS[action.type];
     if (!id)
         return `; Unknown Action: ${action.type} \n`;
@@ -2856,9 +4098,16 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
         case statemachine_types_1.ActionTypes.TOGGLE_ANIMATION:
             bytes += `    DB ${serializeValue(action.params.playing)} \n`;
             break;
-        case statemachine_types_1.ActionTypes.PLAY_SOUND:
-            bytes += `    DB ${serializeValue(action.params.soundId)} \n`;
+        case statemachine_types_1.ActionTypes.PLAY_SOUND: {
+            const soundId = action.params.soundId ?? action.params.sound ?? action.params.soundAssetId ?? 0;
+            bytes += `    DB ${serializeValue(soundId)} \n`;
             break;
+        }
+        case statemachine_types_1.ActionTypes.PLAY_MUSIC: {
+            const trackId = action.params.trackId ?? action.params.musicId ?? action.params.music ?? 0;
+            bytes += `    DB ${serializeValue(trackId)} \n`;
+            break;
+        }
         case statemachine_types_1.ActionTypes.SET_VARIABLE:
         case statemachine_types_1.ActionTypes.INCREMENT_VARIABLE:
         case statemachine_types_1.ActionTypes.DECREMENT_VARIABLE: {
@@ -2882,13 +4131,102 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
                 bytes += `    DW 0; Invalid GOTO target\n`;
             }
             break;
-        case statemachine_types_1.ActionTypes.SPAWN_ENTITY:
-            bytes += `    DB ${serializeValue(action.params.entityId)}, ${serializeValue(action.params.x)}, ${serializeValue(action.params.y)} \n`;
+        case statemachine_types_1.ActionTypes.SPAWN_ENTITY: {
+            const templateRaw = action.params.templateId ?? action.params.entityTemplateId ?? action.params.entityId ?? 0;
+            const templateToken = typeof templateRaw === 'string'
+                ? (templateTokenMap?.[templateRaw] ?? templateTokenMap?.[templateRaw.toLowerCase()] ?? 0)
+                : parseInt(serializeValue(templateRaw), 10) || 0;
+            const xRaw = action.params.x ?? 0;
+            const yRaw = action.params.y ?? 0;
+            bytes += `    DB ${templateToken}, ${serializeValue(xRaw)}, ${serializeValue(yRaw)}        ; template=${templateRaw}=>${templateToken}\n`;
             break;
+        }
         case statemachine_types_1.ActionTypes.DESTROY_ENTITY: {
             const target = action.params?.target || 'self';
             const targetId = target === 'other' ? 1 : 0;
             bytes += `    DB ${targetId}          ; Target: ${target}\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.GET_RANDOM_ENTITY_POSITION: {
+            const templateRaw = action.params.templateId ?? action.params.entityTemplateId ?? 0;
+            const templateToken = typeof templateRaw === 'string'
+                ? (templateTokenMap?.[templateRaw] ?? templateTokenMap?.[templateRaw.toLowerCase()] ?? 0)
+                : parseInt(serializeValue(templateRaw), 10) || 0;
+            const targetVarXName = action.params.targetVariableX ?? action.params.variableX;
+            const targetVarYName = action.params.targetVariableY ?? action.params.variableY;
+            const targetVarXId = variableIdMap?.[targetVarXName] ?? 0;
+            const targetVarYId = variableIdMap?.[targetVarYName] ?? 0;
+            bytes += `    DB ${templateToken}, ${targetVarXId}, ${targetVarYId}        ; template=${templateRaw}, x->${targetVarXName}(${targetVarXId}), y->${targetVarYName}(${targetVarYId})\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.SET_COMPONENT_PROPERTY: {
+            const compRaw = action.params.componentId ?? action.params.component ?? action.params.compId ?? 0;
+            const propRaw = action.params.propertyName ?? action.params.prop ?? action.params.name ?? 0;
+            const valueRaw = action.params.value ?? 0;
+            const compId = resolveComponentId(compRaw);
+            const propId = resolveComponentPropertyId(propRaw);
+            let encodedValue = serializeValue(valueRaw);
+            if (propId === 5 && typeof valueRaw === 'string' && spriteNameToIndex) {
+                const direct = spriteNameToIndex[valueRaw];
+                const lower = spriteNameToIndex[valueRaw.toLowerCase()];
+                if (direct !== undefined) {
+                    encodedValue = String(direct);
+                }
+                else if (lower !== undefined) {
+                    encodedValue = String(lower);
+                }
+            }
+            bytes += `    DB ${compId}, ${propId}, ${encodedValue}        ; comp=${compRaw}=>${compId}, prop=${propRaw}=>${propId}, value=${valueRaw}\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.CHANGE_GAME_FLOW_NODE: {
+            const nodeRaw = action.params.nodeId ?? action.params.targetNodeId ?? 0;
+            const nodeId = typeof nodeRaw === 'string' && nodeRaw.toUpperCase() === 'START'
+                ? 255
+                : serializeValue(nodeRaw);
+            bytes += `    DB ${nodeId}        ; node=${nodeRaw}\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.BREAK_TILE: {
+            const directionName = String(action.params.direction || 'up').toLowerCase();
+            const directionId = TILE_DIRECTION_IDS[directionName] ?? 0;
+            bytes += `    DB 0, ${directionId}        ; BREAK_TILE dir=${directionName}\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.REPLACE_TILE: {
+            const directionName = String(action.params.direction || 'up').toLowerCase();
+            const directionId = TILE_DIRECTION_IDS[directionName] ?? 0;
+            const replacementRaw = action.params.replacementTileId ?? action.params.tileId ?? 0;
+            const replacementTileChar = resolveTileCharCode(replacementRaw, tileIdToCharCode);
+            bytes += `    DB ${replacementTileChar}, ${directionId}        ; REPLACE_TILE tile=${replacementRaw}=>${replacementTileChar}, dir=${directionName}\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.RND: {
+            const variableName = action.params.variable ?? action.params.variableName ?? action.params.targetVariable ?? action.params.name;
+            const varId = variableIdMap?.[variableName] ?? serializeValue(action.params.varId ?? 0);
+            const dataType = serializeValue(action.params.dataType ?? action.params.type ?? 0);
+            bytes += `    DB ${varId}, ${dataType}        ; RND var=${variableName ?? action.params.varId ?? 0}, type=${action.params.dataType ?? action.params.type ?? 0}\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.POINT_AT: {
+            const x1 = serializeValue(action.params.x1 ?? 0);
+            const y1 = serializeValue(action.params.y1 ?? 0);
+            const x2 = serializeValue(action.params.x2 ?? 0);
+            const y2 = serializeValue(action.params.y2 ?? 0);
+            const speed = serializeValue(action.params.speed ?? 1);
+            bytes += `    DB ${x1}, ${y1}, ${x2}, ${y2}, ${speed}\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.DECREASE_LIVES:
+        case statemachine_types_1.ActionTypes.INCREASE_LIVES: {
+            const amount = action.params.amount ?? 1;
+            bytes += `    DB ${serializeValue(amount)} \n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.RESPAWN_PLAYER: {
+            const x = action.params.x ?? 255;
+            const y = action.params.y ?? 255;
+            bytes += `    DB ${serializeValue(x)}, ${serializeValue(y)} \n`;
             break;
         }
         case statemachine_types_1.ActionTypes.ADD_VARIABLES:
@@ -2909,6 +4247,29 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
                     action.type === statemachine_types_1.ActionTypes.MULTIPLY_VARIABLES ? 'MUL' :
                         action.type === statemachine_types_1.ActionTypes.DIVIDE_VARIABLES ? 'DIV' : 'MOD';
             bytes += `    DB ${destId}, ${src1Id}, ${src2Id}        ; ${destName} = ${src1Name} ${opName} ${src2Name}\n`;
+            break;
+        }
+        case statemachine_types_1.ActionTypes.ASSIGN_VARIABLE: {
+            // Assign variable: target = source
+            // Supports UI params:
+            // - targetVariable
+            // - sourceType: 'constant' | 'variable'
+            // - sourceValue (when constant)
+            // - sourceVariable (when variable)
+            const destName = action.params.targetVariable || action.params.destination || action.params.dest || action.params.result;
+            const destId = variableIdMap?.[destName] ?? 0;
+            const sourceType = action.params.sourceType || (action.params.sourceVariable ? 'variable' : 'constant');
+            if (sourceType !== 'variable') {
+                // Compile constant assign as SET_VARIABLE to preserve runtime semantics.
+                const sourceValue = action.params.sourceValue ?? action.params.value ?? 0;
+                const setVariableId = ACTION_IDS[statemachine_types_1.ActionTypes.SET_VARIABLE];
+                bytes = `    DB ${setVariableId}; ${statemachine_types_1.ActionTypes.SET_VARIABLE} (from ${statemachine_types_1.ActionTypes.ASSIGN_VARIABLE})\n`;
+                bytes += `    DB ${destId}, ${serializeValue(sourceValue)}        ; ${destName} = ${sourceValue}\n`;
+                break;
+            }
+            const srcName = action.params.sourceVariable || action.params.source || action.params.src || action.params.operand || action.params.source1;
+            const srcId = variableIdMap?.[srcName] ?? 0;
+            bytes += `    DB ${destId}, ${srcId}        ; ${destName} = ${srcName}\n`;
             break;
         }
         default:
@@ -2972,6 +4333,9 @@ function generateConditionBytes(condition, variableIdMap) {
             bytes += `    DB ${directionId}          ; Direction (0=auto): ${directionName || 'auto'}\n`;
             break;
         }
+        case statemachine_types_1.ConditionTypes.ANIMATION_COMPLETE:
+            // No params. Runtime checks/consumes ANIM_FLAG_COMPLETED.
+            break;
         case statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT: {
             const keyName = String(condition.params?.key || '').toLowerCase();
             const keyId = KEY_IDS[keyName] ?? 0;
@@ -2989,6 +4353,7 @@ function generateConditionBytes(condition, variableIdMap) {
         }
         case statemachine_types_1.ConditionTypes.AND:
         case statemachine_types_1.ConditionTypes.OR:
+        case statemachine_types_1.ConditionTypes.XOR:
             if (condition.conditions) {
                 bytes += `    DB ${condition.conditions.length} \n`;
                 for (const sub of condition.conditions) {

@@ -94,10 +94,30 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
     return fallbackScreenIndex;
   };
 
+  const buildTemplateTokenMap = (templates?: any[]): Record<string, number> => {
+    const map: Record<string, number> = {};
+    if (!templates || templates.length === 0) return map;
+
+    let token = 1;
+    templates.forEach((tpl: any) => {
+      if (!tpl || !tpl.id) return;
+      if (map[tpl.id] !== undefined) return;
+      map[tpl.id] = token;
+      if (tpl.name) {
+        map[String(tpl.name)] = token;
+        map[String(tpl.name).toLowerCase()] = token;
+      }
+      if (token < 255) token += 1;
+    });
+
+    return map;
+  };
+
   // INTELLIGENT FILTERING: Analyze which entities are actually used
   const componentUsage = analyzeComponentUsage(analysis);
   const activeEntities = componentUsage.activeEntities;
   const COMP_MASK_SPRITE = 0x02; // Bit used for sprite component
+  const templateTokenMap = buildTemplateTokenMap(analysis.templates as any[]);
 
   const sanitizeEntityName = (rawName: any): string => {
     const safe = String(rawName ?? 'entity')
@@ -200,6 +220,13 @@ init_entities:
     ; Clear entity screen IDs to prevent ghost entities on restart
     ld hl, entity_screen_id
     ld de, entity_screen_id+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear entity template tokens
+    ld hl, entity_template_token
+    ld de, entity_template_token+1
     ld bc, 31
     ld (hl), 0
     ldir
@@ -647,6 +674,7 @@ update_entities:
       }
 
       const entityScreenId = resolveEntityScreenId(entity);
+      const templateToken = templateTokenMap[entity.entityTemplateId] ?? 0;
 
       code += `init_${entityName.toLowerCase()}:
     ; Initialize ${entity.name} at real position from JSON
@@ -677,6 +705,11 @@ update_entities:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), ${entityScreenId}                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), ${templateToken}
 
 ${animationInitAsm}
 ${patrolInitAsm}

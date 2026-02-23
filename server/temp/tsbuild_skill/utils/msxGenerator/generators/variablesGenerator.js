@@ -125,6 +125,11 @@ function generateVariablesFile(analysis) {
     currentAddress++;
     code += `behavior_cache_row_base EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached row base address in behavior map (16-bit)\n`;
     currentAddress += 2;
+    code += `RUNTIME_SCREEN_MAP_SIZE EQU 768\n`;
+    code += `runtime_screen_layout  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current screen layout (32x24)\n`;
+    currentAddress += 768;
+    code += `runtime_behavior_map   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current behavior map (32x24)\n`;
+    currentAddress += 768;
     // Viewport/Camera variables (for scroll system)
     code += `
 ; ==================================================================
@@ -216,6 +221,8 @@ MAX_ENTITIES        EQU 32
     code += `entity_lifetime     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)\n`;
     currentAddress += 32;
     code += `entity_carried_by   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity carrier ID (32 bytes, 255=not carried)\n`;
+    currentAddress += 32;
+    code += `entity_template_token EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity template token (32 bytes, 0=unknown)\n`;
     currentAddress += 32;
     // State Machine Local Variables (8 vars per entity)
     for (let i = 0; i < 8; i++) {

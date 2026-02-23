@@ -156,7 +156,7 @@ function generateModularASM(projectName, assets, config = {}) {
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
         'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis),
         'particles.asm': (0, particlesGenerator_1.generateParticlesFile)(analysis),
-        'statemachine.asm': analysis.stateMachines ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites) : '; No State Machines\n',
+        'statemachine.asm': analysis.stateMachines ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates) : '; No State Machines\n',
         'gameflow.asm': (0, gameFlowGenerator_1.generateGameFlowFile)(analysis),
         'main.asm': (0, mainGenerator_1.generateMainFile)(projectName, analysis),
         'unitedFiles.asm': ''
@@ -230,7 +230,7 @@ function generateModularASMFromSummary(summary, config = {}) {
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
         'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis),
         'particles.asm': (0, particlesGenerator_1.generateParticlesFile)(analysis),
-        'statemachine.asm': analysis.stateMachines ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites) : '; No State Machines\n',
+        'statemachine.asm': analysis.stateMachines ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates) : '; No State Machines\n',
         'gameflow.asm': (0, gameFlowGenerator_1.generateGameFlowFile)(analysis),
         'main.asm': (0, mainGenerator_1.generateMainFile)(summary.projectInfo.name, analysis),
         'unitedFiles.asm': ''

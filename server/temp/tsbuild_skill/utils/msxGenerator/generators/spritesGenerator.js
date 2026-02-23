@@ -13,18 +13,15 @@ const SPRITE_INVISIBLE_VALUE = 224; // MSX: Y >= 209 hides sprite, but 224 is sa
 const DEFAULT_DATA_FORMAT = 'hex';
 /**
  * Analyze drawable palette layers for a sprite across ALL frames.
- *
- * Runtime animation copies contiguous blocks of layer bytes from the first
- * drawable layer, so we need a contiguous layer range [first..last].
+ * Returns palette layer indexes that are really used at least once.
  */
-const analyzeDrawableLayerRange = (sprite) => {
+const analyzeDrawableLayerIndexes = (sprite) => {
     const palette = sprite?.spritePalette || [];
     const bg = sprite?.backgroundColor;
     const frames = sprite?.frames || [];
     if (!palette.length || !frames.length)
-        return null;
-    let first = -1;
-    let last = -1;
+        return [];
+    const used = [];
     for (let layerIdx = 0; layerIdx < palette.length; layerIdx++) {
         const layerColor = palette[layerIdx];
         if (!layerColor || layerColor === bg)
@@ -43,19 +40,15 @@ const analyzeDrawableLayerRange = (sprite) => {
             if (hasPixels)
                 break;
         }
-        if (!hasPixels)
-            continue;
-        if (first === -1)
-            first = layerIdx;
-        last = layerIdx;
+        if (hasPixels) {
+            used.push(layerIdx);
+        }
     }
-    if (first === -1 || last === -1)
-        return null;
-    return { first, last };
+    return used;
 };
 const findFirstDrawableLayerIndex = (sprite) => {
-    const range = analyzeDrawableLayerRange(sprite);
-    return range ? range.first : -1;
+    const usedLayers = analyzeDrawableLayerIndexes(sprite);
+    return usedLayers.length > 0 ? usedLayers[0] : -1;
 };
 /**
  * Generate sprite data file (sprites.asm)
@@ -122,26 +115,25 @@ function generateSpritesFile(analysis) {
         return bestIndex;
     };
     // Helper to analyze sprite layers/colors.
-    // IMPORTANT: preserve contiguous range from first..last used layer so
-    // runtime VRAM copies (layerCount * 32 from first layer) keep alignment.
+    // Uses compact stable layer set (only globally used layers), matching
+    // spriteUtils.generateSpriteASMCode() output layout.
     const getSpriteLayerColors = (sprite) => {
         if (!sprite)
             return [15]; // Default white
         const palette = sprite.spritePalette || [];
         const bg = sprite.backgroundColor;
-        const range = analyzeDrawableLayerRange(sprite);
-        if (!range)
+        const usedLayerIndexes = analyzeDrawableLayerIndexes(sprite);
+        if (usedLayerIndexes.length === 0)
             return [15];
-        const colors = [];
-        for (let layerIdx = range.first; layerIdx <= range.last; layerIdx++) {
+        const colors = usedLayerIndexes.map((layerIdx) => {
             const hex = palette[layerIdx];
             if (!hex || (bg && hex === bg)) {
-                colors.push(0);
+                return 0;
             }
             else {
-                colors.push(hexToMSX1Index(hex));
+                return hexToMSX1Index(hex);
             }
-        }
+        });
         return colors.length > 0 ? colors : [15];
     };
     const emitDirectionTable = (label, values) => {
