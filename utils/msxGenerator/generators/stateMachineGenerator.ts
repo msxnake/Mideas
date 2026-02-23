@@ -46,6 +46,9 @@ const ACTION_IDS: Record<string, number> = {
     [ActionTypes.DIVIDE_VARIABLES]: 33,
     [ActionTypes.MODULO_VARIABLES]: 34,
     [ActionTypes.ASSIGN_VARIABLE]: 35,
+    // Input Control
+    [ActionTypes.DISABLE_INPUT]: 36,
+    [ActionTypes.ENABLE_INPUT]: 37,
     // Special
     END: 0xFF
 };
@@ -785,6 +788,8 @@ SM_ActionTable:
     DW Action_DivVars; 33
     DW Action_ModVars; 34
     DW Action_AssignVar; 35
+    DW Action_DisableInput; 36
+    DW Action_EnableInput; 37
 
     ; ------------------------------------------------------------------
 ; ACTION HANDLERS IMPLEMENTATION
@@ -917,6 +922,7 @@ Action_ChangeSprite:
     ld hl, entity_sprite_asset_index
     add hl, bc
     pop af                  ; Restore Sprite Asset ID
+    ld d, a                 ; D = Sprite Asset ID (preserved across flag ops)
     ld (hl), a              ; entity_sprite_asset_index[entity] = spriteId
 
     ; Reset animation frame to 0 (start from first frame of new sprite)
@@ -929,10 +935,22 @@ Action_ChangeSprite:
     add hl, bc
     ld (hl), 0              ; entity_anim_tick[entity] = 0
 
-    ; Clear one-shot animation completion event on sprite change
+    ; Retrieve loop config from sprite_loop_flags metadata using D (Sprite Asset ID)
+    ld hl, sprite_loop_flags
+    ld e, d                 ; E = Sprite Asset ID (from D)
+    ld d, 0
+    add hl, de
+    ld e, (hl)              ; E = loop flag bit (0x02 for loop, 0x00 for once)
+
+    ; Update entity_anim_flags: clear COMPLETED, set PLAYING, apply correct loop flag
     ld hl, entity_anim_flags
     add hl, bc
-    res 3, (hl)             ; clear ANIM_FLAG_COMPLETED
+    ld a, (hl)
+    res 3, a                ; clear ANIM_FLAG_COMPLETED (bit 3)
+    or ANIM_FLAG_PLAYING    ; set ANIM_FLAG_PLAYING (bit 0)
+    and #FD                 ; Clear ANIM_FLAG_LOOP (bit 1)
+    or e                    ; Apply new loop flag from sprite_loop_flags
+    ld (hl), a
 
     pop hl                  ; Restore Params Ptr
     ret
@@ -965,6 +983,26 @@ Action_PlayAnimation:
     ld hl, entity_anim_tick
     add hl, bc
     ld (hl), 0
+
+    ; We also need to get the sprite loop status and apply it!
+    ; Get current sprite asset ID for this entity
+    ld hl, entity_sprite_asset_index
+    add hl, bc
+    ld e, (hl)
+    ld d, 0
+    
+    ; Read loop flag from sprite_loop_flags
+    ld hl, sprite_loop_flags
+    add hl, de
+    ld e, (hl)              ; E = loop flag bit (0x02 or 0x00)
+    
+    ; Apply it to entity_anim_flags
+    ld hl, entity_anim_flags
+    add hl, bc
+    ld a, (hl)
+    and #FD                 ; Clear ANIM_FLAG_LOOP
+    or e                    ; Set new loop status
+    ld (hl), a
 
     pop hl                  ; Restore Params Ptr
     ret
@@ -3050,6 +3088,28 @@ Action_AssignVar:
     pop hl
     ret
 
+Action_DisableInput:
+; No params - sets entity_input_disabled[entity] = 1
+    push hl
+    ld c, b
+    ld b, 0
+    ld hl, entity_input_disabled
+    add hl, bc
+    ld (hl), 1             ; Disable input for this entity
+    pop hl
+    ret
+
+Action_EnableInput:
+; No params - sets entity_input_disabled[entity] = 0
+    push hl
+    ld c, b
+    ld b, 0
+    ld hl, entity_input_disabled
+    add hl, bc
+    ld (hl), 0             ; Enable input for this entity
+    pop hl
+    ret
+
     ; ------------------------------------------------------------------
     ; CONDITION DISPATCH TABLE
     ; ------------------------------------------------------------------
@@ -3382,6 +3442,21 @@ SM_TestMoveDirection:
     ret
 
 Condition_KeyPressed:
+    ; Check if input is disabled for this entity
+    push hl
+    ld c, b
+    ld b, 0
+    ld hl, entity_input_disabled
+    add hl, bc
+    ld a, (hl)
+    pop hl
+    ld b, c             ; Restore B = entity index
+    or a
+    jr z, .sm_input_enabled
+    xor a               ; A = 0 (key not pressed, input disabled)
+    inc hl              ; Skip keyId param
+    ret
+.sm_input_enabled:
     ; Edge keydown: active now and inactive previous frame
     ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
     ld d, (hl)

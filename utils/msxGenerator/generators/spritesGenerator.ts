@@ -334,7 +334,7 @@ SPRITE_${index}_PATTERN:
 SPRITE_${index}_PATTERN_BANK EQU ((SPRITE_${index}_PATTERN - #4000) / #2000)\n`;
     }
 
-  }); 
+  });
 
   // Generate placeholder sprite pattern (white 16x16 square for missing sprites)
   code += `
@@ -355,11 +355,11 @@ SPRITE_PLACEHOLDER_PATTERN_BANK EQU ((SPRITE_PLACEHOLDER_PATTERN - #4000) / #200
 
 `;
 
-  if (sprites.length === 0) { 
+  if (sprites.length === 0) {
     code += `; No sprite assets found - using placeholder pattern only 
 SPRITE_0_PATTERN EQU SPRITE_PLACEHOLDER_PATTERN
-SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)\n`; 
-  } 
+SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)\n`;
+  }
 
   // Sprite animation metadata tables
   code += `
@@ -377,6 +377,21 @@ sprite_asset_frame_count:
   });
   if (sprites.length === 0) {
     code += `    db 1 ; Placeholder\n`;
+  }
+
+  code += `
+; Table: Sprite Asset Loop Flags
+; Format: db flags (bit 1: 1=loop, 0=once)
+sprite_loop_flags:
+`;
+  sprites.forEach((sprite, index) => {
+    // Default to looping if loops property is undefined, as per Mideas defaults
+    const loops = sprite.loops !== false;
+    const loopVal = loops ? '2' : '0';
+    code += `    db ${loopVal} ; Sprite ${index}: ${sprite.name}\n`;
+  });
+  if (sprites.length === 0) {
+    code += `    db 2 ; Placeholder (loops by default)\n`;
   }
 
   code += `
@@ -432,7 +447,7 @@ SPRITE_0_FRAME_PTRS:
   code += '\n';
   code += emitDirectionTable('sprite_dir_down_table', directionalLookupTables.down);
   code += '\n';
- 
+
   code += ` 
 ; ================================================================== 
 ; SPRITE CONFIGURATION TABLES 
@@ -441,15 +456,15 @@ SPRITE_0_FRAME_PTRS:
 ; Table: Entity Sprite Configuration 
 ; Format: db base_hw_sprite_index, layer_count 
 entity_sprite_config: 
-`; 
+`;
   entityAllocations.forEach(alloc => {
     const baseIndex = alloc.baseHwSpriteIndex >= 0 ? alloc.baseHwSpriteIndex : 0;
     code += `    db ${baseIndex}, ${alloc.layerCount} ; Entity ${alloc.entityIndex} (${alloc.spriteName})\n`;
   });
   // Fill for remaining entities (if any mismatch)
-  if (entityAllocations.length < 32) { 
-    code += `    ds ${(32 - entityAllocations.length) * 2}, 0 ; Padding\n`; 
-  } 
+  if (entityAllocations.length < 32) {
+    code += `    ds ${(32 - entityAllocations.length) * 2}, 0 ; Padding\n`;
+  }
 
   code += `
 ; Table: Entity -> Sprite Asset Index (ROM initial values)
@@ -464,7 +479,7 @@ entity_sprite_asset_index_init:
   if (entityAllocations.length < 32) {
     code += `    ds ${32 - entityAllocations.length}, #FF ; Padding\n`;
   }
- 
+
   code += ` 
 ; Table: Hardware Sprite Layer Colors 
 ; Format: db color_index 

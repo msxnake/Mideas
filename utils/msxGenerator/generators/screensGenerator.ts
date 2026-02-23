@@ -508,7 +508,7 @@ ${importedHudFrameLabelBase}_draw:
     ld hl, ${importedHudFrameLabelBase}_data
     ld bc, ${importedHudFrameCells.length}
 
-.draw_loop:
+${importedHudFrameLabelBase}_draw_loop:
     ld a, b
     or c
     ret z
@@ -529,7 +529,7 @@ ${importedHudFrameLabelBase}_draw:
     pop hl
 
     dec bc
-    jr .draw_loop
+    jr ${importedHudFrameLabelBase}_draw_loop
 
 `;
       }

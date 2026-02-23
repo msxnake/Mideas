@@ -197,6 +197,10 @@ export const ActionTypes = {
   MODULO_VARIABLES: 'MODULO_VARIABLES',
   ASSIGN_VARIABLE: 'ASSIGN_VARIABLE',
 
+  // Input Control
+  DISABLE_INPUT: 'DISABLE_INPUT',
+  ENABLE_INPUT: 'ENABLE_INPUT',
+
 } as const;
 
 export type ActionType = typeof ActionTypes[keyof typeof ActionTypes];

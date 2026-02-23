@@ -1522,6 +1522,13 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld bc, 31
             ld (hl), #0F               ; Default: 00001111 = all directions enabled
             ldir
+
+            ; Initialize input disabled flags to 0 (all entities start with input ENABLED)
+            ld hl, entity_input_disabled
+            ld de, entity_input_disabled + 1
+            ld bc, 31
+            ld (hl), 0
+            ldir
             ret
 
         update_input_component:
@@ -1560,6 +1567,30 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             cp (hl)
             pop hl
             jp nz, input_next_entity
+
+            ; Check if input is disabled for this entity (DISABLE_INPUT action)
+            push hl
+            ld e, c
+            ld d, 0
+            ld hl, entity_input_disabled
+            add hl, de
+            ld a, (hl)
+            pop hl
+            or a
+            jp z, .input_enabled
+            ; Input disabled: zero velocity and skip
+            push hl
+            ld e, c
+            ld d, 0
+            ld hl, entity_vel_x
+            add hl, de
+            ld (hl), 0
+            ld hl, entity_vel_y
+            add hl, de
+            ld (hl), 0
+            pop hl
+            jp input_next_entity
+        .input_enabled:
 
             ; Apply input to entity movement (real implementation)
             push bc
@@ -2602,7 +2633,7 @@ function generateAnimationSystem(): string {
             ld (hl), ANIM_DEFAULT_SPEED
             ldir
 
-            ; Default flags = playing + loop
+            ; Default flags = playing + loop (loop cleared/set per-sprite by Action_ChangeSprite)
             ld hl, entity_anim_flags
             ld de, entity_anim_flags+1
             ld bc, 31
@@ -4221,6 +4252,9 @@ entity_collision_offset_x EQU temp_byte_21 ; Entity collision hitbox X offset (3
 entity_collision_offset_y EQU temp_byte_22 ; Entity collision hitbox Y offset (32 bytes)
 entity_entity_collision_flags EQU temp_byte_23 ; bit0 entity(any), bit1 enemy, bit2 item (32 bytes)
 entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=none) (32 bytes)
+
+    ; Input Disable Flag
+entity_input_disabled EQU temp_byte_25 ; 0=enabled, 1=disabled (32 bytes)
 
 
     ; ==================================================================

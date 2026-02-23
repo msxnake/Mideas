@@ -1,4 +1,4 @@
-; ==================================================================
+﻿; ==================================================================
 ; PATOANTIC12 - UNIFIED FILE
 ; File: unitedFiles.asm
 ; Description: All-in-one file combining all modular files
@@ -12,14 +12,14 @@
 ; Menus: Yes
 ; HUD: Yes
 ; State Machines: 1
-; ROM Mode: auto
+; ROM Mode: simple32k
 ; Mapper Target: konami
-; Auto MegaROM: Yes
+; Auto MegaROM: No
 ; ==================================================================
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 82857
+; Estimated payload bytes: 82430
 ; Estimated banks used: 11
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (865 bytes)
@@ -30,24 +30,24 @@
 ; BANK 00 @#1CD7 : screens.asm part 1/2 (809 bytes)
 ; BANK 01 @#0000 : screens.asm part 2/2 (8192 bytes)
 ; BANK 02 @#0000 : screens.asm part 3/2 (1082 bytes)
-; BANK 02 @#043A : sprites.asm (4334 bytes)
-; BANK 02 @#1528 : font.asm (2776 bytes)
-; BANK 03 @#0000 : font.asm (771 bytes)
-; BANK 03 @#0303 : hud.asm (3836 bytes)
-; BANK 03 @#11FF : menus.asm (444 bytes)
-; BANK 03 @#13BB : sound.asm (3141 bytes)
-; BANK 04 @#0000 : sound.asm (43 bytes)
-; BANK 04 @#002B : scroll.asm (2353 bytes)
-; BANK 04 @#095C : animtiles.asm (3349 bytes)
-; BANK 04 @#1671 : particles.asm (2447 bytes)
-; BANK 05 @#0000 : particles.asm (2516 bytes)
-; BANK 05 @#09D4 : statemachine.asm part 1/3 (5676 bytes)
+; BANK 02 @#043A : sprites.asm (4258 bytes)
+; BANK 02 @#14DC : font.asm (2852 bytes)
+; BANK 03 @#0000 : font.asm (695 bytes)
+; BANK 03 @#02B7 : hud.asm (3836 bytes)
+; BANK 03 @#11B3 : menus.asm (444 bytes)
+; BANK 03 @#136F : sound.asm (3184 bytes)
+; BANK 03 @#1FDF : scroll.asm (33 bytes)
+; BANK 04 @#0000 : scroll.asm (2320 bytes)
+; BANK 04 @#0910 : animtiles.asm (3349 bytes)
+; BANK 04 @#1625 : particles.asm (2523 bytes)
+; BANK 05 @#0000 : particles.asm (2440 bytes)
+; BANK 05 @#0988 : statemachine.asm part 1/3 (5752 bytes)
 ; BANK 06 @#0000 : statemachine.asm part 2/3 (8192 bytes)
 ; BANK 07 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 08 @#0000 : statemachine.asm part 4/3 (644 bytes)
-; BANK 08 @#0284 : gameflow.asm part 1/3 (7548 bytes)
+; BANK 08 @#0000 : statemachine.asm part 4/3 (217 bytes)
+; BANK 08 @#00D9 : gameflow.asm part 1/3 (7975 bytes)
 ; BANK 09 @#0000 : gameflow.asm part 2/3 (8192 bytes)
-; BANK 10 @#0000 : gameflow.asm part 3/3 (937 bytes)
+; BANK 10 @#0000 : gameflow.asm part 3/3 (510 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -56,7 +56,7 @@
 ; File: header.asm
 ; Description: Standard MSX cartridge initialization
 ; GameFlow Integration: Using "Main" as execution orchestrator
-; Flow: Start → SubMenu (DUCK INVADERS)
+; Flow: Start â†’ SubMenu (DUCK INVADERS)
 ; ==================================================================
 
     org #4000           ; MSX cartridge start address
@@ -636,8 +636,8 @@ SCREEN3     EQU 3        ; 64x48 multicolor
 ; Using primary tile size: 16x16px
 TILE_WIDTH      EQU 16    ; Primary tile width in pixels
 TILE_HEIGHT     EQU 16   ; Primary tile height in pixels
-SCREEN_TILES_X  EQU 16    ; Horizontal tiles (256px ÷ 16px)
-SCREEN_TILES_Y  EQU 12   ; Vertical tiles (192px ÷ 16px)
+SCREEN_TILES_X  EQU 16    ; Horizontal tiles (256px Ã· 16px)
+SCREEN_TILES_Y  EQU 12   ; Vertical tiles (192px Ã· 16px)
 MSX_CHARS_PER_TILE_X EQU 2  ; MSX characters wide per tile
 MSX_CHARS_PER_TILE_Y EQU 2 ; MSX characters high per tile
 
@@ -1003,25 +1003,18 @@ RAM_USAGE_END       EQU #CECC   ; End of project variables (3788 bytes used)
 ; ==================================================================
 ; MAPPER RUNTIME API
 ; File: mapper.asm
-; Description: Centralized mapper register writes (no scattered inline writes)
+; Description: Minimal compatibility stubs for simple32k builds
 ; Target mapper: konami
-; ROM mode: auto (autoMegaROM=true)
+; ROM mode: simple32k (autoMegaROM=false)
 ; ==================================================================
-
-; Konami (without SCC) write window references:
-;   6000h-7FFFh, 8000h-9FFFh, A000h-BFFFh are switch registers.
-; Note: in original Konami cartridges 4000h-5FFFh is typically fixed.
-; Mapper register writes are enabled for this build configuration.
-
-; Mapper registers for active target format
-MAPPER_REG_P1       EQU #6000
-MAPPER_REG_P2       EQU #8000
-MAPPER_REG_P3       EQU #A000
-MAPPER_REG_P4       EQU #A000
+;
+; This build runs in simple32k mode, so bank switching is not active.
+; Keep mapper API labels as no-op stubs so generated gameplay code can
+; call the same routines without conditional assembly branches.
 
 ; ------------------------------------------------------------------
 ; mapper_runtime_init
-; Initializes mapper state variables with deterministic defaults.
+; Initializes runtime mirrors only (no hardware mapper writes).
 ; ------------------------------------------------------------------
 mapper_runtime_init:
     xor a
@@ -1036,30 +1029,26 @@ mapper_runtime_init:
 
 ; ------------------------------------------------------------------
 ; API: mapper_set_bank_pX
-; Input: A = bank number
+; Input: A = bank number (stored only for compatibility)
 ; ------------------------------------------------------------------
 mapper_set_bank_p1:
     ld (mapper_bank_p1_current), a
-    ld (MAPPER_REG_P1), a
     ret
 
 mapper_set_bank_p2:
     ld (mapper_bank_p2_current), a
-    ld (MAPPER_REG_P2), a
     ret
 
 mapper_set_bank_p3:
     ld (mapper_bank_p3_current), a
-    ld (MAPPER_REG_P3), a
     ret
 
 mapper_set_bank_p4:
     ld (mapper_bank_p4_current), a
-    ld (MAPPER_REG_P4), a
     ret
 
 ; ------------------------------------------------------------------
-; Helpers for deterministic save/restore around far calls.
+; Save/restore helpers (compatibility only).
 ; ------------------------------------------------------------------
 mapper_push_p1:
     ld a, (mapper_bank_p1_current)
@@ -1098,103 +1087,26 @@ mapper_pop_p4:
     jp mapper_set_bank_p4
 
 ; ------------------------------------------------------------------
-; Far call helpers (dynamic target address in HL)
-; Input:
-;   A = target bank number
-;   HL = target routine address in selected page window
-; Output:
-;   Returns after restoring previous bank.
+; Far call helpers (simple32k no-op bank switch).
 ; ------------------------------------------------------------------
 mapper_call_hl_p1:
-    push hl
-    push af
-    call mapper_push_p1
-    pop af
-    call mapper_set_bank_p1
-    pop hl
     ld de, .return_p1
     push de
     jp (hl)
 .return_p1:
-    call mapper_pop_p1
     ret
 
 mapper_call_hl_p2:
-    push hl
-    push af
-    call mapper_push_p2
-    pop af
-    call mapper_set_bank_p2
-    pop hl
-    ld de, .return_p2
-    push de
-    jp (hl)
-.return_p2:
-    call mapper_pop_p2
-    ret
-
-mapper_call_hl_p3:
-    push hl
-    push af
-    call mapper_push_p3
-    pop af
-    call mapper_set_bank_p3
-    pop hl
-    ld de, .return_p3
-    push de
-    jp (hl)
-.return_p3:
-    call mapper_pop_p3
-    ret
-
-mapper_call_hl_p4:
-    push hl
-    push af
-    call mapper_push_p4
-    pop af
-    call mapper_set_bank_p4
-    pop hl
-    ld de, .return_p4
-    push de
-    jp (hl)
-.return_p4:
-    call mapper_pop_p4
-    ret
-
-; ------------------------------------------------------------------
-; mapper_call_hl_auto
-; Auto-select mapper window from HL target address range:
-;   4000-5FFF -> p1
-;   6000-7FFF -> p2
-;   8000-9FFF -> p3
-;   A000-BFFF -> p4
-; Input:
-;   A = target bank
-;   HL = target routine address
-; ------------------------------------------------------------------
-mapper_call_hl_auto:
-    push af
-    ld a, h
-    cp #60
-    jr c, .use_p1
-    cp #80
-    jr c, .use_p2
-    cp #A0
-    jr c, .use_p3
-    pop af
-    jp mapper_call_hl_p4
-
-.use_p1:
-    pop af
     jp mapper_call_hl_p1
 
-.use_p2:
-    pop af
-    jp mapper_call_hl_p2
+mapper_call_hl_p3:
+    jp mapper_call_hl_p1
 
-.use_p3:
-    pop af
-    jp mapper_call_hl_p3
+mapper_call_hl_p4:
+    jp mapper_call_hl_p1
+
+mapper_call_hl_auto:
+    jp mapper_call_hl_p1
 
 
 ; ==================================================================
@@ -1238,7 +1150,7 @@ init_interrupt_system:
     ; --- STEP 3: Initialize task table to 0 (all disabled) ---
     ld hl, task_table
     ld de, task_table+1
-    ld bc, 15                   ; 8 slots Ç- 2 bytes = 16 bytes - 1
+    ld bc, 15                   ; 8 slots Ã‡- 2 bytes = 16 bytes - 1
     ld (hl), 0
     ldir                        ; Clear all task pointers
 
@@ -3572,7 +3484,7 @@ update_health_component:
             ex de, hl                  ; DE = VRAM destination
             pop hl                     ; restore source
 
-    call COPY_SPRITE_SRC_TO_VRAM
+            call FAST_LDIRVM           ; copy pattern data to VRAM
 
 anim_done_entity:
             pop hl
@@ -5182,23 +5094,25 @@ PATTERN_DATA_BANK EQU ((tile_pattern_bank0 - #4000) / #2000)
 ; TILE PATTERN BANK 0 (Base patterns)
 ; ==================================================================
 tile_pattern_bank0:
-    ; ZX0 compressed tile_pattern (40 -> 34 bytes)
-    DB #28,#00,#7F,#BF,#00,#EF,#F5,#F6,#83,#FF,#FF,#00,#FB,#88,#E5,#FE
-    DB #FE,#EF,#FF,#FB,#E4,#B9,#F7,#FF,#EF,#00,#7E,#DD,#F3,#09,#DB,#55
-    DB #55,#80
+    ; Tile 0: rajol1 (16x16px = 2Ã—2 chars = 4 MSX characters)
+    ; Character layout: 2Ã—2 grid
+    ; Row 0: Char0 Char1 
+    ; Row 1: Char2 Char3 
+    db #00, #7F, #7F, #00, #EF, #EF, #00, #7F, #00, #EF, #EF, #00, #FF, #FF, #00, #FB, #7F, #00, #FE, #FE, #00, #7F, #7F, #7F, #FB, #00, #FF, #FF, #00, #F7, #F7, #F7
+    ; Tile 1: senefa1 (8x8px = 1Ã—1 chars = 1 MSX characters)
+    db #00, #7E, #DD, #00, #F7, #09, #FE, #00
+
+
+; ==================================================================
+; PATTERN LOADING FUNCTIONS
+; ==================================================================
 load_pattern_bank0:
     ; Load pattern bank 0 to VRAM (base patterns)
     ; Fast direct port access (no BIOS overhead)
     call mapper_push_p2
     ld a, PATTERN_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 tile pattern data into RAM buffer
-    di
     ld hl, tile_pattern_bank0
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_PATTERN_BUFFER
     ld de, CHRTBL2 + (128 * 8)    ; VRAM pattern table bank 0 (start at char 128)
     ld bc, 40    ; Total bytes for all tile characters (16x16 tiles = 4 chars each)
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -5211,13 +5125,7 @@ load_pattern_bank1:
     call mapper_push_p2
     ld a, PATTERN_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 tile pattern data into RAM buffer
-    di
-    ld hl, tile_pattern_bank0
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld hl, tile_pattern_bank0     ; Same source as Bank 0
     ld de, CHRTBL2 + #800 + (128 * 8) ; VRAM pattern table bank 1 (+#800 offset + char 128)
     ld bc, 40    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -5230,13 +5138,7 @@ load_pattern_bank2:
     call mapper_push_p2
     ld a, PATTERN_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 tile pattern data into RAM buffer
-    di
-    ld hl, tile_pattern_bank0
-    ld de, ZX0_TILE_PATTERN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_PATTERN_BUFFER
+    ld hl, tile_pattern_bank0     ; Same source as Bank 0
     ld de, CHRTBL2 + #1000 + (128 * 8) ; VRAM pattern table bank 2 (+#1000 offset + char 128)
     ld bc, 40    ; Total bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -5269,22 +5171,22 @@ COLOR_DATA_BANK EQU ((tile_color_bank0 - #4000) / #2000)
 ; TILE COLOR BANK 0 (Base colors)
 ; ==================================================================
 tile_color_bank0:
-    ; ZX0 compressed tile_color (40 -> 19 bytes)
-    DB #8A,#41,#51,#FF,#FA,#F0,#F7,#FE,#E0,#E9,#F0,#BA,#C1,#FF,#31,#ED
-    DB #F6,#55,#56
+    ; Tile 0: rajol1 colors (fg/bg pairs)
+    db #41, #41, #41, #51, #51, #41, #51, #51, #41, #41, #41, #51, #51, #51, #51, #51, #51, #51, #51, #51, #51, #41, #41, #51, #51, #51, #51, #51, #51, #41, #41, #51
+    ; Tile 1: senefa1 colors (fg/bg pairs)
+    db #C1, #C1, #C1, #31, #31, #C1, #C1, #C1
+
+
+; ==================================================================
+; COLOR LOADING FUNCTIONS
+; ==================================================================
 load_color_bank0:
     ; Load color bank 0 to VRAM (base colors)
     ; Fast direct port access (no BIOS overhead)
     call mapper_push_p2
     ld a, COLOR_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 tile color data into RAM buffer
-    di
     ld hl, tile_color_bank0
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_COLOR_BUFFER
     ld de, CLRTBL2 + (128 * 8)    ; VRAM color table bank 0 (start at char 128)
     ld bc, 40     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -5297,13 +5199,7 @@ load_color_bank1:
     call mapper_push_p2
     ld a, COLOR_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 tile color data into RAM buffer
-    di
-    ld hl, tile_color_bank0
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #800 + (128 * 8) ; VRAM color table bank 1 (+#800 offset + char 128)
     ld bc, 40     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -5316,13 +5212,7 @@ load_color_bank2:
     call mapper_push_p2
     ld a, COLOR_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 tile color data into RAM buffer
-    di
-    ld hl, tile_color_bank0
-    ld de, ZX0_TILE_COLOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_TILE_COLOR_BUFFER
+    ld hl, tile_color_bank0       ; Same source as Bank 0
     ld de, CLRTBL2 + #1000 + (128 * 8) ; VRAM color table bank 2 (+#1000 offset + char 128)
     ld bc, 40     ; Total color bytes for all tile characters
     call FAST_LDIRVM              ; Fast VRAM write (direct port access)
@@ -5367,10 +5257,30 @@ SPRITE_ANEC_RIGHT_0_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: anec_right_0_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F1_DATA (32 bytes)
+ANEC_RIGHT_0_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#01,#01,#03,#02,#03,#01,#00,#00,#00,#09,#0E,#07,#04,#0A
+    DB #00,#C0,#B0,#D0,#58,#DC,#F7,#E0,#40,#00,#E0,#F8,#F8,#F0,#08,#14
+
+ANEC_RIGHT_0_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
+    DB #00,#00,#00,#00,#00,#01,#00,#40,#60,#30,#19,#16,#11,#08,#00,#04
+    DB #00,#00,#00,#20,#A0,#20,#00,#00,#00,#E0,#18,#04,#04,#08,#00,#08
+
+;; ---- End of Frame: anec_right_0_F0 ----
+
+;; ---- Sprite Frame: anec_right_0_F1 ----
+;; Size: 16x16
+ANEC_RIGHT_0_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#01,#01,#03,#02,#03,#01,#00,#20,#10,#09,#0E,#03,#00,#00
+    DB #00,#C0,#B0,#D0,#58,#DC,#F7,#E0,#40,#00,#E0,#78,#F8,#F0,#40,#A0
+
+ANEC_RIGHT_0_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
+    DB #00,#00,#00,#00,#00,#01,#00,#00,#E0,#D0,#29,#16,#01,#04,#00,#00
+    DB #00,#00,#00,#20,#A0,#20,#00,#00,#00,#E0,#18,#84,#04,#08,#00,#40
+
+;; ---- End of Frame: anec_right_0_F1 ----
+
+
+; Unified pattern label for sprite 0
 SPRITE_0_PATTERN EQU ANEC_RIGHT_0_F0_LAYER1
 SPRITE_0_PATTERN_BANK EQU ((SPRITE_0_PATTERN - #4000) / #2000)
 
@@ -5387,8 +5297,22 @@ SPRITE_BOLA_1_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: bola_1_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BOLA_1_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BOLA_1_F1_DATA (32 bytes)
+BOLA_1_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#03,#0F,#3F,#7B,#67,#7F,#6F,#77,#3F,#1F,#07,#00,#00
+    DB #00,#00,#00,#E0,#F8,#3C,#FE,#FE,#FE,#FE,#FE,#FC,#F8,#E0,#00,#00
+
+;; ---- End of Frame: bola_1_F0 ----
+
+;; ---- Sprite Frame: bola_1_F1 ----
+;; Size: 16x16
+BOLA_1_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#07,#0F,#1D,#1B,#3F,#3F,#3F,#3F,#3F,#3F,#1F,#1F,#0F,#07,#00
+    DB #00,#C0,#E0,#60,#70,#B0,#F8,#F8,#D8,#D8,#F8,#F0,#F0,#E0,#C0,#00
+
+;; ---- End of Frame: bola_1_F1 ----
+
+
+; Unified pattern label for sprite 1
 SPRITE_1_PATTERN EQU BOLA_1_F0_LAYER1
 SPRITE_1_PATTERN_BANK EQU ((SPRITE_1_PATTERN - #4000) / #2000)
 
@@ -5405,7 +5329,14 @@ SPRITE_BOSSA_2_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: bossa_2_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BOSSA_2_F0_DATA (32 bytes)
+BOSSA_2_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#0F,#08,#10,#10,#30,#60,#40,#60,#30,#1D,#06,#00,#00
+    DB #00,#00,#00,#F0,#10,#10,#10,#08,#04,#04,#04,#0C,#F8,#00,#00,#00
+
+;; ---- End of Frame: bossa_2_F0 ----
+
+
+; Unified pattern label for sprite 2
 SPRITE_2_PATTERN EQU BOSSA_2_F0_LAYER1
 SPRITE_2_PATTERN_BANK EQU ((SPRITE_2_PATTERN - #4000) / #2000)
 
@@ -5422,8 +5353,18 @@ SPRITE_PANELL_3_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: panell_3_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_PANELL_3_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_PANELL_3_F0_DATA (32 bytes)
+PANELL_3_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#00,#00,#00,#00,#3F,#3F,#3F,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#30,#38,#3C,#FE,#FF,#FF,#3C,#18,#10,#00,#00,#00
+
+PANELL_3_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#3F,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#C2,#24,#28,#30,#00,#00
+
+;; ---- End of Frame: panell_3_F0 ----
+
+
+; Unified pattern label for sprite 3
 SPRITE_3_PATTERN EQU PANELL_3_F0_LAYER1
 SPRITE_3_PATTERN_BANK EQU ((SPRITE_3_PATTERN - #4000) / #2000)
 
@@ -5464,8 +5405,22 @@ BOLA_DEAD_4_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
 
 ;; ---- Sprite Frame: bola_dead_4_F3 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BOLA_DEAD_4_F3_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_BOLA_DEAD_4_F4_DATA (32 bytes)
+BOLA_DEAD_4_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#08,#00,#0C,#04,#20,#2A,#01,#00,#00,#00,#06,#01,#00
+    DB #00,#00,#60,#40,#20,#00,#00,#30,#18,#00,#00,#20,#20,#A0,#00,#00
+
+;; ---- End of Frame: bola_dead_4_F3 ----
+
+;; ---- Sprite Frame: bola_dead_4_F4 ----
+;; Size: 16x16
+BOLA_DEAD_4_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+;; ---- End of Frame: bola_dead_4_F4 ----
+
+
+; Unified pattern label for sprite 4
 SPRITE_4_PATTERN EQU BOLA_DEAD_4_F0_LAYER1
 SPRITE_4_PATTERN_BANK EQU ((SPRITE_4_PATTERN - #4000) / #2000)
 
@@ -5482,10 +5437,30 @@ SPRITE_ANEC_LEFT_5_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: anec_left_5_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_5_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_5_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_5_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_5_F1_DATA (32 bytes)
+ANEC_LEFT_5_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#03,#0D,#0B,#1A,#3B,#EF,#07,#02,#00,#07,#1F,#1F,#0F,#10,#28
+    DB #00,#00,#80,#80,#C0,#40,#C0,#80,#00,#00,#00,#90,#70,#E0,#20,#50
+
+ANEC_LEFT_5_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
+    DB #00,#00,#00,#04,#05,#04,#00,#00,#00,#07,#18,#20,#20,#10,#00,#10
+    DB #00,#00,#00,#00,#00,#80,#00,#02,#06,#0C,#98,#68,#88,#10,#00,#20
+
+;; ---- End of Frame: anec_left_5_F0 ----
+
+;; ---- Sprite Frame: anec_left_5_F1 ----
+;; Size: 16x16
+ANEC_LEFT_5_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
+    DB #00,#03,#0D,#0B,#1A,#3B,#EF,#07,#02,#00,#07,#1E,#1F,#0F,#02,#05
+    DB #00,#00,#80,#80,#C0,#40,#C0,#80,#00,#04,#08,#90,#70,#C0,#00,#00
+
+ANEC_LEFT_5_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
+    DB #00,#00,#00,#04,#05,#04,#00,#00,#00,#07,#18,#21,#20,#10,#00,#02
+    DB #00,#00,#00,#00,#00,#80,#00,#00,#07,#0B,#94,#68,#80,#20,#00,#00
+
+;; ---- End of Frame: anec_left_5_F1 ----
+
+
+; Unified pattern label for sprite 5
 SPRITE_5_PATTERN EQU ANEC_LEFT_5_F0_LAYER1
 SPRITE_5_PATTERN_BANK EQU ((SPRITE_5_PATTERN - #4000) / #2000)
 
@@ -5517,16 +5492,6 @@ sprite_asset_frame_count:
     db 1 ; Sprite 2: bossa
     db 1 ; Sprite 3: panell
     db 5 ; Sprite 4: bola_dead
-    db 2 ; Sprite 5: anec_left
-
-; Table: Sprite Asset Loop Flags
-; Format: db flags (bit 1: 1=loop, 0=once)
-sprite_loop_flags:
-    db 2 ; Sprite 0: anec_right
-    db 2 ; Sprite 1: bola
-    db 2 ; Sprite 2: bossa
-    db 2 ; Sprite 3: panell
-    db 0 ; Sprite 4: bola_dead
     db 2 ; Sprite 5: anec_left
 
 ; Table: Sprite Asset Frame Pointer List Table
@@ -5638,7 +5603,7 @@ load_sprite_patterns:
     ld hl, SPRITE_0_PATTERN
     ld de, SPRPAT + (0 * 32)
     ld bc, 64 ; Load 2 layers (32 bytes each)
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     ; Entity 1: bola (1 layers)
     ; Base HW Sprite: 2
     ld a, SPRITE_1_PATTERN_BANK
@@ -5646,7 +5611,7 @@ load_sprite_patterns:
     ld hl, SPRITE_1_PATTERN
     ld de, SPRPAT + (2 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
     call mapper_pop_p2
     ret
 
@@ -5708,7 +5673,7 @@ clear_all_sprites:
     inc hl          ; Skip to X
     inc hl          ; Skip to Pattern
     inc hl          ; Skip to Color
-    inc hl          ; Next sprite (4× INC HL = 24 cycles vs ADD HL,DE = 35 cycles)
+    inc hl          ; Next sprite (4Ã— INC HL = 24 cycles vs ADD HL,DE = 35 cycles)
     djnz .sprite_clear_loop
     ld a, 1
     ld (sprites_dirty), a
@@ -5791,46 +5756,363 @@ SCREEN_PAN1_0_HEIGHT    EQU 24
 SCREEN_PAN1_0_SIZE      EQU 768
 
 SCREEN_PAN1_0_LAYOUT:
-    ; ZX0 compressed layout (768 -> 35 bytes)
-    DB #95,#84,#69,#00,#57,#D5,#80,#7D,#FC,#55,#62,#80,#81,#7C,#C0,#48
-    DB #EF,#82,#83,#FC,#80,#51,#3F,#C5,#FC,#47,#F4,#45,#FC,#78,#80,#55
-    DB #75,#55,#58
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #80,#81,#80,#81,#80,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #82,#83,#82,#83,#82,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #80,#81,#80,#81,#80,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #82,#83,#82,#83,#82,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #80,#81,#80,#81,#80,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+
+;; BEHAVIOR MAP: pan1_0 (32x24 tiles)
+;; Total size: 768 bytes (Map IDs 0-255)
+;; Data format: HEX
+
 BEHAVIOR_PAN1_0_WIDTH     EQU 32
 BEHAVIOR_PAN1_0_HEIGHT    EQU 24
 BEHAVIOR_PAN1_0_SIZE      EQU 768
 
 BEHAVIOR_PAN1_0_DATA:
-    ; ZX0 compressed behavior (768 -> 14 bytes)
-    DB #85,#00,#55,#68,#01,#38,#C0,#51,#7C,#FE,#55,#35,#55,#58
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+
+;; End of Behavior Map Data for pan1_0
+
+;; MAP: pan2_1 (32x24 tiles)
+;; Total size: 768 bytes
+
+;; --- TILE INDEX REFERENCES for PAN2_1 ---
+; Generated using exact Screen Editor "Download ASM" logic
+; Byte values represent actual character codes in VRAM
+
 SCREEN_PAN2_1_WIDTH     EQU 32
 SCREEN_PAN2_1_HEIGHT    EQU 24
 SCREEN_PAN2_1_SIZE      EQU 768
 
 SCREEN_PAN2_1_LAYOUT:
-    ; ZX0 compressed layout (768 -> 25 bytes)
-    DB #80,#00,#11,#08,#F4,#81,#80,#FC,#62,#83,#82,#54,#E1,#80,#13,#D4
-    DB #2C,#A1,#83,#1E,#80,#44,#D5,#55,#60
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81,#80,#81
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+    DB #82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83,#82,#83
+
+;; BEHAVIOR MAP: pan2_1 (32x24 tiles)
+;; Total size: 768 bytes (Map IDs 0-255)
+;; Data format: HEX
+
 BEHAVIOR_PAN2_1_WIDTH     EQU 32
 BEHAVIOR_PAN2_1_HEIGHT    EQU 24
 BEHAVIOR_PAN2_1_SIZE      EQU 768
 
 BEHAVIOR_PAN2_1_DATA:
-    ; ZX0 compressed behavior (768 -> 10 bytes)
-    DB #80,#00,#11,#0A,#01,#51,#13,#55,#55,#80
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+
+;; End of Behavior Map Data for pan2_1
+
+;; MAP: background1_2 (32x24 tiles)
+;; Total size: 768 bytes
+
+;; --- TILE INDEX REFERENCES for BACKGROUND1_2 ---
+; Generated using exact Screen Editor "Download ASM" logic
+; Byte values represent actual character codes in VRAM
+
 SCREEN_BACKGROUND1_2_WIDTH     EQU 32
 SCREEN_BACKGROUND1_2_HEIGHT    EQU 24
 SCREEN_BACKGROUND1_2_SIZE      EQU 768
 
 SCREEN_BACKGROUND1_2_LAYOUT:
-    ; ZX0 compressed layout (768 -> 6 bytes)
-    DB #85,#84,#55,#5D,#55,#56
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+    DB #84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84,#84
+
+;; BEHAVIOR MAP: background1_2 (32x24 tiles)
+;; Total size: 768 bytes (Map IDs 0-255)
+;; Data format: HEX
+
 BEHAVIOR_BACKGROUND1_2_WIDTH     EQU 32
 BEHAVIOR_BACKGROUND1_2_HEIGHT    EQU 24
 BEHAVIOR_BACKGROUND1_2_SIZE      EQU 768
 
 BEHAVIOR_BACKGROUND1_2_DATA:
-    ; ZX0 compressed behavior (768 -> 6 bytes)
-    DB #85,#00,#55,#5D,#55,#56
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+
+;; End of Behavior Map Data for background1_2
+
+; ==================================================================
+; SCREEN LOADING FUNCTIONS
+; ==================================================================
+
+; Color shift lookup table (0-15 shifted to high nibble)
+; OPTIMIZED: Table lookup is faster than 4Ã— RLCA (11 cycles vs 16 cycles)
 color_shift_table:
     db #00, #10, #20, #30, #40, #50, #60, #70
     db #80, #90, #A0, #B0, #C0, #D0, #E0, #F0
@@ -5844,7 +6126,7 @@ set_screen_colors:
 
     ; Set VDP Register 7: [Background Color (4-7) | Border Color (0-3)]
 
-    ; OPTIMIZED: Use lookup table instead of 4× RLCA
+    ; OPTIMIZED: Use lookup table instead of 4Ã— RLCA
     ; Process Background Color (in A) -> High Nibble
     and #0F                    ; Ensure 0-15 range
     ld hl, color_shift_table
@@ -6151,13 +6433,7 @@ load_screen_pan1_770754008863:
     call mapper_push_p2
     ld a, SCREEN_PAN1_0_LAYOUT_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 screen layout into RAM buffer
-    di
-    ld hl, SCREEN_PAN1_0_LAYOUT
-    ld de, ZX0_SCREEN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_SCREEN_BUFFER+96
+    ld hl, SCREEN_PAN1_0_LAYOUT + 96
     ld de, NAMETBL + 96
     ld bc, 672
     call FAST_LDIRVM
@@ -6166,7 +6442,7 @@ load_screen_pan1_770754008863:
     call mapper_push_p2
     ld a, SCREEN_PAN1_0_LAYOUT_BANK
     call mapper_set_bank_p2
-    ld hl, ZX0_SCREEN_BUFFER
+    ld hl, SCREEN_PAN1_0_LAYOUT
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -6175,13 +6451,7 @@ load_screen_pan1_770754008863:
     call mapper_push_p2
     ld a, BEHAVIOR_PAN1_0_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 behavior map into RAM buffer
-    di
     ld hl, BEHAVIOR_PAN1_0_DATA
-    ld de, ZX0_BEHAVIOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_BEHAVIOR_BUFFER
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -6222,13 +6492,7 @@ load_screen_pan2_771184738851:
     call mapper_push_p2
     ld a, SCREEN_PAN2_1_LAYOUT_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 screen layout into RAM buffer
-    di
-    ld hl, SCREEN_PAN2_1_LAYOUT
-    ld de, ZX0_SCREEN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_SCREEN_BUFFER+96
+    ld hl, SCREEN_PAN2_1_LAYOUT + 96
     ld de, NAMETBL + 96
     ld bc, 672
     call FAST_LDIRVM
@@ -6237,7 +6501,7 @@ load_screen_pan2_771184738851:
     call mapper_push_p2
     ld a, SCREEN_PAN2_1_LAYOUT_BANK
     call mapper_set_bank_p2
-    ld hl, ZX0_SCREEN_BUFFER
+    ld hl, SCREEN_PAN2_1_LAYOUT
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -6246,13 +6510,7 @@ load_screen_pan2_771184738851:
     call mapper_push_p2
     ld a, BEHAVIOR_PAN2_1_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 behavior map into RAM buffer
-    di
     ld hl, BEHAVIOR_PAN2_1_DATA
-    ld de, ZX0_BEHAVIOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_BEHAVIOR_BUFFER
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -6290,13 +6548,7 @@ load_screen_background1_771482721894:
     call mapper_push_p2
     ld a, SCREEN_BACKGROUND1_2_LAYOUT_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 screen layout into RAM buffer
-    di
     ld hl, SCREEN_BACKGROUND1_2_LAYOUT
-    ld de, ZX0_SCREEN_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_SCREEN_BUFFER
     ld de, NAMETBL
     ld bc, SCREEN_BACKGROUND1_2_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
@@ -6305,7 +6557,7 @@ load_screen_background1_771482721894:
     call mapper_push_p2
     ld a, SCREEN_BACKGROUND1_2_LAYOUT_BANK
     call mapper_set_bank_p2
-    ld hl, ZX0_SCREEN_BUFFER
+    ld hl, SCREEN_BACKGROUND1_2_LAYOUT
     ld de, runtime_screen_layout
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -6314,13 +6566,7 @@ load_screen_background1_771482721894:
     call mapper_push_p2
     ld a, BEHAVIOR_BACKGROUND1_2_DATA_BANK
     call mapper_set_bank_p2
-    ; Decompress ZX0 behavior map into RAM buffer
-    di
     ld hl, BEHAVIOR_BACKGROUND1_2_DATA
-    ld de, ZX0_BEHAVIOR_BUFFER
-    call dzx0_standard
-    ei
-    ld hl, ZX0_BEHAVIOR_BUFFER
     ld de, runtime_behavior_map
     ld bc, RUNTIME_SCREEN_MAP_SIZE
     ldir
@@ -6927,21 +7173,99 @@ FONT_COLOR_DATA_BANK   EQU ((FONT_COLOR_DATA - #4000) / #2000)
 ; ==================================================================
 
 FONT_PATTERN_DATA:
-    ; ZX0 compressed font_pattern (360 -> 215 bytes)
-    DB #80,#00,#A8,#10,#A8,#7C,#10,#00,#68,#08,#FA,#EC,#7E,#F6,#FE,#A0
-    DB #18,#89,#00,#3E,#7F,#73,#27,#7F,#3E,#00,#18,#38,#18,#E6,#CB,#E1
-    DB #03,#3E,#60,#7E,#F0,#E9,#03,#D0,#6A,#06,#0E,#1E,#36,#7F,#06,#06
-    DB #7F,#98,#60,#7E,#03,#7A,#F1,#63,#79,#E1,#FA,#03,#06,#0C,#9F,#A0
-    DB #A8,#63,#63,#62,#63,#3F,#09,#FE,#00,#36,#36,#FA,#49,#BA,#30,#C3
-    DB #30,#FE,#D0,#B4,#FF,#B0,#B5,#BF,#FB,#63,#07,#F7,#B9,#80,#31,#E4
-    DB #3C,#7E,#60,#FF,#88,#7E,#3C,#00,#7C,#7E,#66,#F8,#7E,#7C,#40,#F9
-    DB #7C,#60,#F7,#F0,#FE,#FF,#60,#27,#60,#67,#FB,#9B,#A5,#F8,#8E,#E1
-    DB #3E,#1C,#FF,#A2,#3E,#00,#1F,#AE,#06,#A1,#E1,#3C,#D1,#8B,#66,#6C
-    DB #78,#6C,#66,#60,#FE,#FE,#97,#B1,#67,#77,#7F,#6B,#82,#A1,#73,#7B
-    DB #6F,#67,#0F,#94,#F8,#81,#20,#F2,#60,#BC,#6B,#E0,#ED,#BD,#63,#E2
-    DB #70,#3E,#0F,#1B,#18,#FF,#FE,#30,#F8,#A0,#F0,#98,#36,#1C,#08,#27
-    DB #6B,#7F,#77,#F8,#B1,#E4,#E7,#36,#63,#F0,#FD,#B0,#A1,#BA,#13,#30
-    DB #97,#00,#F3,#FE,#55,#55,#80
+    ; Char 32 (' ')
+    DB #00, #00, #00, #00, #00, #00, #00, #00
+    ; Char 43 ('+')
+    DB #00, #10, #10, #7C, #10, #10, #00, #00
+    ; Char 44 (',')
+    DB #00, #00, #00, #00, #08, #08, #08, #10
+    ; Char 45 ('-')
+    DB #00, #00, #00, #7E, #00, #00, #00, #00
+    ; Char 46 ('.')
+    DB #00, #00, #00, #00, #00, #18, #18, #00
+    ; Char 48 ('0')
+    DB #3E, #7F, #73, #73, #73, #7F, #3E, #00
+    ; Char 49 ('1')
+    DB #18, #38, #18, #18, #18, #18, #7E, #00
+    ; Char 50 ('2')
+    DB #3E, #7F, #03, #3E, #60, #7F, #3E, #00
+    ; Char 51 ('3')
+    DB #3E, #7F, #03, #3E, #03, #7F, #3E, #00
+    ; Char 52 ('4')
+    DB #06, #0E, #1E, #36, #7F, #06, #06, #00
+    ; Char 53 ('5')
+    DB #7F, #7F, #60, #7E, #03, #7F, #3E, #00
+    ; Char 54 ('6')
+    DB #3E, #7F, #60, #7E, #63, #7F, #3E, #00
+    ; Char 55 ('7')
+    DB #7F, #7F, #03, #06, #0C, #18, #18, #00
+    ; Char 56 ('8')
+    DB #3E, #7F, #63, #3E, #63, #7F, #3E, #00
+    ; Char 57 ('9')
+    DB #3E, #7F, #63, #3F, #03, #7F, #3E, #00
+    ; Char 58 (':')
+    DB #00, #36, #36, #00, #36, #36, #00, #00
+    ; Char 62 ('>')
+    DB #00, #30, #18, #0C, #18, #30, #00, #00
+    ; Char 63 ('?')
+    DB #3E, #7F, #63, #18, #18, #00, #18, #00
+    ; Char 65 ('A')
+    DB #3E, #7F, #63, #7F, #7F, #63, #63, #00
+    ; Char 66 ('B')
+    DB #7E, #7F, #63, #7E, #63, #7F, #7E, #00
+    ; Char 67 ('C')
+    DB #3C, #7E, #60, #60, #60, #7E, #3C, #00
+    ; Char 68 ('D')
+    DB #7C, #7E, #66, #66, #66, #7E, #7C, #00
+    ; Char 69 ('E')
+    DB #7F, #7F, #60, #7C, #60, #7F, #7F, #00
+    ; Char 70 ('F')
+    DB #7F, #7F, #60, #7C, #60, #60, #60, #00
+    ; Char 71 ('G')
+    DB #3E, #7F, #63, #60, #67, #7F, #3E, #00
+    ; Char 72 ('H')
+    DB #63, #63, #63, #7F, #63, #63, #63, #00
+    ; Char 73 ('I')
+    DB #3E, #3E, #1C, #1C, #1C, #3E, #3E, #00
+    ; Char 74 ('J')
+    DB #1F, #1F, #06, #06, #66, #7E, #3C, #00
+    ; Char 75 ('K')
+    DB #63, #66, #6C, #78, #6C, #66, #63, #00
+    ; Char 76 ('L')
+    DB #60, #60, #60, #60, #60, #7F, #7F, #00
+    ; Char 77 ('M')
+    DB #63, #77, #7F, #6B, #63, #63, #63, #00
+    ; Char 78 ('N')
+    DB #63, #73, #7B, #6F, #67, #63, #63, #00
+    ; Char 79 ('O')
+    DB #3E, #7F, #63, #63, #63, #7F, #3E, #00
+    ; Char 80 ('P')
+    DB #7E, #7F, #63, #7E, #60, #60, #60, #00
+    ; Char 81 ('Q')
+    DB #3E, #7F, #63, #6B, #67, #7F, #3E, #00
+    ; Char 82 ('R')
+    DB #7E, #7F, #63, #7E, #7B, #6F, #63, #00
+    ; Char 83 ('S')
+    DB #3E, #7F, #60, #3E, #0F, #7F, #3E, #00
+    ; Char 84 ('T')
+    DB #7F, #7F, #18, #18, #18, #18, #18, #00
+    ; Char 85 ('U')
+    DB #63, #63, #63, #63, #63, #7F, #3E, #00
+    ; Char 86 ('V')
+    DB #63, #63, #63, #63, #36, #1C, #08, #00
+    ; Char 87 ('W')
+    DB #63, #63, #63, #6B, #7F, #77, #63, #00
+    ; Char 88 ('X')
+    DB #63, #63, #36, #1C, #36, #63, #63, #00
+    ; Char 89 ('Y')
+    DB #63, #63, #36, #1C, #18, #18, #18, #00
+    ; Char 90 ('Z')
+    DB #7F, #7F, #06, #0C, #30, #7F, #7F, #00
+    ; Char 124 ('|')
+    DB #18, #18, #18, #18, #18, #18, #18, #18
+
+
+; Character index table (for quick lookup)
 FONT_CHAR_INDEX:
     DB 32, 43, 44, 45, 46, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 62, 63, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 124
 FONT_CHAR_COUNT EQU 45
@@ -6986,7 +7310,7 @@ load_font_patterns_to_bank:
     ld a, FONT_PATTERN_DATA_BANK
     call mapper_set_bank_p2
     ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, ZX0_FONT_PATTERN_BUFFER
+    ld iy, FONT_PATTERN_DATA      ; Pointer to pattern data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 
 .load_loop:
@@ -7029,9 +7353,98 @@ load_font_patterns_to_bank:
 ; ==================================================================
 
 FONT_COLOR_DATA:
-    ; ZX0 compressed font_color (360 -> 25 bytes)
-    DB #96,#F1,#96,#F0,#85,#F1,#68,#81,#A3,#91,#84,#F0,#1E,#10,#56,#EF
-    DB #A1,#FE,#F0,#04,#5D,#DD,#40,#55,#56
+    ; Char 32
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 43
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+    ; Char 44
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 45
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 46
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 48
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 49
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 50
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 51
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 52
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 53
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 54
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 55
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 56
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 57
+    DB #81, #81, #81, #91, #91, #91, #F1, #F1
+    ; Char 58
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 62
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+    ; Char 63
+    DB #F1, #F1, #F1, #F1, #F1, #F1, #F1, #F1
+    ; Char 65
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 66
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 67
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 68
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 69
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 70
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 71
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 72
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 73
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 74
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 75
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 76
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 77
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 78
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 79
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 80
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 81
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 82
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 83
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 84
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 85
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 86
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 87
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 88
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 89
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 90
+    DB #A1, #A1, #A1, #A1, #F1, #F1, #F1, #F1
+    ; Char 124
+    DB #F0, #F0, #F0, #F0, #F0, #F0, #F0, #F0
+
+
 load_font_colors:
     ld de, CLRTBL2                ; Bank 0 Base
     call load_font_colors_to_bank
@@ -7055,7 +7468,7 @@ load_font_colors_to_bank:
     ld a, FONT_COLOR_DATA_BANK
     call mapper_set_bank_p2
     ld ix, FONT_CHAR_INDEX        ; Pointer to ASCII codes
-    ld iy, ZX0_FONT_COLOR_BUFFER
+    ld iy, FONT_COLOR_DATA        ; Pointer to color data
     ld b, FONT_CHAR_COUNT         ; Number of characters to load
 
 .load_colors_loop:
@@ -7132,18 +7545,6 @@ print_string_end:
 
 ; Initialize font system for Screen 2 text rendering
 init_font_system:
-    ; Decompress ZX0 font pattern data into RAM buffer
-    di
-    ld hl, FONT_PATTERN_DATA
-    ld de, ZX0_FONT_PATTERN_BUFFER
-    call dzx0_standard
-    ei
-    ; Decompress ZX0 font color data into RAM buffer
-    di
-    ld hl, FONT_COLOR_DATA
-    ld de, ZX0_FONT_COLOR_BUFFER
-    call dzx0_standard
-    ei
     ; Load custom font patterns and colors
     call load_all_font_banks       ; Load patterns to all banks
     call load_font_colors_all_banks ; Load colors to all banks
@@ -10038,27 +10439,6 @@ Action_ChangeSprite:
     add hl, bc
     res 3, (hl)             ; clear ANIM_FLAG_COMPLETED
 
-    ; Retrieve loop config from sprite_loop_flags metadata
-    ; HL currently points to entity_anim_flags
-    push hl
-    ld hl, sprite_loop_flags
-    
-    ; Add sprite asset ID (saved in stack) to hl
-    ; We need to retrieve it without popping
-    ld e, a                 ; A still has Sprite Asset ID from original arg
-    ld d, 0
-    add hl, de
-    ld e, (hl)              ; E = loop flag bit (0x02 or 0x00)
-    
-    ; Restore entity_anim_flags pointer
-    pop hl
-    
-    ; Apply loop flag (first clear it, then OR with the value from metadata)
-    ld a, (hl)
-    and #FD                 ; Clear bit 1 (ANIM_FLAG_LOOP)
-    or e                    ; Apply new loop flag
-    ld (hl), a
-
     pop hl                  ; Restore Params Ptr
     ret
 
@@ -10090,26 +10470,6 @@ Action_PlayAnimation:
     ld hl, entity_anim_tick
     add hl, bc
     ld (hl), 0
-
-    ; We also need to get the sprite loop status and apply it!
-    ; Get current sprite asset ID for this entity
-    ld hl, entity_sprite_asset_index
-    add hl, bc
-    ld e, (hl)
-    ld d, 0
-    
-    ; Read loop flag from sprite_loop_flags
-    ld hl, sprite_loop_flags
-    add hl, de
-    ld e, (hl)              ; E = loop flag bit (0x02 or 0x00)
-    
-    ; Apply it to entity_anim_flags
-    ld hl, entity_anim_flags
-    add hl, bc
-    ld a, (hl)
-    and #FD                 ; Clear ANIM_FLAG_LOOP
-    or e                    ; Set new loop status
-    ld (hl), a
 
     pop hl                  ; Restore Params Ptr
     ret
@@ -14074,7 +14434,7 @@ submenu_prepare_cursor_sprite:
     ld c, a
     ld b, 0
     ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
-    call COPY_SPRITE_SRC_TO_VRAM
+    call FAST_LDIRVM
 
 .sps_enable_cursor:
 
@@ -14275,9 +14635,9 @@ gameflow_handle_transition:
     push bc
     call execute_transition_effect
     ; Restore VRAM after transition:
-    ; 1. Tile colors (chars 128+) — corrupted by color-table effects (#11 = black)
+    ; 1. Tile colors (chars 128+) â€” corrupted by color-table effects (#11 = black)
     call load_colors_to_vram
-    ; 2. Font patterns + colors (chars 0-127) — also zeroed by color-table effects.
+    ; 2. Font patterns + colors (chars 0-127) â€” also zeroed by color-table effects.
     ;    init_font_system reloads both pattern bytes and color attributes for all
     ;    font characters.  If no font is used in the project this is a no-op (ret).
     call init_font_system
@@ -14539,7 +14899,7 @@ trans_clear_pixel_row_colors:
     ; --- Write 0x11 (black/black) for all 256 tiles ---
     ; Tile addresses: HL, HL+8, HL+16, ... HL+255*8
     ; (consecutive tiles are 8 bytes apart in the color table)
-    ld b, 0                       ; B=0 → djnz executes 256 times
+    ld b, 0                       ; B=0 â†’ djnz executes 256 times
 .tpcr_loop:
     ; DI only around the 3 critical VDP port writes.
     ; Keeping DI for the whole loop would leave interrupts disabled for ~6ms
@@ -14728,7 +15088,7 @@ gameflow_get_connection_by_type:
     cp d
     jr z, .found
 
-    ; OPTIMIZED: Skip this entry using ADD (11 cycles vs 3× INC = 18 cycles)
+    ; OPTIMIZED: Skip this entry using ADD (11 cycles vs 3Ã— INC = 18 cycles)
     ld bc, 3        ; Entry size: 1 byte type + 2 bytes address
     add hl, bc
     jr .search_loop
@@ -15043,7 +15403,7 @@ clear_sprite_table:
 
     ; Clear sprite attribute table (#1B00-#1B7F, 128 bytes)
     ld hl, #1B00         ; Sprite attribute table base
-    ld bc, 128           ; 128 bytes (32 sprites × 4 bytes)
+    ld bc, 128           ; 128 bytes (32 sprites Ã— 4 bytes)
     ld a, #D1            ; Y=209 (off-screen)
 .cst_loop:
     push hl
@@ -15519,237 +15879,5 @@ init_game_systems:
 ; compatibility with init_game_systems references.
 load_game_screen:
     ret
-
-; ==================================================================
-; ZX0 SPRITE FRAME BLOBS (AUTO-INJECTED)
-; ==================================================================
-ZX0_SPRITE_FRAME_DATA_START:
-ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F0_DATA:
-    ; ZX0 compressed sprite frame ANEC_RIGHT_0_F0 (64 -> 59 bytes)
-    DB #AA,#00,#01,#18,#03,#02,#03,#01,#00,#80,#68,#09,#0E,#07,#04,#0A
-    DB #00,#C0,#B0,#D0,#58,#DC,#F7,#E0,#40,#00,#E0,#F8,#20,#F0,#08,#14
-    DB #00,#E5,#C5,#AE,#40,#60,#30,#19,#16,#11,#08,#04,#E0,#9B,#20,#A0
-    DB #20,#9B,#FF,#E0,#18,#04,#B5,#E1,#08,#55,#58
-ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F1_DATA:
-    ; ZX0 compressed sprite frame ANEC_RIGHT_0_F1 (64 -> 57 bytes)
-    DB #AA,#00,#01,#16,#03,#02,#03,#01,#00,#20,#10,#09,#0E,#03,#00,#20
-    DB #08,#C0,#B0,#D0,#58,#DC,#F7,#E0,#40,#00,#E0,#78,#F8,#F0,#40,#A0
-    DB #00,#3E,#C5,#E5,#18,#D0,#29,#16,#01,#04,#67,#20,#A0,#20,#A1,#F4
-    DB #AD,#E0,#18,#84,#04,#08,#40,#55,#56
-ZX0_SPRITE_FRAME_BOLA_1_F0_DATA:
-    ; ZX0 compressed sprite frame BOLA_1_F0 (32 -> 28 bytes)
-    DB #89,#00,#08,#03,#0F,#3F,#7B,#67,#7F,#6F,#77,#3F,#1F,#07,#00,#20
-    DB #82,#E0,#F8,#3C,#FE,#7D,#FC,#F8,#E0,#E7,#55,#56
-ZX0_SPRITE_FRAME_BOLA_1_F1_DATA:
-    ; ZX0 compressed sprite frame BOLA_1_F1 (32 -> 30 bytes)
-    DB #48,#00,#07,#0F,#1D,#1B,#3F,#6A,#1F,#69,#0F,#07,#00,#2A,#C0,#E0
-    DB #60,#70,#B0,#F8,#D8,#8A,#F8,#F0,#75,#E0,#C0,#00,#55,#58
-ZX0_SPRITE_FRAME_BOSSA_2_F0_DATA:
-    ; ZX0 compressed sprite frame BOSSA_2_F0 (32 -> 28 bytes)
-    DB #89,#00,#A0,#0F,#08,#10,#20,#30,#60,#40,#60,#30,#1D,#06,#00,#88
-    DB #F0,#10,#88,#08,#04,#98,#0C,#F8,#00,#D5,#55,#60
-ZX0_SPRITE_FRAME_PANELL_3_F0_DATA:
-    ; ZX0 compressed sprite frame PANELL_3_F0 (64 -> 29 bytes)
-    DB #92,#00,#8A,#3F,#00,#06,#1A,#30,#38,#3C,#FE,#FF,#09,#3C,#18,#10
-    DB #00,#0F,#BE,#7D,#F4,#82,#C2,#24,#28,#30,#35,#55,#58
-ZX0_SPRITE_FRAME_BOLA_DEAD_4_F3_DATA:
-    ; ZX0 compressed sprite frame BOLA_DEAD_4_F3 (32 -> 28 bytes)
-    DB #89,#00,#7A,#08,#00,#0C,#04,#20,#2A,#01,#EC,#F9,#06,#F6,#89,#60
-    DB #40,#20,#A6,#30,#18,#00,#20,#20,#A0,#35,#55,#58
-ZX0_SPRITE_FRAME_BOLA_DEAD_4_F4_DATA:
-    ; ZX0 compressed sprite frame BOLA_DEAD_4_F4 (32 -> 5 bytes)
-    DB #95,#00,#75,#55,#58
-ZX0_SPRITE_FRAME_ANEC_LEFT_5_F0_DATA:
-    ; ZX0 compressed sprite frame ANEC_LEFT_5_F0 (64 -> 59 bytes)
-    DB #42,#00,#03,#0D,#0B,#1A,#3B,#EF,#07,#02,#00,#07,#1F,#82,#0F,#10
-    DB #28,#00,#A8,#80,#39,#C0,#40,#C0,#80,#F1,#26,#00,#90,#70,#E0,#20
-    DB #50,#7A,#04,#05,#04,#E4,#6A,#07,#18,#20,#10,#FF,#FD,#FE,#93,#C5
-    DB #02,#06,#0C,#98,#68,#88,#B5,#E5,#20,#55,#58
-ZX0_SPRITE_FRAME_ANEC_LEFT_5_F1_DATA:
-    ; ZX0 compressed sprite frame ANEC_LEFT_5_F1 (64 -> 58 bytes)
-    DB #01,#AA,#00,#03,#0D,#0B,#1A,#3B,#EF,#07,#02,#00,#07,#1E,#1F,#0F
-    DB #02,#05,#00,#80,#16,#C0,#40,#C0,#80,#00,#04,#08,#90,#70,#C0,#00
-    DB #09,#E8,#04,#05,#04,#F4,#6F,#07,#18,#21,#20,#10,#B3,#FE,#FE,#C5
-    DB #A5,#18,#0B,#94,#68,#80,#20,#D5,#55,#60
-ZX0_SPRITE_FRAME_DATA_END_LABEL:
-    DB #00
-
-; ==================================================================
-; ZX0 SCREEN BUFFER (AUTO-INJECTED)
-; Free RAM buffer for screen layout decompression (768 bytes)
-; ==================================================================
-ZX0_SCREEN_BUFFER EQU #CF00
-
-; ==================================================================
-; ZX0 BEHAVIOR BUFFER (AUTO-INJECTED)
-; Free RAM buffer for behavior map decompression (768 bytes)
-; ==================================================================
-ZX0_BEHAVIOR_BUFFER EQU #D200
-
-; ==================================================================
-; ZX0 TILE PATTERN BUFFER (AUTO-INJECTED)
-; Free RAM buffer for tile pattern data decompression (40 bytes)
-; ==================================================================
-ZX0_TILE_PATTERN_BUFFER EQU #D500
-
-; ==================================================================
-; ZX0 TILE COLOR BUFFER (AUTO-INJECTED)
-; Free RAM buffer for tile color data decompression (40 bytes)
-; ==================================================================
-ZX0_TILE_COLOR_BUFFER EQU #D600
-
-; ==================================================================
-; ZX0 FONT PATTERN BUFFER (AUTO-INJECTED)
-; Free RAM buffer for font pattern data decompression (360 bytes)
-; ==================================================================
-ZX0_FONT_PATTERN_BUFFER EQU #D700
-
-; ==================================================================
-; ZX0 FONT COLOR BUFFER (AUTO-INJECTED)
-; Free RAM buffer for font color data decompression (360 bytes)
-; ==================================================================
-ZX0_FONT_COLOR_BUFFER EQU #D900
-
-; ==================================================================
-; ZX0 SPRITE FRAME BUFFER (AUTO-INJECTED)
-; Shared RAM buffer for per-frame sprite decompression before VRAM upload (64 bytes)
-; ==================================================================
-ZX0_SPRITE_FRAME_BUFFER EQU #DB00
-
-; ==================================================================
-; ZX0 SPRITE LABEL REMAP (AUTO-INJECTED)
-; Frame entry labels now point to ZX0-compressed frame blobs
-; ==================================================================
-; Frame group: ANEC_RIGHT_0_F0
-ANEC_RIGHT_0_F0_LAYER1 EQU ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F0_DATA
-; Frame group: ANEC_RIGHT_0_F1
-ANEC_RIGHT_0_F1_LAYER1 EQU ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F1_DATA
-; Frame group: BOLA_1_F0
-BOLA_1_F0_LAYER1 EQU ZX0_SPRITE_FRAME_BOLA_1_F0_DATA
-; Frame group: BOLA_1_F1
-BOLA_1_F1_LAYER1 EQU ZX0_SPRITE_FRAME_BOLA_1_F1_DATA
-; Frame group: BOSSA_2_F0
-BOSSA_2_F0_LAYER1 EQU ZX0_SPRITE_FRAME_BOSSA_2_F0_DATA
-; Frame group: PANELL_3_F0
-PANELL_3_F0_LAYER1 EQU ZX0_SPRITE_FRAME_PANELL_3_F0_DATA
-; Frame group: BOLA_DEAD_4_F3
-BOLA_DEAD_4_F3_LAYER1 EQU ZX0_SPRITE_FRAME_BOLA_DEAD_4_F3_DATA
-; Frame group: BOLA_DEAD_4_F4
-BOLA_DEAD_4_F4_LAYER1 EQU ZX0_SPRITE_FRAME_BOLA_DEAD_4_F4_DATA
-; Frame group: ANEC_LEFT_5_F0
-ANEC_LEFT_5_F0_LAYER1 EQU ZX0_SPRITE_FRAME_ANEC_LEFT_5_F0_DATA
-; Frame group: ANEC_LEFT_5_F1
-ANEC_LEFT_5_F1_LAYER1 EQU ZX0_SPRITE_FRAME_ANEC_LEFT_5_F1_DATA
-
-; ==================================================================
-; ZX0 SPRITE COPY HELPER (AUTO-INJECTED)
-; - If HL points to a compressed sprite frame blob, decompress frame
-;   to ZX0_SPRITE_FRAME_BUFFER and then upload to VRAM.
-; - Otherwise copy raw frame data directly to VRAM.
-; Input: HL=source (ROM), DE=VRAM destination, BC=byte count
-; ==================================================================
-COPY_SPRITE_SRC_TO_VRAM:
-    push de
-    ; source < ZX0_SPRITE_FRAME_DATA_START => raw copy
-    push hl
-    ld de, ZX0_SPRITE_FRAME_DATA_START
-    or a
-    sbc hl, de
-    pop hl
-    jr c, COPY_SPRITE_SRC_TO_VRAM_RAW
-
-    ; source >= ZX0_SPRITE_FRAME_DATA_END_LABEL => raw copy
-    push hl
-    ld de, ZX0_SPRITE_FRAME_DATA_END_LABEL
-    or a
-    sbc hl, de
-    pop hl
-    jr nc, COPY_SPRITE_SRC_TO_VRAM_RAW
-
-    ; Compressed frame: decompress to shared RAM buffer, then upload
-    pop de
-    push bc
-    push de
-    push hl
-    ld de, ZX0_SPRITE_FRAME_BUFFER
-    call dzx0_standard
-    pop hl
-    pop de
-    pop bc
-    ld hl, ZX0_SPRITE_FRAME_BUFFER
-    jp FAST_LDIRVM
-
-COPY_SPRITE_SRC_TO_VRAM_RAW:
-    pop de
-    jp FAST_LDIRVM
-
-; ==================================================================
-; ZX0 DECOMPRESSOR (AUTO-INJECTED)
-; ==================================================================
-; -----------------------------------------------------------------------------
-; ZX0 decoder by Einar Saukas & Urusergi
-; "Standard" version (68 bytes only)
-; -----------------------------------------------------------------------------
-; Parameters:
-;   HL: source address (compressed data)
-;   DE: destination address (decompressing)
-; -----------------------------------------------------------------------------
-
-dzx0_standard:
-        ld      bc, $ffff               ; preserve default offset 1
-        push    bc
-        inc     bc
-        ld      a, $80
-dzx0s_literals:
-        call    dzx0s_elias             ; obtain length
-        ldir                            ; copy literals
-        add     a, a                    ; copy from last offset or new offset?
-        jr      c, dzx0s_new_offset
-        call    dzx0s_elias             ; obtain length
-dzx0s_copy:
-        ex      (sp), hl                ; preserve source, restore offset
-        push    hl                      ; preserve offset
-        add     hl, de                  ; calculate destination - offset
-        ldir                            ; copy from offset
-        pop     hl                      ; restore offset
-        ex      (sp), hl                ; preserve offset, restore source
-        add     a, a                    ; copy from literals or new offset?
-        jr      nc, dzx0s_literals
-dzx0s_new_offset:
-        pop     bc                      ; discard last offset
-        ld      c, $fe                  ; prepare negative offset
-        call    dzx0s_elias_loop        ; obtain offset MSB
-        inc     c
-        ret     z                       ; check end marker
-        ld      b, c
-        ld      c, (hl)                 ; obtain offset LSB
-        inc     hl
-        rr      b                       ; last offset bit becomes first length bit
-        rr      c
-        push    bc                      ; preserve new offset
-        ld      bc, 1                   ; obtain length
-        call    nc, dzx0s_elias_backtrack
-        inc     bc
-        jr      dzx0s_copy
-dzx0s_elias:
-        inc     c                       ; interlaced Elias gamma coding
-dzx0s_elias_loop:
-        add     a, a
-        jr      nz, dzx0s_elias_skip
-        ld      a, (hl)                 ; load another group of 8 bits
-        inc     hl
-        rla
-dzx0s_elias_skip:
-        ret     c
-dzx0s_elias_backtrack:
-        add     a, a
-        rl      c
-        rl      b
-        jr      dzx0s_elias_loop
-; -----------------------------------------------------------------------------
-
-
-
-
 
     end                 ; End of assembly
