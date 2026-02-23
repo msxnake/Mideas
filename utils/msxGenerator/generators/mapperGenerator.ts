@@ -70,6 +70,117 @@ export function generateMapperFile(options: MapperRuntimeOptions = {}): string {
   const autoMegaROM = options.autoMegaROM ?? true;
   const mapperWritesEnabled = romMode === 'megarom' || (romMode === 'auto' && autoMegaROM);
 
+  if (!mapperWritesEnabled) {
+    return `; ==================================================================
+; MAPPER RUNTIME API
+; File: mapper.asm
+; Description: Minimal compatibility stubs for simple32k builds
+; Target mapper: ${targetFormat}
+; ROM mode: ${romMode} (autoMegaROM=${autoMegaROM ? 'true' : 'false'})
+; ==================================================================
+;
+; This build runs in simple32k mode, so bank switching is not active.
+; Keep mapper API labels as no-op stubs so generated gameplay code can
+; call the same routines without conditional assembly branches.
+
+; ------------------------------------------------------------------
+; mapper_runtime_init
+; Initializes runtime mirrors only (no hardware mapper writes).
+; ------------------------------------------------------------------
+mapper_runtime_init:
+    xor a
+    ld (mapper_bank_p1_current), a
+    ld a, 1
+    ld (mapper_bank_p2_current), a
+    ld a, 2
+    ld (mapper_bank_p3_current), a
+    ld a, 3
+    ld (mapper_bank_p4_current), a
+    ret
+
+; ------------------------------------------------------------------
+; API: mapper_set_bank_pX
+; Input: A = bank number (stored only for compatibility)
+; ------------------------------------------------------------------
+mapper_set_bank_p1:
+    ld (mapper_bank_p1_current), a
+    ret
+
+mapper_set_bank_p2:
+    ld (mapper_bank_p2_current), a
+    ret
+
+mapper_set_bank_p3:
+    ld (mapper_bank_p3_current), a
+    ret
+
+mapper_set_bank_p4:
+    ld (mapper_bank_p4_current), a
+    ret
+
+; ------------------------------------------------------------------
+; Save/restore helpers (compatibility only).
+; ------------------------------------------------------------------
+mapper_push_p1:
+    ld a, (mapper_bank_p1_current)
+    ld (mapper_saved_bank_p1), a
+    ret
+
+mapper_pop_p1:
+    ld a, (mapper_saved_bank_p1)
+    jp mapper_set_bank_p1
+
+mapper_push_p2:
+    ld a, (mapper_bank_p2_current)
+    ld (mapper_saved_bank), a
+    ret
+
+mapper_pop_p2:
+    ld a, (mapper_saved_bank)
+    jp mapper_set_bank_p2
+
+mapper_push_p3:
+    ld a, (mapper_bank_p3_current)
+    ld (mapper_saved_bank_p3), a
+    ret
+
+mapper_pop_p3:
+    ld a, (mapper_saved_bank_p3)
+    jp mapper_set_bank_p3
+
+mapper_push_p4:
+    ld a, (mapper_bank_p4_current)
+    ld (mapper_saved_bank_p4), a
+    ret
+
+mapper_pop_p4:
+    ld a, (mapper_saved_bank_p4)
+    jp mapper_set_bank_p4
+
+; ------------------------------------------------------------------
+; Far call helpers (simple32k no-op bank switch).
+; ------------------------------------------------------------------
+mapper_call_hl_p1:
+    ld de, .return_p1
+    push de
+    jp (hl)
+.return_p1:
+    ret
+
+mapper_call_hl_p2:
+    jp mapper_call_hl_p1
+
+mapper_call_hl_p3:
+    jp mapper_call_hl_p1
+
+mapper_call_hl_p4:
+    jp mapper_call_hl_p1
+
+mapper_call_hl_auto:
+    jp mapper_call_hl_p1
+`;
+  }
+
   const layout = resolveMapperRegisterLayout(targetFormat);
   const writeComment = mapperWritesEnabled
     ? '; Mapper register writes are enabled for this build configuration.'

@@ -312,6 +312,9 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     lines.push(`Compile status: ${compileResult?.success ? 'OK' : 'FAILED'}`);
     lines.push(`Requested: mode=${requested.romMode ?? 'unknown'}, mapper=${requested.targetFormat ?? 'unknown'}, autoMegaROM=${requested.autoMegaROM ?? 'unknown'}`);
     lines.push(`Resolved: mode=${resolved.resolvedRomMode ?? 'unknown'}, mapper=${resolved.targetFormat ?? 'unknown'}, mapperActive=${resolved.mapperActive ?? 'unknown'}`);
+    if (resolved.mapperTargetFormat) {
+      lines.push(`Mapper target: ${resolved.mapperTargetFormat}`);
+    }
 
     if (resolved.reason) {
       lines.push(`Reason: ${resolved.reason}`);
@@ -344,6 +347,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       let code = '';
       let files: GeneratedFile[] = [];
       let generatedRomConfig: RomBuildConfig | null = null;
+      let nextActiveFileIndex = 0;
 
       const projectName = currentProjectName || "MSX_Project";
 
@@ -495,10 +499,34 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           break;
 
         case 'asm_all_in_one':
-          const asmBundle = await generateMapperReadyBundle(projectName, buildCurrentRomConfig());
+          const requestedRomConfig = buildCurrentRomConfig();
+          let asmBundle = await generateMapperReadyBundle(projectName, requestedRomConfig);
           generatedRomConfig = asmBundle.romConfig;
           files = asmBundle.files;
           code = asmBundle.mainCode;
+          nextActiveFileIndex = asmBundle.activeIndex;
+
+          // Auto-clean generated ASM when auto mode resolves to simple32k.
+          if (requestedRomConfig.romMode === 'auto') {
+            try {
+              const probeResult = await runCompileRequest(code, asmBundle.romConfig, projectName);
+              if (probeResult?.success && probeResult?.resolvedRomConfig?.resolvedRomMode === 'simple32k') {
+                const cleanRomConfig: RomBuildConfig = {
+                  romMode: 'simple32k',
+                  targetFormat: asmBundle.romConfig.targetFormat,
+                  autoMegaROM: false
+                };
+                asmBundle = await generateMapperReadyBundle(projectName, cleanRomConfig);
+                generatedRomConfig = asmBundle.romConfig;
+                files = asmBundle.files;
+                code = asmBundle.mainCode;
+                nextActiveFileIndex = asmBundle.activeIndex;
+                setRomMode('simple32k');
+              }
+            } catch (probeError) {
+              console.warn('Auto-clean probe skipped (compile probe failed):', probeError);
+            }
+          }
           break;
 
         case 'entities':
@@ -518,7 +546,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
       setGeneratedCode(code);
       setGeneratedFiles(files);
-      setActiveFileIndex(0);
+      setActiveFileIndex(nextActiveFileIndex);
       setLastGeneratedRomConfig(generatedRomConfig);
     } catch (error) {
       const errorCode = `; Error generating code: ${error}`;
@@ -634,7 +662,31 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
       const compileResult = await runCompileRequest(sourceCodeForCompile, bundle.romConfig, bundle.projectName);
       setCompilationResult(compileResult);
-      setQuickValidationSummary(`${compressionSummary}\n${buildMapperSummary(compileResult, bundle.projectName)}`);
+
+      let summary = `${compressionSummary}\n${buildMapperSummary(compileResult, bundle.projectName)}`;
+
+      // Auto-clean generated ASM when auto mode resolved to simple32k.
+      // This keeps downloadable/generated code free of mapper-heavy scaffolding.
+      if (
+        compileResult?.success &&
+        bundle.romConfig.romMode === 'auto' &&
+        compileResult?.resolvedRomConfig?.resolvedRomMode === 'simple32k'
+      ) {
+        const cleanRomConfig: RomBuildConfig = {
+          romMode: 'simple32k',
+          targetFormat: bundle.romConfig.targetFormat,
+          autoMegaROM: false
+        };
+        const cleanBundle = await generateMapperReadyBundle(bundle.projectName, cleanRomConfig);
+        setGeneratedCode(cleanBundle.mainCode);
+        setGeneratedFiles(cleanBundle.files);
+        setActiveFileIndex(cleanBundle.activeIndex);
+        setLastGeneratedRomConfig(cleanBundle.romConfig);
+        setRomMode('simple32k');
+        summary += '\nAuto-clean: regenerated ASM in simple32k mode (minimal mapper stubs).';
+      }
+
+      setQuickValidationSummary(summary);
     } catch (error) {
       const failure = {
         success: false,
@@ -1491,6 +1543,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             <div>
                               Resolved config: mode=<strong>{(compilationResult as any).resolvedRomConfig.resolvedRomMode}</strong>, mapper=<strong>{(compilationResult as any).resolvedRomConfig.targetFormat}</strong>, mapperActive=<strong>{String((compilationResult as any).resolvedRomConfig.mapperActive)}</strong>
                             </div>
+                            {(compilationResult as any).resolvedRomConfig.mapperTargetFormat && (
+                              <div>
+                                Mapper target: <strong>{(compilationResult as any).resolvedRomConfig.mapperTargetFormat}</strong>
+                              </div>
+                            )}
                             <div>
                               Reason: {(compilationResult as any).resolvedRomConfig.reason}
                             </div>

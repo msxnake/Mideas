@@ -1277,6 +1277,7 @@ app.post('/compile', (req, res) => {
           }
         }
         const mapperActive = resolvedRomMode !== 'simple32k';
+        const resolvedTargetFormat = mapperActive ? normalizedTargetFormat : 'none';
 
         console.log('ROM diagnostics:', {
           sizeMod8192,
@@ -1290,6 +1291,8 @@ app.post('/compile', (req, res) => {
           requestedAutoMegaROM: normalizedAutoMegaROM,
           romModeConflictWarning,
           resolvedRomMode,
+          resolvedTargetFormat,
+          mapperTargetFormat: normalizedTargetFormat,
           mapperActive,
           mapperResolutionReason,
           sourceRomConfig,
@@ -1378,7 +1381,8 @@ app.post('/compile', (req, res) => {
           resolvedRomConfig: {
             requestedRomMode: normalizedRomMode,
             resolvedRomMode: resolvedRomMode,
-            targetFormat: normalizedTargetFormat,
+            targetFormat: resolvedTargetFormat,
+            mapperTargetFormat: normalizedTargetFormat,
             mapperActive: mapperActive,
             reason: mapperResolutionReason
           },
