@@ -21,6 +21,10 @@ function generateTaskRegistration(analysis?: ProjectAnalysis): string {
   code += `    ld a, 0\n`;
   code += `    ld hl, task_update_input\n`;
   code += `    call enable_task\n\n`;
+  // Task 1: Sprite SAT upload in VBlank (for smooth hardware sprites)
+  code += `    ld a, 1\n`;
+  code += `    ld hl, task_update_sprites\n`;
+  code += `    call enable_task\n\n`;
 
   // NOTE: To keep gameplay deterministic and identical to Mideas' GameFlow update order,
   // we do NOT auto-register gameplay-mutating tasks (physics/collision) here.

@@ -470,8 +470,7 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Update sprites to VRAM
-    call update_sprites_to_vram
+    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${hasHud ? `
     ; Render HUD elements
     call render_hud
@@ -951,10 +950,8 @@ print_string_vram:
     ; Write character to VRAM
     push hl
     push de
-    push af                       ; Save character
     ex de, hl                     ; HL = VRAM address (from DE)
-    pop af                        ; Restore character to A
-    call WRTVRM                   ; Write A to VRAM at HL
+    call FAST_WRTVRM              ; Write A to VRAM at HL (direct port)
     pop de
     pop hl
 
@@ -1160,13 +1157,14 @@ render_submenu_screen:
     ld hl, (gameflow_submenu_data_ptr)
     ld bc, 11
     add hl, bc
-    ld a, (hl)
+    ld e, (hl)                    ; E = bg_screen_fn low
     inc hl
-    ld h, (hl)
-    ld l, a                       ; HL = bg_screen_fn (0 if none)
+    ld d, (hl)                    ; D = bg_screen_fn high
     inc hl
-    ld a, (hl)
-    ld d, a                       ; D = bg_screen_bank
+    ld a, (hl)                    ; A = bg_screen_bank
+    ld c, a
+    ex de, hl                     ; HL = bg_screen_fn (0 if none)
+    ld d, c                       ; D = bg_screen_bank
     ld a, h
     or l
     jr z, .rss_clear_screen       ; no bg screen -> solid clear
@@ -1713,6 +1711,10 @@ show_text_screen:
     djnz .sts_clear_loop
 
 .sts_render:
+    ; Background loaders may overwrite character patterns/colors used for text.
+    ; Restore font before rendering text lines.
+    call init_font_system
+
     ; Now render each text line
     pop hl                        ; (1) HL = pointer to numLines
     ld a, (hl)                    ; A = numLines
@@ -2570,10 +2572,8 @@ print_string_vram:
     ; Write character to VRAM
     push hl
     push de
-    push af                       ; Save character
     ex de, hl                     ; HL = VRAM address (from DE)
-    pop af                        ; Restore character to A
-    call WRTVRM                   ; Write A to VRAM at HL
+    call FAST_WRTVRM              ; Write A to VRAM at HL (direct port)
     pop de
     pop hl
 
@@ -2969,7 +2969,7 @@ gameflow_world_game_loop:
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
-    call update_sprites_to_vram
+    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${defaultHasHud ? `    call render_hud
 ` : ``}    halt                            ; Wait for V-Blank
     jp gameflow_world_game_loop

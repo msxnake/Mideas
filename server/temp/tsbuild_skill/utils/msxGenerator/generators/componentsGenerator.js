@@ -16,9 +16,10 @@ const componentAnalyzer_1 = require("../utils/componentAnalyzer");
  * Generate optimized update_all_entities function
  * Only includes CALLs to systems that are actually used
  * @param usedComponents - Set of component names that are used in the project
+ * @param avoidStateMachineDuplication - true when GameFlow already executes execute_all_state_machines
  * @returns ASM code for update_all_entities
  */
-function generateUpdateAllEntities(usedComponents) {
+function generateUpdateAllEntities(usedComponents, avoidStateMachineDuplication) {
     let code = `
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
@@ -58,6 +59,11 @@ update_all_entities:
         // Position is always needed (entities always have positions)
         const isRequired = component === 'Position' || component === 'Sprite';
         if (isRequired || usedComponents.has(component)) {
+            // GameFlow executes state machines explicitly in execute_all_state_machines.
+            // Avoid running them twice per frame.
+            if (avoidStateMachineDuplication && funcCall === 'update_statemachine_component') {
+                continue;
+            }
             // Avoid duplicate function calls (e.g., multiple Collision entries)
             if (!processedFunctions.has(funcCall)) {
                 processedFunctions.add(funcCall);
@@ -1503,6 +1509,13 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld bc, 31
             ld (hl), #0F               ; Default: 00001111 = all directions enabled
             ldir
+
+            ; Initialize input disabled flags to 0 (all entities start with input ENABLED)
+            ld hl, entity_input_disabled
+            ld de, entity_input_disabled + 1
+            ld bc, 31
+            ld (hl), 0
+            ldir
             ret
 
         update_input_component:
@@ -1541,6 +1554,30 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             cp (hl)
             pop hl
             jp nz, input_next_entity
+
+            ; Check if input is disabled for this entity (DISABLE_INPUT action)
+            push hl
+            ld e, c
+            ld d, 0
+            ld hl, entity_input_disabled
+            add hl, de
+            ld a, (hl)
+            pop hl
+            or a
+            jp z, .input_enabled
+            ; Input disabled: zero velocity and skip
+            push hl
+            ld e, c
+            ld d, 0
+            ld hl, entity_vel_x
+            add hl, de
+            ld (hl), 0
+            ld hl, entity_vel_y
+            add hl, de
+            ld (hl), 0
+            pop hl
+            jp input_next_entity
+        .input_enabled:
 
             ; Apply input to entity movement (real implementation)
             push bc
@@ -2576,7 +2613,7 @@ function generateAnimationSystem() {
             ld (hl), ANIM_DEFAULT_SPEED
             ldir
 
-            ; Default flags = playing + loop
+            ; Default flags = playing + loop (loop cleared/set per-sprite by Action_ChangeSprite)
             ld hl, entity_anim_flags
             ld de, entity_anim_flags+1
             ld bc, 31
@@ -4160,6 +4197,9 @@ entity_collision_offset_y EQU temp_byte_22 ; Entity collision hitbox Y offset (3
 entity_entity_collision_flags EQU temp_byte_23 ; bit0 entity(any), bit1 enemy, bit2 item (32 bytes)
 entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=none) (32 bytes)
 
+    ; Input Disable Flag
+entity_input_disabled EQU temp_byte_25 ; 0=enabled, 1=disabled (32 bytes)
+
 
     ; ==================================================================
 ; CORE ECS SYSTEM FUNCTIONS
@@ -4475,7 +4515,7 @@ update_collectible_component:
     // ==================================================================
     // Generate update_all_entities function - OPTIMIZED based on used components
     // Only generates CALLs to systems that are actually used
-    code += generateUpdateAllEntities(usedComponents);
+    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow);
     // Generate execute_all_state_machines function - called by GameFlow game loop
     code += `
 ; ==================================================================

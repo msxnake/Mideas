@@ -2353,6 +2353,10 @@ RAM_USAGE_END       EQU #${a.toString(16).toUpperCase().padStart(4,"0")}   ; End
 `,t+=`    ld hl, task_update_input
 `,t+=`    call enable_task
 
+`,t+=`    ld a, 1
+`,t+=`    ld hl, task_update_sprites
+`,t+=`    call enable_task
+
 `,t}function Na(e,t){var l;let a="";if(t!=null&&t.gameFlow){const n=t.gameFlow;a=`
 ; GameFlow Integration: Using "${n.name}" as execution orchestrator`;const o=n.nodes.find(s=>s.type==="Start");if(o){const s=n.connections.find(r=>{var c;return((c=r.from)==null?void 0:c.nodeId)===o.id||typeof r.from=="string"&&r.from===o.id});if(s){const r=((l=s.to)==null?void 0:l.nodeId)||s.to,c=n.nodes.find(i=>i.id===r);c&&(a+=`
 ; Flow: Start → ${c.type} (${c.title||c.name||c.id})`)}}}return`; ==================================================================
@@ -2718,8 +2722,7 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Update sprites to VRAM
-    call update_sprites_to_vram
+    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${n?`
     ; Render HUD elements
     call render_hud
@@ -4866,7 +4869,7 @@ gameflow_world_game_loop:
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
-    call update_sprites_to_vram
+    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${t?`    call render_hud
 `:""}    halt                            ; Wait for V-Blank
     jp gameflow_world_game_loop
@@ -5930,7 +5933,7 @@ SPRITE_INVISIBLE    EQU ${al}
 update_all_entities:
     ; Build entity list once per frame (slots with non-zero component masks)
     call rebuild_used_entity_list
-`;const a=[["Input","update_input_component","1. Input (player control)"],["Shoot","update_shoot_component","2. Shooting"],["Behavior","update_behavior_component","3. Behavior/AI"],["Patrol","update_entities","3b. Patrol/per-entity update"],["StateMachine","update_statemachine_component","3c. State machine logic"],["Jump","update_jump_component","4. Jump impulse"],["Movement","update_movement_component","5. Movement"],["Cursors","update_cursors_component","5b. Cursors movement"],["Gravity","update_gravity_component","6. Gravity"],["Position","update_position_component","7. Apply velocity"],["Collision","prepare_platform_detection","8a. Clear platform refs"],["Collision","update_collision_component","8b. Collision detection"],["Collision","update_platform_riding","8c. Platform riding"],["WallCollision","update_wallcollision_component","8d. Wall collision"],["Health","update_health_component","9. Health/Death"],["Damage","update_damage_component","10. Damage"],["Animation","update_animation_component","11. Animation"],["AutoDestroy","update_auto_destroy_component","12. Auto-destroy"],["Sprite","update_sprite_component","13. Sprite rendering"]];let l=0;const n=new Set;for(const[o,s,r]of a)(o==="Position"||o==="Sprite"||e.has(o))&&(n.has(s)||(n.add(s),t+=`    call ${s.padEnd(30)} ; ${r}
+`;const a=[["Input","update_input_component","1. Input (player control)"],["Shoot","update_shoot_component","2. Shooting"],["Behavior","update_behavior_component","3. Behavior/AI"],["Patrol","update_entities","3b. Patrol/per-entity update"],["Jump","update_jump_component","4. Jump impulse"],["Movement","update_movement_component","5. Movement"],["Cursors","update_cursors_component","5b. Cursors movement"],["Gravity","update_gravity_component","6. Gravity"],["Position","update_position_component","7. Apply velocity"],["Collision","prepare_platform_detection","8a. Clear platform refs"],["Collision","update_collision_component","8b. Collision detection"],["Collision","update_platform_riding","8c. Platform riding"],["WallCollision","update_wallcollision_component","8d. Wall collision"],["Health","update_health_component","9. Health/Death"],["Damage","update_damage_component","10. Damage"],["Animation","update_animation_component","11. Animation"],["AutoDestroy","update_auto_destroy_component","12. Auto-destroy"],["Sprite","update_sprite_component","13. Sprite rendering"]];let l=0;const n=new Set;for(const[o,s,r]of a)(o==="Position"||o==="Sprite"||e.has(o))&&(n.has(s)||(n.add(s),t+=`    call ${s.padEnd(30)} ; ${r}
 `,s==="update_shoot_component"&&(t+=`    ; Shooting may spawn entities, rebuild used-entity list for later phases
 `,t+=`    call rebuild_used_entity_list
 `),l++));return t+=`    ret

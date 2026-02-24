@@ -334,6 +334,20 @@ sprite_asset_frame_count:
         code += `    db 1 ; Placeholder\n`;
     }
     code += `
+; Table: Sprite Asset Loop Flags
+; Format: db flags (bit 1: 1=loop, 0=once)
+sprite_loop_flags:
+`;
+    sprites.forEach((sprite, index) => {
+        // Default to looping if loops property is undefined, as per Mideas defaults
+        const loops = sprite.loops !== false;
+        const loopVal = loops ? '2' : '0';
+        code += `    db ${loopVal} ; Sprite ${index}: ${sprite.name}\n`;
+    });
+    if (sprites.length === 0) {
+        code += `    db 2 ; Placeholder (loops by default)\n`;
+    }
+    code += `
 ; Table: Sprite Asset Frame Pointer List Table
 ; Format: dw SPRITE_<id>_FRAME_PTRS
 sprite_asset_frame_ptr_table:

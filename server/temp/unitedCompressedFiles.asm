@@ -19,7 +19,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 89524
+; Estimated payload bytes: 89529
 ; Estimated banks used: 11
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (865 bytes)
@@ -47,7 +47,7 @@
 ; BANK 08 @#0000 : statemachine.asm part 3/3 (7311 bytes)
 ; BANK 08 @#1C8F : gameflow.asm part 1/3 (881 bytes)
 ; BANK 09 @#0000 : gameflow.asm part 2/3 (8192 bytes)
-; BANK 10 @#0000 : gameflow.asm part 3/3 (7604 bytes)
+; BANK 10 @#0000 : gameflow.asm part 3/3 (7609 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -144,6 +144,10 @@ restart_rom_continue:
     ; Register default tasks based on project needs
         ld a, 0
     ld hl, task_update_input
+    call enable_task
+
+    ld a, 1
+    ld hl, task_update_sprites
     call enable_task
 
 
@@ -4624,7 +4628,6 @@ update_all_entities:
     call rebuild_used_entity_list
     call update_input_component         ; 1. Input (player control)
     call update_entities                ; 3b. Patrol/per-entity update
-    call update_statemachine_component  ; 3c. State machine logic
     call update_jump_component          ; 4. Jump impulse
     call update_cursors_component       ; 5b. Cursors movement
     call update_gravity_component       ; 6. Gravity
@@ -4636,7 +4639,7 @@ update_all_entities:
     call update_animation_component     ; 11. Animation
     call update_sprite_component        ; 13. Sprite rendering
     ret
-; Total systems called: 13 (optimized from 16)
+; Total systems called: 12 (optimized from 16)
 
 
 ; ------------------------------------------------------------------
@@ -15406,8 +15409,7 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Update sprites to VRAM
-    call update_sprites_to_vram
+    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 
     ; Render HUD elements
     call render_hud

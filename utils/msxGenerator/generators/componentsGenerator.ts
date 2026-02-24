@@ -17,9 +17,13 @@ import { analyzeComponentUsage, ComponentUsageAnalysis } from '../utils/componen
  * Generate optimized update_all_entities function
  * Only includes CALLs to systems that are actually used
  * @param usedComponents - Set of component names that are used in the project
+ * @param avoidStateMachineDuplication - true when GameFlow already executes execute_all_state_machines
  * @returns ASM code for update_all_entities
  */
-function generateUpdateAllEntities(usedComponents: Set<string>): string {
+function generateUpdateAllEntities(
+    usedComponents: Set<string>,
+    avoidStateMachineDuplication: boolean
+): string {
     let code = `
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
@@ -63,6 +67,11 @@ update_all_entities:
         const isRequired = component === 'Position' || component === 'Sprite';
 
         if (isRequired || usedComponents.has(component)) {
+            // GameFlow executes state machines explicitly in execute_all_state_machines.
+            // Avoid running them twice per frame.
+            if (avoidStateMachineDuplication && funcCall === 'update_statemachine_component') {
+                continue;
+            }
             // Avoid duplicate function calls (e.g., multiple Collision entries)
             if (!processedFunctions.has(funcCall)) {
                 processedFunctions.add(funcCall);
@@ -4578,7 +4587,7 @@ update_collectible_component:
 
     // Generate update_all_entities function - OPTIMIZED based on used components
     // Only generates CALLs to systems that are actually used
-    code += generateUpdateAllEntities(usedComponents);
+    code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow);
 
     // Generate execute_all_state_machines function - called by GameFlow game loop
     code += `

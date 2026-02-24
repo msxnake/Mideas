@@ -509,8 +509,7 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Update sprites to VRAM
-    call update_sprites_to_vram
+    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${hasHud ? `
     ; Render HUD elements
     call render_hud
@@ -3097,7 +3096,7 @@ gameflow_world_game_loop:
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
-    call update_sprites_to_vram
+    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${defaultHasHud ? `    call render_hud
 ` : ``}    halt                            ; Wait for V-Blank
     jp gameflow_world_game_loop
