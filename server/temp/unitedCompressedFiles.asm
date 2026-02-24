@@ -19,7 +19,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 89529
+; Estimated payload bytes: 89557
 ; Estimated banks used: 11
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (865 bytes)
@@ -47,7 +47,7 @@
 ; BANK 08 @#0000 : statemachine.asm part 3/3 (7311 bytes)
 ; BANK 08 @#1C8F : gameflow.asm part 1/3 (881 bytes)
 ; BANK 09 @#0000 : gameflow.asm part 2/3 (8192 bytes)
-; BANK 10 @#0000 : gameflow.asm part 3/3 (7609 bytes)
+; BANK 10 @#0000 : gameflow.asm part 3/3 (7637 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -142,11 +142,7 @@ restart_rom_continue:
     di
 
     ; Register default tasks based on project needs
-        ld a, 0
-    ld hl, task_update_input
-    call enable_task
-
-    ld a, 1
+        ld a, 1
     ld hl, task_update_sprites
     call enable_task
 
@@ -15399,6 +15395,9 @@ gameflow_world_game_loop:
     ld a, (gameflow_exit_requested)
     or a
     ret nz
+
+    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+    call task_update_input
 
     ; Handle world screen edge transitions (Preview parity)
     call check_world_screen_transition

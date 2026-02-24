@@ -500,6 +500,9 @@ gameflow_world_game_loop:
     or a
     ret nz
 
+    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+    call task_update_input
+
     ; Handle world screen edge transitions (Preview parity)
     call check_world_screen_transition
 
@@ -3093,6 +3096,8 @@ ${defaultHasHud ? `    ; Set HUD dirty flag after screen load
 ` : ``}    ret
 
 gameflow_world_game_loop:
+    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+    call task_update_input
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines

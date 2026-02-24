@@ -16,10 +16,8 @@ function generateTaskRegistration(analysis) {
     if (!analysis)
         return '';
     let code = '';
-    // Task 0: Input (ALWAYS registered)
-    code += `    ld a, 0\n`;
-    code += `    ld hl, task_update_input\n`;
-    code += `    call enable_task\n\n`;
+    // Keep ISR focused on VBlank-safe work only.
+    // Input is polled in gameflow_world_game_loop for better compatibility.
     // Task 1: Sprite SAT upload in VBlank (for smooth hardware sprites)
     code += `    ld a, 1\n`;
     code += `    ld hl, task_update_sprites\n`;

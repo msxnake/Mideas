@@ -2349,11 +2349,7 @@ RAM_USAGE_END       EQU #${a.toString(16).toUpperCase().padStart(4,"0")}   ; End
 ;       RAM space is used at runtime, NOT reserved in ROM.
 ;       Do NOT use ORG #C000 in cartridge ROMs!
 ; ==================================================================
-`,t}function Ra(e){if(!e)return"";let t="";return t+=`    ld a, 0
-`,t+=`    ld hl, task_update_input
-`,t+=`    call enable_task
-
-`,t+=`    ld a, 1
+`,t}function Ra(e){if(!e)return"";let t="";return t+=`    ld a, 1
 `,t+=`    ld hl, task_update_sprites
 `,t+=`    call enable_task
 
@@ -2712,6 +2708,9 @@ gameflow_world_game_loop:
     ld a, (gameflow_exit_requested)
     or a
     ret nz
+
+    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+    call task_update_input
 
     ; Handle world screen edge transitions (Preview parity)
     call check_world_screen_transition
@@ -4866,6 +4865,8 @@ ${t?`    ; Set HUD dirty flag after screen load
 `:""}    ret
 
 gameflow_world_game_loop:
+    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+    call task_update_input
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
