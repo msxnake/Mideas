@@ -156,8 +156,8 @@ export function generateModularASM(
   const hardwareMode = config.hardwareMode || 'hybrid'; // Default to hybrid mode
   const optimizeLevel = config.optimizeLevel || 'safe';
   const targetFormat: MSXMapperFormat = config.targetFormat || 'konami';
-  const romMode: MSXRomMode = config.romMode || 'auto';
-  const autoMegaROM = config.autoMegaROM ?? true;
+  const romMode: MSXRomMode = config.romMode || 'simple32k';
+  const autoMegaROM = config.autoMegaROM ?? false;
 
   // Generate individual files
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
@@ -245,8 +245,8 @@ export function generateModularASMFromSummary(
   console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
 
   const targetFormat: MSXMapperFormat = config.targetFormat || 'konami';
-  const romMode: MSXRomMode = config.romMode || 'auto';
-  const autoMegaROM = config.autoMegaROM ?? true;
+  const romMode: MSXRomMode = config.romMode || 'simple32k';
+  const autoMegaROM = config.autoMegaROM ?? false;
 
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
 

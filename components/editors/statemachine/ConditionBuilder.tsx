@@ -55,6 +55,15 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({ onUpdate, co
         description: 'Entity Y velocity',
         category: 'entity' as const,
         values: []
+      },
+      {
+        name: 'isOnGround',
+        asmName: 'entity_on_ground',
+        constantPrefix: 'ONGROUND_',
+        type: 'boolean' as const,
+        description: 'Entity ground contact flag (true when touching floor)',
+        category: 'entity' as const,
+        values: []
       }
     ];
 

@@ -512,6 +512,9 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
+    ; Update animated background tiles (water, fire, etc.)
+    call update_animated_tiles
+
     ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${hasHud ? `
     ; Render HUD elements
@@ -3101,6 +3104,7 @@ gameflow_world_game_loop:
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
+    call update_animated_tiles
     ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${defaultHasHud ? `    call render_hud
 ` : ``}    halt                            ; Wait for V-Blank

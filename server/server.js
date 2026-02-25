@@ -6,7 +6,7 @@
 const express = require('express');
 const cors = require('cors');
 const util = require('util');
-const { exec } = require('child_process');
+const { exec, execSync } = require('child_process');
 const fs = require('fs');
 const execAsync = util.promisify(exec);
 const path = require('path');
@@ -142,6 +142,35 @@ function parseSourceRomConfig(sourceCode) {
     targetFormat: targetFormat || null,
     autoMegaROM
   };
+}
+
+function sourceConfigHasMapperWritesEnabled(sourceConfig) {
+  if (!sourceConfig) return false;
+  if (sourceConfig.romMode === 'megarom') return true;
+  if (sourceConfig.romMode === 'auto' && sourceConfig.autoMegaROM !== false) return true;
+  return false;
+}
+
+function disableMapperWritesForSimple32k(sourceCode) {
+  if (typeof sourceCode !== 'string' || sourceCode.length === 0) return sourceCode;
+
+  let patched = sourceCode;
+
+  patched = patched.replace(
+    /^(\s*;\s*ROM mode:\s*)(auto|megarom)\s*\(autoMegaROM=(true|false)\)\s*$/im,
+    '$1simple32k (autoMegaROM=false)'
+  );
+  patched = patched.replace(/^\s*;\s*Auto MegaROM:\s*Yes\s*$/im, '; Auto MegaROM: No');
+  patched = patched.replace(
+    /^\s*;\s*Mapper register writes are enabled for this build configuration\.\s*$/im,
+    '; Mapper register writes are disabled (simple32k mode).'
+  );
+  patched = patched.replace(
+    /^\s*ld\s+\(MAPPER_REG_P[1-4]\),\s*a\s*$/gim,
+    '    ; write disabled in current ROM mode'
+  );
+
+  return patched;
 }
 
 function collectAsmDataBlocks(lines, labelRegex) {
@@ -1029,13 +1058,13 @@ app.get('/', (req, res) => {
 app.post('/compile', (req, res) => {
   const { code, generateSymbols, projectName, screenCompression, romMode, targetFormat, autoMegaROM } = req.body;
 
-  console.log('📨 Compilation request received');
+  console.log('Compilation request received');
   console.log('  projectName:', projectName);
   console.log('  generateSymbols parameter:', generateSymbols);
   console.log('  requested ROM config:', {
-    romMode: romMode || 'auto',
+    romMode: romMode || 'simple32k',
     targetFormat: targetFormat || 'konami',
-    autoMegaROM: autoMegaROM !== false
+    autoMegaROM: typeof autoMegaROM === 'boolean' ? autoMegaROM : String(romMode || 'simple32k') === 'auto'
   });
   console.log('  Code length:', code?.length || 0);
 
@@ -1045,11 +1074,14 @@ app.post('/compile', (req, res) => {
 
   const normalizedRomMode = ['auto', 'simple32k', 'megarom'].includes(String(romMode))
     ? String(romMode)
-    : 'auto';
+    : 'simple32k';
   const normalizedTargetFormat = ['konami', 'ascii8', 'ascii16'].includes(String(targetFormat))
     ? String(targetFormat)
     : 'konami';
-  const normalizedAutoMegaROM = autoMegaROM !== false;
+  const normalizedAutoMegaROM =
+    typeof autoMegaROM === 'boolean'
+      ? autoMegaROM
+      : normalizedRomMode === 'auto';
 
   const tempDir = path.join(__dirname, 'temp');
   if (!fs.existsSync(tempDir)) {
@@ -1147,34 +1179,37 @@ app.post('/compile', (req, res) => {
       ? `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}" "${symbolFilePath}"`
       : `java -jar "${jarPath}" "${tempFilePath}" "${outputFilePath}"`;
 
-    console.log(`🔧 Executing Glass: ${command}`);
+    console.log(`Executing Glass: ${command}`);
     if (generateSymbols) {
-      console.log(`📋 Symbols will be saved to: ${symbolFilePath}`);
+      console.log(`Symbols will be saved to: ${symbolFilePath}`);
     }
 
     exec(command, (error, stdout, stderr) => {
+      let compileStdout = stdout || '';
+      let compileStderr = stderr || '';
+
       // Log detailed information for debugging
       console.log('=== GLASS COMPILATION RESULTS ===');
       console.log('Command:', command);
       console.log('Error object:', error);
-      console.log('STDOUT:', stdout);
-      console.log('STDERR:', stderr);
+      console.log('STDOUT:', compileStdout);
+      console.log('STDERR:', compileStderr);
       console.log('===================================');
 
       if (error) {
         // Don't delete temp file yet so we can inspect it
-        console.log(`❌ Glass compilation failed. Temp file: ${tempFilePath}`);
+        console.log(`Glass compilation failed. Temp file: ${tempFilePath}`);
 
         // Read the source file to see what we tried to compile
         fs.readFile(tempFilePath, 'utf8', (readErr, sourceCode) => {
           const errorResponse = {
             error: 'Glass compilation failed',
-            details: stderr || stdout || error.message,
+            details: compileStderr || compileStdout || error.message,
             command: command,
             sourceFile: tempFilePath,
             sourceCode: readErr ? 'Could not read source' : sourceCode.substring(0, 1000), // First 1000 chars
-            fullStderr: stderr,
-            fullStdout: stdout,
+            fullStderr: compileStderr,
+            fullStdout: compileStdout,
             errorCode: error.code,
             signal: error.signal,
             requestedRomConfig: {
@@ -1192,6 +1227,55 @@ app.post('/compile', (req, res) => {
         return;
       }
 
+      const compileSimpleLimitBytes = 32 * 1024;
+      const sourceRomConfigBeforeCompile = parseSourceRomConfig(codeToCompile);
+      const mapperWritesActiveInSource = sourceConfigHasMapperWritesEnabled(sourceRomConfigBeforeCompile);
+      const compiledSizeBytes = fs.existsSync(outputFilePath) ? fs.statSync(outputFilePath).size : 0;
+      const shouldRecompileSimpleSafe =
+        normalizedRomMode !== 'megarom' &&
+        mapperWritesActiveInSource &&
+        compiledSizeBytes > 0 &&
+        compiledSizeBytes <= compileSimpleLimitBytes;
+
+      if (shouldRecompileSimpleSafe) {
+        const simpleSafeCode = disableMapperWritesForSimple32k(codeToCompile);
+        if (simpleSafeCode !== codeToCompile) {
+          console.log(
+            `Mapper writes detected in <=32KB ROM (${compiledSizeBytes} bytes). Recompiling with simple32k-safe mapper stubs.`
+          );
+
+          try {
+            codeToCompile = simpleSafeCode;
+            fs.writeFileSync(tempFilePath, codeToCompile, 'utf8');
+            const retryStdout = execSync(command, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+            if (retryStdout && retryStdout.trim()) {
+              compileStdout = [compileStdout, retryStdout].filter(Boolean).join('\n');
+            }
+            console.log('Simple32k-safe recompilation completed.');
+          } catch (retryError) {
+            const retryStdoutText = retryError && retryError.stdout
+              ? String(retryError.stdout)
+              : '';
+            const retryStderrText = retryError && retryError.stderr
+              ? String(retryError.stderr)
+              : '';
+            return res.status(500).json({
+              error: 'Glass recompilation failed while applying simple32k-safe mapper mode',
+              details: retryStderrText || retryStdoutText || retryError.message,
+              command: command,
+              sourceFile: tempFilePath,
+              fullStderr: retryStderrText,
+              fullStdout: retryStdoutText,
+              requestedRomConfig: {
+                romMode: normalizedRomMode,
+                targetFormat: normalizedTargetFormat,
+                autoMegaROM: normalizedAutoMegaROM
+              }
+            });
+          }
+        }
+      }
+
       fs.readFile(outputFilePath, (readErr, data) => {
         // Clean up only the temporary ASM file, keep the ROM file
         fs.unlink(tempFilePath, () => {});
@@ -1200,30 +1284,41 @@ app.post('/compile', (req, res) => {
           return res.status(500).send({ error: 'Failed to read compiled file', details: readErr });
         }
 
-        // MSX ROM files must be multiples of 8KB
+        // MSX ROM files must be multiples of 8KB. For real flashcarts we
+        // enforce a minimum of 32KB and power-of-two 8KB bank counts.
         const KB_8 = 8192; // 8KB in bytes
+        const MIN_FLASHCART_ROM_BYTES = 32 * 1024;
         const ROM_ORIGIN = 0x4000;
         const SIMPLE_ROM_LIMIT_BYTES = 32 * 1024;
         const originalSize = data.length;
         const sizeMod8192 = originalSize % KB_8;
-        const targetSize = Math.max(KB_8, Math.ceil(originalSize / KB_8) * KB_8);
+        const aligned8KBSize = Math.max(KB_8, Math.ceil(originalSize / KB_8) * KB_8);
+        const aligned8KBBanks = aligned8KBSize / KB_8;
+        const minFlashcartBanks = MIN_FLASHCART_ROM_BYTES / KB_8;
+        const isPowerOfTwo = (value) => value > 0 && (value & (value - 1)) === 0;
+        const powerOfTwoBankCount = isPowerOfTwo(aligned8KBBanks)
+          ? aligned8KBBanks
+          : Math.pow(2, Math.ceil(Math.log2(aligned8KBBanks)));
+        const targetBankCount = Math.max(minFlashcartBanks, powerOfTwoBankCount);
+        const targetSize = targetBankCount * KB_8;
 
         let paddedData = data;
         if (originalSize !== targetSize) {
-          // Calculate padding needed to reach next 8KB boundary
+          // Calculate padding needed to reach hardware-safe size.
           const paddingNeeded = targetSize - originalSize;
           const padding = Buffer.alloc(paddingNeeded, 0xFF); // Fill with 0xFF (common for ROM padding)
           paddedData = Buffer.concat([data, padding]);
 
-          console.log(`📏 ROM Size Adjustment:`);
+          console.log('ROM Size Adjustment:');
           console.log(`   Original: ${originalSize} bytes`);
-          console.log(`   Padded: ${paddedData.length} bytes (${paddedData.length / KB_8}×8KB)`);
+          console.log(`   8KB aligned: ${aligned8KBSize} bytes (${aligned8KBBanks}x8KB)`);
+          console.log(`   Hardware-safe: ${paddedData.length} bytes (${paddedData.length / KB_8}x8KB)`);
           console.log(`   Added: ${paddingNeeded} bytes of padding (0xFF)`);
 
           // Write the padded ROM back to file
           fs.writeFileSync(outputFilePath, paddedData);
         } else {
-          console.log(`✅ ROM Size OK: ${originalSize} bytes (${originalSize / KB_8}×8KB)`);
+          console.log(`ROM Size OK: ${originalSize} bytes (${originalSize / KB_8}x8KB)`);
         }
 
         const banks8KB = paddedData.length / KB_8;
@@ -1341,9 +1436,9 @@ app.post('/compile', (req, res) => {
             });
 
             fs.writeFileSync(openmsxSymFilePath, openmsxSymbols.join('\n') + '\n', 'utf-8');
-            console.log(`📋 OpenMSX symbols: ${openmsxSymbols.length} ROM symbols (filtered 0x4000-0xFFFF)`);
+            console.log(`OpenMSX symbols: ${openmsxSymbols.length} ROM symbols (filtered 0x4000-0xFFFF)`);
           } catch (convError) {
-            console.error('⚠️ Failed to convert to OpenMSX format:', convError);
+            console.error('Failed to convert to OpenMSX format:', convError);
           }
 
           const openmsxSymFileName = path.basename(openmsxSymFilePath);
@@ -1356,9 +1451,9 @@ app.post('/compile', (req, res) => {
             openmsxSymbolFile: openmsxSymFileName,
             openmsxSymbolDownloadUrl: `/download/${openmsxSymFileName}`
           };
-          console.log(`✅ Symbol file generated: ${symbolFileName} (${symbolStats.size} bytes)`);
+          console.log(`Symbol file generated: ${symbolFileName} (${symbolStats.size} bytes)`);
         } else if (symbolFilePath) {
-          console.log(`⚠️ Symbol file was requested but not generated: ${symbolFilePath}`);
+          console.log(`Symbol file was requested but not generated: ${symbolFilePath}`);
         }
 
         // Return ROM file information for download
@@ -1366,7 +1461,7 @@ app.post('/compile', (req, res) => {
         const responseData = {
           success: true,
           data: paddedData.toString('hex'),
-          message: stdout,
+          message: compileStdout,
           romFile: romFileName,
           romPath: outputFilePath,
           downloadUrl: `/download/${romFileName}`,
@@ -1391,6 +1486,13 @@ app.post('/compile', (req, res) => {
             originalSize: originalSize,
             paddedSize: paddedData.length,
             paddingAdded: paddedData.length - originalSize,
+            paddingPolicy: 'minimum 32KB + power-of-two 8KB banks',
+            minimumFlashcartSize: MIN_FLASHCART_ROM_BYTES,
+            aligned8KBSize: aligned8KBSize,
+            aligned8KBBanks: aligned8KBBanks,
+            targetHardwareSize: targetSize,
+            targetHardwareBanks: targetBankCount,
+            hardwareSafePaddingApplied: targetSize !== aligned8KBSize,
             sizeIn8KB: paddedData.length / KB_8,
             sizeMod8192: sizeMod8192,
             banks8KB: banks8KB,
@@ -1682,14 +1784,14 @@ app.post('/run-openmsx', (req, res) => {
     return res.status(500).send({ error: 'OpenMSX automation script not found' });
   }
 
-  console.log(`🎮 Starting OpenMSX with ROM: ${romFile}`);
+  console.log(`Starting OpenMSX with ROM: ${romFile}`);
 
   // Execute run script (doesn't wait - OpenMSX stays open)
   const command = `"${runScript}" "${romPath}"`;
 
   exec(command, (error, stdout, stderr) => {
     if (error) {
-      console.log(`❌ Failed to start OpenMSX: ${error.message}`);
+      console.log(`Failed to start OpenMSX: ${error.message}`);
       return res.status(500).send({
         error: 'Failed to start OpenMSX',
         details: error.message,
@@ -1698,7 +1800,7 @@ app.post('/run-openmsx', (req, res) => {
       });
     }
 
-    console.log(`✅ OpenMSX started successfully for ROM: ${romFile}`);
+    console.log(`OpenMSX started successfully for ROM: ${romFile}`);
     res.send({
       success: true,
       message: 'OpenMSX started successfully',
@@ -1736,14 +1838,14 @@ app.post('/generate-screenshot', (req, res) => {
     return res.status(500).send({ error: 'Screenshot automation script not found' });
   }
 
-  console.log(`📷 Generating screenshot for ROM: ${romFile} (wait: ${waitSeconds}s)`);
+  console.log(`Generating screenshot for ROM: ${romFile} (wait: ${waitSeconds}s)`);
 
   // Execute screenshot script and wait for completion
   const command = `"${screenshotScript}" "${romPath}" ${waitSeconds}`;
 
   exec(command, { timeout: (waitSeconds + 20) * 1000 }, (error, stdout, stderr) => {
     if (error) {
-      console.log(`❌ Screenshot generation failed: ${error.message}`);
+      console.log(`Screenshot generation failed: ${error.message}`);
       return res.status(500).send({
         error: 'Screenshot generation failed',
         details: error.message,
@@ -1775,7 +1877,7 @@ app.post('/generate-screenshot', (req, res) => {
       }
 
       const latestScreenshot = screenshotFiles[0];
-      console.log(`✅ Screenshot generated: ${latestScreenshot.filename}`);
+      console.log(`Screenshot generated: ${latestScreenshot.filename}`);
 
       res.send({
         success: true,

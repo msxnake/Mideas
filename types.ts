@@ -79,6 +79,47 @@ export interface TileLogicalProperties {
 }
 
 /**
+ * Animation metadata for dynamic background tiles in MSX ASM exports.
+ * Multiple tiles sharing the same groupId are treated as animation frames.
+ */
+export type TileAnimationMode = 'frames' | 'transform';
+
+export type TileTransformEffect =
+  | 'rotate_left'
+  | 'rotate_right'
+  | 'shift_left'
+  | 'shift_right'
+  | 'shift_up'
+  | 'shift_down'
+  | 'swap_top_bottom';
+
+export interface TileTransformSettings {
+  /** Bitwise/row transform operation applied at runtime in ASM. */
+  effect?: TileTransformEffect;
+  /** Number of checkpoints/steps used by editor preview cycle (1-255). */
+  checkpoints?: number;
+  /** Apply vertical transforms to color rows too (SCREEN 2 attribute bytes). */
+  includeColors?: boolean;
+}
+
+export interface TileAnimationSettings {
+  /** Enable/disable animation for this tile. */
+  enabled?: boolean;
+  /** Animation mode: explicit frame list or runtime transform. */
+  mode?: TileAnimationMode;
+  /** Group identifier shared by all frames (e.g. "torch"). */
+  groupId?: string;
+  /** Frame order inside the group (0,1,2...). */
+  frameIndex?: number;
+  /** Frames to wait between animation updates (1-255). */
+  speed?: number;
+  /** Optional target/base tile ID where frames are rendered. */
+  baseTileId?: string;
+  /** Transform-mode settings (used when mode === 'transform'). */
+  transform?: TileTransformSettings;
+}
+
+/**
  * Represents a tile asset.
  */
 export interface Tile {
@@ -98,6 +139,26 @@ export interface Tile {
   logicalProperties: TileLogicalProperties;
   /** Optional custom palette definition for SCREEN 5 tiles. */
   screen5Palette?: Screen5PaletteSlot[];
+  /** Optional tile animation metadata for ASM generation. */
+  animation?: TileAnimationSettings;
+  /** Compatibility mirror: enables animated tile behavior. */
+  isAnimated?: boolean;
+  /** Compatibility mirror: animation group ID. */
+  animationGroup?: string;
+  /** Compatibility mirror: frame index inside group. */
+  animationFrameIndex?: number;
+  /** Compatibility mirror: speed in frames per update. */
+  animationSpeed?: number;
+  /** Compatibility mirror: target/base tile ID. */
+  animationBaseTileId?: string;
+  /** Compatibility mirror: animation mode ('frames' | 'transform'). */
+  animationMode?: TileAnimationMode;
+  /** Compatibility mirror: transform effect. */
+  animationTransformEffect?: TileTransformEffect;
+  /** Compatibility mirror: preview checkpoints/steps. */
+  animationTransformCheckpoints?: number;
+  /** Compatibility mirror: include color bytes in vertical transforms. */
+  animationTransformIncludeColors?: boolean;
 }
 
 /**

@@ -66,8 +66,8 @@ function resolveMapperRegisterLayout(format: MapperFormat): MapperRegisterLayout
 
 export function generateMapperFile(options: MapperRuntimeOptions = {}): string {
   const targetFormat: MapperFormat = options.targetFormat || 'konami';
-  const romMode: MapperRomMode = options.romMode || 'auto';
-  const autoMegaROM = options.autoMegaROM ?? true;
+  const romMode: MapperRomMode = options.romMode || 'simple32k';
+  const autoMegaROM = options.autoMegaROM ?? false;
   const mapperWritesEnabled = romMode === 'megarom' || (romMode === 'auto' && autoMegaROM);
 
   if (!mapperWritesEnabled) {

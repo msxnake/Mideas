@@ -183,6 +183,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   currentAddress++;
   code += `anim_tile_speed     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames between animation updates\n`;
   currentAddress++;
+  code += `anim_tile_transform_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime flags for transform-mode tile animation\n`;
+  currentAddress++;
+  code += `anim_tile_row_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temp buffer (8 bytes) for row transforms\n`;
+  currentAddress += 8;
 
   // Particle system variables
   code += `

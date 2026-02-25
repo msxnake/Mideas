@@ -76,6 +76,9 @@ include "hud.asm"
 ; 14. Menus (user interface)
 include "menus.asm"
 
+; 14.5 Animated tiles (background frame updates)
+include "animtiles.asm"
+
 ${analysis.stateMachines && analysis.stateMachines.length > 0 ? `; 15. State Machines (entity AI)
 include "statemachine.asm"
 ` : ''}

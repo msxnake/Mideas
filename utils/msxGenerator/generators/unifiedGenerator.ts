@@ -66,9 +66,9 @@ export function generateUnifiedFile(
     projectName: string,
     analysis: ProjectAnalysis,
     config: UnifiedGenerationConfig = {
-        romMode: 'auto',
+        romMode: 'simple32k',
         targetFormat: 'konami',
-        autoMegaROM: true
+        autoMegaROM: false
     }
 ): string {
     // Check what features are needed
@@ -172,6 +172,9 @@ ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color da
     call load_color_bank2
 ` : `    ; No tiles detected - skipping pattern/color loading
 `}
+    ; Initialize animated tile runtime (safe no-op if no animated groups)
+    call init_animated_tiles
+
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game entities with real positions from JSON
     call init_entities
 ` : `    ; No entities to initialize

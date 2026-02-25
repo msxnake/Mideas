@@ -2365,10 +2365,22 @@ position_update_loop:
     ld (hl), a                 ; Store new X
 
     ; Update Y Position
-    ; Y = Y + VelY
+    ; Y = Y + VelY (defensive clamp to avoid byte-wrap teleports)
     ld hl, entity_vel_y
     add hl, de
-    ld a, (hl)                 ; A = VelY
+    ld a, (hl)                 ; A = VelY (signed)
+    ; Clamp vertical delta to [-16..+16] to avoid single-frame wrap jumps
+    bit 7, a
+    jr z, .pos_vy_positive
+    cp #F0                     ; -16
+    jr nc, .pos_vy_ready       ; already in [-16..-1]
+    ld a, #F0
+    jr .pos_vy_ready
+.pos_vy_positive:
+    cp #11                     ; 17
+    jr c, .pos_vy_ready        ; already in [0..16]
+    ld a, #10                  ; +16
+.pos_vy_ready:
     ld b, a                    ; B = VelY
 
     ld hl, entity_y_pos
@@ -4882,6 +4894,11 @@ update_wallcollision_component:
 
 .wall_up_top_edge:
     ; Top boundary clamp (hitbox top = 0)
+    ; Sanity: this path is valid only when entity is already near top.
+    ; If triggered while far from top, treat as invalid and only cancel momentum.
+    ld a, (wall_temp_y)
+    cp 24
+    jp nc, .wall_up_cancel_only
     xor a
     push af                       ; keep new hitbox top
     ld hl, entity_collision_offset_y
@@ -4920,6 +4937,14 @@ update_wallcollision_component:
     add a, a
     add a, a
     add a, a                      ; A = new hitbox top
+    ; Safety guard: ceiling resolution must never move top upward.
+    ; If new_top < current_top, cancel only vertical momentum (no snap).
+    ld c, a
+    ld hl, wall_hit_top
+    ld a, c
+    cp (hl)                       ; new_top - current_top
+    jp c, .wall_up_cancel_only
+    ld a, c
     push af                       ; keep new hitbox top
     ld hl, entity_collision_offset_y
     add hl, de
@@ -4939,6 +4964,24 @@ update_wallcollision_component:
     ld (hl), 0
 
     ; Also zero gravity_vel to stop upward momentum (ceiling bonk)
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de                        ; word index
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 0, (hl)                       ; UP wall collision
+    jp .wall_next
+
+.wall_up_cancel_only:
+    ; Defensive path for corrupted/invalid snap target:
+    ; keep current Y, but stop upward movement this frame.
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+
     ld hl, entity_gravity_vel
     add hl, de
     add hl, de                        ; word index
@@ -8432,7 +8475,7 @@ init_player_1:
 
     ld hl, entity_anim_flags
     add hl, de
-    ld (hl), #05           ; flags (playing/loop/onlyWhenMoving)
+    ld (hl), #07           ; flags (playing/loop/onlyWhenMoving)
 
 
 

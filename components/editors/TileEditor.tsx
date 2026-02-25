@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Tile, MSXColor, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams, FrameGeneratorParams, Screen5PaletteSlot } from '../../types';
+import { Tile, MSXColor, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams, FrameGeneratorParams, Screen5PaletteSlot, TileAnimationSettings, TileAnimationMode, TileTransformEffect } from '../../types';
 import { Panel } from '../common/Panel';
 import {
   EDITABLE_TILE_DIMENSIONS, MSX1_PALETTE, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP,
@@ -404,6 +404,43 @@ const TechnicalPreviewPanel: React.FC<TechnicalPreviewPanelProps> = ({ tile, dat
         <div><strong className="text-msx-highlight">Total VRAM (Pattern+Color):</strong> {patternVRAM + attributeVRAMActual} bytes</div>
       </div>
     </Panel>
+  );
+};
+
+interface TileCanvasPreviewProps {
+  tile: Tile;
+  scale: number;
+  className?: string;
+}
+
+const TileCanvasPreview: React.FC<TileCanvasPreviewProps> = ({ tile, scale, className = '' }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasWidth = Math.max(1, tile.width * scale);
+  const canvasHeight = Math.max(1, tile.height * scale);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < tile.height; y++) {
+      for (let x = 0; x < tile.width; x++) {
+        ctx.fillStyle = tile.data[y]?.[x] ?? 'rgba(0,0,0,0)';
+        ctx.fillRect(x * scale, y * scale, scale, scale);
+      }
+    }
+  }, [tile, scale]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={canvasWidth}
+      height={canvasHeight}
+      className={className}
+      style={{ imageRendering: 'pixelated', width: canvasWidth, height: canvasHeight }}
+    />
   );
 };
 
@@ -1261,6 +1298,200 @@ const defaultLogicalProps: TileLogicalProperties = {
   isSolid: false, isBreakable: false, isMovable: false, causesDamage: false, isInteractiveSwitch: false,
 };
 
+const DEFAULT_TILE_ANIMATION_SPEED = 8;
+
+const clampInt = (value: number, min: number, max: number, fallback: number): number => {
+  if (!Number.isFinite(value)) return fallback;
+  if (value < min) return min;
+  if (value > max) return max;
+  return Math.floor(value);
+};
+
+interface ResolvedTileAnimationMeta {
+  enabled: boolean;
+  mode: TileAnimationMode;
+  groupId: string;
+  baseTileId: string;
+  frameIndex: number;
+  speed: number;
+  transformEffect: TileTransformEffect;
+  transformCheckpoints: number;
+  transformIncludeColors: boolean;
+}
+
+const normalizeAnimationGroupId = (value: string): string => value.trim().toLowerCase();
+
+const TRANSFORM_EFFECT_OPTIONS: Array<{ value: TileTransformEffect; label: string; description: string; }> = [
+  { value: 'rotate_left', label: 'Rotate Left (RLCA)', description: 'Rota bits a la izquierda en cada fila.' },
+  { value: 'rotate_right', label: 'Rotate Right (RRCA)', description: 'Rota bits a la derecha en cada fila.' },
+  { value: 'shift_left', label: 'Shift Left (SLA)', description: 'Desplaza bits a izquierda, entra 0 por la derecha.' },
+  { value: 'shift_right', label: 'Shift Right (SRL)', description: 'Desplaza bits a derecha, entra 0 por la izquierda.' },
+  { value: 'shift_up', label: 'Shift Up (rows)', description: 'Mueve filas hacia arriba y hace wrap.' },
+  { value: 'shift_down', label: 'Shift Down (rows)', description: 'Mueve filas hacia abajo y hace wrap.' },
+  { value: 'swap_top_bottom', label: 'Swap Top/Bottom', description: 'Intercambia fila superior e inferior.' },
+];
+
+const DEFAULT_TRANSFORM_EFFECT: TileTransformEffect = 'rotate_left';
+const DEFAULT_TRANSFORM_CHECKPOINTS = 8;
+
+const buildDefaultAnimationGroupId = (tile: Tile): string => {
+  const fromName = (tile.name || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (fromName) return fromName;
+  return `anim_${(tile.id || 'tile').toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+};
+
+const resolveTileAnimationSettings = (tile: Tile): ResolvedTileAnimationMeta => {
+  const raw = (tile.animation || {}) as TileAnimationSettings;
+  const enabled = typeof tile.isAnimated === 'boolean'
+    ? tile.isAnimated
+    : (typeof raw.enabled === 'boolean' ? raw.enabled : false);
+
+  const groupId = typeof tile.animationGroup === 'string'
+    ? tile.animationGroup
+    : (typeof raw.groupId === 'string' ? raw.groupId : '');
+
+  const baseTileId = typeof tile.animationBaseTileId === 'string'
+    ? tile.animationBaseTileId
+    : (typeof raw.baseTileId === 'string' ? raw.baseTileId : '');
+
+  const frameIndexRaw = typeof tile.animationFrameIndex === 'number'
+    ? tile.animationFrameIndex
+    : (typeof raw.frameIndex === 'number' ? raw.frameIndex : 0);
+  const speedRaw = typeof tile.animationSpeed === 'number'
+    ? tile.animationSpeed
+    : (typeof raw.speed === 'number' ? raw.speed : DEFAULT_TILE_ANIMATION_SPEED);
+
+  const modeRaw = tile.animationMode ?? raw.mode;
+  const mode: TileAnimationMode = modeRaw === 'transform' ? 'transform' : 'frames';
+  const transform = (raw.transform || {}) as any;
+  const transformEffectRaw = tile.animationTransformEffect ?? transform.effect ?? DEFAULT_TRANSFORM_EFFECT;
+  const transformEffect: TileTransformEffect =
+    TRANSFORM_EFFECT_OPTIONS.some(option => option.value === transformEffectRaw)
+      ? transformEffectRaw as TileTransformEffect
+      : DEFAULT_TRANSFORM_EFFECT;
+  const checkpointsRaw = tile.animationTransformCheckpoints ?? transform.checkpoints ?? DEFAULT_TRANSFORM_CHECKPOINTS;
+  const includeColorsRaw = tile.animationTransformIncludeColors ?? transform.includeColors;
+
+  return {
+    enabled,
+    mode,
+    groupId: (groupId || '').trim(),
+    baseTileId: (baseTileId || '').trim(),
+    frameIndex: clampInt(frameIndexRaw, 0, 255, 0),
+    speed: clampInt(speedRaw, 1, 255, DEFAULT_TILE_ANIMATION_SPEED),
+    transformEffect,
+    transformCheckpoints: clampInt(Number(checkpointsRaw), 1, 255, DEFAULT_TRANSFORM_CHECKPOINTS),
+    transformIncludeColors: typeof includeColorsRaw === 'boolean' ? includeColorsRaw : true,
+  };
+};
+
+const clonePixelData = (pixels: PixelData): PixelData => pixels.map(row => [...row]);
+
+const cloneLineAttributes = (attrs?: LineColorAttribute[][]): LineColorAttribute[][] | undefined => {
+  if (!attrs) return undefined;
+  return attrs.map(row => row.map(segment => ({ ...segment })));
+};
+
+const shiftRow = <T,>(row: T[], amount: number, wrap: boolean): T[] => {
+  const width = row.length;
+  if (width <= 0) return [];
+  const result = new Array<T>(width);
+  const delta = ((amount % width) + width) % width;
+  for (let x = 0; x < width; x++) {
+    const src = x - delta;
+    if (wrap) {
+      const wrapped = ((src % width) + width) % width;
+      result[x] = row[wrapped];
+    } else if (src >= 0 && src < width) {
+      result[x] = row[src];
+    } else {
+      result[x] = row[0];
+    }
+  }
+  return result;
+};
+
+const shiftRows = <T,>(rows: T[][], amount: number, wrap: boolean): T[][] => {
+  const height = rows.length;
+  if (height <= 0) return [];
+  const result = new Array<T[]>(height);
+  const delta = ((amount % height) + height) % height;
+  for (let y = 0; y < height; y++) {
+    const src = y - delta;
+    if (wrap) {
+      const wrapped = ((src % height) + height) % height;
+      result[y] = [...rows[wrapped]];
+    } else if (src >= 0 && src < height) {
+      result[y] = [...rows[src]];
+    } else {
+      result[y] = [...rows[0]];
+    }
+  }
+  return result;
+};
+
+const applyTileTransformOnce = (sourceTile: Tile, effect: TileTransformEffect): Tile => {
+  const width = sourceTile.width;
+  const height = sourceTile.height;
+  const sourceData = clonePixelData(sourceTile.data);
+  let data = clonePixelData(sourceData);
+  const getRowFillColor = (rowIndex: number): MSXColorValue => {
+    return sourceTile.lineAttributes?.[rowIndex]?.[0]?.bg ?? 'rgba(0,0,0,0)';
+  };
+
+  if (effect === 'rotate_left') {
+    data = sourceData.map(row => shiftRow(row, -1, true));
+  } else if (effect === 'rotate_right') {
+    data = sourceData.map(row => shiftRow(row, 1, true));
+  } else if (effect === 'shift_left') {
+    data = sourceData.map((row, rowIndex) => {
+      const out = shiftRow(row, -1, false);
+      if (out.length > 0) out[out.length - 1] = getRowFillColor(rowIndex);
+      return out;
+    });
+  } else if (effect === 'shift_right') {
+    data = sourceData.map((row, rowIndex) => {
+      const out = shiftRow(row, 1, false);
+      if (out.length > 0) out[0] = getRowFillColor(rowIndex);
+      return out;
+    });
+  } else if (effect === 'shift_up') {
+    data = shiftRows(sourceData, -1, true);
+  } else if (effect === 'shift_down') {
+    data = shiftRows(sourceData, 1, true);
+  } else if (effect === 'swap_top_bottom') {
+    data = clonePixelData(sourceData);
+    if (height > 1) {
+      const top = [...sourceData[0]];
+      const bottom = [...sourceData[height - 1]];
+      data[0] = bottom;
+      data[height - 1] = top;
+    }
+  }
+
+  return {
+    ...sourceTile,
+    width,
+    height,
+    data
+  };
+};
+
+const applyTileTransformSteps = (sourceTile: Tile, effect: TileTransformEffect, steps: number): Tile => {
+  const count = Math.max(0, Math.floor(steps));
+  let current = {
+    ...sourceTile,
+    data: clonePixelData(sourceTile.data)
+  };
+  for (let i = 0; i < count; i++) {
+    current = applyTileTransformOnce(current, effect);
+  }
+  return current;
+};
+
 /**
  * The main editor component for creating and modifying tile assets.
  * @param props The component props.
@@ -1291,6 +1522,9 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     isBreakable: false, isMovable: false, causesDamage: false, isInteractiveSwitch: false,
   });
   const [isGeneratorModalOpen, setIsGeneratorModalOpen] = useState(false);
+  const [isAnimationPreviewPlaying, setIsAnimationPreviewPlaying] = useState(true);
+  const [animationPreviewFrameIndex, setAnimationPreviewFrameIndex] = useState(0);
+  const [animationTransformCheckpoint, setAnimationTransformCheckpoint] = useState(0);
 
   const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
   const { slots: screen5PaletteSlots, changed: screen5PaletteChanged } = useMemo(() => ensureScreen5PaletteSlots(tile.screen5Palette), [tile.screen5Palette]);
@@ -1423,6 +1657,284 @@ export const TileEditor: React.FC<TileEditorProps> = ({
       }
     }
   }, [tile.width, currentScreenMode, tile.height]);
+
+  const tileAnimation = useMemo(() => resolveTileAnimationSettings(tile), [
+    tile.animation,
+    tile.isAnimated,
+    tile.animationGroup,
+    tile.animationFrameIndex,
+    tile.animationSpeed,
+    tile.animationBaseTileId,
+    tile.animationMode,
+    tile.animationTransformEffect,
+    tile.animationTransformCheckpoints,
+    tile.animationTransformIncludeColors
+  ]);
+
+  const availableAnimationTiles = useMemo(() => {
+    return allTileAssets
+      .filter(asset => asset.type === 'tile' && asset.data)
+      .map(asset => asset.data as Tile);
+  }, [allTileAssets]);
+
+  const animationGroupIdNormalized = useMemo(
+    () => normalizeAnimationGroupId(tileAnimation.groupId),
+    [tileAnimation.groupId]
+  );
+
+  const animationFrames = useMemo(() => {
+    if (tileAnimation.mode === 'transform') return [];
+    if (!animationGroupIdNormalized) return [];
+
+    return availableAnimationTiles
+      .map(candidate => ({ tile: candidate, meta: resolveTileAnimationSettings(candidate) }))
+      .filter(entry => normalizeAnimationGroupId(entry.meta.groupId) === animationGroupIdNormalized)
+      .sort((a, b) => {
+        if (a.meta.frameIndex !== b.meta.frameIndex) return a.meta.frameIndex - b.meta.frameIndex;
+        return a.tile.name.localeCompare(b.tile.name);
+      });
+  }, [availableAnimationTiles, animationGroupIdNormalized, tileAnimation.mode]);
+
+  const animationPreviewMs = useMemo(() => {
+    const speedFrames = clampInt(tileAnimation.speed, 1, 255, DEFAULT_TILE_ANIMATION_SPEED);
+    return Math.max(40, Math.round((speedFrames * 1000) / 60));
+  }, [tileAnimation.speed]);
+
+  const transformPreviewTile = useMemo(() => {
+    if (tileAnimation.mode !== 'transform') return tile;
+    return applyTileTransformSteps(tile, tileAnimation.transformEffect, animationTransformCheckpoint);
+  }, [tileAnimation.mode, tileAnimation.transformEffect, animationTransformCheckpoint, tile]);
+
+  const transformPreviewEntry = useMemo(() => ({
+    tile: transformPreviewTile,
+    meta: {
+      ...tileAnimation,
+      frameIndex: animationTransformCheckpoint
+    }
+  }), [transformPreviewTile, tileAnimation, animationTransformCheckpoint]);
+
+  const animationPreviewFrames = useMemo(() => {
+    if (tileAnimation.mode === 'transform') {
+      return [transformPreviewEntry];
+    }
+    if (animationFrames.length > 0) return animationFrames;
+    return [{ tile, meta: tileAnimation }];
+  }, [tileAnimation.mode, transformPreviewEntry, animationFrames, tile, tileAnimation]);
+
+  const updateTileAnimation = useCallback((patch: Partial<TileAnimationSettings>) => {
+    const nextEnabled = typeof patch.enabled === 'boolean' ? patch.enabled : tileAnimation.enabled;
+    const nextMode = patch.mode === 'transform' ? 'transform' : (patch.mode === 'frames' ? 'frames' : tileAnimation.mode);
+    const nextGroupId = typeof patch.groupId === 'string' ? patch.groupId : tileAnimation.groupId;
+    const nextBaseTileId = typeof patch.baseTileId === 'string' ? patch.baseTileId : tileAnimation.baseTileId;
+    const nextFrameIndex = clampInt(
+      typeof patch.frameIndex === 'number' ? patch.frameIndex : tileAnimation.frameIndex || 0,
+      0,
+      255,
+      0
+    );
+    const nextSpeed = clampInt(
+      typeof patch.speed === 'number' ? patch.speed : tileAnimation.speed || DEFAULT_TILE_ANIMATION_SPEED,
+      1,
+      255,
+      DEFAULT_TILE_ANIMATION_SPEED
+    );
+    const patchTransform = (patch.transform || {}) as any;
+    const currentTransform = {
+      effect: tileAnimation.transformEffect,
+      checkpoints: tileAnimation.transformCheckpoints,
+      includeColors: tileAnimation.transformIncludeColors,
+    };
+    const nextTransformEffectRaw = patchTransform.effect ?? tileAnimation.transformEffect;
+    const nextTransformEffect: TileTransformEffect =
+      TRANSFORM_EFFECT_OPTIONS.some(option => option.value === nextTransformEffectRaw)
+        ? nextTransformEffectRaw as TileTransformEffect
+        : DEFAULT_TRANSFORM_EFFECT;
+    const nextTransformCheckpoints = clampInt(
+      Number(patchTransform.checkpoints ?? tileAnimation.transformCheckpoints),
+      1,
+      255,
+      DEFAULT_TRANSFORM_CHECKPOINTS
+    );
+    const nextTransformIncludeColors = typeof patchTransform.includeColors === 'boolean'
+      ? patchTransform.includeColors
+      : tileAnimation.transformIncludeColors;
+
+    onUpdate({
+      isAnimated: nextEnabled,
+      animationGroup: (nextGroupId || '').trim(),
+      animationFrameIndex: nextFrameIndex,
+      animationSpeed: nextSpeed,
+      animationBaseTileId: (nextBaseTileId || '').trim(),
+      animationMode: nextMode,
+      animationTransformEffect: nextTransformEffect,
+      animationTransformCheckpoints: nextTransformCheckpoints,
+      animationTransformIncludeColors: nextTransformIncludeColors,
+      animation: {
+        enabled: nextEnabled,
+        mode: nextMode,
+        groupId: (nextGroupId || '').trim(),
+        frameIndex: nextFrameIndex,
+        speed: nextSpeed,
+        baseTileId: (nextBaseTileId || '').trim(),
+        transform: {
+          ...currentTransform,
+          ...patchTransform,
+          effect: nextTransformEffect,
+          checkpoints: nextTransformCheckpoints,
+          includeColors: nextTransformIncludeColors,
+        }
+      }
+    });
+  }, [onUpdate, tileAnimation]);
+
+  useEffect(() => {
+    setAnimationPreviewFrameIndex(0);
+    setAnimationTransformCheckpoint(0);
+  }, [
+    tile.id,
+    tileAnimation.mode,
+    tileAnimation.groupId,
+    tileAnimation.frameIndex,
+    tileAnimation.transformEffect,
+    tileAnimation.transformCheckpoints,
+    animationFrames.length,
+  ]);
+
+  useEffect(() => {
+    if (!isAnimationPreviewPlaying) return;
+
+    if (tileAnimation.mode === 'transform') {
+      const intervalId = window.setInterval(() => {
+        setAnimationTransformCheckpoint(prev => (prev + 1) % Math.max(1, tileAnimation.transformCheckpoints));
+      }, animationPreviewMs);
+      return () => window.clearInterval(intervalId);
+    }
+
+    if (animationPreviewFrames.length <= 1) return;
+    const intervalId = window.setInterval(() => {
+      setAnimationPreviewFrameIndex(prev => (prev + 1) % animationPreviewFrames.length);
+    }, animationPreviewMs);
+    return () => window.clearInterval(intervalId);
+  }, [
+    isAnimationPreviewPlaying,
+    tileAnimation.mode,
+    tileAnimation.transformCheckpoints,
+    animationPreviewFrames.length,
+    animationPreviewMs
+  ]);
+
+  const handleCreateNextAnimationFrame = useCallback(() => {
+    const groupId = tileAnimation.groupId.trim() || buildDefaultAnimationGroupId(tile);
+    const normalizedGroupId = normalizeAnimationGroupId(groupId);
+    const groupEntries = availableAnimationTiles
+      .map(candidate => ({ tile: candidate, meta: resolveTileAnimationSettings(candidate) }))
+      .filter(entry => normalizeAnimationGroupId(entry.meta.groupId) === normalizedGroupId);
+
+    const maxFrameIndex = groupEntries.reduce((max, entry) => Math.max(max, entry.meta.frameIndex), -1);
+    const nextFrameIndex = clampInt(maxFrameIndex + 1, 0, 255, 0);
+
+    const explicitBase = tileAnimation.baseTileId.trim();
+    const inferredBase = groupEntries.find(entry => entry.meta.baseTileId.trim())?.meta.baseTileId.trim() || tile.id;
+    const baseTileId = explicitBase || inferredBase;
+    const speed = clampInt(tileAnimation.speed, 1, 255, DEFAULT_TILE_ANIMATION_SPEED);
+
+    const currentFrameIndex = tileAnimation.groupId.trim()
+      ? clampInt(tileAnimation.frameIndex, 0, 255, 0)
+      : 0;
+
+    const newTileId = `tile_anim_${tile.id}_${nextFrameIndex}_${Date.now()}`;
+    const newTileName = `${tile.name}_f${nextFrameIndex}`;
+
+    const newTile: Tile = {
+      ...tile,
+      id: newTileId,
+      name: newTileName,
+      data: clonePixelData(tile.data),
+      lineAttributes: cloneLineAttributes(tile.lineAttributes),
+      logicalProperties: tile.logicalProperties ? { ...tile.logicalProperties } : { ...defaultLogicalProps },
+      screen5Palette: isScreen2
+        ? undefined
+        : (tile.screen5Palette?.map(slot => ({ ...slot })) ?? screen5PaletteSlots.map(slot => ({ ...slot }))),
+      isAnimated: true,
+      animationMode: 'frames',
+      animationGroup: groupId,
+      animationFrameIndex: nextFrameIndex,
+      animationSpeed: speed,
+      animationBaseTileId: baseTileId,
+      animationTransformEffect: tileAnimation.transformEffect,
+      animationTransformCheckpoints: tileAnimation.transformCheckpoints,
+      animationTransformIncludeColors: tileAnimation.transformIncludeColors,
+      animation: {
+        enabled: true,
+        mode: 'frames',
+        groupId,
+        frameIndex: nextFrameIndex,
+        speed,
+        baseTileId,
+        transform: {
+          effect: tileAnimation.transformEffect,
+          checkpoints: tileAnimation.transformCheckpoints,
+          includeColors: tileAnimation.transformIncludeColors,
+        }
+      }
+    };
+
+    onUpdate({
+      isAnimated: true,
+      animationMode: 'frames',
+      animationGroup: groupId,
+      animationFrameIndex: currentFrameIndex,
+      animationSpeed: speed,
+      animationBaseTileId: baseTileId,
+      animationTransformEffect: tileAnimation.transformEffect,
+      animationTransformCheckpoints: tileAnimation.transformCheckpoints,
+      animationTransformIncludeColors: tileAnimation.transformIncludeColors,
+      animation: {
+        enabled: true,
+        mode: 'frames',
+        groupId,
+        frameIndex: currentFrameIndex,
+        speed,
+        baseTileId,
+        transform: {
+          effect: tileAnimation.transformEffect,
+          checkpoints: tileAnimation.transformCheckpoints,
+          includeColors: tileAnimation.transformIncludeColors,
+        }
+      }
+    }, [
+      {
+        id: newTileId,
+        name: newTileName,
+        type: 'tile',
+        data: newTile
+      }
+    ]);
+
+    setStatusBarMessage(`Created animation frame "${newTileName}" (group: ${groupId}, frame ${nextFrameIndex}).`);
+    setIsAnimationPreviewPlaying(true);
+  }, [
+    tile,
+    tileAnimation,
+    availableAnimationTiles,
+    isScreen2,
+    screen5PaletteSlots,
+    onUpdate,
+    setStatusBarMessage
+  ]);
+
+  const animationPreviewCount = tileAnimation.mode === 'transform'
+    ? tileAnimation.transformCheckpoints
+    : animationPreviewFrames.length;
+  const currentAnimationPreviewIndex = tileAnimation.mode === 'transform'
+    ? clampInt(animationTransformCheckpoint, 0, Math.max(0, tileAnimation.transformCheckpoints - 1), 0)
+    : clampInt(
+      animationPreviewFrameIndex,
+      0,
+      Math.max(0, animationPreviewFrames.length - 1),
+      0
+    );
+  const currentAnimationPreviewEntry = animationPreviewFrames[currentAnimationPreviewIndex] || animationPreviewFrames[0];
 
 
   const handleDimensionChange = (newWidth: number, newHeight: number) => {
@@ -2068,6 +2580,238 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                 </div>
                 <div className="pt-1 border-t border-msx-border/50 text-msx-textsecondary text-center">
                   Final Map ID Byte: <span className="font-mono text-msx-highlight">{currentDisplayedMapId}</span> (Hex: <span className="font-mono text-msx-highlight">0x{currentDisplayedMapId.toString(16).padStart(2, '0').toUpperCase()}</span>)
+                </div>
+              </div>
+            </Panel>
+            <Panel title="Animated Tile (MSX ASM)">
+              <div className="space-y-2 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer p-0.5 hover:bg-msx-border rounded">
+                  <input
+                    type="checkbox"
+                    checked={!!tileAnimation.enabled}
+                    onChange={(e) => updateTileAnimation({ enabled: e.target.checked })}
+                    className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
+                  />
+                  <span className="text-msx-textsecondary">Enable animated tile</span>
+                </label>
+                <div>
+                  <label className="block mb-0.5">Mode:</label>
+                  <select
+                    value={tileAnimation.mode}
+                    onChange={(e) => updateTileAnimation({ mode: e.target.value === 'transform' ? 'transform' : 'frames' })}
+                    className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs text-msx-textprimary"
+                  >
+                    <option value="frames">Frames (classic)</option>
+                    <option value="transform">Z80 Transform (single frame)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-0.5">Group ID:</label>
+                  <input
+                    type="text"
+                    value={tileAnimation.groupId || ''}
+                    onChange={(e) => updateTileAnimation({ groupId: e.target.value })}
+                    className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs text-msx-textprimary"
+                    placeholder="torch / water / waterfall"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block mb-0.5">Speed (frames):</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={255}
+                      value={tileAnimation.speed ?? DEFAULT_TILE_ANIMATION_SPEED}
+                      onChange={(e) => updateTileAnimation({ speed: clampInt(parseInt(e.target.value, 10), 1, 255, DEFAULT_TILE_ANIMATION_SPEED) })}
+                      className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs text-msx-textprimary"
+                    />
+                  </div>
+                  {tileAnimation.mode === 'frames' && (
+                    <div>
+                      <label className="block mb-0.5">Frame Index:</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={255}
+                        value={tileAnimation.frameIndex ?? 0}
+                        onChange={(e) => updateTileAnimation({ frameIndex: clampInt(parseInt(e.target.value, 10), 0, 255, 0) })}
+                        className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs text-msx-textprimary"
+                      />
+                    </div>
+                  )}
+                  {tileAnimation.mode === 'transform' && (
+                    <div>
+                      <label className="block mb-0.5">Checkpoints:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={255}
+                        value={tileAnimation.transformCheckpoints}
+                        onChange={(e) => updateTileAnimation({
+                          transform: { checkpoints: clampInt(parseInt(e.target.value, 10), 1, 255, DEFAULT_TRANSFORM_CHECKPOINTS) }
+                        })}
+                        className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs text-msx-textprimary"
+                      />
+                    </div>
+                  )}
+                </div>
+                {tileAnimation.mode === 'transform' && (
+                  <>
+                    <div>
+                      <label className="block mb-0.5">Transform Effect:</label>
+                      <select
+                        value={tileAnimation.transformEffect}
+                        onChange={(e) => updateTileAnimation({
+                          transform: {
+                            effect: (TRANSFORM_EFFECT_OPTIONS.find(option => option.value === e.target.value)?.value || DEFAULT_TRANSFORM_EFFECT) as TileTransformEffect
+                          }
+                        })}
+                        className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs text-msx-textprimary"
+                      >
+                        {TRANSFORM_EFFECT_OPTIONS.map((option) => (
+                          <option key={`transform-op-${option.value}`} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer p-0.5 hover:bg-msx-border rounded">
+                      <input
+                        type="checkbox"
+                        checked={tileAnimation.transformIncludeColors}
+                        onChange={(e) => updateTileAnimation({ transform: { includeColors: e.target.checked } })}
+                        className="form-checkbox bg-msx-bgcolor border-msx-border text-msx-accent focus:ring-msx-accent"
+                      />
+                      <span className="text-msx-textsecondary">Apply vertical transforms to color rows too</span>
+                    </label>
+                  </>
+                )}
+                <div>
+                  <label className="block mb-0.5">Base Tile Target:</label>
+                  <select
+                    value={tileAnimation.baseTileId || ''}
+                    onChange={(e) => updateTileAnimation({ baseTileId: e.target.value })}
+                    className="w-full p-1 bg-msx-bgcolor border border-msx-border rounded text-xs text-msx-textprimary"
+                  >
+                    <option value="">Auto (first frame by order)</option>
+                    {availableAnimationTiles.map((t) => (
+                      <option key={`anim-base-${t.id}`} value={t.id}>
+                        {t.name}{t.id === tile.id ? ' (this tile)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[0.65rem] text-msx-textsecondary">
+                  {tileAnimation.mode === 'frames'
+                    ? 'Usa el mismo Group ID en todos los frames. Ejemplo: torch_f0, torch_f1, torch_f2.'
+                    : 'Modo transform aplica operaciones Z80 (rotaciones/desplazamientos) sobre el mismo tile sin crear más frames.'}
+                </p>
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {tileAnimation.mode === 'frames' && (
+                    <Button
+                      onClick={handleCreateNextAnimationFrame}
+                      size="sm"
+                      variant="secondary"
+                    >
+                      Create Next Frame
+                    </Button>
+                  )}
+                  {tileAnimation.mode === 'transform' && (
+                    <>
+                      <Button
+                        onClick={() => setAnimationTransformCheckpoint(prev => (prev - 1 + tileAnimation.transformCheckpoints) % Math.max(1, tileAnimation.transformCheckpoints))}
+                        size="sm"
+                        variant="ghost"
+                        disabled={tileAnimation.transformCheckpoints <= 1}
+                      >
+                        Step -
+                      </Button>
+                      <Button
+                        onClick={() => setAnimationTransformCheckpoint(prev => (prev + 1) % Math.max(1, tileAnimation.transformCheckpoints))}
+                        size="sm"
+                        variant="ghost"
+                        disabled={tileAnimation.transformCheckpoints <= 1}
+                      >
+                        Step +
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    onClick={() => setIsAnimationPreviewPlaying(prev => !prev)}
+                    size="sm"
+                    variant={isAnimationPreviewPlaying ? 'primary' : 'ghost'}
+                    disabled={animationPreviewCount <= 1}
+                  >
+                    {isAnimationPreviewPlaying ? 'Pause' : 'Play'}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setAnimationPreviewFrameIndex(0);
+                      setAnimationTransformCheckpoint(0);
+                    }}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Reset
+                  </Button>
+                </div>
+                <div className="p-2 bg-msx-panelbg border border-msx-border rounded space-y-2">
+                  <div className="flex justify-between text-[0.65rem] text-msx-textsecondary">
+                    <span>{tileAnimation.mode === 'frames' ? `Frames: ${animationPreviewCount}` : `Checkpoint: ${currentAnimationPreviewIndex + 1}/${Math.max(1, animationPreviewCount)}`}</span>
+                    <span>Speed: ~{animationPreviewMs} ms</span>
+                  </div>
+                  {currentAnimationPreviewEntry && (
+                    <div className="flex justify-center">
+                      <TileCanvasPreview
+                        tile={currentAnimationPreviewEntry.tile}
+                        scale={8}
+                        className="border border-msx-border bg-msx-bgcolor"
+                      />
+                    </div>
+                  )}
+                  <div className="max-h-28 overflow-y-auto">
+                    <div className="flex flex-wrap gap-1">
+                      {tileAnimation.mode === 'frames' && animationPreviewFrames.map((entry, index) => (
+                        <button
+                          key={`anim-preview-${entry.tile.id}-${index}`}
+                          type="button"
+                          onClick={() => setAnimationPreviewFrameIndex(index)}
+                          className={`p-1 border rounded text-left ${index === currentAnimationPreviewIndex
+                            ? 'border-msx-highlight bg-msx-highlight/20'
+                            : 'border-msx-border hover:border-msx-highlight'}`}
+                          title={`${entry.tile.name} (frame ${entry.meta.frameIndex})`}
+                        >
+                          <TileCanvasPreview
+                            tile={entry.tile}
+                            scale={3}
+                            className="border border-msx-border bg-msx-bgcolor"
+                          />
+                          <div className="text-[0.6rem] text-msx-textsecondary mt-0.5">
+                            f{entry.meta.frameIndex}
+                          </div>
+                        </button>
+                      ))}
+                      {tileAnimation.mode === 'transform' && Array.from({ length: Math.max(1, Math.min(tileAnimation.transformCheckpoints, 32)) }, (_, index) => (
+                        <button
+                          key={`transform-checkpoint-${index}`}
+                          type="button"
+                          onClick={() => setAnimationTransformCheckpoint(index)}
+                          className={`px-2 py-1 border rounded text-[0.65rem] ${index === currentAnimationPreviewIndex
+                            ? 'border-msx-highlight bg-msx-highlight/20'
+                            : 'border-msx-border hover:border-msx-highlight'}`}
+                          title={`Checkpoint ${index}`}
+                        >
+                          C{index}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {tileAnimation.mode === 'transform' && (
+                    <p className="text-[0.6rem] text-msx-textsecondary">
+                      Efecto: {TRANSFORM_EFFECT_OPTIONS.find(option => option.value === tileAnimation.transformEffect)?.description}
+                    </p>
+                  )}
                 </div>
               </div>
             </Panel>
