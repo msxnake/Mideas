@@ -13,7 +13,7 @@ interface ActionSequenceEditorProps {
 }
 
 export const ActionSequenceEditor: React.FC<ActionSequenceEditorProps> = ({ actions, onUpdateActions, allAssets = [], entityTemplates = [] }) => {
-  const [selectedActionType, setSelectedActionType] = React.useState<ActionType>(ActionTypes.SET_POSITION);
+  const [selectedActionType, setSelectedActionType] = React.useState<ActionType>(ActionTypes.NONE);
 
   const handleAddAction = () => {
     const newAction: Action = {

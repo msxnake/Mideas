@@ -52,6 +52,9 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
 
   const renderParams = () => {
     switch (action.type) {
+      case ActionTypes.NONE:
+        return <div className="text-xs text-gray-500">No action (NOP).</div>;
+
       case ActionTypes.SET_POSITION:
       case ActionTypes.MOVE_BY:
       case ActionTypes.SET_VELOCITY:

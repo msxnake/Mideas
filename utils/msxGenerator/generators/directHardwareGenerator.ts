@@ -3,6 +3,7 @@
  * Generates optimized hardware access routines to replace BIOS calls
  * Performance gain: 30-60% faster than BIOS equivalents
  */
+import { buildRegisterContractComment } from './registerContract';
 
 export interface DirectHardwareOptions {
   mode: 'bios' | 'direct' | 'hybrid';
@@ -34,6 +35,8 @@ export function generateDirectHardwareFile(options: DirectHardwareOptions = { mo
 ;   FAST_WRTVRM:  ~43% faster (40 vs 70 cycles)
 ;   FAST_WRTVDP:  ~55% faster (25 vs 55 cycles)
 ;   FAST_GTSTCK:  ~58% faster (50 vs 120 cycles)
+;   FAST_GTTRIG:  direct trigger read (joystick button)
+;   FAST_SNSMAT:  direct keyboard matrix row read
 ;
 ; Compatibility: MSX1, MSX2, MSX2+
 ; ==================================================================
@@ -46,6 +49,8 @@ export function generateDirectHardwareFile(options: DirectHardwareOptions = { mo
   code += generateFastRDVRM();
   code += generateFastWRTVDP();
   code += generateFastGTSTCK();
+  code += generateFastGTTRIG();
+  code += generateFastSNSMAT();
   // Note: wait_vblank removed - use HALT directly in game loop (more efficient)
 
   // Aggressive optimizations (optional)
@@ -76,6 +81,24 @@ function generateFastLDIRVM(): string {
 ; ==================================================================
 ; FAST_LDIRVM - Fast Block Transfer to VRAM
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Block copy from RAM to VRAM using VDP data port auto-increment.',
+  inputs: [
+    'HL = source address (RAM)',
+    'DE = destination address (VRAM)',
+    'BC = byte count',
+  ],
+  outputs: ['None'],
+  clobbers: ['AF', 'BC', 'HL'],
+  preserved: ['DE'],
+  usage: [
+    'A = VDP address bytes and data byte being transferred',
+    'HL = RAM read pointer (increments each byte)',
+    'DE = only used to program initial VRAM address',
+    'BC = countdown loop counter',
+  ],
+  notes: ['Caller must preserve AF/BC/HL if needed after call.'],
+})}
 ; Replaces BIOS LDIRVM with direct hardware access
 ;
 ; Input:
@@ -128,6 +151,20 @@ function generateFastLDIRVM256(): string {
 ; ==================================================================
 ; FAST_LDIRVM_256 - Optimized for exactly 256 bytes
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Fixed-size 256-byte transfer from RAM to VRAM using DJNZ.',
+  inputs: ['HL = source address (RAM)', 'DE = destination address (VRAM)'],
+  outputs: ['None'],
+  clobbers: ['AF', 'B', 'HL'],
+  preserved: ['C', 'DE'],
+  usage: [
+    'A = VDP address bytes and transferred byte',
+    'B = DJNZ counter (0 means 256 iterations)',
+    'HL = RAM read pointer',
+    'DE = only used to set initial VRAM address',
+  ],
+  notes: ['Use only when exactly 256 bytes must be copied.'],
+})}
 ; Specialized version for 256-byte blocks (common case: sprite patterns)
 ; Uses DJNZ for faster loop control
 ;
@@ -173,6 +210,18 @@ function generateFastWRTVRM(): string {
 ; ==================================================================
 ; FAST_WRTVRM - Write Single Byte to VRAM
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Write one byte into VRAM while preserving caller-visible state.',
+  inputs: ['A = byte to write', 'HL = VRAM destination address'],
+  outputs: ['None'],
+  clobbers: ['None (all registers preserved)'],
+  preserved: ['AF', 'BC', 'DE', 'HL'],
+  usage: [
+    'A = temporarily saved/restored around VDP address programming',
+    'HL = VRAM address source (not modified)',
+  ],
+  notes: ['Safe helper when the caller cannot tolerate register changes.'],
+})}
 ; Replaces BIOS WRTVRM
 ;
 ; Input:
@@ -215,6 +264,18 @@ function generateFastRDVRM(): string {
 ; ==================================================================
 ; FAST_RDVRM - Read Single Byte from VRAM
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Read one byte from VRAM data port.',
+  inputs: ['HL = VRAM source address'],
+  outputs: ['A = byte read from VRAM'],
+  clobbers: ['AF'],
+  preserved: ['BC', 'DE', 'HL'],
+  usage: [
+    'A = VDP addressing command then read result',
+    'HL = address source only (unchanged)',
+  ],
+  notes: ['Callers relying on flags must account for AF clobber.'],
+})}
 ; Replaces BIOS RDVRM
 ;
 ; Input:
@@ -253,6 +314,18 @@ function generateFastWRTVDP(): string {
 ; ==================================================================
 ; FAST_WRTVDP - Write VDP Register
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Write one VDP register value (value first, then register index).',
+  inputs: ['B = register value', 'C = register number'],
+  outputs: ['None'],
+  clobbers: ['AF'],
+  preserved: ['BC', 'DE', 'HL'],
+  usage: [
+    'A = output staging register for both OUT operations',
+    'B/C = preserved input pair for value and register id',
+  ],
+  notes: ['Order of writes is mandatory for VDP register writes.'],
+})}
 ; Replaces BIOS WRTVDP
 ;
 ; Input:
@@ -292,6 +365,18 @@ function generateFastGTSTCK(): string {
 ; ==================================================================
 ; FAST_GTSTCK - Read Joystick Direction
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Read joystick direction and map PSG bits to MSX GTSTCK direction code.',
+  inputs: ['A = joystick port (0 or 1)'],
+  outputs: ['A = direction code (0-8)'],
+  clobbers: ['AF', 'HL'],
+  preserved: ['BC', 'DE'],
+  usage: [
+    'A = PSG register selection, raw read, and final direction code',
+    'HL = lookup table pointer into joystick_direction_table',
+  ],
+  notes: ['Bits are active-low; routine inverts and masks input nibble.'],
+})}
 ; Replaces BIOS GTSTCK (which is notoriously slow)
 ;
 ; Input:
@@ -372,6 +457,102 @@ joystick_direction_table:
 `;
 }
 
+/**
+ * Generate FAST_GTTRIG - Read joystick trigger directly
+ */
+function generateFastGTTRIG(): string {
+  return `
+; ==================================================================
+; FAST_GTTRIG - Read Joystick Trigger
+; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Read joystick trigger bit directly from PSG register.',
+  inputs: ['A = joystick port (0 or 1)'],
+  outputs: ['A = #FF if pressed, #00 if released'],
+  clobbers: ['AF'],
+  preserved: ['BC', 'DE', 'HL'],
+  usage: ['A = register select, raw PSG read, and normalized return value'],
+  notes: ['Trigger is active-low in PSG bit 4.'],
+})}
+; Direct hardware replacement for BIOS GTTRIG
+;
+; Input:
+;   A = Joystick port (0 = port 1, 1 = port 2)
+;
+; Output:
+;   A = #FF if pressed, 0 if released
+;
+; Destroys:
+;   AF
+;
+; Notes:
+;   - Reads PSG register 14/15 directly
+;   - Trigger bit is active-low
+; ==================================================================
+FAST_GTTRIG:
+    ; Calculate PSG register: 14 (port 1) or 15 (port 2)
+    rrca
+    and #0F
+    or #0E
+
+    ; Select PSG register and read value
+    out (#A0), a
+    in a, (#A2)
+
+    ; Trigger bit (bit 4): 0 when pressed, 1 when released
+    and #10
+    ld a, #00
+    ret nz
+    ld a, #FF
+    ret
+
+`;
+}
+
+/**
+ * Generate FAST_SNSMAT - Read keyboard matrix row directly
+ */
+function generateFastSNSMAT(): string {
+  return `
+; ==================================================================
+; FAST_SNSMAT - Sense Keyboard Matrix Row
+; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Select keyboard matrix row via PPI and return row state.',
+  inputs: ['A = matrix row (0-11)'],
+  outputs: ['A = row bits (active-low)'],
+  clobbers: ['AF', 'C'],
+  preserved: ['B', 'DE', 'HL'],
+  usage: [
+    'A = row selector composition and final row read',
+    'C = cached low nibble used to build PPI port C output',
+  ],
+  notes: ['Upper nibble of current PPI port C is preserved.'],
+})}
+; Direct hardware replacement for BIOS SNSMAT
+;
+; Input:
+;   A = row (0-11)
+;
+; Output:
+;   A = row bits (active-low, 0=pressed)
+;
+; Destroys:
+;   AF, C
+; ==================================================================
+FAST_SNSMAT:
+    and #0F                 ; Keep valid row bits
+    ld c, a
+    in a, (#AA)             ; Read current PPI port C
+    and #F0                 ; Preserve upper nibble
+    or c                    ; Set keyboard row in lower nibble
+    out (#AA), a            ; Select row
+    in a, (#A9)             ; Read keyboard matrix row
+    ret
+
+`;
+}
+
 // Note: generateWaitVBlank() removed - use HALT directly in game loop (more efficient)
 
 /**
@@ -382,6 +563,22 @@ function generateUnrolledSpriteCopy(): string {
 ; ==================================================================
 ; COPY_SPRITE_PATTERN_UNROLLED - Ultra-fast sprite pattern copy
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Copy fixed 32-byte sprite pattern to VRAM with unrolled writes.',
+  inputs: [
+    'HL = source address (32-byte sprite pattern in RAM)',
+    'DE = destination VRAM address',
+  ],
+  outputs: ['None'],
+  clobbers: ['AF', 'HL'],
+  preserved: ['BC', 'DE'],
+  usage: [
+    'A = VDP address bytes and each streamed pattern byte',
+    'HL = source pointer advanced 32 times',
+    'DE = initial VRAM destination programming only',
+  ],
+  notes: ['Optimized for speed at the cost of ROM size.'],
+})}
 ; Unrolled loop for copying 32-byte sprite pattern to VRAM
 ; Use for critical sprite updates (player, bullets, etc.)
 ;

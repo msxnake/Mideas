@@ -230,6 +230,8 @@ function emitDirectionalTransitionCode(
     ld a, ${targetScreenIndex}
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -402,6 +404,8 @@ load_world_${toRoutineLabel(worldId)}:
     ld a, ${startNodeIndex}
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
 
     xor a
     ld (screen_transition_cooldown), a
@@ -471,6 +475,8 @@ transition_${toRoutineLabel(worldId)}_${connIndex}:
     ld a, ${toScreenIndex}
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ret
 
 `;
@@ -663,6 +669,8 @@ get_current_screen_index:
 set_current_screen:
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ret
 
 ; ==================================================================

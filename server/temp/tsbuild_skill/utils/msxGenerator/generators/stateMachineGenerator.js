@@ -11,6 +11,7 @@ const spriteUtils_1 = require("../../../components/utils/spriteUtils");
 // CONSTANTS & MAPPINGS
 // =============================================================================
 const ACTION_IDS = {
+    [statemachine_types_1.ActionTypes.NONE]: 0,
     [statemachine_types_1.ActionTypes.SET_POSITION]: 1,
     [statemachine_types_1.ActionTypes.MOVE_BY]: 2,
     [statemachine_types_1.ActionTypes.SET_VELOCITY]: 3,
@@ -387,7 +388,7 @@ sm_timer_no_overflow:
     ; Get Entity Index from stack
     ; Stack: IX, HL, DE, BC, AF (pushed at start)
     ; SP + 0=IX, SP + 2=HL, SP + 4=DE, SP + 6=BC, SP + 8=AF
-    ; A is at SP + 9
+    ; Saved A (entity index) is at SP + 9 (SP + 8 is flags)
     ld ix, 0
     add ix, sp
     ld a, (ix + 9)      ; A = Entity Index
@@ -877,7 +878,7 @@ Action_ApplyForce:
 Action_ChangeSprite:
     ; Params: Sprite Asset ID (1 byte)
     ; Changes the sprite asset used by this entity
-    ; Also resets animation frame to 0
+    ; Also resets animation frame to 0 and uploads it immediately to VRAM
     ld a, (hl)              ; A = Sprite Asset ID
     inc hl
 
@@ -907,12 +908,16 @@ Action_ChangeSprite:
 
     ; Retrieve loop config from sprite_loop_flags metadata using D (Sprite Asset ID)
     ld hl, sprite_loop_flags
-    ld e, d                 ; E = Sprite Asset ID (from D)
+    ld a, d                 ; A = Sprite Asset ID (preserve before zeroing D)
+    ld e, a                 ; E = Sprite Asset ID
     ld d, 0
     add hl, de
     ld e, (hl)              ; E = loop flag bit (0x02 for loop, 0x00 for once)
+    ld d, a                 ; Restore D = Sprite Asset ID for immediate upload path
 
     ; Update entity_anim_flags: clear COMPLETED, set PLAYING, apply correct loop flag
+    ; For one-shot (non-loop) sprites, force ANIM_FLAG_ONLY_WHEN_MOVING off
+    ; so ANIMATION_COMPLETE can trigger even if velocity is zero.
     ld hl, entity_anim_flags
     add hl, bc
     ld a, (hl)
@@ -920,7 +925,102 @@ Action_ChangeSprite:
     or ANIM_FLAG_PLAYING    ; set ANIM_FLAG_PLAYING (bit 0)
     and #FD                 ; Clear ANIM_FLAG_LOOP (bit 1)
     or e                    ; Apply new loop flag from sprite_loop_flags
+    bit 1, e                ; loop bit set?
+    jr nz, .acs_keep_only_moving
+    and #FB                 ; Clear ANIM_FLAG_ONLY_WHEN_MOVING (bit 2)
+.acs_keep_only_moving:
     ld (hl), a
+
+    ; Force immediate VRAM upload of frame 0 so CHANGE_SPRITE is visible
+    ; this same frame. Use explicit sprite bank mapping to avoid reading
+    ; compressed frame data from an unmapped ROM bank.
+    push hl
+    push bc
+    push de
+
+    ; Validate sprite asset index (D from params above)
+    ld a, d
+    cp SM_SpriteAssetCount
+    jr nc, .acs_upload_done
+
+    ; Resolve source pattern pointer + bank for this sprite asset.
+    ld e, a
+    ld d, 0                    ; DE = sprite asset index
+    push de                    ; Save sprite index
+
+    ld hl, SM_SpritePatternPtrTable
+    add hl, de
+    add hl, de                 ; index * 2
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl                  ; HL = source pattern pointer (frame 0)
+    pop de                     ; DE = sprite index
+    push hl                    ; Save source pointer
+
+    ld hl, SM_SpritePatternBankTable
+    add hl, de
+    ld a, (hl)                 ; A = source bank
+    call mapper_push_p2
+    call mapper_set_bank_p2
+
+    ; Get entity sprite config (base HW sprite + layer count)
+    ld e, c
+    ld d, 0
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de                 ; entity index * 2
+    ld a, (hl)                 ; A = base HW sprite
+    inc hl
+    ld c, (hl)                 ; C = layer count
+    ld d, a                    ; D = base HW sprite
+
+    ld a, c
+    or a
+    jr z, .acs_upload_pop_source
+
+    ; BC = layerCount * 32
+    ld a, c
+    ld b, 0
+    ld c, a
+    sla c
+    rl b
+    sla c
+    rl b
+    sla c
+    rl b
+    sla c
+    rl b
+    sla c
+    rl b
+
+    ; DE = SPRPAT + baseHwSprite*32
+    ld a, d
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                 ; HL = base * 32
+    ld de, SPRPAT
+    add hl, de
+    ex de, hl                  ; DE = VRAM destination
+
+    pop hl                     ; HL = source pattern data
+    call COPY_SPRITE_SRC_TO_VRAM
+    jr .acs_upload_restore_bank
+
+.acs_upload_pop_source:
+    pop hl                     ; Drop saved source pointer
+
+.acs_upload_restore_bank:
+    call mapper_pop_p2
+
+.acs_upload_done:
+    pop de
+    pop bc
+    pop hl
 
     pop hl                  ; Restore Params Ptr
     ret
@@ -3077,6 +3177,12 @@ Action_EnableInput:
     ld hl, entity_input_disabled
     add hl, bc
     ld (hl), 0             ; Enable input for this entity
+
+    ; Restore "only animate when moving" behavior after temporary disable.
+    ; This prevents idle loop animation after death/recover transitions.
+    ld hl, entity_anim_flags
+    add hl, bc
+    set 2, (hl)            ; ANIM_FLAG_ONLY_WHEN_MOVING
     pop hl
     ret
 
@@ -3611,21 +3717,21 @@ Condition_HasCollision:
 
 .chc_enemy:
     ld a, e
-    and #02
+    and COLLISION_EVENT_ENEMY
     jr z, .chc_none
     ld a, 1
     ret
 
 .chc_item:
     ld a, e
-    and #04
+    and COLLISION_EVENT_ITEM
     jr z, .chc_none
     ld a, 1
     ret
 
 .chc_entity:
     ld a, e
-    and #01
+    and COLLISION_EVENT_ENTITY
     jr z, .chc_none
     ld a, 1
     ret
@@ -4025,6 +4131,29 @@ function generateStateMachineSystem(stateMachines, globalVariables, sprites, til
     asm += formatDbTable('SM_TemplateHealthCurrentTable', templateProfiles.healthCurByToken);
     asm += formatDbTable('SM_TemplateHealthMaxTable', templateProfiles.healthMaxByToken);
     asm += '\n';
+    asm += '; ==================================================================\n';
+    asm += '; STATE MACHINE SPRITE RUNTIME TABLES\n';
+    asm += '; ==================================================================\n';
+    asm += `SM_SpriteAssetCount EQU ${spriteCatalog.sprites.length}\n`;
+    asm += 'SM_SpritePatternPtrTable:\n';
+    if (spriteCatalog.sprites.length > 0) {
+        spriteCatalog.sprites.forEach((_, index) => {
+            asm += `    DW SPRITE_${index}_PATTERN\n`;
+        });
+    }
+    else {
+        asm += '    ; Empty table (no sprites)\n';
+    }
+    asm += 'SM_SpritePatternBankTable:\n';
+    if (spriteCatalog.sprites.length > 0) {
+        spriteCatalog.sprites.forEach((_, index) => {
+            asm += `    DB SPRITE_${index}_PATTERN_BANK\n`;
+        });
+    }
+    else {
+        asm += '    ; Empty table (no sprites)\n';
+    }
+    asm += '\n';
     for (const sm of stateMachines) {
         asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
     }
@@ -4131,10 +4260,13 @@ function serializeValue(value) {
 }
 function generateActionBytes(action, smName = '', variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap) {
     const id = ACTION_IDS[action.type];
-    if (!id)
+    if (id === undefined)
         return `; Unknown Action: ${action.type} \n`;
     let bytes = `    DB ${id}; ${action.type} \n`;
     switch (action.type) {
+        case statemachine_types_1.ActionTypes.NONE:
+            // Explicit no-op action (runtime Action_Nop / ID 0)
+            break;
         case statemachine_types_1.ActionTypes.SET_POSITION:
         case statemachine_types_1.ActionTypes.MOVE_BY:
         case statemachine_types_1.ActionTypes.SET_VELOCITY:

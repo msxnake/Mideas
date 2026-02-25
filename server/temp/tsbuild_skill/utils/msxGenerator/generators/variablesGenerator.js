@@ -363,11 +363,33 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress++;
     code += `wall_temp_y         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached entity Y for wall checks\n`;
     currentAddress++;
+    code += `wall_hit_left       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Hitbox left edge cache\n`;
+    currentAddress++;
+    code += `wall_hit_top        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Hitbox top edge cache\n`;
+    currentAddress++;
+    code += `wall_hit_right      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Hitbox right edge cache\n`;
+    currentAddress++;
+    code += `wall_hit_bottom     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Hitbox bottom edge cache\n`;
+    currentAddress++;
+    code += `wall_hit_w          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Hitbox width cache (min 1)\n`;
+    currentAddress++;
+    code += `wall_hit_h          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Hitbox height cache (min 1)\n`;
+    currentAddress++;
+    code += `wall_probe_left     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; X probe near hitbox left (adaptive inset)\n`;
+    currentAddress++;
+    code += `wall_probe_right    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; X probe near hitbox right (adaptive inset)\n`;
+    currentAddress++;
+    code += `wall_probe_top      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Y probe near hitbox top (adaptive inset)\n`;
+    currentAddress++;
+    code += `wall_probe_bottom   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Y probe near hitbox bottom (adaptive inset)\n`;
+    currentAddress++;
     // Frame-local compact entity list (non-zero component masks)
     code += `\n; Unified update helpers\n`;
     code += `active_entity_list  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)\n`;
     currentAddress += 32;
     code += `active_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in active_entity_list\n`;
+    currentAddress++;
+    code += `active_entity_list_dirty EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=rebuild active_entity_list required\n`;
     currentAddress++;
     // Entity-entity collision optimized system variables
     code += `\n; Entity-entity collision optimized variables\n`;

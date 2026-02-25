@@ -7,6 +7,7 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { generateComponentsFile } from './componentsGenerator';
 import { analyzeComponentUsage } from '../utils/componentAnalyzer';
+import { buildRegisterContractComment } from './registerContract';
 
 export interface InterruptGeneratorConfig {
   interruptDrivenComponents?: boolean;
@@ -78,6 +79,18 @@ function generateInitInterruptSystem(): string {
   return `; ==================================================================
 ; INIT_INTERRUPT_SYSTEM - Install H.TIMI hook
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Install JP hook on H.TIMI and initialize interrupt task state.',
+  inputs: ['None'],
+  outputs: ['None'],
+  clobbers: ['AF', 'BC', 'DE', 'HL'],
+  preserved: ['None'],
+  usage: [
+    'HL/DE/BC = block copy parameters for hook backup and task table clear',
+    'A = enable flag and zeroing value',
+  ],
+  notes: ['Runs with DI/EI, so caller must not assume interrupt state is unchanged.'],
+})}
 ; Inputs: None
 ; Outputs: None
 ; Modifies: AF, BC, DE, HL
@@ -128,6 +141,18 @@ function generateStopInterruptSystem(): string {
   return `; ==================================================================
 ; STOP_INTERRUPT_SYSTEM - Restore original H.TIMI hook
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Restore original H.TIMI bytes and mark system disabled.',
+  inputs: ['None'],
+  outputs: ['None'],
+  clobbers: ['AF', 'BC', 'DE', 'HL'],
+  preserved: ['None'],
+  usage: [
+    'HL/DE/BC = LDIR source/destination/count for hook restore',
+    'A = zero flag write to interrupt_system_enabled',
+  ],
+  notes: ['Runs with DI/EI for atomic hook restoration.'],
+})}
 ; Inputs: None
 ; Outputs: None
 ; Modifies: AF, BC, DE, HL
@@ -158,6 +183,20 @@ function generateInterruptDispatcher(): string {
   return `; ==================================================================
 ; INTERRUPT_DISPATCHER - Main ISR (60Hz/50Hz)
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Dispatch enabled interrupt tasks each VBlank and chain BIOS hook.',
+  inputs: ['Triggered by H.TIMI hook'],
+  outputs: ['interrupt_counter incremented', 'vblank_flag refreshed'],
+  clobbers: ['AF', 'BC', 'HL (restored before exit)'],
+  preserved: ['DE', 'IX', 'IY'],
+  usage: [
+    'HL = walks task_table and holds task pointer',
+    'B = task slot loop counter',
+    'C = temporary low byte for pointer reconstruction',
+    'A = enabled checks and pointer validation',
+  ],
+  notes: ['Only AF/BC/HL are pushed; interrupt tasks must preserve anything else they touch.'],
+})}
 ; This routine executes on each V-Blank
 ; CRITICAL: Minimal CPU cycles, maximum efficiency
 ; Overhead: ~80 cycles base + ~40 cycles per active task
@@ -257,6 +296,14 @@ function generateTaskManagementFunctions(): string {
 ; ==================================================================
 ; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Read VDP status register and latch VBlank state in RAM flag.',
+  inputs: ['None'],
+  outputs: ['vblank_flag = 0/1'],
+  clobbers: ['AF (internally saved/restored)'],
+  preserved: ['AF, BC, DE, HL'],
+  usage: ['A = VDP status read and boolean conversion'],
+})}
 ; Updates vblank_flag only if we're actually in VBlank
 ; Called from interrupt_dispatcher
 ; Inputs: None
@@ -281,6 +328,19 @@ update_vblank_flag:
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Store routine pointer into task_table slot.',
+  inputs: ['A = task slot (0-7)', 'HL = task routine address'],
+  outputs: ['task_table[slot] = HL'],
+  clobbers: ['AF', 'BC', 'DE', 'HL'],
+  preserved: ['None'],
+  usage: [
+    'A = slot validation and offset math',
+    'DE = holds routine address while HL is repurposed as slot pointer',
+    'BC = task_table base address',
+    'HL = slot address calculation / pointer write',
+  ],
+})}
 ; Inputs:
 ;   A = task slot (0-7)
 ;   HL = address of task routine
@@ -313,6 +373,18 @@ enable_task:
 ; ==================================================================
 ; DISABLE_TASK - Deactivate a task
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Clear routine pointer in selected task slot.',
+  inputs: ['A = task slot (0-7)'],
+  outputs: ['task_table[slot] = 0'],
+  clobbers: ['AF', 'DE', 'HL'],
+  preserved: ['BC'],
+  usage: [
+    'A = slot validation and zero value for clearing',
+    'HL = destination slot pointer',
+    'DE = computed slot offset',
+  ],
+})}
 ; Inputs:
 ;   A = task slot (0-7)
 ; Outputs: None
@@ -341,6 +413,14 @@ disable_task:
 ; ==================================================================
 ; GET_FRAME_COUNT - Get frame counter value
 ; ==================================================================
+${buildRegisterContractComment({
+  purpose: 'Expose current 16-bit interrupt frame counter.',
+  inputs: ['None'],
+  outputs: ['HL = interrupt_counter'],
+  clobbers: ['HL'],
+  preserved: ['AF', 'BC', 'DE'],
+  usage: ['HL = loaded return value'],
+})}
 ; Inputs: None
 ; Outputs: HL = frame count (16-bit)
 ; Modifies: HL
@@ -369,6 +449,20 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `; This task guarantees responsive input (no missed button presses)\n`;
   code += `; Compatible with update_input_component existing function\n`;
   code += `; ==================================================================\n`;
+  code += buildRegisterContractComment({
+    purpose: 'Poll joystick + keyboard fallback and update input state buffers.',
+    inputs: ['Reads hardware via FAST_GTSTCK / FAST_GTTRIG / FAST_SNSMAT'],
+    outputs: ['input_state, prev_input_state, input_btn_curr, input_btn_prev, input_fire'],
+    clobbers: ['AF', 'BC', 'DE'],
+    preserved: ['AF', 'BC', 'DE (by push/pop wrapper)', 'HL'],
+    usage: [
+      'A = hardware reads and final scalar writes',
+      'B = direction accumulator',
+      'D = button bitmask and keyboard direction flags',
+      'E = temporary keyboard row bits',
+    ],
+    notes: ['Wrapper preserves caller-visible regs despite internal mutation.'],
+  });
   code += `task_update_input:\n`;
   code += `    push af\n`;
   code += `    push bc\n`;
@@ -378,15 +472,15 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `    ld (prev_input_state), a\n`;
   code += `    ld a, (input_btn_curr)\n`;
   code += `    ld (input_btn_prev), a\n\n`;
-  code += `    ; Read joystick direction first (priority source)\n`;
+  code += `    ; Read joystick direction first (priority source, direct hardware)\n`;
   code += `    xor a                       ; Joystick 0\n`;
-  code += `    call GTSTCK                 ; BIOS call: A = direction\n`;
+  code += `    call FAST_GTSTCK            ; Direct hardware read\n`;
   code += `    ld b, a                     ; B = joystick direction\n`;
   code += `    or a\n`;
   code += `    jr nz, .dir_ready\n\n`;
-  code += `    ; Fallback to keyboard cursor keys (SNSMAT row 8)\n`;
+  code += `    ; Fallback to keyboard cursor keys (row 8, direct matrix read)\n`;
   code += `    ld a, 8\n`;
-  code += `    call SNSMAT                 ; Active low bits\n`;
+  code += `    call FAST_SNSMAT            ; Active low bits\n`;
   code += `    ld e, a\n`;
   code += `    xor a\n`;
   code += `    ld d, a                     ; D = direction flags: 0=none\n`;
@@ -449,7 +543,7 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `    ld b, a\n`;
   code += `.dir_ready:\n`;
   code += `    xor a                       ; Joystick 0\n`;
-  code += `    call GTTRIG                 ; A = #FF if pressed, 0 if not\n`;
+  code += `    call FAST_GTTRIG            ; A = #FF if pressed, 0 if not\n`;
   code += `    ld d, 0                     ; D = button bitmask\n`;
   code += `    or a\n`;
   code += `    jr z, .no_fire              ; Jump if NOT pressed (A=0)\n`;
@@ -458,6 +552,16 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `    ld (input_fire), a\n`;
   code += `    jr .fire_done\n`;
   code += `.no_fire:\n`;
+  code += `    ; Keyboard fallback for fire (SPACE, row 8 bit 0, active low)\n`;
+  code += `    ld a, 8\n`;
+  code += `    call FAST_SNSMAT\n`;
+  code += `    bit 0, a\n`;
+  code += `    jr nz, .fire_released\n`;
+  code += `    ld d, INPUT_BTN_FIRE\n`;
+  code += `    ld a, 1\n`;
+  code += `    ld (input_fire), a\n`;
+  code += `    jr .fire_done\n`;
+  code += `.fire_released:\n`;
   code += `    xor a                       ; Fire not pressed\n`;
   code += `    ld (input_fire), a\n`;
   code += `.fire_done:\n`;
@@ -488,6 +592,14 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
       code += `; ==================================================================\n`;
       code += `; Only calls physics systems that are actually used in this project\n`;
       code += `; ==================================================================\n`;
+      code += buildRegisterContractComment({
+        purpose: 'Run selected physics component systems in deterministic order.',
+        inputs: ['Entity/component RAM tables'],
+        outputs: ['Entity motion state updated'],
+        clobbers: ['AF', 'BC', 'DE', 'HL'],
+        preserved: ['AF', 'BC', 'DE', 'HL (by push/pop wrapper)'],
+        usage: ['Registers are scratch during component calls; wrapper restores caller context.'],
+      });
       code += `task_update_physics:\n`;
       code += `    push af\n`;
       code += `    push bc\n`;
@@ -533,6 +645,13 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
     code += `; Detects collisions using collision layers (bitmask system)\n`;
     code += `; AABB collision for 16x16 sprites\n`;
     code += `; ==================================================================\n`;
+    code += buildRegisterContractComment({
+      purpose: 'Interrupt task wrapper for collision system (placeholder).',
+      inputs: ['Entity collision data'],
+      outputs: ['Collision flags/tables (when implemented)'],
+      clobbers: ['AF', 'BC', 'DE', 'HL'],
+      preserved: ['AF', 'BC', 'DE', 'HL (by push/pop wrapper)'],
+    });
     code += `task_update_collision:\n`;
     code += `    push af\n`;
     code += `    push bc\n`;
@@ -559,6 +678,13 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
     code += `; WARNING: This task is HEAVY (~800 cycles)\n`;
     code += `; Consider executing every N frames instead of every frame\n`;
     code += `; ==================================================================\n`;
+    code += buildRegisterContractComment({
+      purpose: 'Interrupt-safe wrapper for sprite SAT upload routine.',
+      inputs: ['Sprite component buffers'],
+      outputs: ['VRAM sprite attribute/pattern tables updated'],
+      clobbers: ['AF', 'BC', 'DE', 'HL'],
+      preserved: ['AF', 'BC', 'DE', 'HL (by push/pop wrapper)'],
+    });
     code += `task_update_sprites:\n`;
     code += `    push af\n`;
     code += `    push bc\n`;
@@ -582,6 +708,13 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
   code += `; Placeholder for user-defined frame-based timing\n`;
   code += `; Example: Increment animation timers, etc.\n`;
   code += `; ==================================================================\n`;
+  code += buildRegisterContractComment({
+    purpose: 'Reserved slot for user timing logic.',
+    inputs: ['None'],
+    outputs: ['None by default'],
+    clobbers: ['None by default'],
+    preserved: ['All (default empty implementation)'],
+  });
   code += `task_frame_counter:\n`;
   code += `    ; Placeholder - counter is already incremented in dispatcher\n`;
   code += `    ; Add custom timing logic here if needed\n`;

@@ -26,6 +26,8 @@ exports.ConditionTypes = {
     VARIABLE_COMPARE: 'VARIABLE_COMPARE'
 };
 exports.ActionTypes = {
+    // No-op (no action)
+    NONE: 'NONE',
     // Movement and Physics
     SET_POSITION: 'SET_POSITION',
     MOVE_BY: 'MOVE_BY',

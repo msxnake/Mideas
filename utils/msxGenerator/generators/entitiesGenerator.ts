@@ -117,6 +117,7 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
   const componentUsage = analyzeComponentUsage(analysis);
   const activeEntities = componentUsage.activeEntities;
   const COMP_MASK_SPRITE = 0x02; // Bit used for sprite component
+  const COMP_MASK_INPUT = 0x10; // Bit used for input component
   const templateTokenMap = buildTemplateTokenMap(analysis.templates as any[]);
 
   const sanitizeEntityName = (rawName: any): string => {
@@ -255,6 +256,12 @@ init_entities:
     ld bc, 31
     ld (hl), 0
     ldir
+
+    ld hl, entity_sm_wait_timer
+    ld de, entity_sm_wait_timer+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
     
 `;
 
@@ -306,6 +313,10 @@ update_entities:
       const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
       const componentMask = generateEntityComponentMask(entity, template, analysis);
       const hasSprite = (componentMask & COMP_MASK_SPRITE) !== 0;
+      const hasInput = (componentMask & COMP_MASK_INPUT) !== 0;
+      if (hasSprite && hasInput) {
+        needsPatrolFacingHelper = true;
+      }
 
       // Get real position from JSON entity data
       const realX = entity.position?.x || 100;

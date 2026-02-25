@@ -19,7 +19,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 89557
+; Estimated payload bytes: 89687
 ; Estimated banks used: 11
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (865 bytes)
@@ -27,27 +27,27 @@
 ; BANK 00 @#068B : components.asm (22 bytes)
 ; BANK 00 @#06A1 : entities.asm (4965 bytes)
 ; BANK 00 @#1A06 : worlds.asm (1530 bytes)
-; BANK 01 @#0000 : worlds.asm (1400 bytes)
-; BANK 01 @#0578 : screens.asm part 1/2 (6792 bytes)
-; BANK 02 @#0000 : screens.asm part 2/2 (7384 bytes)
-; BANK 02 @#1CD8 : sprites.asm (808 bytes)
-; BANK 03 @#0000 : sprites.asm (3636 bytes)
-; BANK 03 @#0E34 : font.asm (3547 bytes)
-; BANK 03 @#1C0F : hud.asm (1009 bytes)
-; BANK 04 @#0000 : hud.asm (2827 bytes)
-; BANK 04 @#0B0B : menus.asm (444 bytes)
-; BANK 04 @#0CC7 : sound.asm (3184 bytes)
-; BANK 04 @#1937 : scroll.asm (1737 bytes)
-; BANK 05 @#0000 : scroll.asm (616 bytes)
-; BANK 05 @#0268 : animtiles.asm (3349 bytes)
-; BANK 05 @#0F7D : particles.asm (4227 bytes)
-; BANK 06 @#0000 : particles.asm (736 bytes)
-; BANK 06 @#02E0 : statemachine.asm part 1/3 (7456 bytes)
+; BANK 01 @#0000 : worlds.asm (1515 bytes)
+; BANK 01 @#05EB : screens.asm part 1/2 (6677 bytes)
+; BANK 02 @#0000 : screens.asm part 2/2 (7499 bytes)
+; BANK 02 @#1D4B : sprites.asm (693 bytes)
+; BANK 03 @#0000 : sprites.asm (3751 bytes)
+; BANK 03 @#0EA7 : font.asm (3547 bytes)
+; BANK 03 @#1C82 : hud.asm (894 bytes)
+; BANK 04 @#0000 : hud.asm (2942 bytes)
+; BANK 04 @#0B7E : menus.asm (444 bytes)
+; BANK 04 @#0D3A : sound.asm (3184 bytes)
+; BANK 04 @#19AA : scroll.asm (1622 bytes)
+; BANK 05 @#0000 : scroll.asm (731 bytes)
+; BANK 05 @#02DB : animtiles.asm (3349 bytes)
+; BANK 05 @#0FF0 : particles.asm (4112 bytes)
+; BANK 06 @#0000 : particles.asm (851 bytes)
+; BANK 06 @#0353 : statemachine.asm part 1/3 (7341 bytes)
 ; BANK 07 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 08 @#0000 : statemachine.asm part 3/3 (7311 bytes)
-; BANK 08 @#1C8F : gameflow.asm part 1/3 (881 bytes)
+; BANK 08 @#0000 : statemachine.asm part 3/3 (7441 bytes)
+; BANK 08 @#1D11 : gameflow.asm part 1/3 (751 bytes)
 ; BANK 09 @#0000 : gameflow.asm part 2/3 (8192 bytes)
-; BANK 10 @#0000 : gameflow.asm part 3/3 (7637 bytes)
+; BANK 10 @#0000 : gameflow.asm part 3/3 (7767 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -356,6 +356,8 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ;   FAST_WRTVRM:  ~43% faster (40 vs 70 cycles)
 ;   FAST_WRTVDP:  ~55% faster (25 vs 55 cycles)
 ;   FAST_GTSTCK:  ~58% faster (50 vs 120 cycles)
+;   FAST_GTTRIG:  direct trigger read (joystick button)
+;   FAST_SNSMAT:  direct keyboard matrix row read
 ;
 ; Compatibility: MSX1, MSX2, MSX2+
 ; ==================================================================
@@ -586,6 +588,67 @@ joystick_direction_table:
 
 
 ; ==================================================================
+; FAST_GTTRIG - Read Joystick Trigger
+; ==================================================================
+; Direct hardware replacement for BIOS GTTRIG
+;
+; Input:
+;   A = Joystick port (0 = port 1, 1 = port 2)
+;
+; Output:
+;   A = #FF if pressed, 0 if released
+;
+; Destroys:
+;   AF
+;
+; Notes:
+;   - Reads PSG register 14/15 directly
+;   - Trigger bit is active-low
+; ==================================================================
+FAST_GTTRIG:
+    ; Calculate PSG register: 14 (port 1) or 15 (port 2)
+    rrca
+    and #0F
+    or #0E
+
+    ; Select PSG register and read value
+    out (#A0), a
+    in a, (#A2)
+
+    ; Trigger bit (bit 4): 0 when pressed, 1 when released
+    and #10
+    ld a, #00
+    ret nz
+    ld a, #FF
+    ret
+
+
+; ==================================================================
+; FAST_SNSMAT - Sense Keyboard Matrix Row
+; ==================================================================
+; Direct hardware replacement for BIOS SNSMAT
+;
+; Input:
+;   A = row (0-11)
+;
+; Output:
+;   A = row bits (active-low, 0=pressed)
+;
+; Destroys:
+;   AF, C
+; ==================================================================
+FAST_SNSMAT:
+    and #0F                 ; Keep valid row bits
+    ld c, a
+    in a, (#AA)             ; Read current PPI port C
+    and #F0                 ; Preserve upper nibble
+    or c                    ; Set keyboard row in lower nibble
+    out (#AA), a            ; Select row
+    in a, (#A9)             ; Read keyboard matrix row
+    ret
+
+
+; ==================================================================
 ; END OF DIRECT HARDWARE ROUTINES
 ; ==================================================================
 
@@ -705,6 +768,18 @@ COLL_FROM_ABOVE     EQU #01    ; Entity approaching from above
 COLL_FROM_BELOW     EQU #02    ; Entity approaching from below
 COLL_FROM_LEFT      EQU #04    ; Entity approaching from left
 COLL_FROM_RIGHT     EQU #08    ; Entity approaching from right
+
+; Entity Collision Layer Presets (entity_collision_layer / entity_collides_with)
+COLLISION_LAYER_PLAYER      EQU #01
+COLLISION_LAYER_ENEMY       EQU #02
+COLLISION_LAYER_PROJECTILE  EQU #04
+COLLISION_LAYER_PLATFORM    EQU #08
+COLLISION_LAYER_ITEM        EQU #10
+
+; Entity-Entity Collision Event Flags (entity_entity_collision_flags)
+COLLISION_EVENT_ENTITY      EQU #01
+COLLISION_EVENT_ENEMY       EQU #02
+COLLISION_EVENT_ITEM        EQU #04
 
 ; ==================================================================
 ; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
@@ -950,49 +1025,56 @@ temp_word_4         EQU #CE49   ; Temporary 16-bit storage (64 bytes)
 ; Wall collision temporary variables
 wall_temp_x         EQU #CE89   ; Cached entity X for wall checks
 wall_temp_y         EQU #CE8A   ; Cached entity Y for wall checks
+wall_hit_left       EQU #CE8B   ; Hitbox left edge cache
+wall_hit_top        EQU #CE8C   ; Hitbox top edge cache
+wall_hit_right      EQU #CE8D   ; Hitbox right edge cache
+wall_hit_bottom     EQU #CE8E   ; Hitbox bottom edge cache
+wall_hit_w          EQU #CE8F   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #CE90   ; Hitbox height cache (min 1)
 
 ; Unified update helpers
-active_entity_list  EQU #CE8B   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #CEAB   ; Number of entries in active_entity_list
+active_entity_list  EQU #CE91   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #CEB1   ; Number of entries in active_entity_list
+active_entity_list_dirty EQU #CEB2   ; 1=rebuild active_entity_list required
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #CEAC   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #CECC   ; Number of entities in coll_list
-coll_src_left       EQU #CECD   ; Source AABB left edge (scratch)
-coll_src_right      EQU #CECE   ; Source AABB right edge (scratch)
-coll_src_top        EQU #CECF   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #CED0   ; Source AABB bottom edge (scratch)
+coll_list           EQU #CEB3   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #CED3   ; Number of entities in coll_list
+coll_src_left       EQU #CED4   ; Source AABB left edge (scratch)
+coll_src_right      EQU #CED5   ; Source AABB right edge (scratch)
+coll_src_top        EQU #CED6   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #CED7   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #CED1   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #CED1   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #CED3   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #CED5   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #CED7   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #CED9   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #CEDB   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #CEDD   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #CEDF   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #CEE1   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #CEE2   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #CEE7   ; Frame counter (16-bit)
-task_exec_time          EQU #CEE9   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #CEEB   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #CEEC   ; End of interrupt system
+task_table              EQU #CED8   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #CED8   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #CEDA   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #CEDC   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #CEDE   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #CEE0   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #CEE2   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #CEE4   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #CEE6   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #CEE8   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #CEE9   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #CEEE   ; Frame counter (16-bit)
+task_exec_time          EQU #CEF0   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #CEF2   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #CEF3   ; End of interrupt system
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #CEEC   ; End of project variables (3820 bytes used)
+RAM_USAGE_END       EQU #CEF3   ; End of project variables (3827 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#CEEC: Project variables (3820 bytes)
-;   #CEEC-#F37F: Free RAM (~9364 bytes available)
+;   #C000-#CEF3: Project variables (3827 bytes)
+;   #CEF3-#F37F: Free RAM (~9357 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -1487,16 +1569,16 @@ task_update_input:
     ld a, (input_btn_curr)
     ld (input_btn_prev), a
 
-    ; Read joystick direction first (priority source)
+    ; Read joystick direction first (priority source, direct hardware)
     xor a                       ; Joystick 0
-    call GTSTCK                 ; BIOS call: A = direction
+    call FAST_GTSTCK            ; Direct hardware read
     ld b, a                     ; B = joystick direction
     or a
     jr nz, .dir_ready
 
-    ; Fallback to keyboard cursor keys (SNSMAT row 8)
+    ; Fallback to keyboard cursor keys (row 8, direct matrix read)
     ld a, 8
-    call SNSMAT                 ; Active low bits
+    call FAST_SNSMAT            ; Active low bits
     ld e, a
     xor a
     ld d, a                     ; D = direction flags: 0=none
@@ -1559,7 +1641,7 @@ task_update_input:
     ld b, a
 .dir_ready:
     xor a                       ; Joystick 0
-    call GTTRIG                 ; A = #FF if pressed, 0 if not
+    call FAST_GTTRIG            ; A = #FF if pressed, 0 if not
     ld d, 0                     ; D = button bitmask
     or a
     jr z, .no_fire              ; Jump if NOT pressed (A=0)
@@ -1568,6 +1650,16 @@ task_update_input:
     ld (input_fire), a
     jr .fire_done
 .no_fire:
+    ; Keyboard fallback for fire (SPACE, row 8 bit 0, active low)
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr nz, .fire_released
+    ld d, INPUT_BTN_FIRE
+    ld a, 1
+    ld (input_fire), a
+    jr .fire_done
+.fire_released:
     xor a                       ; Fire not pressed
     ld (input_fire), a
 .fire_done:
@@ -1790,7 +1882,9 @@ entity_input_disabled EQU temp_byte_25 ; 0=enabled, 1=disabled (32 bytes)
 ; Initialize current screen ID(multi - screen support) 
         ld a, 0; Start at screen 0 
         ld (current_screen_id), a 
- 
+        ld hl, active_entity_list_dirty
+        ld (hl), 1
+
     ; Clear all component masks 
         ld hl, entity_comp_masks 
         ld de, entity_comp_masks + 1 
@@ -2494,10 +2588,7 @@ update_entity_collision_fast:
     ld a, (hl)
     ld hl, entity_collision_offset_x
     add hl, de
-    add a, (hl)
-    jp nc, .src_left_ok
-    ld a, 255                     ; Clamp on overflow
-.src_left_ok:
+    call coll_add_signed_offset_clamped
     ld (coll_src_left), a
 
     ; source right = left + hitbox_w (clamped)
@@ -2515,10 +2606,7 @@ update_entity_collision_fast:
     ld a, (hl)
     ld hl, entity_collision_offset_y
     add hl, de
-    add a, (hl)
-    jp nc, .src_top_ok
-    ld a, 255
-.src_top_ok:
+    call coll_add_signed_offset_clamped
     ld (coll_src_top), a
 
     ; source bottom = top + hitbox_h (clamped)
@@ -2587,10 +2675,9 @@ update_entity_collision_fast:
     ld a, (hl)
     ld hl, entity_collision_offset_x
     add hl, de
-    add a, (hl)
-    jp nc, .tgt_left_ok
-    ld a, 255
-.tgt_left_ok:
+    push bc
+    call coll_add_signed_offset_clamped
+    pop bc
     ld e, a                       ; E = target_left
 
     ; source.right <= target.left => no overlap
@@ -2625,10 +2712,9 @@ update_entity_collision_fast:
     ld a, (hl)
     ld hl, entity_collision_offset_y
     add hl, de
-    add a, (hl)
-    jp nc, .tgt_top_ok
-    ld a, 255
-.tgt_top_ok:
+    push bc
+    call coll_add_signed_offset_clamped
+    pop bc
     ld e, a                       ; E = target_top
 
     ; source.bottom <= target.top => no overlap
@@ -2667,24 +2753,15 @@ update_entity_collision_fast:
     add hl, de
     ld (hl), b
 
-    ; Classify target layer into flags
+    ; Classify target layer into collision event flags
     push de
     ld e, b
     ld d, 0
     ld hl, entity_collision_layer
     add hl, de
-    ld d, (hl)                    ; D = target layer bitmask
+    ld a, (hl)                    ; A = target layer bitmask
     pop de
-
-    ld a, 1                       ; bit0: any collision
-    bit 1, d                      ; enemy layer = 2
-    jp z, .src_no_enemy
-    or 2                          ; bit1: enemy
-.src_no_enemy:
-    bit 4, d                      ; item layer = 16
-    jp z, .src_no_item
-    or 4                          ; bit2: item
-.src_no_item:
+    call coll_flags_from_layer
     ld hl, entity_entity_collision_flags
     add hl, de
     or (hl)                       ; OR with existing flags (multiple hits)
@@ -2702,24 +2779,15 @@ update_entity_collision_fast:
     add hl, de
     ld (hl), c
 
-    ; Classify source layer into flags
+    ; Classify source layer into collision event flags
     push de
     ld e, c
     ld d, 0
     ld hl, entity_collision_layer
     add hl, de
-    ld d, (hl)                    ; D = source layer bitmask
+    ld a, (hl)                    ; A = source layer bitmask
     pop de
-
-    ld a, 1                       ; bit0: any collision
-    bit 1, d                      ; enemy layer = 2
-    jp z, .tgt_no_enemy
-    or 2
-.tgt_no_enemy:
-    bit 4, d                      ; item layer = 16
-    jp z, .tgt_no_item
-    or 4
-.tgt_no_item:
+    call coll_flags_from_layer
     ld hl, entity_entity_collision_flags
     add hl, de
     or (hl)                       ; OR with existing flags
@@ -2745,6 +2813,56 @@ update_entity_collision_fast:
         ; ==================================================================
 ; COLLISION HELPER FUNCTIONS(Critical for Gameplay Parity)
         ; ==================================================================
+
+; ------------------------------------------------------------------
+; coll_add_signed_offset_clamped
+; Input:  A = base coordinate (0..255)
+;         HL = pointer to signed offset byte (-128..127, two's complement)
+; Output: A = clamped (base + offset), saturated to 0..255
+; Clobbers: B
+; ------------------------------------------------------------------
+coll_add_signed_offset_clamped:
+    ld b, (hl)                    ; B = signed offset byte
+    add a, b                      ; A = base + offset (wrapped)
+    bit 7, b
+    jr z, .casc_positive
+    ; Negative offset: carry=0 means underflow (wrapped below 0)
+    jr c, .casc_done
+    xor a                         ; Clamp to 0
+    ret
+.casc_positive:
+    ; Positive offset: carry=1 means overflow (wrapped above 255)
+    jr nc, .casc_done
+    ld a, 255                     ; Clamp to 255
+.casc_done:
+    ret
+
+; ------------------------------------------------------------------
+; coll_flags_from_layer
+; Input:  A = collision layer bitmask of the other entity
+; Output: A = collision event flags (entity/enemy/item)
+; Clobbers: B, C
+; ------------------------------------------------------------------
+coll_flags_from_layer:
+    ld b, a
+    ld c, COLLISION_EVENT_ENTITY
+
+    ld a, b
+    and COLLISION_LAYER_ENEMY
+    jr z, .cffl_no_enemy
+    ld a, c
+    or COLLISION_EVENT_ENEMY
+    ld c, a
+.cffl_no_enemy:
+    ld a, b
+    and COLLISION_LAYER_ITEM
+    jr z, .cffl_done
+    ld a, c
+    or COLLISION_EVENT_ITEM
+    ld c, a
+.cffl_done:
+    ld a, c
+    ret
 
             check_tile_collision:
     ; Check collision with background tiles
@@ -2950,12 +3068,12 @@ update_entity_collision_fast:
     jr nc, .not_on_platform ; Not standing on platform
 
     ; Current entity is above other entity
-    ; Check if other entity is a platform (collision_layer & 8)
+    ; Check if other entity is a platform (collision_layer & COLLISION_LAYER_PLATFORM)
     ld hl, entity_collision_layer
     ld d, 0
     add hl, de              ; HL = &entity_collision_layer[other]
     ld a, (hl)              ; A = other entity collision layer
-    and 8                   ; Check bit 3 (platform layer)
+    and COLLISION_LAYER_PLATFORM
     jr z, .not_on_platform  ; Not a platform
 
     ; Other entity IS a platform - set platform reference
@@ -3966,6 +4084,8 @@ update_auto_destroy_component:
         ld hl, entity_comp_masks_hi
         add hl, de
         ld (hl), 0                    ; Clear high byte
+        ld hl, active_entity_list_dirty
+        ld (hl), 1
 
         ; Move entity off-screen
         ld hl, entity_x_pos
@@ -4183,7 +4303,7 @@ update_platform_riding:
     ; WALL COLLISION COMPONENT SYSTEM
     ; ==================================================================
     ; Prevents entities from moving through walls
-    ; Checks 2 points per direction for robust collision
+    ; Uses per-entity hitbox (offset + width/height)
     ; Snaps entity position to wall edge AND zeros velocity
 
 init_wallcollision_system:
@@ -4193,7 +4313,7 @@ init_wallcollision_system:
 ; update_wallcollision_component
 ; Check wall collisions and prevent movement through solid tiles
 ; Uses behavior map (current_behavior_map) for collision detection
-; Entity position is cached in wall_temp_x/y to avoid register issues
+; Entity position is cached in wall_temp_x/y and converted to hitbox bounds
 ; ------------------------------------------------------------------
 update_wallcollision_component:
     ld e, 0                       ; Entity index = 0
@@ -4247,6 +4367,9 @@ update_wallcollision_component:
     add hl, de                        ; DE still = entity index from above
     res 0, (hl)
 
+    ; Build hitbox cache from entity position + collision offsets/sizes
+    call wall_build_hitbox_cache
+
     ; ---- CHECK HORIZONTAL VELOCITY ----
     ld hl, entity_vel_x
     add hl, de
@@ -4258,51 +4381,55 @@ update_wallcollision_component:
     jp z, .wall_check_right
 
 .wall_check_left:
-    ; Moving left - check left edge at 2 Y points
-    ld a, (wall_temp_x)
+    ; Moving left - probe one pixel before hitbox left edge
+    ld a, (wall_hit_left)
     or a
-    jp z, .check_wall_y           ; X=0, already at left edge
+    jp z, .check_wall_y           ; already at left boundary
     sub 1
     srl a
     srl a
-    srl a                         ; Column = (X-1) / 8
+    srl a                         ; Column = (left-1) / 8
     ld c, a
 
-    ; Check point 1: upper portion (Y+2)
-    ld a, (wall_temp_y)
-    add a, 2
+    ; Check point 1: hitbox top
+    ld a, (wall_hit_top)
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+2) / 8
+    ld b, a                       ; Row = top / 8
     call get_behavior_tile
     or a
     jp nz, .wall_left_blocked
 
-    ; Check point 2: lower portion (Y+13)
-    ld a, (wall_temp_y)
-    add a, 13
+    ; Check point 2: hitbox bottom
+    ld a, (wall_hit_bottom)
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+13) / 8
+    ld b, a                       ; Row = bottom / 8
     call get_behavior_tile
     or a
     jp z, .check_wall_y           ; Both passable
 
 .wall_left_blocked:
-    ; Snap X to right edge of wall tile: X = (column+1) * 8
+    ; Snap hitbox left to wall boundary: left = (column+1) * 8
     ld a, c
     inc a
     add a, a
     add a, a
-    add a, a                      ; A = (column+1) * 8
-    ld (wall_temp_x), a          ; Update cache
+    add a, a                      ; A = new hitbox left
+    push af                       ; keep new hitbox left
+    ld hl, entity_collision_offset_x
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped
+    ld (wall_temp_x), a           ; update entity position cache
     push af
     ld hl, entity_x_pos
     add hl, de
     pop af
     ld (hl), a                    ; Snap entity X position
+    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
 
     ; Zero X velocity
     ld hl, entity_vel_x
@@ -4314,50 +4441,62 @@ update_wallcollision_component:
     jp .check_wall_y
 
 .wall_check_right:
-    ; Moving right - check right edge at 2 Y points
-    ld a, (wall_temp_x)
-    add a, 16                     ; Right edge (16px wide sprite)
-    jp c, .check_wall_y           ; Overflow (X+16 > 255), skip
+    ; Moving right - probe one pixel after hitbox right edge
+    ld a, (wall_hit_right)
+    inc a
+    jp z, .check_wall_y           ; overflow (right==255), skip
     srl a
     srl a
     srl a                         ; Column = (X+16) / 8
     ld c, a
 
-    ; Check point 1: upper portion (Y+2)
-    ld a, (wall_temp_y)
-    add a, 2
+    ; Check point 1: hitbox top
+    ld a, (wall_hit_top)
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+2) / 8
+    ld b, a                       ; Row = top / 8
     call get_behavior_tile
     or a
     jp nz, .wall_right_blocked
 
-    ; Check point 2: lower portion (Y+13)
-    ld a, (wall_temp_y)
-    add a, 13
+    ; Check point 2: hitbox bottom
+    ld a, (wall_hit_bottom)
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+13) / 8
+    ld b, a                       ; Row = bottom / 8
     call get_behavior_tile
     or a
     jp z, .check_wall_y           ; Both passable
 
 .wall_right_blocked:
-    ; Snap X so right edge touches left of wall: X = column*8 - 16
+    ; Snap hitbox so right edge touches wall left:
+    ; left = column*8 - hitbox_w
     ld a, c
     add a, a
     add a, a
     add a, a                      ; A = column * 8
-    sub 16                        ; A = column*8 - 16
-    ld (wall_temp_x), a          ; Update cache
+    ld b, a
+    ld a, (wall_hit_w)
+    ld c, a
+    ld a, b
+    sub c
+    jr nc, .wall_right_left_ok
+    xor a                         ; clamp to 0
+.wall_right_left_ok:
+    push af                       ; keep new hitbox left
+    ld hl, entity_collision_offset_x
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped
+    ld (wall_temp_x), a           ; update entity position cache
     push af
     ld hl, entity_x_pos
     add hl, de
     pop af
     ld (hl), a                    ; Snap entity X position
+    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
 
     ; Zero X velocity
     ld hl, entity_vel_x
@@ -4379,47 +4518,51 @@ update_wallcollision_component:
     jp z, .wall_check_down
 
 .wall_check_up:
-    ; Moving up - check top edge at 2 X points
-    ld a, (wall_temp_y)
+    ; Moving up - probe one pixel above hitbox top edge
+    ld a, (wall_hit_top)
     or a
-    jp z, .wall_up_top_edge       ; Y=0, clamp + stop upward velocity
+    jp z, .wall_up_top_edge       ; top=0, clamp + stop upward velocity
     sub 1
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y-1) / 8
+    ld b, a                       ; Row = (top-1) / 8
 
-    ; Check point 1: left portion (X+2)
-    ld a, (wall_temp_x)
-    add a, 2
+    ; Check point 1: hitbox left
+    ld a, (wall_hit_left)
     srl a
     srl a
     srl a
-    ld c, a                       ; Column = (X+2) / 8
+    ld c, a                       ; Column = left / 8
     call get_behavior_tile
     or a
     jp nz, .wall_up_blocked
 
-    ; Check point 2: right portion (X+13)
-    ld a, (wall_temp_x)
-    add a, 13
+    ; Check point 2: hitbox right
+    ld a, (wall_hit_right)
     srl a
     srl a
     srl a
-    ld c, a                       ; Column = (X+13) / 8
+    ld c, a                       ; Column = right / 8
     call get_behavior_tile
     or a
     jp z, .wall_next              ; Both passable
 
 .wall_up_top_edge:
-    ; Top boundary clamp to prevent Y underflow (0 -> 255 -> ... -> 208 SAT terminator)
+    ; Top boundary clamp (hitbox top = 0)
     xor a
+    push af                       ; keep new hitbox top
+    ld hl, entity_collision_offset_y
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped
     ld (wall_temp_y), a
     push af
     ld hl, entity_y_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Clamp Y = 0
+    ld (hl), a                    ; Clamp entity Y to top boundary
+    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
 
     ; Zero Y velocity
     ld hl, entity_vel_y
@@ -4439,18 +4582,24 @@ update_wallcollision_component:
     jp .wall_next
 
 .wall_up_blocked:
-    ; Snap Y below ceiling: Y = (row+1) * 8
+    ; Snap hitbox top below ceiling: top = (row+1) * 8
     ld a, b
     inc a
     add a, a
     add a, a
-    add a, a                      ; A = (row+1) * 8
-    ld (wall_temp_y), a          ; Update cache
+    add a, a                      ; A = new hitbox top
+    push af                       ; keep new hitbox top
+    ld hl, entity_collision_offset_y
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped
+    ld (wall_temp_y), a           ; update entity position cache
     push af
     ld hl, entity_y_pos
     add hl, de
     pop af
     ld (hl), a                    ; Snap entity Y position
+    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
 
     ; Zero Y velocity
     ld hl, entity_vel_y
@@ -4470,50 +4619,62 @@ update_wallcollision_component:
     jp .wall_next
 
 .wall_check_down:
-    ; Moving down - check bottom edge at 2 X points
-    ld a, (wall_temp_y)
-    add a, 16                     ; Bottom of entity (16px tall)
-    jp c, .wall_next              ; Overflow, skip
+    ; Moving down - probe one pixel below hitbox bottom edge
+    ld a, (wall_hit_bottom)
+    inc a
+    jp z, .wall_next              ; overflow (bottom==255), skip
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+16) / 8
+    ld b, a                       ; Row = (bottom+1) / 8
 
-    ; Check point 1: left portion (X+2)
-    ld a, (wall_temp_x)
-    add a, 2
+    ; Check point 1: hitbox left
+    ld a, (wall_hit_left)
     srl a
     srl a
     srl a
-    ld c, a                       ; Column = (X+2) / 8
+    ld c, a                       ; Column = left / 8
     call get_behavior_tile
     or a
     jp nz, .wall_down_blocked
 
-    ; Check point 2: right portion (X+13)
-    ld a, (wall_temp_x)
-    add a, 13
+    ; Check point 2: hitbox right
+    ld a, (wall_hit_right)
     srl a
     srl a
     srl a
-    ld c, a                       ; Column = (X+13) / 8
+    ld c, a                       ; Column = right / 8
     call get_behavior_tile
     or a
     jp z, .wall_next              ; Both passable
 
 .wall_down_blocked:
-    ; Snap Y so bottom touches top of floor: Y = row*8 - 16
+    ; Snap hitbox bottom to floor top:
+    ; top = row*8 - hitbox_h
     ld a, b
     add a, a
     add a, a
     add a, a                      ; A = row * 8
-    sub 16                        ; A = row*8 - 16
-    ld (wall_temp_y), a          ; Update cache
+    ld b, a
+    ld a, (wall_hit_h)
+    ld c, a
+    ld a, b
+    sub c
+    jr nc, .wall_down_top_ok
+    xor a                         ; clamp to 0
+.wall_down_top_ok:
+    push af                       ; keep new hitbox top
+    ld hl, entity_collision_offset_y
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped
+    ld (wall_temp_y), a           ; update entity position cache
     push af
     ld hl, entity_y_pos
     add hl, de
     pop af
     ld (hl), a                    ; Snap entity Y position
+    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
 
     ; Zero Y velocity and gravity velocity (landing)
     ld hl, entity_vel_y
@@ -4548,6 +4709,119 @@ update_wallcollision_component:
 .wall_next:
     inc e
     jp .wall_loop
+
+; ------------------------------------------------------------------
+; wall_build_hitbox_cache
+; Build hitbox bounds from entity position + collision component values.
+; Input:  DE = entity index
+; Uses:   wall_temp_x/y as entity position cache
+; Output: wall_hit_left/top/right/bottom + wall_hit_w/h
+; ------------------------------------------------------------------
+wall_build_hitbox_cache:
+    ; Width (minimum 1)
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wbhc_w_ok
+    ld a, 1
+.wbhc_w_ok:
+    ld (wall_hit_w), a
+
+    ; Height (minimum 1)
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wbhc_h_ok
+    ld a, 1
+.wbhc_h_ok:
+    ld (wall_hit_h), a
+
+    ; left = entity_x + offset_x (signed, clamped)
+    ld a, (wall_temp_x)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    call wall_add_signed_offset_clamped
+    ld (wall_hit_left), a
+
+    ; top = entity_y + offset_y (signed, clamped)
+    ld a, (wall_temp_y)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    call wall_add_signed_offset_clamped
+    ld (wall_hit_top), a
+
+    ; right = left + (w-1), clamped
+    ld a, (wall_hit_w)
+    dec a
+    ld b, a
+    ld a, (wall_hit_left)
+    add a, b
+    jr nc, .wbhc_right_ok
+    ld a, 255
+.wbhc_right_ok:
+    ld (wall_hit_right), a
+
+    ; bottom = top + (h-1), clamped
+    ld a, (wall_hit_h)
+    dec a
+    ld b, a
+    ld a, (wall_hit_top)
+    add a, b
+    jr nc, .wbhc_bottom_ok
+    ld a, 255
+.wbhc_bottom_ok:
+    ld (wall_hit_bottom), a
+    ret
+
+; ------------------------------------------------------------------
+; wall_add_signed_offset_clamped
+; Input:  A = base coordinate (0..255)
+;         HL = pointer to signed offset byte (-128..127)
+; Output: A = clamp(base + offset, 0..255)
+; ------------------------------------------------------------------
+wall_add_signed_offset_clamped:
+    ld b, (hl)                    ; B = signed offset
+    add a, b
+    bit 7, b
+    jr z, .wasc_positive
+    ; Negative offset: carry=0 means underflow
+    jr c, .wasc_done
+    xor a
+    ret
+.wasc_positive:
+    ; Positive offset: carry=1 means overflow
+    jr nc, .wasc_done
+    ld a, 255
+.wasc_done:
+    ret
+
+; ------------------------------------------------------------------
+; wall_sub_signed_offset_clamped
+; Input:  A = hitbox coordinate (left/top)
+;         HL = pointer to signed offset byte (-128..127)
+; Output: A = clamp(hitbox - offset, 0..255)
+; ------------------------------------------------------------------
+wall_sub_signed_offset_clamped:
+    ld c, a
+    ld b, (hl)                    ; B = signed offset
+    bit 7, b
+    jr z, .wssc_positive
+    ; offset < 0 -> hitbox - offset = hitbox + abs(offset)
+    ld a, b
+    neg
+    add a, c
+    jr nc, .wssc_done
+    ld a, 255
+    ret
+.wssc_positive:
+    ld a, c
+    sub b
+    jr nc, .wssc_done
+    xor a
+.wssc_done:
+    ret
     
     ; Collectible system filtered out(not used)
 init_collectible_system:
@@ -4577,6 +4851,8 @@ update_collectible_component:
             ld hl, entity_active
             add hl, de
             ld (hl), 1                    ; entity_active[entity] = 1
+            ld hl, active_entity_list_dirty
+            ld (hl), 1
 
     ; Initialize component data based on mask
             bit 0, b; Check COMP_MASK_POSITION (low byte)
@@ -4620,8 +4896,8 @@ update_collectible_component:
 ; Only calls component systems that are actually used in this project
 ; Unused systems are NOT called (saves Z80 cycles)
 update_all_entities:
-    ; Build entity list once per frame (slots with non-zero component masks)
-    call rebuild_used_entity_list
+    ; Rebuild entity list only when invalidated (spawn/despawn/screen change)
+    call ensure_used_entity_list_current
     call update_input_component         ; 1. Input (player control)
     call update_entities                ; 3b. Patrol/per-entity update
     call update_jump_component          ; 4. Jump impulse
@@ -4639,9 +4915,31 @@ update_all_entities:
 
 
 ; ------------------------------------------------------------------
+; mark_used_entity_list_dirty
+; Invalidate compact entity list cache.
+; Call this after spawn/despawn or screen-id changes.
+; ------------------------------------------------------------------
+mark_used_entity_list_dirty:
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ret
+
+; ------------------------------------------------------------------
+; ensure_used_entity_list_current
+; Rebuild compact list only when marked dirty.
+; ------------------------------------------------------------------
+ensure_used_entity_list_current:
+    ld a, (active_entity_list_dirty)
+    or a
+    ret z
+    call rebuild_used_entity_list
+    ret
+
+; ------------------------------------------------------------------
 ; rebuild_used_entity_list
 ; Build compact list of ACTIVE entity slots that are in use
-; (entity_active != 0 and mask_l|mask_h != 0)
+; for the CURRENT SCREEN only:
+; (entity_active != 0 and mask_l|mask_h != 0 and entity_screen_id == current_screen_id)
 ; Output:
 ;   active_entity_list[]   = entity indices with components
 ;   active_entity_count    = number of entries
@@ -4654,7 +4952,7 @@ rebuild_used_entity_list:
 .rebuild_loop:
     ld a, c
     cp MAX_ENTITIES
-    ret z
+    jr z, .rebuild_done
 
     ld e, c
     ld d, 0
@@ -4672,6 +4970,14 @@ rebuild_used_entity_list:
     or (hl)
     jr z, .next_entity
 
+    ; Keep only entities from currently visible screen
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr nz, .next_entity
+
     ld hl, active_entity_count
     ld a, (hl)
     cp MAX_ENTITIES
@@ -4688,6 +4994,11 @@ rebuild_used_entity_list:
 .next_entity:
     inc c
     jr .rebuild_loop
+
+.rebuild_done:
+    xor a
+    ld (active_entity_list_dirty), a
+    ret
 
 ; ==================================================================
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
@@ -13332,21 +13643,21 @@ Condition_HasCollision:
 
 .chc_enemy:
     ld a, e
-    and #02
+    and COLLISION_EVENT_ENEMY
     jr z, .chc_none
     ld a, 1
     ret
 
 .chc_item:
     ld a, e
-    and #04
+    and COLLISION_EVENT_ITEM
     jr z, .chc_none
     ld a, 1
     ret
 
 .chc_entity:
     ld a, e
-    and #01
+    and COLLISION_EVENT_ENTITY
     jr z, .chc_none
     ld a, 1
     ret
@@ -15883,6 +16194,8 @@ load_world_worldmap_1770754170935:
     ld a, 0
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
 
     xor a
     ld (screen_transition_cooldown), a
@@ -15907,6 +16220,8 @@ transition_worldmap_1770754170935_0:
     ld a, 0
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ret
 
 ; Transition: pan3 -> pan2
@@ -15918,6 +16233,8 @@ transition_worldmap_1770754170935_1:
     ld a, 1
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ret
 
 ; ==================================================================
@@ -16012,6 +16329,8 @@ check_transition_worldmap_1770754170935_s0_apply_east:
     ld a, 1
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16060,6 +16379,8 @@ check_transition_worldmap_1770754170935_s1_apply_east:
     ld a, 2
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16105,6 +16426,8 @@ check_transition_worldmap_1770754170935_s1_apply_west:
     ld a, 0
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16153,6 +16476,8 @@ check_transition_worldmap_1770754170935_s2_apply_west:
     ld a, 1
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16198,6 +16523,8 @@ get_current_screen_index:
 set_current_screen:
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ret
 
 ; ==================================================================
