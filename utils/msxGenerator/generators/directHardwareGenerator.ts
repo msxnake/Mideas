@@ -300,6 +300,7 @@ FAST_RDVRM:
     ld a, h
     and #3F                ; Clear bit 6 for read mode (bit 7 must be 0)
     out (#99), a           ; Address high + read command
+    nop                    ; VDP needs time to process address before read
     in a, (#98)            ; Read from VRAM data port
     ret
 

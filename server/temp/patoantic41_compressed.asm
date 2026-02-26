@@ -531,6 +531,7 @@ FAST_RDVRM:
     ld a, h
     and #3F                ; Clear bit 6 for read mode (bit 7 must be 0)
     out (#99), a           ; Address high + read command
+    nop                    ; VDP needs time to process address before read
     in a, (#98)            ; Read from VRAM data port
     ret
 
@@ -6725,24 +6726,23 @@ SCREEN_PAN1_0_HEIGHT    EQU 24
 SCREEN_PAN1_0_SIZE      EQU 768
 
 SCREEN_PAN1_0_LAYOUT:
-    ; ZX0 compressed layout (768 -> 105 bytes)
+    ; ZX0 compressed layout (768 -> 95 bytes)
     DB #95,#84,#69,#00,#57,#D5,#80,#A5,#80,#5B,#82,#D4,#C0,#BC,#80,#E6
     DB #2E,#81,#FC,#0E,#80,#42,#25,#82,#83,#1F,#00,#55,#F7,#FF,#E6,#5F
     DB #80,#17,#7F,#E7,#FD,#00,#42,#D8,#85,#5A,#3C,#C0,#4F,#79,#BD,#FC
-    DB #80,#0F,#40,#47,#F5,#85,#00,#78,#C0,#47,#A1,#F1,#80,#37,#98,#ED
-    DB #C0,#FD,#88,#40,#E9,#F1,#82,#7C,#FC,#EF,#C0,#F0,#D8,#40,#F1,#80
-    DB #FC,#FD,#80,#3B,#FC,#93,#90,#81,#80,#F5,#FC,#F5,#80,#E5,#FC,#3F
-    DB #CB,#80,#47,#E3,#CB,#80,#55,#55,#80
+    DB #80,#0F,#40,#47,#F5,#85,#00,#78,#C0,#47,#F4,#F1,#FC,#EF,#C0,#F0
+    DB #E5,#40,#69,#82,#DF,#88,#65,#40,#78,#80,#7B,#FC,#D4,#80,#FF,#FC
+    DB #80,#07,#94,#FC,#FC,#CB,#80,#E5,#FC,#3E,#CB,#80,#35,#55,#58
 BEHAVIOR_PAN1_0_WIDTH     EQU 32
 BEHAVIOR_PAN1_0_HEIGHT    EQU 24
 BEHAVIOR_PAN1_0_SIZE      EQU 768
 
 BEHAVIOR_PAN1_0_DATA:
-    ; ZX0 compressed behavior (768 -> 59 bytes)
+    ; ZX0 compressed behavior (768 -> 52 bytes)
     DB #85,#00,#56,#E1,#01,#C0,#13,#E1,#E7,#FE,#E5,#C0,#39,#00,#45,#F5
-    DB #CC,#EF,#FE,#C0,#45,#F6,#CB,#5A,#0F,#C0,#50,#EF,#F6,#C0,#01,#3A
-    DB #F1,#01,#07,#77,#4A,#F8,#FE,#C0,#4F,#D2,#75,#87,#A6,#81,#C0,#7D
-    DB #FE,#7D,#DA,#39,#C0,#5F,#FE,#55,#D5,#55,#60
+    DB #CC,#EF,#FE,#C0,#45,#F6,#CB,#5A,#0F,#C0,#50,#EF,#F6,#C0,#00,#7F
+    DB #F1,#FE,#5F,#DA,#DD,#C6,#1E,#A8,#1F,#C0,#54,#FE,#FE,#C0,#57,#D5
+    DB #FE,#75,#55,#58
 SCREEN_PAN2_1_WIDTH     EQU 32
 SCREEN_PAN2_1_HEIGHT    EQU 24
 SCREEN_PAN2_1_SIZE      EQU 768
