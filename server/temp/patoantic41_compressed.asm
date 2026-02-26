@@ -10572,7 +10572,7 @@ anim_tile_table:
 ;   bit0 = apply vertical transform on color rows
 ; ------------------------------------------------------------------
 anim_transform_table:
-    db 133, 1, 6, 1    ; corda -> tile tile_1772054023315
+    db 133, 1, 6, 0    ; corda -> tile tile_1772054023315
     db 255                          ; End marker
 
 ; ==================================================================

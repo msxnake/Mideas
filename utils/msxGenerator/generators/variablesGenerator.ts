@@ -351,6 +351,9 @@ MAX_ENTITIES        EQU 32
 
     code += `player_score        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player score (16-bit)\n`;
     currentAddress += 2;
+
+    code += `gem_count           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Collectible tile counter (8-bit)\n`;
+    currentAddress++;
   }
 
   // aux variables

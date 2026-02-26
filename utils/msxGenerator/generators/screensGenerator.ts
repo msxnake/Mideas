@@ -229,10 +229,9 @@ BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ((BEHAVIOR_${screenName}_${index}_
           collisionLayer.forEach(row => {
             row.forEach(tile => {
               if (tile.tileId) {
-                // Tile exists in collision layer = solid (TILE_SOLID = 1)
-                behaviorMapData.push(1);
+                const tileAsset = analysis.tiles?.find((t: any) => t.id === tile.tileId);
+                behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
               } else {
-                // No tile in collision layer = passable (TILE_PASSABLE = 0)
                 behaviorMapData.push(0);
               }
             });

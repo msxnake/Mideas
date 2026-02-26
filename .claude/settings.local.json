@@ -116,7 +116,9 @@
       "Bash(python3:*)",
       "Bash(cmd.exe:*)",
       "Bash(git status:*)",
-      "Bash(cmd /c \"npx tsc --noEmit 2>&1\")"
+      "Bash(cmd /c \"npx tsc --noEmit 2>&1\")",
+      "Bash(do if:*)",
+      "Bash(sort:*)"
     ],
     "deny": [],
     "ask": []

@@ -65,6 +65,7 @@ update_all_entities:
         ['Collision', 'update_collision_component', '8b. Collision detection'],
         ['Collision', 'update_platform_riding', '8c. Platform riding'],
         ['WallCollision', 'update_wallcollision_component', '8d. Wall collision'],
+        ['TileInteraction', 'check_tile_interaction', '8e. Tile interaction (gems/collectibles)'],
         ['Health', 'update_health_component', '9. Health/Death'],
         ['Damage', 'update_damage_component', '10. Damage'],
         ['Animation', 'update_animation_component', '11. Animation'],
@@ -1343,8 +1344,8 @@ ${yDivisionCode}
         ; For now, assume all non - zero tiles are solid
         ; This would read from the behavior map generated from screen data
     call get_behavior_tile; Returns A = behavior value
-    or a
-    jr z, no_tile_collision; 0 = passable
+    and #F0               ; Family bits only (0=NoSolid, #10+=Solid)
+    jr z, no_tile_collision; 0 = passable (NoSolid family)
 
         ; Collision detected - handle it
     call handle_tile_collision
@@ -3504,7 +3505,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_left_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
@@ -3514,7 +3515,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = bottom / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp z, .check_wall_y           ; Both passable
 
 .wall_left_blocked:
@@ -3563,7 +3564,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_right_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
@@ -3573,7 +3574,7 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = bottom / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp z, .check_wall_y           ; Both passable
 
 .wall_right_blocked:
@@ -3641,7 +3642,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_up_blocked
 
     ; Check point 2: adaptive right probe (safe for small hitboxes)
@@ -3651,7 +3652,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp z, .wall_next              ; Both passable
 
 .wall_up_top_edge:
@@ -3772,7 +3773,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_down_blocked
 
     ; Check point 2: adaptive right probe (safe for small hitboxes)
@@ -3782,7 +3783,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp z, .wall_next              ; Both passable
 
 .wall_down_blocked:
@@ -3996,6 +3997,137 @@ wall_sub_signed_offset_clamped:
 .wssc_done:
     ret
     `;
+}
+
+/**
+ * Generate Tile Interaction System
+ * Detects when an entity with COMP_INPUT overlaps an Interactable tile
+ * (mapId & #08 != 0 = NoSolid+Interactable, e.g. gems/coins on the screen map).
+ * On contact: clears tile from VRAM Name Table + runtime_behavior_map, increments gem_count.
+ */
+function generateTileInteractionSystem(): string {
+    return `
+; ==================================================================
+; TILE INTERACTION SYSTEM
+; ==================================================================
+; Checks if any entity with COMP_INPUT overlaps a tile marked as
+; Interactable (mapId & #08 != 0) in the runtime behavior map.
+; When found: removes tile from screen and increments gem_count.
+; ------------------------------------------------------------------
+; Called once per frame from update_all_entities.
+; ------------------------------------------------------------------
+
+init_tile_interaction_system:
+    ret
+
+; ------------------------------------------------------------------
+; check_tile_interaction
+; Input:  None (reads active_entity_list / active_entity_count)
+; Output: None
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+check_tile_interaction:
+    ld a, (active_entity_count)
+    or a
+    ret z                          ; No active entities
+
+    ld hl, active_entity_list
+    ld b, a                        ; B = entity count
+
+.ti_loop:
+    ld c, (hl)                     ; C = entity index
+    push hl                        ; Save list pointer
+    push bc                        ; Save count(B) + entity(C)
+
+    ; Check COMP_MASK_INPUT (bit 4, value #10 in low mask byte)
+    ld e, c
+    ld d, 0                        ; DE = entity index
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jp z, .ti_next                 ; No input component → skip
+
+    ; Get center X
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8                       ; center X = x + 8
+    push af                        ; Save centerX
+
+    ; Get center Y
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8                       ; center Y = y + 8
+    ld e, a                        ; E = centerY
+
+    pop af                         ; A = centerX
+    ld d, a                        ; D = centerX, E = centerY
+
+    ; Convert pixel → tile coords (div 8 via 3x rrca + and #1F)
+    ld a, d
+    rrca
+    rrca
+    rrca
+    and #1F
+    ld d, a                        ; D = tileX (0-31)
+
+    ld a, e
+    rrca
+    rrca
+    rrca
+    and #1F
+    ld e, a                        ; E = tileY (0-23)
+
+    ; Compute idx = tileY * 32 + tileX
+    ld h, 0
+    ld l, e                        ; HL = tileY
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                     ; HL = tileY * 32
+    ld b, 0
+    ld c, d                        ; BC = tileX
+    add hl, bc                     ; HL = idx
+
+    push hl                        ; Save idx
+
+    ; Check runtime_behavior_map[idx]
+    ld de, runtime_behavior_map
+    add hl, de                     ; HL = &runtime_behavior_map[idx]
+    ld a, (hl)
+    and #08                        ; INTERACTABLE flag (bit 3)
+    jr z, .ti_no_collect
+
+    ; *** COLLECT! ***
+    ; 1. Clear behavior map entry (prevents double-collect)
+    ld (hl), 0
+
+    ; 2. Clear tile from VRAM Name Table (#1800 + idx)
+    pop hl                         ; HL = idx
+    ld de, NAMETBL
+    add hl, de                     ; HL = VRAM address
+    xor a                          ; A = 0 (empty tile char)
+    call FAST_WRTVRM
+
+    ; 3. Increment gem_count
+    ld hl, gem_count
+    inc (hl)
+
+    jp .ti_next
+
+.ti_no_collect:
+    pop hl                         ; Balance idx push
+
+.ti_next:
+    pop bc                         ; Restore B=count, C=entity
+    pop hl                         ; Restore list pointer
+    inc hl                         ; Advance to next entity
+    djnz .ti_loop
+    ret
+`;
 }
 
 /**
@@ -4426,6 +4558,8 @@ update_wallcollision_component:
     ret
 update_collectible_component:
     ret
+check_tile_interaction:
+    ret
 
 init_position_system:
     ret
@@ -4464,6 +4598,8 @@ init_platform_riding_system:
 init_wallcollision_system:
     ret
 init_collectible_system:
+    ret
+init_tile_interaction_system:
     ret
 init_entity_position:
     ret
@@ -4947,6 +5083,26 @@ update_collectible_component:
     `;
     } else {
         code += generateCollectibleSystem();
+    }
+
+    // Generate Tile Interaction System (when project has Interactable tiles)
+    // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
+    const hasInteractableTiles = Array.isArray(analysis.tiles) &&
+        analysis.tiles.some((t: any) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
+
+    if (hasInteractableTiles && usedComponents.has('Input')) {
+        usedComponents.add('TileInteraction'); // Enable the call in update_all_entities
+        code += generateTileInteractionSystem();
+        console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
+    } else {
+        code += `
+    ; Tile interaction system filtered out(no interactable tiles or no input)
+init_tile_interaction_system:
+    ret
+
+check_tile_interaction:
+    ret
+    `;
     }
 
     // Always include entity management helpers
