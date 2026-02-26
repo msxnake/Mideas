@@ -4,13 +4,13 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 /** Defines the available theme modes. */
 export type ThemeMode = 'light' | 'dark' | 'custom';
 /** Defines the keys for the themeable colors. */
-export type ColorKeys = 
-  | 'bgcolor' 
-  | 'panelbg' 
-  | 'accent' 
-  | 'highlight' 
-  | 'textprimary' 
-  | 'textsecondary' 
+export type ColorKeys =
+  | 'bgcolor'
+  | 'panelbg'
+  | 'accent'
+  | 'highlight'
+  | 'textprimary'
+  | 'textsecondary'
   | 'border'
   | 'danger'
   | 'warning';
@@ -48,15 +48,15 @@ interface ThemeContextType {
  * @constant
  */
 const defaultDarkColors: Record<ColorKeys, string> = {
-  bgcolor: '#22272E',
-  panelbg: '#2D333B',
-  accent: '#58A6FF',
-  highlight: '#3FB950',
-  textprimary: '#C9D1D9',
-  textsecondary: '#8B949E',
-  border: '#444C56',
-  danger: '#F85149',
-  warning: '#F0A832',
+  bgcolor: '#0f1115',
+  panelbg: '#181b21',
+  accent: '#6366f1',
+  highlight: '#10b981',
+  textprimary: '#f8fafc',
+  textsecondary: '#94a3b8',
+  border: '#272b36',
+  danger: '#f43f5e',
+  warning: '#f59e0b',
 };
 
 /**
@@ -64,15 +64,15 @@ const defaultDarkColors: Record<ColorKeys, string> = {
  * @constant
  */
 const defaultLightColors: Record<ColorKeys, string> = {
-  bgcolor: '#F3F4F6', // gray-100
-  panelbg: '#FFFFFF', // white
-  accent: '#3B82F6', // blue-500
-  highlight: '#10B981', // emerald-500
-  textprimary: '#1F2937', // gray-800
-  textsecondary: '#6B7280', // gray-500
-  border: '#D1D5DB', // gray-300
-  danger: '#EF4444', // red-500
-  warning: '#F59E0B', // amber-500
+  bgcolor: '#f8fafc',
+  panelbg: '#ffffff',
+  accent: '#4f46e5',
+  highlight: '#059669',
+  textprimary: '#0f172a',
+  textsecondary: '#64748b',
+  border: '#e2e8f0',
+  danger: '#e11d48',
+  warning: '#d97706',
 };
 
 /**
@@ -98,9 +98,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (savedConfig) {
         const parsed = JSON.parse(savedConfig);
         // Ensure loaded config has all necessary color keys
-        const validatedColors = { 
-            ...(parsed.theme === 'dark' ? defaultDarkColors : (parsed.theme === 'light' ? defaultLightColors : defaultDarkColors)),
-            ...parsed.colors 
+        const validatedColors = {
+          ...(parsed.theme === 'dark' ? defaultDarkColors : (parsed.theme === 'light' ? defaultLightColors : defaultDarkColors)),
+          ...parsed.colors
         };
         return { ...parsed, colors: validatedColors };
       }
@@ -142,8 +142,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // For custom, decide if it's more light-like or dark-like based on bgcolor, or default to dark behavior
       // This is a simple heuristic, could be more sophisticated
       const bgColor = (effectiveColors.bgcolor || '').toLowerCase(); // Guard against undefined
-      const isDarkCustom = bgColor.startsWith('#') && parseInt(bgColor.substring(1,3), 16) < 128; // Arbitrary check if bg is dark
-      if(isDarkCustom) {
+      const isDarkCustom = bgColor.startsWith('#') && parseInt(bgColor.substring(1, 3), 16) < 128; // Arbitrary check if bg is dark
+      if (isDarkCustom) {
         body.classList.add('dark');
         body.classList.remove('light');
       } else {
@@ -151,16 +151,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         body.classList.remove('dark');
       }
     }
-    
+
     // Update CSS Variables
     const styleElement = document.getElementById('dynamic-theme-styles');
     if (styleElement) {
-        let cssVars = ':root {\n';
-        for (const key in effectiveColors) {
-            cssVars += `  --msx-${key}: ${effectiveColors[key as ColorKeys]};\n`;
-        }
-        cssVars += '}';
-        styleElement.innerHTML = cssVars;
+      let cssVars = ':root {\n';
+      for (const key in effectiveColors) {
+        cssVars += `  --msx-${key}: ${effectiveColors[key as ColorKeys]};\n`;
+      }
+      cssVars += '}';
+      styleElement.innerHTML = cssVars;
     }
 
   }, [config, getEffectiveColors]);
@@ -175,11 +175,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       colors: { ...prev.colors, [key]: value },
     }));
   };
-  
+
   const loadConfig = (loadedConfig: ThemeConfig) => {
     // Basic validation
-    if (loadedConfig && loadedConfig.theme && loadedConfig.colors && 
-        Object.keys(defaultDarkColors).every(key => key in loadedConfig.colors)) {
+    if (loadedConfig && loadedConfig.theme && loadedConfig.colors &&
+      Object.keys(defaultDarkColors).every(key => key in loadedConfig.colors)) {
       setConfig(loadedConfig);
     } else {
       console.error("Invalid theme configuration loaded.", loadedConfig);
