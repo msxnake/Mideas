@@ -53,9 +53,9 @@ interface ScreenEditorProps {
   /** Callback to set the selected entity instance ID. */
   onSelectEntityInstance: (id: string | null) => void;
   /** The ID of the currently selected effect zone. */
-  selectedEffectZoneId: string | null; 
+  selectedEffectZoneId: string | null;
   /** Callback to set the selected effect zone ID. */
-  onSelectEffectZone: (id: string | null) => void; 
+  onSelectEffectZone: (id: string | null) => void;
   /** The copied screen data buffer for paste operations. */
   copiedScreenBuffer: CopiedScreenData | null;
   /** Callback to set the copied screen data buffer. */
@@ -63,11 +63,11 @@ interface ScreenEditorProps {
   /** A list of all project assets. */
   allProjectAssets: ProjectAsset[];
   /** The copied layer data buffer for paste operations. */
-  copiedLayerBuffer: CopiedLayerData | null; 
+  copiedLayerBuffer: CopiedLayerData | null;
   /** Callback to set the copied layer data buffer. */
-  setCopiedLayerBuffer: (buffer: CopiedLayerData | null) => void; 
+  setCopiedLayerBuffer: (buffer: CopiedLayerData | null) => void;
   /** Callback to set a message in the status bar. */
-  setStatusBarMessage: (message: string) => void; 
+  setStatusBarMessage: (message: string) => void;
   /** Optional callback when the active layer changes. */
   onActiveLayerChange?: (layer: ScreenEditorLayerName) => void;
   /** The list of all component definitions. */
@@ -97,14 +97,14 @@ interface ScreenEditorProps {
  * and layer management for background, collision, and entities.
  */
 export const ScreenEditor: React.FC<ScreenEditorProps> = ({
-    screenMap, onUpdate, tileset, sprites, selectedTileId, setSelectedTileId, currentEntityTypeToPlace,
-    currentScreenMode, tileBanks, msx1FontData, msxFontColorAttributes, dataOutputFormat,
-    selectedEntityInstanceId, onSelectEntityInstance, selectedEffectZoneId, onSelectEffectZone,
-    copiedScreenBuffer, setCopiedScreenBuffer, allProjectAssets,
-    copiedLayerBuffer, setCopiedLayerBuffer, setStatusBarMessage,
-    onActiveLayerChange, componentDefinitions, entityTemplates, onShowMapFile,
-    onNavigateToAsset, onShowContextMenu, waypointPickerState, onWaypointPicked,
-    zoom, setZoom
+  screenMap, onUpdate, tileset, sprites, selectedTileId, setSelectedTileId, currentEntityTypeToPlace,
+  currentScreenMode, tileBanks, msx1FontData, msxFontColorAttributes, dataOutputFormat,
+  selectedEntityInstanceId, onSelectEntityInstance, selectedEffectZoneId, onSelectEffectZone,
+  copiedScreenBuffer, setCopiedScreenBuffer, allProjectAssets,
+  copiedLayerBuffer, setCopiedLayerBuffer, setStatusBarMessage,
+  onActiveLayerChange, componentDefinitions, entityTemplates, onShowMapFile,
+  onNavigateToAsset, onShowContextMenu, waypointPickerState, onWaypointPicked,
+  zoom, setZoom
 }) => {
 
   const screenModeMetrics = useMemo(() => getScreenModeMetrics(currentScreenMode), [currentScreenMode]);
@@ -184,7 +184,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
   const [isExportLayoutModalOpen, setIsExportLayoutModalOpen] = useState(false);
   const [layoutASMExportData, setLayoutASMExportData] = useState<LayoutASMExportData | null>(null);
-  
+
   const [isExportBehaviorMapModalOpen, setIsExportBehaviorMapModalOpen] = useState(false);
   const [behaviorMapASMExportData, setBehaviorMapASMExportData] = useState<BehaviorMapASMExportData | null>(null);
 
@@ -195,9 +195,9 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [localActiveY, setLocalActiveY] = useState<string>(String(screenMap.activeAreaY ?? 0));
   const [localActiveW, setLocalActiveW] = useState<string>(String(screenMap.activeAreaWidth ?? screenMap.width ?? 0));
   const [localActiveH, setLocalActiveH] = useState<string>(String(screenMap.activeAreaHeight ?? screenMap.height ?? 0));
-  
+
   const [isPasteConfirmModalOpen, setIsPasteConfirmModalOpen] = useState(false);
-  
+
   const [currentScreenTool, setCurrentScreenTool] = useState<ScreenEditorTool>('draw');
   const [selectionRect, setSelectionRect] = useState<ScreenSelectionRect | null>(null);
   const [currentSector, setCurrentSector] = useState<0 | 1 | 2>(0); // Track current MSX Screen 2 sector
@@ -250,8 +250,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     value: string
   ) => {
     const setter = {
-        activeAreaX: setLocalActiveX, activeAreaY: setLocalActiveY,
-        activeAreaWidth: setLocalActiveW, activeAreaHeight: setLocalActiveH,
+      activeAreaX: setLocalActiveX, activeAreaY: setLocalActiveY,
+      activeAreaWidth: setLocalActiveW, activeAreaHeight: setLocalActiveH,
     }[prop];
     setter(value);
     const numValue = parseInt(value, 10);
@@ -264,11 +264,11 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       return;
     }
     const newEntityInstance: EntityInstance = {
-        id: `entity_${Date.now()}_${Math.random().toString(36).substring(2,7)}`,
-        entityTemplateId: currentEntityTypeToPlace.id, 
-        name: `${currentEntityTypeToPlace.name} ${screenMap.layers.entities.filter(e => e.entityTemplateId === currentEntityTypeToPlace.id).length + 1}`, 
-        position: { x: point.x, y: point.y }, 
-        componentOverrides: {}, 
+      id: `entity_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      entityTemplateId: currentEntityTypeToPlace.id,
+      name: `${currentEntityTypeToPlace.name} ${screenMap.layers.entities.filter(e => e.entityTemplateId === currentEntityTypeToPlace.id).length + 1}`,
+      position: { x: point.x, y: point.y },
+      componentOverrides: {},
     };
     const updatedEntities = [...screenMap.layers.entities, newEntityInstance];
     onUpdate({ layers: { ...screenMap.layers, entities: updatedEntities } });
@@ -276,11 +276,11 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
   const handleAddNewEffectZone = () => {
     const newZone: EffectZone = {
-        id: `efz_${Date.now()}_${Math.random().toString(36).substring(2,5)}`,
-        name: `Effect Zone ${ (screenMap.effectZones?.length || 0) + 1}`,
-        rect: { x: lastClickedCell?.x ?? 0, y: lastClickedCell?.y ?? 0, width: 4, height: 4},
-        mask: 0,
-        description: ""
+      id: `efz_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      name: `Effect Zone ${(screenMap.effectZones?.length || 0) + 1}`,
+      rect: { x: lastClickedCell?.x ?? 0, y: lastClickedCell?.y ?? 0, width: 4, height: 4 },
+      mask: 0,
+      description: ""
     };
     const updatedEffectZones = [...(screenMap.effectZones || []), newZone];
     onUpdate({ effectZones: updatedEffectZones });
@@ -364,7 +364,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
     const selectedTileAsset = tileset.find(t => t.id === selectedTileId);
 
-    if (!selectedTileAsset && currentScreenTool === 'erase') { 
+    if (!selectedTileAsset && currentScreenTool === 'erase') {
       const cellToClear = currentLayerData[point.y]?.[point.x];
       if (cellToClear && cellToClear.tileId) {
         const originalTileAsset = tileset.find(t => t.id === cellToClear.tileId);
@@ -385,14 +385,14 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
               }
             }
           }
-        } else { 
+        } else {
           if (currentLayerData[point.y][point.x]?.tileId !== null) {
             currentLayerData[point.y][point.x] = { tileId: null };
             changed = true;
           }
         }
       }
-    } else if (selectedTileAsset && currentScreenTool === 'draw') { 
+    } else if (selectedTileAsset && currentScreenTool === 'draw') {
       const tileActualW = selectedTileAsset.width;
       const tileActualH = selectedTileAsset.height;
       const spanX = Math.ceil(tileActualW / EDITOR_BASE_TILE_DIM);
@@ -407,8 +407,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
               tileId: selectedTileAsset.id, subTileX: dx, subTileY: dy,
             };
             if (currentMapCell?.tileId !== newScreenTile.tileId || currentMapCell?.subTileX !== dx || currentMapCell?.subTileY !== dy) {
-               currentLayerData[targetY][targetX] = newScreenTile;
-               changed = true;
+              currentLayerData[targetY][targetX] = newScreenTile;
+              changed = true;
             }
           }
         }
@@ -427,25 +427,25 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const layerToUpdate = newLayers[layerToUpdateKey].map(row => [...row]);
     let changed = false;
     for (let y = selectionRect.y; y < selectionRect.y + selectionRect.height; y++) {
-        for (let x = selectionRect.x; x < selectionRect.x + selectionRect.width; x++) {
-            if (y >= 0 && y < screenMap.height && x >= 0 && x < screenMap.width) {
-                if (layerToUpdate[y][x]?.tileId !== null) {
-                    layerToUpdate[y][x] = { tileId: null };
-                    changed = true;
-                }
-            }
+      for (let x = selectionRect.x; x < selectionRect.x + selectionRect.width; x++) {
+        if (y >= 0 && y < screenMap.height && x >= 0 && x < screenMap.width) {
+          if (layerToUpdate[y][x]?.tileId !== null) {
+            layerToUpdate[y][x] = { tileId: null };
+            changed = true;
+          }
         }
+      }
     }
     if (changed) {
-        newLayers[layerToUpdateKey] = layerToUpdate;
-        onUpdate({ layers: newLayers });
+      newLayers[layerToUpdateKey] = layerToUpdate;
+      onUpdate({ layers: newLayers });
     }
   };
 
   const handleUnselect = () => {
     setSelectionRect(null);
     if (currentScreenTool === 'select') {
-        setCurrentScreenTool('draw');
+      setCurrentScreenTool('draw');
     }
   };
 
@@ -516,29 +516,29 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const assetSubTilesHigh = Math.ceil(selectedTileAsset.height / EDITOR_BASE_TILE_DIM);
 
     for (let yOffset = 0; yOffset < selectionRect.height; yOffset++) {
-        for (let xOffset = 0; xOffset < selectionRect.width; xOffset++) {
-            const mapY = selectionRect.y + yOffset;
-            const mapX = selectionRect.x + xOffset;
+      for (let xOffset = 0; xOffset < selectionRect.width; xOffset++) {
+        const mapY = selectionRect.y + yOffset;
+        const mapX = selectionRect.x + xOffset;
 
-            if (mapY >= 0 && mapY < screenMap.height && mapX >= 0 && mapX < screenMap.width) {
-                const subTileX = xOffset % assetSubTilesWide;
-                const subTileY = yOffset % assetSubTilesHigh;
-                const newScreenTile: ScreenTile = {
-                    tileId: selectedTileAsset.id,
-                    subTileX: subTileX,
-                    subTileY: subTileY,
-                };
-                const currentCell = layerToUpdate[mapY]?.[mapX];
-                if (currentCell?.tileId !== newScreenTile.tileId || currentCell?.subTileX !== newScreenTile.subTileX || currentCell?.subTileY !== newScreenTile.subTileY) {
-                    layerToUpdate[mapY][mapX] = newScreenTile;
-                    changed = true;
-                }
-            }
+        if (mapY >= 0 && mapY < screenMap.height && mapX >= 0 && mapX < screenMap.width) {
+          const subTileX = xOffset % assetSubTilesWide;
+          const subTileY = yOffset % assetSubTilesHigh;
+          const newScreenTile: ScreenTile = {
+            tileId: selectedTileAsset.id,
+            subTileX: subTileX,
+            subTileY: subTileY,
+          };
+          const currentCell = layerToUpdate[mapY]?.[mapX];
+          if (currentCell?.tileId !== newScreenTile.tileId || currentCell?.subTileX !== newScreenTile.subTileX || currentCell?.subTileY !== newScreenTile.subTileY) {
+            layerToUpdate[mapY][mapX] = newScreenTile;
+            changed = true;
+          }
         }
+      }
     }
     if (changed) {
-        newLayers[layerToUpdateKey] = layerToUpdate;
-        onUpdate({ layers: newLayers });
+      newLayers[layerToUpdateKey] = layerToUpdate;
+      onUpdate({ layers: newLayers });
     }
   };
 
@@ -551,10 +551,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const assetSubTilesWide = Math.ceil(selectedTileAsset.width / EDITOR_BASE_TILE_DIM);
     const assetSubTilesHigh = Math.ceil(selectedTileAsset.height / EDITOR_BASE_TILE_DIM);
     if (assetSubTilesWide < 2 || assetSubTilesHigh < 2) {
-        alert("ZigZag Fill (2x2 unit) requires the selected tile to be at least 2x2 base cells in size.");
-        return;
+      alert("ZigZag Fill (2x2 unit) requires the selected tile to be at least 2x2 base cells in size.");
+      return;
     }
-    
+
     const newLayers = { ...screenMap.layers };
     const layerToUpdate = newLayers[layerToUpdateKey].map(row => [...row]);
     let changed = false;
@@ -563,40 +563,40 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const FILL_UNIT_HEIGHT_CELLS = 2;
 
     for (let selY = 0; selY < selectionRect.height; selY++) {
-        for (let selX = 0; selX < selectionRect.width; selX++) {
-            const mapY = selectionRect.y + selY;
-            const mapX = selectionRect.x + selX;
+      for (let selX = 0; selX < selectionRect.width; selX++) {
+        const mapY = selectionRect.y + selY;
+        const mapX = selectionRect.x + selX;
 
-            if (mapY >= 0 && mapY < screenMap.height && mapX >= 0 && mapX < screenMap.width) {
-                const unitGridY = Math.floor(selY / FILL_UNIT_HEIGHT_CELLS);
-                const isOddUnitRow = unitGridY % 2 !== 0;
-                
-                const subTileYInUnit = selY % FILL_UNIT_HEIGHT_CELLS;
-                let subTileXInUnit = selX % FILL_UNIT_WIDTH_CELLS;
+        if (mapY >= 0 && mapY < screenMap.height && mapX >= 0 && mapX < screenMap.width) {
+          const unitGridY = Math.floor(selY / FILL_UNIT_HEIGHT_CELLS);
+          const isOddUnitRow = unitGridY % 2 !== 0;
 
-                if (isOddUnitRow) {
-                    subTileXInUnit = (FILL_UNIT_WIDTH_CELLS - 1) - subTileXInUnit;
-                }
-                
-                const finalSubTileX = subTileXInUnit % assetSubTilesWide;
-                const finalSubTileY = subTileYInUnit % assetSubTilesHigh;
+          const subTileYInUnit = selY % FILL_UNIT_HEIGHT_CELLS;
+          let subTileXInUnit = selX % FILL_UNIT_WIDTH_CELLS;
 
-                const newScreenTile: ScreenTile = {
-                    tileId: selectedTileAsset.id,
-                    subTileX: finalSubTileX,
-                    subTileY: finalSubTileY,
-                };
-                const currentCell = layerToUpdate[mapY]?.[mapX];
-                 if (currentCell?.tileId !== newScreenTile.tileId || currentCell?.subTileX !== newScreenTile.subTileX || currentCell?.subTileY !== newScreenTile.subTileY) {
-                    layerToUpdate[mapY][mapX] = newScreenTile;
-                    changed = true;
-                }
-            }
+          if (isOddUnitRow) {
+            subTileXInUnit = (FILL_UNIT_WIDTH_CELLS - 1) - subTileXInUnit;
+          }
+
+          const finalSubTileX = subTileXInUnit % assetSubTilesWide;
+          const finalSubTileY = subTileYInUnit % assetSubTilesHigh;
+
+          const newScreenTile: ScreenTile = {
+            tileId: selectedTileAsset.id,
+            subTileX: finalSubTileX,
+            subTileY: finalSubTileY,
+          };
+          const currentCell = layerToUpdate[mapY]?.[mapX];
+          if (currentCell?.tileId !== newScreenTile.tileId || currentCell?.subTileX !== newScreenTile.subTileX || currentCell?.subTileY !== newScreenTile.subTileY) {
+            layerToUpdate[mapY][mapX] = newScreenTile;
+            changed = true;
+          }
         }
+      }
     }
     if (changed) {
-        newLayers[layerToUpdateKey] = layerToUpdate;
-        onUpdate({ layers: newLayers });
+      newLayers[layerToUpdateKey] = layerToUpdate;
+      onUpdate({ layers: newLayers });
     }
   };
 
@@ -644,59 +644,59 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const layoutBytes = generateScreenMapLayoutBytes(screenMap, tileset, tileBankDefinitions, currentScreenMode);
     const comments: string[] = [];
     if (!isScreen2) {
-        const tempMap = new Map<number, {name: string, tileId: string, subX: number, subY: number}>();
-        const activeLayerData = screenMap.layers.background; 
-        for (let r = 0; r < (screenMap.activeAreaHeight ?? screenMap.height); r++) {
-            for (let c = 0; c < (screenMap.activeAreaWidth ?? screenMap.width); c++) {
-                const mapY = (screenMap.activeAreaY ?? 0) + r;
-                const mapX = (screenMap.activeAreaX ?? 0) + c;
-                const screenTile = activeLayerData[mapY]?.[mapX];
-                if (screenTile?.tileId) {
-                    const tileAsset = tileset.find(t => t.id === screenTile.tileId);
-                    if (tileAsset) {
-                    }
-                }
+      const tempMap = new Map<number, { name: string, tileId: string, subX: number, subY: number }>();
+      const activeLayerData = screenMap.layers.background;
+      for (let r = 0; r < (screenMap.activeAreaHeight ?? screenMap.height); r++) {
+        for (let c = 0; c < (screenMap.activeAreaWidth ?? screenMap.width); c++) {
+          const mapY = (screenMap.activeAreaY ?? 0) + r;
+          const mapX = (screenMap.activeAreaX ?? 0) + c;
+          const screenTile = activeLayerData[mapY]?.[mapX];
+          if (screenTile?.tileId) {
+            const tileAsset = tileset.find(t => t.id === screenTile.tileId);
+            if (tileAsset) {
             }
+          }
         }
+      }
     } else if (tileBanks) {
     }
 
     setLayoutASMExportData({
-        mapName: screenMap.name,
-        mapWidth: screenMap.activeAreaWidth ?? screenMap.width,
-        mapHeight: screenMap.activeAreaHeight ?? screenMap.height,
-        mapIndices: Array.from(layoutBytes),
-        referenceComments: comments,
-        dataFormat: dataOutputFormat
+      mapName: screenMap.name,
+      mapWidth: screenMap.activeAreaWidth ?? screenMap.width,
+      mapHeight: screenMap.activeAreaHeight ?? screenMap.height,
+      mapIndices: Array.from(layoutBytes),
+      referenceComments: comments,
+      dataFormat: dataOutputFormat
     });
     setIsExportLayoutModalOpen(true);
   };
-  
+
 
 
   const handleExportBehaviorMapASM = () => {
     const behaviorMapData: number[] = [];
-    const activeCollisionLayer = screenMap.layers.collision; 
+    const activeCollisionLayer = screenMap.layers.collision;
 
     for (let r = 0; r < (screenMap.activeAreaHeight ?? screenMap.height); r++) {
-        const mapY = (screenMap.activeAreaY ?? 0) + r;
-        for (let c = 0; c < (screenMap.activeAreaWidth ?? screenMap.width); c++) {
-            const mapX = (screenMap.activeAreaX ?? 0) + c;
-            const screenTile = activeCollisionLayer[mapY]?.[mapX];
-            if (screenTile?.tileId) {
-                const tileAsset = tileset.find(t => t.id === screenTile.tileId);
-                behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
-            } else {
-                behaviorMapData.push(0); 
-            }
+      const mapY = (screenMap.activeAreaY ?? 0) + r;
+      for (let c = 0; c < (screenMap.activeAreaWidth ?? screenMap.width); c++) {
+        const mapX = (screenMap.activeAreaX ?? 0) + c;
+        const screenTile = activeCollisionLayer[mapY]?.[mapX];
+        if (screenTile?.tileId) {
+          const tileAsset = tileset.find(t => t.id === screenTile.tileId);
+          behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
+        } else {
+          behaviorMapData.push(0);
         }
+      }
     }
     setBehaviorMapASMExportData({
-        mapName: screenMap.name,
-        mapWidth: screenMap.activeAreaWidth ?? screenMap.width,
-        mapHeight: screenMap.activeAreaHeight ?? screenMap.height,
-        behaviorMapData,
-        dataFormat: dataOutputFormat
+      mapName: screenMap.name,
+      mapWidth: screenMap.activeAreaWidth ?? screenMap.width,
+      mapHeight: screenMap.activeAreaHeight ?? screenMap.height,
+      behaviorMapData,
+      dataFormat: dataOutputFormat
     });
     setIsExportBehaviorMapModalOpen(true);
   };
@@ -709,7 +709,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       screenMapName: screenMap.name || 'Untitled Screen',
       data: screenMap
     };
-    
+
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -733,7 +733,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         reader.onload = (event) => {
           try {
             const importData = JSON.parse(event.target?.result as string);
-            
+
             if (importData.type !== 'screenmap' || !importData.data) {
               setStatusBarMessage('Invalid screen map file format.');
               return;
@@ -741,11 +741,11 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
             // Validate the imported data structure
             const isValidScreenMap = (data: any): data is ScreenMap => {
-              return data && 
-                     typeof data.name === 'string' && 
-                     typeof data.width === 'number' && 
-                     typeof data.height === 'number' &&
-                     data.layers && typeof data.layers === 'object';
+              return data &&
+                typeof data.name === 'string' &&
+                typeof data.width === 'number' &&
+                typeof data.height === 'number' &&
+                data.layers && typeof data.layers === 'object';
             };
 
             if (!isValidScreenMap(importData.data)) {
@@ -755,7 +755,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
             // Merge the imported data with current screen map, preserving structure
             const importedScreenMap = importData.data as ScreenMap;
-            
+
             // Validate layers exist
             if (!importedScreenMap.layers.background || !importedScreenMap.layers.collision) {
               setStatusBarMessage('Screen map missing required layers (background, collision).');
@@ -765,7 +765,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             // Update the screen map
             onUpdate(importedScreenMap);
             setStatusBarMessage(`Screen map "${importedScreenMap.name}" imported successfully.`);
-            
+
           } catch (error) {
             setStatusBarMessage('Error reading screen map file. Please ensure it\'s a valid JSON file.');
           }
@@ -785,7 +785,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
   const handleCopyScreen = useCallback(() => {
     const { layers, effectZones, activeAreaX = 0, activeAreaY = 0, activeAreaWidth = screenMap.width, activeAreaHeight = screenMap.height, hudConfiguration } = screenMap;
-    
+
     const copiedLayers: CopiedScreenData['layers'] = {
       background: [],
       collision: [],
@@ -810,7 +810,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
               if (tileAsset) {
                 const alreadyAddedTile = allReferencedTiles.find(rt => deepCompareTiles(rt, tileAsset));
                 if (!alreadyAddedTile) {
-                    allReferencedTiles.push(JSON.parse(JSON.stringify(tileAsset)));
+                  allReferencedTiles.push(JSON.parse(JSON.stringify(tileAsset)));
                 }
                 referencedTilesSet.add(screenTile.tileId);
               }
@@ -851,7 +851,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
     (['background', 'collision', 'effects'] as const).forEach(layerName => {
       const sourceCopiedLayer = copiedScreenBuffer.layers[layerName];
-      const targetLayer = updatedScreenMapData.layers![layerName].map(row => [...row]); 
+      const targetLayer = updatedScreenMapData.layers![layerName].map(row => [...row]);
 
       for (let r = 0; r < copiedScreenBuffer.activeAreaHeight; r++) {
         for (let c = 0; c < copiedScreenBuffer.activeAreaWidth; c++) {
@@ -867,32 +867,32 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
 
     const newTilesToCreate: ProjectAsset[] = [];
     copiedScreenBuffer.referencedTiles.forEach(bufferedTile => {
-        const existsInProject = allProjectAssets.some(existingAsset => 
-            existingAsset.type === 'tile' && 
-            (existingAsset.id === bufferedTile.id || deepCompareTiles(existingAsset.data as Tile, bufferedTile))
-        );
-        if (!existsInProject) {
-            let tileToAdd = bufferedTile;
-            if (allProjectAssets.some(pa => pa.id === bufferedTile.id)) { 
-                const trulyNewTile = { ...bufferedTile, id: `pasted_tile_${Date.now()}_${Math.random().toString(36).substr(2,5)}`};
-                
-                const oldId = bufferedTile.id;
-                const newId = trulyNewTile.id;
-                (['background', 'collision', 'effects'] as const).forEach(layerName => {
-                    updatedScreenMapData.layers![layerName] = updatedScreenMapData.layers![layerName].map(row => 
-                        row.map(cell => cell.tileId === oldId ? {...cell, tileId: newId} : cell)
-                    );
-                });
-                tileToAdd = trulyNewTile;
-            }
+      const existsInProject = allProjectAssets.some(existingAsset =>
+        existingAsset.type === 'tile' &&
+        (existingAsset.id === bufferedTile.id || deepCompareTiles(existingAsset.data as Tile, bufferedTile))
+      );
+      if (!existsInProject) {
+        let tileToAdd = bufferedTile;
+        if (allProjectAssets.some(pa => pa.id === bufferedTile.id)) {
+          const trulyNewTile = { ...bufferedTile, id: `pasted_tile_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` };
 
-            newTilesToCreate.push({
-                id: tileToAdd.id,
-                name: tileToAdd.name || `Pasted Tile ${tileToAdd.id.slice(-4)}`,
-                type: 'tile',
-                data: JSON.parse(JSON.stringify(tileToAdd)),
-            });
+          const oldId = bufferedTile.id;
+          const newId = trulyNewTile.id;
+          (['background', 'collision', 'effects'] as const).forEach(layerName => {
+            updatedScreenMapData.layers![layerName] = updatedScreenMapData.layers![layerName].map(row =>
+              row.map(cell => cell.tileId === oldId ? { ...cell, tileId: newId } : cell)
+            );
+          });
+          tileToAdd = trulyNewTile;
         }
+
+        newTilesToCreate.push({
+          id: tileToAdd.id,
+          name: tileToAdd.name || `Pasted Tile ${tileToAdd.id.slice(-4)}`,
+          type: 'tile',
+          data: JSON.parse(JSON.stringify(tileToAdd)),
+        });
+      }
     });
 
     onUpdate(updatedScreenMapData, newTilesToCreate);
@@ -908,17 +908,17 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const handleSetScreenTool = (tool: ScreenEditorTool) => {
     setCurrentScreenTool(tool);
     if (tool !== 'select' && selectionRect) {
-        setSelectionRect(null);
+      setSelectionRect(null);
     }
     if (tool === 'placeEntity' && activeLayer !== 'entities') {
-        setActiveLayer('entities');
+      setActiveLayer('entities');
     } else if (tool !== 'placeEntity' && activeLayer === 'entities') {
-        setActiveLayer('background'); // Default back to background if not placing entity
+      setActiveLayer('background'); // Default back to background if not placing entity
     }
     if (activeLayer === 'effects' && tool !== 'defineEffectZone') {
-        // If on effects layer, default tool is select-like or define.
-        // If user clicks 'draw' or 'erase' from tileset panel, switch to background layer.
-        if (tool === 'draw' || tool === 'erase') setActiveLayer('background');
+      // If on effects layer, default tool is select-like or define.
+      // If user clicks 'draw' or 'erase' from tileset panel, switch to background layer.
+      if (tool === 'draw' || tool === 'erase') setActiveLayer('background');
     }
   };
 
@@ -926,17 +926,17 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     setActiveLayer(layer);
     onSelectEntityInstance(null); // Deselect entity when layer changes
     onSelectEffectZone(null);   // Deselect effect zone when layer changes
-    
+
     if (layer === 'entities') {
-        handleSetScreenTool('placeEntity');
+      handleSetScreenTool('placeEntity');
     } else if (layer === 'effects') {
-        // For 'effects' layer, we don't have a dedicated "define zone" tool in phase 1
-        // Set to 'select' conceptually, actual creation is via button, selection is via grid click.
-        handleSetScreenTool('select'); // Using 'select' for now to show selection rectangle if needed.
+      // For 'effects' layer, we don't have a dedicated "define zone" tool in phase 1
+      // Set to 'select' conceptually, actual creation is via button, selection is via grid click.
+      handleSetScreenTool('select'); // Using 'select' for now to show selection rectangle if needed.
     } else { // background, collision
-        if(currentScreenTool === 'placeEntity' || currentScreenTool === 'defineEffectZone') {
-             handleSetScreenTool('draw');
-        }
+      if (currentScreenTool === 'placeEntity' || currentScreenTool === 'defineEffectZone') {
+        handleSetScreenTool('draw');
+      }
     }
   };
 
@@ -961,7 +961,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         if (mapY < screenMap.height && mapX < screenMap.width && sourceLayerData[mapY] && sourceLayerData[mapY][mapX]) {
           row.push({ ...(sourceLayerData[mapY][mapX]) });
         } else {
-          row.push({ tileId: null }); 
+          row.push({ tileId: null });
         }
       }
       newCopiedData.push(row);
@@ -997,7 +997,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         const destY = ay + r;
         const destX = ax + c;
         if (destY < screenMap.height && destX < screenMap.width &&
-            r < currentActiveHeight && c < currentActiveWidth) {
+          r < currentActiveHeight && c < currentActiveWidth) {
           targetLayerData[destY][destX] = { ...(copiedLayerBuffer.data[r]?.[c] || { tileId: null }) };
         }
       }
@@ -1115,6 +1115,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           selectedStampId={selectedStampId}
           onSelectStamp={handleSelectStamp}
           onDeleteStamp={handleDeleteStamp}
+          onTileContextMenu={handleTileContextMenu}
         />
 
         <div className="flex-grow p-2 overflow-auto flex items-start justify-start relative">
@@ -1168,25 +1169,25 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             onSetPatrolPath={handleSetPatrolPath}
             currentScreenMode={currentScreenMode}
           />
-        </div>
+        </div >
         <ScreenSelectionToolsPanel
-            currentScreenTool={currentScreenTool}
-            onSetScreenTool={handleSetScreenTool}
-            selectionRect={selectionRect}
-            onClearSelection={handleClearSelection}
-            onUnselect={handleUnselect}
-            selectedTileId={selectedTileId}
-            editorBaseTileDim={EDITOR_BASE_TILE_DIM}
-            tileset={tileset}
-            activeLayerIsEditable={activeLayer !== 'entities' && activeLayer !== 'effects'}
-            onFillSelection={handleFillSelection}
-            onZigZagFillSelection={handleZigZagFillSelection}
-            onCopyScreen={handleCopyScreen}
-            onPasteScreen={handlePasteScreen}
-            isPasteDisabled={!copiedScreenBuffer}
-            onCreateStamp={handleCreateStamp}
+          currentScreenTool={currentScreenTool}
+          onSetScreenTool={handleSetScreenTool}
+          selectionRect={selectionRect}
+          onClearSelection={handleClearSelection}
+          onUnselect={handleUnselect}
+          selectedTileId={selectedTileId}
+          editorBaseTileDim={EDITOR_BASE_TILE_DIM}
+          tileset={tileset}
+          activeLayerIsEditable={activeLayer !== 'entities' && activeLayer !== 'effects'}
+          onFillSelection={handleFillSelection}
+          onZigZagFillSelection={handleZigZagFillSelection}
+          onCopyScreen={handleCopyScreen}
+          onPasteScreen={handlePasteScreen}
+          isPasteDisabled={!copiedScreenBuffer}
+          onCreateStamp={handleCreateStamp}
         />
-      </div>
+      </div >
       <ScreenEditorStatusBar
         activeLayer={activeLayer}
         selectedTileId={selectedTileId}
@@ -1196,9 +1197,10 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
         screenMap={screenMap}
         lastClickedCell={lastClickedCell}
       />
-       {isExportLayoutModalOpen && layoutASMExportData && ( <ExportLayoutASMModal isOpen={isExportLayoutModalOpen} onClose={() => setIsExportLayoutModalOpen(false)} {...layoutASMExportData} /> )}
-      {isExportBehaviorMapModalOpen && behaviorMapASMExportData && ( <ExportBehaviorMapASMModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} /> )}
-      {isHudEditorModalOpen && screenMap && (
+      {isExportLayoutModalOpen && layoutASMExportData && (<ExportLayoutASMModal isOpen={isExportLayoutModalOpen} onClose={() => setIsExportLayoutModalOpen(false)} {...layoutASMExportData} />)}
+      {isExportBehaviorMapModalOpen && behaviorMapASMExportData && (<ExportBehaviorMapASMModal isOpen={isExportBehaviorMapModalOpen} onClose={() => setIsExportBehaviorMapModalOpen(false)} {...behaviorMapASMExportData} />)}
+      {
+        isHudEditorModalOpen && screenMap && (
           <HUDEditorModal
             isOpen={isHudEditorModalOpen}
             onClose={() => setIsHudEditorModalOpen(false)}
@@ -1216,19 +1218,22 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
             msxFontColorAttributes={msxFontColorAttributes}
             tileBanks={tileBanks}
             allAssets={allProjectAssets}
-          /> 
-      )}
-      {isPasteConfirmModalOpen && (
-        <ConfirmationModal
-          isOpen={isPasteConfirmModalOpen}
-          title="Paste Grid Data?"
-          message={<>Are you sure you want to overwrite the current screen '<strong>{screenMap.name}</strong>' with the copied data? This action cannot be undone.</>}
-          onConfirm={confirmPasteScreen}
-          onCancel={() => setIsPasteConfirmModalOpen(false)}
-          confirmText="Paste & Overwrite"
-          confirmButtonVariant="danger"
-        />
-      )}
-    </Panel>
+          />
+        )
+      }
+      {
+        isPasteConfirmModalOpen && (
+          <ConfirmationModal
+            isOpen={isPasteConfirmModalOpen}
+            title="Paste Grid Data?"
+            message={<>Are you sure you want to overwrite the current screen '<strong>{screenMap.name}</strong>' with the copied data? This action cannot be undone.</>}
+            onConfirm={confirmPasteScreen}
+            onCancel={() => setIsPasteConfirmModalOpen(false)}
+            confirmText="Paste & Overwrite"
+            confirmButtonVariant="danger"
+          />
+        )
+      }
+    </Panel >
   );
 };

@@ -53,6 +53,8 @@ interface ScreenTilesetPanelProps {
   onSelectStamp?: (stampId: string | null) => void;
   /** Callback to delete a stamp. */
   onDeleteStamp?: (stampId: string) => void;
+  /** Callback for tile context menu. */
+  onTileContextMenu?: (event: React.MouseEvent, tileId: string) => void;
 }
 
 /**
@@ -84,6 +86,7 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
   selectedStampId,
   onSelectStamp,
   onDeleteStamp,
+  onTileContextMenu,
 }) => {
 
   const eraserButtonClass = `w-full mt-1 p-1 text-xs rounded ${currentScreenTool === 'erase' ? 'bg-msx-highlight text-msx-bgcolor' : 'bg-msx-border text-msx-textsecondary hover:bg-msx-highlight/70'}`;
@@ -177,9 +180,14 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
                 onSetScreenTool('draw');
               }
             }}
+            onContextMenu={(e) => {
+              if (onTileContextMenu) {
+                onTileContextMenu(e, tile.id);
+              }
+            }}
             className={`p-0.5 border-2 rounded cursor-pointer 
                         ${selectedTileId === tile.id && (currentScreenTool === 'draw' || currentScreenTool === 'select') ? 'border-msx-accent bg-msx-accent/30' : 'border-transparent hover:border-msx-highlight'}`}
-            title={`${tile.name} (${tile.width}x${tile.height}) - Click to select for drawing/filling.`}
+            title={`${tile.name} (${tile.width}x${tile.height}) - Click to select for drawing/filling. Right-click to edit.`}
           >
             <img
               src={createTileDataURL(tile, 0, 0, Math.min(40, tile.width), Math.min(40, tile.height), tile.width, currentScreenMode)}
@@ -235,11 +243,10 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
         {stamps.map(stamp => (
           <div
             key={stamp.id}
-            className={`p-2 border rounded cursor-pointer flex items-center justify-between ${
-              selectedStampId === stamp.id && currentScreenTool === 'stamp'
+            className={`p-2 border rounded cursor-pointer flex items-center justify-between ${selectedStampId === stamp.id && currentScreenTool === 'stamp'
                 ? 'border-msx-accent bg-msx-accent/30'
                 : 'border-msx-border hover:border-msx-highlight'
-            }`}
+              }`}
             onClick={() => {
               if (onSelectStamp) {
                 onSelectStamp(stamp.id);
@@ -275,7 +282,7 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
     <div className="w-48 p-2 border-r border-msx-border overflow-y-auto flex-shrink-0">
       <h4 className="text-sm pixel-font text-msx-highlight mb-2">
         {activeLayer === 'entities' ? 'Entities' :
-         activeLayer === 'effects' ? 'Effect Zones' : 'Tileset & Tools'}
+          activeLayer === 'effects' ? 'Effect Zones' : 'Tileset & Tools'}
       </h4>
 
       {/* Sector Grid Lines Toggle (only for SCREEN 2 mode) */}
@@ -285,15 +292,13 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
             <span className="text-xs text-msx-text">Sector Lines</span>
             <button
               onClick={onToggleSectorLines}
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                showSectorLines ? 'bg-msx-accent' : 'bg-msx-border'
-              }`}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${showSectorLines ? 'bg-msx-accent' : 'bg-msx-border'
+                }`}
               title={showSectorLines ? "Hide sector grid lines" : "Show sector grid lines"}
             >
               <span
-                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                  showSectorLines ? 'translate-x-5' : 'translate-x-1'
-                }`}
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${showSectorLines ? 'translate-x-5' : 'translate-x-1'
+                  }`}
               />
             </button>
           </label>
@@ -301,7 +306,7 @@ export const ScreenTilesetPanel: React.FC<ScreenTilesetPanelProps> = ({
       )}
 
       {activeLayer === 'entities' && (
-         <p className="text-xs text-msx-textsecondary">Select an Entity Template from the right panel to place instances.</p>
+        <p className="text-xs text-msx-textsecondary">Select an Entity Template from the right panel to place instances.</p>
       )}
 
       {(activeLayer === 'background' || activeLayer === 'collision') && (
