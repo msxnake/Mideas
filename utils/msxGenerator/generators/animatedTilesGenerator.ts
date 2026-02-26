@@ -592,7 +592,7 @@ update_animated_tiles:
     ld (anim_tile_speed), a
 .anim_speed_ok:
     cp b
-    ret nz                          ; Not yet time to update
+    ret nc                          ; Not yet time to update (timer < speed)
 
     ; Reset timer
     xor a
@@ -831,32 +831,16 @@ anim_transform_char_frame:
     ld b, h
     ld c, l
 
-    ; Pattern bank 0
-    push bc
-    push de
+    ; Save opcode D to scratch RAM so anim_transform_vram_block can read it
+    ; after DE gets clobbered by 'ld de, anim_tile_row_buffer' internally
+    ld a, d
+    ld (anim_tile_transform_flags + 1), a
+
+    ; anim_transform_vram_block now handles all 3 pattern banks internally.
+    ; Just call once with HL = bank 0 base address.
     ld hl, CHRTBL2
     add hl, bc
     call anim_transform_vram_block
-    pop de
-    pop bc
-
-    ; Pattern bank 1
-    push bc
-    push de
-    ld hl, CHRTBL2 + #800
-    add hl, bc
-    call anim_transform_vram_block
-    pop de
-    pop bc
-
-    ; Pattern bank 2
-    push bc
-    push de
-    ld hl, CHRTBL2 + #1000
-    add hl, bc
-    call anim_transform_vram_block
-    pop de
-    pop bc
 
     ; Color transforms only for vertical row operations (5..7) and if enabled
     ld a, d
@@ -867,32 +851,10 @@ anim_transform_char_frame:
     and 1
     jr z, .anim_transform_char_done
 
-    ; Color bank 0
-    push bc
-    push de
+    ; Color banks: call once with CLRTBL2 bank 0 base
     ld hl, CLRTBL2
     add hl, bc
     call anim_transform_vram_block
-    pop de
-    pop bc
-
-    ; Color bank 1
-    push bc
-    push de
-    ld hl, CLRTBL2 + #800
-    add hl, bc
-    call anim_transform_vram_block
-    pop de
-    pop bc
-
-    ; Color bank 2
-    push bc
-    push de
-    ld hl, CLRTBL2 + #1000
-    add hl, bc
-    call anim_transform_vram_block
-    pop de
-    pop bc
 
 .anim_transform_char_done:
     pop hl
@@ -926,49 +888,117 @@ anim_transform_char_frame:
 ;   Uses stack while reading row bytes
 ; ------------------------------------------------------------------
 anim_transform_vram_block:
+    ; NOTE: HL=VRAM base address for bank 0. D=operation code.
+    ; This routine always reads source data from bank 0 into anim_tile_row_buffer,
+    ; applies the transform to the buffer in RAM, then writes the result
+    ; back to ALL 3 VRAM pattern banks. This prevents divergence between
+    ; banks when the tile data is not perfectly identical across banks.
+
     ld a, d
     cp 5
     jr nc, .anim_transform_vertical
 
-    ; Horizontal bit transforms (operate row by row)
+    ; --- Horizontal bit transforms (RLCA / RRCA / SLA / SRL) ---
+    ; D has been clobbered by 'ld de, anim_tile_row_buffer' below.
+    ; Opcode was saved to (anim_tile_transform_flags+1) by caller.
+
+    ; Step 1: Read 8 bytes from VRAM bank 0 into anim_tile_row_buffer
+    push hl                        ; Save VRAM bank 0 base address
+    ld de, anim_tile_row_buffer
     ld b, 8
-.anim_transform_horizontal_loop:
+.anim_read_horiz_loop:
     push hl
-    call FAST_RDVRM                 ; A = row byte from VRAM[HL]
+    call FAST_RDVRM                ; A = byte from VRAM[HL]
+    pop hl
+    ld (de), a
+    inc de
+    inc hl
+    djnz .anim_read_horiz_loop
+    pop hl                         ; Restore VRAM bank 0 base
+
+    ; Step 2: Apply transform in-place on anim_tile_row_buffer
+    ld de, anim_tile_row_buffer
+    ld b, 8
+    ld a, (anim_tile_transform_flags + 1)  ; Reload opcode (D is corrupted at this point)
+    ld c, a                        ; C = opcode (preserved across loop)
+.anim_apply_horiz_loop:
+    ld a, (de)                     ; A = source byte
+    push de                        ; Save buffer pointer
+    push bc                        ; Save B=count, C=opcode
+    ld b, a                        ; B = source byte
+    ld a, c                        ; A = opcode
+    cp 1
+    jr nz, .anim_not_rl3
+    ld a, b
+    rlca
+    jr .anim_store_h
+.anim_not_rl3:
+    cp 2
+    jr nz, .anim_not_rr3
+    ld a, b
+    rrca
+    jr .anim_store_h
+.anim_not_rr3:
+    cp 3
+    jr nz, .anim_not_sla3
+    ld a, b
+    sla a
+    jr .anim_store_h
+.anim_not_sla3:
+    ld a, b
+    srl a
+.anim_store_h:
+    ; A = transformed byte, now restore registers and store result
+    pop bc                         ; Restore B=count, C=opcode
+    pop de                         ; Restore DE = buffer pointer
+    ld (de), a                     ; Write transformed byte to buffer
+    inc de
+    djnz .anim_apply_horiz_loop
+
+    ; Step 3: Write transformed buffer to all 3 VRAM banks
+    ; Bank 0 (already at HL)
+    push hl
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank0_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_bank0_loop
     pop hl
 
-    ld e, a
-    ld a, d
-    cp 1
-    jr nz, .anim_not_rl
-    ld a, e
-    rlca
-    jr .anim_write_row
-.anim_not_rl:
-    cp 2
-    jr nz, .anim_not_rr
-    ld a, e
-    rrca
-    jr .anim_write_row
-.anim_not_rr:
-    cp 3
-    jr nz, .anim_not_sla
-    ld a, e
-    sla a
-    jr .anim_write_row
-.anim_not_sla:
-    ld a, e
-    srl a
-
-.anim_write_row:
+    ; Bank 1 (HL + #800)
+    push hl
+    ld de, #0800
+    add hl, de
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank1_loop:
+    ld a, (de)
     call FAST_WRTVRM
+    inc de
     inc hl
-    djnz .anim_transform_horizontal_loop
+    djnz .anim_write_bank1_loop
+    pop hl
+
+    ; Bank 2 (HL + #1000)
+    ld de, #1000
+    add hl, de
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank2_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_bank2_loop
     ret
 
 .anim_transform_vertical:
-    push de                        ; Preserve D=operation code (DE reused as pointers)
-    ; Read current 8 row bytes into temporary RAM buffer
+    ; --- Vertical row-shift transforms (shift_up / shift_down / swap) ---
+    ; Step 1: Read 8 rows from VRAM bank 0 into anim_tile_row_buffer
+    push de                        ; Preserve D=operation code
     ld de, anim_tile_row_buffer
     ld b, 8
 .anim_read_rows_loop:
@@ -979,24 +1009,60 @@ anim_transform_vram_block:
     inc de
     inc hl
     djnz .anim_read_rows_loop
+    pop de                         ; Restore D=operation code
 
-    ; Restore HL to start of block (HL -= 8)
+    ; Step 2: Build transformed output in anim_tile_row_buffer (reorder rows in RAM)
+    ; We reuse a secondary temp area: write transformed bytes directly using
+    ; the output loop below, reading from the (now captured) buffer.
+    ; Restore HL to block start (HL -= 8).
+    ; NOTE: 'ld de, #FFF8' destroys D, so reload opcode from scratch RAM.
     ld de, #FFF8
     add hl, de
-    pop de                         ; Restore original operation code in D
 
-    ld a, d
+    ld a, (anim_tile_transform_flags + 1)  ; Reload opcode (D is corrupted by ld de,#FFF8)
     cp 5
     jr nz, .anim_not_shift_up
-    ; shift_up: row0<-row1 ... row6<-row7 row7<-row0
+
+    ; shift_up: row0<-row1 ... row6<-row7, row7<-row0(original)
+    ; Write to bank 0
+    push hl
     ld de, anim_tile_row_buffer + 1
     ld b, 7
-.anim_write_up_loop:
+.anim_write_up_b0:
     ld a, (de)
     call FAST_WRTVRM
     inc de
     inc hl
-    djnz .anim_write_up_loop
+    djnz .anim_write_up_b0
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+    ; Write to bank 1
+    push hl
+    ld de, #0800
+    add hl, de
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_b1
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+    ; Write to bank 2
+    ld de, #1000
+    add hl, de
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_b2
     ld a, (anim_tile_row_buffer)
     call FAST_WRTVRM
     ret
@@ -1004,33 +1070,104 @@ anim_transform_vram_block:
 .anim_not_shift_up:
     cp 6
     jr nz, .anim_not_shift_down
-    ; shift_down: row0<-row7 row1<-row0 ... row7<-row6
+
+    ; shift_down: row0<-row7(orig), row1<-row0 ... row7<-row6
+    ; Write to bank 0
+    push hl
     ld a, (anim_tile_row_buffer + 7)
     call FAST_WRTVRM
     inc hl
     ld de, anim_tile_row_buffer
     ld b, 7
-.anim_write_down_loop:
+.anim_write_dn_b0:
     ld a, (de)
     call FAST_WRTVRM
     inc de
     inc hl
-    djnz .anim_write_down_loop
+    djnz .anim_write_dn_b0
+    pop hl
+    ; Write to bank 1
+    push hl
+    ld de, #0800
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_dn_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_dn_b1
+    pop hl
+    ; Write to bank 2
+    ld de, #1000
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_dn_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_dn_b2
     ret
 
 .anim_not_shift_down:
     ; swap_top_bottom: row0<->row7, middle rows unchanged
+    ; Write to bank 0
+    push hl
     ld a, (anim_tile_row_buffer + 7)
     call FAST_WRTVRM
     inc hl
     ld de, anim_tile_row_buffer + 1
     ld b, 6
-.anim_write_middle_loop:
+.anim_write_sw_mid_b0:
     ld a, (de)
     call FAST_WRTVRM
     inc de
     inc hl
-    djnz .anim_write_middle_loop
+    djnz .anim_write_sw_mid_b0
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+    ; Write to bank 1
+    push hl
+    ld de, #0800
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_sw_mid_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_sw_mid_b1
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+    ; Write to bank 2
+    ld de, #1000
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_sw_mid_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_sw_mid_b2
     ld a, (anim_tile_row_buffer)
     call FAST_WRTVRM
     ret

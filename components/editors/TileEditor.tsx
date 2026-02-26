@@ -92,6 +92,35 @@ const resizeLineAttributes = (
   return newAttrs;
 };
 
+// ---------------------------------------------------------------------------
+// CollapsiblePanel — accordion section for the TileEditor left column
+// ---------------------------------------------------------------------------
+interface CollapsiblePanelProps {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({ title, isOpen, onToggle, children }) => (
+  <div className="bg-msx-panelbg border border-msx-border rounded-md shadow-lg flex flex-col">
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex items-center w-full text-left px-2 py-1.5 hover:bg-msx-border/30 transition-colors select-none"
+      style={{ borderBottom: isOpen ? '1px solid var(--color-msx-border, #2a2a3a)' : 'none' }}
+    >
+      <span className="mr-2 text-msx-highlight text-xs">{isOpen ? '▾' : '▸'}</span>
+      <span className="text-sm text-msx-textprimary flex-grow font-sans">{title}</span>
+    </button>
+    {isOpen && (
+      <div className="p-2">
+        {children}
+      </div>
+    )}
+  </div>
+);
+
 /**
  * Props for the {@link PixelGrid} component.
  * @internal
@@ -1526,6 +1555,16 @@ export const TileEditor: React.FC<TileEditorProps> = ({
   const [animationPreviewFrameIndex, setAnimationPreviewFrameIndex] = useState(0);
   const [animationTransformCheckpoint, setAnimationTransformCheckpoint] = useState(0);
 
+  // Collapsible left-column sections
+  const [leftPanelOpen, setLeftPanelOpen] = useState<Record<string, boolean>>({
+    properties: true,
+    logical: false,
+    animation: true,
+    technical: false,
+  });
+  const toggleLeftPanel = (key: string) =>
+    setLeftPanelOpen(prev => ({ ...prev, [key]: !prev[key] }));
+
   const isScreen2 = currentScreenMode === "SCREEN 2 (Graphics I)";
   const { slots: screen5PaletteSlots, changed: screen5PaletteChanged } = useMemo(() => ensureScreen5PaletteSlots(tile.screen5Palette), [tile.screen5Palette]);
   const screen5PaletteForPicker = useMemo(() => screen5SlotsToMsxColors(screen5PaletteSlots), [screen5PaletteSlots]);
@@ -2491,8 +2530,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
     <Panel title={`Tile Editor: ${tile.name} ${currentScreenMode === "SCREEN 2 (Graphics I)" ? "(SCREEN 2 Mode)" : ""}`} className="flex-grow flex flex-col p-2 bg-msx-bgcolor select-none">
       <TileEditorAdvancedLayout
         columnaIzquierda={
-          <>
-            <Panel title="Tile Properties">
+          <div className="flex flex-col gap-1 overflow-y-auto" style={{ maxHeight: '100%' }}>
+            <CollapsiblePanel title="Tile Properties" isOpen={!!leftPanelOpen.properties} onToggle={() => toggleLeftPanel('properties')}>
               <div className="space-y-2 text-xs">
                 <div>
                   <label>Tile Name:</label>
@@ -2515,9 +2554,9 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                   <Button onClick={() => setIsGeneratorModalOpen(true)} size="sm" variant="secondary" icon={<SparklesIcon />}>Generator</Button>
                 </div>
               </div>
-            </Panel>
+            </CollapsiblePanel>
             {!isScreen2 && (
-              <Panel title="SCREEN 5 Palette (16 colores)">
+              <CollapsiblePanel title="SCREEN 5 Palette (16 colores)" isOpen={!!leftPanelOpen.screen5} onToggle={() => toggleLeftPanel('screen5')}>
                 <p className="text-xs text-msx-textsecondary mb-2">
                   Selecciona un slot (0 reservado como transparente). Los colores se cargan desde las paletas guardadas.
                 </p>
@@ -2544,9 +2583,9 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                     );
                   })}
                 </div>
-              </Panel>
+              </CollapsiblePanel>
             )}
-            <Panel title="Logical Properties (Collision/Behavior)">
+            <CollapsiblePanel title="Logical Properties (Collision/Behavior)" isOpen={!!leftPanelOpen.logical} onToggle={() => toggleLeftPanel('logical')}>
               <div className="space-y-2 text-xs">
                 <p className="text-[0.65rem] text-msx-textsecondary">Define gameplay attributes for this tile. These are exported in the Behavior Map.</p>
                 <div>
@@ -2582,8 +2621,8 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                   Final Map ID Byte: <span className="font-mono text-msx-highlight">{currentDisplayedMapId}</span> (Hex: <span className="font-mono text-msx-highlight">0x{currentDisplayedMapId.toString(16).padStart(2, '0').toUpperCase()}</span>)
                 </div>
               </div>
-            </Panel>
-            <Panel title="Animated Tile (MSX ASM)">
+            </CollapsiblePanel>
+            <CollapsiblePanel title="Animated Tile (MSX ASM)" isOpen={!!leftPanelOpen.animation} onToggle={() => toggleLeftPanel('animation')}>
               <div className="space-y-2 text-xs">
                 <label className="flex items-center gap-2 cursor-pointer p-0.5 hover:bg-msx-border rounded">
                   <input
@@ -2814,11 +2853,13 @@ export const TileEditor: React.FC<TileEditorProps> = ({
                   )}
                 </div>
               </div>
-            </Panel>
+            </CollapsiblePanel>
             {currentScreenMode === "SCREEN 2 (Graphics I)" && tile.lineAttributes && (
-              <TechnicalPreviewPanel tile={tile} dataFormat={dataOutputFormat} />
+              <CollapsiblePanel title="Technical Preview [SCREEN 2]" isOpen={!!leftPanelOpen.technical} onToggle={() => toggleLeftPanel('technical')}>
+                <TechnicalPreviewPanel tile={tile} dataFormat={dataOutputFormat} />
+              </CollapsiblePanel>
             )}
-          </>
+          </div>
         }
         columnaCentral={
           <>

@@ -23,7 +23,7 @@ export const TileEditorAdvancedLayout: React.FC<TileEditorAdvancedLayoutProps> =
         userSelect: 'none',
       }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '100%' }}>
         {columnaIzquierda}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center' }}>
