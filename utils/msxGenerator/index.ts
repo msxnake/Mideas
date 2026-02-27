@@ -168,13 +168,13 @@ export function generateModularASM(
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
-    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents }),
+    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }),
     'header.asm': generateHeaderFile(projectName, analysis),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
     'components.asm': interruptDrivenComponents
       ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
-      : generateComponentsFile(analysis),
+      : generateComponentsFile(analysis, romMode),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),
@@ -256,13 +256,13 @@ export function generateModularASMFromSummary(
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
-    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents }),
+    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }),
     'header.asm': generateHeaderFile(summary.projectInfo.name, analysis),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
     'components.asm': interruptDrivenComponents
       ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
-      : generateComponentsFile(analysis),
+      : generateComponentsFile(analysis, romMode),
     'entities.asm': generateEntitiesFile(analysis),
     'worlds.asm': generateWorldsFile(analysis),
     'screens.asm': generateScreensFile(analysis),

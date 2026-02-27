@@ -11,6 +11,7 @@ import { buildRegisterContractComment } from './registerContract';
 
 export interface InterruptGeneratorConfig {
   interruptDrivenComponents?: boolean;
+  romMode?: string;
 }
 
 /**
@@ -45,7 +46,7 @@ export function generateInterruptFile(analysis: ProjectAnalysis, config: Interru
     code += `; COMPONENT SYSTEMS (INLINED)\n`;
     code += `; Generated inside interrupt.asm because interruptDrivenComponents=true\n`;
     code += `; ==================================================================\n\n`;
-    code += generateComponentsFile(analysis);
+    code += generateComponentsFile(analysis, config.romMode || 'simple32k');
     code += `\n; ==================================================================\n`;
     code += `; END OF INLINED COMPONENT SYSTEMS\n`;
     code += `; ==================================================================\n\n`;
