@@ -356,6 +356,7 @@ update_entities:
 
       // Check if entity has Input/Cursors component and extract direction restrictions
       let directionMask = 0x0F; // Default: all directions enabled (binary 00001111)
+      let inputSpeed = 2; // Default cursor speed (px/frame)
       if (componentMask & 0x10) { // Has Input component
         // Find Cursors component in template
         const cursorsComp = template?.components.find((c: any) =>
@@ -369,6 +370,9 @@ update_entities:
           // Merge with entity-specific overrides if they exist
           const overrides = entity.componentOverrides?.['comp_cursors'] || {};
           const finalValues = { ...defaultValues, ...overrides };
+
+          // Cursors speed comes from template/UI (default + per-entity override)
+          inputSpeed = Math.max(1, parseByte(finalValues.speed ?? 2, 2));
 
           // Build direction mask based on allow* properties
           // Bit 0 = UP, Bit 1 = DOWN, Bit 2 = LEFT, Bit 3 = RIGHT
@@ -739,6 +743,11 @@ ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     ld hl, entity_dir_mask
     add hl, de
     ld (hl), #${directionMask.toString(16).toUpperCase().padStart(2, '0')}            ; Direction restrictions: ${directionDesc}
+
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), ${inputSpeed}            ; Cursor speed (px/frame)
 
 ${hasSprite ? `    ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + ${index}

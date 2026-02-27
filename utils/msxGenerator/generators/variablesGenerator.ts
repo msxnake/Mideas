@@ -232,6 +232,9 @@ MAX_ENTITIES        EQU 32
   code += `entity_dir_mask     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity direction mask (32 bytes)\n`;
   currentAddress += 32;
 
+  code += `entity_input_speed  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity input/cursor speed (32 bytes)\n`;
+  currentAddress += 32;
+
   code += `entity_health       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity health (32 bytes)\n`;
   currentAddress += 32;
 

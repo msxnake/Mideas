@@ -1658,6 +1658,13 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld (hl), #0F               ; Default: 00001111 = all directions enabled
             ldir
 
+            ; Initialize cursor speed for all entities (default: 2 px/frame)
+            ld hl, entity_input_speed
+            ld de, entity_input_speed + 1
+            ld bc, 31
+            ld (hl), 2
+            ldir
+
             ; Initialize input disabled flags to 0 (all entities start with input ENABLED)
             ld hl, entity_input_disabled
             ld de, entity_input_disabled + 1
@@ -1743,6 +1750,29 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld b, 0                    ; Default X velocity
             ld c, 0                    ; Default Y velocity
 
+            ; Resolve per-entity input speed once per update.
+            ; H = cardinal speed, L = diagonal speed (max(1, speed/2)).
+            push af
+            ld a, d
+            push af
+            ld d, 0
+            ld hl, entity_input_speed
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, .input_speed_ok
+            ld a, 1
+        .input_speed_ok:
+            ld h, a
+            srl a
+            jr nz, .input_diag_speed_ok
+            ld a, 1
+        .input_diag_speed_ok:
+            ld l, a
+            pop af
+            ld d, a
+            pop af
+
             ; Check directional input with direction restrictions
             cp STICK_UP
             jp z, input_move_up
@@ -1767,7 +1797,9 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_UP
             jp z, input_apply_velocity ; Not allowed, skip
-            ld c, -2                   ; Negative Y velocity (up)
+            ld a, h
+            neg
+            ld c, a                    ; Negative Y velocity (up)
             jp input_apply_velocity
 
         input_move_down:
@@ -1775,7 +1807,8 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_DOWN
             jp z, input_apply_velocity ; Not allowed, skip
-            ld c, 2                    ; Positive Y velocity (down)
+            ld a, h
+            ld c, a                    ; Positive Y velocity (down)
             jp input_apply_velocity
 
         input_move_left:
@@ -1783,7 +1816,9 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity ; Not allowed, skip
-            ld b, -2                   ; Negative X velocity (left)
+            ld a, h
+            neg
+            ld b, a                    ; Negative X velocity (left)
             jp input_apply_velocity
 
         input_move_right:
@@ -1791,7 +1826,8 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity ; Not allowed, skip
-            ld b, 2                    ; Positive X velocity (right)
+            ld a, h
+            ld b, a                    ; Positive X velocity (right)
             jp input_apply_velocity
 
         input_move_upright:
@@ -1803,19 +1839,24 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_RIGHT
             jp z, input_check_up_only  ; RIGHT not allowed
             ; Both allowed - diagonal
-            ld b, 1                    ; Diagonal movement (slower)
-            ld c, -1
+            ld a, l                    ; Diagonal movement (slower)
+            ld b, a
+            neg
+            ld c, a
             jp input_apply_velocity
         input_check_right_only:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity
-            ld b, 2
+            ld a, h
+            ld b, a
             jp input_apply_velocity
         input_check_up_only:
             ; Only UP allowed
-            ld c, -2
+            ld a, h
+            neg
+            ld c, a
             jp input_apply_velocity
 
         input_move_upleft:
@@ -1827,19 +1868,25 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_LEFT
             jp z, input_check_up_only1 ; LEFT not allowed
             ; Both allowed - diagonal
-            ld b, -1
-            ld c, -1
+            ld a, l
+            neg
+            ld b, a
+            ld c, a
             jp input_apply_velocity
         input_check_left_only1:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity
-            ld b, -2
+            ld a, h
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_up_only1:
             ; Only UP allowed
-            ld c, -2
+            ld a, h
+            neg
+            ld c, a
             jp input_apply_velocity
 
         input_move_downright:
@@ -1851,19 +1898,22 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_RIGHT
             jp z, input_check_down_only2 ; RIGHT not allowed
             ; Both allowed - diagonal
-            ld b, 1
-            ld c, 1
+            ld a, l
+            ld b, a
+            ld c, a
             jp input_apply_velocity
         input_check_right_only2:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity
-            ld b, 2
+            ld a, h
+            ld b, a
             jp input_apply_velocity
         input_check_down_only2:
             ; Only DOWN allowed
-            ld c, 2
+            ld a, h
+            ld c, a
             jp input_apply_velocity
 
         input_move_downleft:
@@ -1875,19 +1925,24 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_LEFT
             jp z, input_check_down_only3 ; LEFT not allowed
             ; Both allowed - diagonal
-            ld b, -1
-            ld c, 1
+            ld a, l
+            ld c, a
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_left_only3:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity
-            ld b, -2
+            ld a, h
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_down_only3:
             ; Only DOWN allowed
-            ld c, 2
+            ld a, h
+            ld c, a
 
         input_apply_velocity:
             ; Apply calculated velocity to entity
