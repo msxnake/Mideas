@@ -362,6 +362,22 @@ MAX_ENTITIES        EQU 32
 
     code += `gem_count           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Collectible tile counter (8-bit)\n`;
     currentAddress++;
+
+    code += `last_gem_char       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)\n`;
+    currentAddress++;
+
+    code += `\n; Persistent collectibles list (survives screen re-entry)\n`;
+    code += `MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records\n`;
+    code += `collected_count      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of collected tiles recorded (8-bit)\n`;
+    currentAddress++;
+    code += `collected_world      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)\n`;
+    currentAddress += 64;
+    code += `collected_screen     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)\n`;
+    currentAddress += 64;
+    code += `collected_idx_l      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)\n`;
+    currentAddress += 64;
+    code += `collected_idx_h      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)\n`;
+    currentAddress += 64;
   }
 
   // aux variables

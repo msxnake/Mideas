@@ -8667,7 +8667,7 @@ init_hero_1:
 
     ld hl, entity_anim_speed
     add hl, de
-    ld (hl), #06           ; animationSpeed
+    ld (hl), #0A           ; animationSpeed
 
     ld hl, entity_anim_flags
     add hl, de

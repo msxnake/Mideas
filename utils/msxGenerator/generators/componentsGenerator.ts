@@ -4404,18 +4404,68 @@ check_tile_interaction:
     jr z, .ti_no_collect
 
     ; *** COLLECT! ***
-    ; 1. Clear behavior map entry (prevents double-collect)
-    ld (hl), 0
+    ; Stack at this point: [idx (as HL), BC_saved, list_ptr]
+    ; HL = &runtime_behavior_map[idx]
+
+    ; 1. Clear behavior map entry FIRST while HL is still correct
+    ld (hl), 0                     ; Prevents double-collect next frame
+
+    ; 0. Read char code from VRAM Name Table BEFORE clearing VRAM.
+    ;    Stored in last_gem_char so SM can identify WHICH tile was collected
+    ;    via VARIABLE_COMPARE last_gem_char == <charCode>.
+    pop bc                         ; BC = idx (B=high, C=low). Stack: [BC_saved, list_ptr]
+    push bc                        ; Restore idx: [idx, BC_saved, list_ptr]
+    ld d, b
+    ld e, c                        ; DE = idx
+    ld hl, NAMETBL
+    add hl, de                     ; HL = NAMETBL + idx (VRAM address to read)
+    ; MSX1 direct VRAM read (port #99 = address register, port #98 = data)
+    ld a, l
+    out (#99), a                   ; Set VRAM address low byte
+    ld a, h
+    and #3F                        ; Bits 7,6 = 0 → read mode
+    out (#99), a                   ; Set VRAM address high byte
+    nop                            ; Short delay for VDP address latch
+    nop
+    in a, (#98)                    ; A = char code from VRAM data port
+    ld (last_gem_char), a          ; Store for SM: VARIABLE_COMPARE last_gem_char
 
     ; 2. Clear tile from VRAM Name Table (#1800 + idx)
-    pop hl                         ; HL = idx
-    ld de, NAMETBL
-    add hl, de                     ; HL = VRAM address
+    pop de                         ; DE = idx. Stack: [BC_saved, list_ptr]
+    ld hl, NAMETBL
+    add hl, de                     ; HL = NAMETBL + idx
     xor a                          ; A = 0 (empty tile char)
     call FAST_WRTVRM
 
     ; 3. Increment gem_count
     ld hl, gem_count
+    inc (hl)
+
+    ; 4. Record in persistent collected list (survives screen re-entry via apply_collected_tiles)
+    ;    FAST_WRTVRM preserves all registers, so DE = idx is still valid here.
+    ld a, (collected_count)
+    cp MAX_COLLECTIBLES
+    jp nc, .ti_next                ; List full - skip recording
+    ld c, a                        ; C = index = old collected_count
+    ld b, 0                        ; BC = (0, index)
+    ; Store world+screen ID of the collected tile
+    ld hl, collected_world
+    add hl, bc
+    ld a, (current_world_id)
+    ld (hl), a
+    ld hl, collected_screen
+    add hl, bc
+    ld a, (current_screen_id)
+    ld (hl), a
+    ; Store tile name-table index (DE = idx, preserved by FAST_WRTVRM)
+    ld hl, collected_idx_l
+    add hl, bc
+    ld (hl), e                     ; E = idx low byte
+    ld hl, collected_idx_h
+    add hl, bc
+    ld (hl), d                     ; D = idx high byte
+    ; Increment collected_count
+    ld hl, collected_count
     inc (hl)
 
     jp .ti_next
@@ -4427,7 +4477,91 @@ check_tile_interaction:
     pop bc                         ; Restore B=count, C=entity
     pop hl                         ; Restore list pointer
     inc hl                         ; Advance to next entity
-    djnz .ti_loop
+    dec b
+    jp nz, .ti_loop                ; djnz replaced with jp nz (loop body > 127 bytes)
+    ret
+`;
+}
+
+/**
+ * Generate apply_collected_tiles function.
+ * Re-applies the persistent collection list for the current world/screen after any screen load,
+ * so collected gems/tiles do not respawn when the player re-enters a screen.
+ */
+function generateApplyCollectedTiles(): string {
+    return `
+; ------------------------------------------------------------------
+; apply_collected_tiles
+; Re-clears tiles that were previously collected on the current world/screen.
+; Called after every screen load so collected tiles do not respawn.
+; Input:  current_world_id and current_screen_id must already be set.
+; Output: None
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+apply_collected_tiles:
+    ld a, (collected_count)
+    or a
+    ret z                          ; Nothing collected yet - return early
+
+    ld b, a                        ; B = djnz counter (total collected entries)
+    ld c, 0                        ; C = loop index
+.apply_ct_loop:
+    ; DE = (0, index) used for all three table lookups.
+    ; add hl, de does NOT modify DE, so we can reuse it for all 3 tables.
+    ld d, 0
+    ld e, c                        ; DE = (0, current index)
+
+    ; Check if this entry belongs to current world
+    ld hl, collected_world
+    add hl, de                     ; HL = &collected_world[index]
+    ld a, (current_world_id)       ; A = world currently loaded
+    cp (hl)                        ; Compare with stored world ID
+    jr nz, .apply_ct_skip          ; Different world - skip
+
+    ; Check if this entry belongs to current screen
+    ld hl, collected_screen
+    add hl, de                     ; HL = &collected_screen[index]
+    ld a, (current_screen_id)      ; A = screen currently loaded
+    cp (hl)                        ; Compare with stored screen ID
+    jr nz, .apply_ct_skip          ; Different screen - skip
+
+    ; Entry matches current screen: re-clear this tile
+    push bc                        ; Save B=count, C=index across FAST_WRTVRM
+
+    ; Build tile index: D = idx_h, E = idx_l
+    ; (DE is still (0, index) because add hl, de never modifies DE)
+    ld hl, collected_idx_l
+    add hl, de                     ; HL = &collected_idx_l[index]
+    ld a, (hl)
+    push af                        ; Save idx_l on stack
+
+    ld hl, collected_idx_h
+    add hl, de                     ; HL = &collected_idx_h[index], DE still (0, index)
+    ld a, (hl)
+    ld d, a                        ; D = idx_h
+
+    pop af                         ; A = idx_l
+    ld e, a                        ; E = idx_l
+    ; DE = tile index (D=high, E=low)
+
+    ; Re-clear runtime_behavior_map[idx]
+    push de                        ; Save idx
+    ld hl, runtime_behavior_map
+    add hl, de
+    ld (hl), 0
+    pop de                         ; Restore idx
+
+    ; Re-clear VRAM Name Table (NAMETBL + idx)
+    ld hl, NAMETBL
+    add hl, de
+    xor a                          ; A = 0 (empty tile char)
+    call FAST_WRTVRM               ; Preserves all registers
+
+    pop bc                         ; Restore B=count, C=index
+
+.apply_ct_skip:
+    inc c
+    djnz .apply_ct_loop
     ret
 `;
 }
@@ -4619,8 +4753,20 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
 ; Initialize current screen ID(multi - screen support) 
         ld a, 0; Start at screen 0 
         ld (current_screen_id), a 
+        ld (current_world_id), a
+        ld (current_screen_index), a
+        ld (screen_transition_cooldown), a
         ld hl, active_entity_list_dirty
         ld (hl), 1
+
+    ; Reset collectible persistence state on new game / restart.
+    ; Cartridge RAM is not guaranteed to be zeroed.
+        ld hl, gem_count
+        ld de, gem_count + 1
+        ld bc, 258                 ; bytes to clear - 1 (gem_count..collected_idx_h)
+        xor a
+        ld (hl), a
+        ldir
 
     ; Clear all component masks 
         ld hl, entity_comp_masks 
@@ -5395,6 +5541,7 @@ update_collectible_component:
     if (hasInteractableTiles && usedComponents.has('Input')) {
         usedComponents.add('TileInteraction'); // Enable the call in update_all_entities
         code += generateTileInteractionSystem();
+        code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
     } else {
         code += `
@@ -5403,6 +5550,10 @@ init_tile_interaction_system:
     ret
 
 check_tile_interaction:
+    ret
+
+; Stub: apply_collected_tiles (no interactable tiles in project)
+apply_collected_tiles:
     ret
     `;
     }

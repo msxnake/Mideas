@@ -74,12 +74,16 @@ const CONDITION_IDS: Record<string, number> = {
 
 // Variable IDs for VARIABLE_COMPARE condition
 const VARIABLE_IDS: Record<string, number> = {
-    'x': 0,         // entity_x_pos
-    'y': 1,         // entity_y_pos
-    'vx': 2,        // entity_vel_x
-    'vy': 3,        // entity_vel_y
-    'isOnGround': 4,  // entity_on_ground (bit 0)
-    'health': 5,    // entity_health_current
+    'x': 0,             // entity_x_pos
+    'y': 1,             // entity_y_pos
+    'vx': 2,            // entity_vel_x
+    'vy': 3,            // entity_vel_y
+    'isOnGround': 4,    // entity_on_ground (bit 0)
+    'health': 5,        // entity_health_current
+    // System global variables (IDs 6-7, always prepended to SM_GlobalVarTable)
+    'gem_count': 6,     // gem_count RAM variable
+    'last_gem_char': 7, // char code of last collected gem tile
+    // User-defined global variables start at ID 8
 };
 
 // Operator IDs for VARIABLE_COMPARE condition
@@ -182,10 +186,11 @@ const COMPONENT_PROPERTY_IDS: Record<string, number> = {
 function buildVariableIdMap(globalVariables?: any[]): Record<string, number> {
     const map: Record<string, number> = { ...VARIABLE_IDS };
 
-    // Add global variables starting from ID 6
+    // Add user-defined global variables starting from ID 8
+    // (IDs 6-7 are reserved for system variables: gem_count, last_gem_char)
     if (globalVariables && globalVariables.length > 0) {
         globalVariables.forEach((variable, index) => {
-            const varId = 6 + index;
+            const varId = 8 + index;
             map[variable.name] = varId;
             // Also map by asmName for flexibility
             if (variable.asmName) {
@@ -4426,20 +4431,21 @@ export function generateStateMachineSystem(
     asm += '; ==================================================================\n';
     asm += '; GLOBAL VARIABLES TABLE\n';
     asm += '; ==================================================================\n';
+    // SM_GlobalVarTable maps VarID-6 to RAM address.
+    // IDs 6-7 are system variables (always present).
+    // IDs 8+ are user-defined global variables.
+    asm += '; Maps variable IDs (6+) to their RAM addresses\n';
+    asm += '; ID 6 = gem_count, ID 7 = last_gem_char, ID 8+ = user globals\n';
+    asm += 'SM_GlobalVarTable:\n';
+    asm += `    DW gem_count            ; ID 6: gem_count\n`;
+    asm += `    DW last_gem_char        ; ID 7: last_gem_char (char of last collected tile)\n`;
     if (globalVariables && globalVariables.length > 0) {
-        asm += '; Maps variable IDs (6+) to their RAM addresses\n';
-        asm += 'SM_GlobalVarTable:\n';
-
         globalVariables.forEach((variable, index) => {
-            const varId = 6 + index; // Start from ID 6 (0-5 are entity variables)
+            const varId = 8 + index; // User globals start at ID 8
             asm += `    DW ${variable.asmName}            ; ID ${varId}: ${variable.name}\n`;
         });
-        asm += '\n';
-    } else {
-        asm += '; No global variables defined\n';
-        asm += 'SM_GlobalVarTable:\n';
-        asm += '    ; Empty table (no global variables)\n\n';
     }
+    asm += '\n';
 
     asm += '; ==================================================================\n';
     asm += '; STATE MACHINE DATA\n';

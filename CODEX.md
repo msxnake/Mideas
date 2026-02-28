@@ -49,3 +49,7 @@ Memoria Codex - uso de archivos .md en raiz (sin subcarpetas)
 
 Regla de ubicacion de archivos
 - Si el usuario menciona un archivo sin ruta explicita, buscar primero en `C:\Users\salam\Downloads`.
+
+Regla ASM del generador
+- Si modificas una rutina ASM del generador o codigo que emite ASM, lee antes `CLAUDE.md`, `docs/msx/Z80_INSTRUCTIONS_REFERENCE.md` y la documentacion funcional asociada al subsistema.
+- Antes de cambiar la rutina, identifica y conserva su contrato de registros (entradas, salidas, registros clobbered, flags y balance de stack). Si cambias ese contrato a proposito, actualiza tambien la documentacion asociada.
