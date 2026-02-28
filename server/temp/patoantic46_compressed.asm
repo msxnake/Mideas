@@ -19,7 +19,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 96049
+; Estimated payload bytes: 96322
 ; Estimated banks used: 12
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (985 bytes)
@@ -45,10 +45,10 @@
 ; BANK 06 @#1787 : statemachine.asm part 1/3 (2169 bytes)
 ; BANK 07 @#0000 : statemachine.asm part 2/3 (8192 bytes)
 ; BANK 08 @#0000 : statemachine.asm part 3/3 (8192 bytes)
-; BANK 09 @#0000 : statemachine.asm part 4/3 (5572 bytes)
-; BANK 09 @#15C4 : gameflow.asm part 1/3 (2620 bytes)
+; BANK 09 @#0000 : statemachine.asm part 4/3 (5845 bytes)
+; BANK 09 @#16D5 : gameflow.asm part 1/3 (2347 bytes)
 ; BANK 10 @#0000 : gameflow.asm part 2/3 (8192 bytes)
-; BANK 11 @#0000 : gameflow.asm part 3/3 (5937 bytes)
+; BANK 11 @#0000 : gameflow.asm part 3/3 (6210 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -3415,12 +3415,20 @@ coll_flags_from_layer:
 
 get_behavior_tile:
     ; Bounds check: row must be 0-23, column must be 0-31
+    ; NOTE: jp nc (not jr nc) to gbt_oob — gbt_oob is a global label defined after
+    ; get_behavior_tile_nb. Using jr would create a local-label scoping conflict in
+    ; glass.jar (get_behavior_tile_nb: starts a new scope, so .bt_out_of_bounds would
+    ; belong to that scope, not get_behavior_tile's scope).
     ld a, b
     cp 24
-    jr nc, .bt_out_of_bounds      ; Row >= 24: treat as passable
+    jp nc, gbt_oob                ; Row >= 24: treat as passable
     ld a, c
     cp 32
-    jr nc, .bt_out_of_bounds      ; Column >= 32: treat as passable
+    jp nc, gbt_oob                ; Column >= 32: treat as passable
+get_behavior_tile_nb:
+    ; Entry point for callers that guarantee B ∈ 0..23 and C ∈ 0..31.
+    ; Saves 36 cycles (4+7+7+4+7+7) by skipping bounds validation.
+    ; DO NOT call this unless the probe coordinates are provably in-bounds.
     push hl
     push de
 
@@ -3478,7 +3486,7 @@ get_behavior_tile:
     pop de
     pop hl
     ret
-.bt_out_of_bounds:
+gbt_oob:
     xor a                         ; A = 0 (passable)
     ret
     
@@ -4708,10 +4716,12 @@ init_wallcollision_system:
 ;   Clobbers: AF, BC, DE, HL
 ;   Preserved: (none — uses scratch RAM wall_temp_x/y, wall_hit_*, wall_probe_*)
 ;   Notes:
-;     - Loop runs 0..MAX_ENTITIES-1 (not active_entity_list).
-;       See optimization study for future active_entity_list migration.
-;     - wall_build_hitbox_cache is called once per entity at entry,
-;       and again after each snap to keep probes consistent.
+;     - Opt-B: loop uses active_entity_list (entities guaranteed active + on screen).
+;       Eliminates ~29 wasted iterations vs 0..MAX_ENTITIES scan (3 entities active).
+;     - Opt-C: wall_build_hitbox_cache is skipped on DOWN snap when new Y == current Y
+;       (entity already on floor). Saves ~200 cycles/entity/frame when standing still.
+;     - wall_build_hitbox_cache is called once at entity entry, and after each snap
+;       where the position actually changes.
 ;     - Gravity floor check (.check_wall_y_gravity) runs even when vel_y=0
 ;       so entity_on_ground stays accurate when entity is standing still.
 ; ------------------------------------------------------------------
@@ -4736,9 +4746,12 @@ update_wallcollision_component:
     ; --- Filter A: entity must have Collision component ---
     ; (entity_active and entity_screen_id are implicit via active_entity_list)
     ; Hitbox data lives in Collision arrays; no Collision = no valid hitbox.
+    ; Opt-D: read comp_masks into B (B is free — loop counter saved on stack above).
+    ; B holds comp_masks for Filter C reuse, eliminating a second memory read.
     ld hl, entity_comp_masks
     add hl, de
-    ld a, (hl)
+    ld b, (hl)                    ; B = comp_masks[E] (safe: loop ctr on stack)
+    ld a, b
     and COMP_MASK_COLLISION       ; low byte, bit 3
     jp z, .wall_next
 
@@ -4752,9 +4765,8 @@ update_wallcollision_component:
 
     ; --- Filter C: entity must be moveable (Input or Movement component) ---
     ; Static entities (platforms, decorations) have no velocity to correct.
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)
+    ; Opt-D: reuse comp_masks from B — no extra ld hl/add hl,de/ld a,(hl) needed (saves 28 cycles/entity).
+    ld a, b
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jp z, .wall_next
 
@@ -4815,12 +4827,13 @@ update_wallcollision_component:
     jp nz, .wall_left_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
+    ; probe_bottom = hitbox_bottom - inset ≤ 191 → row ≤ 23, col = (left-1)/8 ≤ 31 → NB safe
     ld a, (wall_probe_bottom)
     srl a
     srl a
     srl a
     ld b, a                       ; Row = bottom / 8
-    call get_behavior_tile
+    call get_behavior_tile_nb
     and #F0
     jp z, .check_wall_y           ; Both passable
 
@@ -4881,12 +4894,13 @@ update_wallcollision_component:
     jp nz, .wall_right_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
+    ; probe_bottom ≤ 191 → row ≤ 23, col = (right+1)/8 ≤ 31 → NB safe
     ld a, (wall_probe_bottom)
     srl a
     srl a
     srl a
     ld b, a                       ; Row = bottom / 8
-    call get_behavior_tile
+    call get_behavior_tile_nb
     and #F0
     jp z, .check_wall_y           ; Both passable
 
@@ -4957,6 +4971,8 @@ update_wallcollision_component:
     ld b, a                       ; Row = (top-1) / 8
 
     ; Check point 1: adaptive left probe (safe for small hitboxes)
+    ; NOTE: uses get_behavior_tile (with bounds) — entity_y can wrap off-screen,
+    ; making B = (top-1)/8 > 23 (e.g. top=252 → row=31). Bounds check returns 0.
     ld a, (wall_probe_left)
     srl a
     srl a
@@ -5161,9 +5177,14 @@ update_wallcollision_component:
     ld hl, entity_y_pos
     add hl, de
     pop af
+    ; Opt-C: skip rebuild if new Y == current Y (entity already on floor).
+    ; Saves ~200 cycles/frame for standing-still entities (most common state).
+    ; Falls through to normal snap path on actual position change (e.g. landing).
+    cp (hl)
+    jp z, .wall_down_at_floor     ; position unchanged → hitbox still valid
     ld (hl), a                    ; write snapped entity Y to RAM
     call wall_build_hitbox_cache  ; recalculate hitbox after position change
-
+.wall_down_at_floor:
     ; Cancel downward velocity and gravity accumulator (landing)
     ld hl, entity_vel_y
     add hl, de
@@ -14782,52 +14803,102 @@ Condition_Not:
 
 ; ------------------------------------------------------------------
 ; HELPER: Match directional key against one input direction value
-; Input: D = Desired key (1/3/5/7), A = direction (0-8)
+; Input: D = Desired key (1/3/5/7), A = direction (0-8), B = entity index
 ; Output: A = 1 if active, 0 if inactive
+; Note: diagonal inputs only match a cardinal if entity_dir_mask[B] permits
+;       that direction. Entities without Input default to #0F (all allowed).
 ; ------------------------------------------------------------------
 SM_MatchDirection:
     ld e, a
     cp d
-    jr z, .smd_match_yes
+    jp z, .smd_match_yes    ; exact match always passes
 
     ld a, d
     cp 1                    ; UP
-    jr nz, .smd_not_up
+    jp nz, .smd_not_up
     ld a, e
     cp 2                    ; UP+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_up
     cp 8                    ; UP+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_up:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_UP
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_up:
     cp 5                    ; DOWN
-    jr nz, .smd_not_down
+    jp nz, .smd_not_down
     ld a, e
     cp 4                    ; DOWN+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_down
     cp 6                    ; DOWN+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_down:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_DOWN
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_down:
     cp 7                    ; LEFT
-    jr nz, .smd_not_left
+    jp nz, .smd_not_left
     ld a, e
     cp 6                    ; DOWN+LEFT
-    jr z, .smd_match_yes
+    jr z, .smd_check_left
     cp 8                    ; UP+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_left:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_LEFT
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_left:
     cp 3                    ; RIGHT
-    jr nz, .smd_match_no
+    jp nz, .smd_match_no
     ld a, e
     cp 2                    ; UP+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_right
     cp 4                    ; DOWN+RIGHT
-    jr z, .smd_match_yes
+    jp nz, .smd_match_no
+.smd_check_right:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_RIGHT
+    jp nz, .smd_match_yes
 
 .smd_match_no:
     xor a

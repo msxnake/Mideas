@@ -3370,52 +3370,102 @@ Condition_Not:
 
 ; ------------------------------------------------------------------
 ; HELPER: Match directional key against one input direction value
-; Input: D = Desired key (1/3/5/7), A = direction (0-8)
+; Input: D = Desired key (1/3/5/7), A = direction (0-8), B = entity index
 ; Output: A = 1 if active, 0 if inactive
+; Note: diagonal inputs only match a cardinal if entity_dir_mask[B] permits
+;       that direction. Entities without Input default to #0F (all allowed).
 ; ------------------------------------------------------------------
 SM_MatchDirection:
     ld e, a
     cp d
-    jr z, .smd_match_yes
+    jp z, .smd_match_yes    ; exact match always passes
 
     ld a, d
     cp 1                    ; UP
-    jr nz, .smd_not_up
+    jp nz, .smd_not_up
     ld a, e
     cp 2                    ; UP+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_up
     cp 8                    ; UP+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_up:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_UP
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_up:
     cp 5                    ; DOWN
-    jr nz, .smd_not_down
+    jp nz, .smd_not_down
     ld a, e
     cp 4                    ; DOWN+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_down
     cp 6                    ; DOWN+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_down:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_DOWN
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_down:
     cp 7                    ; LEFT
-    jr nz, .smd_not_left
+    jp nz, .smd_not_left
     ld a, e
     cp 6                    ; DOWN+LEFT
-    jr z, .smd_match_yes
+    jr z, .smd_check_left
     cp 8                    ; UP+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_left:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_LEFT
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_left:
     cp 3                    ; RIGHT
-    jr nz, .smd_match_no
+    jp nz, .smd_match_no
     ld a, e
     cp 2                    ; UP+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_right
     cp 4                    ; DOWN+RIGHT
-    jr z, .smd_match_yes
+    jp nz, .smd_match_no
+.smd_check_right:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_RIGHT
+    jp nz, .smd_match_yes
 
 .smd_match_no:
     xor a
@@ -4261,6 +4311,7 @@ function generateStateMachineData(
         if (transitions.length > 0) {
             asm += `${transitionsLabel}: \n`;
             asm += `    DB ${transitions.length}; Count\n`;
+            const deferredActionBlocks: string[] = [];
             transitions.forEach((t, idx) => {
                 const isAnyToAny = isAnyStateId(t.fromStateId) && isAnyStateId(t.toStateId);
                 const targetStateLabel = isAnyToAny
@@ -4280,13 +4331,18 @@ function generateStateMachineData(
                 asm += `    DW ${actionLabel} \n`;
 
                 if (actionLabel !== '0') {
-                    asm += `${actionLabel}: \n`;
+                    let actionBlock = `${actionLabel}: \n`;
                     for (const action of t.actions || []) {
-                        asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+                        actionBlock += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
                     }
-                    asm += `    DB 0xFF; END\n`;
+                    actionBlock += `    DB 0xFF; END\n`;
+                    deferredActionBlocks.push(actionBlock);
                 }
             });
+            if (deferredActionBlocks.length > 0) {
+                asm += '\n';
+                asm += deferredActionBlocks.join('');
+            }
         }
         asm += '\n';
     }

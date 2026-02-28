@@ -1813,6 +1813,22 @@ function generateInlineGameSystems(analysis: ProjectAnalysis, assets?: ProjectAs
   code += `HANDLE_INPUT:\n`;
   code += `    ; Handle player input\n`;
   code += `    CALL GTSTCK\n`;
+  code += `    ; Normalize diagonals to cardinal directions for runtime stability\n`;
+  code += `    CP STICK_UPRIGHT\n`;
+  code += `    JR Z, .handle_input_right\n`;
+  code += `    CP STICK_DOWNRIGHT\n`;
+  code += `    JR Z, .handle_input_right\n`;
+  code += `    CP STICK_UPLEFT\n`;
+  code += `    JR Z, .handle_input_left\n`;
+  code += `    CP STICK_DOWNLEFT\n`;
+  code += `    JR Z, .handle_input_left\n`;
+  code += `    JR .handle_input_store\n`;
+  code += `.handle_input_right:\n`;
+  code += `    LD A, STICK_RIGHT\n`;
+  code += `    JR .handle_input_store\n`;
+  code += `.handle_input_left:\n`;
+  code += `    LD A, STICK_LEFT\n`;
+  code += `.handle_input_store:\n`;
   code += `    LD (input_state), A\n`;
   code += `    RET\n\n`;
 

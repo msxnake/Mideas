@@ -140,7 +140,6 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   currentAddress++;
   code += `behavior_cache_row_base EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached row base address in behavior map (16-bit)\n`;
   currentAddress += 2;
-
   code += `RUNTIME_SCREEN_MAP_SIZE EQU 768\n`;
   code += `runtime_screen_layout  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Mutable copy of current screen layout (32x24)\n`;
   currentAddress += 768;
