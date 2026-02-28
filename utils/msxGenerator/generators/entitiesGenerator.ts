@@ -563,6 +563,18 @@ update_entities:
     ld (entity_sm_ptr_l + ${index}), a   ; SM ptr low byte
     ld a, h
     ld (entity_sm_ptr_h + ${index}), a   ; SM ptr high byte
+
+    ; Fire OnEnter of initial state immediately.
+    ; Normally OnEnter fires via SM_ChangeState, but the first state is set
+    ; directly (no transition). Without this call, ChangeSprite / other
+    ; OnEnter actions never run and entity_sprite_asset_index stays at 0.
+    ; State data layout: [ID:1][OnEnter ptr:2][OnExit ptr:2][Transitions ptr:2]
+    ld hl, ${stateLabel} + 1      ; HL = &OnEnter Actions Ptr field
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = OnEnter Actions Ptr (0 if none)
+    ld a, ${index}                ; A = entity index
+    call SM_ExecuteActions        ; safe: SM_ExecuteActions returns immediately if DE=0
 `;
         }
       }

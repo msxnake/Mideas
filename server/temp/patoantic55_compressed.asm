@@ -19,7 +19,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 99356
+; Estimated payload bytes: 100852
 ; Estimated banks used: 13
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (985 bytes)
@@ -32,24 +32,24 @@
 ; BANK 02 @#0000 : screens.asm part 2/2 (7892 bytes)
 ; BANK 02 @#1ED4 : sprites.asm part 1/2 (300 bytes)
 ; BANK 03 @#0000 : sprites.asm part 2/2 (8192 bytes)
-; BANK 04 @#0000 : sprites.asm part 3/2 (186 bytes)
-; BANK 04 @#00BA : font.asm (3547 bytes)
-; BANK 04 @#0E95 : hud.asm (3836 bytes)
-; BANK 04 @#1D91 : menus.asm (444 bytes)
-; BANK 04 @#1F4D : sound.asm (179 bytes)
-; BANK 05 @#0000 : sound.asm (3005 bytes)
-; BANK 05 @#0BBD : scroll.asm (2353 bytes)
-; BANK 05 @#14EE : animtiles.asm (2834 bytes)
-; BANK 06 @#0000 : animtiles.asm (3082 bytes)
-; BANK 06 @#0C0A : particles.asm (4963 bytes)
-; BANK 06 @#1F6D : statemachine.asm part 1/4 (147 bytes)
-; BANK 07 @#0000 : statemachine.asm part 2/4 (8192 bytes)
-; BANK 08 @#0000 : statemachine.asm part 3/4 (8192 bytes)
-; BANK 09 @#0000 : statemachine.asm part 4/4 (8192 bytes)
-; BANK 10 @#0000 : statemachine.asm part 5/4 (673 bytes)
-; BANK 10 @#02A1 : gameflow.asm part 1/3 (7519 bytes)
+; BANK 04 @#0000 : sprites.asm part 3/2 (484 bytes)
+; BANK 04 @#01E4 : font.asm (3547 bytes)
+; BANK 04 @#0FBF : hud.asm (3836 bytes)
+; BANK 04 @#1EBB : menus.asm (325 bytes)
+; BANK 05 @#0000 : menus.asm (119 bytes)
+; BANK 05 @#0077 : sound.asm (3184 bytes)
+; BANK 05 @#0CE7 : scroll.asm (2353 bytes)
+; BANK 05 @#1618 : animtiles.asm (2536 bytes)
+; BANK 06 @#0000 : animtiles.asm (3380 bytes)
+; BANK 06 @#0D34 : particles.asm (4812 bytes)
+; BANK 07 @#0000 : particles.asm (151 bytes)
+; BANK 07 @#0097 : statemachine.asm part 1/4 (8041 bytes)
+; BANK 08 @#0000 : statemachine.asm part 2/4 (8192 bytes)
+; BANK 09 @#0000 : statemachine.asm part 3/4 (8192 bytes)
+; BANK 10 @#0000 : statemachine.asm part 4/4 (2169 bytes)
+; BANK 10 @#0879 : gameflow.asm part 1/3 (6023 bytes)
 ; BANK 11 @#0000 : gameflow.asm part 2/3 (8192 bytes)
-; BANK 12 @#0000 : gameflow.asm part 3/3 (1052 bytes)
+; BANK 12 @#0000 : gameflow.asm part 3/3 (2548 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -1091,138 +1091,140 @@ entity_sm_wait_timer EQU #C8DE   ; Entity State Wait Timer (32 bytes)
 entity_lifetime     EQU #C8FE   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
 entity_carried_by   EQU #C91E   ; Entity carrier ID (32 bytes, 255=not carried)
 entity_template_token EQU #C93E   ; Entity template token (32 bytes, 0=unknown)
-entity_sm_var_0     EQU #C95E   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #C97E   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #C99E   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #C9BE   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #C9DE   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #C9FE   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #CA1E   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #CA3E   ; Entity Variable 7 (32 bytes)
+entity_facing_dir   EQU #C95E   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #C97E   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #C99E   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #C9BE   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #C9DE   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #C9FE   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #CA1E   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #CA3E   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #CA5E   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #CA5E   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #CA7E   ; Number of sprites currently active
-sprites_dirty      EQU #CA7F   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #CA80   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #CAA0   ; Sprite colors (32 bytes)
-sprite_attributes   EQU #CAC0   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #CA7E   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #CA9E   ; Number of sprites currently active
+sprites_dirty      EQU #CA9F   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #CAA0   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #CAC0   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #CAE0   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_attributes   EQU #CB00   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (4 screens detected)
 ; ==================================================================
-current_screen_id   EQU #CB40   ; Currently displayed screen ID
-screen_dirty_flag   EQU #CB41   ; Screen needs redraw flag
-screen_transition_cooldown EQU #CB42   ; Cooldown frames after screen transition
-current_world_id    EQU #CB43   ; Current world ID (for multi-world support)
-current_screen_index EQU #CB44   ; Current screen index within world
+current_screen_id   EQU #CB80   ; Currently displayed screen ID
+screen_dirty_flag   EQU #CB81   ; Screen needs redraw flag
+screen_transition_cooldown EQU #CB82   ; Cooldown frames after screen transition
+current_world_id    EQU #CB83   ; Current world ID (for multi-world support)
+current_screen_index EQU #CB84   ; Current screen index within world
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #CB45   ; Player X position (16-bit)
-player_y            EQU #CB47   ; Player Y position (16-bit)
-player_health       EQU #CB49   ; Player health points
-player_score        EQU #CB4A   ; Player score (16-bit)
-gem_count           EQU #CB4C   ; Collectible tile counter (8-bit)
+player_x            EQU #CB85   ; Player X position (16-bit)
+player_y            EQU #CB87   ; Player Y position (16-bit)
+player_health       EQU #CB89   ; Player health points
+player_score        EQU #CB8A   ; Player score (16-bit)
+gem_count           EQU #CB8C   ; Collectible tile counter (8-bit)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #CB4D   ; Deterministic mode flag
+deterministic        EQU #CB8D   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #CB4E   ; Temporary 16-bit storage
-temp_word_2         EQU #CB50   ; Temporary 16-bit storage
-temp_byte_1         EQU #CB52   ; Temporary 8-bit storage
-temp_byte_2         EQU #CB53   ; Temporary 8-bit storage
-temp_byte_3         EQU #CB54   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #CB74   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #CB94   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #CBB4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_7         EQU #CBD4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #CBF4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #CC14   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #CC34   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #CC54   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #CC74   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #CC94   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #CCB4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #CCD4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #CCF4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #CD14   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #CD34   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #CD54   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #CD74   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #CD94   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #CDB4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #CDD4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #CDF4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_25        EQU #CE14   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #CE34   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #CE74   ; Temporary 16-bit storage (64 bytes)
+temp_word_1         EQU #CB8E   ; Temporary 16-bit storage
+temp_word_2         EQU #CB90   ; Temporary 16-bit storage
+temp_byte_1         EQU #CB92   ; Temporary 8-bit storage
+temp_byte_2         EQU #CB93   ; Temporary 8-bit storage
+temp_byte_3         EQU #CB94   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #CBB4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #CBD4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #CBF4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_7         EQU #CC14   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #CC34   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #CC54   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #CC74   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #CC94   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #CCB4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #CCD4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #CCF4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #CD14   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #CD34   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #CD54   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #CD74   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #CD94   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #CDB4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #CDD4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #CDF4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #CE14   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #CE34   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #CE54   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #CE74   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #CEB4   ; Temporary 16-bit storage (64 bytes)
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #CEB4   ; Cached entity X for wall checks
-wall_temp_y         EQU #CEB5   ; Cached entity Y for wall checks
-wall_hit_left       EQU #CEB6   ; Hitbox left edge cache
-wall_hit_top        EQU #CEB7   ; Hitbox top edge cache
-wall_hit_right      EQU #CEB8   ; Hitbox right edge cache
-wall_hit_bottom     EQU #CEB9   ; Hitbox bottom edge cache
-wall_hit_w          EQU #CEBA   ; Hitbox width cache (min 1)
-wall_hit_h          EQU #CEBB   ; Hitbox height cache (min 1)
-wall_probe_left     EQU #CEBC   ; X probe near hitbox left (adaptive inset)
-wall_probe_right    EQU #CEBD   ; X probe near hitbox right (adaptive inset)
-wall_probe_top      EQU #CEBE   ; Y probe near hitbox top (adaptive inset)
-wall_probe_bottom   EQU #CEBF   ; Y probe near hitbox bottom (adaptive inset)
+wall_temp_x         EQU #CEF4   ; Cached entity X for wall checks
+wall_temp_y         EQU #CEF5   ; Cached entity Y for wall checks
+wall_hit_left       EQU #CEF6   ; Hitbox left edge cache
+wall_hit_top        EQU #CEF7   ; Hitbox top edge cache
+wall_hit_right      EQU #CEF8   ; Hitbox right edge cache
+wall_hit_bottom     EQU #CEF9   ; Hitbox bottom edge cache
+wall_hit_w          EQU #CEFA   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #CEFB   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #CEFC   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #CEFD   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #CEFE   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #CEFF   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #CEC0   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #CEE0   ; Number of entries in active_entity_list
-active_entity_list_dirty EQU #CEE1   ; 1=rebuild active_entity_list required
+active_entity_list  EQU #CF00   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #CF20   ; Number of entries in active_entity_list
+active_entity_list_dirty EQU #CF21   ; 1=rebuild active_entity_list required
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #CEE2   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #CF02   ; Number of entities in coll_list
-coll_src_left       EQU #CF03   ; Source AABB left edge (scratch)
-coll_src_right      EQU #CF04   ; Source AABB right edge (scratch)
-coll_src_top        EQU #CF05   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #CF06   ; Source AABB bottom edge (scratch)
+coll_list           EQU #CF22   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #CF42   ; Number of entities in coll_list
+coll_src_left       EQU #CF43   ; Source AABB left edge (scratch)
+coll_src_right      EQU #CF44   ; Source AABB right edge (scratch)
+coll_src_top        EQU #CF45   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #CF46   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #CF07   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #CF07   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #CF09   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #CF0B   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #CF0D   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #CF0F   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #CF11   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #CF13   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #CF15   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #CF17   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #CF18   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #CF1D   ; Frame counter (16-bit)
-task_exec_time          EQU #CF1F   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #CF21   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #CF22   ; End of interrupt system
+task_table              EQU #CF47   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #CF47   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #CF49   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #CF4B   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #CF4D   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #CF4F   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #CF51   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #CF53   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #CF55   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #CF57   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #CF58   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #CF5D   ; Frame counter (16-bit)
+task_exec_time          EQU #CF5F   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #CF61   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #CF62   ; End of interrupt system
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #CF22   ; End of project variables (3874 bytes used)
+RAM_USAGE_END       EQU #CF62   ; End of project variables (3938 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#CF22: Project variables (3874 bytes)
-;   #CF22-#F37F: Free RAM (~9310 bytes available)
+;   #C000-#CF62: Project variables (3938 bytes)
+;   #CF62-#F37F: Free RAM (~9246 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -3834,6 +3836,39 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld hl, entity_vel_y
             add hl, de
             ld (hl), c                 ; entity_vel_y[entity_index] = Y velocity
+
+            ; Update entity_facing_dir based on input_state
+            ; Only updates for directional inputs (0 = no change, keeps last facing)
+            push af
+            ld a, (input_state)
+            or a
+            jr z, .input_facing_done    ; 0 = no direction pressed, keep last facing
+            cp 2
+            jr c, .input_facing_up      ; 1 = UP only
+            cp 5
+            jr c, .input_facing_right   ; 2,3,4 = UP+RIGHT, RIGHT, DOWN+RIGHT
+            jr z, .input_facing_down    ; 5 = DOWN only
+            ; 6,7,8 = DOWN+LEFT, LEFT, UP+LEFT
+            ld a, 1                     ; FACING_LEFT = 1
+            jr .input_facing_write
+.input_facing_right:
+            ld a, 2                     ; FACING_RIGHT = 2
+            jr .input_facing_write
+.input_facing_up:
+            ld a, 3                     ; FACING_UP = 3
+            jr .input_facing_write
+.input_facing_down:
+            ld a, 4                     ; FACING_DOWN = 4
+.input_facing_write:
+            push hl
+            push de
+            ld hl, entity_facing_dir
+            add hl, de                  ; DE = (0, entity_index)
+            ld (hl), a
+            pop de
+            pop hl
+.input_facing_done:
+            pop af
 
             ; Sync directional sprite facing for input-driven entities.
             ; Uses sprite_dir_* lookup tables (left/right/up/down variants).
@@ -7013,7 +7048,7 @@ sprite_dir_down_table:
 ; Table: Entity Sprite Configuration 
 ; Format: db base_hw_sprite_index, layer_count 
 entity_sprite_config: 
-    db 0, 2 ; Entity 0 (anec_right)
+    db 0, 2 ; Entity 0 (nina_idle_left)
     db 2, 2 ; Entity 1 (nina_walk_left)
     db 4, 2 ; Entity 2 (anec_right)
     ds 58, 0 ; Padding
@@ -7022,17 +7057,18 @@ entity_sprite_config:
 ; Copied to RAM entity_sprite_asset_index at init
 ; Format: db sprite_asset_index (#FF = none)
 entity_sprite_asset_index_init:
-    db #00 ; Entity 0 (anec_right)
+    db #05 ; Entity 0 (nina_idle_left)
     db #04 ; Entity 1 (nina_walk_left)
     db #00 ; Entity 2 (anec_right)
     ds 29, #FF ; Padding
- 
-; Table: Hardware Sprite Layer Colors 
-; Format: db color_index 
-sprite_layer_colors: 
-    ; Entity 0 (anec_right) layers:
+SPRITE_MAX_ENTITY_LAYERS EQU 2  ; Max HW sprite layers per entity
+
+; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
+; Format: db color_index
+sprite_layer_colors_init:
+    ; Entity 0 (nina_idle_left) layers:
     db 15 ; Layer 0
-    db 7 ; Layer 1
+    db 6 ; Layer 1
     ; Entity 1 (nina_walk_left) layers:
     db 6 ; Layer 0
     db 15 ; Layer 1
@@ -7041,11 +7077,35 @@ sprite_layer_colors:
     db 7 ; Layer 1
     ds 26, 0 ; Padding
 
+; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
+SM_SpriteLayerColorTable:
+    db 15, 7 ; Sprite 0: anec_right
+    db 15, 0 ; Sprite 1: bola
+    db 15, 8 ; Sprite 2: panell
+    db 15, 0 ; Sprite 3: bola_dead
+    db 6, 15 ; Sprite 4: nina_walk_left
+    db 15, 6 ; Sprite 5: nina_idle_left
+    db 6, 15 ; Sprite 6: nina_jump_left
+    db 6, 15 ; Sprite 7: nina_land_left
+    db 6, 1 ; Sprite 8: nina_dead
+    db 15, 7 ; Sprite 9: anec_left
+    db 6, 15 ; Sprite 10: nina_walk_right
+    db 15, 6 ; Sprite 11: nina_idle_right
+    db 6, 15 ; Sprite 12: nina_jump_right
+    db 6, 15 ; Sprite 13: nina_land_right
+
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
 ; ==================================================================
 
 init_sprites:
+    ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
+    ld hl, sprite_layer_colors_init
+    ld de, sprite_layer_colors
+    ld bc, 32
+    ldir
     call clear_all_sprites
     call load_sprite_patterns
     xor a
@@ -7055,11 +7115,11 @@ init_sprites:
 load_sprite_patterns:
     ; Load patterns for all active entities
     call mapper_push_p2
-    ; Entity 0: anec_right (2 layers)
+    ; Entity 0: nina_idle_left (2 layers)
     ; Base HW Sprite: 0
-    ld a, SPRITE_0_PATTERN_BANK
+    ld a, SPRITE_5_PATTERN_BANK
     call mapper_set_bank_p2
-    ld hl, SPRITE_0_PATTERN
+    ld hl, SPRITE_5_PATTERN
     ld de, SPRPAT + (0 * 32)
     ld bc, 64 ; Load 2 layers (32 bytes each)
     call COPY_SPRITE_SRC_TO_VRAM
@@ -12462,6 +12522,15 @@ Action_ApplyForce:
     ret
 
 
+; Table: SM Facing Direction to Sprite Lookup Table Pointer
+; Maps entity_facing_dir (1=left,2=right,3=up,4=down) to directional sprite tables.
+; Usage: dec facing (→ 0-3), index into this table to get the DW sprite_dir_*_table ptr.
+SM_FacingDirTablePtrs:
+    DW sprite_dir_left_table    ; facing 1 (LEFT)  → dec → 0
+    DW sprite_dir_right_table   ; facing 2 (RIGHT) → dec → 1
+    DW sprite_dir_up_table      ; facing 3 (UP)    → dec → 2
+    DW sprite_dir_down_table    ; facing 4 (DOWN)  → dec → 3
+
 Action_ChangeSprite:
     ; Params: Sprite Asset ID (1 byte)
     ; Changes the sprite asset used by this entity
@@ -12480,6 +12549,44 @@ Action_ChangeSprite:
     ld hl, entity_sprite_asset_index
     add hl, bc
     pop af                  ; Restore Sprite Asset ID
+
+    ; === Apply entity_facing_dir directional redirect ===
+    ; Redirect the requested sprite to the entity's current facing direction.
+    ; e.g. change_sprite(nina_jump) + facing_right → nina_jump_right
+    push hl                 ; Save HL = &entity_sprite_asset_index[entity]
+
+    ld h, 0
+    ld l, c                 ; HL = entity index (C = entity, B = 0)
+    ld de, entity_facing_dir
+    add hl, de              ; HL = &entity_facing_dir[entity]
+    ld e, (hl)              ; E = facing dir (0=none, 1=left, 2=right, 3=up, 4=down)
+
+    ld b, a                 ; B = original sprite ID (save A before branching)
+    ld a, e
+    or a
+    jr z, .acs_dir_done     ; 0 = no facing set → keep original sprite
+
+    dec a                   ; A = table index (0=left, 1=right, 2=up, 3=down)
+    ld hl, SM_FacingDirTablePtrs
+    ld d, 0
+    ld e, a
+    add hl, de
+    add hl, de              ; HL = &SM_FacingDirTablePtrs[tableIndex * 2]
+    ld e, (hl)
+    inc hl
+    ld d, (hl)              ; DE = ptr to sprite direction lookup table
+
+    ; new_sprite = dir_table[original_sprite]
+    ld l, b                 ; L = original sprite ID
+    ld h, 0
+    add hl, de              ; HL = &dir_table[original_sprite]
+    ld b, (hl)              ; B = redirected sprite ID
+
+.acs_dir_done:
+    ld a, b                 ; A = (possibly redirected) sprite ID
+    pop hl                  ; Restore HL = &entity_sprite_asset_index[entity]
+    ; === End directional redirect ===
+
     ld d, a                 ; D = Sprite Asset ID (preserved across flag ops)
     ld (hl), a              ; entity_sprite_asset_index[entity] = spriteId
 
@@ -12605,9 +12712,64 @@ Action_ChangeSprite:
     call mapper_pop_p2
 
 .acs_upload_done:
-    pop de
+    pop de                     ; D = sprite asset ID, E = loop flag
+    pop bc                     ; BC = (0, entity_index) -- C = entity index
+    pop hl                     ; HL = entity_anim_flags ptr (discard)
+
+    ; --- Update sprite_layer_colors with new sprite's layer colors ---
+    ; sprite_layer_colors is a RAM table (writable) indexed by HW sprite index.
+    ; SM_SpriteLayerColorTable is a ROM table: SPRITE_MAX_ENTITY_LAYERS bytes per sprite.
+    ; D = sprite asset ID, C = entity index, B = 0
+
+    ; Guard: skip color update for invalid sprite IDs
+    ld a, d
+    cp SM_SpriteAssetCount
+    jp nc, .acs_skip_color_update  ; Out of bounds - skip
+
+    push de                    ; Save D=spriteId, E=loopflag
+
+    ; Get base HW sprite index from entity_sprite_config[entity * 2]
+    ld h, 0
+    ld l, c                    ; HL = entity index
+    add hl, hl                 ; HL = entity index * 2
+    ld de, entity_sprite_config
+    add hl, de                 ; HL = &entity_sprite_config[entity * 2]
+    ld c, (hl)                 ; C = base HW sprite index
+
+    pop de                     ; Restore D=spriteId, E=loopflag
+
+    ; Compute HL = SM_SpriteLayerColorTable + spriteId * SPRITE_MAX_ENTITY_LAYERS
+    ld l, d                    ; L = sprite asset ID
+    ld h, 0                    ; HL = sprite asset ID
+    ld e, l
+    ld d, h                    ; DE = sprite asset ID (multiplicand)
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.acs_mul_max_layers:
+    add hl, de
+    djnz .acs_mul_max_layers   ; HL = spriteId * SPRITE_MAX_ENTITY_LAYERS
+    ld de, SM_SpriteLayerColorTable
+    add hl, de                 ; HL = &SM_SpriteLayerColorTable[spriteId * maxLayers]
+
+    ; Write colors to sprite_layer_colors[base_hw..base_hw+maxLayers-1]
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.acs_color_update_loop:
+    ld a, (hl)                 ; A = color for this HW slot
+    inc hl
+    push hl
+    push bc
+    ld h, 0
+    ld l, c                    ; HL = current HW sprite slot index
+    ld de, sprite_layer_colors
+    add hl, de                 ; HL = &sprite_layer_colors[hw_slot]
+    ld (hl), a                 ; Update color in RAM
     pop bc
     pop hl
+    inc c                      ; Next HW sprite slot
+    djnz .acs_color_update_loop
+
+.acs_skip_color_update:
+    ; --- End update sprite_layer_colors ---
 
     pop hl                  ; Restore Params Ptr
     ret

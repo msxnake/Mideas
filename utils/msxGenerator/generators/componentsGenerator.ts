@@ -1989,9 +1989,55 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             add hl, de
             ld (hl), c                 ; entity_vel_y[entity_index] = Y velocity
 
+            ; Update entity_facing_dir based on input_state
+            ; Only updates for directional inputs (0 = no change, keeps last facing)
+            push af
+            ld a, (input_state)
+            or a
+            jr z, .input_facing_done    ; 0 = no direction pressed, keep last facing
+            cp 2
+            jr c, .input_facing_up      ; 1 = UP only
+            cp 5
+            jr c, .input_facing_right   ; 2,3,4 = UP+RIGHT, RIGHT, DOWN+RIGHT
+            jr z, .input_facing_down    ; 5 = DOWN only
+            ; 6,7,8 = DOWN+LEFT, LEFT, UP+LEFT
+            ld a, 1                     ; FACING_LEFT = 1
+            jr .input_facing_write
+.input_facing_right:
+            ld a, 2                     ; FACING_RIGHT = 2
+            jr .input_facing_write
+.input_facing_up:
+            ld a, 3                     ; FACING_UP = 3
+            jr .input_facing_write
+.input_facing_down:
+            ld a, 4                     ; FACING_DOWN = 4
+.input_facing_write:
+            push hl
+            push de
+            ld hl, entity_facing_dir
+            add hl, de                  ; DE = (0, entity_index)
+            ld (hl), a
+            pop de
+            pop hl
+.input_facing_done:
+            pop af
+
             ; Sync directional sprite facing for input-driven entities.
             ; Uses sprite_dir_* lookup tables (left/right/up/down variants).
+            ; SKIP if entity has a State Machine: SM controls sprite via ChangeSprite.
+            ; Calling patrol facing for SM entities overwrites entity_sprite_asset_index
+            ; every frame, undoing what ChangeSprite set (walk sprite would revert to idle).
+            push af
+            ld hl, entity_sm_ptr_l
+            add hl, de              ; DE = (0, entity_index)
+            ld a, (hl)
+            ld hl, entity_sm_ptr_h
+            add hl, de
+            or (hl)                 ; A != 0 if SM pointer is set
+            pop af
+            jr nz, .skip_patrol_facing
             call update_entity_patrol_facing
+.skip_patrol_facing:
 
             pop hl
             pop bc

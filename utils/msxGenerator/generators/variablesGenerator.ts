@@ -274,6 +274,9 @@ MAX_ENTITIES        EQU 32
   code += `entity_template_token EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity template token (32 bytes, 0=unknown)\n`;
   currentAddress += 32;
 
+  code += `entity_facing_dir   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)\n`;
+  currentAddress += 32;
+
   // State Machine Local Variables (8 vars per entity)
   for (let i = 0; i < 8; i++) {
     code += `entity_sm_var_${i}     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity Variable ${i} (32 bytes)\n`;
@@ -301,6 +304,9 @@ MAX_ENTITIES        EQU 32
   currentAddress += 32;
 
   code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (32 bytes)\n`;
+  currentAddress += 32;
+
+  code += `sprite_layer_colors EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)\n`;
   currentAddress += 32;
 
   // Interleaved sprite attribute buffer (Y, X, Pattern, Color per sprite)

@@ -905,154 +905,394 @@ Action_ApplyForce:
     ret
 
 
+; Table: SM Facing Direction to Sprite Lookup Table Pointer
+; Maps entity_facing_dir (1=left,2=right,3=up,4=down) to directional sprite tables.
+; Usage: dec facing (→ 0-3), index into this table to get the DW sprite_dir_*_table ptr.
+SM_FacingDirTablePtrs:
+    DW sprite_dir_left_table    ; facing 1 (LEFT)  → dec → 0
+    DW sprite_dir_right_table   ; facing 2 (RIGHT) → dec → 1
+    DW sprite_dir_up_table      ; facing 3 (UP)    → dec → 2
+    DW sprite_dir_down_table    ; facing 4 (DOWN)  → dec → 3
+
+; ==================================================================
+; Action_ChangeSprite
+; ------------------------------------------------------------------
+; Cambia el sprite activo de una entidad. Realiza 5 operaciones:
+;   1. Redirect direccional: si entity_facing_dir != 0, sustituye el
+;      sprite pedido por su variante direccional (left/right/up/down)
+;      usando SM_FacingDirTablePtrs.
+;   2. Commit: escribe el sprite final en entity_sprite_asset_index.
+;   3. Reset de animación: pone entity_anim_frame y entity_anim_tick a 0.
+;   4. Flags de animación: activa PLAYING, aplica el flag de LOOP del
+;      sprite, y para sprites one-shot borra ONLY_WHEN_MOVING para que
+;      la animación avance aunque la entidad esté quieta.
+;   5. Upload inmediato: copia el frame 0 del nuevo sprite a VRAM en
+;      el mismo frame para que el cambio sea visible sin esperar al
+;      siguiente ciclo de update_animation_component.
+;   6. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
+;      los colores del nuevo sprite desde SM_SpriteLayerColorTable.
+;
+; Input:
+;   HL  = puntero al parámetro (sprite asset ID, 1 byte)
+;   B   = entity index (convención SM_ExecuteActions)
+;
+; Output:
+;   HL  = puntero al byte siguiente a los parámetros (para el caller)
+;
+; Destruye: AF, BC, DE, HL (todos restaurados al salir salvo HL=next param)
+;
+; Stack al entrar (top → bottom):
+;   [llamada desde SM_ExecuteActions]
+; Stack al salir: igual que al entrar.
+;
+; Tablas ROM usadas:
+;   SM_FacingDirTablePtrs      — punteros a las 4 tablas de redirect
+;   sprite_loop_flags          — 1 byte/sprite: 0x02=loop, 0x00=one-shot
+;   SM_SpritePatternPtrTable   — puntero al frame 0 de cada sprite
+;   SM_SpritePatternBankTable  — banco ROM del frame 0 de cada sprite
+;   SM_SpriteLayerColorTable   — colores por sprite (SPRITE_MAX_ENTITY_LAYERS bytes/sprite)
+;
+; Variables RAM usadas:
+;   entity_facing_dir          — dirección actual de la entidad (0-4)
+;   entity_sprite_asset_index  — índice del sprite activo de la entidad
+;   entity_anim_frame          — frame actual de la animación
+;   entity_anim_tick           — contador de ticks entre frames
+;   entity_anim_flags          — flags de animación (ver bits más abajo)
+;   entity_sprite_config       — base HW sprite + layer count (2 bytes/entidad)
+;   sprite_layer_colors        — colores actuales por slot HW sprite (RAM)
+;
+; Bits de entity_anim_flags:
+;   bit 0 = ANIM_FLAG_PLAYING       (1 = animando)
+;   bit 1 = ANIM_FLAG_LOOP          (1 = bucle infinito, 0 = one-shot)
+;   bit 2 = ANIM_FLAG_ONLY_WHEN_MOVING (1 = solo anima si vel != 0)
+;   bit 3 = ANIM_FLAG_COMPLETED     (1 = one-shot llegó al último frame)
+;
+; NOTA: el bloque de redirect direccional usa B como registro temporal
+; para guardar el sprite ID. Al salir del bloque, B queda corrupto.
+; Se restaura explícitamente con "ld b, 0" antes de los add hl, bc.
+; ==================================================================
 Action_ChangeSprite:
-    ; Params: Sprite Asset ID (1 byte)
-    ; Changes the sprite asset used by this entity
-    ; Also resets animation frame to 0 and uploads it immediately to VRAM
-    ld a, (hl)              ; A = Sprite Asset ID
-    inc hl
+    ld a, (hl)              ; A = Sprite Asset ID pedido por la SM
+    inc hl                  ; HL apunta al byte siguiente al parámetro
+    push hl                 ; [stack] guarda puntero de parámetros para el ret final
 
-    push hl                 ; Save Params Ptr
-    push af                 ; Save Sprite Asset ID
+    push af                 ; [stack] guarda Sprite Asset ID (se necesita tras setup)
 
-    ; BC = Entity Index
-    ld c, b
-    ld b, 0
+    ; ------------------------------------------------------------------
+    ; Setup: convertir B (entity index) a BC = (0, entity_index)
+    ; Convención de SM_ExecuteActions: B = entity index al entrar.
+    ; ------------------------------------------------------------------
+    ld c, b                 ; C = entity index
+    ld b, 0                 ; B = 0  →  BC = (0, entity_index)
 
-    ; Set entity_sprite_asset_index
+    ; Pre-calcular HL = &entity_sprite_asset_index[entity]
+    ; Se usará tras el bloque de redirect para escribir el sprite final.
     ld hl, entity_sprite_asset_index
-    add hl, bc
-    pop af                  ; Restore Sprite Asset ID
-    ld d, a                 ; D = Sprite Asset ID (preserved across flag ops)
-    ld (hl), a              ; entity_sprite_asset_index[entity] = spriteId
+    add hl, bc              ; HL = &entity_sprite_asset_index[entity]
 
-    ; Reset animation frame to 0 (start from first frame of new sprite)
+    pop af                  ; A = Sprite Asset ID (recuperado del stack)
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 1: Redirect direccional
+    ; Si entity_facing_dir[entity] != 0, reemplaza el sprite pedido por
+    ; su variante para la dirección actual.
+    ;   facing 0 = sin dirección → usar sprite tal cual
+    ;   facing 1 = izquierda  → SM_FacingDirTablePtrs[0] → sprite_dir_left_table
+    ;   facing 2 = derecha     → SM_FacingDirTablePtrs[1] → sprite_dir_right_table
+    ;   facing 3 = arriba      → SM_FacingDirTablePtrs[2] → sprite_dir_up_table
+    ;   facing 4 = abajo       → SM_FacingDirTablePtrs[3] → sprite_dir_down_table
+    ;
+    ; Las tablas de dirección son arrays de 1 byte por sprite asset:
+    ;   dir_table[originalSprite] = spriteVariante
+    ; Si no existe variante, la tabla devuelve el mismo ID original.
+    ;
+    ; IMPORTANTE: este bloque usa B como temporal para guardar el sprite ID.
+    ; Al salir, B queda con el sprite ID (no con 0). Se corrige después.
+    ; ------------------------------------------------------------------
+    push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
+
+    ld h, 0
+    ld l, c                 ; HL = entity index
+    ld de, entity_facing_dir
+    add hl, de              ; HL = &entity_facing_dir[entity]
+    ld e, (hl)              ; E = facing dir (0=none, 1=left, 2=right, 3=up, 4=down)
+
+    ld b, a                 ; B = sprite ID original  [B QUEDA CORRUPTO hasta ld b,0 abajo]
+    ld a, e                 ; A = facing dir
+    or a
+    jr z, .acs_dir_done     ; facing = 0 → no hay redirect, usar sprite original
+
+    ; Convertir facing (1-4) a índice de tabla (0-3): dec a
+    dec a                   ; A = índice en SM_FacingDirTablePtrs (0=left, 1=right, 2=up, 3=down)
+    ld hl, SM_FacingDirTablePtrs
+    ld d, 0
+    ld e, a
+    add hl, de
+    add hl, de              ; HL = &SM_FacingDirTablePtrs[facing_index * 2]  (tabla de punteros, DW)
+    ld e, (hl)
+    inc hl
+    ld d, (hl)              ; DE = puntero a la tabla de sprites para esta dirección
+
+    ; Leer el sprite redirigido: dir_table[originalSprite]
+    ld l, b                 ; L = sprite ID original
+    ld h, 0
+    add hl, de              ; HL = &dir_table[originalSprite]
+    ld b, (hl)              ; B = sprite ID redirigido (puede ser el mismo si no hay variante)
+
+.acs_dir_done:
+    ; A = sprite ID final (original o redirigido)
+    ld a, b                 ; A = sprite ID (posiblemente redirigido)
+    pop hl                  ; HL = &entity_sprite_asset_index[entity]  [recuperado del stack]
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 2: Commit del sprite y reset de estado de animación
+    ; ------------------------------------------------------------------
+
+    ; D guardará el sprite ID para uso posterior (VRAM upload, loop flags).
+    ; No usar A directamente porque las instrucciones siguientes lo machan.
+    ld d, a                 ; D = Sprite Asset ID final (preservado para los bloques 3-5)
+    ld (hl), a              ; entity_sprite_asset_index[entity] = sprite ID final
+
+    ; RESTAURAR B=0: el bloque de redirect dejó B=sprite_ID.
+    ; Todos los "add hl, bc" siguientes necesitan BC = (0, entity_index).
+    ld b, 0                 ; B = 0  →  BC = (0, entity_index)  [BUG FIX: corrupto por redirect]
+
+    ; Reiniciar frame al principio del nuevo sprite
     ld hl, entity_anim_frame
-    add hl, bc
-    ld (hl), 0              ; entity_anim_frame[entity] = 0
+    add hl, bc              ; HL = &entity_anim_frame[entity]
+    ld (hl), 0              ; entity_anim_frame[entity] = 0  (empieza desde frame 0)
 
-    ; Reset animation tick to 0
+    ; Reiniciar contador de ticks para que el primer avance de frame
+    ; ocurra tras entity_anim_speed ticks completos, no de inmediato.
     ld hl, entity_anim_tick
-    add hl, bc
+    add hl, bc              ; HL = &entity_anim_tick[entity]
     ld (hl), 0              ; entity_anim_tick[entity] = 0
 
-    ; Retrieve loop config from sprite_loop_flags metadata using D (Sprite Asset ID)
+    ; ------------------------------------------------------------------
+    ; BLOQUE 3: Leer el flag de loop del nuevo sprite
+    ; sprite_loop_flags[spriteId] = 0x02 si loop, 0x00 si one-shot
+    ; El valor se guarda en E para aplicarlo a entity_anim_flags.
+    ; D se restaura al sprite ID tras poner D=0 para el add hl,de.
+    ; ------------------------------------------------------------------
     ld hl, sprite_loop_flags
-    ld a, d                 ; A = Sprite Asset ID (preserve before zeroing D)
+    ld a, d                 ; A = Sprite Asset ID (salvar antes de poner D=0)
     ld e, a                 ; E = Sprite Asset ID
     ld d, 0
-    add hl, de
-    ld e, (hl)              ; E = loop flag bit (0x02 for loop, 0x00 for once)
-    ld d, a                 ; Restore D = Sprite Asset ID for immediate upload path
+    add hl, de              ; HL = &sprite_loop_flags[spriteId]
+    ld e, (hl)              ; E = loop flag (0x02=loop, 0x00=one-shot)
+    ld d, a                 ; D = Sprite Asset ID  (restaurado para el upload)
 
-    ; Update entity_anim_flags: clear COMPLETED, set PLAYING, apply correct loop flag
-    ; For one-shot (non-loop) sprites, force ANIM_FLAG_ONLY_WHEN_MOVING off
-    ; so ANIMATION_COMPLETE can trigger even if velocity is zero.
+    ; ------------------------------------------------------------------
+    ; BLOQUE 4: Actualizar entity_anim_flags
+    ;
+    ; Cambios aplicados:
+    ;   - bit 3 (COMPLETED)       → 0  (el one-shot anterior ya no importa)
+    ;   - bit 0 (PLAYING)         → 1  (arrancar animación)
+    ;   - bit 1 (LOOP)            → según sprite_loop_flags del nuevo sprite
+    ;   - bit 2 (ONLY_WHEN_MOVING)→ 0  SIEMPRE, para cualquier sprite
+    ;
+    ; Razón de limpiar ONLY_WHEN_MOVING siempre:
+    ;   Cuando el SM llama ChangeSprite, lo hace porque quiere mostrar ese
+    ;   sprite ahora. La animación debe avanzar siempre que PLAYING=1,
+    ;   sin importar la velocidad. La lógica de "anima solo si se mueve"
+    ;   es solo relevante para el sprite inicial de la entidad (config del
+    ;   editor). Una vez en la SM, el estado controla qué sprite se muestra.
+    ;   Si se dejara ONLY_WHEN_MOVING=1 para sprites loop, la animación walk
+    ;   no avanzaría: la fricción del movement component puede dejar vel_x=0
+    ;   antes de que llegue el turno de animation (step 11 > step 5).
+    ; ------------------------------------------------------------------
     ld hl, entity_anim_flags
-    add hl, bc
-    ld a, (hl)
-    res 3, a                ; clear ANIM_FLAG_COMPLETED (bit 3)
-    or ANIM_FLAG_PLAYING    ; set ANIM_FLAG_PLAYING (bit 0)
-    and #FD                 ; Clear ANIM_FLAG_LOOP (bit 1)
-    or e                    ; Apply new loop flag from sprite_loop_flags
-    bit 1, e                ; loop bit set?
-    jr nz, .acs_keep_only_moving
-    and #FB                 ; Clear ANIM_FLAG_ONLY_WHEN_MOVING (bit 2)
-.acs_keep_only_moving:
-    ld (hl), a
+    add hl, bc              ; HL = &entity_anim_flags[entity]
+    ld a, (hl)              ; A = flags actuales
 
-    ; Force immediate VRAM upload of frame 0 so CHANGE_SPRITE is visible
-    ; this same frame. Use explicit sprite bank mapping to avoid reading
-    ; compressed frame data from an unmapped ROM bank.
-    push hl
-    push bc
-    push de
+    res 3, a                ; bit 3 = 0: borrar ANIM_FLAG_COMPLETED
+    or ANIM_FLAG_PLAYING    ; bit 0 = 1: activar ANIM_FLAG_PLAYING
+    and #FD                 ; bit 1 = 0: limpiar ANIM_FLAG_LOOP antes de aplicar el nuevo
+    or e                    ; bit 1 = nuevo loop flag (E=0x02 o 0x00 según el sprite)
+    and #FB                 ; bit 2 = 0: borrar ANIM_FLAG_ONLY_WHEN_MOVING (siempre)
+    ld (hl), a              ; entity_anim_flags[entity] = flags actualizados
 
-    ; Validate sprite asset index (D from params above)
-    ld a, d
-    cp SM_SpriteAssetCount
-    jr nc, .acs_upload_done
+    ; ------------------------------------------------------------------
+    ; BLOQUE 5: Upload inmediato del frame 0 a VRAM
+    ;
+    ; update_animation_component no se ejecuta hasta el próximo frame.
+    ; Para que el sprite nuevo se vea en el frame actual, copiamos el
+    ; frame 0 directamente a VRAM ahora.
+    ;
+    ; Stack a la entrada de este bloque (top → bottom):
+    ;   HL = &entity_anim_flags[entity]  ← push hl
+    ;   BC = (0, entity_index)           ← push bc
+    ;   DE = (spriteId, loopFlag)        ← push de
+    ;
+    ; Al salir (.acs_upload_done) se recuperan los tres en orden inverso.
+    ; ------------------------------------------------------------------
+    push hl                 ; [stack] guarda ptr entity_anim_flags (descartado al salir)
+    push bc                 ; [stack] BC = (0, entity_index)
+    push de                 ; [stack] DE = (D=spriteId, E=loopFlag)
 
-    ; Resolve source pattern pointer + bank for this sprite asset.
+    ; Validar que el sprite ID esté dentro del rango conocido
+    ld a, d                 ; A = sprite asset ID
+    cp SM_SpriteAssetCount  ; ¿fuera de rango?
+    jr nc, .acs_upload_done ; sí → saltar el upload (evitar acceso fuera de tabla)
+
+    ; Obtener puntero al frame 0: SM_SpritePatternPtrTable[spriteId * 2]
     ld e, a
-    ld d, 0                    ; DE = sprite asset index
-    push de                    ; Save sprite index
+    ld d, 0                 ; DE = sprite asset index
+    push de                 ; [stack] guarda índice para leer el banco después
 
     ld hl, SM_SpritePatternPtrTable
     add hl, de
-    add hl, de                 ; index * 2
+    add hl, de              ; HL = &SM_SpritePatternPtrTable[spriteId * 2]
     ld e, (hl)
     inc hl
     ld d, (hl)
-    ex de, hl                  ; HL = source pattern pointer (frame 0)
-    pop de                     ; DE = sprite index
-    push hl                    ; Save source pointer
+    ex de, hl               ; HL = puntero al frame 0 (datos de patrón en ROM)
+    pop de                  ; DE = sprite asset index  [recuperado del stack]
+    push hl                 ; [stack] guarda puntero al frame 0
 
+    ; Mapear el banco ROM que contiene los datos del frame 0
     ld hl, SM_SpritePatternBankTable
-    add hl, de
-    ld a, (hl)                 ; A = source bank
-    call mapper_push_p2
-    call mapper_set_bank_p2
+    add hl, de              ; HL = &SM_SpritePatternBankTable[spriteId]
+    ld a, (hl)              ; A = número de banco ROM del frame 0
+    call mapper_push_p2     ; salva el banco actual de P2 en la pila del mapper
+    call mapper_set_bank_p2 ; mapea el banco del frame 0 en la ventana P2 (#8000-#BFFF)
 
-    ; Get entity sprite config (base HW sprite + layer count)
-    ld e, c
+    ; Leer configuración HW del sprite: entity_sprite_config[entity * 2]
+    ;   byte 0: base HW sprite index (slot en la OAM, 0-31)
+    ;   byte 1: layer count (número de capas HW del sprite, típicamente 1-2)
+    ld e, c                 ; E = entity index (C preservado de antes)
     ld d, 0
     ld hl, entity_sprite_config
     add hl, de
-    add hl, de                 ; entity index * 2
-    ld a, (hl)                 ; A = base HW sprite
+    add hl, de              ; HL = &entity_sprite_config[entity * 2]
+    ld a, (hl)              ; A = base HW sprite index
     inc hl
-    ld c, (hl)                 ; C = layer count
-    ld d, a                    ; D = base HW sprite
+    ld c, (hl)              ; C = layer count
+    ld d, a                 ; D = base HW sprite index
 
+    ; Si layer count = 0, no hay sprite HW asignado → saltar upload
     ld a, c
     or a
     jr z, .acs_upload_pop_source
 
-    ; BC = layerCount * 32
+    ; Calcular BC = layerCount * 32  (bytes totales de patrón a copiar)
+    ; Cada capa HW ocupa 32 bytes de patrón (sprite 16x16 = 2 tiles * 16 bytes, comprimido como 32)
     ld a, c
     ld b, 0
-    ld c, a
+    ld c, a                 ; C = layer count
     sla c
-    rl b
+    rl b                    ; × 2
     sla c
-    rl b
+    rl b                    ; × 4
     sla c
-    rl b
+    rl b                    ; × 8
     sla c
-    rl b
+    rl b                    ; × 16
     sla c
-    rl b
+    rl b                    ; × 32  →  BC = layerCount * 32
 
-    ; DE = SPRPAT + baseHwSprite*32
-    ld a, d
+    ; Calcular DE = SPRPAT + baseHwSprite * 32  (destino en VRAM)
+    ld a, d                 ; A = base HW sprite index
     ld l, a
     ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl                 ; HL = base * 32
+    add hl, hl              ; × 2
+    add hl, hl              ; × 4
+    add hl, hl              ; × 8
+    add hl, hl              ; × 16
+    add hl, hl              ; × 32  →  HL = base * 32
     ld de, SPRPAT
-    add hl, de
-    ex de, hl                  ; DE = VRAM destination
+    add hl, de              ; HL = SPRPAT + base * 32  (dirección VRAM del slot HW)
+    ex de, hl               ; DE = destino VRAM, HL libre para fuente
 
-    pop hl                     ; HL = source pattern data
-    call COPY_SPRITE_SRC_TO_VRAM
+    pop hl                  ; HL = puntero al frame 0 en ROM  [recuperado del stack]
+    call COPY_SPRITE_SRC_TO_VRAM   ; copia BC bytes desde HL (ROM) a DE (VRAM)
     jr .acs_upload_restore_bank
 
 .acs_upload_pop_source:
-    pop hl                     ; Drop saved source pointer
+    pop hl                  ; descarta el puntero al frame 0 (layer count = 0, nada que copiar)
 
 .acs_upload_restore_bank:
-    call mapper_pop_p2
+    call mapper_pop_p2      ; restaura el banco ROM que estaba antes en P2
 
 .acs_upload_done:
-    pop de
-    pop bc
-    pop hl
+    pop de                  ; DE: D = sprite asset ID, E = loop flag  [recuperado del stack]
+    pop bc                  ; BC = (0, entity_index)                  [recuperado del stack]
+    pop hl                  ; descarta ptr entity_anim_flags           [recuperado del stack]
 
-    pop hl                  ; Restore Params Ptr
+    ; ------------------------------------------------------------------
+    ; BLOQUE 6: Actualizar tabla de colores de capas en RAM
+    ;
+    ; sprite_layer_colors es una tabla RAM indexada por slot HW sprite.
+    ; SM_SpriteLayerColorTable es una tabla ROM de SPRITE_MAX_ENTITY_LAYERS
+    ; bytes por sprite, con el color de cada capa del sprite.
+    ;
+    ; Se copian los colores del nuevo sprite a los slots HW de la entidad
+    ; para que render_sprites use los colores correctos en el próximo frame.
+    ;
+    ; Registros a la entrada:
+    ;   D = sprite asset ID
+    ;   C = entity index
+    ;   B = 0
+    ; ------------------------------------------------------------------
+
+    ; Validar rango (mismo guard que en el upload)
+    ld a, d
+    cp SM_SpriteAssetCount
+    jp nc, .acs_skip_color_update  ; fuera de rango → saltar
+
+    push de                 ; [stack] guarda D=spriteId, E=loopFlag
+
+    ; Obtener el base HW sprite de la entidad: entity_sprite_config[entity * 2]
+    ld h, 0
+    ld l, c                 ; HL = entity index
+    add hl, hl              ; HL = entity index * 2
+    ld de, entity_sprite_config
+    add hl, de              ; HL = &entity_sprite_config[entity * 2]
+    ld c, (hl)              ; C = base HW sprite index (slot de partida en la OAM)
+
+    pop de                  ; DE: D=spriteId, E=loopFlag  [recuperado del stack]
+
+    ; Calcular HL = SM_SpriteLayerColorTable + spriteId * SPRITE_MAX_ENTITY_LAYERS
+    ; mediante suma repetida (SPRITE_MAX_ENTITY_LAYERS es pequeño, típicamente 2-4)
+    ld l, d                 ; L = sprite asset ID
+    ld h, 0                 ; HL = sprite asset ID
+    ld e, l
+    ld d, h                 ; DE = sprite asset ID (multiplicando)
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.acs_mul_max_layers:
+    add hl, de              ; acumulador += sprite_ID
+    djnz .acs_mul_max_layers ; repetir SPRITE_MAX_ENTITY_LAYERS veces → HL = spriteId * maxLayers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de              ; HL = &SM_SpriteLayerColorTable[spriteId * maxLayers]
+
+    ; Copiar SPRITE_MAX_ENTITY_LAYERS colores desde la tabla ROM a sprite_layer_colors[hw..]
+    ; C = slot HW actual (se incrementa en cada iteración)
+    ; HL = fuente en ROM (se incrementa con inc hl)
+    ld b, SPRITE_MAX_ENTITY_LAYERS  ; B = contador de capas
+.acs_color_update_loop:
+    ld a, (hl)              ; A = color de esta capa en la tabla ROM
+    inc hl                  ; avanzar al siguiente color en la tabla ROM
+    push hl                 ; [stack] preservar HL (fuente ROM) durante el write
+    push bc                 ; [stack] preservar B (contador) y C (slot HW)
+
+    ld h, 0
+    ld l, c                 ; HL = slot HW actual (índice en sprite_layer_colors)
+    ld de, sprite_layer_colors
+    add hl, de              ; HL = &sprite_layer_colors[hw_slot]
+    ld (hl), a              ; sprite_layer_colors[hw_slot] = color del nuevo sprite
+
+    pop bc                  ; [stack] restaurar B=contador, C=slot HW
+    pop hl                  ; [stack] restaurar HL=fuente ROM
+    inc c                   ; avanzar al siguiente slot HW
+    djnz .acs_color_update_loop
+
+.acs_skip_color_update:
+
+    ; ------------------------------------------------------------------
+    ; Epilogue: restaurar puntero de parámetros y retornar al dispatcher
+    ; ------------------------------------------------------------------
+    pop hl                  ; HL = puntero al byte tras los parámetros  [del push inicial]
     ret
 
 Action_PlayAnimation:
