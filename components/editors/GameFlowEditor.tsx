@@ -78,8 +78,43 @@ interface GameFlowEditorProps {
  * Calculates the SVG path string for a connection between two ports.
  * Uses smart routing: simple bezier for forward edges, U-shaped detour below
  * both nodes for backward (or near-vertical) edges to avoid crossings.
+ * If waypoints are present, routes through them as straight-line segments.
  */
-const getConnectionPath = (p1: Point, p2: Point, fromNode: GameFlowNode, toNode: GameFlowNode): string => {
+const distanceToSegment = (p: Point, a: Point, b: Point): number => {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  if (dx === 0 && dy === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+};
+
+const findInsertIndex = (p1: Point, p2: Point, waypoints: Point[], clickPos: Point): number => {
+  const pts = [p1, ...waypoints, p2];
+  let minDist = Infinity, idx = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = distanceToSegment(clickPos, pts[i], pts[i + 1]);
+    if (d < minDist) { minDist = d; idx = i; }
+  }
+  return idx;
+};
+
+const getConnectionPath = (p1: Point, p2: Point, fromNode: GameFlowNode, toNode: GameFlowNode, waypoints?: Point[]): string => {
+  // If waypoints exist, draw smooth Catmull-Rom curves through all points
+  if (waypoints && waypoints.length > 0) {
+    const pts = [p1, ...waypoints, p2];
+    // Extend with phantom endpoints so the curve reaches exactly p1 and p2
+    const ext = [pts[0], ...pts, pts[pts.length - 1]];
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = ext[i], b = ext[i + 1], c = ext[i + 2], dd = ext[i + 3];
+      const cp1x = b.x + (c.x - a.x) / 6;
+      const cp1y = b.y + (c.y - a.y) / 6;
+      const cp2x = c.x - (dd.x - b.x) / 6;
+      const cp2y = c.y - (dd.y - b.y) / 6;
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${c.x} ${c.y}`;
+    }
+    return d;
+  }
+
   const dx = p2.x - p1.x;
 
   // Forward edge: standard cubic bezier with horizontal control points
@@ -473,6 +508,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   const [mousePosition, setMousePosition] = useState<Point | null>(null);
   const [nodeToPlace, setNodeToPlace] = useState<NodeToPlace | null>(null);
   const [draggingState, setDraggingState] = useState<{ nodeId: string, offset: Point } | null>(null);
+  const [draggingWaypoint, setDraggingWaypoint] = useState<{ connId: string; waypointIndex: number } | null>(null);
   const [previewMode, setPreviewMode] = useState<'preview' | 'play' | null>(null);
   const [isSubMenuModalOpen, setIsSubMenuModalOpen] = useState(false);
   const [editingSubMenu, setEditingSubMenu] = useState<GameFlowSubMenuNode | null>(null);
@@ -1048,6 +1084,15 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
       const dy = (e.clientY - panStart.y);
       setLocalPanOffset({ x: panOffset.x - dx / zoomLevel, y: panOffset.y - dy / zoomLevel });
       setPanStart({ x: e.clientX, y: e.clientY });
+    } else if (draggingWaypoint) {
+        const { connId, waypointIndex } = draggingWaypoint;
+        const newConnections = connections.map(c => {
+          if (c.id !== connId) return c;
+          const waypoints = [...(c.waypoints || [])];
+          waypoints[waypointIndex] = { x: point.x, y: point.y };
+          return { ...c, waypoints };
+        });
+        onUpdate({ connections: newConnections });
     } else if (draggingState) {
         const newX = point.x + draggingState.offset.x;
         const newY = point.y + draggingState.offset.y;
@@ -1057,6 +1102,18 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
   };
   const handleSvgMouseUp = (e: React.MouseEvent<SVGSVGElement>) => {
     if (isPanning) { setIsPanning(false); if (svgRef.current) svgRef.current.style.cursor = 'grab'; }
+    if (draggingWaypoint) {
+        const { connId, waypointIndex } = draggingWaypoint;
+        const newConnections = connections.map(c => {
+          if (c.id !== connId) return c;
+          const waypoints = [...(c.waypoints || [])];
+          waypoints[waypointIndex] = { x: snapToGrid(waypoints[waypointIndex].x), y: snapToGrid(waypoints[waypointIndex].y) };
+          return { ...c, waypoints };
+        });
+        onUpdate({ connections: newConnections });
+        setDraggingWaypoint(null);
+        if (svgRef.current) svgRef.current.style.cursor = 'grab';
+    }
     if (draggingState) {
         const node = nodes.find(n => n.id === draggingState.nodeId);
         if (node) {
@@ -1208,7 +1265,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
         </div>
       </div>
       <div className="flex-grow relative" style={{ background: '#1A101A', overflow: 'auto' }}>
-        <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState ? 'grabbing' : 'grab') }}>
+        <svg ref={svgRef} width="100%" height="100%" viewBox={viewBox} onWheel={handleWheel} onMouseDown={handleSvgMouseDown} onMouseMove={handleSvgMouseMove} onMouseUp={handleSvgMouseUp} style={{ cursor: isPanning ? 'grabbing' : (draggingState || draggingWaypoint ? 'grabbing' : 'grab') }}>
           <defs>
             <pattern id="gridPattern" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse"><path d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5"/></pattern>
             <marker id="arrowhead" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto"><polygon points="0 0, 6 2, 0 4" fill="hsl(150, 50%, 60%)" /></marker>
@@ -1220,7 +1277,7 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
               if(!fromNode || !toNode) return null;
               const p1 = getPortPosition(fromNode, conn.from.sourceId || 'out');
               const p2 = getPortPosition(toNode, 'in');
-              const pathD = getConnectionPath(p1, p2, fromNode, toNode);
+              const pathD = getConnectionPath(p1, p2, fromNode, toNode, conn.waypoints);
 
               return (
                 <g key={conn.id}>
@@ -1234,13 +1291,30 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
                     markerEnd="url(#arrowhead)"
                     style={{ pointerEvents: 'none' }}
                   />
-                  {/* Invisible wider hitbox for clicking */}
+                  {/* Wider hitbox: handles cut-click and Ctrl+drag to add waypoint */}
                   <path
                     d={pathD}
                     stroke="transparent"
                     strokeWidth={12}
                     fill="none"
-                    style={{ cursor: isCutMode ? 'pointer' : 'default', pointerEvents: isCutMode ? 'stroke' : 'none' }}
+                    style={{ cursor: isCutMode ? 'pointer' : 'crosshair', pointerEvents: 'stroke' }}
+                    onMouseDown={(e) => {
+                      if (e.ctrlKey && e.button === 0 && !isCutMode) {
+                        e.stopPropagation();
+                        const clickPoint = getPointFromEvent(e);
+                        if (clickPoint) {
+                          const existing = conn.waypoints || [];
+                          const insertIdx = findInsertIndex(p1, p2, existing, clickPoint);
+                          const newWaypoints = [
+                            ...existing.slice(0, insertIdx),
+                            clickPoint,
+                            ...existing.slice(insertIdx)
+                          ];
+                          onUpdate({ connections: connections.map(c => c.id === conn.id ? { ...c, waypoints: newWaypoints } : c) });
+                          setDraggingWaypoint({ connId: conn.id, waypointIndex: insertIdx });
+                        }
+                      }
+                    }}
                     onClick={(e) => {
                       if (isCutMode) {
                         e.stopPropagation();
@@ -1248,6 +1322,31 @@ export const GameFlowEditor: React.FC<GameFlowEditorProps> = ({ gameFlowGraph, o
                       }
                     }}
                   />
+                  {/* Waypoint handles — drag to reposition, double-click to remove */}
+                  {(conn.waypoints || []).map((wp, i) => (
+                    <circle
+                      key={i}
+                      cx={wp.x}
+                      cy={wp.y}
+                      r={5}
+                      fill="hsl(50, 80%, 60%)"
+                      stroke="hsl(150, 50%, 60%)"
+                      strokeWidth={1.5}
+                      style={{ cursor: 'grab', pointerEvents: 'all' }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        if (!isCutMode) {
+                          setDraggingWaypoint({ connId: conn.id, waypointIndex: i });
+                          if (svgRef.current) svgRef.current.style.cursor = 'grabbing';
+                        }
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        const newWaypoints = (conn.waypoints || []).filter((_, idx) => idx !== i);
+                        onUpdate({ connections: connections.map(c => c.id === conn.id ? { ...c, waypoints: newWaypoints } : c) });
+                      }}
+                    />
+                  ))}
                 </g>
               );
           })}

@@ -1231,6 +1231,7 @@ export interface GameFlowConnection {
   id: string;
   from: { nodeId: string; sourceId?: string };
   to: { nodeId: string; };
+  waypoints?: Point[];
 }
 
 /**
