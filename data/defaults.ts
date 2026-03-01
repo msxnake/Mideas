@@ -287,6 +287,8 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "collectibleTileIds", type: 'string', defaultValue: 'dot,powerup,fruit', description: "Comma-separated list of tile IDs that can be collected." },
       { name: "replacementTileId", type: 'string', defaultValue: 'empty', description: "Tile ID to replace collected tiles with (usually empty/floor)." },
       { name: "collectionSoundId", type: 'sound_ref', defaultValue: '', description: "Sound to play when collecting items." },
+      { name: "targetVariable", type: 'string', defaultValue: '', description: "Optional global variable name to increment when an item is collected (e.g. Score)." },
+      { name: "incrementAmount", type: 'word', defaultValue: '0', description: "How much to add to targetVariable on collection. 0 = disabled." },
       { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether tile collection is active." }
     ],
   },
@@ -457,7 +459,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 } },
-      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", isEnabled: true } },
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, isEnabled: true } },
       { definitionId: "comp_inventory", defaultValues: { maxItems: 255, currentItemCount: 0, showCountOnScreen: true, countDisplayX: 1, countDisplayY: 1, scorePerItem: 10, totalScore: 0 } }
     ],
     description: "A Pac-Man style player that collects items by walking over tiles. Perfect for maze-based collection games."

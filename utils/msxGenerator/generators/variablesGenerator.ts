@@ -76,8 +76,10 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   if (analysis.globalVariables && analysis.globalVariables.length > 0) {
     // Generate variables from globalVariables array
     analysis.globalVariables.forEach(variable => {
-      const size = variable.type === '16bit' ? 2 : 1;
-      const sizeComment = variable.type === '16bit' ? ' (16-bit)' : ' (8-bit)';
+      const variableType = String(variable.type || '').toLowerCase();
+      const isWord = variableType === '16bit' || variableType === 'word';
+      const size = isWord ? 2 : 1;
+      const sizeComment = isWord ? ' (16-bit)' : ' (8-bit)';
       const description = variable.description || variable.name;
 
       code += `${variable.asmName.padEnd(20)} EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${description}${sizeComment}\n`;

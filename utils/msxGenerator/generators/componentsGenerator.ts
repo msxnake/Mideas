@@ -4343,19 +4343,74 @@ function resolveSoundAssetIndex(soundRef: any, soundMap: Record<string, number>)
     return null;
 }
 
-function resolveTileCollectorSoundIndex(analysis: ProjectAnalysis): number | null {
-    const soundMap = buildSoundAssetIndexMap((analysis as any).sounds);
+function clampTileCollectorAmount(rawValue: any): number {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return Math.max(0, Math.min(65535, Math.round(parsed)));
+}
 
-    if (Object.keys(soundMap).length === 0) {
+function buildGlobalVariableInfoMap(analysis: ProjectAnalysis): Record<string, { asmName: string; isWord: boolean }> {
+    const variableMap: Record<string, { asmName: string; isWord: boolean }> = {};
+    const globalVariables = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+
+    for (const variable of globalVariables as any[]) {
+        const name = typeof variable?.name === 'string' ? variable.name.trim() : '';
+        const asmName = typeof variable?.asmName === 'string' ? variable.asmName.trim() : '';
+        if (!name || !asmName) continue;
+
+        const type = String(variable?.type || '').toLowerCase();
+        const isWord = type === 'word' || type === '16bit';
+        variableMap[name] = { asmName, isWord };
+        variableMap[name.toLowerCase()] = { asmName, isWord };
+        variableMap[asmName] = { asmName, isWord };
+        variableMap[asmName.toLowerCase()] = { asmName, isWord };
+    }
+
+    return variableMap;
+}
+
+function resolveConfiguredVariableInfo(
+    variableRef: any,
+    variableMap: Record<string, { asmName: string; isWord: boolean }>
+): { asmName: string; isWord: boolean } | null {
+    if (typeof variableRef !== 'string') return null;
+    const trimmed = variableRef.trim();
+    if (!trimmed) return null;
+
+    return variableMap[trimmed] || variableMap[trimmed.toLowerCase()] || null;
+}
+
+function extractTileCollectorConfig(candidate: any) {
+    if (!candidate || candidate.isEnabled === false || candidate.isEnabled === 'false') {
         return null;
     }
 
+    return {
+        collectionSoundId: candidate.collectionSoundId,
+        targetVariable: candidate.targetVariable ?? candidate.scoreVariable ?? candidate.scoreVariableName,
+        incrementAmount: candidate.incrementAmount ?? candidate.scoreAmount ?? candidate.collectionValue ?? 0,
+    };
+}
+
+function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
+    soundAssetIndex: number | null;
+    targetVariable: { asmName: string; isWord: boolean } | null;
+    incrementAmount: number;
+} {
+    const soundMap = buildSoundAssetIndexMap((analysis as any).sounds);
+    const variableMap = buildGlobalVariableInfoMap(analysis);
+
     const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
     for (const entity of entities as any[]) {
-        const overrideProps = entity?.componentOverrides?.['comp_tile_collector'];
-        const soundIndex = resolveSoundAssetIndex(overrideProps?.collectionSoundId, soundMap);
-        if (soundIndex !== null) {
-            return soundIndex;
+        const config = extractTileCollectorConfig(entity?.componentOverrides?.['comp_tile_collector']);
+        if (!config) continue;
+
+        const soundAssetIndex = resolveSoundAssetIndex(config.collectionSoundId, soundMap);
+        const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
+        const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+
+        if (soundAssetIndex !== null || (targetVariable && incrementAmount > 0)) {
+            return { soundAssetIndex, targetVariable, incrementAmount };
         }
     }
 
@@ -4365,22 +4420,34 @@ function resolveTileCollectorSoundIndex(analysis: ProjectAnalysis): number | nul
         const collectorComp = template?.components?.find((c: any) => c.definitionId === 'comp_tile_collector');
         if (!collectorComp) continue;
 
-        const props = collectorComp.defaultValues || {};
-        if (props.isEnabled === false || props.isEnabled === 'false') continue;
+        const config = extractTileCollectorConfig(collectorComp.defaultValues || {});
+        if (!config) continue;
 
-        const soundIndex = resolveSoundAssetIndex(props.collectionSoundId, soundMap);
-        if (soundIndex !== null) {
-            return soundIndex;
+        const soundAssetIndex = resolveSoundAssetIndex(config.collectionSoundId, soundMap);
+        const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
+        const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+
+        if (soundAssetIndex !== null || (targetVariable && incrementAmount > 0)) {
+            return { soundAssetIndex, targetVariable, incrementAmount };
         }
     }
 
-    return null;
+    return {
+        soundAssetIndex: null,
+        targetVariable: null,
+        incrementAmount: 0,
+    };
 }
 
 function generateTileInteractionSystem(
-    collectionSoundAssetIndex: number | null,
+    tileCollectorConfig: {
+        soundAssetIndex: number | null;
+        targetVariable: { asmName: string; isWord: boolean } | null;
+        incrementAmount: number;
+    },
     canUseSoundAssetPlayback: boolean
 ): string {
+    const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
     const collectionSoundCode =
         collectionSoundAssetIndex !== null && canUseSoundAssetPlayback
             ? `    ; Tile Collector UI-configured collection sound.
@@ -4396,6 +4463,49 @@ function generateTileInteractionSystem(
     ; Stay silent instead of forcing the wrong built-in beep.
 `
                 : `    ; No collectionSoundId configured in the Tile Collector UI.
+`;
+    const hudSyncCode = tileCollectorConfig.targetVariable?.asmName === 'global_var_score'
+        ? `    ; Keep HUD Score text in sync with the updated global variable.
+    push de
+    ld a, (${tileCollectorConfig.targetVariable.asmName})
+    ld l, a
+    ld a, (${tileCollectorConfig.targetVariable.asmName}+1)
+    ld h, a
+    call update_hud_score
+    call force_render_hud
+    pop de
+`
+        : tileCollectorConfig.targetVariable?.asmName === 'global_var_lives'
+            ? `    ; Keep HUD Lives text in sync with the updated global variable.
+    push de
+    ld a, (${tileCollectorConfig.targetVariable.asmName})
+    call update_hud_lives
+    call force_render_hud
+    pop de
+`
+            : '';
+
+    const variableIncrementCode = tileCollectorConfig.targetVariable && tileCollectorConfig.incrementAmount > 0
+        ? tileCollectorConfig.targetVariable.isWord
+            ? `    ; Tile Collector configured variable increment (16-bit).
+    ld hl, ${tileCollectorConfig.targetVariable.asmName}
+    ld a, (hl)
+    add a, ${(tileCollectorConfig.incrementAmount & 0xFF)}
+    ld (hl), a
+    inc hl
+    ld a, (hl)
+    adc a, ${((tileCollectorConfig.incrementAmount >> 8) & 0xFF)}
+    ld (hl), a
+${hudSyncCode}
+`
+            : `    ; Tile Collector configured variable increment (8-bit).
+    ld hl, ${tileCollectorConfig.targetVariable.asmName}
+    ld a, (hl)
+    add a, ${Math.min(255, tileCollectorConfig.incrementAmount)}
+    ld (hl), a
+${hudSyncCode}
+`
+        : `    ; No targetVariable/incrementAmount configured in the Tile Collector UI.
 `;
 
     return `
@@ -4414,9 +4524,25 @@ init_tile_interaction_system:
 
 ; ------------------------------------------------------------------
 ; check_tile_interaction
-; Input:  None (reads active_entity_list / active_entity_count)
-; Output: None
-; Destroys: AF, BC, DE, HL
+; Purpose:
+;   Scan active input-driven entities against the interactable tile map,
+;   collect matching tiles, update counters, optional target variable, sound,
+;   and persistent collected-tile state.
+; Input:
+;   None (reads active_entity_list / active_entity_count and runtime maps)
+; Output:
+;   None
+; Clobbers:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Stack:
+;   Uses balanced push/pop pairs for list pointer, loop counter/entity index,
+;   and temporary tile index saves on all exit paths.
+; Notes:
+;   - Returns immediately if active_entity_count = 0
+;   - Relies on FAST_WRTVRM preserving all registers
+;   - DE must survive the optional HUD/sound hooks until persistence logic runs
 ; ------------------------------------------------------------------
 check_tile_interaction:
     ld a, (active_entity_count)
@@ -4530,6 +4656,8 @@ check_tile_interaction:
     ; 3. Increment gem_count
     ld hl, gem_count
     inc (hl)
+
+${variableIncrementCode}
 
 ${collectionSoundCode}
 
@@ -5631,12 +5759,12 @@ update_collectible_component:
     // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
     const hasInteractableTiles = Array.isArray(analysis.tiles) &&
         analysis.tiles.some((t: any) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
-    const tileCollectorSoundIndex = resolveTileCollectorSoundIndex(analysis);
+    const tileCollectorRuntimeConfig = resolveTileCollectorRuntimeConfig(analysis);
     const hasStateMachineSoundPlayback = Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0;
 
     if (hasInteractableTiles && usedComponents.has('Input')) {
         usedComponents.add('TileInteraction'); // Enable the call in update_all_entities
-        code += generateTileInteractionSystem(tileCollectorSoundIndex, hasStateMachineSoundPlayback);
+        code += generateTileInteractionSystem(tileCollectorRuntimeConfig, hasStateMachineSoundPlayback);
         code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
     } else {

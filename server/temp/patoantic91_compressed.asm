@@ -19,7 +19,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 110568
+; Estimated payload bytes: 110629
 ; Estimated banks used: 14
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (985 bytes)
@@ -47,10 +47,10 @@
 ; BANK 08 @#0000 : statemachine.asm part 2/4 (8192 bytes)
 ; BANK 09 @#0000 : statemachine.asm part 3/4 (8192 bytes)
 ; BANK 10 @#0000 : statemachine.asm part 4/4 (8192 bytes)
-; BANK 11 @#0000 : statemachine.asm part 5/4 (3526 bytes)
-; BANK 11 @#0DC6 : gameflow.asm part 1/3 (4666 bytes)
+; BANK 11 @#0000 : statemachine.asm part 5/4 (3540 bytes)
+; BANK 11 @#0DD4 : gameflow.asm part 1/3 (4652 bytes)
 ; BANK 12 @#0000 : gameflow.asm part 2/3 (8192 bytes)
-; BANK 13 @#0000 : gameflow.asm part 3/3 (4072 bytes)
+; BANK 13 @#0000 : gameflow.asm part 3/3 (4133 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -939,9 +939,9 @@ COLLISION_EVENT_ITEM        EQU #04
 ; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
 ; ==================================================================
 
-; Goal Variable Values (default)
-GOAL_FAILURE            EQU 0    ; Goal = "Failure"
-GOAL_COMPLETED          EQU 1    ; Goal = "Completed"
+
+; Score - Current player score (0-65535)
+UNKNOWN                 EQU 0    ; Score = "Custom Value"
 
 
 ; ==================================================================
@@ -1021,7 +1021,7 @@ transition_delay_var    EQU #C00F   ; Frames per step for active transition effe
 ; ==================================================================
 ; MIDEAS GLOBAL VARIABLES (DEFAULTS + CUSTOM)
 ; ==================================================================
-global_var_goal     EQU #C010   ; Goal status (0=Failure, 1=Completed)
+global_var_score     EQU #C010   ; Current player score (0-65535) (8-bit)
 
 ; ==================================================================
 ; SYSTEM VARIABLES
@@ -5702,6 +5702,9 @@ check_tile_interaction:
     ; 3. Increment gem_count
     ld hl, gem_count
     inc (hl)
+
+    ; No targetVariable/incrementAmount configured in the Tile Collector UI.
+
 
     ; Tile Collector UI-configured collection sound.
     ; Preserve DE because it still carries the tile index for persistence.
@@ -16665,6 +16668,7 @@ Condition_VariableCompare:
 SM_GlobalVarTable:
     DW gem_count            ; ID 6: gem_count
     DW last_gem_char        ; ID 7: last_gem_char (char of last collected tile)
+    DW global_var_score            ; ID 8: Score
 
 ; ==================================================================
 ; STATE MACHINE DATA
@@ -18942,6 +18946,11 @@ reset_vdp_registers:
 ; Initialize all global variables to their default values
 ; ------------------------------------------------------------------
 init_all_global_variables:
+    ; Initialize global variables
+    ld a, 0
+    ld (global_var_score), a    ; Score low byte = 0
+    ld a, 0
+    ld (global_var_score+1), a    ; Score high byte = 0
     ret
 
 ; ==================================================================

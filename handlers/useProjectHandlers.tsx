@@ -5,6 +5,7 @@ import { DEFAULT_COMPONENT_DEFINITIONS, DEFAULT_ENTITY_TEMPLATES } from '../data
 import { getFormattedDate, generateAsmFileHeader, generateMainAsmContent } from '../utils/projectUtils';
 import { cleanUnusedDefinitions } from '../utils/projectCleanup';
 import { addRecentProject, getRecentProjectData, getRecentProjects } from '../utils/recentProjects';
+import { buildGlobalVariableAsmName, buildGlobalVariableConstantPrefix, normalizeGlobalVariableName } from '../utils/globalVariablesUtils';
 
 interface ProjectHandlersProps {
   assets: ProjectAsset[];
@@ -137,6 +138,103 @@ function sanitizeProjectAssetsForTemplateChanges(
       }
     };
   });
+}
+
+function migrateBuiltInComponentDefinition(component: ComponentDefinition): ComponentDefinition {
+  const defaultComponent = DEFAULT_COMPONENT_DEFINITIONS.find(def => def.id === component.id);
+  if (!defaultComponent) return component;
+
+  const projectProperties = new Map(
+    (component.properties || []).map(property => [property.name, property])
+  );
+
+  const mergedProperties = defaultComponent.properties.map(defaultProperty => {
+    const existingProperty = projectProperties.get(defaultProperty.name);
+    return existingProperty
+      ? { ...defaultProperty, ...existingProperty }
+      : { ...defaultProperty };
+  });
+
+  (component.properties || []).forEach(property => {
+    if (!defaultComponent.properties.some(defaultProperty => defaultProperty.name === property.name)) {
+      mergedProperties.push({ ...property });
+    }
+  });
+
+  return {
+    ...defaultComponent,
+    ...component,
+    properties: mergedProperties,
+  };
+}
+
+function migrateProjectComponentDefinitions(projectComponents?: ComponentDefinition[]): ComponentDefinition[] {
+  if (!Array.isArray(projectComponents) || projectComponents.length === 0) {
+    return DEFAULT_COMPONENT_DEFINITIONS;
+  }
+
+  const projectComponentsMap = new Map(
+    projectComponents.map(component => [component.id, migrateBuiltInComponentDefinition(component)])
+  );
+
+  const mergedComponents = DEFAULT_COMPONENT_DEFINITIONS.map(defaultComponent =>
+    projectComponentsMap.get(defaultComponent.id) || defaultComponent
+  );
+
+  projectComponents.forEach(component => {
+    if (!DEFAULT_COMPONENT_DEFINITIONS.find(defaultComponent => defaultComponent.id === component.id)) {
+      mergedComponents.push(component);
+    }
+  });
+
+  return mergedComponents;
+}
+
+function normalizeLoadedCustomGlobalVariables(customVariables: any[]): { variables: any[]; warnings: string[] } {
+  if (!Array.isArray(customVariables)) {
+    return { variables: [], warnings: [] };
+  }
+
+  const warnings: string[] = [];
+  const variablesByName = new Map<string, any>();
+  const asmNamesInUse = new Map<string, string>();
+
+  customVariables.forEach(variable => {
+    const originalName = typeof variable?.name === 'string' ? variable.name.trim() : '';
+    const normalizedName = normalizeGlobalVariableName(originalName);
+    if (!normalizedName) return;
+
+    const normalizedAsmName = buildGlobalVariableAsmName(normalizedName);
+    const normalizedConstantPrefix = variable?.constantPrefix || buildGlobalVariableConstantPrefix(normalizedName);
+
+    if (originalName && originalName !== normalizedName) {
+      warnings.push(`Se normalizo la variable "${originalName}" como "${normalizedName}".`);
+    }
+
+    if (variablesByName.has(normalizedName)) {
+      warnings.push(`Variable duplicada ignorada al cargar: "${originalName || normalizedName}".`);
+      return;
+    }
+
+    const existingAsmOwner = asmNamesInUse.get(normalizedAsmName.toLowerCase());
+    if (existingAsmOwner) {
+      warnings.push(`Variable ignorada por simbolo ASM duplicado: "${originalName || normalizedName}" usa ${normalizedAsmName}, ya reservado por "${existingAsmOwner}".`);
+      return;
+    }
+
+    variablesByName.set(normalizedName, {
+      ...variable,
+      name: normalizedName,
+      asmName: normalizedAsmName,
+      constantPrefix: normalizedConstantPrefix,
+    });
+    asmNamesInUse.set(normalizedAsmName.toLowerCase(), normalizedName);
+  });
+
+  return {
+    variables: Array.from(variablesByName.values()),
+    warnings,
+  };
 }
 
 export const useProjectHandlers = ({
@@ -416,7 +514,7 @@ export const useProjectHandlers = ({
     setIsSaveAsModalOpen(false);
   };
 
-  const loadProjectFromParsedData = useCallback((projectData: any, { projectName, sourcePath, rawContent }: { projectName: string; sourcePath?: string; rawContent?: string; }) => {
+  const loadProjectFromParsedData = useCallback((projectData: any, { projectName, sourcePath }: { projectName: string; sourcePath?: string; rawContent?: string; }) => {
     try {
       clearAllHistory();
       setCopiedScreenBuffer(null);
@@ -426,6 +524,11 @@ export const useProjectHandlers = ({
       setSelectedEntityInstanceId(null);
 
       let loadedAssets: ProjectAsset[] = [];
+      const loadWarnings: string[] = [];
+      const migratedComponentDefinitions = migrateProjectComponentDefinitions(projectData.componentDefinitions);
+      const migratedComponentMap = new Map(
+        migratedComponentDefinitions.map(component => [component.id, component])
+      );
 
       if (projectData.assets) {
         const normalizeCondition = (cond: any): any => {
@@ -455,6 +558,27 @@ export const useProjectHandlers = ({
         loadedAssets = projectData.assets.map((asset: ProjectAsset) => {
           if (asset.type === 'screenmap' && asset.data && !(asset.data as ScreenMap).effectZones) {
             return { ...asset, data: { ...(asset.data as ScreenMap), effectZones: [] } };
+          }
+          if (asset.type === 'globalvariables' && asset.data) {
+            const data = asset.data as any;
+            const normalization = normalizeLoadedCustomGlobalVariables(data.customVariables || []);
+            if (normalization.warnings.length > 0) {
+              loadWarnings.push(...normalization.warnings);
+            }
+            return {
+              ...asset,
+              data: {
+                ...data,
+                customVariables: normalization.variables,
+              },
+            };
+          }
+          if (asset.type === 'componentdefinition' && asset.data) {
+            const component = asset.data as ComponentDefinition;
+            return {
+              ...asset,
+              data: migratedComponentMap.get(component.id) || migrateBuiltInComponentDefinition(component),
+            };
           }
           if (asset.type === 'statemachine' && asset.data) {
             const sm: any = asset.data as any;
@@ -503,37 +627,13 @@ export const useProjectHandlers = ({
         localStorage.setItem('tileBanksConfig', JSON.stringify(projectData.tileBanks));
       }
 
-      if (projectData.componentDefinitions) {
-        const projectComponentsMap = new Map(
-          projectData.componentDefinitions.map((comp: ComponentDefinition) => [comp.id, comp])
-        );
-
-        const mergedComponents = DEFAULT_COMPONENT_DEFINITIONS.map(defaultComp =>
-          projectComponentsMap.get(defaultComp.id) || defaultComp
-        );
-
-        projectData.componentDefinitions.forEach((comp: ComponentDefinition) => {
-          if (!DEFAULT_COMPONENT_DEFINITIONS.find(dc => dc.id === comp.id)) {
-            mergedComponents.push(comp);
-          }
-        });
-
-        setComponentDefinitionsState(mergedComponents);
-      } else {
-        setComponentDefinitionsState(DEFAULT_COMPONENT_DEFINITIONS);
-      }
+      setComponentDefinitionsState(migratedComponentDefinitions);
 
       let templatesForSanitization: EntityTemplate[] = DEFAULT_ENTITY_TEMPLATES;
       if (projectData.entityTemplates) {
         const cleanedEntityTemplates = projectData.entityTemplates.map((template: EntityTemplate) => {
           const cleanedComponents = template.components.map(comp => {
-            const allComponents = projectData.componentDefinitions
-              ? [...projectData.componentDefinitions, ...DEFAULT_COMPONENT_DEFINITIONS.filter(dc =>
-                !projectData.componentDefinitions.find((pc: ComponentDefinition) => pc.id === dc.id)
-              )]
-              : DEFAULT_COMPONENT_DEFINITIONS;
-
-            const componentDef = allComponents.find((cd: ComponentDefinition) => cd.id === comp.definitionId);
+            const componentDef = migratedComponentDefinitions.find((cd: ComponentDefinition) => cd.id === comp.definitionId);
             if (!componentDef) return comp;
 
             const cleanedDefaultValues: Record<string, any> = {};
@@ -571,10 +671,32 @@ export const useProjectHandlers = ({
       const finalProjectName = projectData.currentProjectName || projectName || 'msx_ide_project';
       setCurrentProjectName(finalProjectName);
 
-      const cachedData = rawContent || JSON.stringify(projectData);
+      const cachedProjectData = {
+        ...projectData,
+        assets: loadedAssets.length > 0 ? loadedAssets : projectData.assets,
+        componentDefinitions: migratedComponentDefinitions,
+        entityTemplates: templatesForSanitization,
+      };
+      const cachedData = JSON.stringify(cachedProjectData);
       addRecentProject(finalProjectName, sourcePath || finalProjectName, cachedData);
 
       setStatusBarMessage(`Project "${finalProjectName}" loaded successfully.`);
+      if (loadWarnings.length > 0) {
+        const summary = loadWarnings.length > 4
+          ? `${loadWarnings.slice(0, 4).join(' ')} Se aplicaron ${loadWarnings.length} ajustes en total.`
+          : loadWarnings.join(' ');
+
+        setConfirmModalProps({
+          title: 'Validacion de Variables Globales',
+          message: summary,
+          onConfirm: () => setIsConfirmModalOpen(false),
+          onCancel: () => setIsConfirmModalOpen(false),
+          confirmText: 'OK',
+          cancelText: 'Cerrar',
+          confirmButtonVariant: 'secondary'
+        });
+        setIsConfirmModalOpen(true);
+      }
     } catch (error) {
       console.error('Error loading project:', error);
       setStatusBarMessage('Error loading project file. Please check the file format.');
@@ -594,6 +716,8 @@ export const useProjectHandlers = ({
     setSelectedAssetId,
     setSelectedEffectZoneId,
     setSelectedEntityInstanceId,
+    setConfirmModalProps,
+    setIsConfirmModalOpen,
     setStatusBarMessage,
     setTileBanksState
   ]);

@@ -5,6 +5,11 @@ import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
 import { PlusCircleIcon, TrashIcon, SaveIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
+import {
+  buildGlobalVariableAsmName,
+  buildGlobalVariableConstantPrefix,
+  normalizeGlobalVariableName,
+} from '../../utils/globalVariablesUtils';
 
 interface GlobalVariablesEditorProps {
   currentAsset: { id: string; name: string; type: string; data: GlobalVariablesAsset };
@@ -26,6 +31,13 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
   onUpdateAsset,
 }) => {
   const globalVarsAsset = currentAsset.data as GlobalVariablesAsset;
+  const editableFieldClassName = 'w-full p-2 text-sm text-msx-textcolor placeholder:text-gray-400 bg-msx-bgcolor-dark border border-msx-border rounded';
+  const readOnlyFieldClassName = 'w-full p-2 text-sm text-gray-300 bg-gray-700 border border-msx-border rounded opacity-75';
+  const compactFieldClassName = 'p-1 text-sm text-msx-textcolor placeholder:text-gray-400 bg-msx-bgcolor border border-msx-border rounded';
+  const darkControlStyle: React.CSSProperties = {
+    colorScheme: 'dark',
+    WebkitTextFillColor: 'rgb(243 244 246)',
+  };
 
   // Ensure customVariables is always an array
   if (!globalVarsAsset.customVariables) {
@@ -37,6 +49,47 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   const [variableToDelete, setVariableToDelete] = useState<MideasGlobalVariable | null>(null);
   const [isDefaultsModalOpen, setIsDefaultsModalOpen] = useState(false);
+  const [duplicateErrorMessage, setDuplicateErrorMessage] = useState<string | null>(null);
+
+  const openDuplicateError = (message: string) => {
+    setDuplicateErrorMessage(message);
+  };
+
+  const closeDuplicateError = () => {
+    setDuplicateErrorMessage(null);
+  };
+
+  const findDuplicateConflict = (
+    candidateName: string,
+    currentVariableName?: string | null
+  ): { type: 'name' | 'asm'; variableName: string } | null => {
+    const normalizedCandidateName = normalizeGlobalVariableName(candidateName);
+    if (!normalizedCandidateName) return null;
+
+    const candidateAsmName = buildGlobalVariableAsmName(normalizedCandidateName).toLowerCase();
+    const normalizedCurrentName = currentVariableName
+      ? normalizeGlobalVariableName(currentVariableName)
+      : null;
+
+    for (const variable of globalVarsAsset.customVariables) {
+      const normalizedExistingName = normalizeGlobalVariableName(variable.name);
+      const existingAsmName = (variable.asmName || buildGlobalVariableAsmName(normalizedExistingName)).trim().toLowerCase();
+
+      if (normalizedCurrentName && normalizedExistingName === normalizedCurrentName) {
+        continue;
+      }
+
+      if (normalizedExistingName === normalizedCandidateName) {
+        return { type: 'name', variableName: variable.name };
+      }
+
+      if (existingAsmName === candidateAsmName) {
+        return { type: 'asm', variableName: variable.name };
+      }
+    }
+
+    return null;
+  };
 
   useEffect(() => {
     if (selectedVariableId) {
@@ -60,10 +113,11 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
   };
 
   const handleAddNewVariable = () => {
+    const defaultName = 'NewVariable';
     const newVar: Partial<MideasGlobalVariable> = {
-      name: 'NewVariable',
-      asmName: 'global_var_new_variable',
-      constantPrefix: 'NEW_VAR_',
+      name: defaultName,
+      asmName: buildGlobalVariableAsmName(defaultName),
+      constantPrefix: buildGlobalVariableConstantPrefix(defaultName),
       type: 'byte',
       description: '',
       category: 'special',
@@ -75,9 +129,9 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
 
   const handleAddFromDefaults = (defaultVar: MideasGlobalVariable) => {
     // Check if variable with same name already exists
-    const exists = globalVarsAsset.customVariables.some(v => v.name === defaultVar.name);
-    if (exists) {
-      alert(`Variable "${defaultVar.name}" already exists in custom variables.`);
+    const conflict = findDuplicateConflict(defaultVar.name);
+    if (conflict) {
+      openDuplicateError(`La variable "${defaultVar.name}" ya existe en Custom Variables.`);
       return;
     }
 
@@ -103,9 +157,8 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
 
       // Auto-update asmName when name changes
       if (field === 'name') {
-        const asmName = `global_var_${value.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
-        updates.asmName = asmName;
-        updates.constantPrefix = `${value.toUpperCase()}_`;
+        updates.asmName = buildGlobalVariableAsmName(value);
+        updates.constantPrefix = buildGlobalVariableConstantPrefix(value);
       }
 
       setEditingVariable(prev => prev ? { ...prev, ...updates } : null);
@@ -160,11 +213,22 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
       return;
     }
 
+    const normalizedName = normalizeGlobalVariableName(editingVariable.name);
+    const duplicateConflict = findDuplicateConflict(normalizedName, selectedVariableId);
+    if (duplicateConflict) {
+      if (duplicateConflict.type === 'name') {
+        openDuplicateError(`Nombre duplicado: "${normalizedName}" ya existe en Custom Variables.`);
+      } else {
+        openDuplicateError(`Simbolo ASM duplicado: "${buildGlobalVariableAsmName(normalizedName)}" ya lo usa "${duplicateConflict.variableName}".`);
+      }
+      return;
+    }
+
     // Ensure all required fields are present
     const variableToSave: MideasGlobalVariable = {
-      name: editingVariable.name,
-      asmName: editingVariable.asmName || `global_var_${editingVariable.name.toLowerCase()}`,
-      constantPrefix: editingVariable.constantPrefix || `${editingVariable.name.toUpperCase()}_`,
+      name: normalizedName,
+      asmName: buildGlobalVariableAsmName(normalizedName),
+      constantPrefix: editingVariable.constantPrefix || buildGlobalVariableConstantPrefix(normalizedName),
       type: editingVariable.type || 'byte',
       description: editingVariable.description || '',
       values: editingVariable.values || [],
@@ -193,6 +257,7 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
 
     onUpdateAsset({ customVariables: updatedVariables });
     setSelectedVariableId(variableToSave.name);
+    setEditingVariable({ ...variableToSave, values: variableToSave.values.map(v => ({ ...v })) });
   };
 
   const handleDeleteVariable = (variable: MideasGlobalVariable) => {
@@ -285,7 +350,8 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
                     type="text"
                     value={editingVariable.name || ''}
                     onChange={(e) => handleVariableChange('name', e.target.value)}
-                    className="w-full p-2 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                    className={editableFieldClassName}
+                    style={darkControlStyle}
                     placeholder="e.g., PlayerPower"
                   />
                 </div>
@@ -296,7 +362,8 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
                     type="text"
                     value={editingVariable.asmName || ''}
                     readOnly
-                    className="w-full p-2 text-sm bg-gray-700 border border-msx-border rounded opacity-75"
+                    className={readOnlyFieldClassName}
+                    style={darkControlStyle}
                   />
                 </div>
 
@@ -306,7 +373,8 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
                     type="text"
                     value={editingVariable.constantPrefix || ''}
                     onChange={(e) => handleVariableChange('constantPrefix', e.target.value)}
-                    className="w-full p-2 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                    className={editableFieldClassName}
+                    style={darkControlStyle}
                     placeholder="e.g., POWER_"
                   />
                 </div>
@@ -317,7 +385,8 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
                     type="text"
                     value={editingVariable.description || ''}
                     onChange={(e) => handleVariableChange('description', e.target.value)}
-                    className="w-full p-2 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                    className={editableFieldClassName}
+                    style={darkControlStyle}
                     placeholder="What does this variable represent?"
                   />
                 </div>
@@ -328,7 +397,8 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
                     <select
                       value={editingVariable.type || 'byte'}
                       onChange={(e) => handleVariableChange('type', e.target.value)}
-                      className="w-full p-2 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                      className={editableFieldClassName}
+                      style={darkControlStyle}
                     >
                       {VARIABLE_TYPES.map(type => (
                         <option key={type} value={type}>{TYPE_LABELS[type] || type}</option>
@@ -341,7 +411,8 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
                     <select
                       value={editingVariable.category || 'special'}
                       onChange={(e) => handleVariableChange('category', e.target.value)}
-                      className="w-full p-2 text-sm bg-msx-bgcolor-dark border border-msx-border rounded"
+                      className={editableFieldClassName}
+                      style={darkControlStyle}
                     >
                       {VARIABLE_CATEGORIES.map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
@@ -369,21 +440,24 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
                           type="text"
                           value={val.label}
                           onChange={(e) => handleValueChange(idx, 'label', e.target.value)}
-                          className="flex-1 p-1 text-sm bg-msx-bgcolor border border-msx-border rounded"
+                          className={`flex-1 ${compactFieldClassName}`}
+                          style={darkControlStyle}
                           placeholder="Label"
                         />
                         <input
                           type="number"
                           value={val.value}
                           onChange={(e) => handleValueChange(idx, 'value', parseInt(e.target.value) || 0)}
-                          className="w-20 p-1 text-sm bg-msx-bgcolor border border-msx-border rounded"
+                          className={`w-20 ${compactFieldClassName}`}
+                          style={darkControlStyle}
                           placeholder="Value"
                         />
                         <input
                           type="text"
                           value={val.asmConstant || ''}
                           readOnly
-                          className="flex-1 p-1 text-sm bg-gray-700 border border-msx-border rounded opacity-75"
+                          className={`flex-1 ${readOnlyFieldClassName.replace('w-full p-2', 'p-1')}`}
+                          style={darkControlStyle}
                           placeholder="ASM Constant"
                         />
                         <button
@@ -420,6 +494,17 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
         }}
       />
 
+      <ConfirmationModal
+        isOpen={Boolean(duplicateErrorMessage)}
+        title="Error de Duplicacion"
+        message={duplicateErrorMessage || ''}
+        onConfirm={closeDuplicateError}
+        onCancel={closeDuplicateError}
+        confirmText="OK"
+        cancelText="Cerrar"
+        confirmButtonVariant="secondary"
+      />
+
       {/* Defaults Selection Modal */}
       {isDefaultsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -436,7 +521,7 @@ export const GlobalVariablesEditor: React.FC<GlobalVariablesEditorProps> = ({
             <div className="flex-1 overflow-y-auto p-4" style={{ scrollbarWidth: 'thin' }}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {MIDEAS_GLOBAL_VARIABLES.map((defaultVar) => {
-                  const alreadyExists = globalVarsAsset.customVariables.some(v => v.name === defaultVar.name);
+                  const alreadyExists = Boolean(findDuplicateConflict(defaultVar.name));
 
                   return (
                     <div

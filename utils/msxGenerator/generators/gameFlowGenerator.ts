@@ -696,13 +696,32 @@ init_all_global_variables:
     analysis.globalVariables.forEach((v: any) => {
       const varName = v.name;
       const asmVarName = v.asmName || `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+      const type = String(v.type || '').toLowerCase();
 
-      // Use first value from values array as initial value (or 0 if no values)
-      const initialValue = v.values && v.values.length > 0 ? v.values[0].value : 0;
-      const value = typeof initialValue === 'boolean' ? (initialValue ? 1 : 0) : initialValue;
+      // Use first value from values array as initial value (or 0 if no values).
+      // Built-in variables may use placeholder strings like "number"; those are not valid ASM immediates,
+      // so any non-numeric placeholder falls back to 0 for ROM initialization.
+      const rawInitialValue = v.values && v.values.length > 0 ? v.values[0].value : 0;
+      let numericValue = 0;
 
-      code += `    ld a, ${value}\n`;
-      code += `    ld (${asmVarName}), a    ; ${varName} = ${initialValue}\n`;
+      if (typeof rawInitialValue === 'boolean') {
+        numericValue = rawInitialValue ? 1 : 0;
+      } else {
+        const parsedValue = Number(rawInitialValue);
+        numericValue = Number.isFinite(parsedValue) ? Math.trunc(parsedValue) : 0;
+      }
+
+      if (type === 'word' || type === '16bit') {
+        const wordValue = Math.max(0, Math.min(65535, numericValue));
+        code += `    ld a, ${wordValue & 0xFF}\n`;
+        code += `    ld (${asmVarName}), a    ; ${varName} low byte = ${wordValue}\n`;
+        code += `    ld a, ${(wordValue >> 8) & 0xFF}\n`;
+        code += `    ld (${asmVarName}+1), a    ; ${varName} high byte = ${wordValue}\n`;
+      } else {
+        const byteValue = Math.max(0, Math.min(255, numericValue));
+        code += `    ld a, ${byteValue}\n`;
+        code += `    ld (${asmVarName}), a    ; ${varName} = ${byteValue}\n`;
+      }
     });
   }
 
