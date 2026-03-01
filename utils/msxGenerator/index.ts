@@ -74,6 +74,7 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     templates: [], // Added missing property
     entities: summary.assets.entities as any[],
     sprites: summary.assets.sprites as any[],
+    sounds: [],
     tiles: summary.assets.tiles as any[],
     screens: summary.assets.screens as any[], // Added alias
     screenMaps: summary.assets.screens as any[], // Added missing property
@@ -141,6 +142,7 @@ export function generateModularASM(
       templates: [],
       entities: [],
       sprites: [],
+      sounds: [],
       tiles: [],
       screens: [],
       screenMaps: [],
@@ -186,7 +188,7 @@ export function generateModularASM(
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
     'particles.asm': generateParticlesFile(analysis),
-    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates) : '; No State Machines\n',
+    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds) : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(projectName, analysis),
     'unitedFiles.asm': ''
@@ -274,7 +276,7 @@ export function generateModularASMFromSummary(
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
     'particles.asm': generateParticlesFile(analysis),
-    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates) : '; No State Machines\n',
+    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds) : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis),
     'unitedFiles.asm': ''

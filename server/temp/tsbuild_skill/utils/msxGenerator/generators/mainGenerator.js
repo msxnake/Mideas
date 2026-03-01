@@ -76,11 +76,17 @@ include "hud.asm"
 ; 14. Menus (user interface)
 include "menus.asm"
 
-${analysis.stateMachines && analysis.stateMachines.length > 0 ? `; 15. State Machines (entity AI)
+; 14.5 Sound system (PSG sound effects)
+include "sound.asm"
+
+; 15. Animated tiles (background frame updates)
+include "animtiles.asm"
+
+${analysis.stateMachines && analysis.stateMachines.length > 0 ? `; 16. State Machines (entity AI)
 include "statemachine.asm"
 ` : ''}
 
-; 16. GameFlow (game flow state machine)
+; 17. GameFlow (game flow state machine)
 include "gameflow.asm"
 
 ; ==================================================================

@@ -583,6 +583,7 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
   let colorDecompressedInCurrentFunction = false;
   let inLoadSpritePatterns = false;
   let inUpdateAnimation = false;
+  let inActionChangeSprite = false;
   let inSubmenuPrepareCursor = false;
   let fontBlobInitInjected = false;
 
@@ -598,6 +599,16 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
     if (selectedSpritePatternGroups.length > 0 && /^\s*update_animation_component:\s*$/i.test(line)) {
       inLoadSpritePatterns = false;
       inUpdateAnimation = true;
+      inActionChangeSprite = false;
+      inSubmenuPrepareCursor = false;
+      patched.push(line);
+      continue;
+    }
+
+    if (selectedSpritePatternGroups.length > 0 && /^\s*Action_ChangeSprite:\s*$/i.test(line)) {
+      inLoadSpritePatterns = false;
+      inUpdateAnimation = false;
+      inActionChangeSprite = true;
       inSubmenuPrepareCursor = false;
       patched.push(line);
       continue;
@@ -606,20 +617,26 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
     if (selectedSpritePatternGroups.length > 0 && /^\s*submenu_prepare_cursor_sprite:\s*$/i.test(line)) {
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
+      inActionChangeSprite = false;
       inSubmenuPrepareCursor = true;
       patched.push(line);
       continue;
     }
 
-    if (/^\s*[A-Za-z_][A-Za-z0-9_]*:\s*$/.test(line) && !/^\s*submenu_prepare_cursor_sprite:\s*$/i.test(line)) {
+    if (/^\s*[A-Za-z_][A-Za-z0-9_]*:\s*$/.test(line)) {
+      if (!/^\s*Action_ChangeSprite:\s*$/i.test(line)) {
+        inActionChangeSprite = false;
+      }
       inSubmenuPrepareCursor = false;
     }
 
     if (
       selectedSpritePatternGroups.length > 0 &&
-      (inLoadSpritePatterns || inUpdateAnimation || inSubmenuPrepareCursor) &&
+      (inLoadSpritePatterns || inUpdateAnimation || inActionChangeSprite || inSubmenuPrepareCursor) &&
       /^\s*call\s+FAST_LDIRVM\s*(?:;.*)?$/i.test(line)
     ) {
+      // Compressed exports remap sprite labels to ZX0 blobs, so sprite uploads in
+      // these routines must go through the decompressing copy helper, not raw FAST_LDIRVM.
       patched.push('    call COPY_SPRITE_SRC_TO_VRAM');
       continue;
     }
@@ -778,12 +795,13 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
       continue;
     }
 
-    if ((inLoadScreen || inLoadPattern || inLoadColor || inLoadSpritePatterns || inUpdateAnimation) && /^\s*ret\s*$/i.test(line)) {
+    if ((inLoadScreen || inLoadPattern || inLoadColor || inLoadSpritePatterns || inUpdateAnimation || inActionChangeSprite) && /^\s*ret\s*$/i.test(line)) {
       inLoadScreen = false;
       inLoadPattern = false;
       inLoadColor = false;
       inLoadSpritePatterns = false;
       inUpdateAnimation = false;
+      inActionChangeSprite = false;
       layoutDecompressedInCurrentFunction = false;
       behaviorDecompressedInCurrentFunction = false;
       patternDecompressedInCurrentFunction = false;

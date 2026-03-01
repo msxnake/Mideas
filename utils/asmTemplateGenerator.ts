@@ -24,6 +24,7 @@ export interface ProjectAnalysis {
   components: ComponentDefinition[];
   templates: EntityTemplate[];
   sprites: Sprite[];
+  sounds?: any[];
   tiles: Tile[];
   screenMaps: ScreenMap[];
   screens: ScreenMap[];   // Added alias for compatibility
@@ -65,6 +66,13 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
   const components = assets.filter(a => a.type === 'componentdefinition').map(a => a.data as ComponentDefinition);
   const templates = assets.filter(a => a.type === 'entitytemplate').map(a => a.data as EntityTemplate);
   const sprites = assets.filter(a => a.type === 'sprite').map(a => a.data as Sprite);
+  const sounds = assets
+    .filter(a => a.type === 'sound')
+    .map(a => ({
+      ...(a.data as any),
+      id: (a.data as any)?.id || a.id,
+      name: (a.data as any)?.name || a.name
+    }));
   const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
   const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
@@ -145,6 +153,7 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     components,
     templates,
     sprites,
+    sounds,
     tiles,
     screenMaps,
     screens: screenMaps, // Added alias

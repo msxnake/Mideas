@@ -69,7 +69,14 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
         <tbody className="bg-msx-panelbg">
           {transitions.map(transition => (
             <React.Fragment key={transition.id}>
-              <tr className="border-b border-msx-border group cursor-pointer" onClick={() => setEditingTransitionId(editingTransitionId === transition.id ? null : transition.id)}>
+              <tr
+                className={`border-b border-msx-border group cursor-pointer transition-colors ${
+                  editingTransitionId === transition.id
+                    ? 'bg-orange-500/15'
+                    : 'hover:bg-white/5'
+                }`}
+                onClick={() => setEditingTransitionId(editingTransitionId === transition.id ? null : transition.id)}
+              >
                 <td className="py-2 px-4">
                   {transition.fromStateId === '__ANY_STATE__'
                     ? <span className="font-bold text-msx-primary">Any State (*)</span>
@@ -89,7 +96,7 @@ export const TransitionsEditor: React.FC<TransitionsEditorProps> = ({
               </tr>
               {editingTransitionId === transition.id && (
                 <tr className="border-b border-msx-border">
-                  <td colSpan={4} className="p-2 bg-msx-bgcolor-dark space-y-3">
+                  <td colSpan={4} className="p-2 bg-orange-500/5 border-l-2 border-orange-400 space-y-3">
                     <div>
                       <h5 className="text-xs font-bold mb-2">Condition</h5>
                       <ConditionBuilder

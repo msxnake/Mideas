@@ -107,16 +107,29 @@ ${(0, registerContract_1.buildRegisterContractComment)({
 ;
 ; Notes:
 ;   - Auto-increments VRAM address (VDP feature)
-;   - Safe to use with interrupts enabled
+;   - Briefly masks IRQs only while programming the VDP address latch
+;   - Restores the previous IRQ enable state before the data loop starts
 ;   - Works on all MSX models (TMS9918, V9938, V9958)
 ; ==================================================================
 FAST_LDIRVM:
+    ; Preserve previous IRQ state (LD A,I copies IFF2 into P/V)
+    ld a, i
+    push af
+    di
+
     ; Set VRAM write address
     ld a, e
     out (#99), a           ; Write address low byte to VDP
+    nop                    ; Real VDPs need a short settle time between control writes
     ld a, d
     or #40                 ; Set bit 6 for write mode
     out (#99), a           ; Write address high byte + write command
+    nop                    ; Let the VDP latch the address before the first data write
+
+    ; Restore previous IRQ state before the bulk copy loop
+    pop af
+    jp po, .ldirvm_loop    ; P/V=0 => IRQs were already disabled
+    ei
 
     ; Copy loop
 .ldirvm_loop:
@@ -171,14 +184,27 @@ ${(0, registerContract_1.buildRegisterContractComment)({
 ;   Total: 11,776 cycles (saves ~500 cycles vs generic)
 ; ==================================================================
 FAST_LDIRVM_256:
+    ; Preserve previous IRQ state (LD A,I copies IFF2 into P/V)
+    ld a, i
+    push af
+    di
+
     ; Set VRAM write address
     ld a, e
     out (#99), a
+    nop
     ld a, d
     or #40
     out (#99), a
+    nop
+
+    ; Restore previous IRQ state before the bulk copy loop
+    pop af
+    jp po, .ldirvm_256_begin
+    ei
 
     ; Copy 256 bytes using DJNZ (B=0 means 256)
+.ldirvm_256_begin:
     ld b, 0                ; B = 256 (wraps from 0)
 .ldirvm_256_loop:
     ld a, (hl)
@@ -286,6 +312,7 @@ FAST_RDVRM:
     ld a, h
     and #3F                ; Clear bit 6 for read mode (bit 7 must be 0)
     out (#99), a           ; Address high + read command
+    nop                    ; VDP needs time to process address before read
     in a, (#98)            ; Read from VRAM data port
     ret
 

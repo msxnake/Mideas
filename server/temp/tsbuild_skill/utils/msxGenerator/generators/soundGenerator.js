@@ -342,10 +342,63 @@ sfx_damage:
 ; This section provides a simple sound effect manager that can
 ; play effects with automatic duration and fadeout
 
-; Sound effect state
-sfx_active:         db 0         ; 0=no sfx, 1=playing
-sfx_timer:          db 0         ; Frames remaining
-sfx_fadeout:        db 0         ; Fadeout flag
+; Runtime state lives in variables.asm:
+;   sfx_active, sfx_timer, sfx_fadeout
+
+; ------------------------------------------------------------------
+; play_sound_effect
+; Play one of the built-in sound effects by ID
+; Input:  A = sound ID
+;         0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+play_sound_effect:
+    cp 1
+    jp z, play_sound_effect_jump
+    cp 2
+    jp z, play_sound_effect_shoot
+    cp 3
+    jp z, play_sound_effect_explosion
+    cp 4
+    jp z, play_sound_effect_coin
+    cp 5
+    jp z, play_sound_effect_damage
+
+play_sound_effect_beep:
+    ld hl, sfx_beep
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_jump:
+    ld hl, sfx_jump
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_shoot:
+    ld hl, sfx_shoot
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_explosion:
+    ld hl, sfx_explosion
+    ld b, SFX_MEDIUM
+    call sfx_play
+    ret
+
+play_sound_effect_coin:
+    ld hl, sfx_coin
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_damage:
+    ld hl, sfx_damage
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
 
 ; ------------------------------------------------------------------
 ; sfx_play

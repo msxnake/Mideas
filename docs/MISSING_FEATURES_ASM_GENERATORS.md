@@ -513,6 +513,14 @@ Este documento lista todas las funcionalidades implementadas en GameFlowPreviewM
 - OpenMSX automation para capturas comparativas
 - Glass.jar compilation validation
 
+### Nota 2026-03-01: PLAY_SOUND en State Machine
+- `PLAY_SOUND` de state machine ya esta operativo en ASM.
+- La ruta corregida serializa el sound asset real por indice, en lugar de degradar `soundId` textuales a `0`.
+- En runtime, `Action_PlaySound` usa `SM_PlaySoundAsset` y el loop principal avanza el audio con `SM_UpdateSound`.
+- Esto corrige el bug observado en `land` del Hero: antes solo sonaba un tono fijo y el PSG podia quedar colgado sin silenciarse.
+- La exportacion actual de state machine reproduce el sound asset como una secuencia one-shot a 60 Hz.
+- Limitaciones actuales: los loops de canal se aplanan a una sola pasada y el hardware envelope todavia no se emite en esta ruta.
+
 ---
 
 **Última actualización**: 2025-12-17

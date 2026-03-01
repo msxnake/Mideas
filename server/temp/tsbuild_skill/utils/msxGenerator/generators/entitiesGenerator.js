@@ -341,6 +341,7 @@ update_entities:
                 usedComponentNames.push('Gravity');
             // Check if entity has Input/Cursors component and extract direction restrictions
             let directionMask = 0x0F; // Default: all directions enabled (binary 00001111)
+            let inputSpeed = 2; // Default cursor speed (px/frame)
             if (componentMask & 0x10) { // Has Input component
                 // Find Cursors component in template
                 const cursorsComp = template?.components.find((c) => c.definitionId === 'comp_cursors' || c.definitionId === 'comp_input' || c.definitionId === 'comp_player_input');
@@ -350,6 +351,8 @@ update_entities:
                     // Merge with entity-specific overrides if they exist
                     const overrides = entity.componentOverrides?.['comp_cursors'] || {};
                     const finalValues = { ...defaultValues, ...overrides };
+                    // Cursors speed comes from template/UI (default + per-entity override)
+                    inputSpeed = Math.max(1, parseByte(finalValues.speed ?? 2, 2));
                     // Build direction mask based on allow* properties
                     // Bit 0 = UP, Bit 1 = DOWN, Bit 2 = LEFT, Bit 3 = RIGHT
                     directionMask = 0;
@@ -525,6 +528,18 @@ update_entities:
     ld (entity_sm_ptr_l + ${index}), a   ; SM ptr low byte
     ld a, h
     ld (entity_sm_ptr_h + ${index}), a   ; SM ptr high byte
+
+    ; Fire OnEnter of initial state immediately.
+    ; Normally OnEnter fires via SM_ChangeState, but the first state is set
+    ; directly (no transition). Without this call, ChangeSprite / other
+    ; OnEnter actions never run and entity_sprite_asset_index stays at 0.
+    ; State data layout: [ID:1][OnEnter ptr:2][OnExit ptr:2][Transitions ptr:2]
+    ld hl, ${stateLabel} + 1      ; HL = &OnEnter Actions Ptr field
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = OnEnter Actions Ptr (0 if none)
+    ld a, ${index}                ; A = entity index
+    call SM_ExecuteActions        ; safe: SM_ExecuteActions returns immediately if DE=0
 `;
                 }
             }
@@ -699,6 +714,11 @@ ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     ld hl, entity_dir_mask
     add hl, de
     ld (hl), #${directionMask.toString(16).toUpperCase().padStart(2, '0')}            ; Direction restrictions: ${directionDesc}
+
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), ${inputSpeed}            ; Cursor speed (px/frame)
 
 ${hasSprite ? `    ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + ${index}

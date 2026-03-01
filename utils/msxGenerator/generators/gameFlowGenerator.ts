@@ -512,8 +512,14 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
+    ; Advance any active state-machine PLAY_SOUND effect
+    call SM_UpdateSound
+
     ; Update animated background tiles (water, fire, etc.)
     call update_animated_tiles
+
+    ; Update timed PSG sound effects
+    call sfx_update
 
     ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${hasHud ? `
@@ -3104,6 +3110,7 @@ gameflow_world_game_loop:
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
+    call SM_UpdateSound
     call update_animated_tiles
     ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${defaultHasHud ? `    call render_hud

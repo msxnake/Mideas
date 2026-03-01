@@ -4307,7 +4307,97 @@ wall_sub_signed_offset_clamped:
  * (mapId & #08 != 0 = NoSolid+Interactable, e.g. gems/coins on the screen map).
  * On contact: clears tile from VRAM Name Table + runtime_behavior_map, increments gem_count.
  */
-function generateTileInteractionSystem(): string {
+function buildSoundAssetIndexMap(sounds?: any[]): Record<string, number> {
+    const soundMap: Record<string, number> = {};
+    (sounds || []).forEach((sound, index) => {
+        const id = typeof sound?.id === 'string' ? sound.id : '';
+        const name = typeof sound?.name === 'string' ? sound.name : '';
+        if (id) {
+            soundMap[id] = index;
+            soundMap[id.toLowerCase()] = index;
+        }
+        if (name) {
+            soundMap[name] = index;
+            soundMap[name.toLowerCase()] = index;
+        }
+    });
+    return soundMap;
+}
+
+function resolveSoundAssetIndex(soundRef: any, soundMap: Record<string, number>): number | null {
+    if (typeof soundRef === 'number' && Number.isFinite(soundRef)) {
+        return Math.max(0, Math.min(255, soundRef | 0));
+    }
+
+    if (typeof soundRef === 'string') {
+        const trimmed = soundRef.trim();
+        if (!trimmed) return null;
+        const directIndex = soundMap[trimmed];
+        if (directIndex !== undefined) return directIndex;
+        const lowerIndex = soundMap[trimmed.toLowerCase()];
+        if (lowerIndex !== undefined) return lowerIndex;
+        const parsedIndex = parseInt(trimmed, 10);
+        if (!isNaN(parsedIndex)) return Math.max(0, Math.min(255, parsedIndex));
+    }
+
+    return null;
+}
+
+function resolveTileCollectorSoundIndex(analysis: ProjectAnalysis): number | null {
+    const soundMap = buildSoundAssetIndexMap((analysis as any).sounds);
+
+    if (Object.keys(soundMap).length === 0) {
+        return null;
+    }
+
+    const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
+    for (const entity of entities as any[]) {
+        const overrideProps = entity?.componentOverrides?.['comp_tile_collector'];
+        const soundIndex = resolveSoundAssetIndex(overrideProps?.collectionSoundId, soundMap);
+        if (soundIndex !== null) {
+            return soundIndex;
+        }
+    }
+
+    const templates = Array.isArray(analysis.templates) ? analysis.templates : [];
+
+    for (const template of templates as any[]) {
+        const collectorComp = template?.components?.find((c: any) => c.definitionId === 'comp_tile_collector');
+        if (!collectorComp) continue;
+
+        const props = collectorComp.defaultValues || {};
+        if (props.isEnabled === false || props.isEnabled === 'false') continue;
+
+        const soundIndex = resolveSoundAssetIndex(props.collectionSoundId, soundMap);
+        if (soundIndex !== null) {
+            return soundIndex;
+        }
+    }
+
+    return null;
+}
+
+function generateTileInteractionSystem(
+    collectionSoundAssetIndex: number | null,
+    canUseSoundAssetPlayback: boolean
+): string {
+    const collectionSoundCode =
+        collectionSoundAssetIndex !== null && canUseSoundAssetPlayback
+            ? `    ; Tile Collector UI-configured collection sound.
+    ; Preserve DE because it still carries the tile index for persistence.
+    push de
+    ld a, ${collectionSoundAssetIndex}
+    call SM_PlaySoundAsset
+    pop de
+`
+            : collectionSoundAssetIndex !== null
+                ? `    ; collectionSoundId is configured in the Tile Collector UI,
+    ; but this build has no state-machine sound asset runtime.
+    ; Stay silent instead of forcing the wrong built-in beep.
+`
+                : `    ; No collectionSoundId configured in the Tile Collector UI.
+`;
+
     return `
 ; ==================================================================
 ; TILE INTERACTION SYSTEM
@@ -4440,6 +4530,8 @@ check_tile_interaction:
     ; 3. Increment gem_count
     ld hl, gem_count
     inc (hl)
+
+${collectionSoundCode}
 
     ; 4. Record in persistent collected list (survives screen re-entry via apply_collected_tiles)
     ;    FAST_WRTVRM preserves all registers, so DE = idx is still valid here.
@@ -4663,7 +4755,9 @@ update_collectible_component:
     ; ld hl, player_score
     ; inc (hl)
 
-    ; TODO: Play collection sound
+    ; Built-in collection sound (coin)
+    ld a, 4
+    call play_sound_effect
 
     pop bc
 
@@ -5537,10 +5631,12 @@ update_collectible_component:
     // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
     const hasInteractableTiles = Array.isArray(analysis.tiles) &&
         analysis.tiles.some((t: any) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
+    const tileCollectorSoundIndex = resolveTileCollectorSoundIndex(analysis);
+    const hasStateMachineSoundPlayback = Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0;
 
     if (hasInteractableTiles && usedComponents.has('Input')) {
         usedComponents.add('TileInteraction'); // Enable the call in update_all_entities
-        code += generateTileInteractionSystem();
+        code += generateTileInteractionSystem(tileCollectorSoundIndex, hasStateMachineSoundPlayback);
         code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
     } else {

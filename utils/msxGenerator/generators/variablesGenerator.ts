@@ -420,6 +420,19 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   code += `temp_byte_6         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
 
+  // Sound system variables
+  code += `
+; ==================================================================
+; SOUND SYSTEM VARIABLES
+; ==================================================================
+`;
+  code += `sfx_active          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=no SFX active, 1=playing\n`;
+  currentAddress++;
+  code += `sfx_timer           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames remaining for current SFX\n`;
+  currentAddress++;
+  code += `sfx_fadeout         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Reserved fadeout flag/state\n`;
+  currentAddress++;
+
   code += `temp_byte_7         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
 
@@ -563,6 +576,20 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   currentAddress++;
 
   code += `RAM_INTERRUPT_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of interrupt system\n`;
+
+  code += `
+; ==================================================================
+; STATE MACHINE SOUND RUNTIME (one active sound asset)
+; ==================================================================
+`;
+  code += `sm_sound_active       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=idle, 1=playing state-machine sound asset\n`;
+  currentAddress++;
+  code += `sm_sound_frames_left  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames left for current state-machine sound asset\n`;
+  currentAddress++;
+  code += `sm_sound_ptr_l        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Next sound frame pointer low byte\n`;
+  currentAddress++;
+  code += `sm_sound_ptr_h        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Next sound frame pointer high byte\n`;
+  currentAddress++;
 
   // End marker
   code += `

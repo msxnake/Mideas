@@ -164,6 +164,10 @@ function generateVariablesFile(analysis) {
     currentAddress++;
     code += `anim_tile_speed     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames between animation updates\n`;
     currentAddress++;
+    code += `anim_tile_transform_flags EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)\r\n`;
+    currentAddress += 2;
+    code += `anim_tile_row_buffer EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temp buffer (8 bytes) for row transforms\n`;
+    currentAddress += 8;
     // Particle system variables
     code += `
 ; ==================================================================
@@ -197,6 +201,8 @@ MAX_ENTITIES        EQU 32
     currentAddress += 32;
     code += `entity_dir_mask     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity direction mask (32 bytes)\n`;
     currentAddress += 32;
+    code += `entity_input_speed  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity input/cursor speed (32 bytes)\n`;
+    currentAddress += 32;
     code += `entity_health       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity health (32 bytes)\n`;
     currentAddress += 32;
     code += `entity_anim_frame   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity animation frame (32 bytes)\n`;
@@ -224,6 +230,8 @@ MAX_ENTITIES        EQU 32
     currentAddress += 32;
     code += `entity_template_token EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity template token (32 bytes, 0=unknown)\n`;
     currentAddress += 32;
+    code += `entity_facing_dir   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)\n`;
+    currentAddress += 32;
     // State Machine Local Variables (8 vars per entity)
     for (let i = 0; i < 8; i++) {
         code += `entity_sm_var_${i}     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity Variable ${i} (32 bytes)\n`;
@@ -246,6 +254,8 @@ MAX_ENTITIES        EQU 32
     code += `sprite_pattern      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite pattern IDs (32 bytes)\n`;
     currentAddress += 32;
     code += `sprite_color        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Sprite colors (32 bytes)\n`;
+    currentAddress += 32;
+    code += `sprite_layer_colors EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)\n`;
     currentAddress += 32;
     // Interleaved sprite attribute buffer (Y, X, Pattern, Color per sprite)
     code += `sprite_attributes   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Interleaved sprite attributes (32 * 4 bytes)\n`;
@@ -285,6 +295,22 @@ MAX_ENTITIES        EQU 32
         currentAddress++;
         code += `player_score        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Player score (16-bit)\n`;
         currentAddress += 2;
+        code += `gem_count           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Collectible tile counter (8-bit)\n`;
+        currentAddress++;
+        code += `last_gem_char       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)\n`;
+        currentAddress++;
+        code += `\n; Persistent collectibles list (survives screen re-entry)\n`;
+        code += `MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records\n`;
+        code += `collected_count      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of collected tiles recorded (8-bit)\n`;
+        currentAddress++;
+        code += `collected_world      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)\n`;
+        currentAddress += 64;
+        code += `collected_screen     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)\n`;
+        currentAddress += 64;
+        code += `collected_idx_l      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)\n`;
+        currentAddress += 64;
+        code += `collected_idx_h      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)\n`;
+        currentAddress += 64;
     }
     // aux variables
     code += `
@@ -315,6 +341,18 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress += 32;
     code += `temp_byte_6         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
     currentAddress += 32;
+    // Sound system variables
+    code += `
+; ==================================================================
+; SOUND SYSTEM VARIABLES
+; ==================================================================
+`;
+    code += `sfx_active          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=no SFX active, 1=playing\n`;
+    currentAddress++;
+    code += `sfx_timer           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames remaining for current SFX\n`;
+    currentAddress++;
+    code += `sfx_fadeout         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Reserved fadeout flag/state\n`;
+    currentAddress++;
     code += `temp_byte_7         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
     currentAddress += 32;
     code += `temp_byte_8         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;

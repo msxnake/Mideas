@@ -127,8 +127,8 @@ function generateModularASM(projectName, assets, config = {}) {
     const hardwareMode = config.hardwareMode || 'hybrid'; // Default to hybrid mode
     const optimizeLevel = config.optimizeLevel || 'safe';
     const targetFormat = config.targetFormat || 'konami';
-    const romMode = config.romMode || 'auto';
-    const autoMegaROM = config.autoMegaROM ?? true;
+    const romMode = config.romMode || 'simple32k';
+    const autoMegaROM = config.autoMegaROM ?? false;
     // Generate individual files
     console.log('📝 [MSX GENERATOR] Generating all ASM files...');
     console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
@@ -138,13 +138,13 @@ function generateModularASM(projectName, assets, config = {}) {
         'constants.asm': (0, constantsGenerator_1.generateConstantsFile)(analysis),
         'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis),
         'mapper.asm': (0, mapperGenerator_1.generateMapperFile)({ targetFormat, romMode, autoMegaROM }),
-        'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents }),
+        'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode }),
         'header.asm': (0, headerGenerator_1.generateHeaderFile)(projectName, analysis),
         'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis),
         'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis),
         'components.asm': interruptDrivenComponents
             ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
-            : (0, componentsGenerator_1.generateComponentsFile)(analysis),
+            : (0, componentsGenerator_1.generateComponentsFile)(analysis, romMode),
         'entities.asm': (0, entitiesGenerator_1.generateEntitiesFile)(analysis),
         'worlds.asm': (0, worldGenerator_1.generateWorldsFile)(analysis),
         'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis),
@@ -203,8 +203,8 @@ function generateModularASMFromSummary(summary, config = {}) {
     const optimizeLevel = config.optimizeLevel || 'safe';
     console.log(`🔧 Hardware Mode: ${hardwareMode.toUpperCase()}, Optimize: ${optimizeLevel}`);
     const targetFormat = config.targetFormat || 'konami';
-    const romMode = config.romMode || 'auto';
-    const autoMegaROM = config.autoMegaROM ?? true;
+    const romMode = config.romMode || 'simple32k';
+    const autoMegaROM = config.autoMegaROM ?? false;
     console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
     // Generate files using same logic as generateModularASM
     const files = {
@@ -212,13 +212,13 @@ function generateModularASMFromSummary(summary, config = {}) {
         'constants.asm': (0, constantsGenerator_1.generateConstantsFile)(analysis),
         'variables.asm': (0, variablesGenerator_1.generateVariablesFile)(analysis),
         'mapper.asm': (0, mapperGenerator_1.generateMapperFile)({ targetFormat, romMode, autoMegaROM }),
-        'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents }),
+        'interrupt.asm': (0, interruptGenerator_1.generateInterruptFile)(analysis, { interruptDrivenComponents, romMode }),
         'header.asm': (0, headerGenerator_1.generateHeaderFile)(summary.projectInfo.name, analysis),
         'patterns.asm': (0, patternsGenerator_1.generatePatternsFile)(analysis),
         'colors.asm': (0, colorsGenerator_1.generateColorsFile)(analysis),
         'components.asm': interruptDrivenComponents
             ? '; Components are generated inside interrupt.asm (interruptDrivenComponents=true)\n'
-            : (0, componentsGenerator_1.generateComponentsFile)(analysis),
+            : (0, componentsGenerator_1.generateComponentsFile)(analysis, romMode),
         'entities.asm': (0, entitiesGenerator_1.generateEntitiesFile)(analysis),
         'worlds.asm': (0, worldGenerator_1.generateWorldsFile)(analysis),
         'screens.asm': (0, screensGenerator_1.generateScreensFile)(analysis),

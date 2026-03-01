@@ -22,9 +22,9 @@ function toRoutineLabel(name) {
  * @returns ASM code string with all files combined
  */
 function generateUnifiedFile(files, projectName, analysis, config = {
-    romMode: 'auto',
+    romMode: 'simple32k',
     targetFormat: 'konami',
-    autoMegaROM: true
+    autoMegaROM: false
 }) {
     // Check what features are needed
     const hasMenus = analysis.gameFlow?.nodes?.some(node => node.type === 'SubMenu');
@@ -122,12 +122,15 @@ ${analysis.tiles && analysis.tiles.length > 0 ? `    ; Load pattern and color da
     call load_color_bank2
 ` : `    ; No tiles detected - skipping pattern/color loading
 `}
+    ; Initialize animated tile runtime (safe no-op if no animated groups)
+    call init_animated_tiles
+
 ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game entities with real positions from JSON
     call init_entities
 ` : `    ; No entities to initialize
 `}
     ; Initialize sound system
-    call GICINI               ; Initialize PSG
+    call init_sound_system
 
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load the first game screen
     call load_game_screen

@@ -428,10 +428,13 @@ entity_sprite_asset_index_init:
     if (entityAllocations.length < 32) {
         code += `    ds ${32 - entityAllocations.length}, #FF ; Padding\n`;
     }
-    code += ` 
-; Table: Hardware Sprite Layer Colors 
-; Format: db color_index 
-sprite_layer_colors: 
+    // Compute max layer count across all entity allocations (used by SM color update)
+    const maxEntityLayers = Math.max(1, ...entityAllocations.map(a => a.layerCount));
+    code += `SPRITE_MAX_ENTITY_LAYERS EQU ${maxEntityLayers}  ; Max HW sprite layers per entity\n`;
+    code += `
+; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
+; Format: db color_index
+sprite_layer_colors_init:
 `;
     let colorsWritten = 0;
     entityAllocations.forEach(alloc => {
@@ -443,10 +446,30 @@ sprite_layer_colors:
             });
         }
     });
-    // Padding
+    // Padding to fill 32 slots total
     const remainingColors = totalHardwareSprites - colorsWritten;
     if (remainingColors > 0) {
         code += `    ds ${remainingColors}, 0 ; Padding\n`;
+    }
+    // SM_SpriteLayerColorTable: per-sprite color table for Action_ChangeSprite
+    // Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite, in the same layer order
+    // as the sprite pattern blob (usedLayerIndexes order, padded with 0 for empty slots)
+    code += `
+; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
+SM_SpriteLayerColorTable:
+`;
+    sprites.forEach((sprite, index) => {
+        const colors = getSpriteLayerColors(sprite);
+        const paddedColors = [...colors];
+        while (paddedColors.length < maxEntityLayers)
+            paddedColors.push(0);
+        code += `    db ${paddedColors.join(', ')} ; Sprite ${index}: ${sprite.name}\n`;
+    });
+    if (sprites.length === 0) {
+        const zeros = Array(maxEntityLayers).fill(0);
+        code += `    db ${zeros.join(', ')} ; Placeholder\n`;
     }
     code += `
 ; ==================================================================
@@ -454,6 +477,11 @@ sprite_layer_colors:
 ; ==================================================================
 
 init_sprites:
+    ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
+    ld hl, sprite_layer_colors_init
+    ld de, sprite_layer_colors
+    ld bc, 32
+    ldir
     call clear_all_sprites
     call load_sprite_patterns
     xor a

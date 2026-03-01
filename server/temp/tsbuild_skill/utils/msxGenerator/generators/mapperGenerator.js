@@ -48,8 +48,8 @@ function resolveMapperRegisterLayout(format) {
 }
 function generateMapperFile(options = {}) {
     const targetFormat = options.targetFormat || 'konami';
-    const romMode = options.romMode || 'auto';
-    const autoMegaROM = options.autoMegaROM ?? true;
+    const romMode = options.romMode || 'simple32k';
+    const autoMegaROM = options.autoMegaROM ?? false;
     const mapperWritesEnabled = romMode === 'megarom' || (romMode === 'auto' && autoMegaROM);
     if (!mapperWritesEnabled) {
         return `; ==================================================================

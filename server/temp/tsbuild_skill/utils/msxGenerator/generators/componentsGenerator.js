@@ -60,6 +60,7 @@ update_all_entities:
         ['Collision', 'update_collision_component', '8b. Collision detection'],
         ['Collision', 'update_platform_riding', '8c. Platform riding'],
         ['WallCollision', 'update_wallcollision_component', '8d. Wall collision'],
+        ['TileInteraction', 'check_tile_interaction', '8e. Tile interaction (gems/collectibles)'],
         ['Health', 'update_health_component', '9. Health/Death'],
         ['Damage', 'update_damage_component', '10. Damage'],
         ['Animation', 'update_animation_component', '11. Animation'],
@@ -297,10 +298,22 @@ position_update_loop:
     ld (hl), a                 ; Store new X
 
     ; Update Y Position
-    ; Y = Y + VelY
+    ; Y = Y + VelY (defensive clamp to avoid byte-wrap teleports)
     ld hl, entity_vel_y
     add hl, de
-    ld a, (hl)                 ; A = VelY
+    ld a, (hl)                 ; A = VelY (signed)
+    ; Clamp vertical delta to [-16..+16] to avoid single-frame wrap jumps
+    bit 7, a
+    jr z, .pos_vy_positive
+    cp #F0                     ; -16
+    jr nc, .pos_vy_ready       ; already in [-16..-1]
+    ld a, #F0
+    jr .pos_vy_ready
+.pos_vy_positive:
+    cp #11                     ; 17
+    jr c, .pos_vy_ready        ; already in [0..16]
+    ld a, #10                  ; +16
+.pos_vy_ready:
     ld b, a                    ; B = VelY
 
     ld hl, entity_y_pos
@@ -1311,8 +1324,8 @@ ${yDivisionCode}
         ; For now, assume all non - zero tiles are solid
         ; This would read from the behavior map generated from screen data
     call get_behavior_tile; Returns A = behavior value
-    or a
-    jr z, no_tile_collision; 0 = passable
+    and #F0               ; Family bits only (0=NoSolid, #10+=Solid)
+    jr z, no_tile_collision; 0 = passable (NoSolid family)
 
         ; Collision detected - handle it
     call handle_tile_collision
@@ -1511,22 +1524,49 @@ ${yDivisionCode}
  * Generate get_behavior_tile function (shared by Collision and WallCollision systems)
  * Returns behavior value for a tile at (B=row, C=column) using current_behavior_map
  */
-function generateGetBehaviorTile() {
+function generateGetBehaviorTile(romMode = 'simple32k') {
     return `
     ; ------------------------------------------------------------------
     ; get_behavior_tile
-    ; Get behavior value for tile at (B=row, C=column)
-    ; Returns A = behavior value (0 = passable, non-zero = solid)
-    ; Uses current_behavior_map pointer set by load_screen
     ; ------------------------------------------------------------------
+${(0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Read behavior byte for tile at (B=row, C=column) from the runtime behavior map.',
+        inputs: [
+            'B = tile row    (0..23, out-of-range → A=0, passable)',
+            'C = tile column (0..31, out-of-range → A=0, passable)',
+            'current_behavior_map = 16-bit pointer to active screen behavior map',
+            'current_behavior_map_bank = memory bank number (mapper context)',
+        ],
+        outputs: [
+            'A = behavior byte:',
+            '  bits 7-4 (A & #F0): family / solidity class (0x00 = NoSolid, 0x10+ = Solid)',
+            '  bits 3-0 (A & #0F): flag bits (e.g. 0x08 = Interactable)',
+        ],
+        clobbers: ['AF'],
+        preserved: ['BC', 'DE', 'HL'],
+        notes: [
+            'Maintains a single-row cache (behavior_cache_row / behavior_cache_row_base)',
+            'so consecutive calls for the same row skip the row*32 multiply.',
+            'Mapper push/pop protects P2 bank around the map read (no-op in simple32k mode).',
+            'MUST be called with DE = entity index already set (DE is preserved, not used).',
+        ],
+    })}
 get_behavior_tile:
     ; Bounds check: row must be 0-23, column must be 0-31
+    ; NOTE: jp nc (not jr nc) to gbt_oob — gbt_oob is a global label defined after
+    ; get_behavior_tile_nb. Using jr would create a local-label scoping conflict in
+    ; glass.jar (get_behavior_tile_nb: starts a new scope, so .bt_out_of_bounds would
+    ; belong to that scope, not get_behavior_tile's scope).
     ld a, b
     cp 24
-    jr nc, .bt_out_of_bounds      ; Row >= 24: treat as passable
+    jp nc, gbt_oob                ; Row >= 24: treat as passable
     ld a, c
     cp 32
-    jr nc, .bt_out_of_bounds      ; Column >= 32: treat as passable
+    jp nc, gbt_oob                ; Column >= 32: treat as passable
+get_behavior_tile_nb:
+    ; Entry point for callers that guarantee B ∈ 0..23 and C ∈ 0..31.
+    ; Saves 36 cycles (4+7+7+4+7+7) by skipping bounds validation.
+    ; DO NOT call this unless the probe coordinates are provably in-bounds.
     push hl
     push de
 
@@ -1577,6 +1617,12 @@ get_behavior_tile:
     ld e, c
     ld d, 0
     add hl, de                    ; HL = row base + column
+${romMode === 'simple32k' ? `
+    ; simple32k: behavior map is always resident in RAM (no bank switching needed).
+    ; Skip mapper push/pop/set — saves ~169 cycles per call (41% overhead eliminated).
+    ld a, (hl)                    ; A = behavior value (direct RAM read)
+` : `
+    ; megarom: protect P2 bank around the read in case behavior map is in ROM bank.
     call mapper_push_p2
     ld a, (current_behavior_map_bank)
     call mapper_set_bank_p2
@@ -1584,10 +1630,10 @@ get_behavior_tile:
     push af
     call mapper_pop_p2
     pop af
-    pop de
+`}    pop de
     pop hl
     ret
-.bt_out_of_bounds:
+gbt_oob:
     xor a                         ; A = 0 (passable)
     ret
     `;
@@ -1621,6 +1667,13 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld de, entity_dir_mask + 1
             ld bc, 31
             ld (hl), #0F               ; Default: 00001111 = all directions enabled
+            ldir
+
+            ; Initialize cursor speed for all entities (default: 2 px/frame)
+            ld hl, entity_input_speed
+            ld de, entity_input_speed + 1
+            ld bc, 31
+            ld (hl), 2
             ldir
 
             ; Initialize input disabled flags to 0 (all entities start with input ENABLED)
@@ -1708,6 +1761,29 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld b, 0                    ; Default X velocity
             ld c, 0                    ; Default Y velocity
 
+            ; Resolve per-entity input speed once per update.
+            ; H = cardinal speed, L = diagonal speed (max(1, speed/2)).
+            push af
+            ld a, d
+            push af
+            ld d, 0
+            ld hl, entity_input_speed
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, .input_speed_ok
+            ld a, 1
+        .input_speed_ok:
+            ld h, a
+            srl a
+            jr nz, .input_diag_speed_ok
+            ld a, 1
+        .input_diag_speed_ok:
+            ld l, a
+            pop af
+            ld d, a
+            pop af
+
             ; Check directional input with direction restrictions
             cp STICK_UP
             jp z, input_move_up
@@ -1732,7 +1808,9 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_UP
             jp z, input_apply_velocity ; Not allowed, skip
-            ld c, -2                   ; Negative Y velocity (up)
+            ld a, h
+            neg
+            ld c, a                    ; Negative Y velocity (up)
             jp input_apply_velocity
 
         input_move_down:
@@ -1740,7 +1818,8 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_DOWN
             jp z, input_apply_velocity ; Not allowed, skip
-            ld c, 2                    ; Positive Y velocity (down)
+            ld a, h
+            ld c, a                    ; Positive Y velocity (down)
             jp input_apply_velocity
 
         input_move_left:
@@ -1748,7 +1827,9 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity ; Not allowed, skip
-            ld b, -2                   ; Negative X velocity (left)
+            ld a, h
+            neg
+            ld b, a                    ; Negative X velocity (left)
             jp input_apply_velocity
 
         input_move_right:
@@ -1756,7 +1837,8 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity ; Not allowed, skip
-            ld b, 2                    ; Positive X velocity (right)
+            ld a, h
+            ld b, a                    ; Positive X velocity (right)
             jp input_apply_velocity
 
         input_move_upright:
@@ -1768,19 +1850,24 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_RIGHT
             jp z, input_check_up_only  ; RIGHT not allowed
             ; Both allowed - diagonal
-            ld b, 1                    ; Diagonal movement (slower)
-            ld c, -1
+            ld a, l                    ; Diagonal movement (slower)
+            ld b, a
+            neg
+            ld c, a
             jp input_apply_velocity
         input_check_right_only:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity
-            ld b, 2
+            ld a, h
+            ld b, a
             jp input_apply_velocity
         input_check_up_only:
             ; Only UP allowed
-            ld c, -2
+            ld a, h
+            neg
+            ld c, a
             jp input_apply_velocity
 
         input_move_upleft:
@@ -1792,19 +1879,25 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_LEFT
             jp z, input_check_up_only1 ; LEFT not allowed
             ; Both allowed - diagonal
-            ld b, -1
-            ld c, -1
+            ld a, l
+            neg
+            ld b, a
+            ld c, a
             jp input_apply_velocity
         input_check_left_only1:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity
-            ld b, -2
+            ld a, h
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_up_only1:
             ; Only UP allowed
-            ld c, -2
+            ld a, h
+            neg
+            ld c, a
             jp input_apply_velocity
 
         input_move_downright:
@@ -1816,19 +1909,22 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_RIGHT
             jp z, input_check_down_only2 ; RIGHT not allowed
             ; Both allowed - diagonal
-            ld b, 1
-            ld c, 1
+            ld a, l
+            ld b, a
+            ld c, a
             jp input_apply_velocity
         input_check_right_only2:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity
-            ld b, 2
+            ld a, h
+            ld b, a
             jp input_apply_velocity
         input_check_down_only2:
             ; Only DOWN allowed
-            ld c, 2
+            ld a, h
+            ld c, a
             jp input_apply_velocity
 
         input_move_downleft:
@@ -1840,19 +1936,24 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_LEFT
             jp z, input_check_down_only3 ; LEFT not allowed
             ; Both allowed - diagonal
-            ld b, -1
-            ld c, 1
+            ld a, l
+            ld c, a
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_left_only3:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity
-            ld b, -2
+            ld a, h
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_down_only3:
             ; Only DOWN allowed
-            ld c, 2
+            ld a, h
+            ld c, a
 
         input_apply_velocity:
             ; Apply calculated velocity to entity
@@ -1866,9 +1967,55 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             add hl, de
             ld (hl), c                 ; entity_vel_y[entity_index] = Y velocity
 
+            ; Update entity_facing_dir based on input_state
+            ; Only updates for directional inputs (0 = no change, keeps last facing)
+            push af
+            ld a, (input_state)
+            or a
+            jr z, .input_facing_done    ; 0 = no direction pressed, keep last facing
+            cp 2
+            jr c, .input_facing_up      ; 1 = UP only
+            cp 5
+            jr c, .input_facing_right   ; 2,3,4 = UP+RIGHT, RIGHT, DOWN+RIGHT
+            jr z, .input_facing_down    ; 5 = DOWN only
+            ; 6,7,8 = DOWN+LEFT, LEFT, UP+LEFT
+            ld a, 1                     ; FACING_LEFT = 1
+            jr .input_facing_write
+.input_facing_right:
+            ld a, 2                     ; FACING_RIGHT = 2
+            jr .input_facing_write
+.input_facing_up:
+            ld a, 3                     ; FACING_UP = 3
+            jr .input_facing_write
+.input_facing_down:
+            ld a, 4                     ; FACING_DOWN = 4
+.input_facing_write:
+            push hl
+            push de
+            ld hl, entity_facing_dir
+            add hl, de                  ; DE = (0, entity_index)
+            ld (hl), a
+            pop de
+            pop hl
+.input_facing_done:
+            pop af
+
             ; Sync directional sprite facing for input-driven entities.
             ; Uses sprite_dir_* lookup tables (left/right/up/down variants).
+            ; SKIP if entity has a State Machine: SM controls sprite via ChangeSprite.
+            ; Calling patrol facing for SM entities overwrites entity_sprite_asset_index
+            ; every frame, undoing what ChangeSprite set (walk sprite would revert to idle).
+            push af
+            ld hl, entity_sm_ptr_l
+            add hl, de              ; DE = (0, entity_index)
+            ld a, (hl)
+            ld hl, entity_sm_ptr_h
+            add hl, de
+            or (hl)                 ; A != 0 if SM pointer is set
+            pop af
+            jr nz, .skip_patrol_facing
             call update_entity_patrol_facing
+.skip_patrol_facing:
 
             pop hl
             pop bc
@@ -3344,7 +3491,7 @@ update_carry_component:
  * Uses 2-point checks per direction for robust collision
  * Snaps entity position to wall edge (not just zero velocity)
  */
-function generateWallCollisionSystem() {
+function generateWallCollisionSystem(romMode = 'simple32k') {
     return `
     ; ==================================================================
     ; WALL COLLISION COMPONENT SYSTEM
@@ -3358,64 +3505,102 @@ init_wallcollision_system:
 
 ; ------------------------------------------------------------------
 ; update_wallcollision_component
-; Check wall collisions and prevent movement through solid tiles
-; Uses behavior map (current_behavior_map) for collision detection
-; Entity position is cached in wall_temp_x/y and converted to hitbox bounds
+; ------------------------------------------------------------------
+; Check wall collisions and prevent movement through solid tiles.
+; Uses behavior map (current_behavior_map) for collision detection.
+; Entity position is cached in wall_temp_x/y and converted to hitbox bounds.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Iterate all entity slots; for each active entity with
+;            WallCollision eligibility, probe solid tiles in movement
+;            direction(s) and snap position + zero velocity on hit.
+;   Inputs:
+;     - entity_active[]         : 1 = entity exists
+;     - entity_comp_masks[]     : low byte component bitmask
+;     - entity_comp_masks_hi[]  : high byte (COMP_MASK_GRAVITY at bit 1)
+;     - entity_collides_with[]  : must include COLLISION_LAYER_PLATFORM (#08)
+;     - entity_screen_id[]      : entity must be on current_screen_id
+;     - entity_x_pos/y_pos[]    : world position
+;     - entity_vel_x/vel_y[]    : signed 8-bit velocity (negative = left/up)
+;     - entity_gravity_vel[]    : 16-bit signed gravity accumulator (word)
+;     - entity_collision_offset_x/y[]: signed offset from origin to hitbox corner
+;     - entity_collision_hitbox_w/h[]: hitbox size (minimum 1 if zero)
+;     - current_behavior_map    : pointer to active screen behavior map
+;     - current_screen_id       : ID of the visible screen
+;   Outputs:
+;     - entity_x_pos/y_pos[]    : snapped on collision
+;     - entity_vel_x/vel_y[]    : zeroed on collision axis
+;     - entity_gravity_vel[]    : zeroed on vertical collision
+;     - entity_on_ground[]      : bit 0 set=floor, cleared at loop start
+;     - entity_wall_collision_flags[]: bits 0=UP,1=DOWN,2=LEFT,3=RIGHT
+;   Clobbers: AF, BC, DE, HL
+;   Preserved: (none — uses scratch RAM wall_temp_x/y, wall_hit_*, wall_probe_*)
+;   Notes:
+;     - Opt-B: loop uses active_entity_list (entities guaranteed active + on screen).
+;       Eliminates ~29 wasted iterations vs 0..MAX_ENTITIES scan (3 entities active).
+;     - Opt-C: wall_build_hitbox_cache is skipped on DOWN snap when new Y == current Y
+;       (entity already on floor). Saves ~200 cycles/entity/frame when standing still.
+;     - wall_build_hitbox_cache is called once at entity entry, and after each snap
+;       where the position actually changes.
+;     - Gravity floor check (.check_wall_y_gravity) runs even when vel_y=0
+;       so entity_on_ground stays accurate when entity is standing still.
 ; ------------------------------------------------------------------
 update_wallcollision_component:
-    ld e, 0                       ; Entity index = 0
-    ld d, 0
+    ; Opt-B: use compact active_entity_list instead of 0..MAX_ENTITIES scan.
+    ; Entities in the list are already guaranteed active and on current_screen_id.
+    ; This eliminates ~29 wasted iterations when only 3 entities are active.
+    call ensure_used_entity_list_current
+    ld a, (active_entity_count)
+    or a
+    ret z                         ; no active entities → done
+    ld b, a                       ; B = entity count (loop counter for djnz)
+    ld hl, active_entity_list
 
 .wall_loop:
-    ld a, e
-    cp MAX_ENTITIES
-    ret z
+    ; ---- Load next entity index from compact list ----
+    ld e, (hl)                    ; E = entity index
+    ld d, 0                       ; DE = entity index (word)
+    push hl                       ; save list pointer (clobbered by hl arithmetic below)
+    push bc                       ; save loop counter
 
-    ; Check if entity is active
-    ld hl, entity_active
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .wall_next
-
-    ; Require collision component (hitbox data lives in collision arrays)
+    ; --- Filter A: entity must have Collision component ---
+    ; (entity_active and entity_screen_id are implicit via active_entity_list)
+    ; Hitbox data lives in Collision arrays; no Collision = no valid hitbox.
+    ; Opt-D: read comp_masks into B (B is free — loop counter saved on stack above).
+    ; B holds comp_masks for Filter C reuse, eliminating a second memory read.
     ld hl, entity_comp_masks
     add hl, de
-    ld a, (hl)
-    and COMP_MASK_COLLISION
+    ld b, (hl)                    ; B = comp_masks[E] (safe: loop ctr on stack)
+    ld a, b
+    and COMP_MASK_COLLISION       ; low byte, bit 3
     jp z, .wall_next
 
-    ; Only process entities that collide with platform layer (tile walls/floors)
+    ; --- Filter B: entity must collide with the Platform layer ---
+    ; entity_collides_with is a bitmask; COLLISION_LAYER_PLATFORM (#08) = map tiles.
     ld hl, entity_collides_with
     add hl, de
     ld a, (hl)
     and COLLISION_LAYER_PLATFORM
     jp z, .wall_next
 
-    ; Require movement capability (Input or Movement)
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)
+    ; --- Filter C: entity must be moveable (Input or Movement component) ---
+    ; Static entities (platforms, decorations) have no velocity to correct.
+    ; Opt-D: reuse comp_masks from B — no extra ld hl/add hl,de/ld a,(hl) needed (saves 28 cycles/entity).
+    ld a, b
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jp z, .wall_next
 
-    ; Skip entities that are not in the currently active screen
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jp nz, .wall_next
-
-    ; Cache entity position
+    ; ---- Entity passed all filters — cache its position ----
+    ; wall_temp_x/y are scratch RAM used by wall_build_hitbox_cache and
+    ; the snap routines to avoid repeated indexed array lookups.
     ld hl, entity_x_pos
     add hl, de
     ld a, (hl)
-    ld (wall_temp_x), a          ; Cache X
+    ld (wall_temp_x), a          ; scratch X = entity_x_pos[E]
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
-    ld (wall_temp_y), a          ; Cache Y
+    ld (wall_temp_y), a          ; scratch Y = entity_y_pos[E]
 
     ; Clear on_ground flag - will be re-set by .wall_down_blocked if floor found
     ; This ensures entity correctly detects walking off platform edges
@@ -3427,7 +3612,7 @@ update_wallcollision_component:
     add hl, de                        ; DE still = entity index from above
     res 0, (hl)
 
-    ; Build hitbox cache from entity position + collision offsets/sizes
+    ; Build initial hitbox cache for this entity.
     call wall_build_hitbox_cache
 
     ; ---- CHECK HORIZONTAL VELOCITY ----
@@ -3458,46 +3643,54 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_left_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
+    ; probe_bottom = hitbox_bottom - inset ≤ 191 → row ≤ 23, col = (left-1)/8 ≤ 31 → NB safe
     ld a, (wall_probe_bottom)
     srl a
     srl a
     srl a
     ld b, a                       ; Row = bottom / 8
-    call get_behavior_tile
-    or a
+    call get_behavior_tile_nb
+    and #F0
     jp z, .check_wall_y           ; Both passable
 
 .wall_left_blocked:
-    ; Snap hitbox left to wall boundary: left = (column+1) * 8
+    ; ---------------------------------------------------------------
+    ; Snap formula (LEFT wall):
+    ;   C = tile column that blocked us (from (left-1)/8 probe)
+    ;   new_hitbox_left = (C + 1) * 8   → first pixel right of the wall
+    ;   entity_x = new_hitbox_left - collision_offset_x
+    ;              (wall_sub_signed_offset_clamped reverses the offset)
+    ; After snap: vel_x = 0, entity_wall_collision_flags bit 2 (LEFT) set.
+    ; ---------------------------------------------------------------
     ld a, c
     inc a
     add a, a
     add a, a
-    add a, a                      ; A = new hitbox left
-    push af                       ; keep new hitbox left
+    add a, a                      ; A = (C+1)*8 = new hitbox left pixel
+    push af                       ; save new hitbox left
     ld hl, entity_collision_offset_x
     add hl, de
     pop af
-    call wall_sub_signed_offset_clamped
-    ld (wall_temp_x), a           ; update entity position cache
+    call wall_sub_signed_offset_clamped ; A = entity_x = new_left - offset_x
+    ld (wall_temp_x), a           ; update position cache
     push af
     ld hl, entity_x_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Snap entity X position
-    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
+    ld (hl), a                    ; write snapped entity X to RAM
+    call wall_build_hitbox_cache  ; recalculate hitbox after position change
 
-    ; Zero X velocity
+    ; Cancel leftward velocity and flag the collision
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
     ld hl, entity_wall_collision_flags
     add hl, de
-    set 2, (hl)                       ; LEFT wall collision
+    set 2, (hl)                       ; bit 2 = LEFT wall collision
     jp .check_wall_y
 
 .wall_check_right:
@@ -3517,54 +3710,63 @@ update_wallcollision_component:
     srl a
     ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_right_blocked
 
     ; Check point 2: adaptive bottom probe (safe for small hitboxes)
+    ; probe_bottom ≤ 191 → row ≤ 23, col = (right+1)/8 ≤ 31 → NB safe
     ld a, (wall_probe_bottom)
     srl a
     srl a
     srl a
     ld b, a                       ; Row = bottom / 8
-    call get_behavior_tile
-    or a
+    call get_behavior_tile_nb
+    and #F0
     jp z, .check_wall_y           ; Both passable
 
 .wall_right_blocked:
-    ; Snap hitbox so right edge touches wall left:
-    ; left = column*8 - hitbox_w
+    ; ---------------------------------------------------------------
+    ; Snap formula (RIGHT wall):
+    ;   C = tile column that blocked us (from (right+1)/8 probe)
+    ;   wall_left_of_tile = C * 8           → left pixel of blocking tile
+    ;   new_hitbox_left   = C*8 - hitbox_w  → push entity left so right edge
+    ;                                         just touches the tile's left side
+    ;   If underflow (hitbox_w > C*8): clamp new_hitbox_left to 0.
+    ;   entity_x = new_hitbox_left - collision_offset_x
+    ; After snap: vel_x = 0, entity_wall_collision_flags bit 3 (RIGHT) set.
+    ; ---------------------------------------------------------------
     ld a, c
     add a, a
     add a, a
-    add a, a                      ; A = column * 8
-    ld b, a
+    add a, a                      ; A = C * 8 = left pixel of blocking tile
+    ld b, a                       ; B = C*8
     ld a, (wall_hit_w)
-    ld c, a
+    ld c, a                       ; C = hitbox width
     ld a, b
-    sub c
+    sub c                         ; A = C*8 - hitbox_w = new hitbox left
     jr nc, .wall_right_left_ok
-    xor a                         ; clamp to 0
+    xor a                         ; underflow: clamp to 0
 .wall_right_left_ok:
-    push af                       ; keep new hitbox left
+    push af                       ; save new hitbox left
     ld hl, entity_collision_offset_x
     add hl, de
     pop af
-    call wall_sub_signed_offset_clamped
-    ld (wall_temp_x), a           ; update entity position cache
+    call wall_sub_signed_offset_clamped ; A = entity_x = new_left - offset_x
+    ld (wall_temp_x), a           ; update position cache
     push af
     ld hl, entity_x_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Snap entity X position
-    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
+    ld (hl), a                    ; write snapped entity X to RAM
+    call wall_build_hitbox_cache  ; recalculate hitbox after position change
 
-    ; Zero X velocity
+    ; Cancel rightward velocity and flag the collision
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
     ld hl, entity_wall_collision_flags
     add hl, de
-    set 3, (hl)                       ; RIGHT wall collision
+    set 3, (hl)                       ; bit 3 = RIGHT wall collision
 
 .check_wall_y:
     ; ---- CHECK VERTICAL VELOCITY ----
@@ -3589,13 +3791,15 @@ update_wallcollision_component:
     ld b, a                       ; Row = (top-1) / 8
 
     ; Check point 1: adaptive left probe (safe for small hitboxes)
+    ; NOTE: uses get_behavior_tile (with bounds) — entity_y can wrap off-screen,
+    ; making B = (top-1)/8 > 23 (e.g. top=252 → row=31). Bounds check returns 0.
     ld a, (wall_probe_left)
     srl a
     srl a
     srl a
     ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_up_blocked
 
     ; Check point 2: adaptive right probe (safe for small hitboxes)
@@ -3605,11 +3809,22 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp z, .wall_next              ; Both passable
 
 .wall_up_top_edge:
-    ; Top boundary clamp (hitbox top = 0)
+    ; ---------------------------------------------------------------
+    ; Screen top boundary clamp (wall_hit_top == 0, no tile above row 0).
+    ; This path is entered when wall_hit_left == 0 (entity already at top
+    ; screen boundary) or when the UP probe is at row -1 (invalid).
+    ; Sanity guard: only snap if entity_y < 24 (i.e. truly near the top).
+    ; If entity_y >= 24, the "top=0" probe is a false positive — just
+    ; cancel velocity via .wall_up_cancel_only without moving entity.
+    ; new_hitbox_top = 0, entity_y = 0 - offset_y (clamped).
+    ; ---------------------------------------------------------------
+    ld a, (wall_temp_y)
+    cp 24
+    jp nc, .wall_up_cancel_only
     xor a
     push af                       ; keep new hitbox top
     ld hl, entity_collision_offset_y
@@ -3642,53 +3857,65 @@ update_wallcollision_component:
     jp .wall_next
 
 .wall_up_blocked:
-    ; Snap hitbox top below ceiling: top = (row+1) * 8
+    ; ---------------------------------------------------------------
+    ; Snap formula (UP / ceiling):
+    ;   B = tile row that blocked us (from (top-1)/8 probe)
+    ;   new_hitbox_top = (B + 1) * 8  → first pixel below the ceiling tile
+    ;   Safety guard: if new_top < current wall_hit_top, the snap would
+    ;   push us further into the ceiling (sub-pixel rounding artefact).
+    ;   In that case, fall through to .wall_up_cancel_only to just
+    ;   cancel velocity without moving the entity.
+    ;   entity_y = new_hitbox_top - collision_offset_y
+    ; After snap: vel_y = 0, gravity_vel = 0, wall_collision_flags bit 0 (UP) set.
+    ; ---------------------------------------------------------------
     ld a, b
     inc a
     add a, a
     add a, a
-    add a, a                      ; A = new hitbox top
-    ; Safety guard: ceiling resolution must never move top upward.
-    ; If new_top < current_top, cancel only vertical momentum (no snap).
+    add a, a                      ; A = (B+1)*8 = new hitbox top pixel
+    ; Guard: new_top must be >= current hitbox top (no upward nudge)
     ld c, a
     ld hl, wall_hit_top
     ld a, c
-    cp (hl)                       ; new_top - current_top
-    jp c, .wall_up_cancel_only
+    cp (hl)                       ; new_top < current_top? → carry set
+    jp c, .wall_up_cancel_only    ; invalid snap: only cancel momentum
     ld a, c
-    push af                       ; keep new hitbox top
+    push af                       ; save new hitbox top
     ld hl, entity_collision_offset_y
     add hl, de
     pop af
-    call wall_sub_signed_offset_clamped
-    ld (wall_temp_y), a           ; update entity position cache
+    call wall_sub_signed_offset_clamped ; A = entity_y = new_top - offset_y
+    ld (wall_temp_y), a           ; update position cache
     push af
     ld hl, entity_y_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Snap entity Y position
-    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
+    ld (hl), a                    ; write snapped entity Y to RAM
+    call wall_build_hitbox_cache  ; recalculate hitbox after position change
 
-    ; Zero Y velocity
+    ; Cancel upward velocity and gravity accumulator
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0
 
-    ; Also zero gravity_vel to stop upward momentum (ceiling bonk)
+    ; gravity_vel is 16-bit (word array): DE*2 offset
     ld hl, entity_gravity_vel
     add hl, de
-    add hl, de                        ; word index
+    add hl, de                        ; word index (2 bytes per entity)
     ld (hl), 0
     inc hl
     ld (hl), 0
     ld hl, entity_wall_collision_flags
     add hl, de
-    set 0, (hl)                       ; UP wall collision
+    set 0, (hl)                       ; bit 0 = UP wall collision
     jp .wall_next
 
 .wall_up_cancel_only:
-    ; Defensive path for corrupted/invalid snap target:
-    ; keep current Y, but stop upward movement this frame.
+    ; ---------------------------------------------------------------
+    ; Defensive path: snap would move entity upward (invalid) or
+    ; entity is far from the screen top boundary.
+    ; Keep current Y position, but cancel upward momentum this frame.
+    ; ---------------------------------------------------------------
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0
@@ -3721,7 +3948,7 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_down_blocked
 
     ; Check point 2: adaptive right probe (safe for small hitboxes)
@@ -3731,77 +3958,132 @@ update_wallcollision_component:
     srl a
     ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp z, .wall_next              ; Both passable
 
 .wall_down_blocked:
-    ; Snap hitbox bottom to floor top:
-    ; top = row*8 - hitbox_h
+    ; ---------------------------------------------------------------
+    ; Snap formula (DOWN / floor):
+    ;   B = tile row that blocked us (from (bottom+1)/8 probe)
+    ;   floor_top_pixel  = B * 8          → top pixel of the floor tile
+    ;   new_hitbox_top   = B*8 - hitbox_h → push entity up so bottom edge
+    ;                                       just sits on the floor surface
+    ;   If underflow (hitbox_h > B*8): clamp new_hitbox_top to 0.
+    ;   entity_y = new_hitbox_top - collision_offset_y
+    ; After snap: vel_y = 0, gravity_vel = 0, entity_on_ground bit 0 set,
+    ;             entity_wall_collision_flags bit 1 (DOWN) set.
+    ; Note: jp .wall_next skips .check_wall_y_gravity intentionally —
+    ;       floor already detected; no redundant gravity probe needed.
+    ; ---------------------------------------------------------------
     ld a, b
     add a, a
     add a, a
-    add a, a                      ; A = row * 8
-    ld b, a
+    add a, a                      ; A = B*8 = top pixel of floor tile
+    ld b, a                       ; B = floor_top_pixel
     ld a, (wall_hit_h)
-    ld c, a
+    ld c, a                       ; C = hitbox height
     ld a, b
-    sub c
+    sub c                         ; A = B*8 - hitbox_h = new hitbox top
     jr nc, .wall_down_top_ok
-    xor a                         ; clamp to 0
+    xor a                         ; underflow: clamp to 0
 .wall_down_top_ok:
-    push af                       ; keep new hitbox top
+    push af                       ; save new hitbox top
     ld hl, entity_collision_offset_y
     add hl, de
     pop af
-    call wall_sub_signed_offset_clamped
-    ld (wall_temp_y), a           ; update entity position cache
+    call wall_sub_signed_offset_clamped ; A = entity_y = new_top - offset_y
+    ld (wall_temp_y), a           ; update position cache
     push af
     ld hl, entity_y_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Snap entity Y position
-    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
-
-    ; Zero Y velocity and gravity velocity (landing)
+    ; Opt-C: skip rebuild if new Y == current Y (entity already on floor).
+    ; Saves ~200 cycles/frame for standing-still entities (most common state).
+    ; Falls through to normal snap path on actual position change (e.g. landing).
+    cp (hl)
+    jp z, .wall_down_at_floor     ; position unchanged → hitbox still valid
+    ld (hl), a                    ; write snapped entity Y to RAM
+    call wall_build_hitbox_cache  ; recalculate hitbox after position change
+.wall_down_at_floor:
+    ; Cancel downward velocity and gravity accumulator (landing)
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0
 
+    ; gravity_vel is 16-bit (word array): DE*2 offset
     ld hl, entity_gravity_vel
     add hl, de
-    add hl, de                        ; word index
+    add hl, de                        ; word index (2 bytes per entity)
     ld (hl), 0
     inc hl
     ld (hl), 0
 
-    ; Set entity_on_ground flag (floor detected)
+    ; Mark entity as on-ground and flag DOWN wall collision
     ld hl, entity_on_ground
     add hl, de
-    set 0, (hl)
+    set 0, (hl)                       ; bit 0 = standing on solid floor
     ld hl, entity_wall_collision_flags
     add hl, de
-    set 1, (hl)                       ; DOWN wall collision
-    jp .wall_next                     ; Floor collision handled, move to next entity
+    set 1, (hl)                       ; bit 1 = DOWN wall collision
+    jp .wall_next                     ; floor handled; skip gravity floor check
 
 .check_wall_y_gravity:
-    ; vel_y is 0, but entity might have gravity component
-    ; Check floor anyway to keep entity_on_ground flag correct (prevents jitter)
+    ; ---------------------------------------------------------------
+    ; vel_y == 0, but gravity entities still need a floor probe every
+    ; frame to keep entity_on_ground accurate (e.g. entity walks off
+    ; a platform edge — vel_y is 0 at that instant but the flag must
+    ; be cleared promptly so the gravity system can accelerate it).
+    ; Only enter .wall_check_down if entity has COMP_MASK_GRAVITY
+    ; (stored in entity_comp_masks_hi bit 1).
+    ; Non-gravity entities: skip vertical check entirely.
+    ; ---------------------------------------------------------------
     ld hl, entity_comp_masks_hi
     add hl, de
     ld a, (hl)
     and #02                       ; COMP_MASK_GRAVITY high byte bit 1
-    jp nz, .wall_check_down       ; Has gravity, check floor
-    ; No gravity, skip vertical check
+    jp nz, .wall_check_down       ; gravity entity → check floor
+    ; No gravity component → no vertical wall check needed
 .wall_next:
-    inc e
-    jp .wall_loop
+    ; Opt-B: restore list pointer and count, advance to next entity.
+    ; NOTE: djnz range is ±127 bytes — wall_loop body is too large.
+    ; Use dec b / jp nz instead (jp supports any distance).
+    pop bc
+    pop hl
+    inc hl                        ; next entry in active_entity_list
+    dec b
+    jp nz, .wall_loop
+    ret
 
 ; ------------------------------------------------------------------
 ; wall_build_hitbox_cache
-; Build hitbox bounds from entity position + collision component values.
-; Input:  DE = entity index
-; Uses:   wall_temp_x/y as entity position cache
-; Output: wall_hit_left/top/right/bottom + wall_hit_w/h + wall_probe_*
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Compute and cache hitbox AABB and adaptive probe coordinates
+;            from entity position (wall_temp_x/y) plus collision offsets/sizes.
+;   Inputs:
+;     - DE                        = entity index (used to index per-entity arrays)
+;     - wall_temp_x               = cached entity X origin (set before calling)
+;     - wall_temp_y               = cached entity Y origin (set before calling)
+;     - entity_collision_hitbox_w[DE]: hitbox width  (0 treated as 1)
+;     - entity_collision_hitbox_h[DE]: hitbox height (0 treated as 1)
+;     - entity_collision_offset_x[DE]: signed X offset from entity origin to hitbox left
+;     - entity_collision_offset_y[DE]: signed Y offset from entity origin to hitbox top
+;   Outputs:
+;     - wall_hit_left   = hitbox left  pixel (entity_x + offset_x, clamped 0..255)
+;     - wall_hit_top    = hitbox top   pixel (entity_y + offset_y, clamped 0..255)
+;     - wall_hit_right  = left + (w-1), clamped 0..255
+;     - wall_hit_bottom = top  + (h-1), clamped 0..255
+;     - wall_hit_w      = effective width  (>= 1)
+;     - wall_hit_h      = effective height (>= 1)
+;     - wall_probe_left / wall_probe_right : X probes (inset up to 2px from sides)
+;     - wall_probe_top  / wall_probe_bottom: Y probes (inset up to 2px from top/bottom)
+;   Clobbers: AF, BC, HL
+;   Preserved: DE (entity index is never modified)
+;   Notes:
+;     - Adaptive inset: min(2, floor((right-left)/2)) and min(2, floor((bottom-top)/2)).
+;       Prevents corner-only probes for entities smaller than 4 pixels on an axis.
+;     - Call wall_add_signed_offset_clamped for offset application.
+;     - Called once at entity loop entry; called again after every position snap.
 ; ------------------------------------------------------------------
 wall_build_hitbox_cache:
     ; Width (minimum 1)
@@ -3860,48 +4142,69 @@ wall_build_hitbox_cache:
 .wbhc_bottom_ok:
     ld (wall_hit_bottom), a
 
-    ; Adaptive X probes: inset = min(2, floor((right-left)/2))
+    ; ---- Adaptive X probes: inset = min(2, floor((right-left)/2)) ----
+    ; Purpose: avoid probing the exact corner pixels for small sprites.
+    ; For a 16px-wide entity: inset = min(2, 8) = 2.
+    ;   probe_left  = left  + 2  (2px inside left edge)
+    ;   probe_right = right - 2  (2px inside right edge)
+    ; For a 4px-wide entity: inset = min(2, 2) = 2 (probes overlap at center).
+    ; For a 2px-wide entity: inset = min(2, 1) = 1.
     ld a, (wall_hit_left)
-    ld c, a
+    ld c, a                       ; C = left pixel
     ld a, (wall_hit_right)
-    sub c
-    srl a
-    cp 3
-    jr c, .wbhc_inset_x_ready
-    ld a, 2
+    sub c                         ; A = width span (right - left)
+    srl a                         ; A = span / 2
+    cp 3                          ; is span/2 < 3 (i.e. inset < 2)?
+    jr c, .wbhc_inset_x_ready    ; yes: use as-is
+    ld a, 2                       ; no: cap inset at 2
 .wbhc_inset_x_ready:
-    ld b, a
+    ld b, a                       ; B = inset value
     ld a, c
     add a, b
-    ld (wall_probe_left), a
+    ld (wall_probe_left), a       ; probe_left  = left  + inset
     ld a, (wall_hit_right)
     sub b
-    ld (wall_probe_right), a
+    ld (wall_probe_right), a      ; probe_right = right - inset
 
-    ; Adaptive Y probes: inset = min(2, floor((bottom-top)/2))
+    ; ---- Adaptive Y probes: inset = min(2, floor((bottom-top)/2)) ----
+    ; Same logic on Y axis.
+    ;   probe_top    = top    + inset
+    ;   probe_bottom = bottom - inset
     ld a, (wall_hit_top)
-    ld c, a
+    ld c, a                       ; C = top pixel
     ld a, (wall_hit_bottom)
-    sub c
-    srl a
+    sub c                         ; A = height span (bottom - top)
+    srl a                         ; A = span / 2
     cp 3
     jr c, .wbhc_inset_y_ready
     ld a, 2
 .wbhc_inset_y_ready:
-    ld b, a
+    ld b, a                       ; B = inset value
     ld a, c
     add a, b
-    ld (wall_probe_top), a
+    ld (wall_probe_top), a        ; probe_top    = top    + inset
     ld a, (wall_hit_bottom)
     sub b
-    ld (wall_probe_bottom), a
+    ld (wall_probe_bottom), a     ; probe_bottom = bottom - inset
     ret
 
 ; ------------------------------------------------------------------
 ; wall_add_signed_offset_clamped
-; Input:  A = base coordinate (0..255)
-;         HL = pointer to signed offset byte (-128..127)
-; Output: A = clamp(base + offset, 0..255)
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Add a signed 8-bit offset to a pixel coordinate, clamping result to 0..255.
+;            Used to apply entity_collision_offset_x/y to entity origin (entity→hitbox).
+;   Inputs:
+;     - A  = base pixel coordinate (unsigned, 0..255)
+;     - HL = pointer to signed offset byte (-128..127)
+;   Outputs:
+;     - A  = clamp(base + offset, 0, 255)
+;   Clobbers: AF, B
+;   Preserved: C, DE, HL
+;   Notes:
+;     - Negative offset: carry=0 after add → underflow → A clamped to 0.
+;     - Positive offset: carry=1 after add → overflow → A clamped to 255.
+;     - B is used to hold the offset byte; caller must save B if needed.
 ; ------------------------------------------------------------------
 wall_add_signed_offset_clamped:
     ld b, (hl)                    ; B = signed offset
@@ -3921,9 +4224,26 @@ wall_add_signed_offset_clamped:
 
 ; ------------------------------------------------------------------
 ; wall_sub_signed_offset_clamped
-; Input:  A = hitbox coordinate (left/top)
-;         HL = pointer to signed offset byte (-128..127)
-; Output: A = clamp(hitbox - offset, 0..255)
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Subtract a signed 8-bit offset from a hitbox coordinate, clamping to 0..255.
+;            Used to convert hitbox left/top back to entity origin after a snap.
+;            Inverse of wall_add_signed_offset_clamped.
+;   Inputs:
+;     - A  = hitbox pixel coordinate (left or top, unsigned 0..255)
+;     - HL = pointer to signed collision offset byte (-128..127)
+;            (same pointer passed to wall_add_signed_offset_clamped when building)
+;   Outputs:
+;     - A  = clamp(hitbox - offset, 0, 255)
+;            i.e. the entity origin coordinate that produces the snapped hitbox edge
+;   Clobbers: AF, B, C
+;   Preserved: DE, HL
+;   Notes:
+;     - If offset is negative: hitbox - offset = hitbox + abs(offset).
+;       Overflow (carry clear after add) → A clamped to 255.
+;     - If offset is positive: hitbox - offset computed directly.
+;       Underflow (carry clear after sub) → A clamped to 0.
+;     - B holds the raw offset byte; C holds the original hitbox coordinate.
 ; ------------------------------------------------------------------
 wall_sub_signed_offset_clamped:
     ld c, a
@@ -3945,6 +4265,276 @@ wall_sub_signed_offset_clamped:
 .wssc_done:
     ret
     `;
+}
+/**
+ * Generate Tile Interaction System
+ * Detects when an entity with COMP_INPUT overlaps an Interactable tile
+ * (mapId & #08 != 0 = NoSolid+Interactable, e.g. gems/coins on the screen map).
+ * On contact: clears tile from VRAM Name Table + runtime_behavior_map, increments gem_count.
+ */
+function generateTileInteractionSystem() {
+    return `
+; ==================================================================
+; TILE INTERACTION SYSTEM
+; ==================================================================
+; Checks if any entity with COMP_INPUT overlaps a tile marked as
+; Interactable (mapId & #08 != 0) in the runtime behavior map.
+; When found: removes tile from screen and increments gem_count.
+; ------------------------------------------------------------------
+; Called once per frame from update_all_entities.
+; ------------------------------------------------------------------
+
+init_tile_interaction_system:
+    ret
+
+; ------------------------------------------------------------------
+; check_tile_interaction
+; Input:  None (reads active_entity_list / active_entity_count)
+; Output: None
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+check_tile_interaction:
+    ld a, (active_entity_count)
+    or a
+    ret z                          ; No active entities
+
+    ld hl, active_entity_list
+    ld b, a                        ; B = entity count
+
+.ti_loop:
+    ld c, (hl)                     ; C = entity index
+    push hl                        ; Save list pointer
+    push bc                        ; Save count(B) + entity(C)
+
+    ; Check COMP_MASK_INPUT (bit 4, value #10 in low mask byte)
+    ld e, c
+    ld d, 0                        ; DE = entity index
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jp z, .ti_next                 ; No input component → skip
+
+    ; Get center X
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8                       ; center X = x + 8
+    push af                        ; Save centerX
+
+    ; Get center Y
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8                       ; center Y = y + 8
+    ld e, a                        ; E = centerY
+
+    pop af                         ; A = centerX
+    ld d, a                        ; D = centerX, E = centerY
+
+    ; Convert pixel → tile coords (div 8 via 3x rrca + and #1F)
+    ld a, d
+    rrca
+    rrca
+    rrca
+    and #1F
+    ld d, a                        ; D = tileX (0-31)
+
+    ld a, e
+    rrca
+    rrca
+    rrca
+    and #1F
+    ld e, a                        ; E = tileY (0-23)
+
+    ; Compute idx = tileY * 32 + tileX
+    ld h, 0
+    ld l, e                        ; HL = tileY
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                     ; HL = tileY * 32
+    ld b, 0
+    ld c, d                        ; BC = tileX
+    add hl, bc                     ; HL = idx
+
+    push hl                        ; Save idx
+
+    ; Check runtime_behavior_map[idx]
+    ld de, runtime_behavior_map
+    add hl, de                     ; HL = &runtime_behavior_map[idx]
+    ld a, (hl)
+    and #08                        ; INTERACTABLE flag (bit 3)
+    jr z, .ti_no_collect
+
+    ; *** COLLECT! ***
+    ; Stack at this point: [idx (as HL), BC_saved, list_ptr]
+    ; HL = &runtime_behavior_map[idx]
+
+    ; 1. Clear behavior map entry FIRST while HL is still correct
+    ld (hl), 0                     ; Prevents double-collect next frame
+
+    ; 0. Read char code from VRAM Name Table BEFORE clearing VRAM.
+    ;    Stored in last_gem_char so SM can identify WHICH tile was collected
+    ;    via VARIABLE_COMPARE last_gem_char == <charCode>.
+    pop bc                         ; BC = idx (B=high, C=low). Stack: [BC_saved, list_ptr]
+    push bc                        ; Restore idx: [idx, BC_saved, list_ptr]
+    ld d, b
+    ld e, c                        ; DE = idx
+    ld hl, NAMETBL
+    add hl, de                     ; HL = NAMETBL + idx (VRAM address to read)
+    ; MSX1 direct VRAM read (port #99 = address register, port #98 = data)
+    ld a, l
+    out (#99), a                   ; Set VRAM address low byte
+    ld a, h
+    and #3F                        ; Bits 7,6 = 0 → read mode
+    out (#99), a                   ; Set VRAM address high byte
+    nop                            ; Short delay for VDP address latch
+    nop
+    in a, (#98)                    ; A = char code from VRAM data port
+    ld (last_gem_char), a          ; Store for SM: VARIABLE_COMPARE last_gem_char
+
+    ; 2. Clear tile from VRAM Name Table (#1800 + idx)
+    pop de                         ; DE = idx. Stack: [BC_saved, list_ptr]
+    ld hl, NAMETBL
+    add hl, de                     ; HL = NAMETBL + idx
+    xor a                          ; A = 0 (empty tile char)
+    call FAST_WRTVRM
+
+    ; 3. Increment gem_count
+    ld hl, gem_count
+    inc (hl)
+
+    ; 3.5. Play built-in collection sound (coin)
+    ;      Preserve DE because it still carries the tile index for persistence.
+    push de
+    ld a, 4
+    call play_sound_effect
+    pop de
+
+    ; 4. Record in persistent collected list (survives screen re-entry via apply_collected_tiles)
+    ;    FAST_WRTVRM preserves all registers, so DE = idx is still valid here.
+    ld a, (collected_count)
+    cp MAX_COLLECTIBLES
+    jp nc, .ti_next                ; List full - skip recording
+    ld c, a                        ; C = index = old collected_count
+    ld b, 0                        ; BC = (0, index)
+    ; Store world+screen ID of the collected tile
+    ld hl, collected_world
+    add hl, bc
+    ld a, (current_world_id)
+    ld (hl), a
+    ld hl, collected_screen
+    add hl, bc
+    ld a, (current_screen_id)
+    ld (hl), a
+    ; Store tile name-table index (DE = idx, preserved by FAST_WRTVRM)
+    ld hl, collected_idx_l
+    add hl, bc
+    ld (hl), e                     ; E = idx low byte
+    ld hl, collected_idx_h
+    add hl, bc
+    ld (hl), d                     ; D = idx high byte
+    ; Increment collected_count
+    ld hl, collected_count
+    inc (hl)
+
+    jp .ti_next
+
+.ti_no_collect:
+    pop hl                         ; Balance idx push
+
+.ti_next:
+    pop bc                         ; Restore B=count, C=entity
+    pop hl                         ; Restore list pointer
+    inc hl                         ; Advance to next entity
+    dec b
+    jp nz, .ti_loop                ; djnz replaced with jp nz (loop body > 127 bytes)
+    ret
+`;
+}
+/**
+ * Generate apply_collected_tiles function.
+ * Re-applies the persistent collection list for the current world/screen after any screen load,
+ * so collected gems/tiles do not respawn when the player re-enters a screen.
+ */
+function generateApplyCollectedTiles() {
+    return `
+; ------------------------------------------------------------------
+; apply_collected_tiles
+; Re-clears tiles that were previously collected on the current world/screen.
+; Called after every screen load so collected tiles do not respawn.
+; Input:  current_world_id and current_screen_id must already be set.
+; Output: None
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+apply_collected_tiles:
+    ld a, (collected_count)
+    or a
+    ret z                          ; Nothing collected yet - return early
+
+    ld b, a                        ; B = djnz counter (total collected entries)
+    ld c, 0                        ; C = loop index
+.apply_ct_loop:
+    ; DE = (0, index) used for all three table lookups.
+    ; add hl, de does NOT modify DE, so we can reuse it for all 3 tables.
+    ld d, 0
+    ld e, c                        ; DE = (0, current index)
+
+    ; Check if this entry belongs to current world
+    ld hl, collected_world
+    add hl, de                     ; HL = &collected_world[index]
+    ld a, (current_world_id)       ; A = world currently loaded
+    cp (hl)                        ; Compare with stored world ID
+    jr nz, .apply_ct_skip          ; Different world - skip
+
+    ; Check if this entry belongs to current screen
+    ld hl, collected_screen
+    add hl, de                     ; HL = &collected_screen[index]
+    ld a, (current_screen_id)      ; A = screen currently loaded
+    cp (hl)                        ; Compare with stored screen ID
+    jr nz, .apply_ct_skip          ; Different screen - skip
+
+    ; Entry matches current screen: re-clear this tile
+    push bc                        ; Save B=count, C=index across FAST_WRTVRM
+
+    ; Build tile index: D = idx_h, E = idx_l
+    ; (DE is still (0, index) because add hl, de never modifies DE)
+    ld hl, collected_idx_l
+    add hl, de                     ; HL = &collected_idx_l[index]
+    ld a, (hl)
+    push af                        ; Save idx_l on stack
+
+    ld hl, collected_idx_h
+    add hl, de                     ; HL = &collected_idx_h[index], DE still (0, index)
+    ld a, (hl)
+    ld d, a                        ; D = idx_h
+
+    pop af                         ; A = idx_l
+    ld e, a                        ; E = idx_l
+    ; DE = tile index (D=high, E=low)
+
+    ; Re-clear runtime_behavior_map[idx]
+    push de                        ; Save idx
+    ld hl, runtime_behavior_map
+    add hl, de
+    ld (hl), 0
+    pop de                         ; Restore idx
+
+    ; Re-clear VRAM Name Table (NAMETBL + idx)
+    ld hl, NAMETBL
+    add hl, de
+    xor a                          ; A = 0 (empty tile char)
+    call FAST_WRTVRM               ; Preserves all registers
+
+    pop bc                         ; Restore B=count, C=index
+
+.apply_ct_skip:
+    inc c
+    djnz .apply_ct_loop
+    ret
+`;
 }
 /**
  * Generate Collectible Component System
@@ -4043,7 +4633,9 @@ update_collectible_component:
     ; ld hl, player_score
     ; inc (hl)
 
-    ; TODO: Play collection sound
+    ; Built-in collection sound (coin)
+    ld a, 4
+    call play_sound_effect
 
     pop bc
 
@@ -4130,8 +4722,20 @@ function generateInitComponents(usage) {
 ; Initialize current screen ID(multi - screen support) 
         ld a, 0; Start at screen 0 
         ld (current_screen_id), a 
+        ld (current_world_id), a
+        ld (current_screen_index), a
+        ld (screen_transition_cooldown), a
         ld hl, active_entity_list_dirty
         ld (hl), 1
+
+    ; Reset collectible persistence state on new game / restart.
+    ; Cartridge RAM is not guaranteed to be zeroed.
+        ld hl, gem_count
+        ld de, gem_count + 1
+        ld bc, 258                 ; bytes to clear - 1 (gem_count..collected_idx_h)
+        xor a
+        ld (hl), a
+        ldir
 
     ; Clear all component masks 
         ld hl, entity_comp_masks 
@@ -4256,7 +4860,7 @@ function generateInitComponents(usage) {
  * @param analysis - Project analysis with entities and tiles
  * @returns ASM code string with ECS component systems
  */
-function generateComponentsFile(analysis) {
+function generateComponentsFile(analysis, romMode = 'simple32k') {
     // Skip ECS system if no entities in project
     if (!analysis.entities || analysis.entities.length === 0) {
         return `; ==================================================================
@@ -4347,6 +4951,8 @@ update_wallcollision_component:
     ret
 update_collectible_component:
     ret
+check_tile_interaction:
+    ret
 
 init_position_system:
     ret
@@ -4385,6 +4991,8 @@ init_platform_riding_system:
 init_wallcollision_system:
     ret
 init_collectible_system:
+    ret
+init_tile_interaction_system:
     ret
 init_entity_position:
     ret
@@ -4612,7 +5220,7 @@ update_collision_component:
     }
     // Generate get_behavior_tile (shared utility for Collision and WallCollision)
     if (usedComponents.has('Collision') || usedComponents.has('WallCollision')) {
-        code += generateGetBehaviorTile();
+        code += generateGetBehaviorTile(romMode);
     }
     // Generate Input System (if used)
     if (usedComponents.has('Input')) {
@@ -4846,7 +5454,7 @@ update_wallcollision_component:
     `;
     }
     else {
-        code += generateWallCollisionSystem();
+        code += generateWallCollisionSystem(romMode);
     }
     // Generate Collectible System stub (if used)
     if (!usedComponents.has('Collectible')) {
@@ -4861,6 +5469,30 @@ update_collectible_component:
     }
     else {
         code += generateCollectibleSystem();
+    }
+    // Generate Tile Interaction System (when project has Interactable tiles)
+    // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
+    const hasInteractableTiles = Array.isArray(analysis.tiles) &&
+        analysis.tiles.some((t) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
+    if (hasInteractableTiles && usedComponents.has('Input')) {
+        usedComponents.add('TileInteraction'); // Enable the call in update_all_entities
+        code += generateTileInteractionSystem();
+        code += generateApplyCollectedTiles();
+        console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
+    }
+    else {
+        code += `
+    ; Tile interaction system filtered out(no interactable tiles or no input)
+init_tile_interaction_system:
+    ret
+
+check_tile_interaction:
+    ret
+
+; Stub: apply_collected_tiles (no interactable tiles in project)
+apply_collected_tiles:
+    ret
+    `;
     }
     // Always include entity management helpers
     code += generateEntityManagement();

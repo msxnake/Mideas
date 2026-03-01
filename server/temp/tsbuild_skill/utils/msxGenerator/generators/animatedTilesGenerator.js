@@ -5,6 +5,293 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateAnimatedTilesFile = generateAnimatedTilesFile;
+const tileUtils_1 = require("../../../components/utils/tileUtils");
+const SCREEN2_MODE = 'SCREEN 2 (Graphics I)';
+function clampByte(value, fallback, min = 0, max = 255) {
+    if (!Number.isFinite(value))
+        return fallback;
+    if (value < min)
+        return min;
+    if (value > max)
+        return max;
+    return Math.floor(value);
+}
+function normalizeGroupId(value) {
+    return String(value || '').trim().toLowerCase();
+}
+function parseFrameSuffix(name) {
+    const text = String(name || '').trim();
+    if (!text)
+        return null;
+    const match = text.match(/^(.*?)(?:[_\-\s](?:f|frame))(\d+)$/i);
+    if (!match)
+        return null;
+    const groupId = String(match[1] || '').trim();
+    const frameOrder = parseInt(match[2], 10);
+    if (!groupId || Number.isNaN(frameOrder))
+        return null;
+    return { groupId, frameOrder };
+}
+const TRANSFORM_OPERATION_CODES = {
+    rotate_left: 1,
+    rotate_right: 2,
+    shift_left: 3,
+    shift_right: 4,
+    shift_up: 5,
+    shift_down: 6,
+    swap_top_bottom: 7
+};
+function normalizeAnimationMode(value) {
+    const text = String(value || '').trim().toLowerCase();
+    return text === 'transform' ? 'transform' : 'frames';
+}
+function normalizeTransformEffect(value) {
+    const text = String(value || '').trim().toLowerCase();
+    if (!text)
+        return null;
+    return Object.prototype.hasOwnProperty.call(TRANSFORM_OPERATION_CODES, text) ? text : null;
+}
+function readAnimationMeta(tile) {
+    const anim = tile?.animation ?? tile?.animatedTile ?? tile?.tileAnimation ?? null;
+    const explicitEnabled = typeof anim?.enabled === 'boolean'
+        ? anim.enabled
+        : (typeof tile?.isAnimated === 'boolean' ? tile.isAnimated : undefined);
+    if (explicitEnabled === false || anim === false) {
+        return {
+            enabled: false,
+            mode: 'frames',
+            groupId: null,
+            frameOrder: null,
+            speed: null,
+            baseTileId: null,
+            transformEffect: null,
+            transformIncludeColors: true
+        };
+    }
+    const groupRaw = tile?.animationGroup ??
+        anim?.groupId ??
+        anim?.group ??
+        anim?.name ??
+        anim?.id ??
+        null;
+    const groupId = typeof groupRaw === 'string' && groupRaw.trim() ? groupRaw.trim() : null;
+    const frameRaw = tile?.animationFrameIndex ??
+        tile?.frameIndex ??
+        anim?.frameIndex ??
+        anim?.frame ??
+        null;
+    const frameOrder = Number.isFinite(Number(frameRaw)) ? clampByte(Number(frameRaw), 0) : null;
+    const speedRaw = tile?.animationSpeed ??
+        tile?.animationSpeedFrames ??
+        anim?.speed ??
+        anim?.speedFrames ??
+        anim?.ticksPerFrame ??
+        null;
+    const speed = Number.isFinite(Number(speedRaw)) ? clampByte(Number(speedRaw), 8, 1, 255) : null;
+    const baseRaw = tile?.animationBaseTileId ?? anim?.baseTileId ?? anim?.targetTileId ?? null;
+    const baseTileId = typeof baseRaw === 'string' && baseRaw.trim() ? baseRaw.trim() : null;
+    const transformRaw = anim?.transform ?? null;
+    const transformEffect = normalizeTransformEffect(tile?.animationTransformEffect ??
+        anim?.transformEffect ??
+        transformRaw?.effect ??
+        anim?.effect);
+    const modeRaw = tile?.animationMode ?? anim?.mode ?? anim?.animationMode ?? (transformEffect ? 'transform' : null);
+    const mode = normalizeAnimationMode(modeRaw);
+    const normalizedTransformEffect = transformEffect || (mode === 'transform' ? 'rotate_left' : null);
+    const includeColorsRaw = tile?.animationTransformIncludeColors ??
+        anim?.animationTransformIncludeColors ??
+        transformRaw?.includeColors;
+    const transformIncludeColors = typeof includeColorsRaw === 'boolean' ? includeColorsRaw : true;
+    return {
+        enabled: true,
+        mode,
+        groupId,
+        frameOrder,
+        speed,
+        baseTileId,
+        transformEffect: normalizedTransformEffect,
+        transformIncludeColors
+    };
+}
+function buildTileCharMap(analysis) {
+    const map = new Map();
+    const tiles = Array.isArray(analysis.tiles) ? analysis.tiles : [];
+    let nextCharCode = 128;
+    tiles.forEach((tile, tileIndex) => {
+        if (!tile?.id)
+            return;
+        const charsWide = Math.max(1, Math.ceil((tile.width || 8) / 8));
+        const charsHigh = Math.max(1, Math.ceil((tile.height || 8) / 8));
+        const charsPerTile = charsWide * charsHigh;
+        map.set(tile.id, { charCode: nextCharCode, charsPerTile, tileIndex });
+        nextCharCode += charsPerTile;
+    });
+    return map;
+}
+function toHexByte(value) {
+    const n = clampByte(value, 0);
+    return `#${n.toString(16).toUpperCase().padStart(2, '0')}`;
+}
+function sanitizeLabel(text, fallback) {
+    const label = String(text || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    return label || fallback;
+}
+function chunkBytesForDb(bytes, perLine = 16) {
+    if (!bytes.length)
+        return '    db #00';
+    const lines = [];
+    for (let i = 0; i < bytes.length; i += perLine) {
+        const chunk = bytes.slice(i, i + perLine).map(toHexByte).join(', ');
+        lines.push(`    db ${chunk}`);
+    }
+    return lines.join('\n');
+}
+function prepareAnimationGroups(analysis) {
+    const tiles = Array.isArray(analysis.tiles) ? analysis.tiles : [];
+    if (!tiles.length)
+        return { frameGroups: [], transformGroups: [] };
+    const tileCharMap = buildTileCharMap(analysis);
+    const candidatesByGroup = new Map();
+    const transformGroups = [];
+    tiles.forEach((tile, tileIndex) => {
+        const tileId = String(tile?.id || '').trim();
+        if (!tileId)
+            return;
+        const tileCharInfo = tileCharMap.get(tileId);
+        if (!tileCharInfo)
+            return;
+        const meta = readAnimationMeta(tile);
+        if (!meta.enabled)
+            return;
+        const inferred = parseFrameSuffix(tile?.name || '');
+        const groupId = (meta.groupId || inferred?.groupId || tile?.name || tileId || '').trim();
+        if (meta.mode === 'transform') {
+            const transformEffect = normalizeTransformEffect(meta.transformEffect);
+            if (!transformEffect)
+                return;
+            const explicitBase = meta.baseTileId && tileCharMap.has(meta.baseTileId) ? meta.baseTileId : null;
+            const targetTileId = explicitBase || tileId;
+            const targetInfo = tileCharMap.get(targetTileId);
+            if (!targetInfo)
+                return;
+            const targetCharCode = targetInfo.charCode;
+            const charsPerTile = targetInfo.charsPerTile;
+            if (targetCharCode < 0 || targetCharCode + charsPerTile - 1 > 255)
+                return;
+            const opCode = TRANSFORM_OPERATION_CODES[transformEffect];
+            if (!opCode)
+                return;
+            const flags = meta.transformIncludeColors ? 1 : 0;
+            const label = `anim_transform_${transformGroups.length}_${sanitizeLabel(groupId, `t${transformGroups.length}`)}`;
+            transformGroups.push({
+                label,
+                groupId,
+                speed: clampByte(meta.speed ?? 8, 8, 1, 255),
+                targetTileId,
+                targetCharCode,
+                charsPerTile,
+                operationCode: opCode,
+                flags
+            });
+            return;
+        }
+        if (!groupId)
+            return;
+        let frameOrder = meta.frameOrder;
+        if (frameOrder === null && inferred) {
+            if (!meta.groupId || normalizeGroupId(meta.groupId) === normalizeGroupId(inferred.groupId)) {
+                frameOrder = inferred.frameOrder;
+            }
+        }
+        if (frameOrder === null) {
+            frameOrder = tileCharInfo.tileIndex;
+        }
+        const speed = clampByte(meta.speed ?? 8, 8, 1, 255);
+        const key = normalizeGroupId(groupId);
+        const list = candidatesByGroup.get(key) || [];
+        list.push({
+            tile,
+            tileIndex,
+            tileId,
+            groupId,
+            frameOrder,
+            speed,
+            baseTileId: meta.baseTileId
+        });
+        candidatesByGroup.set(key, list);
+    });
+    const frameGroups = [];
+    for (const entries of candidatesByGroup.values()) {
+        if (entries.length < 2)
+            continue;
+        const sorted = [...entries].sort((a, b) => {
+            if (a.frameOrder !== b.frameOrder)
+                return a.frameOrder - b.frameOrder;
+            return a.tileIndex - b.tileIndex;
+        });
+        const explicitBase = sorted.find((entry) => !!entry.baseTileId && tileCharMap.has(entry.baseTileId))?.baseTileId || null;
+        const targetTileId = explicitBase || sorted[0].tileId;
+        const targetInfo = tileCharMap.get(targetTileId);
+        if (!targetInfo)
+            continue;
+        const compatibleFrames = sorted.filter((entry) => {
+            const info = tileCharMap.get(entry.tileId);
+            return !!info && info.charsPerTile === targetInfo.charsPerTile;
+        });
+        if (compatibleFrames.length < 2)
+            continue;
+        const targetCharCode = targetInfo.charCode;
+        const charsPerTile = targetInfo.charsPerTile;
+        if (targetCharCode < 0 || targetCharCode + charsPerTile - 1 > 255)
+            continue;
+        const frames = [];
+        const expectedPatternBytes = charsPerTile * 8;
+        let speed = compatibleFrames[0].speed;
+        for (const frame of compatibleFrames) {
+            const patternBytes = Array.from((0, tileUtils_1.generateTilePatternBytes)(frame.tile, SCREEN2_MODE) || []);
+            if (patternBytes.length !== expectedPatternBytes)
+                continue;
+            const rawColorBytes = (0, tileUtils_1.generateTileColorBytes)(frame.tile);
+            const defaultColor = 0xF1;
+            const colorBytes = rawColorBytes
+                ? Array.from(rawColorBytes).slice(0, expectedPatternBytes)
+                : new Array(expectedPatternBytes).fill(defaultColor);
+            while (colorBytes.length < expectedPatternBytes) {
+                colorBytes.push(defaultColor);
+            }
+            const frameBytes = [];
+            for (let charIndex = 0; charIndex < charsPerTile; charIndex++) {
+                const offset = charIndex * 8;
+                frameBytes.push(...patternBytes.slice(offset, offset + 8));
+                frameBytes.push(...colorBytes.slice(offset, offset + 8));
+            }
+            frames.push({
+                tileName: String(frame.tile?.name || frame.tileId),
+                bytes: frameBytes
+            });
+            speed = Math.min(speed, frame.speed);
+        }
+        if (frames.length < 2)
+            continue;
+        const groupId = compatibleFrames[0].groupId;
+        const label = `anim_group_${frameGroups.length}_${sanitizeLabel(groupId, `g${frameGroups.length}`)}`;
+        frameGroups.push({
+            label,
+            groupId,
+            speed: clampByte(speed, 8, 1, 255),
+            targetTileId,
+            targetCharCode,
+            charsPerTile,
+            frameCount: clampByte(frames.length, frames.length, 2, 255),
+            bytesPerFrame: charsPerTile * 16,
+            frames
+        });
+    }
+    return { frameGroups, transformGroups };
+}
 /**
  * Generate animated tiles file (animtiles.asm)
  *
@@ -12,13 +299,140 @@ exports.generateAnimatedTilesFile = generateAnimatedTilesFile;
  * @returns ASM code string with animated tiles system
  */
 function generateAnimatedTilesFile(analysis) {
-    const tileWidth = analysis.tiles?.[0]?.width || 8;
-    const tileHeight = analysis.tiles?.[0]?.height || 8;
+    const { frameGroups, transformGroups } = prepareAnimationGroups(analysis);
+    const hasFrameAnimatedTiles = frameGroups.length > 0;
+    const hasTransformAnimatedTiles = transformGroups.length > 0;
+    const defaultGlobalSpeed = clampByte(frameGroups[0]?.speed ?? transformGroups[0]?.speed ?? 8, 8, 1, 255);
+    const maxAnimTiles = Math.max(1, frameGroups.length + transformGroups.length);
+    const tableEntries = hasFrameAnimatedTiles
+        ? frameGroups.map((group) => `    db ${group.targetCharCode}, ${group.charsPerTile}, ${group.frameCount}, ${group.speed}, ${group.bytesPerFrame}    ; ${group.groupId} -> tile ${group.targetTileId}
+    dw ${group.label}`).join('\n')
+        : `    ; No animated tile groups detected in project data`;
+    const transformTableEntries = hasTransformAnimatedTiles
+        ? transformGroups.map((group) => `    db ${group.targetCharCode}, ${group.charsPerTile}, ${group.operationCode}, ${group.flags}    ; ${group.groupId} -> tile ${group.targetTileId}`).join('\n')
+        : `    ; No transform tile groups detected in project data`;
+    const dataBlocks = hasFrameAnimatedTiles
+        ? frameGroups.map((group) => {
+            const frames = group.frames
+                .slice(0, group.frameCount)
+                .map((frame, frameIndex) => {
+                return `    ; Frame ${frameIndex}: ${frame.tileName}
+${chunkBytesForDb(frame.bytes)}`;
+            })
+                .join('\n');
+            return `${group.label}:
+    ; Group "${group.groupId}" targetChar=${group.targetCharCode} chars=${group.charsPerTile}
+${frames}
+`;
+        }).join('\n')
+        : `anim_group_empty_data:
+    db #00
+`;
+    const frameVramUpdateBlock = hasFrameAnimatedTiles
+        ? `    call mapper_push_p2
+    ld a, ANIM_TILE_DATA_BANK
+    call mapper_set_bank_p2
+
+    ld hl, anim_tile_table
+
+.anim_vram_loop:
+    ld a, (hl)                      ; A = target char code
+    cp 255
+    jr z, .anim_vram_done
+
+    push af                         ; Save target char code
+    inc hl
+    ld a, (hl)                      ; A = chars per tile
+    push af
+    inc hl
+    ld b, (hl)                      ; B = frame count
+    inc hl
+    inc hl                          ; Skip speed byte (reserved)
+    ld c, (hl)                      ; C = bytes per frame
+    inc hl
+    ld e, (hl)                      ; DE = data pointer
+    inc hl
+    ld d, (hl)
+    inc hl                          ; HL = next table entry
+    push hl
+    ex de, hl                       ; HL = data pointer
+
+    ; frame = global_frame % frame_count
+    ld a, (anim_tile_frame)
+.anim_mod_loop:
+    cp b
+    jr c, .anim_mod_done
+    sub b
+    jr .anim_mod_loop
+.anim_mod_done:
+
+    ; DE = frame offset (frame * bytes_per_frame)
+    ld d, 0
+    ld e, 0
+.anim_mul_loop:
+    or a
+    jr z, .anim_mul_done
+    push af
+    ld a, e
+    add a, c
+    ld e, a
+    ld a, d
+    adc a, 0
+    ld d, a
+    pop af
+    dec a
+    jr .anim_mul_loop
+.anim_mul_done:
+    add hl, de                      ; HL = frame data pointer
+
+    pop de                          ; DE = next table entry pointer
+    pop af
+    ld b, a                         ; B = chars per tile
+    pop af
+    ld c, a                         ; C = target char code
+    push de
+
+.anim_char_loop:
+    ld a, b
+    or a
+    jr z, .anim_char_done
+
+    push bc
+    push hl
+    ld a, c
+    call anim_upload_char_frame
+    pop hl
+    pop bc
+
+    ld de, 16
+    add hl, de                      ; Next char frame chunk
+    inc c                           ; Next target char code
+    dec b
+    jr .anim_char_loop
+
+.anim_char_done:
+    pop de
+    ex de, hl                       ; HL = next table entry
+    jr .anim_vram_loop
+
+.anim_vram_done:
+    call mapper_pop_p2`
+        : '';
+    const transformVramUpdateBlock = hasTransformAnimatedTiles
+        ? `    call update_animated_transform_tiles_vram`
+        : '';
+    const updateVramBody = [frameVramUpdateBlock, transformVramUpdateBlock]
+        .filter(Boolean)
+        .join('\n');
     return `; ==================================================================
 ; ANIMATED TILES SYSTEM
 ; File: animtiles.asm
 ; Description: Background tile animation for water, lava, fire, etc.
 ; ==================================================================
+
+; Auto-detected animated groups:
+;   frame groups: ${frameGroups.length}
+;   transform groups: ${transformGroups.length}
 
 ; ==================================================================
 ; ANIMATED TILES CONSTANTS
@@ -30,7 +444,10 @@ ANIM_SPEED_MEDIUM       EQU 8       ; ~133ms (lava)
 ANIM_SPEED_FAST         EQU 4       ; ~66ms (fire)
 
 ; Maximum animated tiles
-MAX_ANIM_TILES          EQU 8       ; Support up to 8 animated tiles
+MAX_ANIM_TILES          EQU ${maxAnimTiles}
+ANIM_TILE_ENTRY_SIZE    EQU 7       ; char, chars, frames, speed, bytesPerFrame, ptr(2)
+ANIM_TRANS_ENTRY_SIZE   EQU 4       ; char, chars, opCode, flags
+ANIM_TILE_DATA_BANK     EQU ((anim_tile_table - #4000) / #2000)
 
 ; ==================================================================
 ; ANIMATED TILES INITIALIZATION
@@ -42,9 +459,12 @@ init_animated_tiles:
     ld (anim_tile_timer), a
     ld (anim_tile_frame), a
 
-    ; Set default animation speed (medium)
-    ld a, ANIM_SPEED_MEDIUM
+    ; Set default global animation speed
+    ld a, ${defaultGlobalSpeed}
     ld (anim_tile_speed), a
+
+    ; Upload initial animation frame state immediately
+    call update_animated_tiles_vram
 
     ret
 
@@ -66,17 +486,21 @@ update_animated_tiles:
     ; Check if it's time to advance frame
     ld b, a
     ld a, (anim_tile_speed)
+    or a
+    jr nz, .anim_speed_ok
+    ld a, 1
+    ld (anim_tile_speed), a
+.anim_speed_ok:
     cp b
-    ret nz                          ; Not yet time to update
+    ret nc                          ; Not yet time to update (timer < speed)
 
     ; Reset timer
     xor a
     ld (anim_tile_timer), a
 
-    ; Advance to next animation frame
+    ; Advance global animation counter
     ld a, (anim_tile_frame)
     inc a
-    and #03                         ; Wrap at 4 frames (0-3)
     ld (anim_tile_frame), a
 
     ; Update all animated tiles in VRAM
@@ -91,81 +515,16 @@ update_animated_tiles:
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 update_animated_tiles_vram:
-    ld hl, anim_tile_table          ; HL = animation table pointer
-    ld a, (anim_tile_frame)         ; A = current global frame
-
-.anim_vram_loop:
-    ld c, (hl)                      ; C = tile ID
-    ld a, c
-    cp 255
-    ret z                           ; End of table, done
-
-    inc hl
-    ld b, (hl)                      ; B = number of frames (unused for now)
-    inc hl
-    inc hl                          ; Skip speed byte
-
-    ; Now update this tile in VRAM
-    push hl                         ; Save table pointer
-
-    ; Get current animation frame
-    ld a, (anim_tile_frame)
-    ld b, a                         ; B = current frame
-    ld a, c                         ; A = tile ID
-
-    ; Calculate which animation pattern index
-    ; We need to know which pattern set this tile uses
-    ; For simplicity: tile 240 = pattern 0, tile 241 = pattern 1, etc.
-    sub 240                         ; A = pattern index (0, 1, 2, ...)
-    ld c, a                         ; C = pattern index
-
-    ; Calculate source address
-    ; Source = anim_patterns_data + (pattern_index * 32) + (frame * 8)
-    ld l, c
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    add hl, hl                      ; * 16
-    add hl, hl                      ; * 32 (4 frames * 8 bytes)
-
-    ; Add frame offset
-    ld a, b                         ; A = frame
-    add a, a                        ; * 2
-    add a, a                        ; * 4
-    add a, a                        ; * 8
-    ld e, a
-    ld d, 0
-    add hl, de
-
-    ; Add base address
-    ld de, anim_patterns_data
-    add hl, de                      ; HL = source pattern address
-
-    ; Calculate VRAM destination
-    ; For Screen 2: CHRTBL + (tile_id * 8)
-    ld a, c
-    add a, 240                      ; Convert back to tile ID
-    ld e, a
-    ld d, 0
-    ex de, hl                       ; DE = source, HL = tile_id
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    ld bc, CHRTBL
-    add hl, bc                      ; HL = VRAM address
-
-    ex de, hl                       ; DE = VRAM, HL = source
-
-    ; Copy 8 bytes to VRAM
-    push bc
-    ld bc, 8
-    call LDIRVM
-    pop bc
-
-    pop hl                          ; Restore table pointer
-    jr .anim_vram_loop              ; Next tile
-
+    ; Protect VDP port sequence from ISR VRAM writes (sprite task, etc.)
+    ; Preserve prior interrupt state using LD A,I -> P/V = IFF2
+    ld a, i
+    push af
+    di
+${updateVramBody}
+    pop af
+    jp po, .anim_vram_irq_done
+    ei
+.anim_vram_irq_done:
     ret
 
 ; ------------------------------------------------------------------
@@ -174,126 +533,578 @@ update_animated_tiles_vram:
 ; Input:  A = Speed (frames between updates)
 ; ------------------------------------------------------------------
 set_animation_speed:
+    or a
+    jr nz, .anim_speed_store
+    ld a, 1
+.anim_speed_store:
     ld (anim_tile_speed), a
     ret
 
 ; ------------------------------------------------------------------
-; animate_tile_pattern
-; Update a specific tile pattern in VRAM with animation frame
-; Input:  A = Tile ID
-;         B = Animation frame (0-3)
+; anim_copy_8_bytes
+; Copy 8 bytes from CPU memory to VRAM
+; Input: DE = source pointer, HL = VRAM destination
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
-animate_tile_pattern:
-    push af
-    push bc
-
-    ; Calculate pattern address in VRAM
-    ; For Screen 2: Pattern = CHRTBL2 + (tile_id * 8)
-    ld l, a
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    ld de, #0000                    ; CHRTBL2 base
-    add hl, de                      ; HL = VRAM pattern address
-
-    ; Calculate source pattern address
-    ; Source = anim_patterns + (tile_id * 32) + (frame * 8)
-    pop bc                          ; B = frame
-    pop af                          ; A = tile_id
-
-    push hl                         ; Save VRAM address
-
-    ; tile_id * 32 (4 frames * 8 bytes)
-    ld l, a
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    add hl, hl                      ; * 16
-    add hl, hl                      ; * 32
-
-    ; + (frame * 8)
-    ld a, b
-    add a, a                        ; * 2
-    add a, a                        ; * 4
-    add a, a                        ; * 8
-    ld e, a
-    ld d, 0
-    add hl, de
-
-    ; Add base address of animation patterns
-    ld de, anim_patterns_data
-    add hl, de                      ; HL = source address
-
-    ; Copy 8 bytes to VRAM
-    pop de                          ; DE = VRAM address
-    ld bc, 8
-    call LDIRVM
+anim_copy_8_bytes:
+    ld b, 8
+.anim_copy_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_copy_loop
 
     ret
 
 ; ==================================================================
-; ANIMATED TILE DEFINITIONS
+; anim_upload_char_frame
+; Upload one animated char (pattern + color) to all 3 Screen 2 banks
+; Input: A = target char code, HL = source frame chunk (16 bytes)
+; Source layout: 8 pattern bytes + 8 color bytes
+; Destroys: AF, BC, DE, HL
 ; ==================================================================
-; Define which tiles are animated and their pattern data
+anim_upload_char_frame:
+    push af
+    push bc
+    push de
+    push hl
 
-; Example: Water animation (4 frames)
-; Each frame is 8 bytes (one tile pattern)
+    ; BC = target char offset (charCode * 8)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld b, h
+    ld c, l
 
-anim_patterns_data:
-    ; Tile 0: Water (example - 4 frames)
-    ; Frame 0
-    db #00, #00, #42, #24, #00, #00, #84, #48
-    ; Frame 1
-    db #00, #42, #24, #00, #00, #84, #48, #00
-    ; Frame 2
-    db #42, #24, #00, #00, #84, #48, #00, #00
-    ; Frame 3
-    db #24, #00, #00, #84, #48, #00, #00, #42
+    pop hl
+    ex de, hl                      ; DE = source pattern pointer
 
-    ; Tile 1: Lava (example - 4 frames)
-    ; Frame 0
-    db #FF, #AA, #55, #AA, #FF, #AA, #55, #AA
-    ; Frame 1
-    db #AA, #55, #AA, #FF, #AA, #55, #AA, #FF
-    ; Frame 2
-    db #55, #AA, #FF, #AA, #55, #AA, #FF, #AA
-    ; Frame 3
-    db #AA, #FF, #AA, #55, #AA, #FF, #AA, #55
+    ; Pattern bank 0
+    push de
+    ld hl, CHRTBL2
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
 
-    ; Tile 2: Fire (example - 4 frames)
-    ; Frame 0
-    db #18, #3C, #7E, #FF, #E7, #C3, #81, #00
-    ; Frame 1
-    db #3C, #7E, #FF, #E7, #C3, #81, #00, #18
-    ; Frame 2
-    db #7E, #FF, #E7, #C3, #81, #00, #18, #3C
-    ; Frame 3
-    db #FF, #E7, #C3, #81, #00, #18, #3C, #7E
+    ; Pattern bank 1
+    push de
+    ld hl, CHRTBL2 + #800
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
 
-    ; Add more animated tile patterns here...
+    ; Pattern bank 2
+    ld hl, CHRTBL2 + #1000
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+
+    ; DE now points to color bytes (source + 8)
+    ; Color bank 0
+    push de
+    ld hl, CLRTBL2
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Color bank 1
+    push de
+    ld hl, CLRTBL2 + #800
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Color bank 2
+    ld hl, CLRTBL2 + #1000
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ==================================================================
+; TRANSFORM MODE ROUTINES (Z80 runtime bit/row transforms)
+; ==================================================================
+
+; ------------------------------------------------------------------
+; Routine: update_animated_transform_tiles_vram
+; Purpose:
+;   Applies Z80 transform operations directly on tile bytes in VRAM.
+; Input:
+;   None
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Uses PUSH/POP HL, BC and DE internally
+; ------------------------------------------------------------------
+update_animated_transform_tiles_vram:
+${hasTransformAnimatedTiles ? `    ld hl, anim_transform_table
+
+.anim_transform_loop:
+    ld a, (hl)                      ; A = target char code
+    cp 255
+    ret z
+
+    ld c, a                         ; C = first char code
+    inc hl
+    ld b, (hl)                      ; B = chars per tile
+    inc hl
+    ld d, (hl)                      ; D = operation code
+    inc hl
+    ld a, (hl)                      ; A = flags
+    ld (anim_tile_transform_flags), a
+    inc hl                          ; HL = next table entry
+    push hl
+
+.anim_transform_char_loop:
+    ld a, b
+    or a
+    jr z, .anim_transform_next
+
+    push bc
+    push de
+    ld a, c
+    call anim_transform_char_frame
+    pop de
+    pop bc
+
+    inc c
+    dec b
+    jr .anim_transform_char_loop
+
+.anim_transform_next:
+    pop hl
+    jr .anim_transform_loop` : `    ret`}
+
+; ------------------------------------------------------------------
+; Routine: anim_transform_char_frame
+; Purpose:
+;   Transform one character pattern in all SCREEN 2 banks.
+; Input:
+;   A = character code
+;   D = transform operation code
+;   (anim_tile_transform_flags).bit0 = transform color rows too
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Pushes/pops BC, DE and HL
+; ------------------------------------------------------------------
+anim_transform_char_frame:
+    push bc
+    push de
+    push hl
+
+    ; BC = charCode * 8 (row offset in pattern/color tables)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld b, h
+    ld c, l
+
+    ; Save opcode D to scratch RAM so anim_transform_vram_block can read it
+    ; after DE gets clobbered by 'ld de, anim_tile_row_buffer' internally
+    ld a, d
+    ld (anim_tile_transform_flags + 1), a
+
+    ; anim_transform_vram_block now handles all 3 pattern banks internally.
+    ; Just call once with HL = bank 0 base address.
+    ld hl, CHRTBL2
+    add hl, bc
+    call anim_transform_vram_block
+
+    ; Color transforms only for vertical row operations (5..7) and if enabled
+    ld a, d
+    cp 5
+    jr c, .anim_transform_char_done
+
+    ld a, (anim_tile_transform_flags)
+    and 1
+    jr z, .anim_transform_char_done
+
+    ; Color banks: call once with CLRTBL2 bank 0 base
+    ld hl, CLRTBL2
+    add hl, bc
+    call anim_transform_vram_block
+
+.anim_transform_char_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; Routine: anim_transform_vram_block
+; Purpose:
+;   Apply transform to one 8-byte VRAM block (one char rows table).
+; Input:
+;   HL = VRAM base address for row 0 (8 consecutive bytes)
+;   D  = operation code:
+;        1 rotate_left  (RLCA)
+;        2 rotate_right (RRCA)
+;        3 shift_left   (SLA)
+;        4 shift_right  (SRL)
+;        5 shift_up rows
+;        6 shift_down rows
+;        7 swap top/bottom row
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Uses stack while reading row bytes
+; ------------------------------------------------------------------
+anim_transform_vram_block:
+    ; NOTE: HL=VRAM base address for bank 0. D=operation code.
+    ; This routine always reads source data from bank 0 into anim_tile_row_buffer,
+    ; applies the transform to the buffer in RAM, then writes the result
+    ; back to ALL 3 VRAM pattern banks. This prevents divergence between
+    ; banks when the tile data is not perfectly identical across banks.
+
+    ld a, d
+    cp 5
+    jr nc, .anim_transform_vertical
+
+    ; --- Horizontal bit transforms (RLCA / RRCA / SLA / SRL) ---
+    ; D has been clobbered by 'ld de, anim_tile_row_buffer' below.
+    ; Opcode was saved to (anim_tile_transform_flags+1) by caller.
+
+    ; Step 1: Read 8 bytes from VRAM bank 0 into anim_tile_row_buffer
+    push hl                        ; Save VRAM bank 0 base address
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_read_horiz_loop:
+    push hl
+    call FAST_RDVRM                ; A = byte from VRAM[HL]
+    pop hl
+    ld (de), a
+    inc de
+    inc hl
+    djnz .anim_read_horiz_loop
+    pop hl                         ; Restore VRAM bank 0 base
+
+    ; Step 2: Apply transform in-place on anim_tile_row_buffer
+    ld de, anim_tile_row_buffer
+    ld b, 8
+    ld a, (anim_tile_transform_flags + 1)  ; Reload opcode (D is corrupted at this point)
+    ld c, a                        ; C = opcode (preserved across loop)
+.anim_apply_horiz_loop:
+    ld a, (de)                     ; A = source byte
+    push de                        ; Save buffer pointer
+    push bc                        ; Save B=count, C=opcode
+    ld b, a                        ; B = source byte
+    ld a, c                        ; A = opcode
+    cp 1
+    jr nz, .anim_not_rl3
+    ld a, b
+    rlca
+    jr .anim_store_h
+.anim_not_rl3:
+    cp 2
+    jr nz, .anim_not_rr3
+    ld a, b
+    rrca
+    jr .anim_store_h
+.anim_not_rr3:
+    cp 3
+    jr nz, .anim_not_sla3
+    ld a, b
+    sla a
+    jr .anim_store_h
+.anim_not_sla3:
+    ld a, b
+    srl a
+.anim_store_h:
+    ; A = transformed byte, now restore registers and store result
+    pop bc                         ; Restore B=count, C=opcode
+    pop de                         ; Restore DE = buffer pointer
+    ld (de), a                     ; Write transformed byte to buffer
+    inc de
+    djnz .anim_apply_horiz_loop
+
+    ; Step 3: Write transformed buffer to all 3 VRAM banks
+    ; Bank 0 (already at HL)
+    push hl
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank0_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_bank0_loop
+    pop hl
+
+    ; Bank 1 (HL + #800)
+    push hl
+    ld de, #0800
+    add hl, de
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank1_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_bank1_loop
+    pop hl
+
+    ; Bank 2 (HL + #1000)
+    ld de, #1000
+    add hl, de
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank2_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_bank2_loop
+    ret
+
+.anim_transform_vertical:
+    ; --- Vertical row-shift transforms (shift_up / shift_down / swap) ---
+    ; Step 1: Read 8 rows from VRAM bank 0 into anim_tile_row_buffer
+    push de                        ; Preserve D=operation code
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_read_rows_loop:
+    push hl
+    call FAST_RDVRM                 ; A = row byte
+    pop hl
+    ld (de), a
+    inc de
+    inc hl
+    djnz .anim_read_rows_loop
+    pop de                         ; Restore D=operation code
+
+    ; Step 2: Build transformed output in anim_tile_row_buffer (reorder rows in RAM)
+    ; We reuse a secondary temp area: write transformed bytes directly using
+    ; the output loop below, reading from the (now captured) buffer.
+    ; Restore HL to block start (HL -= 8).
+    ; NOTE: 'ld de, #FFF8' destroys D, so reload opcode from scratch RAM.
+    ld de, #FFF8
+    add hl, de
+
+    ld a, (anim_tile_transform_flags + 1)  ; Reload opcode (D is corrupted by ld de,#FFF8)
+    cp 5
+    jr nz, .anim_not_shift_up
+
+    ; shift_up: row0<-row1 ... row6<-row7, row7<-row0(original)
+    ; Write to bank 0
+    push hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_b0:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_b0
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+    ; Write to bank 1
+    push hl
+    ld de, #0800
+    add hl, de
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_b1
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+    ; Write to bank 2
+    ld de, #1000
+    add hl, de
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_b2
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    ret
+
+.anim_not_shift_up:
+    cp 6
+    jr nz, .anim_not_shift_down
+
+    ; shift_down: row0<-row7(orig), row1<-row0 ... row7<-row6
+    ; Write to bank 0
+    push hl
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_dn_b0:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_dn_b0
+    pop hl
+    ; Write to bank 1
+    push hl
+    ld de, #0800
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_dn_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_dn_b1
+    pop hl
+    ; Write to bank 2
+    ld de, #1000
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_dn_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_dn_b2
+    ret
+
+.anim_not_shift_down:
+    ; swap_top_bottom: row0<->row7, middle rows unchanged
+    ; Write to bank 0
+    push hl
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_sw_mid_b0:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_sw_mid_b0
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+    ; Write to bank 1
+    push hl
+    ld de, #0800
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_sw_mid_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_sw_mid_b1
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+    ; Write to bank 2
+    ld de, #1000
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_sw_mid_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_sw_mid_b2
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    ret
+
+; ==================================================================
+; ANIMATED TILE DEFINITIONS (AUTO-GENERATED)
+; ==================================================================
 
 ; ------------------------------------------------------------------
 ; Animated tile mapping table
-; Maps tile IDs to animation data
-; Format: db tile_id, num_frames, speed
+; Format:
+;   db targetCharCode, charsPerTile, numFrames, speed, bytesPerFrame
+;   dw frameDataPointer
 ; ------------------------------------------------------------------
 anim_tile_table:
-    ; Tile ID, Frames, Speed
-    db 240, 4, ANIM_SPEED_SLOW      ; Water tile (ID 240)
-    db 241, 4, ANIM_SPEED_MEDIUM    ; Lava tile (ID 241)
-    db 242, 4, ANIM_SPEED_FAST      ; Fire tile (ID 242)
+${tableEntries}
+    db 255                          ; End marker
+
+; ------------------------------------------------------------------
+; Transform tile mapping table
+; Format:
+;   db targetCharCode, charsPerTile, opCode, flags
+; flags:
+;   bit0 = apply vertical transform on color rows
+; ------------------------------------------------------------------
+anim_transform_table:
+${transformTableEntries}
     db 255                          ; End marker
 
 ; ==================================================================
-; ADVANCED ANIMATION FUNCTIONS
+; ANIMATION FRAME DATA
 ; ==================================================================
+${dataBlocks}
 
 ; ------------------------------------------------------------------
 ; register_animated_tile
-; Register a tile ID as animated (adds to runtime table)
+; Runtime registration is not supported in this generator version.
 ; Input:  A = Tile ID to animate
 ;         B = Number of frames (2-4)
 ;         C = Animation speed
@@ -301,93 +1112,47 @@ anim_tile_table:
 ; Destroys: AF, DE, HL
 ; ------------------------------------------------------------------
 register_animated_tile:
-    push bc
-    push af                         ; Save tile ID
-
-    ; Find end of anim_tile_table (marked by 255)
-    ld hl, anim_tile_table
-.anim_reg_find_end:
-    ld a, (hl)
-    cp 255
-    jr z, .anim_reg_found_end       ; Found end marker
-
-    ; Skip to next entry (3 bytes: id, frames, speed)
-    inc hl
-    inc hl
-    inc hl
-    jr .anim_reg_find_end
-
-.anim_reg_found_end:
-    ; Check if we have space (need 4 bytes: new entry + end marker)
-    ; For safety, we'll assume the table has space
-    ; In production, add bounds checking
-
-    ; Write new entry
-    pop af                          ; A = tile ID
-    ld (hl), a
-    inc hl
-
-    pop bc                          ; B = frames, C = speed
-    ld (hl), b                      ; Store frames
-    inc hl
-    ld (hl), c                      ; Store speed
-    inc hl
-
-    ; Write new end marker
-    ld (hl), 255
-
-    ld a, 1                         ; Success
+    xor a                           ; Not supported (static generated table)
     ret
 
 ; ------------------------------------------------------------------
 ; get_tile_animation_frame
 ; Get current animation frame for a tile
-; Input:  A = Tile ID
-; Output: A = Current frame (0-3), or 0 if not animated
-;         Zero flag set if not animated
-; Destroys: BC, HL
+; Input:  A = target char code
+; Output: A = Current frame index (mod numFrames), or 0 if not animated
+; Destroys: BC, DE, HL
 ; ------------------------------------------------------------------
 get_tile_animation_frame:
-    ld c, a                         ; C = tile ID to search
+    ld c, a                         ; C = char code to search
     ld hl, anim_tile_table
 
 .anim_search_loop:
-    ld a, (hl)                      ; A = tile_id from table
+    ld a, (hl)
     cp 255
-    jr z, .anim_not_found           ; End of table
-
-    ; Check if this is our tile
+    jr z, .anim_not_found
     cp c
-    jr z, .anim_found_tile          ; Found it!
+    jr z, .anim_found_tile
 
-    ; Skip to next entry (3 bytes)
-    inc hl
-    inc hl
-    inc hl
+    ld de, ANIM_TILE_ENTRY_SIZE
+    add hl, de
     jr .anim_search_loop
 
 .anim_found_tile:
-    ; Found the tile, get its current frame
-    ; For now, we use the global frame
-    ; In a more advanced system, each tile could have its own frame counter
-    ld a, (anim_tile_frame)         ; A = current global frame
-
-    ; We could add per-tile frame support here:
-    ; 1. Store per-tile frame counters in RAM
-    ; 2. Use tile index to look up specific frame
-    ; For now, all tiles share the same frame counter
-
-    or a                            ; Clear zero flag (tile found)
+    inc hl
+    inc hl
+    ld b, (hl)                      ; B = numFrames
+    ld a, (anim_tile_frame)
+.anim_found_mod:
+    cp b
+    jr c, .anim_found_done
+    sub b
+    jr .anim_found_mod
+.anim_found_done:
     ret
 
 .anim_not_found:
-    xor a                           ; Return 0 if not animated
-    ret                             ; Zero flag is set
-
-; ==================================================================
-; UTILITY: Copy to VRAM (if not using BIOS)
-; ==================================================================
-; Note: We use LDIRVM from BIOS, defined in bios.asm
+    xor a
+    ret
 
 ; ==================================================================
 ; END OF ANIMATED TILES SYSTEM

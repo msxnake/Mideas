@@ -74,6 +74,11 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [lastGeneratedRomConfig, setLastGeneratedRomConfig] = useState<RomBuildConfig | null>(null);
   const [isQuickValidating, setIsQuickValidating] = useState(false);
   const [quickValidationSummary, setQuickValidationSummary] = useState<string | null>(null);
+  const [isBuildingAndRunning, setIsBuildingAndRunning] = useState(false);
+  const [pipelineProgress, setPipelineProgress] = useState(0);
+  const [pipelineStatus, setPipelineStatus] = useState('Ready');
+
+  const isPipelineBusy = isGenerating || isCompiling || isCompressingAsm || isQuickValidating || isBuildingAndRunning;
 
   // Function to download ZIP with all modular files
   const downloadModularZip = async (modularFiles: Record<string, string>, projectName: string) => {
@@ -260,6 +265,31 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
 
     return result;
+  };
+
+  const runOpenMSXRequest = async (romFile: string) => {
+    const response = await fetch('http://localhost:3001/run-openmsx', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ romFile }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      return {
+        success: false,
+        message: result.details || result.error || 'Failed to start OpenMSX'
+      };
+    }
+
+    return {
+      success: true,
+      message: result.message || 'OpenMSX started successfully',
+      note: result.note || ''
+    };
   };
 
   const runCompressRequest = async (sourceCode: string, projectNameInput?: string) => {
@@ -594,19 +624,22 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
-  const handleGenerateCompressCompileMapper = async () => {
+  const runMapperPipeline = async (launchAfterBuild: boolean) => {
     if (exportType !== 'asm_all_in_one') {
-      alert('Generate + Compress + Compile + Mapper is only available for ASM (all in one).');
+      alert(`${launchAfterBuild ? 'Build and Run' : 'Generate + Compress + Compile + Mapper'} is only available for ASM (all in one).`);
       return;
     }
 
-    setIsQuickValidating(true);
+    setIsQuickValidating(!launchAfterBuild);
+    setIsBuildingAndRunning(launchAfterBuild);
     setIsGenerating(true);
     setIsCompiling(true);
     setIsCompressingAsm(true);
     setCompilationResult(null);
     setAsmCompressionResult(null);
     setQuickValidationSummary(null);
+    setPipelineProgress(5);
+    setPipelineStatus('Generating ASM...');
 
     try {
       const romConfig = buildCurrentRomConfig();
@@ -616,11 +649,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       setGeneratedFiles(bundle.files);
       setActiveFileIndex(bundle.activeIndex);
       setLastGeneratedRomConfig(bundle.romConfig);
+      setPipelineProgress(28);
+      setPipelineStatus('ASM generated');
 
       let sourceCodeForCompile = bundle.mainCode;
       let compressionSummary = 'Compression: skipped';
 
       try {
+        setPipelineProgress(42);
+        setPipelineStatus('Compressing ZX0 blocks...');
         const compressionResult = await runCompressRequest(bundle.mainCode, bundle.projectName);
         setAsmCompressionResult(compressionResult);
 
@@ -649,17 +686,27 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
           const netSaved = compressionResult?.compressionInfo?.netSavedBytes ?? 0;
           compressionSummary = `Compression: applied (net saved ${netSaved} bytes)`;
+          setPipelineProgress(60);
+          setPipelineStatus('Compression applied');
         } else if (compressionResult.success) {
           compressionSummary = `Compression: ${compressionResult.message || 'skipped (no net gain)'}`;
+          setPipelineProgress(60);
+          setPipelineStatus('Compression skipped');
         } else {
           compressionSummary = `Compression warning: ${compressionResult.message || 'failed'}`;
+          setPipelineProgress(60);
+          setPipelineStatus('Compression warning');
         }
       } catch (compressionError) {
         compressionSummary = `Compression warning: ${compressionError}`;
+        setPipelineProgress(60);
+        setPipelineStatus('Compression warning');
       } finally {
         setIsCompressingAsm(false);
       }
 
+      setPipelineProgress(72);
+      setPipelineStatus('Compiling ROM...');
       const compileResult = await runCompileRequest(sourceCodeForCompile, bundle.romConfig, bundle.projectName);
       setCompilationResult(compileResult);
 
@@ -686,20 +733,66 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         summary += '\nAuto-clean: regenerated ASM in simple32k mode (minimal mapper stubs).';
       }
 
+      if (compileResult?.success) {
+        setPipelineProgress(88);
+        setPipelineStatus('ROM ready');
+      } else {
+        setPipelineProgress(100);
+        setPipelineStatus('Build failed');
+      }
+
+      if (launchAfterBuild) {
+        if (compileResult?.success && (compileResult as any).romFile) {
+          setPipelineProgress(94);
+          setPipelineStatus('Launching OpenMSX...');
+          const openMsxResult = await runOpenMSXRequest((compileResult as any).romFile);
+          if (openMsxResult.success) {
+            summary += `\nRun: OpenMSX launched (${(compileResult as any).romFile})`;
+            if (openMsxResult.note) {
+              summary += `\n${openMsxResult.note}`;
+            }
+            setPipelineProgress(100);
+            setPipelineStatus('Build completed and running');
+          } else {
+            summary += `\nRun warning: ${openMsxResult.message}`;
+            setPipelineProgress(100);
+            setPipelineStatus('Build completed, launch failed');
+          }
+        } else {
+          summary += '\nRun skipped: no ROM was produced.';
+          setPipelineProgress(100);
+          setPipelineStatus('Build completed, run skipped');
+        }
+      } else if (compileResult?.success) {
+        setPipelineProgress(100);
+        setPipelineStatus('Pipeline completed');
+      }
+
       setQuickValidationSummary(summary);
     } catch (error) {
       const failure = {
         success: false,
-        message: `Generate + Compress + Compile + Mapper failed: ${error}`
+        message: `${launchAfterBuild ? 'Build and Run' : 'Generate + Compress + Compile + Mapper'} failed: ${error}`
       };
       setCompilationResult(failure);
       setQuickValidationSummary(buildMapperSummary(failure, currentProjectName || 'MSX_Game'));
+      setPipelineProgress(100);
+      setPipelineStatus('Pipeline failed');
     } finally {
       setIsCompressingAsm(false);
       setIsCompiling(false);
       setIsGenerating(false);
       setIsQuickValidating(false);
+      setIsBuildingAndRunning(false);
     }
+  };
+
+  const handleGenerateCompressCompileMapper = async () => {
+    await runMapperPipeline(false);
+  };
+
+  const handleBuildAndRun = async () => {
+    await runMapperPipeline(true);
   };
 
   const handleCompressUnifiedAsm = async () => {
@@ -1144,7 +1237,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
               <div className="p-3 space-y-2">
                 <Button
                   onClick={handleGenerateCode}
-                  disabled={isGenerating || isQuickValidating}
+                  disabled={isGenerating || isQuickValidating || isBuildingAndRunning}
                   variant="primary"
                   icon={<CodeIcon />}
                   className="w-full"
@@ -1159,6 +1252,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     isGenerating ||
                     isCompiling ||
                     isQuickValidating ||
+                    isBuildingAndRunning ||
                     !generatedCode.trim() ||
                     exportType !== 'asm_all_in_one'
                   }
@@ -1170,7 +1264,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                 <Button
                   onClick={handleCompileCode}
-                  disabled={isCompiling || isQuickValidating || !generatedCode.trim()}
+                  disabled={isCompiling || isQuickValidating || isBuildingAndRunning || !generatedCode.trim()}
                   variant="secondary"
                   icon={<CompilerIcon />}
                   className="w-full"
@@ -1181,7 +1275,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 {exportType === 'asm_all_in_one' && (
                   <Button
                     onClick={handleGenerateCompressCompileMapper}
-                    disabled={isGenerating || isCompressingAsm || isCompiling || isQuickValidating}
+                    disabled={isPipelineBusy}
                     variant="secondary"
                     className="w-full"
                   >
@@ -1191,7 +1285,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                 <Button
                   onClick={handleSaveCode}
-                  disabled={isQuickValidating || !generatedCode.trim()}
+                  disabled={isQuickValidating || isBuildingAndRunning || !generatedCode.trim()}
                   variant="ghost"
                   icon={<SaveIcon />}
                   className="w-full"
@@ -1479,7 +1573,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         setIsGenerating(false);
                       }
                     }}
-                    disabled={isGenerating || isQuickValidating}
+                    disabled={isGenerating || isQuickValidating || isBuildingAndRunning}
                     variant="primary"
                     className="w-full"
                   >
@@ -1504,7 +1598,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         : 'ZIP generation failed - check console'
                       );
                     }}
-                    disabled={isQuickValidating}
+                    disabled={isQuickValidating || isBuildingAndRunning}
                     variant="secondary"
                     className="w-full mt-2"
                   >
@@ -1746,6 +1840,33 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           {/* Right Panel - Code Output */}
           <div className="w-2/3 flex flex-col">
             <Panel title="Generated Assembly Code" className="flex-1 flex flex-col overflow-hidden">
+              {exportType === 'asm_all_in_one' && (
+                <div className="p-3 border-b border-msx-border bg-msx-bgcolor bg-opacity-40">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <Button
+                      onClick={handleBuildAndRun}
+                      disabled={isPipelineBusy}
+                      className="bg-yellow-300 text-black hover:bg-yellow-200 font-bold whitespace-nowrap"
+                    >
+                      {isBuildingAndRunning ? 'Building and Running...' : 'Build and Run'}
+                    </Button>
+
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between text-xs text-msx-textsecondary">
+                        <span>{pipelineStatus}</span>
+                        <span>{Math.round(pipelineProgress)}%</span>
+                      </div>
+                      <div className="mt-1 h-3 overflow-hidden rounded border border-msx-border bg-msx-panelbg">
+                        <div
+                          className="h-full bg-yellow-300 transition-all duration-300 ease-out"
+                          style={{ width: `${Math.max(0, Math.min(100, pipelineProgress))}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* File Tabs */}
               {generatedFiles.length > 1 && (
                 <div className="flex flex-wrap gap-1 p-2 border-b border-msx-border bg-msx-bgcolor bg-opacity-50">

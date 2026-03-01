@@ -954,7 +954,6 @@ SM_FacingDirTablePtrs:
 ;   SM_FacingDirTablePtrs      — punteros a las 4 tablas de redirect
 ;   sprite_loop_flags          — 1 byte/sprite: 0x02=loop, 0x00=one-shot
 ;   SM_SpritePatternPtrTable   — puntero al frame 0 de cada sprite
-;   SM_SpritePatternBankTable  — banco ROM del frame 0 de cada sprite
 ;   SM_SpriteLayerColorTable   — colores por sprite (SPRITE_MAX_ENTITY_LAYERS bytes/sprite)
 ;
 ; Variables RAM usadas:
@@ -1141,9 +1140,11 @@ Action_ChangeSprite:
     jr nc, .acs_upload_done ; sí → saltar el upload (evitar acceso fuera de tabla)
 
     ; Obtener puntero al frame 0: SM_SpritePatternPtrTable[spriteId * 2]
+    ; El banco ROM se deriva del propio puntero, no de una tabla separada.
+    ; Esto evita desincronizaciones cuando el export comprimido remapea
+    ; labels de sprite a blobs ZX0 en un postproceso posterior.
     ld e, a
     ld d, 0                 ; DE = sprite asset index
-    push de                 ; [stack] guarda índice para leer el banco después
 
     ld hl, SM_SpritePatternPtrTable
     add hl, de
@@ -1152,13 +1153,17 @@ Action_ChangeSprite:
     inc hl
     ld d, (hl)
     ex de, hl               ; HL = puntero al frame 0 (datos de patrón en ROM)
-    pop de                  ; DE = sprite asset index  [recuperado del stack]
     push hl                 ; [stack] guarda puntero al frame 0
 
-    ; Mapear el banco ROM que contiene los datos del frame 0
-    ld hl, SM_SpritePatternBankTable
-    add hl, de              ; HL = &SM_SpritePatternBankTable[spriteId]
-    ld a, (hl)              ; A = número de banco ROM del frame 0
+    ; Mapear el banco ROM que contiene los datos del frame 0.
+    ; Bank = ((framePtr - #4000) / #2000), derivado en runtime desde HL.
+    ld a, h
+    sub #40
+    srl a
+    srl a
+    srl a
+    srl a
+    srl a
     call mapper_push_p2     ; salva el banco actual de P2 en la pila del mapper
     call mapper_set_bank_p2 ; mapea el banco del frame 0 en la ventana P2 (#8000-#BFFF)
 
@@ -1210,7 +1215,7 @@ Action_ChangeSprite:
     ex de, hl               ; DE = destino VRAM, HL libre para fuente
 
     pop hl                  ; HL = puntero al frame 0 en ROM  [recuperado del stack]
-    call COPY_SPRITE_SRC_TO_VRAM   ; copia BC bytes desde HL (ROM) a DE (VRAM)
+    call FAST_LDIRVM        ; copia BC bytes desde HL (ROM/RAM) a DE (VRAM)
     jr .acs_upload_restore_bank
 
 .acs_upload_pop_source:
@@ -1415,44 +1420,14 @@ Action_ToggleAnim:
     ret
 
 Action_PlaySound:
-; Params: Sound ID(1 byte)
+; Params: Sound Asset Index (1 byte)
     ld a, (hl)
     inc hl
 
     push hl
-
-    ; Simple built-in SFX mapping by ID
-    ; 0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
-    cp 1
-    jr z, .play_jump
-    cp 2
-    jr z, .play_shoot
-    cp 3
-    jr z, .play_explosion
-    cp 4
-    jr z, .play_coin
-    cp 5
-    jr z, .play_damage
-
-.play_beep:
-    call SM_PlaySfx_Beep
-    jr .play_sound_done
-.play_jump:
-    call SM_PlaySfx_Jump
-    jr .play_sound_done
-.play_shoot:
-    call SM_PlaySfx_Shoot
-    jr .play_sound_done
-.play_explosion:
-    call SM_PlaySfx_Explosion
-    jr .play_sound_done
-.play_coin:
-    call SM_PlaySfx_Coin
-    jr .play_sound_done
-.play_damage:
-    call SM_PlaySfx_Damage
-
-.play_sound_done:
+    ; PLAY_SOUND now uses the real exported sound asset stream.
+    ; This keeps multi-step sounds audible and guarantees auto-silence.
+    call SM_PlaySoundAsset
     pop hl
     ret
 
@@ -2472,6 +2447,148 @@ SM_SilencePSG:
     ld e, a
     ld a, 7                 ; Mixer register
     call WRTPSG
+    ret
+
+SM_ApplySoundFrame:
+    ; Input: HL = pointer to 11-byte pre-expanded sound frame
+    ; Output: HL = pointer to next frame
+    ld e, (hl)
+    ld a, 0
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 1
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 8
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 2
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 3
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 9
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 4
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 5
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 10
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 6
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 7
+    call WRTPSG
+    inc hl
+    ret
+
+SM_PlaySoundAsset:
+    ; Input: A = sound asset index (0..SM_SoundAssetCount-1)
+    ; Destroys: AF, BC, DE, HL
+    cp SM_SoundAssetCount
+    jr c, .play_valid_sound
+    call SM_SilencePSG
+    xor a
+    ld (sfx_active), a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+.play_valid_sound:
+
+    ; Stop any previous state-machine sound before starting a new one.
+    push af
+    call SM_SilencePSG
+    xor a
+    ld (sfx_active), a
+    pop af
+
+    ld l, a
+    ld h, 0
+    add hl, hl
+    ld de, SM_SoundPtrTable
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+
+    ld a, (hl)
+    or a
+    jr z, .empty_sound
+    ld (sm_sound_frames_left), a
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+
+    call SM_ApplySoundFrame
+
+    ld a, l
+    ld (sm_sound_ptr_l), a
+    ld a, h
+    ld (sm_sound_ptr_h), a
+    ld a, 1
+    ld (sm_sound_active), a
+    ret
+
+.empty_sound:
+    xor a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+SM_UpdateSound:
+    ; Advances one frame of the active PLAY_SOUND asset.
+    ; The current frame is emitted immediately on SM_PlaySoundAsset, so
+    ; frames_left includes the frame already sounding.
+    ld a, (sm_sound_active)
+    or a
+    ret z
+
+    ld a, (sm_sound_frames_left)
+    or a
+    jr z, .stop_sound
+
+    dec a
+    ld (sm_sound_frames_left), a
+    jr z, .stop_sound
+
+    ld a, (sm_sound_ptr_l)
+    ld l, a
+    ld a, (sm_sound_ptr_h)
+    ld h, a
+    call SM_ApplySoundFrame
+    ld a, l
+    ld (sm_sound_ptr_l), a
+    ld a, h
+    ld (sm_sound_ptr_h), a
+    ret
+
+.stop_sound:
+    call SM_SilencePSG
+    xor a
+    ld (sm_sound_active), a
     ret
 
 SM_PlaySfx_Beep:
@@ -4403,6 +4520,130 @@ Condition_VariableCompare:
     ret
     `;
 
+function clampByte(value: any): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.max(0, Math.min(255, Math.round(numeric)));
+}
+
+function clampNibble(value: any): number {
+    return Math.max(0, Math.min(15, clampByte(value)));
+}
+
+function clampTonePeriod(value: any): number {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.max(0, Math.min(4095, Math.round(numeric)));
+}
+
+function toSoundFrameCount(durationMs: any): number {
+    const numeric = Number(durationMs);
+    if (!Number.isFinite(numeric) || numeric <= 0) return 1;
+    return Math.max(1, Math.round((numeric * 60) / 1000));
+}
+
+function buildSoundNameToIndexMap(sounds?: any[]): Record<string, number> {
+    const soundMap: Record<string, number> = {};
+    (sounds || []).forEach((sound, index) => {
+        const id = typeof sound?.id === 'string' ? sound.id : '';
+        const name = typeof sound?.name === 'string' ? sound.name : '';
+        if (id) {
+            soundMap[id] = index;
+            soundMap[id.toLowerCase()] = index;
+        }
+        if (name) {
+            soundMap[name] = index;
+            soundMap[name.toLowerCase()] = index;
+        }
+    });
+    return soundMap;
+}
+
+function generateStateMachineSoundTables(sounds?: any[]): string {
+    const soundList = Array.isArray(sounds) ? sounds : [];
+    let asm = `SM_SoundFrameSize EQU 11\n`;
+    asm += `SM_SoundAssetCount EQU ${soundList.length}\n`;
+    asm += `SM_SoundPtrTable:\n`;
+
+    if (soundList.length === 0) {
+        asm += `    DW 0\n`;
+        return asm;
+    }
+
+    soundList.forEach((sound, soundIndex) => {
+        asm += `    DW SM_SoundAsset_${soundIndex}\n`;
+    });
+    asm += `\n`;
+
+    soundList.forEach((sound, soundIndex) => {
+        const channels = Array.isArray(sound?.channels) ? sound.channels : [];
+        const expandedChannels = [0, 1, 2].map((channelIndex) => {
+            const channel = channels[channelIndex];
+            const steps = Array.isArray(channel?.steps) ? channel.steps : [];
+            const expanded: any[] = [];
+
+            for (const step of steps) {
+                const frameCount = toSoundFrameCount(step?.durationMs);
+                for (let i = 0; i < frameCount; i++) {
+                    expanded.push(step || {});
+                }
+            }
+
+            return expanded;
+        });
+
+        const totalFrames = Math.max(
+            expandedChannels[0].length,
+            expandedChannels[1].length,
+            expandedChannels[2].length
+        );
+        const safeFrameCount = Math.min(255, totalFrames);
+        const globalNoisePeriod = Math.max(0, Math.min(31, clampByte(sound?.noisePeriod)));
+
+        asm += `SM_SoundAsset_${soundIndex}:\n`;
+        asm += `    DB ${safeFrameCount}\n`;
+        asm += `    DW SM_SoundAsset_${soundIndex}_Frames\n`;
+        asm += `\n`;
+        asm += `SM_SoundAsset_${soundIndex}_Frames:\n`;
+
+        if (safeFrameCount === 0) {
+            asm += `    ; Empty sound asset: silent\n`;
+            return;
+        }
+
+        for (let frameIndex = 0; frameIndex < safeFrameCount; frameIndex++) {
+            let mixer = 0x3F;
+            const frameBytes: number[] = [];
+
+            for (let channelIndex = 0; channelIndex < 3; channelIndex++) {
+                const step = expandedChannels[channelIndex][frameIndex];
+                const tonePeriod = clampTonePeriod(step?.tonePeriod);
+                const toneLow = tonePeriod & 0xFF;
+                const toneHigh = (tonePeriod >> 8) & 0x0F;
+                const volume = step ? clampNibble(step.volume) : 0;
+                const toneEnabled = !!step?.toneEnabled;
+                const noiseEnabled = !!step?.noiseEnabled;
+
+                if (toneEnabled) {
+                    mixer &= ~(1 << channelIndex);
+                }
+                if (noiseEnabled) {
+                    mixer &= ~(1 << (channelIndex + 3));
+                }
+
+                frameBytes.push(toneLow, toneHigh, volume);
+            }
+
+            frameBytes.push(globalNoisePeriod, mixer & 0x3F);
+            asm += `    DB ${frameBytes.join(', ')}\n`;
+        }
+
+        asm += `\n`;
+    });
+
+    return asm.trimEnd();
+}
+
 // =============================================================================
 // GENERATOR FUNCTIONS
 // =============================================================================
@@ -4415,7 +4656,8 @@ export function generateStateMachineSystem(
     globalVariables?: any[],
     sprites?: any[],
     tiles?: any[],
-    templates?: any[]
+    templates?: any[],
+    sounds?: any[]
 ): string {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
 
@@ -4455,6 +4697,7 @@ export function generateStateMachineSystem(
     const variableIdMap = buildVariableIdMap(globalVariables);
     const tileIdToCharCode = buildTileIdToBaseCharMap(tiles);
     const templateTokenMap = buildTemplateTokenMap(templates);
+    const soundNameToIndex = buildSoundNameToIndexMap(sounds);
     const templateProfiles = buildTemplateProfileTables(templates, spriteNameToIndex, templateTokenMap);
     const formatDbTable = (label: string, values: number[]): string => {
         const escapedValues = values.map((v) => Math.max(0, Math.min(255, v | 0)));
@@ -4473,6 +4716,8 @@ export function generateStateMachineSystem(
 
     asm += '; ==================================================================\n';
     asm += '; STATE MACHINE SPRITE RUNTIME TABLES\n';
+    asm += '; NOTE: frame bank is derived from the frame pointer at runtime.\n';
+    asm += '; This keeps ChangeSprite compatible with post-export ZX0 label remaps.\n';
     asm += '; ==================================================================\n';
     asm += `SM_SpriteAssetCount EQU ${spriteCatalog.sprites.length}\n`;
     asm += 'SM_SpritePatternPtrTable:\n';
@@ -4483,18 +4728,19 @@ export function generateStateMachineSystem(
     } else {
         asm += '    ; Empty table (no sprites)\n';
     }
-    asm += 'SM_SpritePatternBankTable:\n';
-    if (spriteCatalog.sprites.length > 0) {
-        spriteCatalog.sprites.forEach((_, index) => {
-            asm += `    DB SPRITE_${index}_PATTERN_BANK\n`;
-        });
-    } else {
-        asm += '    ; Empty table (no sprites)\n';
-    }
+    asm += '\n';
+
+    asm += '; ==================================================================\n';
+    asm += '; STATE MACHINE SOUND ASSET TABLES\n';
+    asm += '; PLAY_SOUND exports a one-shot 60Hz frame stream per sound asset.\n';
+    asm += '; Channel loops are flattened to a single pass to avoid stuck PSG.\n';
+    asm += '; Hardware envelopes are not emitted yet in this state-machine path.\n';
+    asm += '; ==================================================================\n';
+    asm += generateStateMachineSoundTables(sounds);
     asm += '\n';
 
     for (const sm of stateMachines) {
-        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex);
     }
 
     return asm;
@@ -4505,7 +4751,8 @@ function generateStateMachineData(
     variableIdMap: Record<string, number>,
     spriteNameToIndex?: Record<string, number>,
     tileIdToCharCode?: Record<string, number>,
-    templateTokenMap?: Record<string, number>
+    templateTokenMap?: Record<string, number>,
+    soundNameToIndex?: Record<string, number>
 ): string {
     let asm = `; State Machine: ${sm.name} (${sm.id}) \n`;
     const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
@@ -4540,7 +4787,7 @@ function generateStateMachineData(
         if (state.onEnter && state.onEnter.length > 0) {
             asm += `${onEnterLabel}: \n`;
             for (const action of state.onEnter) {
-                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex);
             }
             asm += `    DB 0xFF; END\n`;
         }
@@ -4548,7 +4795,7 @@ function generateStateMachineData(
         if (state.onExit && state.onExit.length > 0) {
             asm += `${onExitLabel}: \n`;
             for (const action of state.onExit) {
-                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex);
             }
             asm += `    DB 0xFF; END\n`;
         }
@@ -4579,7 +4826,7 @@ function generateStateMachineData(
                 if (actionLabel !== '0') {
                     let actionBlock = `${actionLabel}: \n`;
                     for (const action of t.actions || []) {
-                        actionBlock += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+                        actionBlock += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex);
                     }
                     actionBlock += `    DB 0xFF; END\n`;
                     deferredActionBlocks.push(actionBlock);
@@ -4621,7 +4868,8 @@ function generateActionBytes(
     variableIdMap?: Record<string, number>,
     spriteNameToIndex?: Record<string, number>,
     tileIdToCharCode?: Record<string, number>,
-    templateTokenMap?: Record<string, number>
+    templateTokenMap?: Record<string, number>,
+    soundNameToIndex?: Record<string, number>
 ): string {
     const id = ACTION_IDS[action.type];
     if (id === undefined) return `; Unknown Action: ${action.type} \n`;
@@ -4675,7 +4923,22 @@ function generateActionBytes(
 
         case ActionTypes.PLAY_SOUND: {
             const soundId = action.params.soundId ?? action.params.sound ?? action.params.soundAssetId ?? 0;
-            bytes += `    DB ${serializeValue(soundId)} \n`;
+            let soundIndex = 255;
+            if (typeof soundId === 'string') {
+                const directIndex = soundNameToIndex?.[soundId];
+                const lowerIndex = soundNameToIndex?.[soundId.toLowerCase()];
+                if (directIndex !== undefined) {
+                    soundIndex = directIndex;
+                } else if (lowerIndex !== undefined) {
+                    soundIndex = lowerIndex;
+                }
+            } else {
+                const parsedIndex = parseInt(serializeValue(soundId), 10);
+                if (!isNaN(parsedIndex)) {
+                    soundIndex = parsedIndex;
+                }
+            }
+            bytes += `    DB ${soundIndex}        ; sound: ${soundId}\n`;
             break;
         }
 
