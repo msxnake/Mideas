@@ -3176,6 +3176,20 @@ function generateJumpSystem(): string {
             ld (hl), 0
             ldir
 
+            ; Clear temporary extra-jump charges granted by bonus pickups
+            ld hl, entity_jump_bonus
+            ld de, entity_jump_bonus+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Initialize configured max jumps (default: single jump)
+            ld hl, entity_jump_max
+            ld de, entity_jump_max+1
+            ld bc, 31
+            ld (hl), 1
+            ldir
+
             ; Clear on-ground flags
             ld hl, entity_on_ground
             ld de, entity_on_ground+1
@@ -3187,7 +3201,7 @@ function generateJumpSystem(): string {
         update_jump_component:
             ; Update jump logic for entities
             ; Fire button edge triggers jump for entities with Jump+Input
-            ; Uses: entity_jump_count, entity_on_ground, entity_gravity_vel
+            ; Uses: entity_jump_count, entity_jump_max, entity_jump_bonus, entity_on_ground, entity_gravity_vel
             ; Uses global input_btn_curr/input_btn_prev edge detection
 
             ld a, (active_entity_count)
@@ -3207,7 +3221,7 @@ function generateJumpSystem(): string {
             ld a, (hl)
             pop hl                        ; Restore list pointer
             and #01                       ; Jump bit (COMP_MASK_JUMP=#0100 -> high byte bit0)
-            jr z, jump_next_entity
+            jp z, jump_next_entity
 
             ; Require Input component
             push hl
@@ -3218,7 +3232,7 @@ function generateJumpSystem(): string {
             ld a, (hl)
             and COMP_MASK_INPUT
             pop hl
-            jr z, jump_next_entity
+            jp z, jump_next_entity
 
             push bc
             push hl
@@ -3237,30 +3251,74 @@ function generateJumpSystem(): string {
             add hl, de
             ld (hl), 0
 
+            ; Landing also clears any unused extra-jump bonus.
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld (hl), 0
+
         .jump_check:
             ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
             ld a, (input_btn_curr)
             and INPUT_BTN_FIRE
-            jr z, jump_done_entity        ; not pressed
+            jp z, jump_done_entity        ; not pressed
             ld a, (input_btn_prev)
             and INPUT_BTN_FIRE
-            jr nz, jump_done_entity       ; already held last frame
+            jp nz, jump_done_entity       ; already held last frame
 
-            ; Check jump count < 2 OR grounded
+            ; Check jump count < configured max OR grounded
             ld hl, entity_jump_count
             ld e, c
             ld d, 0
             add hl, de
             ld a, (hl)
-            cp 2
+            ld hl, entity_jump_max
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld b, (hl)
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld d, (hl)
+            ld a, b
+            add a, d
+            ld b, a
+            ld hl, entity_jump_count
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            cp b
             jr c, .do_jump
 
             ld hl, entity_on_ground
             add hl, de
             bit 0, (hl)
-            jr z, jump_done_entity
+            jp z, jump_done_entity
 
         .do_jump:
+            ; Consume one bonus jump only when performing an airborne jump
+            ; beyond the entity's base maxJumps.
+            ld hl, entity_on_ground
+            add hl, de
+            bit 0, (hl)
+            jr nz, .skip_bonus_consume
+
+            ld hl, entity_jump_count
+            add hl, de
+            ld a, (hl)
+            ld hl, entity_jump_max
+            add hl, de
+            cp (hl)
+            jr c, .skip_bonus_consume
+
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld a, (hl)
+            or a
+            jr z, .skip_bonus_consume
+            dec (hl)
+
+        .skip_bonus_consume:
             ; jump_count++
             ld hl, entity_jump_count
             add hl, de
@@ -3284,7 +3342,7 @@ function generateJumpSystem(): string {
             add hl, de
             ld a, (hl)
             and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
-            jr z, jump_done_entity
+            jp z, jump_done_entity
 
             ld hl, entity_gravity_vel
             ld e, c
@@ -4349,6 +4407,37 @@ function clampTileCollectorAmount(rawValue: any): number {
     return Math.max(0, Math.min(65535, Math.round(parsed)));
 }
 
+function buildTileIdToBaseCharMap(tiles?: any[]): Record<string, number> {
+    const map: Record<string, number> = {};
+    if (!tiles || tiles.length === 0) return map;
+
+    let nextCharCode = 128;
+    tiles.forEach((tile) => {
+        if (!tile || !tile.id) return;
+        map[tile.id] = nextCharCode;
+        if (tile.name) {
+            map[String(tile.name)] = nextCharCode;
+            map[String(tile.name).toLowerCase()] = nextCharCode;
+        }
+        const charsWide = Math.max(1, Math.ceil((Number(tile.width) || 8) / 8));
+        const charsHigh = Math.max(1, Math.ceil((Number(tile.height) || 8) / 8));
+        nextCharCode += charsWide * charsHigh;
+    });
+
+    return map;
+}
+
+function resolveTileCharCode(value: any, tileIdToCharCode?: Record<string, number>): number {
+    if (typeof value === 'string' && tileIdToCharCode) {
+        if (tileIdToCharCode[value] !== undefined) return tileIdToCharCode[value];
+        const lower = value.toLowerCase();
+        if (tileIdToCharCode[lower] !== undefined) return tileIdToCharCode[lower];
+    }
+
+    const parsed = parseInt(String(value ?? ''), 10);
+    return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(255, parsed | 0));
+}
+
 function buildGlobalVariableInfoMap(analysis: ProjectAnalysis): Record<string, { asmName: string; isWord: boolean }> {
     const variableMap: Record<string, { asmName: string; isWord: boolean }> = {};
     const globalVariables = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
@@ -4387,18 +4476,33 @@ function extractTileCollectorConfig(candidate: any) {
 
     return {
         collectionSoundId: candidate.collectionSoundId,
+        replacementTileId: candidate.replacementTileId,
         targetVariable: candidate.targetVariable ?? candidate.scoreVariable ?? candidate.scoreVariableName,
         incrementAmount: candidate.incrementAmount ?? candidate.scoreAmount ?? candidate.collectionValue ?? 0,
+        bonusTileId: candidate.bonusTileId,
+        bonusReplacementTileId: candidate.bonusReplacementTileId,
+        bonusSoundId: candidate.bonusSoundId,
+        bonusIsPersistent: candidate.bonusIsPersistent,
+        bonusEntityEffect: candidate.bonusEntityEffect,
+        bonusEffectAmount: candidate.bonusEffectAmount,
     };
 }
 
 function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
     soundAssetIndex: number | null;
+    replacementTileChar: number;
     targetVariable: { asmName: string; isWord: boolean } | null;
     incrementAmount: number;
+    bonusTileChar: number | null;
+    bonusReplacementTileChar: number;
+    bonusSoundAssetIndex: number | null;
+    bonusIsPersistent: boolean;
+    bonusEntityEffect: string;
+    bonusEffectAmount: number;
 } {
     const soundMap = buildSoundAssetIndexMap((analysis as any).sounds);
     const variableMap = buildGlobalVariableInfoMap(analysis);
+    const tileIdToCharCode = buildTileIdToBaseCharMap((analysis as any).tiles);
 
     const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
     for (const entity of entities as any[]) {
@@ -4406,11 +4510,38 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         if (!config) continue;
 
         const soundAssetIndex = resolveSoundAssetIndex(config.collectionSoundId, soundMap);
+        const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
         const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
         const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+        const bonusTileChar = config.bonusTileId ? resolveTileCharCode(config.bonusTileId, tileIdToCharCode) : null;
+        const bonusReplacementTileChar = resolveTileCharCode(config.bonusReplacementTileId ?? 0, tileIdToCharCode);
+        const bonusSoundAssetIndex = resolveSoundAssetIndex(config.bonusSoundId, soundMap);
+        const bonusIsPersistent = config.bonusIsPersistent === true || config.bonusIsPersistent === 'true';
+        const bonusEntityEffect = typeof config.bonusEntityEffect === 'string'
+            ? config.bonusEntityEffect.trim().toLowerCase()
+            : 'none';
+        const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
 
-        if (soundAssetIndex !== null || (targetVariable && incrementAmount > 0)) {
-            return { soundAssetIndex, targetVariable, incrementAmount };
+        if (
+            soundAssetIndex !== null ||
+            replacementTileChar !== 0 ||
+            (targetVariable && incrementAmount > 0) ||
+            bonusTileChar !== null ||
+            bonusSoundAssetIndex !== null ||
+            (bonusEntityEffect !== 'none' && bonusEffectAmount > 0)
+        ) {
+            return {
+                soundAssetIndex,
+                replacementTileChar,
+                targetVariable,
+                incrementAmount,
+                bonusTileChar,
+                bonusReplacementTileChar,
+                bonusSoundAssetIndex,
+                bonusIsPersistent,
+                bonusEntityEffect,
+                bonusEffectAmount,
+            };
         }
     }
 
@@ -4424,30 +4555,72 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         if (!config) continue;
 
         const soundAssetIndex = resolveSoundAssetIndex(config.collectionSoundId, soundMap);
+        const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
         const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
         const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+        const bonusTileChar = config.bonusTileId ? resolveTileCharCode(config.bonusTileId, tileIdToCharCode) : null;
+        const bonusReplacementTileChar = resolveTileCharCode(config.bonusReplacementTileId ?? 0, tileIdToCharCode);
+        const bonusSoundAssetIndex = resolveSoundAssetIndex(config.bonusSoundId, soundMap);
+        const bonusIsPersistent = config.bonusIsPersistent === true || config.bonusIsPersistent === 'true';
+        const bonusEntityEffect = typeof config.bonusEntityEffect === 'string'
+            ? config.bonusEntityEffect.trim().toLowerCase()
+            : 'none';
+        const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
 
-        if (soundAssetIndex !== null || (targetVariable && incrementAmount > 0)) {
-            return { soundAssetIndex, targetVariable, incrementAmount };
+        if (
+            soundAssetIndex !== null ||
+            replacementTileChar !== 0 ||
+            (targetVariable && incrementAmount > 0) ||
+            bonusTileChar !== null ||
+            bonusSoundAssetIndex !== null ||
+            (bonusEntityEffect !== 'none' && bonusEffectAmount > 0)
+        ) {
+            return {
+                soundAssetIndex,
+                replacementTileChar,
+                targetVariable,
+                incrementAmount,
+                bonusTileChar,
+                bonusReplacementTileChar,
+                bonusSoundAssetIndex,
+                bonusIsPersistent,
+                bonusEntityEffect,
+                bonusEffectAmount,
+            };
         }
     }
 
     return {
         soundAssetIndex: null,
+        replacementTileChar: 0,
         targetVariable: null,
         incrementAmount: 0,
+        bonusTileChar: null,
+        bonusReplacementTileChar: 0,
+        bonusSoundAssetIndex: null,
+        bonusIsPersistent: false,
+        bonusEntityEffect: 'none',
+        bonusEffectAmount: 0,
     };
 }
 
 function generateTileInteractionSystem(
     tileCollectorConfig: {
         soundAssetIndex: number | null;
+        replacementTileChar: number;
         targetVariable: { asmName: string; isWord: boolean } | null;
         incrementAmount: number;
+        bonusTileChar: number | null;
+        bonusReplacementTileChar: number;
+        bonusSoundAssetIndex: number | null;
+        bonusIsPersistent: boolean;
+        bonusEntityEffect: string;
+        bonusEffectAmount: number;
     },
     canUseSoundAssetPlayback: boolean
 ): string {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
+    const replacementTileChar = tileCollectorConfig.replacementTileChar;
     const collectionSoundCode =
         collectionSoundAssetIndex !== null && canUseSoundAssetPlayback
             ? `    ; Tile Collector UI-configured collection sound.
@@ -4463,6 +4636,19 @@ function generateTileInteractionSystem(
     ; Stay silent instead of forcing the wrong built-in beep.
 `
                 : `    ; No collectionSoundId configured in the Tile Collector UI.
+`;
+    const bonusSoundCode =
+        tileCollectorConfig.bonusSoundAssetIndex !== null && canUseSoundAssetPlayback
+            ? `    ; Tile Collector bonus pickup sound.
+    push de
+    ld a, ${tileCollectorConfig.bonusSoundAssetIndex}
+    call SM_PlaySoundAsset
+    pop de
+`
+            : tileCollectorConfig.bonusSoundAssetIndex !== null
+                ? `    ; bonusSoundId is configured, but this build has no state-machine sound asset runtime.
+`
+                : `    ; No bonusSoundId configured.
 `;
     const hudSyncCode = tileCollectorConfig.targetVariable?.asmName === 'global_var_score'
         ? `    ; Keep HUD Score text in sync with the updated global variable.
@@ -4506,6 +4692,34 @@ ${hudSyncCode}
 ${hudSyncCode}
 `
         : `    ; No targetVariable/incrementAmount configured in the Tile Collector UI.
+`;
+    const bonusEffectCode =
+        tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0
+            ? `    ; Bonus tile effect: grant temporary extra jumps to the collecting entity.
+    push de
+    ld hl, entity_jump_bonus
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    add a, ${Math.min(255, tileCollectorConfig.bonusEffectAmount)}
+    ld (hl), a
+    pop de
+`
+            : `    ; No supported bonus entity effect configured.
+`;
+    const bonusCollectBranchCode = tileCollectorConfig.bonusTileChar !== null
+        ? `    ld a, b
+    cp ${tileCollectorConfig.bonusTileChar}
+    jp z, .ti_collect_bonus
+`
+        : '';
+    const bonusPersistenceCode = tileCollectorConfig.bonusIsPersistent
+        ? `    ; Bonus tile configured as persistent: record it like a normal collectible.
+    jp .ti_record_persistent
+`
+        : `    ; Bonus tile is visit-local only: do not persist across screen reloads.
+    jp .ti_next
 `;
 
     return `
@@ -4617,7 +4831,7 @@ check_tile_interaction:
     add hl, de                     ; HL = &runtime_behavior_map[idx]
     ld a, (hl)
     and #08                        ; INTERACTABLE flag (bit 3)
-    jr z, .ti_no_collect
+    jp z, .ti_no_collect
 
     ; *** COLLECT! ***
     ; Stack at this point: [idx (as HL), BC_saved, list_ptr]
@@ -4626,13 +4840,15 @@ check_tile_interaction:
     ; 1. Clear behavior map entry FIRST while HL is still correct
     ld (hl), 0                     ; Prevents double-collect next frame
 
+    ; Recover tile index in DE and restore entity index in C for optional bonus effects.
+    pop de                         ; DE = idx. Stack: [BC_saved, list_ptr]
+    pop bc                         ; B = loop count, C = entity index. Stack: [list_ptr]
+    push bc                        ; Restore loop state for .ti_next
+
     ; 0. Read char code from VRAM Name Table BEFORE clearing VRAM.
     ;    Stored in last_gem_char so SM can identify WHICH tile was collected
     ;    via VARIABLE_COMPARE last_gem_char == <charCode>.
-    pop bc                         ; BC = idx (B=high, C=low). Stack: [BC_saved, list_ptr]
-    push bc                        ; Restore idx: [idx, BC_saved, list_ptr]
-    ld d, b
-    ld e, c                        ; DE = idx
+    push de                        ; Preserve DE = idx across VRAM read setup
     ld hl, NAMETBL
     add hl, de                     ; HL = NAMETBL + idx (VRAM address to read)
     ; MSX1 direct VRAM read (port #99 = address register, port #98 = data)
@@ -4645,12 +4861,18 @@ check_tile_interaction:
     nop
     in a, (#98)                    ; A = char code from VRAM data port
     ld (last_gem_char), a          ; Store for SM: VARIABLE_COMPARE last_gem_char
+    ld b, a                        ; Preserve collected char code for bonus-tile compare
+    pop de                         ; Restore DE = idx
 
-    ; 2. Clear tile from VRAM Name Table (#1800 + idx)
-    pop de                         ; DE = idx. Stack: [BC_saved, list_ptr]
+${bonusCollectBranchCode}
+
+    jp .ti_collect_normal
+
+.ti_collect_normal:
+    ; 2. Replace tile in VRAM Name Table (#1800 + idx)
     ld hl, NAMETBL
     add hl, de                     ; HL = NAMETBL + idx
-    xor a                          ; A = 0 (empty tile char)
+    ld a, ${replacementTileChar}   ; Replacement tile char (0 = empty)
     call FAST_WRTVRM
 
     ; 3. Increment gem_count
@@ -4663,6 +4885,7 @@ ${collectionSoundCode}
 
     ; 4. Record in persistent collected list (survives screen re-entry via apply_collected_tiles)
     ;    FAST_WRTVRM preserves all registers, so DE = idx is still valid here.
+.ti_record_persistent:
     ld a, (collected_count)
     cp MAX_COLLECTIBLES
     jp nc, .ti_next                ; List full - skip recording
@@ -4689,6 +4912,19 @@ ${collectionSoundCode}
     inc (hl)
 
     jp .ti_next
+
+.ti_collect_bonus:
+    ; Bonus tile path: independent from normal collectible gem logic.
+    ld hl, NAMETBL
+    add hl, de                     ; HL = NAMETBL + idx
+    ld a, ${tileCollectorConfig.bonusReplacementTileChar}
+    call FAST_WRTVRM
+
+${bonusEffectCode}
+
+${bonusSoundCode}
+
+${bonusPersistenceCode}
 
 .ti_no_collect:
     pop hl                         ; Balance idx push
@@ -5279,6 +5515,8 @@ init_entity_sprite:
     ; Component Data Structure EQUs (referenced by state machine actions)
 entity_jump_vel_y   EQU temp_word_3
 entity_jump_count   EQU temp_byte_4
+entity_jump_max     EQU temp_byte_25
+entity_jump_bonus   EQU temp_byte_27
 entity_on_ground    EQU temp_byte_5
 entity_gravity_vel  EQU temp_word_4
 entity_health_current EQU temp_byte_6
@@ -5403,6 +5641,8 @@ ANIM_DEFAULT_SPEED           EQU 8
     ; Using temporary storage for optional components to save RAM
 entity_jump_vel_y   EQU temp_word_3; Y velocity for jumping(signed word, 32 words = 64 bytes)
 entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
+entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
+entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
 entity_on_ground    EQU temp_byte_5; Ground contact flag(bit 0 = on ground)(32 bytes)
 
     ; Gravity Component Data
@@ -5440,7 +5680,7 @@ entity_entity_collision_flags EQU temp_byte_23 ; bit0 entity(any), bit1 enemy, b
 entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=none) (32 bytes)
 
     ; Input Disable Flag
-entity_input_disabled EQU temp_byte_25 ; 0=enabled, 1=disabled (32 bytes)
+entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
 
 
     ; ==================================================================

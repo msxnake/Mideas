@@ -39,6 +39,8 @@ interface SpriteEditorProps {
   currentScreenMode: string;
   /** Callback to open the sprite sheet reordering modal. */
   onOpenSpriteSheetModal: () => void;
+  /** Whether to persist the sprite editor zoom across sessions. */
+  saveSpriteZoom?: boolean;
 }
 
 type SpriteToolMode = 'draw' | 'erase' | 'sphere';
@@ -250,9 +252,29 @@ interface ActiveFragment {
  * @returns A React component.
  * @category Editors
  */
-export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, onSpriteImported, onCreateSpriteFromFrame, globalSelectedColor, dataOutputFormat, allAssets, currentScreenMode, onOpenSpriteSheetModal }) => {
+export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, onSpriteImported, onCreateSpriteFromFrame, globalSelectedColor, dataOutputFormat, allAssets, currentScreenMode, onOpenSpriteSheetModal, saveSpriteZoom }) => {
   const [localSpriteName, setLocalSpriteName] = useState(sprite.name);
-  const [pixelSize, setPixelSize] = useState(sprite.size.width > 16 ? 10 : 16);
+  const [pixelSize, setPixelSize] = useState<number>(() => {
+    if (saveSpriteZoom) {
+      const savedConfig = localStorage.getItem('ideConfig');
+      if (savedConfig) {
+        try {
+          const config = JSON.parse(savedConfig);
+          if (config.spriteEditorZoom !== undefined) return config.spriteEditorZoom;
+        } catch (e) { /* ignore */ }
+      }
+    }
+    return sprite.size.width > 16 ? 10 : 16;
+  });
+
+  useEffect(() => {
+    if (saveSpriteZoom) {
+      const savedConfig = localStorage.getItem('ideConfig');
+      const config = savedConfig ? JSON.parse(savedConfig) : {};
+      config.spriteEditorZoom = pixelSize;
+      localStorage.setItem('ideConfig', JSON.stringify(config));
+    }
+  }, [pixelSize, saveSpriteZoom]);
   const [showAttributesEditor, setShowAttributesEditor] = useState(false);
   const [showHitbox, setShowHitbox] = useState(false);
 

@@ -45,9 +45,9 @@ export const EntityTypeListPanel: React.FC<EntityTypeListPanelProps> = ({
   return (
     <Panel
       title="Entity Templates"
-      className="text-xs"
+      className="text-xs flex-shrink-0"
       headerButtons={collapseButton}
-      bodyClassName={isCollapsed ? 'p-2 overflow-hidden' : undefined}
+      bodyClassName={isCollapsed ? 'p-2 overflow-hidden' : 'p-2 overflow-y-auto max-h-44'}
     > {/* Changed title */}
       {isCollapsed ? (
         <p className="text-[0.65rem] text-msx-textsecondary px-1 py-0.5 italic">

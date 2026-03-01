@@ -287,6 +287,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         'behavior_script_ref': 'behavior',
         'entity_template_ref': 'entitytemplate',
         'statemachine_ref': 'statemachine',
+        'tile_ref': 'tile',
     };
     const assetType = assetTypeMap[propertyType];
     if (!assetType) return;
@@ -1089,13 +1090,13 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   };
 
   return (
-    <>
+    <div className="flex-1 min-h-0 flex flex-col">
     <Panel
       title={panelTitle}
-      className="text-xs flex-1 flex flex-col min-h-0"
+      className="text-xs flex-1 flex flex-col"
       bodyClassName="flex-1 flex flex-col min-h-0"
     >
-      <div className="space-y-1 p-2 flex-1 overflow-auto">
+      <div className="space-y-1 p-2 flex-1 overflow-y-auto min-h-0">
         {gameFlowNode && activeEditorType === EditorType.GameFlow
           ? renderGameFlowNodeProperties()
           : entityInstance && activeEditorType === EditorType.Screen && screenEditorActiveLayer === 'entities'
@@ -1139,6 +1140,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           currentSelectedId={assetPickerState.currentValue}
       />
     )}
-    </>
+    </div>
   );
 };

@@ -107,6 +107,8 @@ export const generateTemplatesASM = (
                     case 'sound_ref':
                     case 'behavior_script_ref':
                     case 'entity_template_ref':
+                    case 'statemachine_ref':
+                    case 'tile_ref':
                          const asset = allAssets.find(a => a.id === value);
                          const assetLabel = asset ? toAsmLabel(asset.name, 'ASSET_') : '0'; // Default to 0 (NULL) if not found
                          asm += `    DW ${assetLabel} ; ${prop.name}: ref to ${asset?.name || 'NULL'}\n`;

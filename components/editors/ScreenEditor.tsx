@@ -88,6 +88,10 @@ interface ScreenEditorProps {
   zoom: number;
   /** Callback to set the zoom level. */
   setZoom: (zoom: number) => void;
+  /** Whether sector grid lines are visible. */
+  showSectorLines: boolean;
+  /** Callback to toggle sector grid lines visibility. */
+  onToggleSectorLines: () => void;
 }
 
 
@@ -104,7 +108,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   copiedLayerBuffer, setCopiedLayerBuffer, setStatusBarMessage,
   onActiveLayerChange, componentDefinitions, entityTemplates, onShowMapFile,
   onNavigateToAsset, onShowContextMenu, waypointPickerState, onWaypointPicked,
-  zoom, setZoom
+  zoom, setZoom, showSectorLines, onToggleSectorLines
 }) => {
 
   const screenModeMetrics = useMemo(() => getScreenModeMetrics(currentScreenMode), [currentScreenMode]);
@@ -201,8 +205,6 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [currentScreenTool, setCurrentScreenTool] = useState<ScreenEditorTool>('draw');
   const [selectionRect, setSelectionRect] = useState<ScreenSelectionRect | null>(null);
   const [currentSector, setCurrentSector] = useState<0 | 1 | 2>(0); // Track current MSX Screen 2 sector
-  const [showSectorLines, setShowSectorLines] = useState<boolean>(true); // Toggle for sector grid lines
-
   // Stamp tool state
   const [stamps, setStamps] = useState<TileStamp[]>([]);
   const [selectedStampId, setSelectedStampId] = useState<string | null>(null);
@@ -1110,7 +1112,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
           selectedTileBankId={screenMap.tileBankAssetId}
           allProjectAssets={allProjectAssets}
           showSectorLines={showSectorLines}
-          onToggleSectorLines={() => setShowSectorLines(!showSectorLines)}
+          onToggleSectorLines={onToggleSectorLines}
           stamps={stamps}
           selectedStampId={selectedStampId}
           onSelectStamp={handleSelectStamp}

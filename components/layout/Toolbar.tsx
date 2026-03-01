@@ -47,6 +47,26 @@ interface ToolbarProps {
   autosaveEnabled: boolean;
   /** Callback to enable or disable autosave. */
   setAutosaveEnabled: (enabled: boolean) => void;
+  /** Whether the Boss Editor zoom level is saved/restored across sessions. */
+  saveBossZoom: boolean;
+  /** Callback to enable or disable Boss Editor zoom persistence. */
+  setSaveBossZoom: (enabled: boolean) => void;
+  /** Whether the Sprite Editor zoom level is saved/restored across sessions. */
+  saveSpriteZoom: boolean;
+  /** Callback to enable or disable Sprite Editor zoom persistence. */
+  setSaveSpriteZoom: (enabled: boolean) => void;
+  /** Whether the Tile Editor zoom level is saved/restored across sessions. */
+  saveTileZoom: boolean;
+  /** Callback to enable or disable Tile Editor zoom persistence. */
+  setSaveTileZoom: (enabled: boolean) => void;
+  /** Whether the Screen Editor zoom level is saved/restored across sessions. */
+  saveScreenZoom: boolean;
+  /** Callback to enable or disable Screen Editor zoom persistence. */
+  setSaveScreenZoom: (enabled: boolean) => void;
+  /** Whether the sector lines visibility is saved/restored across sessions. */
+  saveSectorLines: boolean;
+  /** Callback to enable or disable sector lines persistence. */
+  setSaveSectorLines: (enabled: boolean) => void;
   /** Callback to save the current IDE configuration. */
   onSaveConfig: () => void;
   /** Callback to reset the IDE configuration to defaults. */
@@ -195,7 +215,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onNewProject, onNewAsset, onSaveProject, onSaveProjectAs, onLoadProject,
   onExportAllCodeFiles, onExportZ80Code, onExportGameStructureJson, onCompile, onDebug, onRun, onOpenHelpDocs,
   onOpenThemeSettings, dataOutputFormat, setDataOutputFormat,
-  autosaveEnabled, setAutosaveEnabled, onSaveConfig, onResetConfig, isAutosaving,
+  autosaveEnabled, setAutosaveEnabled, saveBossZoom, setSaveBossZoom, saveSpriteZoom, setSaveSpriteZoom, saveTileZoom, setSaveTileZoom, saveScreenZoom, setSaveScreenZoom, saveSectorLines, setSaveSectorLines, onSaveConfig, onResetConfig, isAutosaving,
   onUndo, onRedo, isUndoDisabled, isRedoDisabled, onOpenAbout,
   onOpenComponentDefEditor, onOpenEntityTemplateEditor, onOpenWorldView, onCompressAllDataFiles,
   onCompileAndRun, onCompressExportCompileRun, onConfigureASM, onConfigureEmulator,
@@ -385,6 +405,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownSeparator />
         <DropdownToggleItem label="Data Format (Hex/Dec)" isChecked={dataOutputFormat === 'hex'} onToggle={() => setDataOutputFormat(dataOutputFormat === 'hex' ? 'decimal' : 'hex')} onText="Hex" offText="Dec" />
         <DropdownToggleItem label="Autosave" isChecked={autosaveEnabled} onToggle={() => setAutosaveEnabled(!autosaveEnabled)} />
+        <DropdownToggleItem label="Save Boss Zoom" isChecked={saveBossZoom} onToggle={() => setSaveBossZoom(!saveBossZoom)} />
+        <DropdownToggleItem label="Save Sprite Zoom" isChecked={saveSpriteZoom} onToggle={() => setSaveSpriteZoom(!saveSpriteZoom)} />
+        <DropdownToggleItem label="Save Tile Zoom" isChecked={saveTileZoom} onToggle={() => setSaveTileZoom(!saveTileZoom)} />
+        <DropdownToggleItem label="Save Screen Zoom" isChecked={saveScreenZoom} onToggle={() => setSaveScreenZoom(!saveScreenZoom)} />
+        <DropdownToggleItem label="Save Sector Lines" isChecked={saveSectorLines} onToggle={() => setSaveSectorLines(!saveSectorLines)} />
         <DropdownSeparator />
         <DropdownItem onClick={onOpenThemeSettings} icon={<CogIcon />}>Theme Settings...</DropdownItem>
         <DropdownSeparator />

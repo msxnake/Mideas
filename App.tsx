@@ -134,16 +134,105 @@ const App: React.FC = () => {
     gameFlowGraph,
     setGameFlowGraph,
     worldViewGridVisible,
-    setWorldViewGridVisible
+    setWorldViewGridVisible,
+    saveBossZoom,
+    setSaveBossZoom,
+    saveSpriteZoom,
+    setSaveSpriteZoom,
+    saveTileZoom,
+    setSaveTileZoom,
+    saveScreenZoom,
+    setSaveScreenZoom,
+    saveSectorLines,
+    setSaveSectorLines
   } = appState;
 
   // Context Menu state
   const [contextMenu, setContextMenu] = useState<{ isOpen: boolean; position: { x: number; y: number }; items: ContextMenuItem[] } | null>(null);
 
   // Editor zoom states
-  const [screenEditorZoom, setScreenEditorZoom] = useState(16);
-  const [tileEditorZoom, setTileEditorZoom] = useState(20);
-  const [bossEditorZoom, setBossEditorZoom] = useState(1);
+  const [screenEditorZoom, setScreenEditorZoom] = useState<number>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        if (config.saveScreenZoom && config.screenEditorZoom !== undefined) {
+          return config.screenEditorZoom;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    return 16;
+  });
+  const [tileEditorZoom, setTileEditorZoom] = useState<number>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        if (config.saveTileZoom && config.tileEditorZoom !== undefined) return config.tileEditorZoom;
+      } catch (e) { /* ignore */ }
+    }
+    return 20;
+  });
+  const [bossEditorZoom, setBossEditorZoom] = useState<number>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        if (config.saveBossZoom && config.bossEditorZoom !== undefined) return config.bossEditorZoom;
+      } catch (e) { /* ignore */ }
+    }
+    return 1;
+  });
+
+  const [showSectorLines, setShowSectorLines] = useState<boolean>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        if (config.saveSectorLines && config.showSectorLines !== undefined) return config.showSectorLines;
+      } catch (e) { /* ignore */ }
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (saveSectorLines) {
+      const savedConfig = localStorage.getItem('ideConfig');
+      const config = savedConfig ? JSON.parse(savedConfig) : {};
+      config.showSectorLines = showSectorLines;
+      localStorage.setItem('ideConfig', JSON.stringify(config));
+    }
+  }, [showSectorLines, saveSectorLines]);
+
+  // Auto-save boss zoom when it changes (only if saveBossZoom is enabled)
+  useEffect(() => {
+    if (saveBossZoom) {
+      const savedConfig = localStorage.getItem('ideConfig');
+      const config = savedConfig ? JSON.parse(savedConfig) : {};
+      config.bossEditorZoom = bossEditorZoom;
+      localStorage.setItem('ideConfig', JSON.stringify(config));
+    }
+  }, [bossEditorZoom, saveBossZoom]);
+
+  // Auto-save tile zoom when it changes (only if saveTileZoom is enabled)
+  useEffect(() => {
+    if (saveTileZoom) {
+      const savedConfig = localStorage.getItem('ideConfig');
+      const config = savedConfig ? JSON.parse(savedConfig) : {};
+      config.tileEditorZoom = tileEditorZoom;
+      localStorage.setItem('ideConfig', JSON.stringify(config));
+    }
+  }, [tileEditorZoom, saveTileZoom]);
+
+  // Auto-save screen zoom when it changes (only if saveScreenZoom is enabled)
+  useEffect(() => {
+    if (saveScreenZoom) {
+      const savedConfig = localStorage.getItem('ideConfig');
+      const config = savedConfig ? JSON.parse(savedConfig) : {};
+      config.screenEditorZoom = screenEditorZoom;
+      localStorage.setItem('ideConfig', JSON.stringify(config));
+    }
+  }, [screenEditorZoom, saveScreenZoom]);
 
   const showContextMenu = (position: { x: number; y: number }, items: ContextMenuItem[]) => {
     setContextMenu({ isOpen: true, position, items });
@@ -559,7 +648,14 @@ const App: React.FC = () => {
 
   // IDE Configuration handlers
   const saveIdeConfig = () => {
-    const configToSave = { dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled, worldViewGridVisible };
+    const configToSave = {
+      dataOutputFormat, autosaveEnabled, snippetsEnabled, syntaxHighlightingEnabled,
+      worldViewGridVisible, saveBossZoom, saveSpriteZoom, saveTileZoom, saveScreenZoom, saveSectorLines,
+      ...(saveBossZoom ? { bossEditorZoom } : {}),
+      ...(saveTileZoom ? { tileEditorZoom } : {}),
+      ...(saveScreenZoom ? { screenEditorZoom } : {}),
+      ...(saveSectorLines ? { showSectorLines } : {})
+    };
     localStorage.setItem('ideConfig', JSON.stringify(configToSave));
     setStatusBarMessage("IDE configuration saved to browser.");
   };
@@ -663,6 +759,18 @@ const App: React.FC = () => {
     setSyntaxHighlightingEnabled,
     worldViewGridVisible,
     setWorldViewGridVisible,
+    saveScreenZoom,
+    setSaveScreenZoom,
+    saveBossZoom,
+    setSaveBossZoom,
+    saveSpriteZoom,
+    setSaveSpriteZoom,
+    saveTileZoom,
+    setSaveTileZoom,
+    showSectorLines,
+    setShowSectorLines,
+    saveSectorLines,
+    setSaveSectorLines,
 
     // History
     history,

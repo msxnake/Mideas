@@ -226,6 +226,71 @@ export const useAppState = () => {
     return true;
   });
 
+  const [saveBossZoom, setSaveBossZoom] = useState<boolean>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        return config.saveBossZoom !== undefined ? config.saveBossZoom : false;
+      } catch (e) {
+        console.error('Failed to parse IDE config. Using defaults.', e);
+      }
+    }
+    return false;
+  });
+
+  const [saveSpriteZoom, setSaveSpriteZoom] = useState<boolean>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        return config.saveSpriteZoom !== undefined ? config.saveSpriteZoom : false;
+      } catch (e) {
+        console.error('Failed to parse IDE config. Using defaults.', e);
+      }
+    }
+    return false;
+  });
+
+  const [saveTileZoom, setSaveTileZoom] = useState<boolean>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        return config.saveTileZoom !== undefined ? config.saveTileZoom : false;
+      } catch (e) {
+        console.error('Failed to parse IDE config. Using defaults.', e);
+      }
+    }
+    return false;
+  });
+
+  const [saveScreenZoom, setSaveScreenZoom] = useState<boolean>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        return config.saveScreenZoom !== undefined ? config.saveScreenZoom : false;
+      } catch (e) {
+        console.error('Failed to parse IDE config. Using defaults.', e);
+      }
+    }
+    return false;
+  });
+
+  const [saveSectorLines, setSaveSectorLines] = useState<boolean>(() => {
+    const savedConfig = localStorage.getItem('ideConfig');
+    if (savedConfig) {
+      try {
+        const config = JSON.parse(savedConfig);
+        return config.saveSectorLines !== undefined ? config.saveSectorLines : false;
+      } catch (e) {
+        console.error('Failed to parse IDE config. Using defaults.', e);
+      }
+    }
+    return false;
+  });
+
   // History state
   const [historyStates, setHistoryStates] = useState<HistoryState[]>([]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(-1);
@@ -364,6 +429,16 @@ export const useAppState = () => {
     setSyntaxHighlightingEnabled,
     worldViewGridVisible,
     setWorldViewGridVisible,
+    saveBossZoom,
+    setSaveBossZoom,
+    saveSpriteZoom,
+    setSaveSpriteZoom,
+    saveTileZoom,
+    setSaveTileZoom,
+    saveScreenZoom,
+    setSaveScreenZoom,
+    saveSectorLines,
+    setSaveSectorLines,
 
     // History state
     historyStates,

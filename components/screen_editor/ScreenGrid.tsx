@@ -632,12 +632,8 @@ export const ScreenGrid: React.FC<ScreenGridProps> = ({
               boxSizing: 'border-box',
               zIndex: 5
             }}
-            title={`Tile Bank Zone: ${bank.name}`}
             aria-hidden="true"
           >
-             <span className="absolute -top-4 left-0 text-[0.6rem] px-1 rounded-t-sm pointer-events-none opacity-80" style={{backgroundColor: zoneColor, color: '#FFF'}}>
-                {bank.name}
-            </span>
           </div>
         );
       })}

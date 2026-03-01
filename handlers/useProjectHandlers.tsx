@@ -151,7 +151,11 @@ function migrateBuiltInComponentDefinition(component: ComponentDefinition): Comp
   const mergedProperties = defaultComponent.properties.map(defaultProperty => {
     const existingProperty = projectProperties.get(defaultProperty.name);
     return existingProperty
-      ? { ...defaultProperty, ...existingProperty }
+      ? {
+          ...existingProperty,
+          ...defaultProperty,
+          defaultValue: existingProperty.defaultValue ?? defaultProperty.defaultValue,
+        }
       : { ...defaultProperty };
   });
 

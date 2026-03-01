@@ -521,6 +521,19 @@ Este documento lista todas las funcionalidades implementadas en GameFlowPreviewM
 - La exportacion actual de state machine reproduce el sound asset como una secuencia one-shot a 60 Hz.
 - Limitaciones actuales: los loops de canal se aplanan a una sola pasada y el hardware envelope todavia no se emite en esta ruta.
 
+### Nota 2026-03-01: `JR` fuera de rango en `update_jump_component`
+- La rutina `update_jump_component` crecio al anadir `entity_jump_max` y `entity_jump_bonus`, y varios saltos relativos a `jump_next_entity` / `jump_done_entity` dejaron de caber en el rango de `JR`.
+- Glass fallaba con `Jump offset out of range` durante la compilacion del ASM generado.
+- La correccion cambia esos saltos lejanos de `jr` a `jp` en el generador de `components.asm`.
+- Esto no altera la logica del salto ni el contrato de registros; solo evita depender del alcance de 8 bits de `JR` cuando la rutina siga creciendo.
+
+### Nota 2026-03-01: Bonus tile con salto extra (`grant_extra_jump`)
+- `comp_tile_collector` ya soporta un segundo tile opcional (`bonusTileId`) separado de la gema normal.
+- Si `bonusEntityEffect = grant_extra_jump` y `bonusEffectAmount > 0`, la rama `.ti_collect_bonus` incrementa `entity_jump_bonus`.
+- `update_jump_component` usa `entity_jump_max + entity_jump_bonus` como limite efectivo y consume una carga de `entity_jump_bonus` cuando el salto extra se usa en el aire.
+- Si `bonusIsPersistent = false`, el bonus tile no se anade a la lista persistente y reaparece al reentrar en pantalla.
+- Validacion practica: en el ASM correcto, `.ti_collect_bonus` debe contener la suma sobre `entity_jump_bonus`; si sigue apareciendo `No supported bonus entity effect configured.`, el build se genero desde un estado anterior del proyecto.
+
 ---
 
 **Última actualización**: 2025-12-17
