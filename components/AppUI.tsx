@@ -677,7 +677,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
           />
         </div>
       </div>
-      <StatusBar message={statusBarMessage} details={currentProjectName || activeAsset?.name} />
+      <StatusBar message={statusBarMessage} details={currentProjectName || activeAsset?.name} screenMode={currentScreenMode} />
       {contextMenu && <ContextMenu {...contextMenu} onClose={closeContextMenu} />}
       {isAboutModalOpen && <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />}
       {isAsmCompilerHelpOpen && <AsmCompilerHelpModal isOpen={isAsmCompilerHelpOpen} onClose={() => setIsAsmCompilerHelpOpen(false)} />}

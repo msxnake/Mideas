@@ -12,15 +12,15 @@
 ; Menus: No
 ; HUD: No
 ; State Machines: 0
-; ROM Mode: auto
+; ROM Mode: simple32k
 ; Mapper Target: konami
-; Auto MegaROM: Yes
+; Auto MegaROM: No
 ; ==================================================================
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 39294
-; Estimated banks used: 5
+; Estimated payload bytes: 46649
+; Estimated banks used: 6
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (74 bytes)
 ; BANK 00 @#004A : colors.asm (73 bytes)
@@ -28,20 +28,21 @@
 ; BANK 00 @#00A9 : entities.asm (303 bytes)
 ; BANK 00 @#01D8 : worlds.asm (152 bytes)
 ; BANK 00 @#0270 : screens.asm (175 bytes)
-; BANK 00 @#031F : sprites.asm (1661 bytes)
-; BANK 00 @#099C : font.asm (174 bytes)
-; BANK 00 @#0A4A : hud.asm (71 bytes)
-; BANK 00 @#0A91 : menus.asm (168 bytes)
-; BANK 00 @#0B39 : sound.asm (3184 bytes)
-; BANK 00 @#17A9 : scroll.asm (2135 bytes)
-; BANK 01 @#0000 : scroll.asm (207 bytes)
-; BANK 01 @#00CF : animtiles.asm (3349 bytes)
-; BANK 01 @#0DE4 : particles.asm (4636 bytes)
-; BANK 02 @#0000 : particles.asm (327 bytes)
-; BANK 02 @#0147 : statemachine.asm part 1/3 (7865 bytes)
-; BANK 03 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 04 @#0000 : statemachine.asm part 3/3 (6306 bytes)
-; BANK 04 @#18A2 : gameflow.asm (220 bytes)
+; BANK 00 @#031F : sprites.asm (1813 bytes)
+; BANK 00 @#0A34 : font.asm (174 bytes)
+; BANK 00 @#0AE2 : hud.asm (79 bytes)
+; BANK 00 @#0B31 : menus.asm (168 bytes)
+; BANK 00 @#0BD9 : sound.asm (3564 bytes)
+; BANK 00 @#19C5 : scroll.asm (1595 bytes)
+; BANK 01 @#0000 : scroll.asm (747 bytes)
+; BANK 01 @#02EB : animtiles.asm (3835 bytes)
+; BANK 01 @#11E6 : particles.asm (3610 bytes)
+; BANK 02 @#0000 : particles.asm (1353 bytes)
+; BANK 02 @#0549 : statemachine.asm part 1/4 (6839 bytes)
+; BANK 03 @#0000 : statemachine.asm part 2/4 (8192 bytes)
+; BANK 04 @#0000 : statemachine.asm part 3/4 (8192 bytes)
+; BANK 05 @#0000 : statemachine.asm part 4/4 (5412 bytes)
+; BANK 05 @#1524 : gameflow.asm (277 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -134,8 +135,8 @@ restart_rom_continue:
     di
 
     ; Register default tasks based on project needs
-        ld a, 0
-    ld hl, task_update_input
+        ld a, 1
+    ld hl, task_update_sprites
     call enable_task
 
 
@@ -346,6 +347,8 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ;   FAST_WRTVRM:  ~43% faster (40 vs 70 cycles)
 ;   FAST_WRTVDP:  ~55% faster (25 vs 55 cycles)
 ;   FAST_GTSTCK:  ~58% faster (50 vs 120 cycles)
+;   FAST_GTTRIG:  direct trigger read (joystick button)
+;   FAST_SNSMAT:  direct keyboard matrix row read
 ;
 ; Compatibility: MSX1, MSX2, MSX2+
 ; ==================================================================
@@ -354,6 +357,28 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ; ==================================================================
 ; FAST_LDIRVM - Fast Block Transfer to VRAM
 ; ==================================================================
+; Register Contract:
+;   Purpose: Block copy from RAM to VRAM using VDP data port auto-increment.
+;   Inputs:
+;     - HL = source address (RAM)
+;     - DE = destination address (VRAM)
+;     - BC = byte count
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - HL
+;   Preserved:
+;     - DE
+;   Register roles:
+;     - A = VDP address bytes and data byte being transferred
+;     - HL = RAM read pointer (increments each byte)
+;     - DE = only used to program initial VRAM address
+;     - BC = countdown loop counter
+;   Notes:
+;     - Caller must preserve AF/BC/HL if needed after call.
+
 ; Replaces BIOS LDIRVM with direct hardware access
 ;
 ; Input:
@@ -373,16 +398,29 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ;
 ; Notes:
 ;   - Auto-increments VRAM address (VDP feature)
-;   - Safe to use with interrupts enabled
+;   - Briefly masks IRQs only while programming the VDP address latch
+;   - Restores the previous IRQ enable state before the data loop starts
 ;   - Works on all MSX models (TMS9918, V9938, V9958)
 ; ==================================================================
 FAST_LDIRVM:
+    ; Preserve previous IRQ state (LD A,I copies IFF2 into P/V)
+    ld a, i
+    push af
+    di
+
     ; Set VRAM write address
     ld a, e
     out (#99), a           ; Write address low byte to VDP
+    nop                    ; Real VDPs need a short settle time between control writes
     ld a, d
     or #40                 ; Set bit 6 for write mode
     out (#99), a           ; Write address high byte + write command
+    nop                    ; Let the VDP latch the address before the first data write
+
+    ; Restore previous IRQ state before the bulk copy loop
+    pop af
+    jp po, .ldirvm_loop    ; P/V=0 => IRQs were already disabled
+    ei
 
     ; Copy loop
 .ldirvm_loop:
@@ -399,6 +437,26 @@ FAST_LDIRVM:
 ; ==================================================================
 ; FAST_WRTVRM - Write Single Byte to VRAM
 ; ==================================================================
+; Register Contract:
+;   Purpose: Write one byte into VRAM while preserving caller-visible state.
+;   Inputs:
+;     - A = byte to write
+;     - HL = VRAM destination address
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - None (all registers preserved)
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = temporarily saved/restored around VDP address programming
+;     - HL = VRAM address source (not modified)
+;   Notes:
+;     - Safe helper when the caller cannot tolerate register changes.
+
 ; Replaces BIOS WRTVRM
 ;
 ; Input:
@@ -434,6 +492,24 @@ FAST_WRTVRM:
 ; ==================================================================
 ; FAST_RDVRM - Read Single Byte from VRAM
 ; ==================================================================
+; Register Contract:
+;   Purpose: Read one byte from VRAM data port.
+;   Inputs:
+;     - HL = VRAM source address
+;   Outputs:
+;     - A = byte read from VRAM
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = VDP addressing command then read result
+;     - HL = address source only (unchanged)
+;   Notes:
+;     - Callers relying on flags must account for AF clobber.
+
 ; Replaces BIOS RDVRM
 ;
 ; Input:
@@ -458,6 +534,7 @@ FAST_RDVRM:
     ld a, h
     and #3F                ; Clear bit 6 for read mode (bit 7 must be 0)
     out (#99), a           ; Address high + read command
+    nop                    ; VDP needs time to process address before read
     in a, (#98)            ; Read from VRAM data port
     ret
 
@@ -465,6 +542,25 @@ FAST_RDVRM:
 ; ==================================================================
 ; FAST_WRTVDP - Write VDP Register
 ; ==================================================================
+; Register Contract:
+;   Purpose: Write one VDP register value (value first, then register index).
+;   Inputs:
+;     - B = register value
+;     - C = register number
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = output staging register for both OUT operations
+;     - B/C = preserved input pair for value and register id
+;   Notes:
+;     - Order of writes is mandatory for VDP register writes.
+
 ; Replaces BIOS WRTVDP
 ;
 ; Input:
@@ -497,6 +593,24 @@ FAST_WRTVDP:
 ; ==================================================================
 ; FAST_GTSTCK - Read Joystick Direction
 ; ==================================================================
+; Register Contract:
+;   Purpose: Read joystick direction and map PSG bits to MSX GTSTCK direction code.
+;   Inputs:
+;     - A = joystick port (0 or 1)
+;   Outputs:
+;     - A = direction code (0-8)
+;   Clobbers:
+;     - AF
+;     - HL
+;   Preserved:
+;     - BC
+;     - DE
+;   Register roles:
+;     - A = PSG register selection, raw read, and final direction code
+;     - HL = lookup table pointer into joystick_direction_table
+;   Notes:
+;     - Bits are active-low; routine inverts and masks input nibble.
+
 ; Replaces BIOS GTSTCK (which is notoriously slow)
 ;
 ; Input:
@@ -573,6 +687,103 @@ joystick_direction_table:
     db 0  ; 1101 = Invalid
     db 0  ; 1110 = Invalid
     db 0  ; 1111 = All directions (invalid)
+
+
+; ==================================================================
+; FAST_GTTRIG - Read Joystick Trigger
+; ==================================================================
+; Register Contract:
+;   Purpose: Read joystick trigger bit directly from PSG register.
+;   Inputs:
+;     - A = joystick port (0 or 1)
+;   Outputs:
+;     - A = #FF if pressed, #00 if released
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = register select, raw PSG read, and normalized return value
+;   Notes:
+;     - Trigger is active-low in PSG bit 4.
+
+; Direct hardware replacement for BIOS GTTRIG
+;
+; Input:
+;   A = Joystick port (0 = port 1, 1 = port 2)
+;
+; Output:
+;   A = #FF if pressed, 0 if released
+;
+; Destroys:
+;   AF
+;
+; Notes:
+;   - Reads PSG register 14/15 directly
+;   - Trigger bit is active-low
+; ==================================================================
+FAST_GTTRIG:
+    ; Calculate PSG register: 14 (port 1) or 15 (port 2)
+    rrca
+    and #0F
+    or #0E
+
+    ; Select PSG register and read value
+    out (#A0), a
+    in a, (#A2)
+
+    ; Trigger bit (bit 4): 0 when pressed, 1 when released
+    and #10
+    ld a, #00
+    ret nz
+    ld a, #FF
+    ret
+
+
+; ==================================================================
+; FAST_SNSMAT - Sense Keyboard Matrix Row
+; ==================================================================
+; Register Contract:
+;   Purpose: Select keyboard matrix row via PPI and return row state.
+;   Inputs:
+;     - A = matrix row (0-11)
+;   Outputs:
+;     - A = row bits (active-low)
+;   Clobbers:
+;     - AF
+;     - C
+;   Preserved:
+;     - B
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = row selector composition and final row read
+;     - C = cached low nibble used to build PPI port C output
+;   Notes:
+;     - Upper nibble of current PPI port C is preserved.
+
+; Direct hardware replacement for BIOS SNSMAT
+;
+; Input:
+;   A = row (0-11)
+;
+; Output:
+;   A = row bits (active-low, 0=pressed)
+;
+; Destroys:
+;   AF, C
+; ==================================================================
+FAST_SNSMAT:
+    and #0F                 ; Keep valid row bits
+    ld c, a
+    in a, (#AA)             ; Read current PPI port C
+    and #F0                 ; Preserve upper nibble
+    or c                    ; Set keyboard row in lower nibble
+    out (#AA), a            ; Select row
+    in a, (#A9)             ; Read keyboard matrix row
+    ret
 
 
 ; ==================================================================
@@ -691,6 +902,18 @@ COLL_FROM_ABOVE     EQU #01    ; Entity approaching from above
 COLL_FROM_BELOW     EQU #02    ; Entity approaching from below
 COLL_FROM_LEFT      EQU #04    ; Entity approaching from left
 COLL_FROM_RIGHT     EQU #08    ; Entity approaching from right
+
+; Entity Collision Layer Presets (entity_collision_layer / entity_collides_with)
+COLLISION_LAYER_PLAYER      EQU #01
+COLLISION_LAYER_ENEMY       EQU #02
+COLLISION_LAYER_PROJECTILE  EQU #04
+COLLISION_LAYER_PLATFORM    EQU #08
+COLLISION_LAYER_ITEM        EQU #10
+
+; Entity-Entity Collision Event Flags (entity_entity_collision_flags)
+COLLISION_EVENT_ENTITY      EQU #01
+COLLISION_EVENT_ENEMY       EQU #02
+COLLISION_EVENT_ITEM        EQU #04
 
 ; ==================================================================
 ; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
@@ -826,148 +1049,201 @@ hud_dirty_flag      EQU #C630   ; 1=HUD needs redraw, 0=clean
 anim_tile_timer     EQU #C631   ; Animation frame timer
 anim_tile_frame     EQU #C632   ; Current animation frame (0-3)
 anim_tile_speed     EQU #C633   ; Frames between animation updates
+anim_tile_transform_flags EQU #C634   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)
+anim_tile_row_buffer EQU #C636   ; Temp buffer (8 bytes) for row transforms
 
 ; ==================================================================
 ; PARTICLE SYSTEM VARIABLES
 ; ==================================================================
-particle_pool       EQU #C634   ; Particle pool (8 particles * 8 bytes = 64 bytes)
+particle_pool       EQU #C63E   ; Particle pool (8 particles * 8 bytes = 64 bytes)
 
 ; ==================================================================
 ; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
 ; ==================================================================
 MAX_ENTITIES        EQU 32
-entity_active       EQU #C674   ; Entity active flags (32 bytes, 0=inactive, 1=active)
-entity_x_pos        EQU #C694   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #C6B4   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #C6D4   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #C6F4   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #C714   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #C734   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #C754   ; Entity screen ID (32 bytes)
-entity_dir_mask     EQU #C774   ; Entity direction mask (32 bytes)
-entity_health       EQU #C794   ; Entity health (32 bytes)
-entity_anim_frame   EQU #C7B4   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #C7D4   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #C7F4   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #C814   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #C834   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #C854   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #C874   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #C894   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #C8B4   ; Entity State Wait Timer (32 bytes)
-entity_lifetime     EQU #C8D4   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_carried_by   EQU #C8F4   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_template_token EQU #C914   ; Entity template token (32 bytes, 0=unknown)
-entity_sm_var_0     EQU #C934   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #C954   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #C974   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #C994   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #C9B4   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #C9D4   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #C9F4   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #CA14   ; Entity Variable 7 (32 bytes)
+entity_active       EQU #C67E   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_x_pos        EQU #C69E   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #C6BE   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #C6DE   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #C6FE   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #C71E   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #C73E   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #C75E   ; Entity screen ID (32 bytes)
+entity_dir_mask     EQU #C77E   ; Entity direction mask (32 bytes)
+entity_input_speed  EQU #C79E   ; Entity input/cursor speed (32 bytes)
+entity_health       EQU #C7BE   ; Entity health (32 bytes)
+entity_anim_frame   EQU #C7DE   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #C7FE   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #C81E   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #C83E   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #C85E   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #C87E   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #C89E   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #C8BE   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #C8DE   ; Entity State Wait Timer (32 bytes)
+entity_lifetime     EQU #C8FE   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_carried_by   EQU #C91E   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #C93E   ; Entity template token (32 bytes, 0=unknown)
+entity_facing_dir   EQU #C95E   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #C97E   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #C99E   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #C9BE   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #C9DE   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #C9FE   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #CA1E   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #CA3E   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #CA5E   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #CA34   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #CA54   ; Number of sprites currently active
-sprites_dirty      EQU #CA55   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #CA56   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #CA76   ; Sprite colors (32 bytes)
-sprite_attributes   EQU #CA96   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #CA7E   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #CA9E   ; Number of sprites currently active
+sprites_dirty      EQU #CA9F   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #CAA0   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #CAC0   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #CAE0   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_attributes   EQU #CB00   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #CB16   ; Player X position (16-bit)
-player_y            EQU #CB18   ; Player Y position (16-bit)
-player_health       EQU #CB1A   ; Player health points
-player_score        EQU #CB1B   ; Player score (16-bit)
+player_x            EQU #CB80   ; Player X position (16-bit)
+player_y            EQU #CB82   ; Player Y position (16-bit)
+player_health       EQU #CB84   ; Player health points
+player_score        EQU #CB85   ; Player score (16-bit)
+gem_count           EQU #CB87   ; Collectible tile counter (8-bit)
+last_gem_char       EQU #CB88   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
+
+; Persistent collectibles list (survives screen re-entry)
+MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
+collected_count      EQU #CB89   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #CB8A   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #CBCA   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #CC0A   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #CC4A   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+
+; Timed bonus tile respawn slots (bonus gem regeneration)
+MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
+bonus_respawn_world  EQU #CC8A   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #CC9A   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #CCAA   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #CCBA   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #CCCA   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #CCDA   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #CB1D   ; Deterministic mode flag
+deterministic        EQU #CCEA   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #CB1E   ; Temporary 16-bit storage
-temp_word_2         EQU #CB20   ; Temporary 16-bit storage
-temp_byte_1         EQU #CB22   ; Temporary 8-bit storage
-temp_byte_2         EQU #CB23   ; Temporary 8-bit storage
-temp_byte_3         EQU #CB24   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #CB44   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #CB64   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #CB84   ; Temporary 8-bit storage (32 bytes)
-temp_byte_7         EQU #CBA4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #CBC4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #CBE4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #CC04   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #CC24   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #CC44   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #CC64   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #CC84   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #CCA4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #CCC4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #CCE4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #CD04   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #CD24   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #CD44   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #CD64   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #CD84   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #CDA4   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #CDC4   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #CDE4   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #CE24   ; Temporary 16-bit storage (64 bytes)
+temp_word_1         EQU #CCEB   ; Temporary 16-bit storage
+temp_word_2         EQU #CCED   ; Temporary 16-bit storage
+temp_byte_1         EQU #CCEF   ; Temporary 8-bit storage
+temp_byte_2         EQU #CCF0   ; Temporary 8-bit storage
+temp_byte_3         EQU #CCF1   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #CD11   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #CD31   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #CD51   ; Temporary 8-bit storage (32 bytes)
+
+; ==================================================================
+; SOUND SYSTEM VARIABLES
+; ==================================================================
+sfx_active          EQU #CD71   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #CD72   ; Frames remaining for current SFX
+sfx_fadeout         EQU #CD73   ; Reserved fadeout flag/state
+temp_byte_7         EQU #CD74   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #CD94   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #CDB4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #CDD4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #CDF4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #CE14   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #CE34   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #CE54   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #CE74   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #CE94   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #CEB4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #CED4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #CEF4   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #CF14   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #CF34   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #CF54   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #CF74   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #CF94   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #CFB4   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #CFD4   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #D014   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #D054   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #D074   ; Temporary 8-bit storage (32 bytes)
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #CE64   ; Cached entity X for wall checks
-wall_temp_y         EQU #CE65   ; Cached entity Y for wall checks
+wall_temp_x         EQU #D094   ; Cached entity X for wall checks
+wall_temp_y         EQU #D095   ; Cached entity Y for wall checks
+wall_hit_left       EQU #D096   ; Hitbox left edge cache
+wall_hit_top        EQU #D097   ; Hitbox top edge cache
+wall_hit_right      EQU #D098   ; Hitbox right edge cache
+wall_hit_bottom     EQU #D099   ; Hitbox bottom edge cache
+wall_hit_w          EQU #D09A   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #D09B   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #D09C   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #D09D   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #D09E   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #D09F   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #CE66   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #CE86   ; Number of entries in active_entity_list
+active_entity_list  EQU #D0A0   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #D0C0   ; Number of entries in active_entity_list
+active_entity_list_dirty EQU #D0C1   ; 1=rebuild active_entity_list required
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #CE87   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #CEA7   ; Number of entities in coll_list
-coll_src_left       EQU #CEA8   ; Source AABB left edge (scratch)
-coll_src_right      EQU #CEA9   ; Source AABB right edge (scratch)
-coll_src_top        EQU #CEAA   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #CEAB   ; Source AABB bottom edge (scratch)
+coll_list           EQU #D0C2   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #D0E2   ; Number of entities in coll_list
+coll_src_left       EQU #D0E3   ; Source AABB left edge (scratch)
+coll_src_right      EQU #D0E4   ; Source AABB right edge (scratch)
+coll_src_top        EQU #D0E5   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #D0E6   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #CEAC   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #CEAC   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #CEAE   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #CEB0   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #CEB2   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #CEB4   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #CEB6   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #CEB8   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #CEBA   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #CEBC   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #CEBD   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #CEC2   ; Frame counter (16-bit)
-task_exec_time          EQU #CEC4   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #CEC6   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #CEC7   ; End of interrupt system
+task_table              EQU #D0E7   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #D0E7   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #D0E9   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #D0EB   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #D0ED   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #D0EF   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #D0F1   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #D0F3   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #D0F5   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #D0F7   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #D0F8   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #D0FD   ; Frame counter (16-bit)
+task_exec_time          EQU #D0FF   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #D101   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #D102   ; End of interrupt system
+
+; ==================================================================
+; STATE MACHINE SOUND RUNTIME (one active sound asset)
+; ==================================================================
+sm_sound_active       EQU #D102   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #D103   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #D104   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #D105   ; Next sound frame pointer high byte
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #CEC7   ; End of project variables (3783 bytes used)
+RAM_USAGE_END       EQU #D106   ; End of project variables (4358 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#CEC7: Project variables (3783 bytes)
-;   #CEC7-#F37F: Free RAM (~9401 bytes available)
+;   #C000-#D106: Project variables (4358 bytes)
+;   #D106-#F37F: Free RAM (~8826 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -979,25 +1255,18 @@ RAM_USAGE_END       EQU #CEC7   ; End of project variables (3783 bytes used)
 ; ==================================================================
 ; MAPPER RUNTIME API
 ; File: mapper.asm
-; Description: Centralized mapper register writes (no scattered inline writes)
+; Description: Minimal compatibility stubs for simple32k builds
 ; Target mapper: konami
-; ROM mode: auto (autoMegaROM=true)
+; ROM mode: simple32k (autoMegaROM=false)
 ; ==================================================================
-
-; Konami (without SCC) write window references:
-;   6000h-7FFFh, 8000h-9FFFh, A000h-BFFFh are switch registers.
-; Note: in original Konami cartridges 4000h-5FFFh is typically fixed.
-; Mapper register writes are enabled for this build configuration.
-
-; Mapper registers for active target format
-MAPPER_REG_P1       EQU #6000
-MAPPER_REG_P2       EQU #8000
-MAPPER_REG_P3       EQU #A000
-MAPPER_REG_P4       EQU #A000
+;
+; This build runs in simple32k mode, so bank switching is not active.
+; Keep mapper API labels as no-op stubs so generated gameplay code can
+; call the same routines without conditional assembly branches.
 
 ; ------------------------------------------------------------------
 ; mapper_runtime_init
-; Initializes mapper state variables with deterministic defaults.
+; Initializes runtime mirrors only (no hardware mapper writes).
 ; ------------------------------------------------------------------
 mapper_runtime_init:
     xor a
@@ -1012,30 +1281,26 @@ mapper_runtime_init:
 
 ; ------------------------------------------------------------------
 ; API: mapper_set_bank_pX
-; Input: A = bank number
+; Input: A = bank number (stored only for compatibility)
 ; ------------------------------------------------------------------
 mapper_set_bank_p1:
     ld (mapper_bank_p1_current), a
-    ld (MAPPER_REG_P1), a
     ret
 
 mapper_set_bank_p2:
     ld (mapper_bank_p2_current), a
-    ld (MAPPER_REG_P2), a
     ret
 
 mapper_set_bank_p3:
     ld (mapper_bank_p3_current), a
-    ld (MAPPER_REG_P3), a
     ret
 
 mapper_set_bank_p4:
     ld (mapper_bank_p4_current), a
-    ld (MAPPER_REG_P4), a
     ret
 
 ; ------------------------------------------------------------------
-; Helpers for deterministic save/restore around far calls.
+; Save/restore helpers (compatibility only).
 ; ------------------------------------------------------------------
 mapper_push_p1:
     ld a, (mapper_bank_p1_current)
@@ -1074,103 +1339,26 @@ mapper_pop_p4:
     jp mapper_set_bank_p4
 
 ; ------------------------------------------------------------------
-; Far call helpers (dynamic target address in HL)
-; Input:
-;   A = target bank number
-;   HL = target routine address in selected page window
-; Output:
-;   Returns after restoring previous bank.
+; Far call helpers (simple32k no-op bank switch).
 ; ------------------------------------------------------------------
 mapper_call_hl_p1:
-    push hl
-    push af
-    call mapper_push_p1
-    pop af
-    call mapper_set_bank_p1
-    pop hl
     ld de, .return_p1
     push de
     jp (hl)
 .return_p1:
-    call mapper_pop_p1
     ret
 
 mapper_call_hl_p2:
-    push hl
-    push af
-    call mapper_push_p2
-    pop af
-    call mapper_set_bank_p2
-    pop hl
-    ld de, .return_p2
-    push de
-    jp (hl)
-.return_p2:
-    call mapper_pop_p2
-    ret
-
-mapper_call_hl_p3:
-    push hl
-    push af
-    call mapper_push_p3
-    pop af
-    call mapper_set_bank_p3
-    pop hl
-    ld de, .return_p3
-    push de
-    jp (hl)
-.return_p3:
-    call mapper_pop_p3
-    ret
-
-mapper_call_hl_p4:
-    push hl
-    push af
-    call mapper_push_p4
-    pop af
-    call mapper_set_bank_p4
-    pop hl
-    ld de, .return_p4
-    push de
-    jp (hl)
-.return_p4:
-    call mapper_pop_p4
-    ret
-
-; ------------------------------------------------------------------
-; mapper_call_hl_auto
-; Auto-select mapper window from HL target address range:
-;   4000-5FFF -> p1
-;   6000-7FFF -> p2
-;   8000-9FFF -> p3
-;   A000-BFFF -> p4
-; Input:
-;   A = target bank
-;   HL = target routine address
-; ------------------------------------------------------------------
-mapper_call_hl_auto:
-    push af
-    ld a, h
-    cp #60
-    jr c, .use_p1
-    cp #80
-    jr c, .use_p2
-    cp #A0
-    jr c, .use_p3
-    pop af
-    jp mapper_call_hl_p4
-
-.use_p1:
-    pop af
     jp mapper_call_hl_p1
 
-.use_p2:
-    pop af
-    jp mapper_call_hl_p2
+mapper_call_hl_p3:
+    jp mapper_call_hl_p1
 
-.use_p3:
-    pop af
-    jp mapper_call_hl_p3
+mapper_call_hl_p4:
+    jp mapper_call_hl_p1
+
+mapper_call_hl_auto:
+    jp mapper_call_hl_p1
 
 
 ; ==================================================================
@@ -1191,6 +1379,25 @@ mapper_call_hl_auto:
 ; ==================================================================
 ; INIT_INTERRUPT_SYSTEM - Install H.TIMI hook
 ; ==================================================================
+; Register Contract:
+;   Purpose: Install JP hook on H.TIMI and initialize interrupt task state.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - HL/DE/BC = block copy parameters for hook backup and task table clear
+;     - A = enable flag and zeroing value
+;   Notes:
+;     - Runs with DI/EI, so caller must not assume interrupt state is unchanged.
+
 ; Inputs: None
 ; Outputs: None
 ; Modifies: AF, BC, DE, HL
@@ -1234,6 +1441,25 @@ init_interrupt_system:
 ; ==================================================================
 ; STOP_INTERRUPT_SYSTEM - Restore original H.TIMI hook
 ; ==================================================================
+; Register Contract:
+;   Purpose: Restore original H.TIMI bytes and mark system disabled.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - HL/DE/BC = LDIR source/destination/count for hook restore
+;     - A = zero flag write to interrupt_system_enabled
+;   Notes:
+;     - Runs with DI/EI for atomic hook restoration.
+
 ; Inputs: None
 ; Outputs: None
 ; Modifies: AF, BC, DE, HL
@@ -1257,6 +1483,29 @@ stop_interrupt_system:
 ; ==================================================================
 ; INTERRUPT_DISPATCHER - Main ISR (60Hz/50Hz)
 ; ==================================================================
+; Register Contract:
+;   Purpose: Dispatch enabled interrupt tasks each VBlank and chain BIOS hook.
+;   Inputs:
+;     - Triggered by H.TIMI hook
+;   Outputs:
+;     - interrupt_counter incremented
+;     - vblank_flag refreshed
+;   Clobbers:
+;     - AF
+;     - BC
+;     - HL (restored before exit)
+;   Preserved:
+;     - DE
+;     - IX
+;     - IY
+;   Register roles:
+;     - HL = walks task_table and holds task pointer
+;     - B = task slot loop counter
+;     - C = temporary low byte for pointer reconstruction
+;     - A = enabled checks and pointer validation
+;   Notes:
+;     - Only AF/BC/HL are pushed; interrupt tasks must preserve anything else they touch.
+
 ; This routine executes on each V-Blank
 ; CRITICAL: Minimal CPU cycles, maximum efficiency
 ; Overhead: ~80 cycles base + ~40 cycles per active task
@@ -1349,6 +1598,19 @@ interrupt_dispatcher:
 ; ==================================================================
 ; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
 ; ==================================================================
+; Register Contract:
+;   Purpose: Read VDP status register and latch VBlank state in RAM flag.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - vblank_flag = 0/1
+;   Clobbers:
+;     - AF (internally saved/restored)
+;   Preserved:
+;     - AF, BC, DE, HL
+;   Register roles:
+;     - A = VDP status read and boolean conversion
+
 ; Updates vblank_flag only if we're actually in VBlank
 ; Called from interrupt_dispatcher
 ; Inputs: None
@@ -1373,6 +1635,26 @@ update_vblank_flag:
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system
 ; ==================================================================
+; Register Contract:
+;   Purpose: Store routine pointer into task_table slot.
+;   Inputs:
+;     - A = task slot (0-7)
+;     - HL = task routine address
+;   Outputs:
+;     - task_table[slot] = HL
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - A = slot validation and offset math
+;     - DE = holds routine address while HL is repurposed as slot pointer
+;     - BC = task_table base address
+;     - HL = slot address calculation / pointer write
+
 ; Inputs:
 ;   A = task slot (0-7)
 ;   HL = address of task routine
@@ -1405,6 +1687,23 @@ enable_task:
 ; ==================================================================
 ; DISABLE_TASK - Deactivate a task
 ; ==================================================================
+; Register Contract:
+;   Purpose: Clear routine pointer in selected task slot.
+;   Inputs:
+;     - A = task slot (0-7)
+;   Outputs:
+;     - task_table[slot] = 0
+;   Clobbers:
+;     - AF
+;     - DE
+;     - HL
+;   Preserved:
+;     - BC
+;   Register roles:
+;     - A = slot validation and zero value for clearing
+;     - HL = destination slot pointer
+;     - DE = computed slot offset
+
 ; Inputs:
 ;   A = task slot (0-7)
 ; Outputs: None
@@ -1433,6 +1732,21 @@ disable_task:
 ; ==================================================================
 ; GET_FRAME_COUNT - Get frame counter value
 ; ==================================================================
+; Register Contract:
+;   Purpose: Expose current 16-bit interrupt frame counter.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - HL = interrupt_counter
+;   Clobbers:
+;     - HL
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;   Register roles:
+;     - HL = loaded return value
+
 ; Inputs: None
 ; Outputs: HL = frame count (16-bit)
 ; Modifies: HL
@@ -1451,6 +1765,28 @@ get_frame_count:
 ; This task guarantees responsive input (no missed button presses)
 ; Compatible with update_input_component existing function
 ; ==================================================================
+; Register Contract:
+;   Purpose: Poll joystick + keyboard fallback and update input state buffers.
+;   Inputs:
+;     - Reads hardware via FAST_GTSTCK / FAST_GTTRIG / FAST_SNSMAT
+;   Outputs:
+;     - input_state, prev_input_state, input_btn_curr, input_btn_prev, input_fire
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE (by push/pop wrapper)
+;     - HL
+;   Register roles:
+;     - A = hardware reads and final scalar writes
+;     - B = direction accumulator
+;     - D = button bitmask and keyboard direction flags
+;     - E = temporary keyboard row bits
+;   Notes:
+;     - Wrapper preserves caller-visible regs despite internal mutation.
 task_update_input:
     push af
     push bc
@@ -1462,16 +1798,16 @@ task_update_input:
     ld a, (input_btn_curr)
     ld (input_btn_prev), a
 
-    ; Read joystick direction first (priority source)
+    ; Read joystick direction first (priority source, direct hardware)
     xor a                       ; Joystick 0
-    call GTSTCK                 ; BIOS call: A = direction
+    call FAST_GTSTCK            ; Direct hardware read
     ld b, a                     ; B = joystick direction
     or a
     jr nz, .dir_ready
 
-    ; Fallback to keyboard cursor keys (SNSMAT row 8)
+    ; Fallback to keyboard cursor keys (row 8, direct matrix read)
     ld a, 8
-    call SNSMAT                 ; Active low bits
+    call FAST_SNSMAT            ; Active low bits
     ld e, a
     xor a
     ld d, a                     ; D = direction flags: 0=none
@@ -1533,8 +1869,28 @@ task_update_input:
 .kbd_done:
     ld b, a
 .dir_ready:
+    ; Normalize diagonals to cardinal directions for runtime stability
+    ; UP+RIGHT/DOWN+RIGHT -> RIGHT, UP+LEFT/DOWN+LEFT -> LEFT
+    ld a, b
+    cp STICK_UPRIGHT
+    jr z, .dir_norm_right
+    cp STICK_DOWNRIGHT
+    jr z, .dir_norm_right
+    cp STICK_UPLEFT
+    jr z, .dir_norm_left
+    cp STICK_DOWNLEFT
+    jr z, .dir_norm_left
+    jr .dir_norm_done
+.dir_norm_right:
+    ld a, STICK_RIGHT
+    jr .dir_norm_store
+.dir_norm_left:
+    ld a, STICK_LEFT
+.dir_norm_store:
+    ld b, a
+.dir_norm_done:
     xor a                       ; Joystick 0
-    call GTTRIG                 ; A = #FF if pressed, 0 if not
+    call FAST_GTTRIG            ; A = #FF if pressed, 0 if not
     ld d, 0                     ; D = button bitmask
     or a
     jr z, .no_fire              ; Jump if NOT pressed (A=0)
@@ -1543,6 +1899,16 @@ task_update_input:
     ld (input_fire), a
     jr .fire_done
 .no_fire:
+    ; Keyboard fallback for fire (SPACE, row 8 bit 0, active low)
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr nz, .fire_released
+    ld d, INPUT_BTN_FIRE
+    ld a, 1
+    ld (input_fire), a
+    jr .fire_done
+.fire_released:
     xor a                       ; Fire not pressed
     ld (input_fire), a
 .fire_done:
@@ -1568,6 +1934,16 @@ task_update_input:
 ; Placeholder for user-defined frame-based timing
 ; Example: Increment animation timers, etc.
 ; ==================================================================
+; Register Contract:
+;   Purpose: Reserved slot for user timing logic.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None by default
+;   Clobbers:
+;     - None by default
+;   Preserved:
+;     - All (default empty implementation)
 task_frame_counter:
     ; Placeholder - counter is already incremented in dispatcher
     ; Add custom timing logic here if needed
@@ -1597,7 +1973,7 @@ task_frame_counter:
 ; No entities detected in project - ECS system not needed
     ; This saves ~650 lines of unused component management code
 
-    ; Constants required by state machine action handlers
+; Constants required by state machine action handlers
 ANIM_FLAG_PLAYING            EQU #01
 ANIM_FLAG_LOOP               EQU #02
 ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
@@ -1631,99 +2007,108 @@ COMP_MASK_AUTO_DESTROY EQU #0400
 init_components:
     ret
 init_entities:
-ret
+    ret
 update_all_entities:
-ret
+    ret
 execute_all_state_machines:
-ret
+    ret
 create_entity:
-ret
+    ret
 force_update_entity_sprite:
-ret
+    ret
 
 update_input_component:
-ret
+    ret
 update_position_component:
-ret
+    ret
 update_movement_component:
-ret
+    ret
 update_collision_component:
-ret
+    ret
 update_sprite_component:
-ret
+    ret
 update_behavior_component:
-ret
+    ret
 update_health_component:
-ret
+    ret
 update_animation_component:
-ret
+    ret
 update_jump_component:
-ret
+    ret
 update_gravity_component:
-ret
+    ret
+update_slash_component:
+    ret
 update_auto_destroy_component:
-ret
+    ret
 update_cursors_component:
-ret
+    ret
 update_statemachine_component:
-ret
+    ret
 update_carry_component:
-ret
+    ret
 update_damage_component:
-ret
+    ret
 update_shoot_component:
-ret
+    ret
 update_wallcollision_component:
-ret
+    ret
 update_collectible_component:
-ret
+    ret
+check_tile_interaction:
+    ret
 
 init_position_system:
-ret
+    ret
 init_sprite_system:
-ret
+    ret
 init_movement_system:
-ret
+    ret
 init_collision_system:
-ret
+    ret
 init_input_system:
-ret
+    ret
 init_behavior_system:
-ret
+    ret
 init_health_system:
-ret
+    ret
 init_animation_system:
-ret
+    ret
 init_jump_system:
-ret
+    ret
 init_gravity_system:
-ret
+    ret
 init_auto_destroy_system:
-ret
+    ret
 init_cursors_system:
-ret
+    ret
 init_statemachine_system:
-ret
+    ret
 init_carry_system:
-ret
+    ret
 init_damage_system:
-ret
+    ret
 init_shoot_system:
-ret
+    ret
 init_platform_riding_system:
-ret
+    ret
 init_wallcollision_system:
-ret
+    ret
 init_collectible_system:
-ret
+    ret
+init_tile_interaction_system:
+    ret
 init_entity_position:
-ret
+    ret
 init_entity_sprite:
-ret
+    ret
 
-    ; Component Data Structure EQUs(referenced by state machine actions)
+    ; Component Data Structure EQUs (referenced by state machine actions)
 entity_jump_vel_y   EQU temp_word_3
+entity_slash_vel_x  EQU temp_byte_3
 entity_jump_count   EQU temp_byte_4
+entity_jump_max     EQU temp_byte_25
+entity_jump_bonus   EQU temp_byte_27
 entity_on_ground    EQU temp_byte_5
 entity_gravity_vel  EQU temp_word_4
 entity_health_current EQU temp_byte_6
@@ -1847,17 +2232,29 @@ entity_sprite_config:
 ; Format: db sprite_asset_index (#FF = none)
 entity_sprite_asset_index_init:
     ds 32, #FF ; Padding
- 
-; Table: Hardware Sprite Layer Colors 
-; Format: db color_index 
-sprite_layer_colors: 
+SPRITE_MAX_ENTITY_LAYERS EQU 1  ; Max HW sprite layers per entity
+
+; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
+; Format: db color_index
+sprite_layer_colors_init:
     ds 32, 0 ; Padding
+
+; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
+SM_SpriteLayerColorTable:
+    db 0 ; Placeholder
 
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
 ; ==================================================================
 
 init_sprites:
+    ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
+    ld hl, sprite_layer_colors_init
+    ld de, sprite_layer_colors
+    ld bc, 32
+    ldir
     call clear_all_sprites
     call load_sprite_patterns
     xor a
@@ -2070,6 +2467,17 @@ SFX_LONG            EQU 30       ; ~500ms
 init_sound_system:
     ; Initialize PSG via BIOS
     call GICINI
+
+    ; Clear runtime sound state so power-on RAM garbage cannot make
+    ; sfx_update / SM_UpdateSound drive the PSG for a few random frames.
+    xor a
+    ld (sfx_active), a
+    ld (sfx_timer), a
+    ld (sfx_fadeout), a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ld (sm_sound_ptr_l), a
+    ld (sm_sound_ptr_h), a
 
     ; Silence all channels
     call sfx_silence_all
@@ -2324,10 +2732,63 @@ sfx_damage:
 ; This section provides a simple sound effect manager that can
 ; play effects with automatic duration and fadeout
 
-; Sound effect state
-sfx_active:         db 0         ; 0=no sfx, 1=playing
-sfx_timer:          db 0         ; Frames remaining
-sfx_fadeout:        db 0         ; Fadeout flag
+; Runtime state lives in variables.asm:
+;   sfx_active, sfx_timer, sfx_fadeout
+
+; ------------------------------------------------------------------
+; play_sound_effect
+; Play one of the built-in sound effects by ID
+; Input:  A = sound ID
+;         0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+play_sound_effect:
+    cp 1
+    jp z, play_sound_effect_jump
+    cp 2
+    jp z, play_sound_effect_shoot
+    cp 3
+    jp z, play_sound_effect_explosion
+    cp 4
+    jp z, play_sound_effect_coin
+    cp 5
+    jp z, play_sound_effect_damage
+
+play_sound_effect_beep:
+    ld hl, sfx_beep
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_jump:
+    ld hl, sfx_jump
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_shoot:
+    ld hl, sfx_shoot
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_explosion:
+    ld hl, sfx_explosion
+    ld b, SFX_MEDIUM
+    call sfx_play
+    ret
+
+play_sound_effect_coin:
+    ld hl, sfx_coin
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_damage:
+    ld hl, sfx_damage
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
 
 ; ------------------------------------------------------------------
 ; sfx_play
@@ -2739,6 +3200,10 @@ multiply_a_by_b:
 ; Description: Background tile animation for water, lava, fire, etc.
 ; ==================================================================
 
+; Auto-detected animated groups:
+;   frame groups: 0
+;   transform groups: 0
+
 ; ==================================================================
 ; ANIMATED TILES CONSTANTS
 ; ==================================================================
@@ -2749,7 +3214,10 @@ ANIM_SPEED_MEDIUM       EQU 8       ; ~133ms (lava)
 ANIM_SPEED_FAST         EQU 4       ; ~66ms (fire)
 
 ; Maximum animated tiles
-MAX_ANIM_TILES          EQU 8       ; Support up to 8 animated tiles
+MAX_ANIM_TILES          EQU 1
+ANIM_TILE_ENTRY_SIZE    EQU 7       ; char, chars, frames, speed, bytesPerFrame, ptr(2)
+ANIM_TRANS_ENTRY_SIZE   EQU 4       ; char, chars, opCode, flags
+ANIM_TILE_DATA_BANK     EQU ((anim_tile_table - #4000) / #2000)
 
 ; ==================================================================
 ; ANIMATED TILES INITIALIZATION
@@ -2761,9 +3229,12 @@ init_animated_tiles:
     ld (anim_tile_timer), a
     ld (anim_tile_frame), a
 
-    ; Set default animation speed (medium)
-    ld a, ANIM_SPEED_MEDIUM
+    ; Set default global animation speed
+    ld a, 8
     ld (anim_tile_speed), a
+
+    ; Upload initial animation frame state immediately
+    call update_animated_tiles_vram
 
     ret
 
@@ -2785,17 +3256,21 @@ update_animated_tiles:
     ; Check if it's time to advance frame
     ld b, a
     ld a, (anim_tile_speed)
+    or a
+    jr nz, .anim_speed_ok
+    ld a, 1
+    ld (anim_tile_speed), a
+.anim_speed_ok:
     cp b
-    ret nz                          ; Not yet time to update
+    ret nc                          ; Not yet time to update (timer < speed)
 
     ; Reset timer
     xor a
     ld (anim_tile_timer), a
 
-    ; Advance to next animation frame
+    ; Advance global animation counter
     ld a, (anim_tile_frame)
     inc a
-    and #03                         ; Wrap at 4 frames (0-3)
     ld (anim_tile_frame), a
 
     ; Update all animated tiles in VRAM
@@ -2810,81 +3285,16 @@ update_animated_tiles:
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 update_animated_tiles_vram:
-    ld hl, anim_tile_table          ; HL = animation table pointer
-    ld a, (anim_tile_frame)         ; A = current global frame
+    ; Protect VDP port sequence from ISR VRAM writes (sprite task, etc.)
+    ; Preserve prior interrupt state using LD A,I -> P/V = IFF2
+    ld a, i
+    push af
+    di
 
-.anim_vram_loop:
-    ld c, (hl)                      ; C = tile ID
-    ld a, c
-    cp 255
-    ret z                           ; End of table, done
-
-    inc hl
-    ld b, (hl)                      ; B = number of frames (unused for now)
-    inc hl
-    inc hl                          ; Skip speed byte
-
-    ; Now update this tile in VRAM
-    push hl                         ; Save table pointer
-
-    ; Get current animation frame
-    ld a, (anim_tile_frame)
-    ld b, a                         ; B = current frame
-    ld a, c                         ; A = tile ID
-
-    ; Calculate which animation pattern index
-    ; We need to know which pattern set this tile uses
-    ; For simplicity: tile 240 = pattern 0, tile 241 = pattern 1, etc.
-    sub 240                         ; A = pattern index (0, 1, 2, ...)
-    ld c, a                         ; C = pattern index
-
-    ; Calculate source address
-    ; Source = anim_patterns_data + (pattern_index * 32) + (frame * 8)
-    ld l, c
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    add hl, hl                      ; * 16
-    add hl, hl                      ; * 32 (4 frames * 8 bytes)
-
-    ; Add frame offset
-    ld a, b                         ; A = frame
-    add a, a                        ; * 2
-    add a, a                        ; * 4
-    add a, a                        ; * 8
-    ld e, a
-    ld d, 0
-    add hl, de
-
-    ; Add base address
-    ld de, anim_patterns_data
-    add hl, de                      ; HL = source pattern address
-
-    ; Calculate VRAM destination
-    ; For Screen 2: CHRTBL + (tile_id * 8)
-    ld a, c
-    add a, 240                      ; Convert back to tile ID
-    ld e, a
-    ld d, 0
-    ex de, hl                       ; DE = source, HL = tile_id
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    ld bc, CHRTBL
-    add hl, bc                      ; HL = VRAM address
-
-    ex de, hl                       ; DE = VRAM, HL = source
-
-    ; Copy 8 bytes to VRAM
-    push bc
-    ld bc, 8
-    call LDIRVM
-    pop bc
-
-    pop hl                          ; Restore table pointer
-    jr .anim_vram_loop              ; Next tile
-
+    pop af
+    jp po, .anim_vram_irq_done
+    ei
+.anim_vram_irq_done:
     ret
 
 ; ------------------------------------------------------------------
@@ -2893,126 +3303,409 @@ update_animated_tiles_vram:
 ; Input:  A = Speed (frames between updates)
 ; ------------------------------------------------------------------
 set_animation_speed:
+    or a
+    jr nz, .anim_speed_store
+    ld a, 1
+.anim_speed_store:
     ld (anim_tile_speed), a
     ret
 
 ; ------------------------------------------------------------------
-; animate_tile_pattern
-; Update a specific tile pattern in VRAM with animation frame
-; Input:  A = Tile ID
-;         B = Animation frame (0-3)
+; anim_copy_8_bytes
+; Copy 8 bytes from CPU memory to VRAM
+; Input: DE = source pointer, HL = VRAM destination
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
-animate_tile_pattern:
-    push af
-    push bc
-
-    ; Calculate pattern address in VRAM
-    ; For Screen 2: Pattern = CHRTBL2 + (tile_id * 8)
-    ld l, a
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    ld de, #0000                    ; CHRTBL2 base
-    add hl, de                      ; HL = VRAM pattern address
-
-    ; Calculate source pattern address
-    ; Source = anim_patterns + (tile_id * 32) + (frame * 8)
-    pop bc                          ; B = frame
-    pop af                          ; A = tile_id
-
-    push hl                         ; Save VRAM address
-
-    ; tile_id * 32 (4 frames * 8 bytes)
-    ld l, a
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    add hl, hl                      ; * 16
-    add hl, hl                      ; * 32
-
-    ; + (frame * 8)
-    ld a, b
-    add a, a                        ; * 2
-    add a, a                        ; * 4
-    add a, a                        ; * 8
-    ld e, a
-    ld d, 0
-    add hl, de
-
-    ; Add base address of animation patterns
-    ld de, anim_patterns_data
-    add hl, de                      ; HL = source address
-
-    ; Copy 8 bytes to VRAM
-    pop de                          ; DE = VRAM address
-    ld bc, 8
-    call LDIRVM
+anim_copy_8_bytes:
+    ld b, 8
+.anim_copy_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_copy_loop
 
     ret
 
 ; ==================================================================
-; ANIMATED TILE DEFINITIONS
+; anim_upload_char_frame
+; Upload one animated char (pattern + color) to all 3 Screen 2 banks
+; Input: A = target char code, HL = source frame chunk (16 bytes)
+; Source layout: 8 pattern bytes + 8 color bytes
+; Destroys: AF, BC, DE, HL
 ; ==================================================================
-; Define which tiles are animated and their pattern data
+anim_upload_char_frame:
+    push af
+    push bc
+    push de
+    push hl
 
-; Example: Water animation (4 frames)
-; Each frame is 8 bytes (one tile pattern)
+    ; BC = target char offset (charCode * 8)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld b, h
+    ld c, l
 
-anim_patterns_data:
-    ; Tile 0: Water (example - 4 frames)
-    ; Frame 0
-    db #00, #00, #42, #24, #00, #00, #84, #48
-    ; Frame 1
-    db #00, #42, #24, #00, #00, #84, #48, #00
-    ; Frame 2
-    db #42, #24, #00, #00, #84, #48, #00, #00
-    ; Frame 3
-    db #24, #00, #00, #84, #48, #00, #00, #42
+    pop hl
+    ex de, hl                      ; DE = source pattern pointer
 
-    ; Tile 1: Lava (example - 4 frames)
-    ; Frame 0
-    db #FF, #AA, #55, #AA, #FF, #AA, #55, #AA
-    ; Frame 1
-    db #AA, #55, #AA, #FF, #AA, #55, #AA, #FF
-    ; Frame 2
-    db #55, #AA, #FF, #AA, #55, #AA, #FF, #AA
-    ; Frame 3
-    db #AA, #FF, #AA, #55, #AA, #FF, #AA, #55
+    ; Pattern bank 0
+    push de
+    ld hl, CHRTBL2
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
 
-    ; Tile 2: Fire (example - 4 frames)
-    ; Frame 0
-    db #18, #3C, #7E, #FF, #E7, #C3, #81, #00
-    ; Frame 1
-    db #3C, #7E, #FF, #E7, #C3, #81, #00, #18
-    ; Frame 2
-    db #7E, #FF, #E7, #C3, #81, #00, #18, #3C
-    ; Frame 3
-    db #FF, #E7, #C3, #81, #00, #18, #3C, #7E
+    ; Pattern bank 1
+    push de
+    ld hl, CHRTBL2 + #800
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
 
-    ; Add more animated tile patterns here...
+    ; Pattern bank 2
+    ld hl, CHRTBL2 + #1000
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+
+    ; DE now points to color bytes (source + 8)
+    ; Color bank 0
+    push de
+    ld hl, CLRTBL2
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Color bank 1
+    push de
+    ld hl, CLRTBL2 + #800
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Color bank 2
+    ld hl, CLRTBL2 + #1000
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ==================================================================
+; TRANSFORM MODE ROUTINES (Z80 runtime bit/row transforms)
+; ==================================================================
+
+; ------------------------------------------------------------------
+; Routine: update_animated_transform_tiles_vram
+; Purpose:
+;   Applies Z80 transform operations directly on tile bytes in VRAM.
+; Input:
+;   None
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Uses PUSH/POP HL, BC and DE internally
+; ------------------------------------------------------------------
+update_animated_transform_tiles_vram:
+    ret
+
+; ------------------------------------------------------------------
+; Routine: anim_transform_char_frame
+; Purpose:
+;   Transform one character pattern in all SCREEN 2 banks.
+; Input:
+;   A = character code
+;   D = transform operation code
+;   (anim_tile_transform_flags).bit0 = transform color rows too
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Pushes/pops BC, DE and HL
+; ------------------------------------------------------------------
+anim_transform_char_frame:
+    push bc
+    push de
+    push hl
+
+    ; BC = charCode * 8 (row offset in pattern/color tables)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld b, h
+    ld c, l
+
+    ; Pattern bank 0
+    push bc
+    push de
+    ld hl, CHRTBL2
+    add hl, bc
+    call anim_transform_vram_block
+    pop de
+    pop bc
+
+    ; Pattern bank 1
+    push bc
+    push de
+    ld hl, CHRTBL2 + #800
+    add hl, bc
+    call anim_transform_vram_block
+    pop de
+    pop bc
+
+    ; Pattern bank 2
+    push bc
+    push de
+    ld hl, CHRTBL2 + #1000
+    add hl, bc
+    call anim_transform_vram_block
+    pop de
+    pop bc
+
+    ; Color transforms only for vertical row operations (5..7) and if enabled
+    ld a, d
+    cp 5
+    jr c, .anim_transform_char_done
+
+    ld a, (anim_tile_transform_flags)
+    and 1
+    jr z, .anim_transform_char_done
+
+    ; Color bank 0
+    push bc
+    push de
+    ld hl, CLRTBL2
+    add hl, bc
+    call anim_transform_vram_block
+    pop de
+    pop bc
+
+    ; Color bank 1
+    push bc
+    push de
+    ld hl, CLRTBL2 + #800
+    add hl, bc
+    call anim_transform_vram_block
+    pop de
+    pop bc
+
+    ; Color bank 2
+    push bc
+    push de
+    ld hl, CLRTBL2 + #1000
+    add hl, bc
+    call anim_transform_vram_block
+    pop de
+    pop bc
+
+.anim_transform_char_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; Routine: anim_transform_vram_block
+; Purpose:
+;   Apply transform to one 8-byte VRAM block (one char rows table).
+; Input:
+;   HL = VRAM base address for row 0 (8 consecutive bytes)
+;   D  = operation code:
+;        1 rotate_left  (RLCA)
+;        2 rotate_right (RRCA)
+;        3 shift_left   (SLA)
+;        4 shift_right  (SRL)
+;        5 shift_up rows
+;        6 shift_down rows
+;        7 swap top/bottom row
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Uses stack while reading row bytes
+; ------------------------------------------------------------------
+anim_transform_vram_block:
+    ld a, d
+    cp 5
+    jr nc, .anim_transform_vertical
+
+    ; Horizontal bit transforms (operate row by row)
+    ld b, 8
+.anim_transform_horizontal_loop:
+    push hl
+    call FAST_RDVRM                 ; A = row byte from VRAM[HL]
+    pop hl
+
+    ld e, a
+    ld a, d
+    cp 1
+    jr nz, .anim_not_rl
+    ld a, e
+    rlca
+    jr .anim_write_row
+.anim_not_rl:
+    cp 2
+    jr nz, .anim_not_rr
+    ld a, e
+    rrca
+    jr .anim_write_row
+.anim_not_rr:
+    cp 3
+    jr nz, .anim_not_sla
+    ld a, e
+    sla a
+    jr .anim_write_row
+.anim_not_sla:
+    ld a, e
+    srl a
+
+.anim_write_row:
+    call FAST_WRTVRM
+    inc hl
+    djnz .anim_transform_horizontal_loop
+    ret
+
+.anim_transform_vertical:
+    push de                        ; Preserve D=operation code (DE reused as pointers)
+    ; Read current 8 row bytes into temporary RAM buffer
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_read_rows_loop:
+    push hl
+    call FAST_RDVRM                 ; A = row byte
+    pop hl
+    ld (de), a
+    inc de
+    inc hl
+    djnz .anim_read_rows_loop
+
+    ; Restore HL to start of block (HL -= 8)
+    ld de, #FFF8
+    add hl, de
+    pop de                         ; Restore original operation code in D
+
+    ld a, d
+    cp 5
+    jr nz, .anim_not_shift_up
+
+    ; shift_up: row0<-row1 ... row6<-row7 row7<-row0
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_loop
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    ret
+
+.anim_not_shift_up:
+    cp 6
+    jr nz, .anim_not_shift_down
+
+    ; shift_down: row0<-row7 row1<-row0 ... row7<-row6
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_down_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_down_loop
+    ret
+
+.anim_not_shift_down:
+    ; swap_top_bottom: row0<->row7, middle rows unchanged
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_middle_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_middle_loop
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    ret
+
+; ==================================================================
+; ANIMATED TILE DEFINITIONS (AUTO-GENERATED)
+; ==================================================================
 
 ; ------------------------------------------------------------------
 ; Animated tile mapping table
-; Maps tile IDs to animation data
-; Format: db tile_id, num_frames, speed
+; Format:
+;   db targetCharCode, charsPerTile, numFrames, speed, bytesPerFrame
+;   dw frameDataPointer
 ; ------------------------------------------------------------------
 anim_tile_table:
-    ; Tile ID, Frames, Speed
-    db 240, 4, ANIM_SPEED_SLOW      ; Water tile (ID 240)
-    db 241, 4, ANIM_SPEED_MEDIUM    ; Lava tile (ID 241)
-    db 242, 4, ANIM_SPEED_FAST      ; Fire tile (ID 242)
+    ; No animated tile groups detected in project data
+    db 255                          ; End marker
+
+; ------------------------------------------------------------------
+; Transform tile mapping table
+; Format:
+;   db targetCharCode, charsPerTile, opCode, flags
+; flags:
+;   bit0 = apply vertical transform on color rows
+; ------------------------------------------------------------------
+anim_transform_table:
+    ; No transform tile groups detected in project data
     db 255                          ; End marker
 
 ; ==================================================================
-; ADVANCED ANIMATION FUNCTIONS
+; ANIMATION FRAME DATA
 ; ==================================================================
+anim_group_empty_data:
+    db #00
+
 
 ; ------------------------------------------------------------------
 ; register_animated_tile
-; Register a tile ID as animated (adds to runtime table)
+; Runtime registration is not supported in this generator version.
 ; Input:  A = Tile ID to animate
 ;         B = Number of frames (2-4)
 ;         C = Animation speed
@@ -3020,93 +3713,47 @@ anim_tile_table:
 ; Destroys: AF, DE, HL
 ; ------------------------------------------------------------------
 register_animated_tile:
-    push bc
-    push af                         ; Save tile ID
-
-    ; Find end of anim_tile_table (marked by 255)
-    ld hl, anim_tile_table
-.anim_reg_find_end:
-    ld a, (hl)
-    cp 255
-    jr z, .anim_reg_found_end       ; Found end marker
-
-    ; Skip to next entry (3 bytes: id, frames, speed)
-    inc hl
-    inc hl
-    inc hl
-    jr .anim_reg_find_end
-
-.anim_reg_found_end:
-    ; Check if we have space (need 4 bytes: new entry + end marker)
-    ; For safety, we'll assume the table has space
-    ; In production, add bounds checking
-
-    ; Write new entry
-    pop af                          ; A = tile ID
-    ld (hl), a
-    inc hl
-
-    pop bc                          ; B = frames, C = speed
-    ld (hl), b                      ; Store frames
-    inc hl
-    ld (hl), c                      ; Store speed
-    inc hl
-
-    ; Write new end marker
-    ld (hl), 255
-
-    ld a, 1                         ; Success
+    xor a                           ; Not supported (static generated table)
     ret
 
 ; ------------------------------------------------------------------
 ; get_tile_animation_frame
 ; Get current animation frame for a tile
-; Input:  A = Tile ID
-; Output: A = Current frame (0-3), or 0 if not animated
-;         Zero flag set if not animated
-; Destroys: BC, HL
+; Input:  A = target char code
+; Output: A = Current frame index (mod numFrames), or 0 if not animated
+; Destroys: BC, DE, HL
 ; ------------------------------------------------------------------
 get_tile_animation_frame:
-    ld c, a                         ; C = tile ID to search
+    ld c, a                         ; C = char code to search
     ld hl, anim_tile_table
 
 .anim_search_loop:
-    ld a, (hl)                      ; A = tile_id from table
+    ld a, (hl)
     cp 255
-    jr z, .anim_not_found           ; End of table
-
-    ; Check if this is our tile
+    jr z, .anim_not_found
     cp c
-    jr z, .anim_found_tile          ; Found it!
+    jr z, .anim_found_tile
 
-    ; Skip to next entry (3 bytes)
-    inc hl
-    inc hl
-    inc hl
+    ld de, ANIM_TILE_ENTRY_SIZE
+    add hl, de
     jr .anim_search_loop
 
 .anim_found_tile:
-    ; Found the tile, get its current frame
-    ; For now, we use the global frame
-    ; In a more advanced system, each tile could have its own frame counter
-    ld a, (anim_tile_frame)         ; A = current global frame
-
-    ; We could add per-tile frame support here:
-    ; 1. Store per-tile frame counters in RAM
-    ; 2. Use tile index to look up specific frame
-    ; For now, all tiles share the same frame counter
-
-    or a                            ; Clear zero flag (tile found)
+    inc hl
+    inc hl
+    ld b, (hl)                      ; B = numFrames
+    ld a, (anim_tile_frame)
+.anim_found_mod:
+    cp b
+    jr c, .anim_found_done
+    sub b
+    jr .anim_found_mod
+.anim_found_done:
     ret
 
 .anim_not_found:
-    xor a                           ; Return 0 if not animated
-    ret                             ; Zero flag is set
-
-; ==================================================================
-; UTILITY: Copy to VRAM (if not using BIOS)
-; ==================================================================
-; Note: We use LDIRVM from BIOS, defined in bios.asm
+    xor a
+    ret
 
 ; ==================================================================
 ; END OF ANIMATED TILES SYSTEM
@@ -3839,7 +4486,7 @@ sm_timer_no_overflow:
     ; Get Entity Index from stack
     ; Stack: IX, HL, DE, BC, AF (pushed at start)
     ; SP + 0=IX, SP + 2=HL, SP + 4=DE, SP + 6=BC, SP + 8=AF
-    ; A is at SP + 9
+    ; Saved A (entity index) is at SP + 9 (SP + 8 is flags)
     ld ix, 0
     add ix, sp
     ld a, (ix + 9)      ; A = Entity Index
@@ -4207,6 +4854,8 @@ SM_ActionTable:
     DW Action_DivVars; 33
     DW Action_ModVars; 34
     DW Action_AssignVar; 35
+    DW Action_DisableInput; 36
+    DW Action_EnableInput; 37
 
     ; ------------------------------------------------------------------
 ; ACTION HANDLERS IMPLEMENTATION
@@ -4321,63 +4970,399 @@ Action_ApplyForce:
     ret
 
 
+; Table: SM Facing Direction to Sprite Lookup Table Pointer
+; Maps entity_facing_dir (1=left,2=right,3=up,4=down) to directional sprite tables.
+; Usage: dec facing (→ 0-3), index into this table to get the DW sprite_dir_*_table ptr.
+SM_FacingDirTablePtrs:
+    DW sprite_dir_left_table    ; facing 1 (LEFT)  → dec → 0
+    DW sprite_dir_right_table   ; facing 2 (RIGHT) → dec → 1
+    DW sprite_dir_up_table      ; facing 3 (UP)    → dec → 2
+    DW sprite_dir_down_table    ; facing 4 (DOWN)  → dec → 3
+
+; ==================================================================
+; Action_ChangeSprite
+; ------------------------------------------------------------------
+; Cambia el sprite activo de una entidad. Realiza 5 operaciones:
+;   1. Redirect direccional: si entity_facing_dir != 0, sustituye el
+;      sprite pedido por su variante direccional (left/right/up/down)
+;      usando SM_FacingDirTablePtrs.
+;   2. Commit: escribe el sprite final en entity_sprite_asset_index.
+;   3. Reset de animación: pone entity_anim_frame y entity_anim_tick a 0.
+;   4. Flags de animación: activa PLAYING, aplica el flag de LOOP del
+;      sprite, y para sprites one-shot borra ONLY_WHEN_MOVING para que
+;      la animación avance aunque la entidad esté quieta.
+;   5. Upload inmediato: copia el frame 0 del nuevo sprite a VRAM en
+;      el mismo frame para que el cambio sea visible sin esperar al
+;      siguiente ciclo de update_animation_component.
+;   6. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
+;      los colores del nuevo sprite desde SM_SpriteLayerColorTable.
+;
+; Input:
+;   HL  = puntero al parámetro (sprite asset ID, 1 byte)
+;   B   = entity index (convención SM_ExecuteActions)
+;
+; Output:
+;   HL  = puntero al byte siguiente a los parámetros (para el caller)
+;
+; Destruye: AF, BC, DE, HL (todos restaurados al salir salvo HL=next param)
+;
+; Stack al entrar (top → bottom):
+;   [llamada desde SM_ExecuteActions]
+; Stack al salir: igual que al entrar.
+;
+; Tablas ROM usadas:
+;   SM_FacingDirTablePtrs      — punteros a las 4 tablas de redirect
+;   sprite_loop_flags          — 1 byte/sprite: 0x02=loop, 0x00=one-shot
+;   SM_SpritePatternPtrTable   — puntero al frame 0 de cada sprite
+;   SM_SpriteLayerColorTable   — colores por sprite (SPRITE_MAX_ENTITY_LAYERS bytes/sprite)
+;
+; Variables RAM usadas:
+;   entity_facing_dir          — dirección actual de la entidad (0-4)
+;   entity_sprite_asset_index  — índice del sprite activo de la entidad
+;   entity_anim_frame          — frame actual de la animación
+;   entity_anim_tick           — contador de ticks entre frames
+;   entity_anim_flags          — flags de animación (ver bits más abajo)
+;   entity_sprite_config       — base HW sprite + layer count (2 bytes/entidad)
+;   sprite_layer_colors        — colores actuales por slot HW sprite (RAM)
+;
+; Bits de entity_anim_flags:
+;   bit 0 = ANIM_FLAG_PLAYING       (1 = animando)
+;   bit 1 = ANIM_FLAG_LOOP          (1 = bucle infinito, 0 = one-shot)
+;   bit 2 = ANIM_FLAG_ONLY_WHEN_MOVING (1 = solo anima si vel != 0)
+;   bit 3 = ANIM_FLAG_COMPLETED     (1 = one-shot llegó al último frame)
+;
+; NOTA: el bloque de redirect direccional usa B como registro temporal
+; para guardar el sprite ID. Al salir del bloque, B queda corrupto.
+; Se restaura explícitamente con "ld b, 0" antes de los add hl, bc.
+; ==================================================================
 Action_ChangeSprite:
-    ; Params: Sprite Asset ID (1 byte)
-    ; Changes the sprite asset used by this entity
-    ; Also resets animation frame to 0
-    ld a, (hl)              ; A = Sprite Asset ID
-    inc hl
+    ld a, (hl)              ; A = Sprite Asset ID pedido por la SM
+    inc hl                  ; HL apunta al byte siguiente al parámetro
+    push hl                 ; [stack] guarda puntero de parámetros para el ret final
 
-    push hl                 ; Save Params Ptr
-    push af                 ; Save Sprite Asset ID
+    push af                 ; [stack] guarda Sprite Asset ID (se necesita tras setup)
 
-    ; BC = Entity Index
-    ld c, b
-    ld b, 0
+    ; ------------------------------------------------------------------
+    ; Setup: convertir B (entity index) a BC = (0, entity_index)
+    ; Convención de SM_ExecuteActions: B = entity index al entrar.
+    ; ------------------------------------------------------------------
+    ld c, b                 ; C = entity index
+    ld b, 0                 ; B = 0  →  BC = (0, entity_index)
 
-    ; Set entity_sprite_asset_index
+    ; Pre-calcular HL = &entity_sprite_asset_index[entity]
+    ; Se usará tras el bloque de redirect para escribir el sprite final.
     ld hl, entity_sprite_asset_index
-    add hl, bc
-    pop af                  ; Restore Sprite Asset ID
-    ld (hl), a              ; entity_sprite_asset_index[entity] = spriteId
+    add hl, bc              ; HL = &entity_sprite_asset_index[entity]
 
-    ; Reset animation frame to 0 (start from first frame of new sprite)
+    pop af                  ; A = Sprite Asset ID (recuperado del stack)
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 1: Redirect direccional
+    ; Si entity_facing_dir[entity] != 0, reemplaza el sprite pedido por
+    ; su variante para la dirección actual.
+    ;   facing 0 = sin dirección → usar sprite tal cual
+    ;   facing 1 = izquierda  → SM_FacingDirTablePtrs[0] → sprite_dir_left_table
+    ;   facing 2 = derecha     → SM_FacingDirTablePtrs[1] → sprite_dir_right_table
+    ;   facing 3 = arriba      → SM_FacingDirTablePtrs[2] → sprite_dir_up_table
+    ;   facing 4 = abajo       → SM_FacingDirTablePtrs[3] → sprite_dir_down_table
+    ;
+    ; Las tablas de dirección son arrays de 1 byte por sprite asset:
+    ;   dir_table[originalSprite] = spriteVariante
+    ; Si no existe variante, la tabla devuelve el mismo ID original.
+    ;
+    ; IMPORTANTE: este bloque usa B como temporal para guardar el sprite ID.
+    ; Al salir, B queda con el sprite ID (no con 0). Se corrige después.
+    ; ------------------------------------------------------------------
+    push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
+
+    ld h, 0
+    ld l, c                 ; HL = entity index
+    ld de, entity_facing_dir
+    add hl, de              ; HL = &entity_facing_dir[entity]
+    ld e, (hl)              ; E = facing dir (0=none, 1=left, 2=right, 3=up, 4=down)
+
+    ld b, a                 ; B = sprite ID original  [B QUEDA CORRUPTO hasta ld b,0 abajo]
+    ld a, e                 ; A = facing dir
+    or a
+    jr z, .acs_dir_done     ; facing = 0 → no hay redirect, usar sprite original
+
+    ; Convertir facing (1-4) a índice de tabla (0-3): dec a
+    dec a                   ; A = índice en SM_FacingDirTablePtrs (0=left, 1=right, 2=up, 3=down)
+    ld hl, SM_FacingDirTablePtrs
+    ld d, 0
+    ld e, a
+    add hl, de
+    add hl, de              ; HL = &SM_FacingDirTablePtrs[facing_index * 2]  (tabla de punteros, DW)
+    ld e, (hl)
+    inc hl
+    ld d, (hl)              ; DE = puntero a la tabla de sprites para esta dirección
+
+    ; Leer el sprite redirigido: dir_table[originalSprite]
+    ld l, b                 ; L = sprite ID original
+    ld h, 0
+    add hl, de              ; HL = &dir_table[originalSprite]
+    ld b, (hl)              ; B = sprite ID redirigido (puede ser el mismo si no hay variante)
+
+.acs_dir_done:
+    ; A = sprite ID final (original o redirigido)
+    ld a, b                 ; A = sprite ID (posiblemente redirigido)
+    pop hl                  ; HL = &entity_sprite_asset_index[entity]  [recuperado del stack]
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 2: Commit del sprite y reset de estado de animación
+    ; ------------------------------------------------------------------
+
+    ; D guardará el sprite ID para uso posterior (VRAM upload, loop flags).
+    ; No usar A directamente porque las instrucciones siguientes lo machan.
+    ld d, a                 ; D = Sprite Asset ID final (preservado para los bloques 3-5)
+    ld (hl), a              ; entity_sprite_asset_index[entity] = sprite ID final
+
+    ; RESTAURAR B=0: el bloque de redirect dejó B=sprite_ID.
+    ; Todos los "add hl, bc" siguientes necesitan BC = (0, entity_index).
+    ld b, 0                 ; B = 0  →  BC = (0, entity_index)  [BUG FIX: corrupto por redirect]
+
+    ; Reiniciar frame al principio del nuevo sprite
     ld hl, entity_anim_frame
-    add hl, bc
-    ld (hl), 0              ; entity_anim_frame[entity] = 0
+    add hl, bc              ; HL = &entity_anim_frame[entity]
+    ld (hl), 0              ; entity_anim_frame[entity] = 0  (empieza desde frame 0)
 
-    ; Reset animation tick to 0
+    ; Reiniciar contador de ticks para que el primer avance de frame
+    ; ocurra tras entity_anim_speed ticks completos, no de inmediato.
     ld hl, entity_anim_tick
-    add hl, bc
+    add hl, bc              ; HL = &entity_anim_tick[entity]
     ld (hl), 0              ; entity_anim_tick[entity] = 0
 
-    ; Clear one-shot animation completion event on sprite change
-    ld hl, entity_anim_flags
-    add hl, bc
-    res 3, (hl)             ; clear ANIM_FLAG_COMPLETED
-
-    ; Retrieve loop config from sprite_loop_flags metadata
-    ; HL currently points to entity_anim_flags
-    push hl
+    ; ------------------------------------------------------------------
+    ; BLOQUE 3: Leer el flag de loop del nuevo sprite
+    ; sprite_loop_flags[spriteId] = 0x02 si loop, 0x00 si one-shot
+    ; El valor se guarda en E para aplicarlo a entity_anim_flags.
+    ; D se restaura al sprite ID tras poner D=0 para el add hl,de.
+    ; ------------------------------------------------------------------
     ld hl, sprite_loop_flags
-    
-    ; Add sprite asset ID (saved in stack) to hl
-    ; We need to retrieve it without popping
-    ld e, a                 ; A still has Sprite Asset ID from original arg
+    ld a, d                 ; A = Sprite Asset ID (salvar antes de poner D=0)
+    ld e, a                 ; E = Sprite Asset ID
     ld d, 0
-    add hl, de
-    ld e, (hl)              ; E = loop flag bit (0x02 or 0x00)
-    
-    ; Restore entity_anim_flags pointer
-    pop hl
-    
-    ; Apply loop flag (first clear it, then OR with the value from metadata)
-    ld a, (hl)
-    and #FD                 ; Clear bit 1 (ANIM_FLAG_LOOP)
-    or e                    ; Apply new loop flag
-    ld (hl), a
+    add hl, de              ; HL = &sprite_loop_flags[spriteId]
+    ld e, (hl)              ; E = loop flag (0x02=loop, 0x00=one-shot)
+    ld d, a                 ; D = Sprite Asset ID  (restaurado para el upload)
 
-    pop hl                  ; Restore Params Ptr
+    ; ------------------------------------------------------------------
+    ; BLOQUE 4: Actualizar entity_anim_flags
+    ;
+    ; Cambios aplicados:
+    ;   - bit 3 (COMPLETED)       → 0  (el one-shot anterior ya no importa)
+    ;   - bit 0 (PLAYING)         → 1  (arrancar animación)
+    ;   - bit 1 (LOOP)            → según sprite_loop_flags del nuevo sprite
+    ;   - bit 2 (ONLY_WHEN_MOVING)→ 0  SIEMPRE, para cualquier sprite
+    ;
+    ; Razón de limpiar ONLY_WHEN_MOVING siempre:
+    ;   Cuando el SM llama ChangeSprite, lo hace porque quiere mostrar ese
+    ;   sprite ahora. La animación debe avanzar siempre que PLAYING=1,
+    ;   sin importar la velocidad. La lógica de "anima solo si se mueve"
+    ;   es solo relevante para el sprite inicial de la entidad (config del
+    ;   editor). Una vez en la SM, el estado controla qué sprite se muestra.
+    ;   Si se dejara ONLY_WHEN_MOVING=1 para sprites loop, la animación walk
+    ;   no avanzaría: la fricción del movement component puede dejar vel_x=0
+    ;   antes de que llegue el turno de animation (step 11 > step 5).
+    ; ------------------------------------------------------------------
+    ld hl, entity_anim_flags
+    add hl, bc              ; HL = &entity_anim_flags[entity]
+    ld a, (hl)              ; A = flags actuales
+
+    res 3, a                ; bit 3 = 0: borrar ANIM_FLAG_COMPLETED
+    or ANIM_FLAG_PLAYING    ; bit 0 = 1: activar ANIM_FLAG_PLAYING
+    and #FD                 ; bit 1 = 0: limpiar ANIM_FLAG_LOOP antes de aplicar el nuevo
+    or e                    ; bit 1 = nuevo loop flag (E=0x02 o 0x00 según el sprite)
+    and #FB                 ; bit 2 = 0: borrar ANIM_FLAG_ONLY_WHEN_MOVING (siempre)
+    ld (hl), a              ; entity_anim_flags[entity] = flags actualizados
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 5: Upload inmediato del frame 0 a VRAM
+    ;
+    ; update_animation_component no se ejecuta hasta el próximo frame.
+    ; Para que el sprite nuevo se vea en el frame actual, copiamos el
+    ; frame 0 directamente a VRAM ahora.
+    ;
+    ; Stack a la entrada de este bloque (top → bottom):
+    ;   HL = &entity_anim_flags[entity]  ← push hl
+    ;   BC = (0, entity_index)           ← push bc
+    ;   DE = (spriteId, loopFlag)        ← push de
+    ;
+    ; Al salir (.acs_upload_done) se recuperan los tres en orden inverso.
+    ; ------------------------------------------------------------------
+    push hl                 ; [stack] guarda ptr entity_anim_flags (descartado al salir)
+    push bc                 ; [stack] BC = (0, entity_index)
+    push de                 ; [stack] DE = (D=spriteId, E=loopFlag)
+
+    ; Validar que el sprite ID esté dentro del rango conocido
+    ld a, d                 ; A = sprite asset ID
+    cp SM_SpriteAssetCount  ; ¿fuera de rango?
+    jr nc, .acs_upload_done ; sí → saltar el upload (evitar acceso fuera de tabla)
+
+    ; Obtener puntero al frame 0: SM_SpritePatternPtrTable[spriteId * 2]
+    ; El banco ROM se deriva del propio puntero, no de una tabla separada.
+    ; Esto evita desincronizaciones cuando el export comprimido remapea
+    ; labels de sprite a blobs ZX0 en un postproceso posterior.
+    ld e, a
+    ld d, 0                 ; DE = sprite asset index
+
+    ld hl, SM_SpritePatternPtrTable
+    add hl, de
+    add hl, de              ; HL = &SM_SpritePatternPtrTable[spriteId * 2]
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl               ; HL = puntero al frame 0 (datos de patrón en ROM)
+    push hl                 ; [stack] guarda puntero al frame 0
+
+    ; Mapear el banco ROM que contiene los datos del frame 0.
+    ; Bank = ((framePtr - #4000) / #2000), derivado en runtime desde HL.
+    ld a, h
+    sub #40
+    srl a
+    srl a
+    srl a
+    srl a
+    srl a
+    call mapper_push_p2     ; salva el banco actual de P2 en la pila del mapper
+    call mapper_set_bank_p2 ; mapea el banco del frame 0 en la ventana P2 (#8000-#BFFF)
+
+    ; Leer configuración HW del sprite: entity_sprite_config[entity * 2]
+    ;   byte 0: base HW sprite index (slot en la OAM, 0-31)
+    ;   byte 1: layer count (número de capas HW del sprite, típicamente 1-2)
+    ld e, c                 ; E = entity index (C preservado de antes)
+    ld d, 0
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de              ; HL = &entity_sprite_config[entity * 2]
+    ld a, (hl)              ; A = base HW sprite index
+    inc hl
+    ld c, (hl)              ; C = layer count
+    ld d, a                 ; D = base HW sprite index
+
+    ; Si layer count = 0, no hay sprite HW asignado → saltar upload
+    ld a, c
+    or a
+    jr z, .acs_upload_pop_source
+
+    ; Calcular BC = layerCount * 32  (bytes totales de patrón a copiar)
+    ; Cada capa HW ocupa 32 bytes de patrón (sprite 16x16 = 2 tiles * 16 bytes, comprimido como 32)
+    ld a, c
+    ld b, 0
+    ld c, a                 ; C = layer count
+    sla c
+    rl b                    ; × 2
+    sla c
+    rl b                    ; × 4
+    sla c
+    rl b                    ; × 8
+    sla c
+    rl b                    ; × 16
+    sla c
+    rl b                    ; × 32  →  BC = layerCount * 32
+
+    ; Calcular DE = SPRPAT + baseHwSprite * 32  (destino en VRAM)
+    ld a, d                 ; A = base HW sprite index
+    ld l, a
+    ld h, 0
+    add hl, hl              ; × 2
+    add hl, hl              ; × 4
+    add hl, hl              ; × 8
+    add hl, hl              ; × 16
+    add hl, hl              ; × 32  →  HL = base * 32
+    ld de, SPRPAT
+    add hl, de              ; HL = SPRPAT + base * 32  (dirección VRAM del slot HW)
+    ex de, hl               ; DE = destino VRAM, HL libre para fuente
+
+    pop hl                  ; HL = puntero al frame 0 en ROM  [recuperado del stack]
+    call FAST_LDIRVM        ; copia BC bytes desde HL (ROM/RAM) a DE (VRAM)
+    jr .acs_upload_restore_bank
+
+.acs_upload_pop_source:
+    pop hl                  ; descarta el puntero al frame 0 (layer count = 0, nada que copiar)
+
+.acs_upload_restore_bank:
+    call mapper_pop_p2      ; restaura el banco ROM que estaba antes en P2
+
+.acs_upload_done:
+    pop de                  ; DE: D = sprite asset ID, E = loop flag  [recuperado del stack]
+    pop bc                  ; BC = (0, entity_index)                  [recuperado del stack]
+    pop hl                  ; descarta ptr entity_anim_flags           [recuperado del stack]
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 6: Actualizar tabla de colores de capas en RAM
+    ;
+    ; sprite_layer_colors es una tabla RAM indexada por slot HW sprite.
+    ; SM_SpriteLayerColorTable es una tabla ROM de SPRITE_MAX_ENTITY_LAYERS
+    ; bytes por sprite, con el color de cada capa del sprite.
+    ;
+    ; Se copian los colores del nuevo sprite a los slots HW de la entidad
+    ; para que render_sprites use los colores correctos en el próximo frame.
+    ;
+    ; Registros a la entrada:
+    ;   D = sprite asset ID
+    ;   C = entity index
+    ;   B = 0
+    ; ------------------------------------------------------------------
+
+    ; Validar rango (mismo guard que en el upload)
+    ld a, d
+    cp SM_SpriteAssetCount
+    jp nc, .acs_skip_color_update  ; fuera de rango → saltar
+
+    push de                 ; [stack] guarda D=spriteId, E=loopFlag
+
+    ; Obtener el base HW sprite de la entidad: entity_sprite_config[entity * 2]
+    ld h, 0
+    ld l, c                 ; HL = entity index
+    add hl, hl              ; HL = entity index * 2
+    ld de, entity_sprite_config
+    add hl, de              ; HL = &entity_sprite_config[entity * 2]
+    ld c, (hl)              ; C = base HW sprite index (slot de partida en la OAM)
+
+    pop de                  ; DE: D=spriteId, E=loopFlag  [recuperado del stack]
+
+    ; Calcular HL = SM_SpriteLayerColorTable + spriteId * SPRITE_MAX_ENTITY_LAYERS
+    ; mediante suma repetida (SPRITE_MAX_ENTITY_LAYERS es pequeño, típicamente 2-4)
+    ld l, d                 ; L = sprite asset ID
+    ld h, 0                 ; HL = sprite asset ID
+    ld e, l
+    ld d, h                 ; DE = sprite asset ID (multiplicando)
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.acs_mul_max_layers:
+    add hl, de              ; acumulador += sprite_ID
+    djnz .acs_mul_max_layers ; repetir SPRITE_MAX_ENTITY_LAYERS veces → HL = spriteId * maxLayers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de              ; HL = &SM_SpriteLayerColorTable[spriteId * maxLayers]
+
+    ; Copiar SPRITE_MAX_ENTITY_LAYERS colores desde la tabla ROM a sprite_layer_colors[hw..]
+    ; C = slot HW actual (se incrementa en cada iteración)
+    ; HL = fuente en ROM (se incrementa con inc hl)
+    ld b, SPRITE_MAX_ENTITY_LAYERS  ; B = contador de capas
+.acs_color_update_loop:
+    ld a, (hl)              ; A = color de esta capa en la tabla ROM
+    inc hl                  ; avanzar al siguiente color en la tabla ROM
+    push hl                 ; [stack] preservar HL (fuente ROM) durante el write
+    push bc                 ; [stack] preservar B (contador) y C (slot HW)
+
+    ld h, 0
+    ld l, c                 ; HL = slot HW actual (índice en sprite_layer_colors)
+    ld de, sprite_layer_colors
+    add hl, de              ; HL = &sprite_layer_colors[hw_slot]
+    ld (hl), a              ; sprite_layer_colors[hw_slot] = color del nuevo sprite
+
+    pop bc                  ; [stack] restaurar B=contador, C=slot HW
+    pop hl                  ; [stack] restaurar HL=fuente ROM
+    inc c                   ; avanzar al siguiente slot HW
+    djnz .acs_color_update_loop
+
+.acs_skip_color_update:
+
+    ; ------------------------------------------------------------------
+    ; Epilogue: restaurar puntero de parámetros y retornar al dispatcher
+    ; ------------------------------------------------------------------
+    pop hl                  ; HL = puntero al byte tras los parámetros  [del push inicial]
     ret
 
 Action_PlayAnimation:
@@ -4495,44 +5480,14 @@ Action_ToggleAnim:
     ret
 
 Action_PlaySound:
-; Params: Sound ID(1 byte)
+; Params: Sound Asset Index (1 byte)
     ld a, (hl)
     inc hl
 
     push hl
-
-    ; Simple built-in SFX mapping by ID
-    ; 0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
-    cp 1
-    jr z, .play_jump
-    cp 2
-    jr z, .play_shoot
-    cp 3
-    jr z, .play_explosion
-    cp 4
-    jr z, .play_coin
-    cp 5
-    jr z, .play_damage
-
-.play_beep:
-    call SM_PlaySfx_Beep
-    jr .play_sound_done
-.play_jump:
-    call SM_PlaySfx_Jump
-    jr .play_sound_done
-.play_shoot:
-    call SM_PlaySfx_Shoot
-    jr .play_sound_done
-.play_explosion:
-    call SM_PlaySfx_Explosion
-    jr .play_sound_done
-.play_coin:
-    call SM_PlaySfx_Coin
-    jr .play_sound_done
-.play_damage:
-    call SM_PlaySfx_Damage
-
-.play_sound_done:
+    ; PLAY_SOUND now uses the real exported sound asset stream.
+    ; This keeps multi-step sounds audible and guarantees auto-silence.
+    call SM_PlaySoundAsset
     pop hl
     ret
 
@@ -5554,6 +6509,148 @@ SM_SilencePSG:
     call WRTPSG
     ret
 
+SM_ApplySoundFrame:
+    ; Input: HL = pointer to 11-byte pre-expanded sound frame
+    ; Output: HL = pointer to next frame
+    ld e, (hl)
+    ld a, 0
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 1
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 8
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 2
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 3
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 9
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 4
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 5
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 10
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 6
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 7
+    call WRTPSG
+    inc hl
+    ret
+
+SM_PlaySoundAsset:
+    ; Input: A = sound asset index (0..SM_SoundAssetCount-1)
+    ; Destroys: AF, BC, DE, HL
+    cp SM_SoundAssetCount
+    jr c, .play_valid_sound
+    call SM_SilencePSG
+    xor a
+    ld (sfx_active), a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+.play_valid_sound:
+
+    ; Stop any previous state-machine sound before starting a new one.
+    push af
+    call SM_SilencePSG
+    xor a
+    ld (sfx_active), a
+    pop af
+
+    ld l, a
+    ld h, 0
+    add hl, hl
+    ld de, SM_SoundPtrTable
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+
+    ld a, (hl)
+    or a
+    jr z, .empty_sound
+    ld (sm_sound_frames_left), a
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+
+    call SM_ApplySoundFrame
+
+    ld a, l
+    ld (sm_sound_ptr_l), a
+    ld a, h
+    ld (sm_sound_ptr_h), a
+    ld a, 1
+    ld (sm_sound_active), a
+    ret
+
+.empty_sound:
+    xor a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+SM_UpdateSound:
+    ; Advances one frame of the active PLAY_SOUND asset.
+    ; The current frame is emitted immediately on SM_PlaySoundAsset, so
+    ; frames_left includes the frame already sounding.
+    ld a, (sm_sound_active)
+    or a
+    ret z
+
+    ld a, (sm_sound_frames_left)
+    or a
+    jr z, .stop_sound
+
+    dec a
+    ld (sm_sound_frames_left), a
+    jr z, .stop_sound
+
+    ld a, (sm_sound_ptr_l)
+    ld l, a
+    ld a, (sm_sound_ptr_h)
+    ld h, a
+    call SM_ApplySoundFrame
+    ld a, l
+    ld (sm_sound_ptr_l), a
+    ld a, h
+    ld (sm_sound_ptr_h), a
+    ret
+
+.stop_sound:
+    call SM_SilencePSG
+    xor a
+    ld (sm_sound_active), a
+    ret
+
 SM_PlaySfx_Beep:
     ld a, 0                 ; Tone A low
     ld e, #1C               ; NOTE_A4 low (284)
@@ -6513,6 +7610,34 @@ Action_AssignVar:
     pop hl
     ret
 
+Action_DisableInput:
+; No params - sets entity_input_disabled[entity] = 1
+    push hl
+    ld c, b
+    ld b, 0
+    ld hl, entity_input_disabled
+    add hl, bc
+    ld (hl), 1             ; Disable input for this entity
+    pop hl
+    ret
+
+Action_EnableInput:
+; No params - sets entity_input_disabled[entity] = 0
+    push hl
+    ld c, b
+    ld b, 0
+    ld hl, entity_input_disabled
+    add hl, bc
+    ld (hl), 0             ; Enable input for this entity
+
+    ; Restore "only animate when moving" behavior after temporary disable.
+    ; This prevents idle loop animation after death/recover transitions.
+    ld hl, entity_anim_flags
+    add hl, bc
+    set 2, (hl)            ; ANIM_FLAG_ONLY_WHEN_MOVING
+    pop hl
+    ret
+
     ; ------------------------------------------------------------------
     ; CONDITION DISPATCH TABLE
     ; ------------------------------------------------------------------
@@ -6667,52 +7792,102 @@ Condition_Not:
 
 ; ------------------------------------------------------------------
 ; HELPER: Match directional key against one input direction value
-; Input: D = Desired key (1/3/5/7), A = direction (0-8)
+; Input: D = Desired key (1/3/5/7), A = direction (0-8), B = entity index
 ; Output: A = 1 if active, 0 if inactive
+; Note: diagonal inputs only match a cardinal if entity_dir_mask[B] permits
+;       that direction. Entities without Input default to #0F (all allowed).
 ; ------------------------------------------------------------------
 SM_MatchDirection:
     ld e, a
     cp d
-    jr z, .smd_match_yes
+    jp z, .smd_match_yes    ; exact match always passes
 
     ld a, d
     cp 1                    ; UP
-    jr nz, .smd_not_up
+    jp nz, .smd_not_up
     ld a, e
     cp 2                    ; UP+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_up
     cp 8                    ; UP+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_up:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_UP
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_up:
     cp 5                    ; DOWN
-    jr nz, .smd_not_down
+    jp nz, .smd_not_down
     ld a, e
     cp 4                    ; DOWN+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_down
     cp 6                    ; DOWN+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_down:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_DOWN
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_down:
     cp 7                    ; LEFT
-    jr nz, .smd_not_left
+    jp nz, .smd_not_left
     ld a, e
     cp 6                    ; DOWN+LEFT
-    jr z, .smd_match_yes
+    jr z, .smd_check_left
     cp 8                    ; UP+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_left:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_LEFT
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_left:
     cp 3                    ; RIGHT
-    jr nz, .smd_match_no
+    jp nz, .smd_match_no
     ld a, e
     cp 2                    ; UP+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_right
     cp 4                    ; DOWN+RIGHT
-    jr z, .smd_match_yes
+    jp nz, .smd_match_no
+.smd_check_right:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_RIGHT
+    jp nz, .smd_match_yes
 
 .smd_match_no:
     xor a
@@ -6845,6 +8020,21 @@ SM_TestMoveDirection:
     ret
 
 Condition_KeyPressed:
+    ; Check if input is disabled for this entity
+    push hl
+    ld c, b
+    ld b, 0
+    ld hl, entity_input_disabled
+    add hl, bc
+    ld a, (hl)
+    pop hl
+    ld b, c             ; Restore B = entity index
+    or a
+    jr z, .sm_input_enabled
+    xor a               ; A = 0 (key not pressed, input disabled)
+    inc hl              ; Skip keyId param
+    ret
+.sm_input_enabled:
     ; Edge keydown: active now and inactive previous frame
     ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
     ld d, (hl)
@@ -7029,21 +8219,21 @@ Condition_HasCollision:
 
 .chc_enemy:
     ld a, e
-    and #02
+    and COLLISION_EVENT_ENEMY
     jr z, .chc_none
     ld a, 1
     ret
 
 .chc_item:
     ld a, e
-    and #04
+    and COLLISION_EVENT_ITEM
     jr z, .chc_none
     ld a, 1
     ret
 
 .chc_entity:
     ld a, e
-    and #01
+    and COLLISION_EVENT_ENTITY
     jr z, .chc_none
     ld a, 1
     ret
@@ -7393,9 +8583,11 @@ Condition_VariableCompare:
 ; ==================================================================
 ; GLOBAL VARIABLES TABLE
 ; ==================================================================
-; No global variables defined
+; Maps variable IDs (6+) to their RAM addresses
+; ID 6 = gem_count, ID 7 = last_gem_char, ID 8+ = user globals
 SM_GlobalVarTable:
-    ; Empty table (no global variables)
+    DW gem_count            ; ID 6: gem_count
+    DW last_gem_char        ; ID 7: last_gem_char (char of last collected tile)
 
 ; ==================================================================
 ; STATE MACHINE DATA
@@ -7413,6 +8605,26 @@ SM_TemplateHealthCurrentTable:
     DB 1, 3, 1, 1, 1, 3, 1, 3, 3, 3, 1
 SM_TemplateHealthMaxTable:
     DB 1, 3, 1, 1, 1, 3, 1, 3, 3, 3, 1
+
+; ==================================================================
+; STATE MACHINE SPRITE RUNTIME TABLES
+; NOTE: frame bank is derived from the frame pointer at runtime.
+; This keeps ChangeSprite compatible with post-export ZX0 label remaps.
+; ==================================================================
+SM_SpriteAssetCount EQU 0
+SM_SpritePatternPtrTable:
+    ; Empty table (no sprites)
+
+; ==================================================================
+; STATE MACHINE SOUND ASSET TABLES
+; PLAY_SOUND exports a one-shot 60Hz frame stream per sound asset.
+; Channel loops are flattened to a single pass to avoid stuck PSG.
+; Hardware envelopes are not emitted yet in this state-machine path.
+; ==================================================================
+SM_SoundFrameSize EQU 11
+SM_SoundAssetCount EQU 0
+SM_SoundPtrTable:
+    DW 0
 
 
 
@@ -7436,10 +8648,13 @@ init_game_systems:
 
     ; No tiles detected - skipping pattern/color loading
 
+    ; Initialize animated tile runtime (safe no-op if no animated groups)
+    call init_animated_tiles
+
     ; No entities to initialize
 
     ; Initialize sound system
-    call GICINI               ; Initialize PSG
+    call init_sound_system
 
     ; No screens - skip screen loading
 

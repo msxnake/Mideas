@@ -6,6 +6,11 @@
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { HUDElement, HUDElementType } from '../../../types';
 
+function hasGlobalVariable(analysis: ProjectAnalysis, asmName: string): boolean {
+    const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+    return globals.some(variable => String((variable as any)?.asmName || '').trim().toLowerCase() === asmName.toLowerCase());
+}
+
 /**
  * Generate HUD system ASM code
  */
@@ -69,7 +74,7 @@ update_hud_lives:
     asm += generateImprimirMarcoFunction(allHudElements);
 
     // Generate main render_hud function
-    asm += generateRenderHudFunction(allHudElements, hudRows);
+    asm += generateRenderHudFunction(allHudElements, hudRows, analysis);
 
     // Generate helper functions
     asm += generateHudHelperFunctions(allHudElements);
@@ -239,23 +244,29 @@ imprimir_marco:
 /**
  * Generate main render_hud function
  */
-function generateRenderHudFunction(hudElements: HUDElement[], hudRows: number): string {
+function generateRenderHudFunction(hudElements: HUDElement[], hudRows: number, analysis: ProjectAnalysis): string {
     // NOTE: imprimir_marco should be called once per screen load to draw frames
     // render_hud only updates text, NOT the frame
     const clearHudArea = '';
     const scoreIndex = hudElements.findIndex(el => el.type === HUDElementType.Score);
     const livesIndex = hudElements.findIndex(el => el.type === HUDElementType.Lives);
-    const dynamicSyncCode = `${scoreIndex >= 0 ? `
+    const hasScoreGlobal = hasGlobalVariable(analysis, 'global_var_score');
+    const hasLivesGlobal = hasGlobalVariable(analysis, 'global_var_lives');
+    const dynamicSyncCode = `${scoreIndex >= 0 && hasScoreGlobal ? `
     ; Re-apply dynamic Score digits after redrawing static HUD text.
     ld a, (global_var_score)
     ld l, a
     ld a, (global_var_score+1)
     ld h, a
     call update_hud_score
-` : ''}${livesIndex >= 0 ? `
+` : scoreIndex >= 0 ? `
+    ; Score HUD present but global_var_score is not allocated in this project.
+` : ''}${livesIndex >= 0 && hasLivesGlobal ? `
     ; Re-apply dynamic Lives digit after redrawing static HUD text.
     ld a, (global_var_lives)
     call update_hud_lives
+` : livesIndex >= 0 ? `
+    ; Lives HUD present but global_var_lives is not allocated in this project.
 ` : ''}`;
 
     return `; ------------------------------------------------------------------
@@ -451,7 +462,9 @@ function generateHudHelperFunctions(hudElements: HUDElement[]): string {
         const safeText = text || '';
         const match = /\d+(?!.*\d)/.exec(safeText);
         if (!match || typeof match.index !== 'number') {
-            return { offset: 0, digits: fallbackDigits };
+            // No numeric placeholder in the static label: append the runtime field
+            // immediately after the label text instead of overwriting its first char.
+            return { offset: safeText.length, digits: fallbackDigits };
         }
 
         return {

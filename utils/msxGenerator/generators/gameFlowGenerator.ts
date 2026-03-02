@@ -3062,12 +3062,43 @@ ${nodeLabel}_init:
     if (initGlobals.variables && initGlobals.variables.length > 0) {
       // Use specified variables
       initGlobals.variables.forEach((v: any) => {
-        const varName = v.variableName;
-        const asmVarName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
-        const value = typeof v.value === 'boolean' ? (v.value ? 1 : 0) : v.value;
+        const rawVarName = String(v?.variableName || '').trim();
+        if (!rawVarName) return;
 
-        code += `    ld a, ${value}\n`;
-        code += `    ld (${asmVarName}), a    ; ${varName} = ${v.value}\n`;
+        const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+        const normalizedVarName = rawVarName.toLowerCase();
+        const resolvedVar = globals.find((candidate: any) => {
+          const candidateName = String(candidate?.name || '').trim().toLowerCase();
+          const candidateAsmName = String(candidate?.asmName || '').trim().toLowerCase();
+          return candidateName === normalizedVarName || candidateAsmName === normalizedVarName;
+        });
+
+        const varName = String(resolvedVar?.name || rawVarName);
+        const asmVarName = String(
+          resolvedVar?.asmName ||
+          `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`
+        );
+        const type = String(resolvedVar?.type || '').toLowerCase();
+
+        let numericValue = 0;
+        if (typeof v.value === 'boolean') {
+          numericValue = v.value ? 1 : 0;
+        } else {
+          const parsedValue = Number(v.value);
+          numericValue = Number.isFinite(parsedValue) ? Math.trunc(parsedValue) : 0;
+        }
+
+        if (type === 'word' || type === '16bit') {
+          const wordValue = Math.max(0, Math.min(65535, numericValue));
+          code += `    ld a, ${wordValue & 0xFF}\n`;
+          code += `    ld (${asmVarName}), a    ; ${varName} low byte = ${wordValue}\n`;
+          code += `    ld a, ${(wordValue >> 8) & 0xFF}\n`;
+          code += `    ld (${asmVarName}+1), a    ; ${varName} high byte = ${wordValue}\n`;
+        } else {
+          const byteValue = Math.max(0, Math.min(255, numericValue));
+          code += `    ld a, ${byteValue}\n`;
+          code += `    ld (${asmVarName}), a    ; ${varName} = ${byteValue}\n`;
+        }
       });
     } else {
       // Initialize all global variables to their default values

@@ -381,9 +381,6 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
               <Button onClick={handleAddNewTemplate} variant="secondary" size="sm" icon={<PlusCircleIcon />} className="flex-1">
                 Add New
               </Button>
-              <Button onClick={onGenerateAsm} variant="secondary" size="sm" icon={<CodeIcon />} className="flex-1" title="Generate Z80 assembly data from all templates">
-                Generate ASM
-              </Button>
           </div>
           <div className="flex space-x-1 mb-2">
             <Button onClick={handleExportEntityTemplates} variant="ghost" size="sm" icon={<SaveIcon />} className="flex-1" title="Export all entity templates">

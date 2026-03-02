@@ -164,6 +164,7 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
   const ifThenElseVariableNames = new Set<string>();
   const globalsVariableNames = new Set<string>();
   const tileCollectorVariableNames = new Set<string>();
+  const hudVariableNames = new Set<string>();
 
   if (gameFlowAsset?.data) {
     const gameFlow = gameFlowAsset.data as any;
@@ -219,6 +220,16 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     entities.forEach((entity: any) => {
       addTileCollectorVariableName(entity?.componentOverrides?.comp_tile_collector?.targetVariable);
     });
+
+    const hudElements = (screenMap.data as any)?.hudConfiguration?.elements || [];
+    hudElements.forEach((element: any) => {
+      const hudType = String(element?.type || '').toLowerCase();
+      if (hudType === 'score') {
+        hudVariableNames.add(normalizeGlobalVariableName('Score'));
+      } else if (hudType === 'lives') {
+        hudVariableNames.add(normalizeGlobalVariableName('Lives'));
+      }
+    });
   });
 
   const templates = assets.filter(a => a.type === 'entitytemplate');
@@ -249,7 +260,9 @@ export function getUsedGlobalVariables(assets: ProjectAsset[]): MideasGlobalVari
     const isUsedInGlobals = globalsVariableNames.has(normalizedVariableName);
     const isUsedInTileCollector = tileCollectorVariableNames.has(normalizedVariableName);
 
-    if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals || isUsedInTileCollector) && !usedVariableNames.has(normalizedVariableName)) {
+    const isUsedInHud = hudVariableNames.has(normalizedVariableName);
+
+    if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals || isUsedInTileCollector || isUsedInHud) && !usedVariableNames.has(normalizedVariableName)) {
       usedVariables.push(variable);
       usedVariableNames.add(normalizedVariableName);
     }

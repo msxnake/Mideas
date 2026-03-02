@@ -289,11 +289,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   const configFileInputRef = useRef<HTMLInputElement>(null);
 
+  /** Vertical separator between toolbar groups */
+  const Sep = () => <div className="w-px h-5 bg-msx-border shrink-0 mx-0.5" />;
+
   return (
-    <div className="bg-msx-panelbg border-b border-msx-border p-1.5 flex items-center space-x-2 shadow-md relative">
+    <div className="bg-msx-panelbg border-b border-msx-border px-2 py-1 flex items-center gap-1 shadow-md relative">
       <input type="file" ref={configFileInputRef} onChange={handleLoadIdeConfig} accept=".json" style={{ display: 'none' }} />
 
-      {/* File Menu */}
+      {/* GROUP 1: Project */}
       <DropdownMenu label="File">
         <DropdownItem onClick={onNewProject} icon={<PlusCircleIcon />}>New Project</DropdownItem>
         <DropdownSeparator />
@@ -305,7 +308,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <div ref={recentMenuRef} className="relative">
           <button
             onClick={(e) => {
-              // Prevent the parent dropdown from auto-closing when toggling the submenu
               e.stopPropagation();
               setRecentProjects(getRecentProjects());
               setIsRecentMenuOpen(!isRecentMenuOpen);
@@ -362,12 +364,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onExportGameStructureJson}>Export Game Structure (.json)</DropdownItem>
       </DropdownMenu>
 
+      <Sep />
 
-      {/* Undo/Redo Buttons */}
+      {/* GROUP 2: Edit */}
       <Button onClick={onUndo} variant="ghost" size="sm" icon={<ArrowUturnLeftIcon />} title="Undo (Ctrl+Z)" disabled={isUndoDisabled}>Undo</Button>
       <Button onClick={onRedo} variant="ghost" size="sm" icon={<ArrowUturnRightIcon />} title="Redo (Ctrl+Y)" disabled={isRedoDisabled}>Redo</Button>
 
-      {/* New Asset Menu */}
+      <Sep />
+
+      {/* GROUP 3: New Asset */}
       <DropdownMenu label="New Asset">
         <DropdownItem onClick={() => onNewAsset('statemachine')} icon={<PuzzlePieceIcon />} colorClass="text-purple-200 hover:bg-purple-600 hover:text-white">State Machine</DropdownItem>
         <DropdownSeparator />
@@ -385,20 +390,31 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onOpenComponentDefEditor} icon={<PuzzlePieceIcon />} colorClass="text-pink-200 hover:bg-pink-500 hover:text-white">Component Definition</DropdownItem>
         <DropdownItem onClick={onOpenEntityTemplateEditor} icon={<SpriteIcon />} colorClass="text-rose-200 hover:bg-rose-500 hover:text-white">Entity Template</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('globalvariables')} icon={<SparklesIcon />} colorClass="text-yellow-200 hover:bg-yellow-500 hover:text-white">Global Variables</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon />} colorClass="text-teal-200 hover:bg-teal-500 hover:text-white">Data Struct (Code)</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={() => onNewAsset('sound')} icon={<SoundIcon />} colorClass="text-cyan-200 hover:bg-cyan-500 hover:text-white">Sound FX</DropdownItem>
         <DropdownItem onClick={() => onNewAsset('track')} icon={<MusicNoteIcon />} colorClass="text-emerald-200 hover:bg-emerald-500 hover:text-white">Music Track</DropdownItem>
-        <DropdownItem onClick={() => onNewAsset('code')} icon={<CodeIcon />} colorClass="text-lime-200 hover:bg-lime-500 hover:text-white">Code File</DropdownItem>
       </DropdownMenu>
 
-      <div className="px-3 py-1.5 text-xs border border-msx-border rounded text-msx-textsecondary">
-        Mode: <span className="text-msx-highlight">{currentScreenMode}</span> (locked)
-      </div>
+      <Sep />
 
-      {/* Run Menu - OBSOLETO: Eliminado en v0.267 */}
+      {/* GROUP 4: Views / Editors */}
+      <Button onClick={onOpenWorldView} variant="ghost" size="sm" icon={<WorldViewIcon />} title="World View">
+        World View
+      </Button>
+      <Button onClick={onOpenComponentDefEditor} variant="ghost" size="sm" icon={<PuzzlePieceIcon />} title="Component Definitions">
+        Components
+      </Button>
+      <Button onClick={onOpenEntityTemplateEditor} variant="ghost" size="sm" icon={<SpriteIcon />} title="Entity Templates">
+        Templates
+      </Button>
+      <Button onClick={onToggleEditor} variant="ghost" size="sm" icon={<SwapHorizIcon />} title="Toggle Last Editor" disabled={isToggleEditorDisabled}>
+        Last Editor
+      </Button>
 
-      {/* Configure Menu */}
+      {/* Spacer pushes Configure + Help to the right */}
+      <div className="flex-1" />
+
+      {/* GROUP 5: Settings + Help — always far right */}
       <DropdownMenu label="Configure">
         <DropdownItem onClick={onConfigureASM}>Configure ASM Compiler...</DropdownItem>
         <DropdownItem onClick={onConfigureEmulator}>Configure MSX Emulator...</DropdownItem>
@@ -418,56 +434,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <DropdownItem onClick={onResetConfig}>Restore Default Config</DropdownItem>
       </DropdownMenu>
 
-      {/* Help Menu */}
       <DropdownMenu label="Help">
         <DropdownItem onClick={onOpenHelpDocs} icon={<QuestionMarkCircleIcon />}>Tutorials</DropdownItem>
         <DropdownItem onClick={onOpenAbout}>About</DropdownItem>
       </DropdownMenu>
 
-      {/* System Tools */}
-      <Button
-        onClick={onOpenWorldView}
-        variant="ghost"
-        size="sm"
-        icon={<WorldViewIcon />}
-        title="World View"
-      >
-        World View
-      </Button>
+      <Sep />
 
-      <Button
-        onClick={onOpenComponentDefEditor}
-        variant="ghost"
-        size="sm"
-        icon={<PuzzlePieceIcon />}
-        title="Component Definitions"
-      >
-        Component Definitions
-      </Button>
-
-      <Button
-        onClick={onOpenEntityTemplateEditor}
-        variant="ghost"
-        size="sm"
-        icon={<SpriteIcon />}
-        title="Entity Templates"
-      >
-        Entity Templates
-      </Button>
-
-      <Button
-        onClick={onToggleEditor}
-        variant="ghost"
-        size="sm"
-        icon={<SwapHorizIcon />}
-        title="Toggle Last Editor"
-        disabled={isToggleEditorDisabled}
-      >
-        Last Editor
-      </Button>
-
-      <div className="flex-grow" />
-      <div style={{ color: 'red', backgroundColor: 'white', padding: '2px 5px', marginRight: '10px', fontSize: '12px', fontWeight: 'bold', borderRadius: '3px' }}>
+      <div style={{ color: 'red', backgroundColor: 'white', padding: '2px 5px', fontSize: '12px', fontWeight: 'bold', borderRadius: '3px' }}>
         v{APP_VERSION}
       </div>
 
