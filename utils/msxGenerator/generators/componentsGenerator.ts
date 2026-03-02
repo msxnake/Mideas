@@ -4407,6 +4407,12 @@ function clampTileCollectorAmount(rawValue: any): number {
     return Math.max(0, Math.min(65535, Math.round(parsed)));
 }
 
+function clampTileCollectorByte(rawValue: any): number {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return Math.max(0, Math.min(255, Math.round(parsed)));
+}
+
 function buildTileIdToBaseCharMap(tiles?: any[]): Record<string, number> {
     const map: Record<string, number> = {};
     if (!tiles || tiles.length === 0) return map;
@@ -4485,6 +4491,7 @@ function extractTileCollectorConfig(candidate: any) {
         bonusIsPersistent: candidate.bonusIsPersistent,
         bonusEntityEffect: candidate.bonusEntityEffect,
         bonusEffectAmount: candidate.bonusEffectAmount,
+        bonusRespawnSeconds: candidate.bonusRespawnSeconds,
     };
 }
 
@@ -4499,6 +4506,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
     bonusIsPersistent: boolean;
     bonusEntityEffect: string;
     bonusEffectAmount: number;
+    bonusRespawnSeconds: number;
 } {
     const soundMap = buildSoundAssetIndexMap((analysis as any).sounds);
     const variableMap = buildGlobalVariableInfoMap(analysis);
@@ -4521,6 +4529,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             ? config.bonusEntityEffect.trim().toLowerCase()
             : 'none';
         const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
+        const bonusRespawnSeconds = clampTileCollectorByte(config.bonusRespawnSeconds);
 
         if (
             soundAssetIndex !== null ||
@@ -4528,7 +4537,8 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             (targetVariable && incrementAmount > 0) ||
             bonusTileChar !== null ||
             bonusSoundAssetIndex !== null ||
-            (bonusEntityEffect !== 'none' && bonusEffectAmount > 0)
+            (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
+            (bonusTileChar !== null && bonusRespawnSeconds > 0)
         ) {
             return {
                 soundAssetIndex,
@@ -4541,6 +4551,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
                 bonusIsPersistent,
                 bonusEntityEffect,
                 bonusEffectAmount,
+                bonusRespawnSeconds,
             };
         }
     }
@@ -4566,6 +4577,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             ? config.bonusEntityEffect.trim().toLowerCase()
             : 'none';
         const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
+        const bonusRespawnSeconds = clampTileCollectorByte(config.bonusRespawnSeconds);
 
         if (
             soundAssetIndex !== null ||
@@ -4573,7 +4585,8 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             (targetVariable && incrementAmount > 0) ||
             bonusTileChar !== null ||
             bonusSoundAssetIndex !== null ||
-            (bonusEntityEffect !== 'none' && bonusEffectAmount > 0)
+            (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
+            (bonusTileChar !== null && bonusRespawnSeconds > 0)
         ) {
             return {
                 soundAssetIndex,
@@ -4586,6 +4599,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
                 bonusIsPersistent,
                 bonusEntityEffect,
                 bonusEffectAmount,
+                bonusRespawnSeconds,
             };
         }
     }
@@ -4601,6 +4615,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         bonusIsPersistent: false,
         bonusEntityEffect: 'none',
         bonusEffectAmount: 0,
+        bonusRespawnSeconds: 0,
     };
 }
 
@@ -4616,6 +4631,7 @@ function generateTileInteractionSystem(
         bonusIsPersistent: boolean;
         bonusEntityEffect: string;
         bonusEffectAmount: number;
+        bonusRespawnSeconds: number;
     },
     canUseSoundAssetPlayback: boolean
 ): string {
@@ -4721,6 +4737,158 @@ ${hudSyncCode}
         : `    ; Bonus tile is visit-local only: do not persist across screen reloads.
     jp .ti_next
 `;
+    const timedBonusRespawnEnabled = tileCollectorConfig.bonusTileChar !== null && tileCollectorConfig.bonusRespawnSeconds > 0;
+    const bonusRespawnContinuationCode = timedBonusRespawnEnabled
+        ? `    ; Timed bonus respawn enabled: queue tile restoration and skip persistence.
+    call record_bonus_respawn_slot
+    jp .ti_next
+`
+        : bonusPersistenceCode;
+    const bonusRespawnRuntimeCode = timedBonusRespawnEnabled
+        ? `
+record_bonus_respawn_slot:
+    ld a, d
+    push af
+    ld a, e
+    push af
+    ld b, MAX_BONUS_RESPAWNS
+    ld c, 0
+.rbr_loop:
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_secs
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .rbr_store
+    inc c
+    dec b
+    jp nz, .rbr_loop
+    pop af
+    pop af
+    ret
+.rbr_store:
+    ld (hl), ${tileCollectorConfig.bonusRespawnSeconds}
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_frames
+    add hl, de
+    ld (hl), 60
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_world
+    add hl, de
+    ld a, (current_world_id)
+    ld (hl), a
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_screen
+    add hl, de
+    ld a, (current_screen_id)
+    ld (hl), a
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_idx_l
+    add hl, de
+    pop af
+    ld (hl), a
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_idx_h
+    add hl, de
+    pop af
+    ld (hl), a
+    ret
+
+update_bonus_respawns:
+    ld b, MAX_BONUS_RESPAWNS
+    ld c, 0
+.ubr_loop:
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_secs
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .ubr_next
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_frames
+    add hl, de
+    ld a, (hl)
+    dec a
+    ld (hl), a
+    jp nz, .ubr_next
+    ld (hl), 60
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_secs
+    add hl, de
+    ld a, (hl)
+    dec a
+    ld (hl), a
+    jp nz, .ubr_next
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_world
+    add hl, de
+    ld a, (current_world_id)
+    cp (hl)
+    jp nz, .ubr_clear_slot
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_screen
+    add hl, de
+    ld a, (current_screen_id)
+    cp (hl)
+    jp nz, .ubr_clear_slot
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_idx_l
+    add hl, de
+    ld a, (hl)
+    push af
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_idx_h
+    add hl, de
+    ld a, (hl)
+    ld d, a
+    pop af
+    ld e, a
+    push bc
+    ld hl, NAMETBL
+    add hl, de
+    ld a, ${tileCollectorConfig.bonusTileChar}
+    call FAST_WRTVRM
+    pop bc
+    ld hl, runtime_behavior_map
+    add hl, de
+    ld (hl), #08
+.ubr_clear_slot:
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_secs
+    add hl, de
+    ld (hl), 0
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_frames
+    add hl, de
+    ld (hl), 0
+.ubr_next:
+    inc c
+    dec b
+    jp nz, .ubr_loop
+    ret
+`
+        : `
+record_bonus_respawn_slot:
+    ret
+
+update_bonus_respawns:
+    ret
+`;
 
     return `
 ; ==================================================================
@@ -4735,6 +4903,8 @@ ${hudSyncCode}
 
 init_tile_interaction_system:
     ret
+
+${bonusRespawnRuntimeCode}
 
 ; ------------------------------------------------------------------
 ; check_tile_interaction
@@ -4761,7 +4931,7 @@ init_tile_interaction_system:
 check_tile_interaction:
     ld a, (active_entity_count)
     or a
-    ret z                          ; No active entities
+    jp z, .ti_respawn_only         ; No active entities
 
     ld hl, active_entity_list
     ld b, a                        ; B = entity count
@@ -4924,7 +5094,7 @@ ${bonusEffectCode}
 
 ${bonusSoundCode}
 
-${bonusPersistenceCode}
+${bonusRespawnContinuationCode}
 
 .ti_no_collect:
     pop hl                         ; Balance idx push
@@ -4935,6 +5105,11 @@ ${bonusPersistenceCode}
     inc hl                         ; Advance to next entity
     dec b
     jp nz, .ti_loop                ; djnz replaced with jp nz (loop body > 127 bytes)
+    call update_bonus_respawns
+    ret
+
+.ti_respawn_only:
+    call update_bonus_respawns
     ret
 `;
 }
@@ -5221,7 +5396,7 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     ; Cartridge RAM is not guaranteed to be zeroed.
         ld hl, gem_count
         ld de, gem_count + 1
-        ld bc, 258                 ; bytes to clear - 1 (gem_count..collected_idx_h)
+        ld bc, 354                 ; bytes to clear - 1 (gem_count..bonus_respawn_frames)
         xor a
         ld (hl), a
         ldir

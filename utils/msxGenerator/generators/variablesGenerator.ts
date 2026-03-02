@@ -380,6 +380,20 @@ MAX_ENTITIES        EQU 32
     currentAddress += 64;
     code += `collected_idx_h      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)\n`;
     currentAddress += 64;
+    code += `\n; Timed bonus tile respawn slots (bonus gem regeneration)\n`;
+    code += `MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn\n`;
+    code += `bonus_respawn_world  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)\n`;
+    currentAddress += 16;
+    code += `bonus_respawn_screen EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)\n`;
+    currentAddress += 16;
+    code += `bonus_respawn_idx_l  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)\n`;
+    currentAddress += 16;
+    code += `bonus_respawn_idx_h  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)\n`;
+    currentAddress += 16;
+    code += `bonus_respawn_secs   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)\n`;
+    currentAddress += 16;
+    code += `bonus_respawn_frames EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)\n`;
+    currentAddress += 16;
   }
 
   // aux variables

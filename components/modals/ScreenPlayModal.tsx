@@ -799,6 +799,7 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                 const inventoryComp = entity.template.components.find(c => c.definitionId === 'comp_inventory');
 
                 if (tileCollectorComp) {
+                    const now = Date.now();
                     const collectorProps = {
                         ...tileCollectorComp.defaultValues,
                         ...(entity.instance.componentOverrides?.['comp_tile_collector'] || {})
@@ -824,6 +825,15 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                             collectedItems: [] // Track what was collected for advanced features
                         };
                     }
+                    if (!entity.jumpData) {
+                        entity.jumpData = { bonusCharges: 0 };
+                    }
+                    if (!entity.tileCollectorData) {
+                        entity.tileCollectorData = { bonusRespawns: [] };
+                    }
+
+                    const dueBonusRespawns = entity.tileCollectorData.bonusRespawns.filter(respawn => now >= respawn.respawnAt);
+                    entity.tileCollectorData.bonusRespawns = entity.tileCollectorData.bonusRespawns.filter(respawn => now < respawn.respawnAt);
 
                     // Calculate entity's current tile position
                     const collectionRadius = Number(collectorProps.collectionRadius) || 4;
@@ -836,6 +846,13 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         .map(id => id.trim());
 
                     const replacementTileId = collectorProps.replacementTileId || 'empty';
+                    const bonusTileId = typeof collectorProps.bonusTileId === 'string' ? collectorProps.bonusTileId : '';
+                    const bonusReplacementTileId = collectorProps.bonusReplacementTileId || 'empty';
+                    const bonusRespawnSeconds = Math.max(0, Math.min(255, Number(collectorProps.bonusRespawnSeconds) || 0));
+                    const bonusEntityEffect = typeof collectorProps.bonusEntityEffect === 'string'
+                        ? collectorProps.bonusEntityEffect.trim().toLowerCase()
+                        : 'none';
+                    const bonusEffectAmount = Math.max(0, Number(collectorProps.bonusEffectAmount) || 0);
 
                     // Check surrounding tiles for collectibles (Pac-Man style - center collision)
                     const tilesToCheck = [
@@ -857,15 +874,18 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         const currentTile = screenMap.layers.background[tilePos.y]?.[tilePos.x];
                         if (!currentTile) return;
 
-                        // Check if this tile is collectible
-                        const isCollectible = collectibleTileIds.some(collectibleId =>
+                        const isBonusTile = !!bonusTileId && (
+                            currentTile.tileId === bonusTileId ||
+                            currentTile.id === bonusTileId
+                        );
+                        const isCollectible = !isBonusTile && collectibleTileIds.some(collectibleId =>
                             currentTile.tileId === collectibleId ||
                             currentTile.id === collectibleId
                         );
 
                         console.log('🔍 Checking tile at', tilePos.x, tilePos.y, ':', currentTile.tileId, 'collectible:', isCollectible);
 
-                        if (isCollectible) {
+                        if (isCollectible || isBonusTile) {
                             // Calculate distance from entity center to tile center for precise collection
                             const tileCenterX = tilePos.x * 16 + 8;
                             const tileCenterY = tilePos.y * 16 + 8;
@@ -878,6 +898,34 @@ const AVAILABLE_ENGINES: EngineRegistry = {
 
                             // Only collect if within collection radius
                             if (distance <= collectionRadius) {
+                                if (isBonusTile) {
+                                    screenMap.layers.background[tilePos.y][tilePos.x] = {
+                                        ...currentTile,
+                                        tileId: bonusReplacementTileId,
+                                        id: bonusReplacementTileId
+                                    };
+
+                                    if (bonusEntityEffect === 'grant_extra_jump' && bonusEffectAmount > 0) {
+                                        entity.jumpData.bonusCharges += bonusEffectAmount;
+                                    }
+
+                                    if (bonusRespawnSeconds > 0) {
+                                        entity.tileCollectorData.bonusRespawns = entity.tileCollectorData.bonusRespawns.filter(respawn =>
+                                            respawn.position.x !== tilePos.x || respawn.position.y !== tilePos.y
+                                        );
+                                        entity.tileCollectorData.bonusRespawns.push({
+                                            position: { x: tilePos.x, y: tilePos.y },
+                                            tileId: bonusTileId,
+                                            respawnAt: now + (bonusRespawnSeconds * 1000)
+                                        });
+                                    }
+
+                                    if (collectorProps.bonusSoundId) {
+                                        console.log(`🔊 Playing bonus collection sound: ${collectorProps.bonusSoundId}`);
+                                    }
+                                    return;
+                                }
+
                                 // Replace tile with empty/floor tile
                                 screenMap.layers.background[tilePos.y][tilePos.x] = {
                                     ...currentTile,
@@ -904,6 +952,18 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                                     console.log(`🔊 Playing collection sound: ${collectorProps.collectionSoundId}`);
                                 }
                             }
+                        }
+                    });
+
+                    dueBonusRespawns.forEach(respawn => {
+                        const targetRow = screenMap.layers.background[respawn.position.y];
+                        const targetTile = targetRow?.[respawn.position.x];
+                        if (targetTile) {
+                            targetRow[respawn.position.x] = {
+                                ...targetTile,
+                                tileId: respawn.tileId,
+                                id: respawn.tileId
+                            };
                         }
                     });
                 }
@@ -1193,6 +1253,16 @@ interface AnimatedEntity {
             tileId: string;
             position: { x: number; y: number };
             timestamp: number;
+        }>;
+    };
+    jumpData?: {
+        bonusCharges: number;
+    };
+    tileCollectorData?: {
+        bonusRespawns: Array<{
+            position: { x: number; y: number };
+            tileId: string;
+            respawnAt: number;
         }>;
     };
     rotationData?: {
@@ -2386,14 +2456,20 @@ export const ScreenPlayModal: React.FC<ScreenPlayModalProps> = ({
                         const requireKeyRelease = jumpProps.requireKeyRelease !== 'false' && jumpProps.requireKeyRelease !== false;
                         const spacePressed = currentPressedKeys.has('Space');
                         const hasGravity = entity.template.components.some(c => c.definitionId === 'comp_gravity');
+                        if (!entity.jumpData) {
+                            entity.jumpData = { bonusCharges: 0 };
+                        }
 
-                        if (hasGravity && entity.isOnGround && spacePressed) {
-                            // Check if we can jump based on requireKeyRelease setting
+                        if (hasGravity && spacePressed) {
                             const canJump = !requireKeyRelease || !jumpKeyProcessed.current;
-
-                            if (canJump) {
+                            if (canJump && entity.isOnGround) {
                                 const jumpPower = Number(jumpProps.jumpPower || 256);
                                 entity.vy = -jumpPower / 40;
+                                jumpKeyProcessed.current = true;
+                            } else if (canJump && (entity.jumpData.bonusCharges || 0) > 0) {
+                                const jumpPower = Number(jumpProps.jumpPower || 256);
+                                entity.vy = -jumpPower / 40;
+                                entity.jumpData.bonusCharges--;
                                 jumpKeyProcessed.current = true;
                             }
                         }
