@@ -50,7 +50,9 @@ import { Toolbar } from './layout/Toolbar';
 import { RenameModal } from './modals/RenameModal';
 import { SaveAsModal } from './modals/SaveAsModal';
 import { NewProjectModal } from './modals/NewProjectModal';
-import { AboutModal } from './modals/AboutModal'; 
+import { AboutModal } from './modals/AboutModal';
+import { AsmCompilerHelpModal } from './modals/AsmCompilerHelpModal';
+import { MsxEmulatorHelpModal } from './modals/MsxEmulatorHelpModal';
 import { ConfirmationModal } from './modals/ConfirmationModal';
 // OBSOLETO: import { CompressDataModal } from './modals/CompressDataModal';
 import { ThemeProvider } from '../contexts/ThemeContext';
@@ -302,6 +304,21 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
   };
   */
 
+  const [isAsmCompilerHelpOpen, setIsAsmCompilerHelpOpen] = React.useState(false);
+  const [isMsxEmulatorHelpOpen, setIsMsxEmulatorHelpOpen] = React.useState(false);
+
+  const handleEditGeneratedFile = React.useCallback((filename: string, content: string) => {
+    const existingId = assets.find(a => a.type === 'code' && a.name === filename)?.id;
+    const assetId = existingId ?? `code_${filename.replace(/[^a-z0-9]/gi, '_')}_${Date.now()}`;
+    if (existingId) {
+      setAssetsWithHistory(prev => prev.map(a => a.id === assetId ? { ...a, data: content } : a));
+    } else {
+      setAssetsWithHistory(prev => [...prev, { id: assetId, name: filename, type: 'code' as const, data: content }]);
+    }
+    setIsCodeExportModalOpen(false);
+    onSelectAsset(assetId, EditorType.Code);
+  }, [assets, setAssetsWithHistory, setIsCodeExportModalOpen, onSelectAsset]);
+
   const allWorldMapGraphs = React.useMemo(() => assets
     .filter(a => a.type === 'worldmap' && a.data)
     .map(a => a.data as WorldMapGraph), [assets]);
@@ -449,8 +466,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
         onOpenComponentDefEditor={() => onSelectAsset(COMPONENT_DEF_EDITOR_SYSTEM_ASSET_ID, EditorType.ComponentDefinitionEditor)}
         onOpenEntityTemplateEditor={() => onSelectAsset(ENTITY_TEMPLATE_EDITOR_SYSTEM_ASSET_ID, EditorType.EntityTemplateEditor)}
         onOpenWorldView={() => onSelectAsset(WORLD_VIEW_SYSTEM_ASSET_ID, EditorType.WorldView)}
-        onConfigureASM={() => alert("Configure ASM Compiler: Mock Action")}
-        onConfigureEmulator={() => alert("Configure MSX Emulator: Mock Action")}
+        onConfigureASM={() => setIsAsmCompilerHelpOpen(true)}
+        onConfigureEmulator={() => setIsMsxEmulatorHelpOpen(true)}
         onToggleEditor={onToggleEditor}
         isToggleEditorDisabled={isToggleEditorDisabled}
         currentScreenMode={currentScreenMode}
@@ -663,6 +680,8 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
       <StatusBar message={statusBarMessage} details={currentProjectName || activeAsset?.name} />
       {contextMenu && <ContextMenu {...contextMenu} onClose={closeContextMenu} />}
       {isAboutModalOpen && <AboutModal isOpen={isAboutModalOpen} onClose={() => setIsAboutModalOpen(false)} />}
+      {isAsmCompilerHelpOpen && <AsmCompilerHelpModal isOpen={isAsmCompilerHelpOpen} onClose={() => setIsAsmCompilerHelpOpen(false)} />}
+      {isMsxEmulatorHelpOpen && <MsxEmulatorHelpModal isOpen={isMsxEmulatorHelpOpen} onClose={() => setIsMsxEmulatorHelpOpen(false)} />}
       {isConfigModalOpen && <ConfigTabModal isOpen={isConfigModalOpen} onClose={() => setIsConfigModalOpen(false)} />}
       {isRenameModalOpen && assetToRenameInfo && ( <RenameModal isOpen={isRenameModalOpen} assetId={assetToRenameInfo.id} currentName={assetToRenameInfo.currentName} assetType={assetToRenameInfo.type} onConfirm={handleConfirmRename} onClose={handleCancelRename}/>)}
       {isSaveAsModalOpen && ( <SaveAsModal isOpen={isSaveAsModalOpen} currentName={currentProjectName || "msx_ide_project"} onConfirm={handleConfirmSaveAsProjectAs} onClose={() => setIsSaveAsModalOpen(false)}/>)}
@@ -743,6 +762,7 @@ export const AppUI: React.FC<AppUIProps> = (props) => {
             entityTemplates,
             mainMenuConfig
           }}
+          onEditFile={handleEditGeneratedFile}
         />
       )}
     </div>

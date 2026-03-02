@@ -853,6 +853,8 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                         ? collectorProps.bonusEntityEffect.trim().toLowerCase()
                         : 'none';
                     const bonusEffectAmount = Math.max(0, Number(collectorProps.bonusEffectAmount) || 0);
+                    const bonusSlashStrength = Math.max(1, Math.min(32, Number(collectorProps.bonusSlashStrength) || 8));
+                    const currentPressedKeys = (window as any).currentPressedKeys || new Set<string>();
 
                     // Check surrounding tiles for collectibles (Pac-Man style - center collision)
                     const tilesToCheck = [
@@ -906,7 +908,57 @@ const AVAILABLE_ENGINES: EngineRegistry = {
                                     };
 
                                     if (bonusEntityEffect === 'grant_extra_jump' && bonusEffectAmount > 0) {
-                                        entity.jumpData.bonusCharges += bonusEffectAmount;
+                                        const cursorsComp = entity.template.components.find(c => c.definitionId === 'comp_cursors');
+                                        const cursorsProps = cursorsComp
+                                            ? {
+                                                ...cursorsComp.defaultValues,
+                                                ...(entity.instance.componentOverrides?.['comp_cursors'] || {})
+                                            }
+                                            : {};
+                                        const allowUp = cursorsProps.allowUp !== false;
+                                        const allowDown = cursorsProps.allowDown !== false;
+                                        const allowLeft = cursorsProps.allowLeft !== false;
+                                        const allowRight = cursorsProps.allowRight !== false;
+                                        const upPressed = allowUp && (currentPressedKeys.has('ArrowUp') || currentPressedKeys.has('KeyW'));
+                                        const downPressed = allowDown && (currentPressedKeys.has('ArrowDown') || currentPressedKeys.has('KeyS'));
+                                        const leftPressed = allowLeft && (currentPressedKeys.has('ArrowLeft') || currentPressedKeys.has('KeyA'));
+                                        const rightPressed = allowRight && (currentPressedKeys.has('ArrowRight') || currentPressedKeys.has('KeyD'));
+                                        const slashUpStrength = Math.max(1, bonusSlashStrength - 1);
+                                        const slashDownStrength = Math.max(1, bonusSlashStrength - 2);
+
+                                        entity.isOnGround = false;
+                                        entity.isGrounded = false;
+
+                                        if (!upPressed && !downPressed && !leftPressed && !rightPressed) {
+                                            if (allowUp) {
+                                                entity.vx = 0;
+                                                entity.vy = -4;
+                                            }
+                                        } else if (upPressed && rightPressed) {
+                                            entity.vx = slashUpStrength;
+                                            entity.vy = -3;
+                                        } else if (upPressed && leftPressed) {
+                                            entity.vx = -slashUpStrength;
+                                            entity.vy = -3;
+                                        } else if (downPressed && rightPressed) {
+                                            entity.vx = slashDownStrength;
+                                            entity.vy = 1;
+                                        } else if (downPressed && leftPressed) {
+                                            entity.vx = -slashDownStrength;
+                                            entity.vy = 1;
+                                        } else if (rightPressed) {
+                                            entity.vx = bonusSlashStrength;
+                                            entity.vy = -1;
+                                        } else if (leftPressed) {
+                                            entity.vx = -bonusSlashStrength;
+                                            entity.vy = -1;
+                                        } else if (downPressed) {
+                                            entity.vx = 0;
+                                            entity.vy = 2;
+                                        } else if (upPressed) {
+                                            entity.vx = 0;
+                                            entity.vy = -4;
+                                        }
                                     }
 
                                     if (bonusRespawnSeconds > 0) {

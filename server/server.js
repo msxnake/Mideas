@@ -321,7 +321,16 @@ function buildSpriteFrameGroups(spritePatternBlocks, sourceCode) {
   return result;
 }
 
-function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
+function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}) {
+  const {
+    screens       = true,
+    behaviorMaps  = true,
+    tilePatterns  = true,
+    tileColors    = true,
+    fontPatterns  = true,
+    fontColors    = true,
+    spritePatterns = true,
+  } = options;
   const info = {
     attempted: false,
     applied: false,
@@ -472,14 +481,14 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir) {
     }
   }
 
-  processBlocks(layoutBlocks, 'layout');
-  processBlocks(behaviorBlocks, 'behavior');
-  processBlocks(tilePatternBlocks, 'tile_pattern');
-  processBlocks(tileColorBlocks, 'tile_color');
-  processBlocks(fontPatternBlocks, 'font_pattern');
-  processBlocks(fontColorBlocks, 'font_color');
+  if (screens)      processBlocks(layoutBlocks, 'layout');
+  if (behaviorMaps) processBlocks(behaviorBlocks, 'behavior');
+  if (tilePatterns) processBlocks(tilePatternBlocks, 'tile_pattern');
+  if (tileColors)   processBlocks(tileColorBlocks, 'tile_color');
+  if (fontPatterns) processBlocks(fontPatternBlocks, 'font_pattern');
+  if (fontColors)   processBlocks(fontColorBlocks, 'font_color');
 
-  if (spritePatternBlocks.length > 0) {
+  if (spritePatterns && spritePatternBlocks.length > 0) {
     // Group sprite pattern data by frame (all layers packed together):
     // HERO_LEFT_0_F1_LAYER1 + HERO_LEFT_0_F1_LAYER2 => frame group HERO_LEFT_0_F1
     const spriteGroups = buildSpriteFrameGroups(spritePatternBlocks, sourceCode);
@@ -1545,7 +1554,7 @@ app.post('/compile', (req, res) => {
  * @function
  */
 app.post('/compress-unified-asm', (req, res) => {
-  const { code, projectName } = req.body;
+  const { code, projectName, zx0Options } = req.body;
 
   if (!code || typeof code !== 'string') {
     return res.status(400).json({ success: false, error: 'No ASM code provided' });
@@ -1564,7 +1573,7 @@ app.post('/compress-unified-asm', (req, res) => {
   const unifiedCompressedAsmOutputPath = path.join(tempDir, 'unitedCompressedFiles.asm');
 
   try {
-    const preprocessed = injectZx0IntoUnifiedAsm(code, tempDir);
+    const preprocessed = injectZx0IntoUnifiedAsm(code, tempDir, zx0Options || {});
     const info = preprocessed.info;
 
     if (!info.attempted) {

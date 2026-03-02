@@ -295,6 +295,7 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       { name: "bonusIsPersistent", type: 'boolean', defaultValue: 'false', description: "If false, the bonus tile reappears when the screen is reloaded." },
       { name: "bonusEntityEffect", type: 'string', defaultValue: 'none', description: "Optional entity effect for the bonus tile (for now: none or grant_extra_jump)." },
       { name: "bonusEffectAmount", type: 'word', defaultValue: '1', description: "Amount used by bonusEntityEffect (for example, extra jumps granted)." },
+      { name: "bonusSlashStrength", type: 'byte', defaultValue: '8', description: "Horizontal strength of the bonus slash impulse (used by grant_extra_jump slash behavior)." },
       { name: "bonusRespawnSeconds", type: 'byte', defaultValue: '0', description: "0 = disabled. 1-255 = seconds until the bonus tile respawns after collection." },
       { name: "isEnabled", type: 'boolean', defaultValue: 'true', description: "Whether tile collection is active." }
     ],
@@ -466,7 +467,7 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_wall_collision", defaultValues: { hitboxWidth: 12, hitboxHeight: 12, offsetX: 2, offsetY: 2, tileSize: 8, stopOnCollision: true } },
       { definitionId: "comp_player_input", defaultValues: { controllerId: 0, inputEnabled: true } },
       { definitionId: "comp_cursors", defaultValues: { isEnabled: true, speed: 2 } },
-      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusRespawnSeconds: 0, isEnabled: true } },
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
       { definitionId: "comp_inventory", defaultValues: { maxItems: 255, currentItemCount: 0, showCountOnScreen: true, countDisplayX: 1, countDisplayY: 1, scorePerItem: 10, totalScore: 0 } }
     ],
     description: "A Pac-Man style player that collects items by walking over tiles. Perfect for maze-based collection games."

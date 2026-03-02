@@ -35,6 +35,7 @@ interface CodeExportModalProps {
   assets: ProjectAsset[];
   currentProjectName?: string | null;
   projectData?: any; // Full project data including tileBanks
+  onEditFile?: (filename: string, content: string) => void;
 }
 
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'msx_main_asm' | 'msx_full_project' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
@@ -44,6 +45,26 @@ type RomBuildConfig = {
   romMode: RomMode;
   targetFormat: MapperFormat;
   autoMegaROM: boolean;
+};
+
+interface Zx0CompressionOptions {
+  screens: boolean;
+  behaviorMaps: boolean;
+  tilePatterns: boolean;
+  tileColors: boolean;
+  fontPatterns: boolean;
+  fontColors: boolean;
+  spritePatterns: boolean;
+}
+
+const DEFAULT_ZX0_OPTIONS: Zx0CompressionOptions = {
+  screens: true,
+  behaviorMaps: true,
+  tilePatterns: true,
+  tileColors: true,
+  fontPatterns: true,
+  fontColors: true,
+  spritePatterns: true,
 };
 
 interface GeneratedFile {
@@ -56,7 +77,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   onClose,
   assets,
   currentProjectName,
-  projectData
+  projectData,
+  onEditFile,
 }) => {
   const [exportType, setExportType] = useState<ExportType>('asm_all_in_one');
   const [options, setOptions] = useState<CodeGenerationOptions>(DEFAULT_CODE_OPTIONS);
@@ -77,8 +99,34 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [isBuildingAndRunning, setIsBuildingAndRunning] = useState(false);
   const [pipelineProgress, setPipelineProgress] = useState(0);
   const [pipelineStatus, setPipelineStatus] = useState('Ready');
+  const [zx0Options, setZx0Options] = useState<Zx0CompressionOptions>(DEFAULT_ZX0_OPTIONS);
 
   const isPipelineBusy = isGenerating || isCompiling || isCompressingAsm || isQuickValidating || isBuildingAndRunning;
+  const backendBaseUrl = (() => {
+    const env = import.meta.env as Record<string, string | undefined>;
+    const configuredBaseUrl = env.VITE_BACKEND_URL?.trim() || env.VITE_API_BASE_URL?.trim();
+    if (configuredBaseUrl) {
+      return configuredBaseUrl.replace(/\/+$/, '');
+    }
+
+    if (typeof window !== 'undefined' && window.location.hostname) {
+      return `http://${window.location.hostname}:3001`;
+    }
+
+    return 'http://localhost:3001';
+  })();
+
+  const buildBackendUrl = (pathname: string) =>
+    `${backendBaseUrl}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
+
+  const buildBackendFetchError = (action: string, error: unknown) => {
+    const details = error instanceof Error ? error.message : String(error);
+    const mixedContentHint = typeof window !== 'undefined' && window.location.protocol === 'https:'
+      ? ' The app is currently running over HTTPS, so direct HTTP calls to the backend may be blocked by the browser.'
+      : '';
+
+    return `${action} could not reach the backend at ${backendBaseUrl}. Check that server/server.js is running on port 3001.${mixedContentHint} Original error: ${details}`;
+  };
 
   // Function to download ZIP with all modular files
   const downloadModularZip = async (modularFiles: Record<string, string>, projectName: string) => {
@@ -219,115 +267,139 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   };
 
   const runCompileRequest = async (sourceCode: string, romConfig: RomBuildConfig, projectNameInput?: string) => {
-    const response = await fetch('http://localhost:3001/compile', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        code: sourceCode,
-        generateSymbols: options.generateSymbols || false,
-        projectName: projectNameInput || currentProjectName || 'MSX_Game',
-        romMode: romConfig.romMode,
-        targetFormat: romConfig.targetFormat,
-        autoMegaROM: romConfig.autoMegaROM
-      }),
-    });
-
-    const responseText = await response.text();
-    let result: any;
-
     try {
-      result = JSON.parse(responseText);
-    } catch (jsonError) {
-      console.error('Failed to parse JSON response:', jsonError);
-      console.error('Raw response:', responseText);
+      const response = await fetch(buildBackendUrl('/compile'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: sourceCode,
+          generateSymbols: options.generateSymbols || false,
+          projectName: projectNameInput || currentProjectName || 'MSX_Game',
+          romMode: romConfig.romMode,
+          targetFormat: romConfig.targetFormat,
+          autoMegaROM: romConfig.autoMegaROM
+        }),
+      });
+
+      const responseText = await response.text();
+      let result: any;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        console.error('Raw response:', responseText);
+        return {
+          success: false,
+          message: `Server response error: ${responseText}`,
+          fullDetails: { jsonError, responseText, status: response.status }
+        };
+      }
+
+      if (!response.ok || !result.success) {
+        console.error('Glass compilation failed:', result);
+        return {
+          success: false,
+          message: result.details || result.error || 'Unknown compilation error',
+          fullDetails: result,
+          requestedRomConfig: result.requestedRomConfig,
+          sourceRomConfig: result.sourceRomConfig,
+          sourceConfigMismatchWarning: result.sourceConfigMismatchWarning,
+          resolvedRomConfig: result.resolvedRomConfig,
+          romModeConflictWarning: result.romModeConflictWarning,
+          romSizeInfo: result.romSizeInfo
+        };
+      }
+
+      return result;
+    } catch (error) {
       return {
         success: false,
-        message: `Server response error: ${responseText}`,
-        fullDetails: { jsonError, responseText, status: response.status }
+        message: buildBackendFetchError('Compilation', error),
+        fullDetails: { backendBaseUrl, error: String(error) }
       };
     }
-
-    if (!response.ok || !result.success) {
-      console.error('Glass compilation failed:', result);
-      return {
-        success: false,
-        message: result.details || result.error || 'Unknown compilation error',
-        fullDetails: result,
-        requestedRomConfig: result.requestedRomConfig,
-        sourceRomConfig: result.sourceRomConfig,
-        sourceConfigMismatchWarning: result.sourceConfigMismatchWarning,
-        resolvedRomConfig: result.resolvedRomConfig,
-        romModeConflictWarning: result.romModeConflictWarning,
-        romSizeInfo: result.romSizeInfo
-      };
-    }
-
-    return result;
   };
 
   const runOpenMSXRequest = async (romFile: string) => {
-    const response = await fetch('http://localhost:3001/run-openmsx', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ romFile }),
-    });
+    try {
+      const response = await fetch(buildBackendUrl('/run-openmsx'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ romFile }),
+      });
 
-    const result = await response.json();
+      const result = await response.json();
 
-    if (!response.ok || !result.success) {
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          message: result.details || result.error || 'Failed to start OpenMSX'
+        };
+      }
+
+      return {
+        success: true,
+        message: result.message || 'OpenMSX started successfully',
+        note: result.note || ''
+      };
+    } catch (error) {
       return {
         success: false,
-        message: result.details || result.error || 'Failed to start OpenMSX'
+        message: buildBackendFetchError('OpenMSX launch', error)
       };
     }
-
-    return {
-      success: true,
-      message: result.message || 'OpenMSX started successfully',
-      note: result.note || ''
-    };
   };
 
-  const runCompressRequest = async (sourceCode: string, projectNameInput?: string) => {
-    const response = await fetch('http://localhost:3001/compress-unified-asm', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        code: sourceCode,
-        projectName: projectNameInput || currentProjectName || 'MSX_Game'
-      }),
-    });
-
-    const responseText = await response.text();
-    let result: any;
-
+  const runCompressRequest = async (sourceCode: string, projectNameInput?: string, zx0Opts?: Zx0CompressionOptions) => {
     try {
-      result = JSON.parse(responseText);
-    } catch (jsonError) {
-      console.error('Failed to parse JSON response:', jsonError);
-      console.error('Raw response:', responseText);
+      const response = await fetch(buildBackendUrl('/compress-unified-asm'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          code: sourceCode,
+          projectName: projectNameInput || currentProjectName || 'MSX_Game',
+          zx0Options: zx0Opts ?? zx0Options
+        }),
+      });
+
+      const responseText = await response.text();
+      let result: any;
+
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        console.error('Raw response:', responseText);
+        return {
+          success: false,
+          message: `Compression response error: ${responseText}`,
+          fullDetails: { jsonError, responseText, status: response.status }
+        };
+      }
+
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          message: result.details || result.error || 'Unknown compression error',
+          ...result
+        };
+      }
+
+      return result;
+    } catch (error) {
       return {
         success: false,
-        message: `Compression response error: ${responseText}`,
-        fullDetails: { jsonError, responseText, status: response.status }
+        message: buildBackendFetchError('Compression', error),
+        fullDetails: { backendBaseUrl, error: String(error) }
       };
     }
-
-    if (!response.ok || !result.success) {
-      return {
-        success: false,
-        message: result.details || result.error || 'Unknown compression error',
-        ...result
-      };
-    }
-
-    return result;
   };
 
   const buildMapperSummary = (compileResult: any, projectNameInput?: string) => {
@@ -658,7 +730,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       try {
         setPipelineProgress(42);
         setPipelineStatus('Compressing ZX0 blocks...');
-        const compressionResult = await runCompressRequest(bundle.mainCode, bundle.projectName);
+        const compressionResult = await runCompressRequest(bundle.mainCode, bundle.projectName, zx0Options);
         setAsmCompressionResult(compressionResult);
 
         if (compressionResult.success && compressionResult.applied && compressionResult.compressedCode) {
@@ -808,7 +880,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     setAsmCompressionResult(null);
 
     try {
-      const result = await runCompressRequest(sourceCode, currentProjectName || 'MSX_Game');
+      const result = await runCompressRequest(sourceCode, currentProjectName || 'MSX_Game', zx0Options);
       if (!result.success) {
         alert(`Compression failed: ${result.message || 'Unknown error'}`);
         return;
@@ -889,7 +961,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       if (compilationResult?.success && (compilationResult as any).symbolFile) {
         // Download the .sym file too
         setTimeout(() => {
-          const downloadUrl = `http://localhost:3001${(compilationResult as any).symbolDownloadUrl}`;
+          const downloadUrl = buildBackendUrl((compilationResult as any).symbolDownloadUrl);
           const link = document.createElement('a');
           link.href = downloadUrl;
           link.download = (compilationResult as any).symbolFile;
@@ -1233,6 +1305,50 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
               </div>
             </Panel>
 
+            <Panel title="ZX0 Compression">
+              <div className="p-3 space-y-2">
+                <p className="text-xs text-msx-textsecondary mb-1">
+                  Data blocks to compress with ZX0:
+                </p>
+                {([
+                  { key: 'screens',      label: 'Screens (layout maps)' },
+                  { key: 'behaviorMaps', label: 'Behavior maps' },
+                  { key: 'tilePatterns', label: 'Tile patterns' },
+                  { key: 'tileColors',   label: 'Tile colors' },
+                  { key: 'fontPatterns', label: 'Font patterns' },
+                  { key: 'fontColors',   label: 'Font colors' },
+                  { key: 'spritePatterns', label: 'Sprite patterns' },
+                ] as { key: keyof Zx0CompressionOptions; label: string }[]).map(({ key, label }) => (
+                  <div key={key} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`zx0_${key}`}
+                      checked={zx0Options[key]}
+                      onChange={(e) => setZx0Options({ ...zx0Options, [key]: e.target.checked })}
+                      className="rounded"
+                    />
+                    <label htmlFor={`zx0_${key}`} className="text-sm text-msx-textsecondary">
+                      {label}
+                    </label>
+                  </div>
+                ))}
+                <div className="mt-2 flex space-x-2">
+                  <button
+                    className="text-xs text-msx-highlight underline"
+                    onClick={() => setZx0Options(DEFAULT_ZX0_OPTIONS)}
+                  >
+                    All
+                  </button>
+                  <button
+                    className="text-xs text-msx-textsecondary underline"
+                    onClick={() => setZx0Options({ screens: false, behaviorMaps: false, tilePatterns: false, tileColors: false, fontPatterns: false, fontColors: false, spritePatterns: false })}
+                  >
+                    None
+                  </button>
+                </div>
+              </div>
+            </Panel>
+
             <Panel title="Actions">
               <div className="p-3 space-y-2">
                 <Button
@@ -1335,7 +1451,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                     {asmCompressionResult?.unitedCompressedAsmDownloadUrl && (
                       <button
                         onClick={() => {
-                          const downloadUrl = `http://localhost:3001${asmCompressionResult.unitedCompressedAsmDownloadUrl}`;
+                          const downloadUrl = buildBackendUrl(asmCompressionResult.unitedCompressedAsmDownloadUrl);
                           const link = document.createElement('a');
                           link.href = downloadUrl;
                           link.download = asmCompressionResult.unitedCompressedAsmFile || 'unitedCompressedFiles.asm';
@@ -1726,7 +1842,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                         <div className="flex gap-2">
                           <button
                             onClick={() => {
-                              const downloadUrl = `http://localhost:3001${(compilationResult as any).downloadUrl}`;
+                              const downloadUrl = buildBackendUrl((compilationResult as any).downloadUrl);
                               const link = document.createElement('a');
                               link.href = downloadUrl;
                               link.download = (compilationResult as any).romFile;
@@ -1740,7 +1856,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           </button>
                           <button
                             onClick={() => {
-                              window.open('http://localhost:3001/roms', '_blank');
+                              window.open(buildBackendUrl('/roms'), '_blank');
                             }}
                             className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded transition-colors"
                           >
@@ -1767,7 +1883,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                           </div>
                           <button
                             onClick={() => {
-                              const downloadUrl = `http://localhost:3001${(compilationResult as any).symbolDownloadUrl}`;
+                              const downloadUrl = buildBackendUrl((compilationResult as any).symbolDownloadUrl);
                               const link = document.createElement('a');
                               link.href = downloadUrl;
                               link.download = (compilationResult as any).symbolFile;
@@ -1788,7 +1904,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                             </div>
                             <button
                               onClick={() => {
-                                const downloadUrl = `http://localhost:3001${(compilationResult as any).openmsxSymbolDownloadUrl}`;
+                                const downloadUrl = buildBackendUrl((compilationResult as any).openmsxSymbolDownloadUrl);
                                 const link = document.createElement('a');
                                 link.href = downloadUrl;
                                 link.download = (compilationResult as any).openmsxSymbolFile;
@@ -1812,7 +1928,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       <button
                         onClick={async () => {
                           try {
-                            const response = await fetch('http://localhost:3001/roms');
+                            const response = await fetch(buildBackendUrl('/roms'));
                             const data = await response.json();
                             if (data.roms && data.roms.length > 0) {
                               const romList = data.roms.map((rom: any) =>
@@ -1823,7 +1939,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                               alert('📂 No ROMs available.\n\nCompile a project first to generate ROM files.');
                             }
                           } catch (error) {
-                            alert('❌ Could not connect to ROM server.\n\nMake sure the server is running on localhost:3001');
+                            alert(`❌ Could not connect to ROM server.\n\n${buildBackendFetchError('ROM list', 'Connection failed')}`);
                           }
                         }}
                         className="px-3 py-1 bg-msx-highlight hover:bg-opacity-80 text-msx-bgcolor text-xs rounded transition-colors"
@@ -1867,13 +1983,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 </div>
               )}
 
-              {/* File Tabs */}
+              {/* File Tabs — single click selects, double click opens in Code Editor */}
               {generatedFiles.length > 1 && (
                 <div className="flex flex-wrap gap-1 p-2 border-b border-msx-border bg-msx-bgcolor bg-opacity-50">
                   {generatedFiles.map((file, index) => (
                     <button
                       key={index}
                       onClick={() => handleFileTabChange(index)}
+                      onDoubleClick={() => onEditFile && onEditFile(file.name, file.content)}
+                      title="Double-click to open in Code Editor"
                       className={`px-3 py-1 text-xs font-mono rounded transition-colors ${activeFileIndex === index
                         ? 'bg-msx-highlight text-msx-panelbg'
                         : 'bg-msx-panelbg text-msx-textsecondary hover:bg-msx-highlight hover:bg-opacity-20'

@@ -118,7 +118,8 @@
       "Bash(git status:*)",
       "Bash(cmd /c \"npx tsc --noEmit 2>&1\")",
       "Bash(do if:*)",
-      "Bash(sort:*)"
+      "Bash(sort:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []

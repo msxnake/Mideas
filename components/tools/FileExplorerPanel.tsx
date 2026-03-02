@@ -344,7 +344,8 @@ export const FileExplorerPanel: React.FC<FileExplorerPanelProps> = ({
         ))}
 
         {FOLDER_TYPE_ORDER.map(folderType => {
-          const assetsInFolder = groupedAssets[folderType] || [];
+          // Code Files are managed exclusively via the Export Z80 Code modal
+          const assetsInFolder = folderType === 'code' ? [] : (groupedAssets[folderType] || []);
           const isExpanded = !!expandedFolders[folderType];
 
           let processedAssets = assetsInFolder;

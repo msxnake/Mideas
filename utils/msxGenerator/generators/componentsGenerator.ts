@@ -60,6 +60,7 @@ update_all_entities:
         ['Movement', 'update_movement_component', '5. Movement'],
         ['Cursors', 'update_cursors_component', '5b. Cursors movement'], // comp_cursors
         ['Gravity', 'update_gravity_component', '6. Gravity'],
+        ['TileInteraction', 'update_slash_component', '6b. Additive slash velocity'],
         ['Position', 'update_position_component', '7. Apply velocity'], // Always needed
         ['Collision', 'prepare_platform_detection', '8a. Clear platform refs'],
         ['Collision', 'update_collision_component', '8b. Collision detection'],
@@ -4491,6 +4492,7 @@ function extractTileCollectorConfig(candidate: any) {
         bonusIsPersistent: candidate.bonusIsPersistent,
         bonusEntityEffect: candidate.bonusEntityEffect,
         bonusEffectAmount: candidate.bonusEffectAmount,
+        bonusSlashStrength: candidate.bonusSlashStrength,
         bonusRespawnSeconds: candidate.bonusRespawnSeconds,
     };
 }
@@ -4506,6 +4508,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
     bonusIsPersistent: boolean;
     bonusEntityEffect: string;
     bonusEffectAmount: number;
+    bonusSlashStrength: number;
     bonusRespawnSeconds: number;
 } {
     const soundMap = buildSoundAssetIndexMap((analysis as any).sounds);
@@ -4529,6 +4532,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             ? config.bonusEntityEffect.trim().toLowerCase()
             : 'none';
         const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
+        const bonusSlashStrength = clampTileCollectorByte(config.bonusSlashStrength ?? 8);
         const bonusRespawnSeconds = clampTileCollectorByte(config.bonusRespawnSeconds);
 
         if (
@@ -4551,6 +4555,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
                 bonusIsPersistent,
                 bonusEntityEffect,
                 bonusEffectAmount,
+                bonusSlashStrength,
                 bonusRespawnSeconds,
             };
         }
@@ -4577,6 +4582,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
             ? config.bonusEntityEffect.trim().toLowerCase()
             : 'none';
         const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
+        const bonusSlashStrength = clampTileCollectorByte(config.bonusSlashStrength ?? 8);
         const bonusRespawnSeconds = clampTileCollectorByte(config.bonusRespawnSeconds);
 
         if (
@@ -4599,6 +4605,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
                 bonusIsPersistent,
                 bonusEntityEffect,
                 bonusEffectAmount,
+                bonusSlashStrength,
                 bonusRespawnSeconds,
             };
         }
@@ -4615,6 +4622,7 @@ function resolveTileCollectorRuntimeConfig(analysis: ProjectAnalysis): {
         bonusIsPersistent: false,
         bonusEntityEffect: 'none',
         bonusEffectAmount: 0,
+        bonusSlashStrength: 8,
         bonusRespawnSeconds: 0,
     };
 }
@@ -4631,12 +4639,19 @@ function generateTileInteractionSystem(
         bonusIsPersistent: boolean;
         bonusEntityEffect: string;
         bonusEffectAmount: number;
+        bonusSlashStrength: number;
         bonusRespawnSeconds: number;
     },
     canUseSoundAssetPlayback: boolean
 ): string {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
     const replacementTileChar = tileCollectorConfig.replacementTileChar;
+    const bonusSlashStrength = Math.max(1, Math.min(32, tileCollectorConfig.bonusSlashStrength || 8));
+    const bonusSlashUpStrength = Math.max(1, bonusSlashStrength - 1);
+    const bonusSlashDownStrength = Math.max(1, bonusSlashStrength - 2);
+    const bonusSlashLeftByte = `#${((256 - bonusSlashStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
+    const bonusSlashUpLeftByte = `#${((256 - bonusSlashUpStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
+    const bonusSlashDownLeftByte = `#${((256 - bonusSlashDownStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
     const collectionSoundCode =
         collectionSoundAssetIndex !== null && canUseSoundAssetPlayback
             ? `    ; Tile Collector UI-configured collection sound.
@@ -4711,15 +4726,175 @@ ${hudSyncCode}
 `;
     const bonusEffectCode =
         tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0
-            ? `    ; Bonus tile effect: grant temporary extra jumps to the collecting entity.
+            ? `    ; Bonus tile effect: arm an additive slash for the collecting entity.
+    ; Horizontal motion is applied by update_slash_component on subsequent frames.
     push de
-    ld hl, entity_jump_bonus
     ld e, c
     ld d, 0
+    ld hl, entity_on_ground
+    add hl, de
+    res 0, (hl)
+
+    ld hl, entity_platform_id
+    add hl, de
+    ld (hl), 255
+
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), 0
+
+    ld hl, entity_dir_mask
+    add hl, de
+    ld b, (hl)                     ; B = direction permissions for this entity
+
+    ld a, (input_state)
+    or a
+    jp z, .ti_bonus_no_input
+    cp STICK_RIGHT
+    jp z, .ti_bonus_right
+    cp STICK_UPRIGHT
+    jp z, .ti_bonus_input_upright
+    cp STICK_DOWNRIGHT
+    jp z, .ti_bonus_downright
+    cp STICK_LEFT
+    jp z, .ti_bonus_left
+    cp STICK_UPLEFT
+    jp z, .ti_bonus_input_upleft
+    cp STICK_DOWNLEFT
+    jp z, .ti_bonus_downleft
+    cp STICK_DOWN
+    jp z, .ti_bonus_down
+    cp STICK_UP
+    jp z, .ti_bonus_input_up
+    jp .ti_bonus_facing_default
+
+.ti_bonus_no_input:
+    ; No directional cursor held: never infer horizontal slash from facing.
+    ; If UP is allowed, use the neutral upward pop; otherwise consume the
+    ; bonus tile without any forced movement.
+    ld a, b
+    and DIR_ALLOW_UP
+    jp nz, .ti_bonus_up
+    jp .ti_bonus_done
+
+.ti_bonus_input_upright:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .ti_bonus_right
+    jp .ti_bonus_upright
+
+.ti_bonus_input_upleft:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .ti_bonus_left
+    jp .ti_bonus_upleft
+
+.ti_bonus_input_up:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp nz, .ti_bonus_up
+    jp .ti_bonus_facing_default
+
+.ti_bonus_facing_default:
+    ld hl, entity_facing_dir
     add hl, de
     ld a, (hl)
-    add a, ${Math.min(255, tileCollectorConfig.bonusEffectAmount)}
-    ld (hl), a
+    cp 1
+    jp z, .ti_bonus_left
+    cp 2
+    jp z, .ti_bonus_right
+    jp .ti_bonus_right
+
+.ti_bonus_right:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashStrength}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FF
+    jp .ti_bonus_done
+
+.ti_bonus_upright:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashUpStrength}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FD
+    jp .ti_bonus_done
+
+.ti_bonus_downright:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashDownStrength}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #01
+    jp .ti_bonus_done
+
+.ti_bonus_left:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashLeftByte}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FF
+    jp .ti_bonus_done
+
+.ti_bonus_upleft:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashUpLeftByte}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FD
+    jp .ti_bonus_done
+
+.ti_bonus_downleft:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashDownLeftByte}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #01
+    jp .ti_bonus_done
+
+.ti_bonus_down:
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #02
+    jp .ti_bonus_done
+
+.ti_bonus_up:
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FC
+
+.ti_bonus_done:
     pop de
 `
             : `    ; No supported bonus entity effect configured.
@@ -4902,6 +5077,83 @@ update_bonus_respawns:
 ; ------------------------------------------------------------------
 
 init_tile_interaction_system:
+    ld hl, entity_slash_vel_x
+    ld de, entity_slash_vel_x+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ret
+
+; ------------------------------------------------------------------
+; update_slash_component
+; Add the temporary slash horizontal velocity on top of normal movement
+; and damp it over subsequent frames.
+; ------------------------------------------------------------------
+update_slash_component:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+.slash_loop:
+    ld c, (hl)
+    inc hl
+    push hl                    ; Save list pointer
+
+    ; Skip entities not on the current screen
+    ld e, c
+    ld d, 0
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jp nz, .slash_next
+
+    push bc
+
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .slash_done_entity
+
+    ld b, a                    ; B = additive slash X velocity
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+    ; Dampen toward zero: +n -> +(n-2), -n -> -(n-2)
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld a, (hl)
+    bit 7, a
+    jp z, .slash_decay_positive
+
+    add a, 2
+    bit 7, a
+    jp nz, .slash_store_decay
+    xor a
+    jp .slash_store_decay
+
+.slash_decay_positive:
+    sub 2
+    jp nc, .slash_store_decay
+    xor a
+
+.slash_store_decay:
+    ld (hl), a
+
+.slash_done_entity:
+    pop bc
+
+.slash_next:
+    pop hl
+    dec b
+    jp nz, .slash_loop
     ret
 
 ${bonusRespawnRuntimeCode}
@@ -5528,6 +5780,12 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
     `;
     }
 
+    if (usedComponents.has('TileInteraction')) {
+        code += `    ; Initialize tile interaction system
+    call init_tile_interaction_system
+    `;
+    }
+
     code += `
     ret
     `;
@@ -5623,6 +5881,8 @@ update_jump_component:
     ret
 update_gravity_component:
     ret
+update_slash_component:
+    ret
 update_auto_destroy_component:
     ret
 update_cursors_component:
@@ -5689,6 +5949,7 @@ init_entity_sprite:
 
     ; Component Data Structure EQUs (referenced by state machine actions)
 entity_jump_vel_y   EQU temp_word_3
+entity_slash_vel_x  EQU temp_byte_3
 entity_jump_count   EQU temp_byte_4
 entity_jump_max     EQU temp_byte_25
 entity_jump_bonus   EQU temp_byte_27
@@ -5723,6 +5984,14 @@ entity_last_collision_entity EQU temp_byte_24
     // INTELLIGENT FILTERING: Analyze which components are actually used
     const componentUsage: ComponentUsageAnalysis = analyzeComponentUsage(analysis);
     const usedComponents = componentUsage.usedComponents;
+    const hasInteractableTiles = Array.isArray(analysis.tiles) &&
+        analysis.tiles.some((t: any) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
+    const tileCollectorRuntimeConfig = resolveTileCollectorRuntimeConfig(analysis);
+    const hasStateMachineSoundPlayback = Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0;
+
+    if (hasInteractableTiles && usedComponents.has('Input')) {
+        usedComponents.add('TileInteraction');
+    }
 
     const conditionTreeHas = (condition: any, types: Set<string>): boolean => {
         if (!condition || typeof condition !== 'object') return false;
@@ -5815,6 +6084,7 @@ ANIM_DEFAULT_SPEED           EQU 8
     ; Jump Component Data(Fixed - Point 8.8 for smooth physics)
     ; Using temporary storage for optional components to save RAM
 entity_jump_vel_y   EQU temp_word_3; Y velocity for jumping(signed word, 32 words = 64 bytes)
+entity_slash_vel_x  EQU temp_byte_3; Additive horizontal slash velocity from bonus tiles (32 bytes)
 entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
 entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
 entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
@@ -6172,13 +6442,7 @@ update_collectible_component:
 
     // Generate Tile Interaction System (when project has Interactable tiles)
     // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
-    const hasInteractableTiles = Array.isArray(analysis.tiles) &&
-        analysis.tiles.some((t: any) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
-    const tileCollectorRuntimeConfig = resolveTileCollectorRuntimeConfig(analysis);
-    const hasStateMachineSoundPlayback = Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0;
-
     if (hasInteractableTiles && usedComponents.has('Input')) {
-        usedComponents.add('TileInteraction'); // Enable the call in update_all_entities
         code += generateTileInteractionSystem(tileCollectorRuntimeConfig, hasStateMachineSoundPlayback);
         code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
@@ -6186,6 +6450,9 @@ update_collectible_component:
         code += `
     ; Tile interaction system filtered out(no interactable tiles or no input)
 init_tile_interaction_system:
+    ret
+
+update_slash_component:
     ret
 
 check_tile_interaction:
