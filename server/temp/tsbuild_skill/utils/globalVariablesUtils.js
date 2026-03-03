@@ -1,10 +1,28 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.normalizeGlobalVariableName = normalizeGlobalVariableName;
+exports.buildGlobalVariableAsmName = buildGlobalVariableAsmName;
+exports.buildGlobalVariableConstantPrefix = buildGlobalVariableConstantPrefix;
 exports.getAllGlobalVariables = getAllGlobalVariables;
 exports.getGlobalVariableByName = getGlobalVariableByName;
 exports.getCustomGlobalVariables = getCustomGlobalVariables;
 exports.getUsedGlobalVariables = getUsedGlobalVariables;
 const constants_1 = require("../constants");
+function normalizeGlobalVariableName(rawName) {
+    const trimmedName = typeof rawName === 'string' ? rawName.trim() : '';
+    if (!trimmedName)
+        return '';
+    const builtInVariable = constants_1.MIDEAS_GLOBAL_VARIABLES.find(variable => variable.name.toLowerCase() === trimmedName.toLowerCase());
+    return builtInVariable ? builtInVariable.name : trimmedName;
+}
+function buildGlobalVariableAsmName(variableName) {
+    const normalizedName = normalizeGlobalVariableName(variableName);
+    return `global_var_${normalizedName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+}
+function buildGlobalVariableConstantPrefix(variableName) {
+    const normalizedName = normalizeGlobalVariableName(variableName);
+    return `${normalizedName.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}_`;
+}
 /**
  * Merges default MIDEAS global variables with custom project-specific variables.
  * Custom variables override defaults if they share the same name.
@@ -24,14 +42,23 @@ function getAllGlobalVariables(assets) {
     const variablesMap = new Map();
     // Add default variables first
     constants_1.MIDEAS_GLOBAL_VARIABLES.forEach(variable => {
-        variablesMap.set(variable.name, variable);
+        const normalizedName = normalizeGlobalVariableName(variable.name);
+        variablesMap.set(normalizedName, { ...variable, name: normalizedName });
     });
     // Add/override with custom variables
     customVariables.forEach((variable) => {
-        variablesMap.set(variable.name, variable);
+        const normalizedName = normalizeGlobalVariableName(variable.name);
+        if (!normalizedName)
+            return;
+        variablesMap.set(normalizedName, {
+            ...variable,
+            name: normalizedName,
+            asmName: buildGlobalVariableAsmName(normalizedName),
+            constantPrefix: variable.constantPrefix || buildGlobalVariableConstantPrefix(normalizedName),
+        });
     });
     // Return as array, preserving order (defaults first, then new custom ones)
-    const defaultNames = constants_1.MIDEAS_GLOBAL_VARIABLES.map(v => v.name);
+    const defaultNames = constants_1.MIDEAS_GLOBAL_VARIABLES.map(v => normalizeGlobalVariableName(v.name));
     const result = [];
     // First add all that exist in defaults (whether overridden or not)
     defaultNames.forEach(name => {
@@ -52,7 +79,8 @@ function getAllGlobalVariables(assets) {
  */
 function getGlobalVariableByName(assets, variableName) {
     const allVariables = getAllGlobalVariables(assets);
-    return allVariables.find(v => v.name === variableName);
+    const normalizedName = normalizeGlobalVariableName(variableName);
+    return allVariables.find(v => normalizeGlobalVariableName(v.name) === normalizedName);
 }
 /**
  * Gets only the custom variables created by the user in the GlobalVariables asset.
@@ -69,7 +97,19 @@ function getCustomGlobalVariables(assets) {
         return [];
     }
     const customVariables = globalVarsAsset.data.customVariables || [];
-    return customVariables;
+    const normalizedVariables = new Map();
+    customVariables.forEach((variable) => {
+        const normalizedName = normalizeGlobalVariableName(variable.name);
+        if (!normalizedName)
+            return;
+        normalizedVariables.set(normalizedName, {
+            ...variable,
+            name: normalizedName,
+            asmName: buildGlobalVariableAsmName(normalizedName),
+            constantPrefix: variable.constantPrefix || buildGlobalVariableConstantPrefix(normalizedName),
+        });
+    });
+    return Array.from(normalizedVariables.values());
 }
 /**
  * Detects which global variables are actually used in the project
@@ -101,6 +141,8 @@ function getUsedGlobalVariables(assets) {
     const gameFlowAsset = assets.find(a => a.type === 'gameflow');
     const ifThenElseVariableNames = new Set();
     const globalsVariableNames = new Set();
+    const tileCollectorVariableNames = new Set();
+    const hudVariableNames = new Set();
     if (gameFlowAsset?.data) {
         const gameFlow = gameFlowAsset.data;
         if (gameFlow.nodes && Array.isArray(gameFlow.nodes)) {
@@ -111,13 +153,19 @@ function getUsedGlobalVariables(assets) {
                 }
                 // IfThenElse nodes reference global variables by name
                 if (node.type === 'IfThenElse' && node.variableName) {
-                    ifThenElseVariableNames.add(node.variableName);
+                    const normalizedName = normalizeGlobalVariableName(node.variableName);
+                    if (normalizedName) {
+                        ifThenElseVariableNames.add(normalizedName);
+                    }
                 }
                 // Globals nodes set global variables
                 if (node.type === 'Globals' && node.variables && Array.isArray(node.variables)) {
                     node.variables.forEach((varAssignment) => {
                         if (varAssignment.variableName) {
-                            globalsVariableNames.add(varAssignment.variableName);
+                            const normalizedName = normalizeGlobalVariableName(varAssignment.variableName);
+                            if (normalizedName) {
+                                globalsVariableNames.add(normalizedName);
+                            }
                         }
                     });
                 }
@@ -132,10 +180,42 @@ function getUsedGlobalVariables(assets) {
             codeSnippets.push(compData.customCode);
         }
     });
+    // 3.5. Extract global variable references from Tile Collector configuration
+    const addTileCollectorVariableName = (rawValue) => {
+        if (typeof rawValue !== 'string')
+            return;
+        const variableName = normalizeGlobalVariableName(rawValue);
+        if (!variableName)
+            return;
+        tileCollectorVariableNames.add(variableName);
+    };
+    screenMaps.forEach(screenMap => {
+        const entities = screenMap.data?.layers?.entities || [];
+        entities.forEach((entity) => {
+            addTileCollectorVariableName(entity?.componentOverrides?.comp_tile_collector?.targetVariable);
+        });
+        const hudElements = screenMap.data?.hudConfiguration?.elements || [];
+        hudElements.forEach((element) => {
+            const hudType = String(element?.type || '').toLowerCase();
+            if (hudType === 'score') {
+                hudVariableNames.add(normalizeGlobalVariableName('Score'));
+            }
+            else if (hudType === 'lives') {
+                hudVariableNames.add(normalizeGlobalVariableName('Lives'));
+            }
+        });
+    });
+    const templates = assets.filter(a => a.type === 'entitytemplate');
+    templates.forEach(templateAsset => {
+        const template = templateAsset.data;
+        const tileCollectorComp = template?.components?.find((c) => c.definitionId === 'comp_tile_collector');
+        addTileCollectorVariableName(tileCollectorComp?.defaultValues?.targetVariable);
+    });
     // 4. Detect which variables are used
     const usedVariables = [];
     const usedVariableNames = new Set();
     allVariables.forEach(variable => {
+        const normalizedVariableName = normalizeGlobalVariableName(variable.name);
         // Check 1: Variable's asmName appears in any code snippet
         const isUsedInCode = codeSnippets.some(code => {
             // Match the asmName as a whole word (not part of another identifier)
@@ -143,46 +223,67 @@ function getUsedGlobalVariables(assets) {
             return regex.test(code);
         });
         // Check 2: Variable is referenced by an IfThenElse node
-        const isUsedInIfThenElse = ifThenElseVariableNames.has(variable.name);
+        const isUsedInIfThenElse = ifThenElseVariableNames.has(normalizedVariableName);
         // Check 3: Variable is set by a Globals node
-        const isUsedInGlobals = globalsVariableNames.has(variable.name);
-        if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals) && !usedVariableNames.has(variable.name)) {
+        const isUsedInGlobals = globalsVariableNames.has(normalizedVariableName);
+        const isUsedInTileCollector = tileCollectorVariableNames.has(normalizedVariableName);
+        const isUsedInHud = hudVariableNames.has(normalizedVariableName);
+        if ((isUsedInCode || isUsedInIfThenElse || isUsedInGlobals || isUsedInTileCollector || isUsedInHud) && !usedVariableNames.has(normalizedVariableName)) {
             usedVariables.push(variable);
-            usedVariableNames.add(variable.name);
+            usedVariableNames.add(normalizedVariableName);
         }
     });
     // 5. Add any missing variables referenced in Globals nodes that weren't in allVariables
     globalsVariableNames.forEach(varName => {
-        if (!usedVariableNames.has(varName)) {
+        const normalizedName = normalizeGlobalVariableName(varName);
+        if (!usedVariableNames.has(normalizedName)) {
             // Create a default variable for this undefined name
-            const asmName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+            const asmName = buildGlobalVariableAsmName(normalizedName);
             usedVariables.push({
-                name: varName,
+                name: normalizedName,
                 asmName: asmName,
-                constantPrefix: `${varName.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}_`,
+                constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
                 type: '8bit',
                 description: `Auto-generated variable from Globals node`,
                 values: [{ label: '0', value: 0 }],
                 category: 'special'
             });
-            usedVariableNames.add(varName);
+            usedVariableNames.add(normalizedName);
         }
     });
     // 6. Add any missing variables referenced in IfThenElse nodes that weren't in allVariables
     ifThenElseVariableNames.forEach(varName => {
-        if (!usedVariableNames.has(varName)) {
+        const normalizedName = normalizeGlobalVariableName(varName);
+        if (!usedVariableNames.has(normalizedName)) {
             // Create a default variable for this undefined name
-            const asmName = `global_var_${varName.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')}`;
+            const asmName = buildGlobalVariableAsmName(normalizedName);
             usedVariables.push({
-                name: varName,
+                name: normalizedName,
                 asmName: asmName,
-                constantPrefix: `${varName.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}_`,
+                constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
                 type: '8bit',
                 description: `Auto-generated variable from IfThenElse node`,
                 values: [{ label: '0', value: 0 }],
                 category: 'special'
             });
-            usedVariableNames.add(varName);
+            usedVariableNames.add(normalizedName);
+        }
+    });
+    // 7. Add any missing variables referenced by Tile Collector that weren't in allVariables
+    tileCollectorVariableNames.forEach(varName => {
+        const normalizedName = normalizeGlobalVariableName(varName);
+        if (!usedVariableNames.has(normalizedName)) {
+            const asmName = buildGlobalVariableAsmName(normalizedName);
+            usedVariables.push({
+                name: normalizedName,
+                asmName: asmName,
+                constantPrefix: buildGlobalVariableConstantPrefix(normalizedName),
+                type: '8bit',
+                description: `Auto-generated variable from Tile Collector`,
+                values: [{ label: '0', value: 0 }],
+                category: 'special'
+            });
+            usedVariableNames.add(normalizedName);
         }
     });
     return usedVariables;

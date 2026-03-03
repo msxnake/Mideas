@@ -366,6 +366,16 @@ update_entities:
                         directionMask |= 0x08; // Bit 3
                 }
             }
+            let jumpMax = 1;
+            if (componentMask & 0x0100) {
+                const jumpComp = template?.components?.find((c) => c.definitionId === 'comp_jump');
+                if (jumpComp) {
+                    const jumpDefaults = jumpComp.defaultValues || {};
+                    const jumpOverrides = entity.componentOverrides?.['comp_jump'] || {};
+                    const jumpValues = { ...jumpDefaults, ...jumpOverrides };
+                    jumpMax = Math.max(1, parseByte(jumpValues.maxJumps ?? 1, 1));
+                }
+            }
             // Generate direction info for documentation
             const directionInfo = [];
             if (directionMask & 0x01)
@@ -720,6 +730,12 @@ ${hasSprite ? `    ; Set sprite pattern and color (renderable entity)
     add hl, de
     ld (hl), ${inputSpeed}            ; Cursor speed (px/frame)
 
+${componentMask & 0x0100 ? `    ; Set Jump component configuration
+    ld hl, entity_jump_max
+    add hl, de
+    ld (hl), ${jumpMax}            ; Maximum jumps before touching ground
+
+` : ''}
 ${hasSprite ? `    ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + ${index}
     ld a, (hl)

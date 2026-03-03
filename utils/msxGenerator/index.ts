@@ -55,6 +55,18 @@ export interface MSXModularConfig {
 function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
   // This function was extracted from the original msxModularGenerator.ts (lines 143-289)
   // It converts the summary format to the analysis format used by generators
+  const tracks = (summary.assets.tracks || [])
+    .filter((track: any) => (track?.soundChip || 'PSG') === 'PSG')
+    .map((track: any) => ({
+      ...track,
+      soundChip: track?.soundChip || 'PSG'
+    }));
+  const trackIndexByAssetId = tracks.reduce((map: Record<string, number>, track: any, index: number) => {
+    if (track?.id) {
+      map[track.id] = index;
+    }
+    return map;
+  }, {});
 
   const analysis: ProjectAnalysis = {
     hasSprites: summary.assets.sprites.length > 0,
@@ -75,6 +87,8 @@ function convertSummaryToAnalysis(summary: ProjectSummary): ProjectAnalysis {
     entities: summary.assets.entities as any[],
     sprites: summary.assets.sprites as any[],
     sounds: [],
+    tracks: tracks as any[],
+    trackIndexByAssetId,
     tiles: summary.assets.tiles as any[],
     screens: summary.assets.screens as any[], // Added alias
     screenMaps: summary.assets.screens as any[], // Added missing property
@@ -143,6 +157,8 @@ export function generateModularASM(
       entities: [],
       sprites: [],
       sounds: [],
+      tracks: [],
+      trackIndexByAssetId: {},
       tiles: [],
       screens: [],
       screenMaps: [],
@@ -188,7 +204,9 @@ export function generateModularASM(
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
     'particles.asm': generateParticlesFile(analysis),
-    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds) : '; No State Machines\n',
+    'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
+      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
+      : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(projectName, analysis),
     'unitedFiles.asm': ''
@@ -276,7 +294,9 @@ export function generateModularASMFromSummary(
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
     'particles.asm': generateParticlesFile(analysis),
-    'statemachine.asm': analysis.stateMachines ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds) : '; No State Machines\n',
+    'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
+      ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
+      : '; No State Machines\n',
     'gameflow.asm': generateGameFlowFile(analysis),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis),
     'unitedFiles.asm': ''

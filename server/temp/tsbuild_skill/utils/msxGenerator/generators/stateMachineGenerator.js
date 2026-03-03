@@ -1390,77 +1390,40 @@ Action_ToggleAnim:
     ret
 
 Action_PlaySound:
-; Params: Sound ID(1 byte)
+; Params: Sound Asset Index (1 byte)
     ld a, (hl)
     inc hl
 
     push hl
-
-    ; Simple built-in SFX mapping by ID
-    ; 0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
-    cp 1
-    jr z, .play_jump
-    cp 2
-    jr z, .play_shoot
-    cp 3
-    jr z, .play_explosion
-    cp 4
-    jr z, .play_coin
-    cp 5
-    jr z, .play_damage
-
-.play_beep:
-    call SM_PlaySfx_Beep
-    jr .play_sound_done
-.play_jump:
-    call SM_PlaySfx_Jump
-    jr .play_sound_done
-.play_shoot:
-    call SM_PlaySfx_Shoot
-    jr .play_sound_done
-.play_explosion:
-    call SM_PlaySfx_Explosion
-    jr .play_sound_done
-.play_coin:
-    call SM_PlaySfx_Coin
-    jr .play_sound_done
-.play_damage:
-    call SM_PlaySfx_Damage
-
-.play_sound_done:
+    ; PLAY_SOUND now uses the real exported sound asset stream.
+    ; This keeps multi-step sounds audible and guarantees auto-silence.
+    call SM_PlaySoundAsset
     pop hl
     ret
 
 Action_PlayMusic:
-; Params: Music ID(1 byte)
+; Params: Music Track Index(1 byte), Loop Flag(1 byte)
     ld a, (hl)
+    inc hl
+    ld b, (hl)
     inc hl
 
     push hl
-    ld (SM_MusicTrack), a
-    ld a, 1
-    ld (SM_MusicState), a
-    ; Audible acknowledgement until full tracker driver is wired.
-    call SM_PlaySfx_Coin
+    call music_play_track
     pop hl
     ret
 
 Action_MuteMusic:
 ; No params
     push hl
-    call SM_SilencePSG
-    ld a, 2
-    ld (SM_MusicState), a
+    call music_mute
     pop hl
     ret
 
 Action_StopMusic:
 ; No params
     push hl
-    call SM_SilencePSG
-    xor a
-    ld (SM_MusicState), a
-    ld (SM_MusicTrack), a
+    call music_stop
     pop hl
     ret
 
@@ -2447,6 +2410,156 @@ SM_SilencePSG:
     ld e, a
     ld a, 7                 ; Mixer register
     call WRTPSG
+    ret
+
+SM_ApplySoundFrame:
+    ; Input: HL = pointer to 11-byte pre-expanded sound frame
+    ; Output: HL = pointer to next frame
+    ld e, (hl)
+    ld a, 0
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 1
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 8
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 2
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 3
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 9
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 4
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 5
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 10
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 6
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 7
+    call WRTPSG
+    inc hl
+    ret
+
+SM_PlaySoundAsset:
+    ; Input: A = sound asset index (0..SM_SoundAssetCount-1)
+    ; Destroys: AF, BC, DE, HL
+    push af
+    ld a, (music_active)
+    or a
+    pop af
+    ret nz
+    cp SM_SoundAssetCount
+    jr c, .play_valid_sound
+    call SM_SilencePSG
+    xor a
+    ld (sfx_active), a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+.play_valid_sound:
+
+    ; Stop any previous state-machine sound before starting a new one.
+    push af
+    call SM_SilencePSG
+    xor a
+    ld (sfx_active), a
+    pop af
+
+    ld l, a
+    ld h, 0
+    add hl, hl
+    ld de, SM_SoundPtrTable
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+
+    ld a, (hl)
+    or a
+    jr z, .empty_sound
+    ld (sm_sound_frames_left), a
+    inc hl
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+
+    call SM_ApplySoundFrame
+
+    ld a, l
+    ld (sm_sound_ptr_l), a
+    ld a, h
+    ld (sm_sound_ptr_h), a
+    ld a, 1
+    ld (sm_sound_active), a
+    ret
+
+.empty_sound:
+    xor a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ret
+
+SM_UpdateSound:
+    ; Advances one frame of the active PLAY_SOUND asset.
+    ; The current frame is emitted immediately on SM_PlaySoundAsset, so
+    ; frames_left includes the frame already sounding.
+    ld a, (music_active)
+    or a
+    ret nz
+    ld a, (sm_sound_active)
+    or a
+    ret z
+
+    ld a, (sm_sound_frames_left)
+    or a
+    jr z, .stop_sound
+
+    dec a
+    ld (sm_sound_frames_left), a
+    jr z, .stop_sound
+
+    ld a, (sm_sound_ptr_l)
+    ld l, a
+    ld a, (sm_sound_ptr_h)
+    ld h, a
+    call SM_ApplySoundFrame
+    ld a, l
+    ld (sm_sound_ptr_l), a
+    ld a, h
+    ld (sm_sound_ptr_h), a
+    ret
+
+.stop_sound:
+    call SM_SilencePSG
+    xor a
+    ld (sm_sound_active), a
     ret
 
 SM_PlaySfx_Beep:
@@ -4377,13 +4490,115 @@ Condition_VariableCompare:
     ld a, 0
     ret
     `;
+function clampByte(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return 0;
+    return Math.max(0, Math.min(255, Math.round(numeric)));
+}
+function clampNibble(value) {
+    return Math.max(0, Math.min(15, clampByte(value)));
+}
+function clampTonePeriod(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric))
+        return 0;
+    return Math.max(0, Math.min(4095, Math.round(numeric)));
+}
+function toSoundFrameCount(durationMs) {
+    const numeric = Number(durationMs);
+    if (!Number.isFinite(numeric) || numeric <= 0)
+        return 1;
+    return Math.max(1, Math.round((numeric * 60) / 1000));
+}
+function buildSoundNameToIndexMap(sounds) {
+    const soundMap = {};
+    (sounds || []).forEach((sound, index) => {
+        const id = typeof sound?.id === 'string' ? sound.id : '';
+        const name = typeof sound?.name === 'string' ? sound.name : '';
+        if (id) {
+            soundMap[id] = index;
+            soundMap[id.toLowerCase()] = index;
+        }
+        if (name) {
+            soundMap[name] = index;
+            soundMap[name.toLowerCase()] = index;
+        }
+    });
+    return soundMap;
+}
+function generateStateMachineSoundTables(sounds) {
+    const soundList = Array.isArray(sounds) ? sounds : [];
+    let asm = `SM_SoundFrameSize EQU 11\n`;
+    asm += `SM_SoundAssetCount EQU ${soundList.length}\n`;
+    asm += `SM_SoundPtrTable:\n`;
+    if (soundList.length === 0) {
+        asm += `    DW 0\n`;
+        return asm;
+    }
+    soundList.forEach((sound, soundIndex) => {
+        asm += `    DW SM_SoundAsset_${soundIndex}\n`;
+    });
+    asm += `\n`;
+    soundList.forEach((sound, soundIndex) => {
+        const channels = Array.isArray(sound?.channels) ? sound.channels : [];
+        const expandedChannels = [0, 1, 2].map((channelIndex) => {
+            const channel = channels[channelIndex];
+            const steps = Array.isArray(channel?.steps) ? channel.steps : [];
+            const expanded = [];
+            for (const step of steps) {
+                const frameCount = toSoundFrameCount(step?.durationMs);
+                for (let i = 0; i < frameCount; i++) {
+                    expanded.push(step || {});
+                }
+            }
+            return expanded;
+        });
+        const totalFrames = Math.max(expandedChannels[0].length, expandedChannels[1].length, expandedChannels[2].length);
+        const safeFrameCount = Math.min(255, totalFrames);
+        const globalNoisePeriod = Math.max(0, Math.min(31, clampByte(sound?.noisePeriod)));
+        asm += `SM_SoundAsset_${soundIndex}:\n`;
+        asm += `    DB ${safeFrameCount}\n`;
+        asm += `    DW SM_SoundAsset_${soundIndex}_Frames\n`;
+        asm += `\n`;
+        asm += `SM_SoundAsset_${soundIndex}_Frames:\n`;
+        if (safeFrameCount === 0) {
+            asm += `    ; Empty sound asset: silent\n`;
+            return;
+        }
+        for (let frameIndex = 0; frameIndex < safeFrameCount; frameIndex++) {
+            let mixer = 0x3F;
+            const frameBytes = [];
+            for (let channelIndex = 0; channelIndex < 3; channelIndex++) {
+                const step = expandedChannels[channelIndex][frameIndex];
+                const tonePeriod = clampTonePeriod(step?.tonePeriod);
+                const toneLow = tonePeriod & 0xFF;
+                const toneHigh = (tonePeriod >> 8) & 0x0F;
+                const volume = step ? clampNibble(step.volume) : 0;
+                const toneEnabled = !!step?.toneEnabled;
+                const noiseEnabled = !!step?.noiseEnabled;
+                if (toneEnabled) {
+                    mixer &= ~(1 << channelIndex);
+                }
+                if (noiseEnabled) {
+                    mixer &= ~(1 << (channelIndex + 3));
+                }
+                frameBytes.push(toneLow, toneHigh, volume);
+            }
+            frameBytes.push(globalNoisePeriod, mixer & 0x3F);
+            asm += `    DB ${frameBytes.join(', ')}\n`;
+        }
+        asm += `\n`;
+    });
+    return asm.trimEnd();
+}
 // =============================================================================
 // GENERATOR FUNCTIONS
 // =============================================================================
 /**
  * Generates the complete ASM file content for the State Machine system
  */
-function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates) {
+function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates, sounds, trackIndexByAssetId) {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
     // Must match spritesGenerator directional expansion to keep indexes aligned.
@@ -4418,6 +4633,7 @@ function generateStateMachineSystem(stateMachines, globalVariables, sprites, til
     const variableIdMap = buildVariableIdMap(globalVariables);
     const tileIdToCharCode = buildTileIdToBaseCharMap(tiles);
     const templateTokenMap = buildTemplateTokenMap(templates);
+    const soundNameToIndex = buildSoundNameToIndexMap(sounds);
     const templateProfiles = buildTemplateProfileTables(templates, spriteNameToIndex, templateTokenMap);
     const formatDbTable = (label, values) => {
         const escapedValues = values.map((v) => Math.max(0, Math.min(255, v | 0)));
@@ -4448,12 +4664,20 @@ function generateStateMachineSystem(stateMachines, globalVariables, sprites, til
         asm += '    ; Empty table (no sprites)\n';
     }
     asm += '\n';
+    asm += '; ==================================================================\n';
+    asm += '; STATE MACHINE SOUND ASSET TABLES\n';
+    asm += '; PLAY_SOUND exports a one-shot 60Hz frame stream per sound asset.\n';
+    asm += '; Channel loops are flattened to a single pass to avoid stuck PSG.\n';
+    asm += '; Hardware envelopes are not emitted yet in this state-machine path.\n';
+    asm += '; ==================================================================\n';
+    asm += generateStateMachineSoundTables(sounds);
+    asm += '\n';
     for (const sm of stateMachines) {
-        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
     }
     return asm;
 }
-function generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap) {
+function generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId) {
     let asm = `; State Machine: ${sm.name} (${sm.id}) \n`;
     const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
     const isAnyStateId = (value) => {
@@ -4487,14 +4711,14 @@ function generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdTo
         if (state.onEnter && state.onEnter.length > 0) {
             asm += `${onEnterLabel}: \n`;
             for (const action of state.onEnter) {
-                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
             }
             asm += `    DB 0xFF; END\n`;
         }
         if (state.onExit && state.onExit.length > 0) {
             asm += `${onExitLabel}: \n`;
             for (const action of state.onExit) {
-                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
             }
             asm += `    DB 0xFF; END\n`;
         }
@@ -4522,7 +4746,7 @@ function generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdTo
                 if (actionLabel !== '0') {
                     let actionBlock = `${actionLabel}: \n`;
                     for (const action of t.actions || []) {
-                        actionBlock += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap);
+                        actionBlock += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
                     }
                     actionBlock += `    DB 0xFF; END\n`;
                     deferredActionBlocks.push(actionBlock);
@@ -4558,7 +4782,22 @@ function serializeValue(value) {
     }
     return '0';
 }
-function generateActionBytes(action, smName = '', variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap) {
+function resolveTrackIndex(value, trackIndexByAssetId) {
+    if (typeof value === 'string') {
+        const direct = trackIndexByAssetId?.[value];
+        if (direct !== undefined)
+            return direct;
+        const parsed = parseInt(value, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 254)
+            return parsed;
+        return 0xFF;
+    }
+    if (typeof value === 'number' && value >= 0 && value <= 254) {
+        return value;
+    }
+    return 0xFF;
+}
+function generateActionBytes(action, smName = '', variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId) {
     const id = ACTION_IDS[action.type];
     if (id === undefined)
         return `; Unknown Action: ${action.type} \n`;
@@ -4607,12 +4846,34 @@ function generateActionBytes(action, smName = '', variableIdMap, spriteNameToInd
             break;
         case statemachine_types_1.ActionTypes.PLAY_SOUND: {
             const soundId = action.params.soundId ?? action.params.sound ?? action.params.soundAssetId ?? 0;
-            bytes += `    DB ${serializeValue(soundId)} \n`;
+            let soundIndex = 255;
+            if (typeof soundId === 'string') {
+                const directIndex = soundNameToIndex?.[soundId];
+                const lowerIndex = soundNameToIndex?.[soundId.toLowerCase()];
+                if (directIndex !== undefined) {
+                    soundIndex = directIndex;
+                }
+                else if (lowerIndex !== undefined) {
+                    soundIndex = lowerIndex;
+                }
+            }
+            else {
+                const parsedIndex = parseInt(serializeValue(soundId), 10);
+                if (!isNaN(parsedIndex)) {
+                    soundIndex = parsedIndex;
+                }
+            }
+            bytes += `    DB ${soundIndex}        ; sound: ${soundId}\n`;
             break;
         }
         case statemachine_types_1.ActionTypes.PLAY_MUSIC: {
             const trackId = action.params.trackId ?? action.params.musicId ?? action.params.music ?? 0;
-            bytes += `    DB ${serializeValue(trackId)} \n`;
+            const loopFlag = action.params.loop ?? true;
+            const trackIndex = resolveTrackIndex(trackId, trackIndexByAssetId);
+            const warning = trackIndex === 0xFF && trackId !== 0 && trackId !== '0'
+                ? `        ; WARNING: unresolved/non-PSG track ${trackId}`
+                : '';
+            bytes += `    DB ${trackIndex}, ${serializeValue(loopFlag)}        ; track: ${trackId}${warning}\n`;
             break;
         }
         case statemachine_types_1.ActionTypes.SET_VARIABLE:

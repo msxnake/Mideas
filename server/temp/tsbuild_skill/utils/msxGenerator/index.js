@@ -38,6 +38,18 @@ const particlesGenerator_1 = require("./generators/particlesGenerator");
 function convertSummaryToAnalysis(summary) {
     // This function was extracted from the original msxModularGenerator.ts (lines 143-289)
     // It converts the summary format to the analysis format used by generators
+    const tracks = (summary.assets.tracks || [])
+        .filter((track) => (track?.soundChip || 'PSG') === 'PSG')
+        .map((track) => ({
+        ...track,
+        soundChip: track?.soundChip || 'PSG'
+    }));
+    const trackIndexByAssetId = tracks.reduce((map, track, index) => {
+        if (track?.id) {
+            map[track.id] = index;
+        }
+        return map;
+    }, {});
     const analysis = {
         hasSprites: summary.assets.sprites.length > 0,
         hasTiles: summary.assets.tiles.length > 0,
@@ -56,6 +68,9 @@ function convertSummaryToAnalysis(summary) {
         templates: [], // Added missing property
         entities: summary.assets.entities,
         sprites: summary.assets.sprites,
+        sounds: [],
+        tracks: tracks,
+        trackIndexByAssetId,
         tiles: summary.assets.tiles,
         screens: summary.assets.screens, // Added alias
         screenMaps: summary.assets.screens, // Added missing property
@@ -113,6 +128,9 @@ function generateModularASM(projectName, assets, config = {}) {
             templates: [],
             entities: [],
             sprites: [],
+            sounds: [],
+            tracks: [],
+            trackIndexByAssetId: {},
             tiles: [],
             screens: [],
             screenMaps: [],
@@ -156,7 +174,9 @@ function generateModularASM(projectName, assets, config = {}) {
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
         'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis),
         'particles.asm': (0, particlesGenerator_1.generateParticlesFile)(analysis),
-        'statemachine.asm': analysis.stateMachines ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates) : '; No State Machines\n',
+        'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
+            ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId)
+            : '; No State Machines\n',
         'gameflow.asm': (0, gameFlowGenerator_1.generateGameFlowFile)(analysis),
         'main.asm': (0, mainGenerator_1.generateMainFile)(projectName, analysis),
         'unitedFiles.asm': ''
@@ -230,7 +250,9 @@ function generateModularASMFromSummary(summary, config = {}) {
         'scroll.asm': (0, scrollGenerator_1.generateScrollFile)(analysis),
         'animtiles.asm': (0, animatedTilesGenerator_1.generateAnimatedTilesFile)(analysis),
         'particles.asm': (0, particlesGenerator_1.generateParticlesFile)(analysis),
-        'statemachine.asm': analysis.stateMachines ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates) : '; No State Machines\n',
+        'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
+            ? (0, stateMachineGenerator_1.generateStateMachineSystem)(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, analysis.templates, analysis.sounds, analysis.trackIndexByAssetId)
+            : '; No State Machines\n',
         'gameflow.asm': (0, gameFlowGenerator_1.generateGameFlowFile)(analysis),
         'main.asm': (0, mainGenerator_1.generateMainFile)(summary.projectInfo.name, analysis),
         'unitedFiles.asm': ''

@@ -55,6 +55,7 @@ update_all_entities:
         ['Movement', 'update_movement_component', '5. Movement'],
         ['Cursors', 'update_cursors_component', '5b. Cursors movement'], // comp_cursors
         ['Gravity', 'update_gravity_component', '6. Gravity'],
+        ['TileInteraction', 'update_slash_component', '6b. Additive slash velocity'],
         ['Position', 'update_position_component', '7. Apply velocity'], // Always needed
         ['Collision', 'prepare_platform_detection', '8a. Clear platform refs'],
         ['Collision', 'update_collision_component', '8b. Collision detection'],
@@ -3146,6 +3147,20 @@ function generateJumpSystem() {
             ld (hl), 0
             ldir
 
+            ; Clear temporary extra-jump charges granted by bonus pickups
+            ld hl, entity_jump_bonus
+            ld de, entity_jump_bonus+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Initialize configured max jumps (default: single jump)
+            ld hl, entity_jump_max
+            ld de, entity_jump_max+1
+            ld bc, 31
+            ld (hl), 1
+            ldir
+
             ; Clear on-ground flags
             ld hl, entity_on_ground
             ld de, entity_on_ground+1
@@ -3157,7 +3172,7 @@ function generateJumpSystem() {
         update_jump_component:
             ; Update jump logic for entities
             ; Fire button edge triggers jump for entities with Jump+Input
-            ; Uses: entity_jump_count, entity_on_ground, entity_gravity_vel
+            ; Uses: entity_jump_count, entity_jump_max, entity_jump_bonus, entity_on_ground, entity_gravity_vel
             ; Uses global input_btn_curr/input_btn_prev edge detection
 
             ld a, (active_entity_count)
@@ -3177,7 +3192,7 @@ function generateJumpSystem() {
             ld a, (hl)
             pop hl                        ; Restore list pointer
             and #01                       ; Jump bit (COMP_MASK_JUMP=#0100 -> high byte bit0)
-            jr z, jump_next_entity
+            jp z, jump_next_entity
 
             ; Require Input component
             push hl
@@ -3188,7 +3203,7 @@ function generateJumpSystem() {
             ld a, (hl)
             and COMP_MASK_INPUT
             pop hl
-            jr z, jump_next_entity
+            jp z, jump_next_entity
 
             push bc
             push hl
@@ -3207,30 +3222,74 @@ function generateJumpSystem() {
             add hl, de
             ld (hl), 0
 
+            ; Landing also clears any unused extra-jump bonus.
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld (hl), 0
+
         .jump_check:
             ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
             ld a, (input_btn_curr)
             and INPUT_BTN_FIRE
-            jr z, jump_done_entity        ; not pressed
+            jp z, jump_done_entity        ; not pressed
             ld a, (input_btn_prev)
             and INPUT_BTN_FIRE
-            jr nz, jump_done_entity       ; already held last frame
+            jp nz, jump_done_entity       ; already held last frame
 
-            ; Check jump count < 2 OR grounded
+            ; Check jump count < configured max OR grounded
             ld hl, entity_jump_count
             ld e, c
             ld d, 0
             add hl, de
             ld a, (hl)
-            cp 2
+            ld hl, entity_jump_max
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld b, (hl)
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld d, (hl)
+            ld a, b
+            add a, d
+            ld b, a
+            ld hl, entity_jump_count
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            cp b
             jr c, .do_jump
 
             ld hl, entity_on_ground
             add hl, de
             bit 0, (hl)
-            jr z, jump_done_entity
+            jp z, jump_done_entity
 
         .do_jump:
+            ; Consume one bonus jump only when performing an airborne jump
+            ; beyond the entity's base maxJumps.
+            ld hl, entity_on_ground
+            add hl, de
+            bit 0, (hl)
+            jr nz, .skip_bonus_consume
+
+            ld hl, entity_jump_count
+            add hl, de
+            ld a, (hl)
+            ld hl, entity_jump_max
+            add hl, de
+            cp (hl)
+            jr c, .skip_bonus_consume
+
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld a, (hl)
+            or a
+            jr z, .skip_bonus_consume
+            dec (hl)
+
+        .skip_bonus_consume:
             ; jump_count++
             ld hl, entity_jump_count
             add hl, de
@@ -3254,7 +3313,7 @@ function generateJumpSystem() {
             add hl, de
             ld a, (hl)
             and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
-            jr z, jump_done_entity
+            jp z, jump_done_entity
 
             ld hl, entity_gravity_vel
             ld e, c
@@ -4272,7 +4331,651 @@ wall_sub_signed_offset_clamped:
  * (mapId & #08 != 0 = NoSolid+Interactable, e.g. gems/coins on the screen map).
  * On contact: clears tile from VRAM Name Table + runtime_behavior_map, increments gem_count.
  */
-function generateTileInteractionSystem() {
+function buildSoundAssetIndexMap(sounds) {
+    const soundMap = {};
+    (sounds || []).forEach((sound, index) => {
+        const id = typeof sound?.id === 'string' ? sound.id : '';
+        const name = typeof sound?.name === 'string' ? sound.name : '';
+        if (id) {
+            soundMap[id] = index;
+            soundMap[id.toLowerCase()] = index;
+        }
+        if (name) {
+            soundMap[name] = index;
+            soundMap[name.toLowerCase()] = index;
+        }
+    });
+    return soundMap;
+}
+function resolveSoundAssetIndex(soundRef, soundMap) {
+    if (typeof soundRef === 'number' && Number.isFinite(soundRef)) {
+        return Math.max(0, Math.min(255, soundRef | 0));
+    }
+    if (typeof soundRef === 'string') {
+        const trimmed = soundRef.trim();
+        if (!trimmed)
+            return null;
+        const directIndex = soundMap[trimmed];
+        if (directIndex !== undefined)
+            return directIndex;
+        const lowerIndex = soundMap[trimmed.toLowerCase()];
+        if (lowerIndex !== undefined)
+            return lowerIndex;
+        const parsedIndex = parseInt(trimmed, 10);
+        if (!isNaN(parsedIndex))
+            return Math.max(0, Math.min(255, parsedIndex));
+    }
+    return null;
+}
+function clampTileCollectorAmount(rawValue) {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed) || parsed <= 0)
+        return 0;
+    return Math.max(0, Math.min(65535, Math.round(parsed)));
+}
+function clampTileCollectorByte(rawValue) {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed) || parsed <= 0)
+        return 0;
+    return Math.max(0, Math.min(255, Math.round(parsed)));
+}
+function buildTileIdToBaseCharMap(tiles) {
+    const map = {};
+    if (!tiles || tiles.length === 0)
+        return map;
+    let nextCharCode = 128;
+    tiles.forEach((tile) => {
+        if (!tile || !tile.id)
+            return;
+        map[tile.id] = nextCharCode;
+        if (tile.name) {
+            map[String(tile.name)] = nextCharCode;
+            map[String(tile.name).toLowerCase()] = nextCharCode;
+        }
+        const charsWide = Math.max(1, Math.ceil((Number(tile.width) || 8) / 8));
+        const charsHigh = Math.max(1, Math.ceil((Number(tile.height) || 8) / 8));
+        nextCharCode += charsWide * charsHigh;
+    });
+    return map;
+}
+function resolveTileCharCode(value, tileIdToCharCode) {
+    if (typeof value === 'string' && tileIdToCharCode) {
+        if (tileIdToCharCode[value] !== undefined)
+            return tileIdToCharCode[value];
+        const lower = value.toLowerCase();
+        if (tileIdToCharCode[lower] !== undefined)
+            return tileIdToCharCode[lower];
+    }
+    const parsed = parseInt(String(value ?? ''), 10);
+    return Number.isNaN(parsed) ? 0 : Math.max(0, Math.min(255, parsed | 0));
+}
+function buildGlobalVariableInfoMap(analysis) {
+    const variableMap = {};
+    const globalVariables = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+    for (const variable of globalVariables) {
+        const name = typeof variable?.name === 'string' ? variable.name.trim() : '';
+        const asmName = typeof variable?.asmName === 'string' ? variable.asmName.trim() : '';
+        if (!name || !asmName)
+            continue;
+        const type = String(variable?.type || '').toLowerCase();
+        const isWord = type === 'word' || type === '16bit';
+        variableMap[name] = { asmName, isWord };
+        variableMap[name.toLowerCase()] = { asmName, isWord };
+        variableMap[asmName] = { asmName, isWord };
+        variableMap[asmName.toLowerCase()] = { asmName, isWord };
+    }
+    return variableMap;
+}
+function resolveConfiguredVariableInfo(variableRef, variableMap) {
+    if (typeof variableRef !== 'string')
+        return null;
+    const trimmed = variableRef.trim();
+    if (!trimmed)
+        return null;
+    return variableMap[trimmed] || variableMap[trimmed.toLowerCase()] || null;
+}
+function extractTileCollectorConfig(candidate) {
+    if (!candidate || candidate.isEnabled === false || candidate.isEnabled === 'false') {
+        return null;
+    }
+    return {
+        collectionSoundId: candidate.collectionSoundId,
+        replacementTileId: candidate.replacementTileId,
+        targetVariable: candidate.targetVariable ?? candidate.scoreVariable ?? candidate.scoreVariableName,
+        incrementAmount: candidate.incrementAmount ?? candidate.scoreAmount ?? candidate.collectionValue ?? 0,
+        bonusTileId: candidate.bonusTileId,
+        bonusReplacementTileId: candidate.bonusReplacementTileId,
+        bonusSoundId: candidate.bonusSoundId,
+        bonusIsPersistent: candidate.bonusIsPersistent,
+        bonusEntityEffect: candidate.bonusEntityEffect,
+        bonusEffectAmount: candidate.bonusEffectAmount,
+        bonusSlashStrength: candidate.bonusSlashStrength,
+        bonusRespawnSeconds: candidate.bonusRespawnSeconds,
+    };
+}
+function resolveTileCollectorRuntimeConfig(analysis) {
+    const soundMap = buildSoundAssetIndexMap(analysis.sounds);
+    const variableMap = buildGlobalVariableInfoMap(analysis);
+    const tileIdToCharCode = buildTileIdToBaseCharMap(analysis.tiles);
+    const entities = Array.isArray(analysis.entities) ? analysis.entities : [];
+    for (const entity of entities) {
+        const config = extractTileCollectorConfig(entity?.componentOverrides?.['comp_tile_collector']);
+        if (!config)
+            continue;
+        const soundAssetIndex = resolveSoundAssetIndex(config.collectionSoundId, soundMap);
+        const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
+        const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
+        const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+        const bonusTileChar = config.bonusTileId ? resolveTileCharCode(config.bonusTileId, tileIdToCharCode) : null;
+        const bonusReplacementTileChar = resolveTileCharCode(config.bonusReplacementTileId ?? 0, tileIdToCharCode);
+        const bonusSoundAssetIndex = resolveSoundAssetIndex(config.bonusSoundId, soundMap);
+        const bonusIsPersistent = config.bonusIsPersistent === true || config.bonusIsPersistent === 'true';
+        const bonusEntityEffect = typeof config.bonusEntityEffect === 'string'
+            ? config.bonusEntityEffect.trim().toLowerCase()
+            : 'none';
+        const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
+        const bonusSlashStrength = clampTileCollectorByte(config.bonusSlashStrength ?? 8);
+        const bonusRespawnSeconds = clampTileCollectorByte(config.bonusRespawnSeconds);
+        if (soundAssetIndex !== null ||
+            replacementTileChar !== 0 ||
+            (targetVariable && incrementAmount > 0) ||
+            bonusTileChar !== null ||
+            bonusSoundAssetIndex !== null ||
+            (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
+            (bonusTileChar !== null && bonusRespawnSeconds > 0)) {
+            return {
+                soundAssetIndex,
+                replacementTileChar,
+                targetVariable,
+                incrementAmount,
+                bonusTileChar,
+                bonusReplacementTileChar,
+                bonusSoundAssetIndex,
+                bonusIsPersistent,
+                bonusEntityEffect,
+                bonusEffectAmount,
+                bonusSlashStrength,
+                bonusRespawnSeconds,
+            };
+        }
+    }
+    const templates = Array.isArray(analysis.templates) ? analysis.templates : [];
+    for (const template of templates) {
+        const collectorComp = template?.components?.find((c) => c.definitionId === 'comp_tile_collector');
+        if (!collectorComp)
+            continue;
+        const config = extractTileCollectorConfig(collectorComp.defaultValues || {});
+        if (!config)
+            continue;
+        const soundAssetIndex = resolveSoundAssetIndex(config.collectionSoundId, soundMap);
+        const replacementTileChar = resolveTileCharCode(config.replacementTileId ?? 0, tileIdToCharCode);
+        const targetVariable = resolveConfiguredVariableInfo(config.targetVariable, variableMap);
+        const incrementAmount = clampTileCollectorAmount(config.incrementAmount);
+        const bonusTileChar = config.bonusTileId ? resolveTileCharCode(config.bonusTileId, tileIdToCharCode) : null;
+        const bonusReplacementTileChar = resolveTileCharCode(config.bonusReplacementTileId ?? 0, tileIdToCharCode);
+        const bonusSoundAssetIndex = resolveSoundAssetIndex(config.bonusSoundId, soundMap);
+        const bonusIsPersistent = config.bonusIsPersistent === true || config.bonusIsPersistent === 'true';
+        const bonusEntityEffect = typeof config.bonusEntityEffect === 'string'
+            ? config.bonusEntityEffect.trim().toLowerCase()
+            : 'none';
+        const bonusEffectAmount = clampTileCollectorAmount(config.bonusEffectAmount);
+        const bonusSlashStrength = clampTileCollectorByte(config.bonusSlashStrength ?? 8);
+        const bonusRespawnSeconds = clampTileCollectorByte(config.bonusRespawnSeconds);
+        if (soundAssetIndex !== null ||
+            replacementTileChar !== 0 ||
+            (targetVariable && incrementAmount > 0) ||
+            bonusTileChar !== null ||
+            bonusSoundAssetIndex !== null ||
+            (bonusEntityEffect !== 'none' && bonusEffectAmount > 0) ||
+            (bonusTileChar !== null && bonusRespawnSeconds > 0)) {
+            return {
+                soundAssetIndex,
+                replacementTileChar,
+                targetVariable,
+                incrementAmount,
+                bonusTileChar,
+                bonusReplacementTileChar,
+                bonusSoundAssetIndex,
+                bonusIsPersistent,
+                bonusEntityEffect,
+                bonusEffectAmount,
+                bonusSlashStrength,
+                bonusRespawnSeconds,
+            };
+        }
+    }
+    return {
+        soundAssetIndex: null,
+        replacementTileChar: 0,
+        targetVariable: null,
+        incrementAmount: 0,
+        bonusTileChar: null,
+        bonusReplacementTileChar: 0,
+        bonusSoundAssetIndex: null,
+        bonusIsPersistent: false,
+        bonusEntityEffect: 'none',
+        bonusEffectAmount: 0,
+        bonusSlashStrength: 8,
+        bonusRespawnSeconds: 0,
+    };
+}
+function generateTileInteractionSystem(tileCollectorConfig, canUseSoundAssetPlayback) {
+    const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
+    const replacementTileChar = tileCollectorConfig.replacementTileChar;
+    const bonusSlashStrength = Math.max(1, Math.min(32, tileCollectorConfig.bonusSlashStrength || 8));
+    const bonusSlashUpStrength = Math.max(1, bonusSlashStrength - 1);
+    const bonusSlashDownStrength = Math.max(1, bonusSlashStrength - 2);
+    const bonusSlashLeftByte = `#${((256 - bonusSlashStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
+    const bonusSlashUpLeftByte = `#${((256 - bonusSlashUpStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
+    const bonusSlashDownLeftByte = `#${((256 - bonusSlashDownStrength) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}`;
+    const collectionSoundCode = collectionSoundAssetIndex !== null && canUseSoundAssetPlayback
+        ? `    ; Tile Collector UI-configured collection sound.
+    ; Preserve DE because it still carries the tile index for persistence.
+    push de
+    ld a, ${collectionSoundAssetIndex}
+    call SM_PlaySoundAsset
+    pop de
+`
+        : collectionSoundAssetIndex !== null
+            ? `    ; collectionSoundId is configured in the Tile Collector UI,
+    ; but this build has no state-machine sound asset runtime.
+    ; Stay silent instead of forcing the wrong built-in beep.
+`
+            : `    ; No collectionSoundId configured in the Tile Collector UI.
+`;
+    const bonusSoundCode = tileCollectorConfig.bonusSoundAssetIndex !== null && canUseSoundAssetPlayback
+        ? `    ; Tile Collector bonus pickup sound.
+    push de
+    ld a, ${tileCollectorConfig.bonusSoundAssetIndex}
+    call SM_PlaySoundAsset
+    pop de
+`
+        : tileCollectorConfig.bonusSoundAssetIndex !== null
+            ? `    ; bonusSoundId is configured, but this build has no state-machine sound asset runtime.
+`
+            : `    ; No bonusSoundId configured.
+`;
+    const hudSyncCode = tileCollectorConfig.targetVariable?.asmName === 'global_var_score'
+        ? `    ; Keep HUD Score text in sync with the updated global variable.
+    push de
+    ld a, (${tileCollectorConfig.targetVariable.asmName})
+    ld l, a
+    ld a, (${tileCollectorConfig.targetVariable.asmName}+1)
+    ld h, a
+    call update_hud_score
+    call force_render_hud
+    pop de
+`
+        : tileCollectorConfig.targetVariable?.asmName === 'global_var_lives'
+            ? `    ; Keep HUD Lives text in sync with the updated global variable.
+    push de
+    ld a, (${tileCollectorConfig.targetVariable.asmName})
+    call update_hud_lives
+    call force_render_hud
+    pop de
+`
+            : '';
+    const variableIncrementCode = tileCollectorConfig.targetVariable && tileCollectorConfig.incrementAmount > 0
+        ? tileCollectorConfig.targetVariable.isWord
+            ? `    ; Tile Collector configured variable increment (16-bit).
+    ld hl, ${tileCollectorConfig.targetVariable.asmName}
+    ld a, (hl)
+    add a, ${(tileCollectorConfig.incrementAmount & 0xFF)}
+    ld (hl), a
+    inc hl
+    ld a, (hl)
+    adc a, ${((tileCollectorConfig.incrementAmount >> 8) & 0xFF)}
+    ld (hl), a
+${hudSyncCode}
+`
+            : `    ; Tile Collector configured variable increment (8-bit).
+    ld hl, ${tileCollectorConfig.targetVariable.asmName}
+    ld a, (hl)
+    add a, ${Math.min(255, tileCollectorConfig.incrementAmount)}
+    ld (hl), a
+${hudSyncCode}
+`
+        : `    ; No targetVariable/incrementAmount configured in the Tile Collector UI.
+`;
+    const bonusEffectCode = tileCollectorConfig.bonusEntityEffect === 'grant_extra_jump' && tileCollectorConfig.bonusEffectAmount > 0
+        ? `    ; Bonus tile effect: arm an additive slash for the collecting entity.
+    ; Horizontal motion is applied by update_slash_component on subsequent frames.
+    push de
+    ld e, c
+    ld d, 0
+    ld hl, entity_on_ground
+    add hl, de
+    res 0, (hl)
+
+    ld hl, entity_platform_id
+    add hl, de
+    ld (hl), 255
+
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), 0
+
+    ld hl, entity_dir_mask
+    add hl, de
+    ld b, (hl)                     ; B = direction permissions for this entity
+
+    ld a, (input_state)
+    or a
+    jp z, .ti_bonus_no_input
+    cp STICK_RIGHT
+    jp z, .ti_bonus_right
+    cp STICK_UPRIGHT
+    jp z, .ti_bonus_input_upright
+    cp STICK_DOWNRIGHT
+    jp z, .ti_bonus_downright
+    cp STICK_LEFT
+    jp z, .ti_bonus_left
+    cp STICK_UPLEFT
+    jp z, .ti_bonus_input_upleft
+    cp STICK_DOWNLEFT
+    jp z, .ti_bonus_downleft
+    cp STICK_DOWN
+    jp z, .ti_bonus_down
+    cp STICK_UP
+    jp z, .ti_bonus_input_up
+    jp .ti_bonus_facing_default
+
+.ti_bonus_no_input:
+    ; No directional cursor held: never infer horizontal slash from facing.
+    ; If UP is allowed, use the neutral upward pop; otherwise consume the
+    ; bonus tile without any forced movement.
+    ld a, b
+    and DIR_ALLOW_UP
+    jp nz, .ti_bonus_up
+    jp .ti_bonus_done
+
+.ti_bonus_input_upright:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .ti_bonus_right
+    jp .ti_bonus_upright
+
+.ti_bonus_input_upleft:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp z, .ti_bonus_left
+    jp .ti_bonus_upleft
+
+.ti_bonus_input_up:
+    ld a, b
+    and DIR_ALLOW_UP
+    jp nz, .ti_bonus_up
+    jp .ti_bonus_facing_default
+
+.ti_bonus_facing_default:
+    ld hl, entity_facing_dir
+    add hl, de
+    ld a, (hl)
+    cp 1
+    jp z, .ti_bonus_left
+    cp 2
+    jp z, .ti_bonus_right
+    jp .ti_bonus_right
+
+.ti_bonus_right:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashStrength}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FF
+    jp .ti_bonus_done
+
+.ti_bonus_upright:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashUpStrength}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FD
+    jp .ti_bonus_done
+
+.ti_bonus_downright:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashDownStrength}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #01
+    jp .ti_bonus_done
+
+.ti_bonus_left:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashLeftByte}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FF
+    jp .ti_bonus_done
+
+.ti_bonus_upleft:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashUpLeftByte}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FD
+    jp .ti_bonus_done
+
+.ti_bonus_downleft:
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld (hl), ${bonusSlashDownLeftByte}
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #01
+    jp .ti_bonus_done
+
+.ti_bonus_down:
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #02
+    jp .ti_bonus_done
+
+.ti_bonus_up:
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de
+    ld (hl), 0
+    inc hl
+    ld (hl), #FC
+
+.ti_bonus_done:
+    pop de
+`
+        : `    ; No supported bonus entity effect configured.
+`;
+    const bonusCollectBranchCode = tileCollectorConfig.bonusTileChar !== null
+        ? `    ld a, b
+    cp ${tileCollectorConfig.bonusTileChar}
+    jp z, .ti_collect_bonus
+`
+        : '';
+    const bonusPersistenceCode = tileCollectorConfig.bonusIsPersistent
+        ? `    ; Bonus tile configured as persistent: record it like a normal collectible.
+    jp .ti_record_persistent
+`
+        : `    ; Bonus tile is visit-local only: do not persist across screen reloads.
+    jp .ti_next
+`;
+    const timedBonusRespawnEnabled = tileCollectorConfig.bonusTileChar !== null && tileCollectorConfig.bonusRespawnSeconds > 0;
+    const bonusRespawnContinuationCode = timedBonusRespawnEnabled
+        ? `    ; Timed bonus respawn enabled: queue tile restoration and skip persistence.
+    call record_bonus_respawn_slot
+    jp .ti_next
+`
+        : bonusPersistenceCode;
+    const bonusRespawnRuntimeCode = timedBonusRespawnEnabled
+        ? `
+record_bonus_respawn_slot:
+    ld a, d
+    push af
+    ld a, e
+    push af
+    ld b, MAX_BONUS_RESPAWNS
+    ld c, 0
+.rbr_loop:
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_secs
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .rbr_store
+    inc c
+    dec b
+    jp nz, .rbr_loop
+    pop af
+    pop af
+    ret
+.rbr_store:
+    ld (hl), ${tileCollectorConfig.bonusRespawnSeconds}
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_frames
+    add hl, de
+    ld (hl), 60
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_world
+    add hl, de
+    ld a, (current_world_id)
+    ld (hl), a
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_screen
+    add hl, de
+    ld a, (current_screen_id)
+    ld (hl), a
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_idx_l
+    add hl, de
+    pop af
+    ld (hl), a
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_idx_h
+    add hl, de
+    pop af
+    ld (hl), a
+    ret
+
+update_bonus_respawns:
+    ld b, MAX_BONUS_RESPAWNS
+    ld c, 0
+.ubr_loop:
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_secs
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .ubr_next
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_frames
+    add hl, de
+    ld a, (hl)
+    dec a
+    ld (hl), a
+    jp nz, .ubr_next
+    ld (hl), 60
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_secs
+    add hl, de
+    ld a, (hl)
+    dec a
+    ld (hl), a
+    jp nz, .ubr_next
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_world
+    add hl, de
+    ld a, (current_world_id)
+    cp (hl)
+    jp nz, .ubr_clear_slot
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_screen
+    add hl, de
+    ld a, (current_screen_id)
+    cp (hl)
+    jp nz, .ubr_clear_slot
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_idx_l
+    add hl, de
+    ld a, (hl)
+    push af
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_idx_h
+    add hl, de
+    ld a, (hl)
+    ld d, a
+    pop af
+    ld e, a
+    push bc
+    ld hl, NAMETBL
+    add hl, de
+    ld a, ${tileCollectorConfig.bonusTileChar}
+    call FAST_WRTVRM
+    pop bc
+    ld hl, runtime_behavior_map
+    add hl, de
+    ld (hl), #08
+.ubr_clear_slot:
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_secs
+    add hl, de
+    ld (hl), 0
+    ld d, 0
+    ld e, c
+    ld hl, bonus_respawn_frames
+    add hl, de
+    ld (hl), 0
+.ubr_next:
+    inc c
+    dec b
+    jp nz, .ubr_loop
+    ret
+`
+        : `
+record_bonus_respawn_slot:
+    ret
+
+update_bonus_respawns:
+    ret
+`;
     return `
 ; ==================================================================
 ; TILE INTERACTION SYSTEM
@@ -4285,18 +4988,113 @@ function generateTileInteractionSystem() {
 ; ------------------------------------------------------------------
 
 init_tile_interaction_system:
+    ld hl, entity_slash_vel_x
+    ld de, entity_slash_vel_x+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
     ret
 
 ; ------------------------------------------------------------------
+; update_slash_component
+; Add the temporary slash horizontal velocity on top of normal movement
+; and damp it over subsequent frames.
+; ------------------------------------------------------------------
+update_slash_component:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+.slash_loop:
+    ld c, (hl)
+    inc hl
+    push hl                    ; Save list pointer
+
+    ; Skip entities not on the current screen
+    ld e, c
+    ld d, 0
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jp nz, .slash_next
+
+    push bc
+
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld a, (hl)
+    or a
+    jp z, .slash_done_entity
+
+    ld b, a                    ; B = additive slash X velocity
+    ld hl, entity_vel_x
+    add hl, de
+    ld a, (hl)
+    add a, b
+    ld (hl), a
+
+    ; Dampen toward zero: +n -> +(n-2), -n -> -(n-2)
+    ld hl, entity_slash_vel_x
+    add hl, de
+    ld a, (hl)
+    bit 7, a
+    jp z, .slash_decay_positive
+
+    add a, 2
+    bit 7, a
+    jp nz, .slash_store_decay
+    xor a
+    jp .slash_store_decay
+
+.slash_decay_positive:
+    sub 2
+    jp nc, .slash_store_decay
+    xor a
+
+.slash_store_decay:
+    ld (hl), a
+
+.slash_done_entity:
+    pop bc
+
+.slash_next:
+    pop hl
+    dec b
+    jp nz, .slash_loop
+    ret
+
+${bonusRespawnRuntimeCode}
+
+; ------------------------------------------------------------------
 ; check_tile_interaction
-; Input:  None (reads active_entity_list / active_entity_count)
-; Output: None
-; Destroys: AF, BC, DE, HL
+; Purpose:
+;   Scan active input-driven entities against the interactable tile map,
+;   collect matching tiles, update counters, optional target variable, sound,
+;   and persistent collected-tile state.
+; Input:
+;   None (reads active_entity_list / active_entity_count and runtime maps)
+; Output:
+;   None
+; Clobbers:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Stack:
+;   Uses balanced push/pop pairs for list pointer, loop counter/entity index,
+;   and temporary tile index saves on all exit paths.
+; Notes:
+;   - Returns immediately if active_entity_count = 0
+;   - Relies on FAST_WRTVRM preserving all registers
+;   - DE must survive the optional HUD/sound hooks until persistence logic runs
 ; ------------------------------------------------------------------
 check_tile_interaction:
     ld a, (active_entity_count)
     or a
-    ret z                          ; No active entities
+    jp z, .ti_respawn_only         ; No active entities
 
     ld hl, active_entity_list
     ld b, a                        ; B = entity count
@@ -4366,7 +5164,7 @@ check_tile_interaction:
     add hl, de                     ; HL = &runtime_behavior_map[idx]
     ld a, (hl)
     and #08                        ; INTERACTABLE flag (bit 3)
-    jr z, .ti_no_collect
+    jp z, .ti_no_collect
 
     ; *** COLLECT! ***
     ; Stack at this point: [idx (as HL), BC_saved, list_ptr]
@@ -4375,13 +5173,15 @@ check_tile_interaction:
     ; 1. Clear behavior map entry FIRST while HL is still correct
     ld (hl), 0                     ; Prevents double-collect next frame
 
+    ; Recover tile index in DE and restore entity index in C for optional bonus effects.
+    pop de                         ; DE = idx. Stack: [BC_saved, list_ptr]
+    pop bc                         ; B = loop count, C = entity index. Stack: [list_ptr]
+    push bc                        ; Restore loop state for .ti_next
+
     ; 0. Read char code from VRAM Name Table BEFORE clearing VRAM.
     ;    Stored in last_gem_char so SM can identify WHICH tile was collected
     ;    via VARIABLE_COMPARE last_gem_char == <charCode>.
-    pop bc                         ; BC = idx (B=high, C=low). Stack: [BC_saved, list_ptr]
-    push bc                        ; Restore idx: [idx, BC_saved, list_ptr]
-    ld d, b
-    ld e, c                        ; DE = idx
+    push de                        ; Preserve DE = idx across VRAM read setup
     ld hl, NAMETBL
     add hl, de                     ; HL = NAMETBL + idx (VRAM address to read)
     ; MSX1 direct VRAM read (port #99 = address register, port #98 = data)
@@ -4394,27 +5194,31 @@ check_tile_interaction:
     nop
     in a, (#98)                    ; A = char code from VRAM data port
     ld (last_gem_char), a          ; Store for SM: VARIABLE_COMPARE last_gem_char
+    ld b, a                        ; Preserve collected char code for bonus-tile compare
+    pop de                         ; Restore DE = idx
 
-    ; 2. Clear tile from VRAM Name Table (#1800 + idx)
-    pop de                         ; DE = idx. Stack: [BC_saved, list_ptr]
+${bonusCollectBranchCode}
+
+    jp .ti_collect_normal
+
+.ti_collect_normal:
+    ; 2. Replace tile in VRAM Name Table (#1800 + idx)
     ld hl, NAMETBL
     add hl, de                     ; HL = NAMETBL + idx
-    xor a                          ; A = 0 (empty tile char)
+    ld a, ${replacementTileChar}   ; Replacement tile char (0 = empty)
     call FAST_WRTVRM
 
     ; 3. Increment gem_count
     ld hl, gem_count
     inc (hl)
 
-    ; 3.5. Play built-in collection sound (coin)
-    ;      Preserve DE because it still carries the tile index for persistence.
-    push de
-    ld a, 4
-    call play_sound_effect
-    pop de
+${variableIncrementCode}
+
+${collectionSoundCode}
 
     ; 4. Record in persistent collected list (survives screen re-entry via apply_collected_tiles)
     ;    FAST_WRTVRM preserves all registers, so DE = idx is still valid here.
+.ti_record_persistent:
     ld a, (collected_count)
     cp MAX_COLLECTIBLES
     jp nc, .ti_next                ; List full - skip recording
@@ -4442,6 +5246,19 @@ check_tile_interaction:
 
     jp .ti_next
 
+.ti_collect_bonus:
+    ; Bonus tile path: independent from normal collectible gem logic.
+    ld hl, NAMETBL
+    add hl, de                     ; HL = NAMETBL + idx
+    ld a, ${tileCollectorConfig.bonusReplacementTileChar}
+    call FAST_WRTVRM
+
+${bonusEffectCode}
+
+${bonusSoundCode}
+
+${bonusRespawnContinuationCode}
+
 .ti_no_collect:
     pop hl                         ; Balance idx push
 
@@ -4451,6 +5268,11 @@ check_tile_interaction:
     inc hl                         ; Advance to next entity
     dec b
     jp nz, .ti_loop                ; djnz replaced with jp nz (loop body > 127 bytes)
+    call update_bonus_respawns
+    ret
+
+.ti_respawn_only:
+    call update_bonus_respawns
     ret
 `;
 }
@@ -4732,7 +5554,7 @@ function generateInitComponents(usage) {
     ; Cartridge RAM is not guaranteed to be zeroed.
         ld hl, gem_count
         ld de, gem_count + 1
-        ld bc, 258                 ; bytes to clear - 1 (gem_count..collected_idx_h)
+        ld bc, 354                 ; bytes to clear - 1 (gem_count..bonus_respawn_frames)
         xor a
         ld (hl), a
         ldir
@@ -4843,6 +5665,11 @@ function generateInitComponents(usage) {
     call init_collectible_system
     `;
     }
+    if (usedComponents.has('TileInteraction')) {
+        code += `    ; Initialize tile interaction system
+    call init_tile_interaction_system
+    `;
+    }
     code += `
     ret
     `;
@@ -4935,6 +5762,8 @@ update_jump_component:
     ret
 update_gravity_component:
     ret
+update_slash_component:
+    ret
 update_auto_destroy_component:
     ret
 update_cursors_component:
@@ -4952,6 +5781,8 @@ update_wallcollision_component:
 update_collectible_component:
     ret
 check_tile_interaction:
+    ret
+apply_collected_tiles:
     ret
 
 init_position_system:
@@ -5001,7 +5832,10 @@ init_entity_sprite:
 
     ; Component Data Structure EQUs (referenced by state machine actions)
 entity_jump_vel_y   EQU temp_word_3
+entity_slash_vel_x  EQU temp_byte_3
 entity_jump_count   EQU temp_byte_4
+entity_jump_max     EQU temp_byte_25
+entity_jump_bonus   EQU temp_byte_27
 entity_on_ground    EQU temp_byte_5
 entity_gravity_vel  EQU temp_word_4
 entity_health_current EQU temp_byte_6
@@ -5032,6 +5866,13 @@ entity_last_collision_entity EQU temp_byte_24
     // INTELLIGENT FILTERING: Analyze which components are actually used
     const componentUsage = (0, componentAnalyzer_1.analyzeComponentUsage)(analysis);
     const usedComponents = componentUsage.usedComponents;
+    const hasInteractableTiles = Array.isArray(analysis.tiles) &&
+        analysis.tiles.some((t) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
+    const tileCollectorRuntimeConfig = resolveTileCollectorRuntimeConfig(analysis);
+    const hasStateMachineSoundPlayback = Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0;
+    if (hasInteractableTiles && usedComponents.has('Input')) {
+        usedComponents.add('TileInteraction');
+    }
     const conditionTreeHas = (condition, types) => {
         if (!condition || typeof condition !== 'object')
             return false;
@@ -5122,7 +5963,10 @@ ANIM_DEFAULT_SPEED           EQU 8
     ; Jump Component Data(Fixed - Point 8.8 for smooth physics)
     ; Using temporary storage for optional components to save RAM
 entity_jump_vel_y   EQU temp_word_3; Y velocity for jumping(signed word, 32 words = 64 bytes)
+entity_slash_vel_x  EQU temp_byte_3; Additive horizontal slash velocity from bonus tiles (32 bytes)
 entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
+entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
+entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
 entity_on_ground    EQU temp_byte_5; Ground contact flag(bit 0 = on ground)(32 bytes)
 
     ; Gravity Component Data
@@ -5160,7 +6004,7 @@ entity_entity_collision_flags EQU temp_byte_23 ; bit0 entity(any), bit1 enemy, b
 entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=none) (32 bytes)
 
     ; Input Disable Flag
-entity_input_disabled EQU temp_byte_25 ; 0=enabled, 1=disabled (32 bytes)
+entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
 
 
     ; ==================================================================
@@ -5472,11 +6316,8 @@ update_collectible_component:
     }
     // Generate Tile Interaction System (when project has Interactable tiles)
     // Detects tiles with mapId & #08 (INTERACTABLE flag) on the screen map.
-    const hasInteractableTiles = Array.isArray(analysis.tiles) &&
-        analysis.tiles.some((t) => ((t.logicalProperties?.mapId ?? 0) & 0x08) !== 0);
     if (hasInteractableTiles && usedComponents.has('Input')) {
-        usedComponents.add('TileInteraction'); // Enable the call in update_all_entities
-        code += generateTileInteractionSystem();
+        code += generateTileInteractionSystem(tileCollectorRuntimeConfig, hasStateMachineSoundPlayback);
         code += generateApplyCollectedTiles();
         console.log('  - Tile Interaction system: ENABLED (interactable tiles detected)');
     }
@@ -5484,6 +6325,9 @@ update_collectible_component:
         code += `
     ; Tile interaction system filtered out(no interactable tiles or no input)
 init_tile_interaction_system:
+    ret
+
+update_slash_component:
     ret
 
 check_tile_interaction:

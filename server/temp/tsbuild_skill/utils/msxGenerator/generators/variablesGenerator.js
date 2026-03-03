@@ -65,8 +65,10 @@ function generateVariablesFile(analysis) {
     if (analysis.globalVariables && analysis.globalVariables.length > 0) {
         // Generate variables from globalVariables array
         analysis.globalVariables.forEach(variable => {
-            const size = variable.type === '16bit' ? 2 : 1;
-            const sizeComment = variable.type === '16bit' ? ' (16-bit)' : ' (8-bit)';
+            const variableType = String(variable.type || '').toLowerCase();
+            const isWord = variableType === '16bit' || variableType === 'word';
+            const size = isWord ? 2 : 1;
+            const sizeComment = isWord ? ' (16-bit)' : ' (8-bit)';
             const description = variable.description || variable.name;
             code += `${variable.asmName.padEnd(20)} EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${description}${sizeComment}\n`;
             currentAddress += size;
@@ -311,6 +313,20 @@ MAX_ENTITIES        EQU 32
         currentAddress += 64;
         code += `collected_idx_h      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)\n`;
         currentAddress += 64;
+        code += `\n; Timed bonus tile respawn slots (bonus gem regeneration)\n`;
+        code += `MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn\n`;
+        code += `bonus_respawn_world  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)\n`;
+        currentAddress += 16;
+        code += `bonus_respawn_screen EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)\n`;
+        currentAddress += 16;
+        code += `bonus_respawn_idx_l  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)\n`;
+        currentAddress += 16;
+        code += `bonus_respawn_idx_h  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)\n`;
+        currentAddress += 16;
+        code += `bonus_respawn_secs   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)\n`;
+        currentAddress += 16;
+        code += `bonus_respawn_frames EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)\n`;
+        currentAddress += 16;
     }
     // aux variables
     code += `
@@ -395,6 +411,10 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     currentAddress += 64;
     code += `temp_word_4         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 16-bit storage (64 bytes)\n`;
     currentAddress += 64;
+    code += `temp_byte_26        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
+    code += `temp_byte_27        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
+    currentAddress += 32;
     // Wall collision scratch variables
     code += `\n; Wall collision temporary variables\n`;
     code += `wall_temp_x         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached entity X for wall checks\n`;
@@ -466,6 +486,72 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     code += `vblank_flag             EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Set to 1 on each VBlank (1 byte)\n`;
     currentAddress++;
     code += `RAM_INTERRUPT_END       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; End of interrupt system\n`;
+    code += `
+; ==================================================================
+; STATE MACHINE SOUND RUNTIME (one active sound asset)
+; ==================================================================
+`;
+    code += `sm_sound_active       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=idle, 1=playing state-machine sound asset\n`;
+    currentAddress++;
+    code += `sm_sound_frames_left  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames left for current state-machine sound asset\n`;
+    currentAddress++;
+    code += `sm_sound_ptr_l        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Next sound frame pointer low byte\n`;
+    currentAddress++;
+    code += `sm_sound_ptr_h        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Next sound frame pointer high byte\n`;
+    currentAddress++;
+    code += `
+; ==================================================================
+; TRACKER MUSIC RUNTIME
+; ==================================================================
+`;
+    code += `music_active         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=stopped, 1=track active\n`;
+    currentAddress++;
+    code += `music_muted          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=audible, 1=muted/pause\n`;
+    currentAddress++;
+    code += `music_loop           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=no loop, 1=loop enabled\n`;
+    currentAddress++;
+    code += `music_track_index    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current ROM track index\n`;
+    currentAddress++;
+    code += `music_row_frames     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames per tracker row\n`;
+    currentAddress++;
+    code += `music_row_countdown  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown to next row\n`;
+    currentAddress++;
+    code += `music_order_pos      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current order position\n`;
+    currentAddress++;
+    code += `music_pattern_index  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current pattern index\n`;
+    currentAddress++;
+    code += `music_pattern_row    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current row inside pattern\n`;
+    currentAddress++;
+    code += `music_pattern_rows   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached rows in current pattern\n`;
+    currentAddress++;
+    code += `music_track_ptr_l    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current track pointer low byte\n`;
+    currentAddress++;
+    code += `music_track_ptr_h    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current track pointer high byte\n`;
+    currentAddress++;
+    code += `music_pattern_ptr_l  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current pattern rows pointer low byte\n`;
+    currentAddress++;
+    code += `music_pattern_ptr_h  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current pattern rows pointer high byte\n`;
+    currentAddress++;
+    code += `music_mixer_shadow   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; PSG mixer shadow for music runtime\n`;
+    currentAddress++;
+    const musicArrayDefs = [
+        { base: 'music_ch_note_base', prefix: 'music_ch', suffix: 'note', comment: 'Current note index (255=silent)' },
+        { base: 'music_ch_instrument_base', prefix: 'music_ch', suffix: 'instrument', comment: 'Current instrument id (0=none)' },
+        { base: 'music_ch_ornament_base', prefix: 'music_ch', suffix: 'ornament', comment: 'Current ornament id (0=none)' },
+        { base: 'music_ch_volume_base', prefix: 'music_ch', suffix: 'volume', comment: 'Current base volume (0-15)' },
+        { base: 'music_ch_vol_step_base', prefix: 'music_ch', suffix: 'vol_step', comment: 'Reserved software volume envelope step' },
+        { base: 'music_ch_tone_step_base', prefix: 'music_ch', suffix: 'tone_step', comment: 'Reserved software tone envelope step' },
+        { base: 'music_ch_orn_step_base', prefix: 'music_ch', suffix: 'orn_step', comment: 'Reserved ornament step' },
+    ];
+    const musicChannelNames = ['a', 'b', 'c'];
+    for (const def of musicArrayDefs) {
+        const baseAddress = currentAddress;
+        code += `${def.base} EQU #${baseAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${def.comment} (3 bytes)\n`;
+        musicChannelNames.forEach((channelName, index) => {
+            code += `${def.prefix}_${channelName}_${def.suffix} EQU #${(baseAddress + index).toString(16).toUpperCase().padStart(4, '0')}   ; Channel ${channelName.toUpperCase()}\n`;
+        });
+        currentAddress += 3;
+    }
     // End marker
     code += `
 ; ==================================================================

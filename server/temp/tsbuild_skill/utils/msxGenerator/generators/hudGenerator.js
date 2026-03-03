@@ -6,6 +6,10 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateHudFile = generateHudFile;
 const types_1 = require("../../../types");
+function hasGlobalVariable(analysis, asmName) {
+    const globals = Array.isArray(analysis.globalVariables) ? analysis.globalVariables : [];
+    return globals.some(variable => String(variable?.asmName || '').trim().toLowerCase() === asmName.toLowerCase());
+}
 /**
  * Generate HUD system ASM code
  */
@@ -31,6 +35,8 @@ function generateHudFile(analysis) {
 ; HUD SYSTEM (EMPTY - No HUD elements defined)
 ; ==================================================================
 render_hud:
+    ret
+force_render_hud:
     ret
 update_hud_score:
     ret
@@ -61,7 +67,7 @@ update_hud_lives:
     // Generate imprimir_marco function (prints frame once at screen load)
     asm += generateImprimirMarcoFunction(allHudElements);
     // Generate main render_hud function
-    asm += generateRenderHudFunction(allHudElements, hudRows);
+    asm += generateRenderHudFunction(allHudElements, hudRows, analysis);
     // Generate helper functions
     asm += generateHudHelperFunctions(allHudElements);
     return asm;
@@ -216,14 +222,45 @@ imprimir_marco:
 /**
  * Generate main render_hud function
  */
-function generateRenderHudFunction(hudElements, hudRows) {
+function generateRenderHudFunction(hudElements, hudRows, analysis) {
     // NOTE: imprimir_marco should be called once per screen load to draw frames
     // render_hud only updates text, NOT the frame
     const clearHudArea = '';
+    const scoreIndex = hudElements.findIndex(el => el.type === types_1.HUDElementType.Score);
+    const livesIndex = hudElements.findIndex(el => el.type === types_1.HUDElementType.Lives);
+    const hasScoreGlobal = hasGlobalVariable(analysis, 'global_var_score');
+    const hasLivesGlobal = hasGlobalVariable(analysis, 'global_var_lives');
+    const dynamicSyncCode = `${scoreIndex >= 0 && hasScoreGlobal ? `
+    ; Re-apply dynamic Score digits after redrawing static HUD text.
+    ld a, (global_var_score)
+    ld l, a
+    ld a, (global_var_score+1)
+    ld h, a
+    call update_hud_score
+` : scoreIndex >= 0 ? `
+    ; Score HUD present but global_var_score is not allocated in this project.
+` : ''}${livesIndex >= 0 && hasLivesGlobal ? `
+    ; Re-apply dynamic Lives digit after redrawing static HUD text.
+    ld a, (global_var_lives)
+    call update_hud_lives
+` : livesIndex >= 0 ? `
+    ; Lives HUD present but global_var_lives is not allocated in this project.
+` : ''}`;
     return `; ------------------------------------------------------------------
 ; render_hud
 ; Main HUD rendering function
 ; Only redraws when hud_dirty_flag is set
+; Input:
+;   None
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, BC, DE, HL, IX
+; Notes:
+;   - Returns immediately if hud_dirty_flag = 0
+;   - Re-applies dynamic numeric fields (Score/Lives) after redrawing static text
 ; ------------------------------------------------------------------
 render_hud:
     ld a, (hud_dirty_flag)
@@ -352,11 +389,34 @@ ${clearHudArea}
 
     pop bc                      ; Restore counter
     djnz .render_loop
+${dynamicSyncCode}
 
     pop ix
     pop hl
     pop de
     pop bc
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; force_render_hud
+; Force a HUD redraw on this frame, preserving caller-visible registers
+; Input:
+;   None
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, BC, DE, HL, IX
+; Notes:
+;   - Sets hud_dirty_flag = 1 and then calls render_hud
+; ------------------------------------------------------------------
+force_render_hud:
+    push af
+    ld a, 1
+    ld (hud_dirty_flag), a
+    call render_hud
     pop af
     ret
 
@@ -369,8 +429,60 @@ function generateHudHelperFunctions(hudElements) {
     // Find the actual element indices for Score and Lives
     const scoreIndex = hudElements.findIndex(el => el.type === types_1.HUDElementType.Score);
     const livesIndex = hudElements.findIndex(el => el.type === types_1.HUDElementType.Lives);
+    const scoreElement = scoreIndex >= 0 ? hudElements[scoreIndex] : null;
+    const livesElement = livesIndex >= 0 ? hudElements[livesIndex] : null;
     const scoreLabel = scoreIndex >= 0 ? `hud_text_${scoreIndex}` : null;
     const livesLabel = livesIndex >= 0 ? `hud_text_${livesIndex}` : null;
+    const getNumericFieldInfo = (text, fallbackDigits) => {
+        const safeText = text || '';
+        const match = /\d+(?!.*\d)/.exec(safeText);
+        if (!match || typeof match.index !== 'number') {
+            // No numeric placeholder in the static label: append the runtime field
+            // immediately after the label text instead of overwriting its first char.
+            return { offset: safeText.length, digits: fallbackDigits };
+        }
+        return {
+            offset: match.index,
+            digits: Math.max(1, match[0].length),
+        };
+    };
+    const scoreText = scoreElement?.text || scoreElement?.name || '';
+    const livesText = livesElement?.text || livesElement?.name || '';
+    const scoreField = getNumericFieldInfo(scoreText, 5);
+    const livesField = getNumericFieldInfo(livesText, 1);
+    const getFieldVramAddress = (element, fieldOffset) => {
+        if (!element)
+            return null;
+        const x = Math.floor((element.position?.x || 0) / 8) + fieldOffset;
+        const y = Math.floor((element.position?.y || 0) / 8);
+        return 0x1800 + (y * 32) + x;
+    };
+    const scoreFieldVramAddress = getFieldVramAddress(scoreElement, scoreField.offset);
+    const livesFieldVramAddress = getFieldVramAddress(livesElement, livesField.offset);
+    const scoreSupportedDigits = Math.min(scoreField.digits, 5);
+    const scoreLeadingZeroCount = Math.max(0, scoreField.digits - scoreSupportedDigits);
+    const availableScoreDivisors = [10000, 1000, 100, 10];
+    const scoreDivisors = availableScoreDivisors.slice(availableScoreDivisors.length - Math.max(0, scoreSupportedDigits - 1));
+    const scoreLeadingZeroCode = Array.from({ length: scoreLeadingZeroCount }, (_, index) => `    ; Leading digit ${index}: forced zero (Score is 16-bit max 65535)
+    ld a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+`).join('');
+    const scoreDigitsCode = scoreDivisors.map((divisor, index) => `    ; Runtime digit ${index}: / ${divisor}
+    ld bc, ${divisor}
+    call .div16
+    add a, '0'
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
+    inc de
+`).join('');
     return `; ------------------------------------------------------------------
 ; hud_print_string
 ; Print a null-terminated string to Screen 2 Name Table
@@ -562,7 +674,17 @@ hud_draw_frame:
 ; update_hud_score
 ; Update score HUD element with current score value
 ; Input: HL = Score value (16-bit binary, 0-65535)
-; Writes 5 ASCII digits to score text buffer
+; Writes score digits directly into the HUD numeric field in VRAM
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, BC, DE, HL
+; Notes:
+;   - Uses BC internally for decimal divisors
+;   - Uses DE internally as VRAM cursor for the numeric field
+;   - Writes only the numeric digits; the static "SCORE: " label is not touched
 ; ------------------------------------------------------------------
 update_hud_score:
 ${scoreLabel ? `    push af
@@ -570,45 +692,18 @@ ${scoreLabel ? `    push af
     push de
     push hl
 
-    ; Set dirty flag
-    ld a, 1
-    ld (hud_dirty_flag), a
+    ; Direct VRAM update of the numeric HUD field.
+    ; Static label ("SCORE: ") stays in ROM; only digits are rewritten.
+    ld de, #${(scoreFieldVramAddress || 0).toString(16).toUpperCase()}
 
-    ; 16-bit binary to 5 decimal digits
-    ld de, ${scoreLabel}           ; DE = output buffer pointer
-
-    ; Digit 0: ten-thousands (HL / 10000)
-    ld bc, 10000
-    call .div16
-    add a, '0'
-    ld (de), a
-    inc de
-
-    ; Digit 1: thousands (HL / 1000)
-    ld bc, 1000
-    call .div16
-    add a, '0'
-    ld (de), a
-    inc de
-
-    ; Digit 2: hundreds (HL / 100)
-    ld bc, 100
-    call .div16
-    add a, '0'
-    ld (de), a
-    inc de
-
-    ; Digit 3: tens (HL / 10)
-    ld bc, 10
-    call .div16
-    add a, '0'
-    ld (de), a
-    inc de
-
-    ; Digit 4: ones (remainder)
+${scoreLeadingZeroCode}${scoreDigitsCode}    ; Final digit: ones (remainder)
     ld a, l
     add a, '0'
-    ld (de), a
+    push hl
+    ld h, d
+    ld l, e
+    call FAST_WRTVRM
+    pop hl
 
     pop hl
     pop de
@@ -633,16 +728,25 @@ ${scoreLabel ? `; Helper: HL = HL / BC, A = quotient, HL = remainder
 ; update_hud_lives
 ; Update lives HUD element
 ; Input: A = Number of lives (0-9)
+; Output:
+;   None
+; Clobbers:
+;   None visible to caller
+; Preserves:
+;   AF, HL
+; Notes:
+;   - Writes only the numeric digit in VRAM; the static label is not touched
 ; ------------------------------------------------------------------
 update_hud_lives:
 ${livesLabel ? `    push af
+    push hl
 
-    ; Set dirty flag + convert to ASCII
+    ; Direct VRAM update of the Lives numeric field.
     add a, '0'                  ; Convert to ASCII
-    ld (${livesLabel}), a          ; Write to lives text buffer
-    ld a, 1
-    ld (hud_dirty_flag), a
+    ld hl, #${(livesFieldVramAddress || 0).toString(16).toUpperCase()}
+    call FAST_WRTVRM
 
+    pop hl
     pop af` : `    ; No Lives element defined in HUD`}
     ret
 

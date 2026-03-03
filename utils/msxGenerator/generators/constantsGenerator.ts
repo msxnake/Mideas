@@ -160,6 +160,12 @@ TRIG_B      EQU #20      ; Trigger B (MSX2+)
 ; Input Button Bitmask
 INPUT_BTN_FIRE EQU #01   ; Fire/Space button bit in input_btn_curr/input_btn_prev
 
+; Direction flags shared by input/state machine helpers
+DIR_ALLOW_UP     EQU #01 ; Bit 0: Allow UP movement
+DIR_ALLOW_DOWN   EQU #02 ; Bit 1: Allow DOWN movement
+DIR_ALLOW_LEFT   EQU #04 ; Bit 2: Allow LEFT movement
+DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
+
 ; ==================================================================
 ; TILE BEHAVIOR CONSTANTS (for collision detection)
 ; ==================================================================

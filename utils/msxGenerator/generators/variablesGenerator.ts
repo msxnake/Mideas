@@ -613,6 +613,61 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   code += `sm_sound_ptr_h        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Next sound frame pointer high byte\n`;
   currentAddress++;
 
+  code += `
+; ==================================================================
+; TRACKER MUSIC RUNTIME
+; ==================================================================
+`;
+  code += `music_active         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=stopped, 1=track active\n`;
+  currentAddress++;
+  code += `music_muted          EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=audible, 1=muted/pause\n`;
+  currentAddress++;
+  code += `music_loop           EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 0=no loop, 1=loop enabled\n`;
+  currentAddress++;
+  code += `music_track_index    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current ROM track index\n`;
+  currentAddress++;
+  code += `music_row_frames     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frames per tracker row\n`;
+  currentAddress++;
+  code += `music_row_countdown  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Countdown to next row\n`;
+  currentAddress++;
+  code += `music_order_pos      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current order position\n`;
+  currentAddress++;
+  code += `music_pattern_index  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current pattern index\n`;
+  currentAddress++;
+  code += `music_pattern_row    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current row inside pattern\n`;
+  currentAddress++;
+  code += `music_pattern_rows   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached rows in current pattern\n`;
+  currentAddress++;
+  code += `music_track_ptr_l    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current track pointer low byte\n`;
+  currentAddress++;
+  code += `music_track_ptr_h    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current track pointer high byte\n`;
+  currentAddress++;
+  code += `music_pattern_ptr_l  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current pattern rows pointer low byte\n`;
+  currentAddress++;
+  code += `music_pattern_ptr_h  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Current pattern rows pointer high byte\n`;
+  currentAddress++;
+  code += `music_mixer_shadow   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; PSG mixer shadow for music runtime\n`;
+  currentAddress++;
+
+  const musicArrayDefs = [
+    { base: 'music_ch_note_base', prefix: 'music_ch', suffix: 'note', comment: 'Current note index (255=silent)' },
+    { base: 'music_ch_instrument_base', prefix: 'music_ch', suffix: 'instrument', comment: 'Current instrument id (0=none)' },
+    { base: 'music_ch_ornament_base', prefix: 'music_ch', suffix: 'ornament', comment: 'Current ornament id (0=none)' },
+    { base: 'music_ch_volume_base', prefix: 'music_ch', suffix: 'volume', comment: 'Current base volume (0-15)' },
+    { base: 'music_ch_vol_step_base', prefix: 'music_ch', suffix: 'vol_step', comment: 'Reserved software volume envelope step' },
+    { base: 'music_ch_tone_step_base', prefix: 'music_ch', suffix: 'tone_step', comment: 'Reserved software tone envelope step' },
+    { base: 'music_ch_orn_step_base', prefix: 'music_ch', suffix: 'orn_step', comment: 'Reserved ornament step' },
+  ];
+  const musicChannelNames = ['a', 'b', 'c'];
+  for (const def of musicArrayDefs) {
+    const baseAddress = currentAddress;
+    code += `${def.base} EQU #${baseAddress.toString(16).toUpperCase().padStart(4, '0')}   ; ${def.comment} (3 bytes)\n`;
+    musicChannelNames.forEach((channelName, index) => {
+      code += `${def.prefix}_${channelName}_${def.suffix} EQU #${(baseAddress + index).toString(16).toUpperCase().padStart(4, '0')}   ; Channel ${channelName.toUpperCase()}\n`;
+    });
+    currentAddress += 3;
+  }
+
   // End marker
   code += `
 ; ==================================================================

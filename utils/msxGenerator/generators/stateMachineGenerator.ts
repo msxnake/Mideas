@@ -1432,35 +1432,28 @@ Action_PlaySound:
     ret
 
 Action_PlayMusic:
-; Params: Music ID(1 byte)
+; Params: Music Track Index(1 byte), Loop Flag(1 byte)
     ld a, (hl)
+    inc hl
+    ld b, (hl)
     inc hl
 
     push hl
-    ld (SM_MusicTrack), a
-    ld a, 1
-    ld (SM_MusicState), a
-    ; Audible acknowledgement until full tracker driver is wired.
-    call SM_PlaySfx_Coin
+    call music_play_track
     pop hl
     ret
 
 Action_MuteMusic:
 ; No params
     push hl
-    call SM_SilencePSG
-    ld a, 2
-    ld (SM_MusicState), a
+    call music_mute
     pop hl
     ret
 
 Action_StopMusic:
 ; No params
     push hl
-    call SM_SilencePSG
-    xor a
-    ld (SM_MusicState), a
-    ld (SM_MusicTrack), a
+    call music_stop
     pop hl
     ret
 
@@ -2504,6 +2497,11 @@ SM_ApplySoundFrame:
 SM_PlaySoundAsset:
     ; Input: A = sound asset index (0..SM_SoundAssetCount-1)
     ; Destroys: AF, BC, DE, HL
+    push af
+    ld a, (music_active)
+    or a
+    pop af
+    ret nz
     cp SM_SoundAssetCount
     jr c, .play_valid_sound
     call SM_SilencePSG
@@ -2562,6 +2560,9 @@ SM_UpdateSound:
     ; Advances one frame of the active PLAY_SOUND asset.
     ; The current frame is emitted immediately on SM_PlaySoundAsset, so
     ; frames_left includes the frame already sounding.
+    ld a, (music_active)
+    or a
+    ret nz
     ld a, (sm_sound_active)
     or a
     ret z
@@ -4657,7 +4658,8 @@ export function generateStateMachineSystem(
     sprites?: any[],
     tiles?: any[],
     templates?: any[],
-    sounds?: any[]
+    sounds?: any[],
+    trackIndexByAssetId?: Record<string, number>
 ): string {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
 
@@ -4740,7 +4742,7 @@ export function generateStateMachineSystem(
     asm += '\n';
 
     for (const sm of stateMachines) {
-        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex);
+        asm += generateStateMachineData(sm, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
     }
 
     return asm;
@@ -4752,7 +4754,8 @@ function generateStateMachineData(
     spriteNameToIndex?: Record<string, number>,
     tileIdToCharCode?: Record<string, number>,
     templateTokenMap?: Record<string, number>,
-    soundNameToIndex?: Record<string, number>
+    soundNameToIndex?: Record<string, number>,
+    trackIndexByAssetId?: Record<string, number>
 ): string {
     let asm = `; State Machine: ${sm.name} (${sm.id}) \n`;
     const safeName = sm.name.replace(/[^a-zA-Z0-9]/g, '_');
@@ -4787,7 +4790,7 @@ function generateStateMachineData(
         if (state.onEnter && state.onEnter.length > 0) {
             asm += `${onEnterLabel}: \n`;
             for (const action of state.onEnter) {
-                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
             }
             asm += `    DB 0xFF; END\n`;
         }
@@ -4795,7 +4798,7 @@ function generateStateMachineData(
         if (state.onExit && state.onExit.length > 0) {
             asm += `${onExitLabel}: \n`;
             for (const action of state.onExit) {
-                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex);
+                asm += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
             }
             asm += `    DB 0xFF; END\n`;
         }
@@ -4826,7 +4829,7 @@ function generateStateMachineData(
                 if (actionLabel !== '0') {
                     let actionBlock = `${actionLabel}: \n`;
                     for (const action of t.actions || []) {
-                        actionBlock += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex);
+                        actionBlock += generateActionBytes(action, sm.name, variableIdMap, spriteNameToIndex, tileIdToCharCode, templateTokenMap, soundNameToIndex, trackIndexByAssetId);
                     }
                     actionBlock += `    DB 0xFF; END\n`;
                     deferredActionBlocks.push(actionBlock);
@@ -4862,6 +4865,23 @@ function serializeValue(value: any): string {
     return '0';
 }
 
+function resolveTrackIndex(value: any, trackIndexByAssetId?: Record<string, number>): number {
+    if (typeof value === 'string') {
+        const direct = trackIndexByAssetId?.[value];
+        if (direct !== undefined) return direct;
+
+        const parsed = parseInt(value, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 254) return parsed;
+        return 0xFF;
+    }
+
+    if (typeof value === 'number' && value >= 0 && value <= 254) {
+        return value;
+    }
+
+    return 0xFF;
+}
+
 function generateActionBytes(
     action: Action,
     smName: string = '',
@@ -4869,7 +4889,8 @@ function generateActionBytes(
     spriteNameToIndex?: Record<string, number>,
     tileIdToCharCode?: Record<string, number>,
     templateTokenMap?: Record<string, number>,
-    soundNameToIndex?: Record<string, number>
+    soundNameToIndex?: Record<string, number>,
+    trackIndexByAssetId?: Record<string, number>
 ): string {
     const id = ACTION_IDS[action.type];
     if (id === undefined) return `; Unknown Action: ${action.type} \n`;
@@ -4944,7 +4965,12 @@ function generateActionBytes(
 
         case ActionTypes.PLAY_MUSIC: {
             const trackId = action.params.trackId ?? action.params.musicId ?? action.params.music ?? 0;
-            bytes += `    DB ${serializeValue(trackId)} \n`;
+            const loopFlag = action.params.loop ?? true;
+            const trackIndex = resolveTrackIndex(trackId, trackIndexByAssetId);
+            const warning = trackIndex === 0xFF && trackId !== 0 && trackId !== '0'
+                ? `        ; WARNING: unresolved/non-PSG track ${trackId}`
+                : '';
+            bytes += `    DB ${trackIndex}, ${serializeValue(loopFlag)}        ; track: ${trackId}${warning}\n`;
             break;
         }
 

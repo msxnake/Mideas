@@ -417,7 +417,7 @@ Waypoint  →  <1ms
 ```
 Transition  →  500ms - 1500ms (según efecto)
 Text        →  Variable (según duración o input)
-Music       →  <1ms (inicia async)
+Music       →  <1ms (emite comando; la música PSG sigue en background durante menús y world loops)
 ```
 
 ### Nodos Interactivos

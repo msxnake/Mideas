@@ -3,7 +3,7 @@
  * Generates dynamic ASM code from templates with replaceable sections
  */
 
-import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph } from '../types';
+import { ProjectAsset, ComponentDefinition, EntityTemplate, Sprite, Tile, ScreenMap, EntityInstance, GameFlowGraph, TrackerSongData } from '../types';
 import { StateMachine } from '../statemachine.types';
 import { getUsedGlobalVariables } from './globalVariablesUtils';
 
@@ -25,6 +25,8 @@ export interface ProjectAnalysis {
   templates: EntityTemplate[];
   sprites: Sprite[];
   sounds?: any[];
+  tracks?: TrackerSongData[];
+  trackIndexByAssetId?: Record<string, number>;
   tiles: Tile[];
   screenMaps: ScreenMap[];
   screens: ScreenMap[];   // Added alias for compatibility
@@ -73,6 +75,28 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
       id: (a.data as any)?.id || a.id,
       name: (a.data as any)?.name || a.name
     }));
+  const tracks: TrackerSongData[] = [];
+  const trackIndexByAssetId: Record<string, number> = {};
+  assets
+    .filter(a => a.type === 'track')
+    .forEach((asset) => {
+      const rawTrack = asset.data as TrackerSongData | undefined;
+      if (!rawTrack) return;
+      const soundChip = rawTrack.soundChip || 'PSG';
+      if (soundChip !== 'PSG') return;
+
+      const normalizedTrack: TrackerSongData = {
+        ...rawTrack,
+        soundChip,
+        id: rawTrack.id || asset.id,
+        name: rawTrack.name || asset.name,
+      };
+      const trackIndex = tracks.length;
+
+      tracks.push(normalizedTrack);
+      trackIndexByAssetId[asset.id] = trackIndex;
+      trackIndexByAssetId[normalizedTrack.id] = trackIndex;
+    });
   const tiles = assets.filter(a => a.type === 'tile').map(a => a.data as Tile);
   const screenMaps = assets.filter(a => a.type === 'screenmap').map(a => a.data as ScreenMap);
   const worldmaps = assets.filter(a => a.type === 'worldmap').map(a => a.data);
@@ -154,6 +178,8 @@ export function analyzeProject(projectName: string, assets: ProjectAsset[]): Pro
     templates,
     sprites,
     sounds,
+    tracks,
+    trackIndexByAssetId,
     tiles,
     screenMaps,
     screens: screenMaps, // Added alias

@@ -5901,6 +5901,8 @@ update_collectible_component:
     ret
 check_tile_interaction:
     ret
+apply_collected_tiles:
+    ret
 
 init_position_system:
     ret

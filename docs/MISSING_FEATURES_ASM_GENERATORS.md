@@ -206,7 +206,11 @@ Este documento lista todas las funcionalidades implementadas en GameFlowPreviewM
 - ✅ `PLAY_MUSIC` (líneas 2017-2107): Reproducir música con loop
 - ✅ `STOP_MUSIC` (líneas 2109-2116): Detener música
 
-**Estado ASM**: ❌ No implementadas (aunque MSX tiene PSG)
+**Estado ASM**: ⚠️ Implementadas en Fase 1
+- ✅ `PLAY_MUSIC`, `MUTE_MUSIC`, `STOP_MUSIC` ya generan runtime ASM y controlan música PSG global
+- ✅ Los nodos `Music` de GameFlow ya emiten comandos reales hacia `sound.asm`
+- ⚠️ Limitación actual: prioridad total de música sobre SFX (sin mezcla)
+- ⚠️ Limitación actual: solo tracks `PSG` (tracks `SCC` se ignoran con warning)
 
 #### 2.8. Acciones de Tiles
 **Implementadas en GameFlowPreviewModal**:
@@ -487,7 +491,7 @@ Este documento lista todas las funcionalidades implementadas en GameFlowPreviewM
 21. **Sistema de eventos**
 22. **Explosiones** (Render2)
 23. **Secret passages**
-24. **Audio** (PLAY_SOUND, PLAY_MUSIC)
+24. **Audio avanzado** (mezcla PLAY_SOUND + PLAY_MUSIC)
 
 ---
 

@@ -20,9 +20,11 @@ function generateTaskRegistration(analysis?: ProjectAnalysis): string {
   // Keep ISR focused on VBlank-safe work only.
   // Input is polled in gameflow_world_game_loop for better compatibility.
   // Task 1: Sprite SAT upload in VBlank (for smooth hardware sprites)
-  code += `    ld a, 1\n`;
-  code += `    ld hl, task_update_sprites\n`;
-  code += `    call enable_task\n\n`;
+  if (analysis.hasSprites) {
+    code += `    ld a, 1\n`;
+    code += `    ld hl, task_update_sprites\n`;
+    code += `    call enable_task\n\n`;
+  }
 
   // NOTE: To keep gameplay deterministic and identical to Mideas' GameFlow update order,
   // we do NOT auto-register gameplay-mutating tasks (physics/collision) here.

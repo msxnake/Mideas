@@ -512,8 +512,12 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Advance any active state-machine PLAY_SOUND effect
+    ; Advance tracker music before any SFX touches the PSG
+    call music_update
+
+${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; Advance any active state-machine PLAY_SOUND effect
     call SM_UpdateSound
+` : ``}
 
     ; Update animated background tiles (water, fire, etc.)
     call update_animated_tiles
@@ -950,6 +954,7 @@ ${hasHud ? `
 
     ; End screen loop - wait for input or timeout
 .end_screen_loop:
+    call music_update
     halt                          ; Wait V-blank
 
     ; Check for fire button to exit
@@ -1163,6 +1168,7 @@ show_menu_placeholder:
     call render_submenu_screen
 
 .smp_loop:
+    call music_update
     halt
     ld a, 0
     call GTSTCK
@@ -1199,6 +1205,7 @@ show_menu_placeholder:
     jr z, .smp_loop
 
 .smp_wait_fire_release:
+    call music_update
     halt
     ld a, 0
     call GTTRIG
@@ -1208,6 +1215,7 @@ show_menu_placeholder:
 
 .smp_wait_neutral:
 .smp_wait_neutral_loop:
+    call music_update
     halt
     ld a, 0
     call GTSTCK
@@ -1874,6 +1882,7 @@ wait_for_fire:
 
     ; Wait for fire button press
 .wait_press:
+    call music_update
     halt
     ld a, 0                       ; Trigger 0 = space bar
     call GTTRIG
@@ -1882,6 +1891,7 @@ wait_for_fire:
 
     ; Wait for fire button release
 .wait_release:
+    call music_update
     halt
     ld a, 0
     call GTTRIG
@@ -1891,6 +1901,7 @@ wait_for_fire:
     ; Small delay after release
     ld b, 5
 .delay_loop:
+    call music_update
     halt
     djnz .delay_loop
 
@@ -2319,6 +2330,7 @@ trans_wait_frames:
     jr z, .twf_done               ; 0 = no wait (safety)
     ld b, a
 .twf_loop:
+    call music_update
     halt                          ; Wait for V-blank (~20ms at 50Hz)
     djnz .twf_loop
 .twf_done:
@@ -2466,175 +2478,17 @@ trans_fast_filvrm:
       case 'Music':
         code += `gameflow_handle_music:
     ; Music node - play/stop music
-    ; DE = music data (track ID, flags)
+    ; DE = music data (command, track index, loop flag)
     ; BC = connection table
     
     push bc
-    
-    ; Execute music command (placeholder)
-    call execute_music_command
-    
+    call music_execute_command
     pop bc
     call gameflow_get_default_connection
     ld a, h
     or l
     ret z
     jp gameflow_execute_node
-
-; ------------------------------------------------------------------
-; execute_music_command
-; Execute music playback command
-; Input: DE = music data (command, track ID, loop flag)
-; Commands: 0=stop, 1=play, 2=pause, 3=resume
-; ------------------------------------------------------------------
-execute_music_command:
-    push af
-    push bc
-    push de
-    push hl
-
-    ; Get music command
-    ld a, (de)
-    inc de
-    ld b, a                       ; B = command
-
-    ; Get track ID
-    ld a, (de)
-    inc de
-    ld c, a                       ; C = track ID
-
-    ; Get loop flag
-    ld a, (de)
-    ld (music_loop_flag), a
-
-    ; Dispatch based on command
-    ld a, b
-    or a
-    jr z, .music_stop             ; 0 = Stop
-    dec a
-    jr z, .music_play             ; 1 = Play
-    dec a
-    jr z, .music_pause            ; 2 = Pause
-    dec a
-    jr z, .music_resume           ; 3 = Resume
-    jr .music_done
-
-.music_stop:
-    ; Stop all music - silence PSG
-    call psg_silence_all
-    xor a
-    ld (music_playing), a
-    jr .music_done
-
-.music_play:
-    ; Play track C
-    ld a, c
-    ld (music_current_track), a
-    call psg_init_track
-    ld a, 1
-    ld (music_playing), a
-    jr .music_done
-
-.music_pause:
-    ; Pause current track
-    call psg_silence_all
-    xor a
-    ld (music_playing), a
-    jr .music_done
-
-.music_resume:
-    ; Resume current track
-    ld a, (music_current_track)
-    call psg_init_track
-    ld a, 1
-    ld (music_playing), a
-
-.music_done:
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; PSG Helper Functions
-; ------------------------------------------------------------------
-
-; Silence all PSG channels
-psg_silence_all:
-    push af
-    push bc
-
-    ; Set volume to 0 for all 3 channels
-    ld a, #88                     ; Channel A volume
-    out (#A0), a
-    ld a, 0
-    out (#A1), a
-
-    ld a, #89                     ; Channel B volume
-    out (#A0), a
-    ld a, 0
-    out (#A1), a
-
-    ld a, #8A                     ; Channel C volume
-    out (#A0), a
-    ld a, 0
-    out (#A1), a
-
-    pop bc
-    pop af
-    ret
-
-; Initialize PSG track
-psg_init_track:
-    push af
-    push bc
-    push hl
-
-    ; A = track ID
-    ; For now, simple beep on channel A
-    ; Full implementation would load track data from music table
-
-    ; Set channel A frequency (440 Hz = A4 note)
-    ld a, #00                     ; Fine tune register
-    out (#A0), a
-    ld a, #FE                     ; Frequency low byte
-    out (#A1), a
-
-    ld a, #01                     ; Coarse tune register
-    out (#A0), a
-    ld a, #01                     ; Frequency high byte
-    out (#A1), a
-
-    ; Set channel A volume
-    ld a, #08                     ; Volume register
-    out (#A0), a
-    ld a, #0F                     ; Max volume
-    out (#A1), a
-
-    ; Enable tone on channel A
-    ld a, #07                     ; Mixer register
-    out (#A0), a
-    ld a, #3E                     ; Enable tone A, disable noise
-    out (#A1), a
-
-    pop hl
-    pop bc
-    pop af
-    ret
-
-; ------------------------------------------------------------------
-; Music system variables (should be in variables section)
-; ------------------------------------------------------------------
-music_playing:
-    db 0                          ; 0=stopped, 1=playing
-
-music_current_track:
-    db 0                          ; Current track ID
-
-music_loop_flag:
-    db 0                          ; 0=no loop, 1=loop
-
 `;
         break;
 
@@ -2702,7 +2556,7 @@ function generateNodeStructure(node: any, gameFlow: any, analysis: ProjectAnalys
   const connLabel = `${nodeLabel}_conn`;
 
   // Check if node has data
-  const hasData = ['Start', 'WorldLink', 'SubMenu', 'Text', 'IfThenElse', 'Globals', 'Transition'].includes(node.type) ||
+  const hasData = ['Start', 'WorldLink', 'SubMenu', 'Text', 'IfThenElse', 'Globals', 'Transition', 'Music'].includes(node.type) ||
                   (node.type === 'Globals' && node.variables && node.variables.length > 0);
 
   const dataLabel = hasData ? `${nodeLabel}_data` : 'gameflow_no_data';
@@ -2883,6 +2737,41 @@ ${nodeLabel}:
         for (const line of allLines) {
           code += `${line.label}:\n`;
           code += `    DB "${line.text}", 0\n`;
+        }
+        break;
+      }
+
+      case 'Music': {
+        const trackAssetId = typeof node.trackAssetId === 'string' ? node.trackAssetId : '';
+        const trackIndexMap = ((analysis as any).trackIndexByAssetId || {}) as Record<string, number>;
+        const trackAssets = (((analysis as any).tracks || []) as any[]);
+        let command = 0xFF;
+        let trackIndex = 0xFF;
+        let loopFlag = node.loop === false ? 0 : 1;
+        let warning = '';
+
+        if (node.stop === true) {
+          command = 0;
+          loopFlag = 0;
+        } else if (node.autoPlay === false) {
+          warning = '; WARNING: Music node autoPlay=false -> no-op in ROM';
+        } else if (trackAssetId && trackIndexMap[trackAssetId] !== undefined) {
+          command = 1;
+          trackIndex = trackIndexMap[trackAssetId];
+        } else if (trackAssetId) {
+          const sameIdTrack = trackAssets.find((track: any) => track?.id === trackAssetId);
+          if (sameIdTrack?.soundChip === 'SCC') {
+            warning = `; WARNING: Track "${trackAssetId}" uses SCC and is ignored in ROM export`;
+          } else {
+            warning = `; WARNING: Track "${trackAssetId}" not found / not exportable as PSG`;
+          }
+        } else {
+          warning = '; WARNING: Music node has no trackAssetId -> no-op';
+        }
+
+        code += `    db ${command}, ${trackIndex}, ${loopFlag}    ; command, track index, loop flag\n`;
+        if (warning) {
+          code += `    ${warning}\n`;
         }
         break;
       }
@@ -3114,6 +3003,7 @@ ${nodeLabel}_init:
     code += `    ; Initial delay\n`;
     code += `    ld b, ${systemConfig.initialDelayFrames}\n`;
     code += `.delay_loop:\n`;
+    code += `    call music_update\n`;
     code += `    halt    ; Wait for V-blank\n`;
     code += `    djnz .delay_loop\n\n`;
   }
@@ -3160,8 +3050,9 @@ gameflow_world_game_loop:
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
-    call SM_UpdateSound
-    call update_animated_tiles
+    call music_update
+${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    call SM_UpdateSound
+` : ``}    call update_animated_tiles
     ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${defaultHasHud ? `    call render_hud
 ` : ``}    halt                            ; Wait for V-Blank
