@@ -55,6 +55,8 @@ interface HardwareEnvelopeState {
 interface SoftwareVolumeEnvelopeState {
     /** The volume envelope data points. */
     envelope: number[];
+    /** True when the source envelope uses the legacy 0-127 authoring scale. */
+    usesLegacy127Scale: boolean;
     /** The loop position in the envelope. */
     loopPosition?: number;
     /** The current step in the envelope. */
@@ -178,6 +180,21 @@ export class AYSynthesizer {
         return AY_CLOCK_FREQUENCY / (32 * effectiveNP);
     }
 
+    private normalizeSoftwareVolumeValue(rawValue: number, usesLegacy127Scale: boolean): number {
+        if (!usesLegacy127Scale) {
+            return Math.max(0, Math.min(15, Math.round(rawValue)));
+        }
+
+        const clamped = Math.max(0, Math.min(127, rawValue));
+        const scaled = Math.round((clamped / 127) * 15);
+
+        if (clamped > 0 && scaled === 0) {
+            return 1;
+        }
+
+        return Math.max(0, Math.min(15, scaled));
+    }
+
     /**
      * Ensures the AudioContext is initialized and ready to play sound.
      * This method should be called before any sound can be played.
@@ -298,8 +315,10 @@ export class AYSynthesizer {
             };
         } else if (useSoftwareEnv) {
             const volLoop = instrument.volumeLoop;
+            const usesLegacy127Scale = instrument.volumeEnvelope!.some(value => Math.max(0, value) > 15);
             this.channelSoftwareVolumeEnvelopeState[channel] = {
                 envelope: instrument.volumeEnvelope!,
+                usesLegacy127Scale,
                 loopPosition: (volLoop !== undefined && volLoop >= 0 && volLoop < instrument.volumeEnvelope!.length) ? volLoop : undefined,
                 currentStep: 0,
             };
@@ -570,6 +589,10 @@ export class AYSynthesizer {
     private updateChannelEffects(channel: 0 | 1 | 2) {
         if (!this.audioContext || !this.channelMainGains[channel]) return;
 
+        const currentInstrument = this.channelActiveInstrument[channel];
+        const useTone = currentInstrument ? (currentInstrument.ayToneEnabled === undefined ? true : currentInstrument.ayToneEnabled) : false;
+        const useNoise = currentInstrument ? !!currentInstrument.ayNoiseEnabled : false;
+
         let periodForFrequencyUpdate = this.channelCurrentPeriod[channel];
         const baseFundamentalPeriod = this.channelBasePeriod[channel];
 
@@ -651,6 +674,19 @@ export class AYSynthesizer {
             this.channelCurrentPeriod[channel] = periodForFrequencyUpdate;
         }
 
+        // Keep the active audio sources aligned with the current instrument flags.
+        if (!useTone || this.channelCurrentPeriod[channel] === null || this.channelCurrentPeriod[channel]! <= 0) {
+            this.stopToneOscillator(channel);
+        } else if (!this.toneOscillators[channel]) {
+            this.setupToneOscillator(channel, this.channelCurrentPeriod[channel]!);
+        }
+
+        if (!useNoise || !this.noiseBuffer) {
+            this.stopNoiseSource(channel);
+        } else if (!this.noiseSources[channel]) {
+            this.setupNoiseSource(channel);
+        }
+
         // Update tone oscillator frequency
         if (this.toneOscillators[channel] && this.channelCurrentPeriod[channel] !== null) {
             const freqToPlay = this.getFrequencyFromPeriod(this.channelCurrentPeriod[channel]);
@@ -674,7 +710,6 @@ export class AYSynthesizer {
             const hwEnv = this.channelHardwareEnvelopeState[channel]!;
             if (!hwEnv.finished) {
                 // Update period if tracking ratio is set
-                const currentInstrument = this.channelActiveInstrument[channel];
                 if (currentInstrument?.hardwareEnvelopeRatio !== undefined && this.channelCurrentPeriod[channel] !== null && currentInstrument.hardwareEnvelopeRatio > 0) {
                     // Formula: EP = TP / (16 * Ratio)
                     hwEnv.periodSetting = Math.max(1, Math.round(this.channelCurrentPeriod[channel]! / (16 * currentInstrument.hardwareEnvelopeRatio)));
@@ -708,9 +743,8 @@ export class AYSynthesizer {
             const swEnvState = this.channelSoftwareVolumeEnvelopeState[channel]!;
             if (swEnvState.currentStep < swEnvState.envelope.length) {
                 if (shouldAdvanceEnvelope) {
-                    // Normalize 0-127 range to 0-15 (AY hardware volume range)
                     const rawEnvValue = swEnvState.envelope[swEnvState.currentStep];
-                    finalVolume15 = Math.round((Math.max(0, rawEnvValue) / 127) * 15);
+                    finalVolume15 = this.normalizeSoftwareVolumeValue(rawEnvValue, swEnvState.usesLegacy127Scale);
                     swEnvState.currentStep++;
                     if (swEnvState.currentStep >= swEnvState.envelope.length) {
                         if (swEnvState.loopPosition !== undefined && swEnvState.loopPosition >= 0 && swEnvState.loopPosition < swEnvState.envelope.length) {
@@ -721,7 +755,7 @@ export class AYSynthesizer {
                 } else {
                     // Not time to advance yet, use current step's value
                     const rawEnvValue = swEnvState.envelope[Math.max(0, swEnvState.currentStep - 1)];
-                    finalVolume15 = Math.round((Math.max(0, rawEnvValue) / 127) * 15);
+                    finalVolume15 = this.normalizeSoftwareVolumeValue(rawEnvValue, swEnvState.usesLegacy127Scale);
                 }
             } else {
                 // Envelope has finished and there's no loop (or loop is invalid)

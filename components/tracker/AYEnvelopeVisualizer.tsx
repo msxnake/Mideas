@@ -7,9 +7,9 @@ import React, { useMemo } from 'react';
  */
 interface AYEnvelopeVisualizerProps {
     /** The currently selected envelope shape (0-15). */
-    selectedShape: number;
+    selectedShape?: number;
     /** Callback when a shape is selected. */
-    onShapeChange: (shape: number) => void;
+    onShapeChange: (shape: number | undefined) => void;
     /** Optional CSS class name. */
     className?: string;
 }
@@ -106,14 +106,14 @@ export const AYEnvelopeVisualizer: React.FC<AYEnvelopeVisualizerProps> = ({
     onShapeChange,
     className = ''
 }) => {
-    // Ensure selectedShape is in valid range
-    const validShape = Math.max(0, Math.min(15, selectedShape));
+    const hasHardwareEnvelope = typeof selectedShape === 'number' && selectedShape >= 0 && selectedShape <= 15;
+    const validShape = hasHardwareEnvelope ? selectedShape : 0;
 
     // Generate preview for the selected shape
     const selectedShapeInfo = ENVELOPE_SHAPES[validShape];
     const previewPath = useMemo(
-        () => generateEnvelopePath(selectedShapeInfo, 200, 80),
-        [selectedShapeInfo]
+        () => hasHardwareEnvelope ? generateEnvelopePath(selectedShapeInfo, 200, 80) : 'M 0 80 L 200 80',
+        [hasHardwareEnvelope, selectedShapeInfo]
     );
 
     return (
@@ -125,7 +125,7 @@ export const AYEnvelopeVisualizer: React.FC<AYEnvelopeVisualizerProps> = ({
                         AY Envelope Shape
                     </label>
                     <span className="text-xs text-msx-accent font-mono">
-                        #{validShape} - {selectedShapeInfo.name}
+                        {hasHardwareEnvelope ? `#${validShape} - ${selectedShapeInfo.name}` : 'OFF - software only'}
                     </span>
                 </div>
 
@@ -138,6 +138,7 @@ export const AYEnvelopeVisualizer: React.FC<AYEnvelopeVisualizerProps> = ({
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
+                            strokeDasharray={hasHardwareEnvelope ? undefined : '4,4'}
                         />
                         {/* Grid lines */}
                         <line x1="0" y1="0" x2="200" y2="0" stroke="#374151" strokeWidth="0.5" />
@@ -145,21 +146,36 @@ export const AYEnvelopeVisualizer: React.FC<AYEnvelopeVisualizerProps> = ({
                         <line x1="0" y1="80" x2="200" y2="80" stroke="#374151" strokeWidth="0.5" />
                     </svg>
                     <p className="text-center text-xs text-msx-textsecondary mt-2">
-                        {selectedShapeInfo.description}
+                        {hasHardwareEnvelope ? selectedShapeInfo.description : 'Disabled so the software volume envelope drives the note shape.'}
                     </p>
                 </div>
             </div>
 
+            <button
+                onClick={() => onShapeChange(undefined)}
+                type="button"
+                className={`
+                w-full mb-3 p-2 rounded border-2 transition-all text-xs font-semibold
+                ${!hasHardwareEnvelope
+                        ? 'border-msx-accent bg-msx-accent bg-opacity-10 text-msx-accent'
+                        : 'border-msx-border bg-msx-bgcolor text-msx-textsecondary hover:border-msx-textsecondary'
+                    }
+              `}
+            >
+                Off (use software envelope only)
+            </button>
+
             {/* Grid of all 16 shapes */}
             <div className="grid grid-cols-4 gap-2">
                 {ENVELOPE_SHAPES.map((shapeInfo) => {
-                    const isSelected = shapeInfo.shape === validShape;
+                    const isSelected = hasHardwareEnvelope && shapeInfo.shape === validShape;
                     const thumbnailPath = generateEnvelopePath(shapeInfo, 60, 30);
 
                     return (
                         <button
                             key={shapeInfo.shape}
                             onClick={() => onShapeChange(shapeInfo.shape)}
+                            type="button"
                             className={`
                 relative p-2 rounded border-2 transition-all
                 ${isSelected
@@ -201,7 +217,7 @@ export const AYEnvelopeVisualizer: React.FC<AYEnvelopeVisualizerProps> = ({
 
             {/* Legend */}
             <div className="mt-3 text-[10px] text-msx-textsecondary space-y-0.5">
-                <p><strong>Tip:</strong> Hardware envelope shapes affect the volume over time.</p>
+                <p><strong>Tip:</strong> Turn it off for instruments that should follow only the software volume envelope.</p>
                 <p>• <strong>Rise (/):</strong> Volume increases | <strong>Fall (\\):</strong> Volume decreases</p>
                 <p>• <strong>Hold (‾):</strong> Sustains | <strong>Continue:</strong> Repeats pattern</p>
             </div>

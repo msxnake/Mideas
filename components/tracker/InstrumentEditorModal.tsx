@@ -77,13 +77,13 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
     "Piano": {
         volumeEnvelope: "127,100,70,45,25,10,0",
         toneEnvelope: "0,0,0,0",
-        ayEnvelopeShape: 0,
+        ayEnvelopeShape: undefined,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Soft Piano": {
         volumeEnvelope: "0,30,60,100,127,110,90,65,40,15,0",
         toneEnvelope: "0,0,0",
-        ayEnvelopeShape: 0,
+        ayEnvelopeShape: undefined,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
     "Banjo": {
@@ -591,7 +591,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                     {activeTab === 'hardware' && (
                         <div className="space-y-4">
                             <AYEnvelopeVisualizer
-                                selectedShape={instrumentModalBuffer.ayEnvelopeShape ?? 0}
+                                selectedShape={instrumentModalBuffer.ayEnvelopeShape}
                                 onShapeChange={(shape) => handleFieldChange('ayEnvelopeShape', shape)}
                             />
 

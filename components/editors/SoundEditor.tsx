@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PSGSoundData, PSGSoundChannelState, PSGSoundChannelStep } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { Tooltip } from '../common/Tooltip';
 import { PlayIcon, StopIcon, SaveIcon as ExportIcon, PlusCircleIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, CheckCircleIcon, PencilIcon } from '../icons/MsxIcons'; 
 
 // AY-3-8910 PSG constants
@@ -608,7 +609,7 @@ ${envelopeShapeCode}
               )}
               <div className="flex space-x-1 mt-1">
                 <Button onClick={() => openEditStepModal(channelId, step.id)} size="sm" variant="ghost" className="p-0.5" title="Modify Step"><PencilIcon className="w-2.5 h-2.5"/></Button>
-                <Button onClick={() => handleDeleteStep(channelId, step.id)} size="sm" variant="danger" className="p-0.5" title="Delete Step" icon={<TrashIcon className="w-2.5 h-2.5"/>}>{null}</Button>
+                <Tooltip text="Delete this step"><Button onClick={() => handleDeleteStep(channelId, step.id)} size="sm" variant="danger" className="p-0.5" icon={<TrashIcon className="w-2.5 h-2.5"/>}>{null}</Button></Tooltip>
                 <Button onClick={() => handleMoveStep(channelId, step.id, 'up')} size="sm" variant="ghost" disabled={index === 0} className="p-0.5" title="Move Up"><ArrowUpIcon className="w-2.5 h-2.5"/></Button>
                 <Button onClick={() => handleMoveStep(channelId, step.id, 'down')} size="sm" variant="ghost" disabled={index === channelState.steps.length - 1} className="p-0.5" title="Move Down"><ArrowDownIcon className="w-2.5 h-2.5"/></Button>
               </div>
@@ -717,7 +718,7 @@ ${envelopeShapeCode}
                       <span className="truncate max-w-[120px]">{pName}</span>
                       <div className="flex-shrink-0">
                         <Button onClick={() => loadPreset(pName)} size="sm" variant="ghost" className="mr-1">Load</Button>
-                        <Button onClick={() => deletePreset(pName)} size="sm" variant="danger" icon={<TrashIcon className="w-2.5 h-2.5"/>} aria-label={`Delete preset ${pName}`}>{null}</Button>
+                        <Tooltip text="Delete this preset"><Button onClick={() => deletePreset(pName)} size="sm" variant="danger" icon={<TrashIcon className="w-2.5 h-2.5"/>}>{null}</Button></Tooltip>
                       </div>
                     </li>
                   ))}

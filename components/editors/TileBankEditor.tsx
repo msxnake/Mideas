@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { TileBank, TileBankDefinition, Tile, ProjectAsset, MSX1Color, MSX1ColorValue, MSXFontAsset, PixelData } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { Tooltip } from '../common/Tooltip';
 import { MSX1_PALETTE, MSX1_PALETTE_IDX_MAP, MSX1_DEFAULT_COLOR, SCREEN2_PIXELS_PER_COLOR_SEGMENT, DEFAULT_TILE_BANK_DEFINITIONS, DEFAULT_SCREEN_HEIGHT_TILES, DEFAULT_SCREEN_WIDTH_TILES } from '../../constants';
 import { PlusCircleIcon, TrashIcon, ListBulletIcon, PencilIcon, ViewfinderCircleIcon } from '../icons/MsxIcons';
 
@@ -844,7 +845,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                   <div className="flex items-center gap-1">
                     <span className="text-msx-textsecondary">ASCII pos: {fontChars.map((fc: any) => fc.bankCharCode).join(',')} - {codesUsedByThisFont}</span>
                     {!bank.isLocked &&
-                      <Button onClick={() => handleRemoveTileFromBank(bank.id, tileId)} size="sm" variant="danger" className="!p-0.5" icon={<TrashIcon className="w-2.5 h-2.5" />}>{null}</Button>}
+                      <Tooltip text="Remove tile from bank"><Button onClick={() => handleRemoveTileFromBank(bank.id, tileId)} size="sm" variant="danger" className="!p-0.5" icon={<TrashIcon className="w-2.5 h-2.5" />}>{null}</Button></Tooltip>}
                   </div>
                 </div>
               );
@@ -863,7 +864,7 @@ export const TileBankEditor: React.FC<TileBankEditorProps> = ({
                   <span>{tileAsset?.name || 'Unknown Tile'} (ID: ...{tileId.slice(-4)})</span>
                   <span className="text-msx-textsecondary">Base: {(assignment as { charCode: number }).charCode} (0x{(assignment as { charCode: number }).charCode.toString(16).toUpperCase()}) - {codesUsedByThisTile}</span>
                   {!bank.isLocked &&
-                    <Button onClick={() => handleRemoveTileFromBank(bank.id, tileId)} size="sm" variant="danger" className="!p-0.5" icon={<TrashIcon className="w-2.5 h-2.5" />}>{null}</Button>}
+                    <Tooltip text="Remove tile from bank"><Button onClick={() => handleRemoveTileFromBank(bank.id, tileId)} size="sm" variant="danger" className="!p-0.5" icon={<TrashIcon className="w-2.5 h-2.5" />}>{null}</Button></Tooltip>}
                 </div>
               );
             }

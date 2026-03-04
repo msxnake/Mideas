@@ -520,10 +520,19 @@ Este documento lista todas las funcionalidades implementadas en GameFlowPreviewM
 ### Nota 2026-03-01: PLAY_SOUND en State Machine
 - `PLAY_SOUND` de state machine ya esta operativo en ASM.
 - La ruta corregida serializa el sound asset real por indice, en lugar de degradar `soundId` textuales a `0`.
-- En runtime, `Action_PlaySound` usa `SM_PlaySoundAsset` y el loop principal avanza el audio con `SM_UpdateSound`.
+- En runtime, `Action_PlaySound` usa `SM_PlaySoundAsset` y la ruta de VBlank avanza el audio con `SM_UpdateSound`.
 - Esto corrige el bug observado en `land` del Hero: antes solo sonaba un tono fijo y el PSG podia quedar colgado sin silenciarse.
 - La exportacion actual de state machine reproduce el sound asset como una secuencia one-shot a 60 Hz.
 - Limitaciones actuales: los loops de canal se aplanan a una sola pasada y el hardware envelope todavia no se emite en esta ruta.
+
+### Nota 2026-03-04: Tracker PSG `volumeEnvelope` sin loop y sustain infinito
+- Se detecto un bug en el runtime del tracker PSG al probar el instrumento `Piano` de `Music3`.
+- Habia dos problemas encadenados:
+- La normalizacion de `volumeEnvelope` mezclaba escalas `0..127` y `0..15` por valor individual, provocando picos falsos en envolventes legacy.
+- Cuando una `volumeEnvelope` software llegaba al final y `volumeLoop = 255`, el canal podia quedarse sosteniendo la nota en vez de apagarse.
+- La correccion en `soundGenerator.ts` decide la escala de toda la envolvente por instrumento (si algun valor supera `15`, toda la curva se trata como `0..127` y se reescala a `0..15`).
+- La correccion en `music_resolve_channel_volume` ahora trata el fin de una envolvente sin loop como fin real de nota: fuerza `music_ch_note = #FF` y el siguiente tick entra por `silent_channel`, baja volumen y cierra el mixer del canal.
+- Resultado esperado: el decay llega a silencio real y no queda sustain infinito en instrumentos tipo piano.
 
 ### Nota 2026-03-01: `JR` fuera de rango en `update_jump_component`
 - La rutina `update_jump_component` crecio al anadir `entity_jump_max` y `entity_jump_bonus`, y varios saltos relativos a `jump_next_entity` / `jump_done_entity` dejaron de caber en el rango de `JR`.

@@ -512,11 +512,9 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Advance tracker music before any SFX touches the PSG
-    call music_update
+    ; Tracker music runs in VBlank via task_update_music
 
-${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; Advance any active state-machine PLAY_SOUND effect
-    call SM_UpdateSound
+${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; State-machine PLAY_SOUND runs in VBlank via task_update_music
 ` : ``}
 
     ; Update animated background tiles (water, fire, etc.)
@@ -954,17 +952,18 @@ ${hasHud ? `
 
     ; End screen loop - wait for input or timeout
 .end_screen_loop:
-    call music_update
     halt                          ; Wait V-blank
 
-    ; Check for fire button to exit
-    call GTTRIG
-    or a
-    jr nz, .end_screen_exit
+    ; Avoid BIOS joystick helpers here because they touch the PSG while
+    ; VBlank music is writing it. Use keyboard matrix reads only.
+    ld a, 8                       ; SPACE row
+    call FAST_SNSMAT
+    bit 0, a                      ; SPACE
+    jr z, .end_screen_exit
 
     ; Check for ESC key to exit
     ld a, 7                       ; ESC key row
-    call SNSMAT
+    call FAST_SNSMAT
     bit 2, a                      ; ESC key
     jr z, .end_screen_exit
 
@@ -1168,7 +1167,6 @@ show_menu_placeholder:
     call render_submenu_screen
 
 .smp_loop:
-    call music_update
     halt
     ld a, 0
     call GTSTCK
@@ -1205,7 +1203,6 @@ show_menu_placeholder:
     jr z, .smp_loop
 
 .smp_wait_fire_release:
-    call music_update
     halt
     ld a, 0
     call GTTRIG
@@ -1215,7 +1212,6 @@ show_menu_placeholder:
 
 .smp_wait_neutral:
 .smp_wait_neutral_loop:
-    call music_update
     halt
     ld a, 0
     call GTSTCK
@@ -1882,7 +1878,6 @@ wait_for_fire:
 
     ; Wait for fire button press
 .wait_press:
-    call music_update
     halt
     ld a, 0                       ; Trigger 0 = space bar
     call GTTRIG
@@ -1891,7 +1886,6 @@ wait_for_fire:
 
     ; Wait for fire button release
 .wait_release:
-    call music_update
     halt
     ld a, 0
     call GTTRIG
@@ -1901,7 +1895,6 @@ wait_for_fire:
     ; Small delay after release
     ld b, 5
 .delay_loop:
-    call music_update
     halt
     djnz .delay_loop
 
@@ -2330,7 +2323,6 @@ trans_wait_frames:
     jr z, .twf_done               ; 0 = no wait (safety)
     ld b, a
 .twf_loop:
-    call music_update
     halt                          ; Wait for V-blank (~20ms at 50Hz)
     djnz .twf_loop
 .twf_done:
@@ -3003,7 +2995,6 @@ ${nodeLabel}_init:
     code += `    ; Initial delay\n`;
     code += `    ld b, ${systemConfig.initialDelayFrames}\n`;
     code += `.delay_loop:\n`;
-    code += `    call music_update\n`;
     code += `    halt    ; Wait for V-blank\n`;
     code += `    djnz .delay_loop\n\n`;
   }
@@ -3050,8 +3041,8 @@ gameflow_world_game_loop:
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
-    call music_update
-${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    call SM_UpdateSound
+    ; Tracker music runs in VBlank via task_update_music
+${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; State-machine PLAY_SOUND runs in VBlank via task_update_music
 ` : ``}    call update_animated_tiles
     ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
 ${defaultHasHud ? `    call render_hud

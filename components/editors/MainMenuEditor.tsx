@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MainMenuConfig, MainMenuOption, MainMenuKeyMapping, ProjectAsset, MSX1ColorValue } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, CodeIcon, ListBulletIcon } from '../icons/MsxIcons';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { ExportMainMenuASMModal } from '../modals/ExportMainMenuASMModal';
@@ -146,9 +147,9 @@ export const MainMenuEditor: React.FC<MainMenuEditorProps> = ({ mainMenuConfig, 
                         <div key={opt.id} className="flex items-center space-x-2 p-2 bg-msx-bgcolor rounded">
                             <input type="text" value={opt.label} onChange={e => handleOptionChange(index, 'label', e.target.value)} className="p-1 flex-grow bg-msx-panelbg border border-msx-border rounded"/>
                             <label><input type="checkbox" checked={opt.enabled} onChange={e => handleOptionChange(index, 'enabled', e.target.checked)} className="form-checkbox"/> Enabled</label>
-                            <Button onClick={() => handleMoveOption(index, 'up')} disabled={index === 0} icon={<ArrowUpIcon/>} size="sm" variant="ghost">{null}</Button>
-                            <Button onClick={() => handleMoveOption(index, 'down')} disabled={index === mainMenuConfig.options.length - 1} icon={<ArrowDownIcon/>} size="sm" variant="ghost">{null}</Button>
-                            <Button onClick={() => handleRemoveOption(index)} icon={<TrashIcon/>} size="sm" variant="danger">{null}</Button>
+                            <Tooltip text="Move option up"><Button onClick={() => handleMoveOption(index, 'up')} disabled={index === 0} icon={<ArrowUpIcon/>} size="sm" variant="ghost">{null}</Button></Tooltip>
+                            <Tooltip text="Move option down"><Button onClick={() => handleMoveOption(index, 'down')} disabled={index === mainMenuConfig.options.length - 1} icon={<ArrowDownIcon/>} size="sm" variant="ghost">{null}</Button></Tooltip>
+                            <Tooltip text="Remove this option"><Button onClick={() => handleRemoveOption(index)} icon={<TrashIcon/>} size="sm" variant="danger">{null}</Button></Tooltip>
                         </div>
                     ))}
                     <Button onClick={handleAddOption} icon={<PlusCircleIcon/>} variant="secondary" size="sm">Add Menu Option</Button>

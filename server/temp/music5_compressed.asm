@@ -19,7 +19,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 37216
+; Estimated payload bytes: 37423
 ; Estimated banks used: 5
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (836 bytes)
@@ -34,14 +34,14 @@
 ; BANK 01 @#03F6 : hud.asm (79 bytes)
 ; BANK 01 @#0445 : menus.asm (168 bytes)
 ; BANK 01 @#04ED : sound.asm part 1/2 (6931 bytes)
-; BANK 02 @#0000 : sound.asm part 2/2 (4342 bytes)
-; BANK 02 @#10F6 : scroll.asm (2353 bytes)
-; BANK 02 @#1A27 : animtiles.asm (1497 bytes)
-; BANK 03 @#0000 : animtiles.asm (2338 bytes)
-; BANK 03 @#0922 : particles.asm (4963 bytes)
-; BANK 03 @#1C85 : statemachine.asm (5 bytes)
-; BANK 03 @#1C8A : gameflow.asm (886 bytes)
-; BANK 04 @#0000 : gameflow.asm (4448 bytes)
+; BANK 02 @#0000 : sound.asm part 2/2 (4508 bytes)
+; BANK 02 @#119C : scroll.asm (2353 bytes)
+; BANK 02 @#1ACD : animtiles.asm (1331 bytes)
+; BANK 03 @#0000 : animtiles.asm (2504 bytes)
+; BANK 03 @#09C8 : particles.asm (4963 bytes)
+; BANK 03 @#1D2B : statemachine.asm (5 bytes)
+; BANK 03 @#1D30 : gameflow.asm (720 bytes)
+; BANK 04 @#0000 : gameflow.asm (4655 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -136,7 +136,11 @@ restart_rom_continue:
     di
 
     ; Register default tasks based on project needs
-    
+        ld a, 4
+    ld hl, task_update_music
+    call enable_task
+
+
     ei
 
     ; ====================================================
@@ -644,9 +648,12 @@ FAST_GTSTCK:
     and #0F                ; Mask to valid range
     or #0E                 ; Add 14 (base register for joystick)
 
-    ; Select PSG register
+    ; Make PSG select+read atomic so VBlank music writes cannot
+    ; corrupt the selected register mid-access.
+    di
     out (#A0), a           ; Write register number to PSG address port
     in a, (#A2)            ; Read value from PSG data port
+    ei
 
     ; Process joystick data
     cpl                    ; Invert bits (joystick is active-low)
@@ -729,9 +736,12 @@ FAST_GTTRIG:
     and #0F
     or #0E
 
-    ; Select PSG register and read value
+    ; Make PSG select+read atomic so VBlank music writes cannot
+    ; corrupt the selected register mid-access.
+    di
     out (#A0), a
     in a, (#A2)
+    ei
 
     ; Trigger bit (bit 4): 0 when pressed, 1 when released
     and #10
@@ -2033,6 +2043,41 @@ task_update_collision:
     ret
 
 ; Task 3 (Sprites): Not generated (no sprites in project)
+
+; ==================================================================
+; TASK_UPDATE_MUSIC - Fixed-rate audio tick
+; ==================================================================
+; Keeps tracker and state-machine audio tied to H.TIMI instead of variable-cost loops
+; ==================================================================
+; Register Contract:
+;   Purpose: Interrupt-safe wrapper for tracker/state-machine audio tick.
+;   Inputs:
+;     - Music engine RAM state and state-machine sound cursors
+;   Outputs:
+;     - PSG state advanced once per VBlank
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;     - HL (by push/pop wrapper)
+task_update_music:
+    push af
+    push bc
+    push de
+    push hl
+
+    call music_update
+
+    pop hl
+    pop de
+    pop bc
+    pop af
+    ret
 
 ; ==================================================================
 ; TASK_FRAME_COUNTER - Custom timing/animations
@@ -3729,19 +3774,49 @@ music_resolve_channel_volume:
     inc hl
     ld d, (hl)
     pop hl
+    push hl
     ld hl, music_ch_vol_step_base
     call music_load_channel_byte
     cp b
+    jr c, .step_ok_restore
+    pop hl
+    push de
+    push hl
+    ld de, 9
+    add hl, de
+    ld a, (hl)
+    pop hl
+    pop de
+    cp b
     jr c, .step_ok
     ld a, b
-    dec a
+    push af
+    ld hl, music_ch_vol_step_base
+    call music_store_channel_byte
+    pop af
+    ld hl, music_ch_note_base
+    ld a, #FF
+    call music_store_channel_byte
+    xor a
+    ld b, a
+    jp .mrcv_done
+.step_ok_restore:
+    pop hl
 .step_ok:
     push af
     inc a
     cp b
     jr c, .next_step_ok
+    push de
+    push hl
+    ld de, 9
+    add hl, de
+    ld a, (hl)
+    pop hl
+    pop de
+    cp b
+    jr c, .next_step_ok
     ld a, b
-    dec a
 .next_step_ok:
     push de
     ld hl, music_ch_vol_step_base
@@ -3787,17 +3862,23 @@ music_resolve_channel_volume:
     ld hl, music_ch_vol_step_base
     call music_load_channel_byte
 .hw_phase_ready:
-    ld e, a
-    push hl
+    push af
+    call music_get_channel_instrument_ptr
+    ld a, h
+    or l
+    pop af
+    jr z, .hw_decay
+    push af
     inc hl
     inc hl
     ld a, (hl)
     and #04
-    pop hl
+    pop af
     jr z, .hw_decay
-    ld b, e
+    ld b, a
     jp .mrcv_done
 .hw_decay:
+    ld e, a
     ld a, 15
     sub e
     ld b, a
@@ -6395,17 +6476,18 @@ gameflow_handle_end:
 
     ; End screen loop - wait for input or timeout
 .end_screen_loop:
-    call music_update
     halt                          ; Wait V-blank
 
-    ; Check for fire button to exit
-    call GTTRIG
-    or a
-    jr nz, .end_screen_exit
+    ; Avoid BIOS joystick helpers here because they touch the PSG while
+    ; VBlank music is writing it. Use keyboard matrix reads only.
+    ld a, 8                       ; SPACE row
+    call FAST_SNSMAT
+    bit 0, a                      ; SPACE
+    jr z, .end_screen_exit
 
     ; Check for ESC key to exit
     ld a, 7                       ; ESC key row
-    call SNSMAT
+    call FAST_SNSMAT
     bit 2, a                      ; ESC key
     jr z, .end_screen_exit
 
@@ -6615,8 +6697,7 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Advance tracker music before any SFX touches the PSG
-    call music_update
+    ; Tracker music runs in VBlank via task_update_music
 
 
 

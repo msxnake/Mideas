@@ -722,6 +722,40 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
     code += `; Task 3 (Sprites): Not generated (no sprites in project)\n\n`;
   }
 
+  if ((analysis.tracks && analysis.tracks.length > 0) || (analysis.stateMachines && analysis.stateMachines.length > 0)) {
+    code += `; ==================================================================\n`;
+    code += `; TASK_UPDATE_MUSIC - Fixed-rate audio tick\n`;
+    code += `; ==================================================================\n`;
+    code += `; Keeps tracker and state-machine audio tied to H.TIMI instead of variable-cost loops\n`;
+    code += `; ==================================================================\n`;
+    code += buildRegisterContractComment({
+      purpose: 'Interrupt-safe wrapper for tracker/state-machine audio tick.',
+      inputs: ['Music engine RAM state and state-machine sound cursors'],
+      outputs: ['PSG state advanced once per VBlank'],
+      clobbers: ['AF', 'BC', 'DE', 'HL'],
+      preserved: ['AF', 'BC', 'DE', 'HL (by push/pop wrapper)'],
+    });
+    code += `task_update_music:\n`;
+    code += `    push af\n`;
+    code += `    push bc\n`;
+    code += `    push de\n`;
+    code += `    push hl\n\n`;
+    if (analysis.tracks && analysis.tracks.length > 0) {
+      code += `    call music_update\n`;
+    }
+    if (analysis.stateMachines && analysis.stateMachines.length > 0) {
+      code += `    call SM_UpdateSound\n`;
+    }
+    code += `\n`;
+    code += `    pop hl\n`;
+    code += `    pop de\n`;
+    code += `    pop bc\n`;
+    code += `    pop af\n`;
+    code += `    ret\n\n`;
+  } else {
+    code += `; TASK_UPDATE_MUSIC: Not generated (no tracker/state-machine audio in project)\n\n`;
+  }
+
   // Task 4: Frame Counter (placeholder for custom timing)
   code += `; ==================================================================\n`;
   code += `; TASK_FRAME_COUNTER - Custom timing/animations\n`;

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { EntityTemplate, ComponentDefinition, EntityTemplateComponent, ComponentPropertyDefinition, ProjectAsset } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, CaretDownIcon, CaretRightIcon, SpriteIcon, CodeIcon, LoadIcon, DocumentPlusIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { AssetPickerModal } from '../modals/AssetPickerModal';
@@ -445,7 +446,7 @@ export const EntityTemplateEditor: React.FC<EntityTemplateEditorProps> = ({
                             {isExpanded ? <CaretDownIcon className="w-2.5 h-2.5 mr-1"/> : <CaretRightIcon className="w-2.5 h-2.5 mr-1"/>}
                             {compDef.name}
                           </button>
-                          <Button onClick={() => handleRemoveComponentFromTemplate(tc.definitionId)} variant="danger" size="sm" icon={<TrashIcon className="w-3 h-3"/>} className="!p-0.5">{null}</Button>
+                          <Tooltip text="Remove component from template"><Button onClick={() => handleRemoveComponentFromTemplate(tc.definitionId)} variant="danger" size="sm" icon={<TrashIcon className="w-3 h-3"/>} className="!p-0.5">{null}</Button></Tooltip>
                         </div>
                         {isExpanded && (
                            <div className="mt-1.5 pl-2 space-y-1 border-l border-msx-border/30">

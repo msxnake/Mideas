@@ -3794,15 +3794,41 @@ music_resolve_channel_volume:
     call music_load_channel_byte
     cp b
     jr c, .step_ok
+    push de
+    push hl
+    ld de, 9
+    add hl, de
+    ld a, (hl)
+    pop hl
+    pop de
+    cp b
+    jr c, .step_ok
     ld a, b
-    dec a
+    push af
+    ld hl, music_ch_vol_step_base
+    call music_store_channel_byte
+    pop af
+    ld hl, music_ch_note_base
+    ld a, #FF
+    call music_store_channel_byte
+    xor a
+    ld b, a
+    jp .mrcv_done
 .step_ok:
     push af
     inc a
     cp b
     jr c, .next_step_ok
+    push de
+    push hl
+    ld de, 9
+    add hl, de
+    ld a, (hl)
+    pop hl
+    pop de
+    cp b
+    jr c, .next_step_ok
     ld a, b
-    dec a
 .next_step_ok:
     push de
     ld hl, music_ch_vol_step_base
@@ -4352,7 +4378,7 @@ music_track_0_musica_1_snd_inst_1:
     DB #01
     DB #FF
 music_track_0_musica_1_snd_inst_1_vol_env:
-    DB #0F,#0B,#09,#06,#04,#03,#0F,#08,#03,#00
+    DB #0F,#0B,#09,#06,#04,#03,#02,#01,#01,#00
 music_track_0_musica_1_snd_inst_1_tone_env:
     DB #00
 

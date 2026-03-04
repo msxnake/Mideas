@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ComponentDefinition, ComponentPropertyDefinition } from '../../types';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, TrashIcon, SaveIcon, PuzzlePieceIcon, LoadIcon, DocumentPlusIcon } from '../icons/MsxIcons';
 import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { DEFAULT_COMPONENT_DEFINITIONS } from '../../data/defaults';
@@ -335,7 +336,7 @@ export const ComponentDefinitionEditor: React.FC<ComponentDefinitionEditorProps>
                     <div key={index} className="p-2 border border-msx-border/50 rounded bg-msx-bgcolor/50">
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-xs text-msx-highlight">Property {index + 1}</span>
-                        <Button onClick={() => handleRemoveProperty(index)} variant="danger" size="sm" icon={<TrashIcon className="w-3 h-3" />} className="!p-0.5">{null}</Button>
+                        <Tooltip text="Remove this property"><Button onClick={() => handleRemoveProperty(index)} variant="danger" size="sm" icon={<TrashIcon className="w-3 h-3" />} className="!p-0.5">{null}</Button></Tooltip>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                         <div>

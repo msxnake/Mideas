@@ -47,6 +47,24 @@ export function generateEntitiesFile(analysis: ProjectAnalysis): string {
     return Math.max(0, Math.min(255, num | 0));
   };
 
+  const parseJobPeriod = (value: any): number => {
+    const num = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+    if (Number.isNaN(num)) return 1;
+    if (num >= 1 && num <= 4) return num | 0; // legacy period format
+    if (num === 100) return 1;
+    if (num === 50) return 2;
+    if (num === 33) return 3;
+    if (num === 25) return 4;
+    return 1;
+  };
+
+  const parseJobEntry = (value: any, period: number): number => {
+    const safePeriod = Math.max(1, period | 0);
+    const num = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+    const raw = Number.isNaN(num) ? 0 : (num | 0);
+    return ((raw % safePeriod) + safePeriod) % safePeriod;
+  };
+
   const toHexByte = (value: number): string =>
     (value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
 
@@ -291,6 +309,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_${index}
+    ; Run per-entity update
     call update_${entityName.toLowerCase()}
 .skip_update_${index}:
 `;
@@ -314,6 +333,8 @@ update_entities:
       const componentMask = generateEntityComponentMask(entity, template, analysis);
       const hasSprite = (componentMask & COMP_MASK_SPRITE) !== 0;
       const hasInput = (componentMask & COMP_MASK_INPUT) !== 0;
+      const jobPeriod = parseJobPeriod((entity as any)?.jobRate ?? (entity as any)?.jobPeriod);
+      const jobEntry = parseJobEntry((entity as any)?.jobEntry, jobPeriod);
       if (hasSprite && hasInput) {
         needsPatrolFacingHelper = true;
       }
@@ -730,6 +751,13 @@ update_entities:
     ld b, #${(componentMask & 0xFF).toString(16).toUpperCase().padStart(2, '0')}              ; Mask low byte
     ld c, #${((componentMask >> 8) & 0xFF).toString(16).toUpperCase().padStart(2, '0')}              ; Mask high byte
     call create_entity         ; Create with actual components from template
+
+    ; Configure per-entity job cadence
+    ; period: ${jobPeriod} frame(s), entry: ${jobEntry}
+    ld a, ${index}
+    ld b, ${jobPeriod}
+    ld c, ${jobEntry}
+    call entity_job_set
 
     ; Set real position from JSON data
     ld hl, entity_x_pos

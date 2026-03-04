@@ -430,6 +430,17 @@ export interface EntityInstance {
   entityTemplateId: string;
   /** The display name for this instance. */
   name: string;
+  /**
+   * Entity job execution rate in percent.
+   * Supported UI values: 100, 50, 33, 25.
+   * 100 means every frame.
+   */
+  jobRate?: number;
+  /**
+   * Entry slot within the selected job period window.
+   * Example: jobRate 50 -> valid entries 0..1.
+   */
+  jobEntry?: number;
   /** A map of component property overrides for this instance. */
   componentOverrides: Record<string, Record<string, any>>;
   /** The position of the instance on the screen map, in cells. */

@@ -16,12 +16,19 @@ function generateTaskRegistration(analysis) {
     if (!analysis)
         return '';
     let code = '';
+    const hasAudioTick = !!((analysis.tracks && analysis.tracks.length > 0) || (analysis.stateMachines && analysis.stateMachines.length > 0));
     // Keep ISR focused on VBlank-safe work only.
     // Input is polled in gameflow_world_game_loop for better compatibility.
     // Task 1: Sprite SAT upload in VBlank (for smooth hardware sprites)
     if (analysis.hasSprites) {
         code += `    ld a, 1\n`;
         code += `    ld hl, task_update_sprites\n`;
+        code += `    call enable_task\n\n`;
+    }
+    // Task 4: Audio tick in VBlank to keep tracker/SM sound cadence stable.
+    if (hasAudioTick) {
+        code += `    ld a, 4\n`;
+        code += `    ld hl, task_update_music\n`;
         code += `    call enable_task\n\n`;
     }
     // NOTE: To keep gameplay deterministic and identical to Mideas' GameFlow update order,

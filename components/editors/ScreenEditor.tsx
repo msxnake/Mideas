@@ -269,6 +269,8 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
       id: `entity_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       entityTemplateId: currentEntityTypeToPlace.id,
       name: `${currentEntityTypeToPlace.name} ${screenMap.layers.entities.filter(e => e.entityTemplateId === currentEntityTypeToPlace.id).length + 1}`,
+      jobRate: 100,
+      jobEntry: 0,
       position: { x: point.x, y: point.y },
       componentOverrides: {},
     };

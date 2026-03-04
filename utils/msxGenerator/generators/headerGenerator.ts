@@ -16,6 +16,7 @@ function generateTaskRegistration(analysis?: ProjectAnalysis): string {
   if (!analysis) return '';
 
   let code = '';
+  const hasAudioTick = !!((analysis.tracks && analysis.tracks.length > 0) || (analysis.stateMachines && analysis.stateMachines.length > 0));
 
   // Keep ISR focused on VBlank-safe work only.
   // Input is polled in gameflow_world_game_loop for better compatibility.
@@ -23,6 +24,13 @@ function generateTaskRegistration(analysis?: ProjectAnalysis): string {
   if (analysis.hasSprites) {
     code += `    ld a, 1\n`;
     code += `    ld hl, task_update_sprites\n`;
+    code += `    call enable_task\n\n`;
+  }
+
+  // Task 4: Audio tick in VBlank to keep tracker/SM sound cadence stable.
+  if (hasAudioTick) {
+    code += `    ld a, 4\n`;
+    code += `    ld hl, task_update_music\n`;
     code += `    call enable_task\n\n`;
   }
 

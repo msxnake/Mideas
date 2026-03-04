@@ -201,6 +201,10 @@ MAX_ENTITIES        EQU 32
     currentAddress += 32;
     code += `entity_screen_id    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity screen ID (32 bytes)\n`;
     currentAddress += 32;
+    code += `entity_job_period   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)\n`;
+    currentAddress += 32;
+    code += `entity_job_entry    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity job entry slot within period window (32 bytes)\n`;
+    currentAddress += 32;
     code += `entity_dir_mask     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity direction mask (32 bytes)\n`;
     currentAddress += 32;
     code += `entity_input_speed  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity input/cursor speed (32 bytes)\n`;

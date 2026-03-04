@@ -1042,7 +1042,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         noiseLoop: 255,
         ayToneEnabled: true,
         ayNoiseEnabled: false,
-        ayEnvelopeShape: 0,
+        ayEnvelopeShape: undefined,
       });
     }
     setIsInstrumentModalOpen(true);

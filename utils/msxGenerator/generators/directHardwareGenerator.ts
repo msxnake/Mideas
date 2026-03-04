@@ -118,8 +118,8 @@ ${buildRegisterContractComment({
 ;
 ; Notes:
 ;   - Auto-increments VRAM address (VDP feature)
-;   - Briefly masks IRQs only while programming the VDP address latch
-;   - Restores the previous IRQ enable state before the data loop starts
+;   - Keeps IRQs masked for the whole transfer to avoid VDP port races
+;   - Restores previous IRQ enable state on return
 ;   - Works on all MSX models (TMS9918, V9938, V9958)
 ; ==================================================================
 FAST_LDIRVM:
@@ -137,11 +137,6 @@ FAST_LDIRVM:
     out (#99), a           ; Write address high byte + write command
     nop                    ; Let the VDP latch the address before the first data write
 
-    ; Restore previous IRQ state before the bulk copy loop
-    pop af
-    jp po, .ldirvm_loop    ; P/V=0 => IRQs were already disabled
-    ei
-
     ; Copy loop
 .ldirvm_loop:
     ld a, (hl)             ; Read byte from RAM (7 cycles)
@@ -151,6 +146,11 @@ FAST_LDIRVM:
     ld a, b                ; Check if BC = 0 (4 cycles)
     or c                   ; (4 cycles)
     jr nz, .ldirvm_loop    ; Loop if not zero (12/7 cycles)
+
+    ; Restore previous IRQ state
+    pop af
+    ret po                 ; P/V=0 => IRQs were disabled on entry
+    ei
     ret
 
 `;
@@ -210,11 +210,6 @@ FAST_LDIRVM_256:
     out (#99), a
     nop
 
-    ; Restore previous IRQ state before the bulk copy loop
-    pop af
-    jp po, .ldirvm_256_begin
-    ei
-
     ; Copy 256 bytes using DJNZ (B=0 means 256)
 .ldirvm_256_begin:
     ld b, 0                ; B = 256 (wraps from 0)
@@ -223,6 +218,11 @@ FAST_LDIRVM_256:
     out (#98), a
     inc hl
     djnz .ldirvm_256_loop  ; Faster than dec bc + check (13/8 cycles)
+
+    ; Restore previous IRQ state
+    pop af
+    ret po                 ; P/V=0 => IRQs were disabled on entry
+    ei
     ret
 
 `;
@@ -265,19 +265,32 @@ ${buildRegisterContractComment({
 ;
 ; Notes:
 ;   - Preserves all registers including AF
-;   - Safe for HUD updates, tile changes
+;   - VDP write sequence is atomic against ISR VRAM writes
 ; ==================================================================
 FAST_WRTVRM:
-    push af                ; Save data byte (11 cycles)
+    ; Preserve caller-visible state and previous IRQ status.
+    push bc
+    ld c, a                ; C = input data byte
+    push af                ; Save caller AF
+    ld a, i
+    push af                ; Save previous IFF2 in P/V
+    di
     ld a, l
     out (#99), a           ; Address low (11 cycles)
     ld a, h
     or #40                 ; Write mode (7 cycles)
     out (#99), a           ; Address high + command (11 cycles)
-    pop af                 ; Restore data (10 cycles)
+    ld a, c
     out (#98), a           ; Write to VRAM (11 cycles)
-    ret                    ; (10 cycles)
-                           ; Total: ~40 cycles
+
+    ; Restore previous IRQ state.
+    pop af
+    jp po, .fwv_no_ei      ; P/V=0 => IRQs were disabled on entry
+    ei
+.fwv_no_ei:
+    pop af                 ; Restore caller AF
+    pop bc
+    ret
 
 `;
 }
@@ -438,9 +451,12 @@ FAST_GTSTCK:
     and #0F                ; Mask to valid range
     or #0E                 ; Add 14 (base register for joystick)
 
-    ; Select PSG register
+    ; Make PSG select+read atomic so VBlank music writes cannot
+    ; corrupt the selected register mid-access.
+    di
     out (#A0), a           ; Write register number to PSG address port
     in a, (#A2)            ; Read value from PSG data port
+    ei
 
     ; Process joystick data
     cpl                    ; Invert bits (joystick is active-low)
@@ -522,9 +538,12 @@ FAST_GTTRIG:
     and #0F
     or #0E
 
-    ; Select PSG register and read value
+    ; Make PSG select+read atomic so VBlank music writes cannot
+    ; corrupt the selected register mid-access.
+    di
     out (#A0), a
     in a, (#A2)
+    ei
 
     ; Trigger bit (bit 4): 0 when pressed, 1 when released
     and #10

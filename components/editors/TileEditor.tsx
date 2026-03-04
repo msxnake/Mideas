@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Tile, MSXColor, MSXColorValue, PixelData, Point, LineColorAttribute, MSX1ColorValue, MSX1Color, SymmetrySettings, ProjectAsset, DataFormat, TileLogicalProperties, DrawingTool, DITHER_BRUSH_DIAMETERS, DitherBrushDiameter, SolidityTypeId, SOLIDITY_TYPES, PROPERTY_FLAGS, PropertyFlagKey, TextureGeneratorType, RockGeneratorParams, BrickGeneratorParams, LadderGeneratorParams, AllGeneratorParams, CellBarsGeneratorParams, IceGeneratorParams, GrassGeneratorParams, StylizedGrassGeneratorParams, FrameGeneratorParams, Screen5PaletteSlot, TileAnimationSettings, TileAnimationMode, TileTransformEffect } from '../../types';
 import { Panel } from '../common/Panel';
+import { Tooltip } from '../common/Tooltip';
 import {
   EDITABLE_TILE_DIMENSIONS, MSX1_PALETTE, MSX1_PALETTE_MAP, MSX1_PALETTE_IDX_MAP,
   SCREEN2_PIXELS_PER_COLOR_SEGMENT, DEFAULT_SCREEN2_FG_COLOR, DEFAULT_SCREEN2_BG_COLOR,
@@ -2941,11 +2942,11 @@ export const TileEditor: React.FC<TileEditorProps> = ({
             </div>
             <div className="p-1 bg-msx-panelbg rounded border border-msx-border text-xs flex flex-wrap gap-1 items-center">
               <span className="text-msx-textsecondary mr-1">Symmetry:</span>
-              <Button onClick={() => toggleSymmetry('horizontal')} className={symmetryButtonClass(symmetrySettings.horizontal)}>H</Button>
-              <Button onClick={() => toggleSymmetry('vertical')} className={symmetryButtonClass(symmetrySettings.vertical)}>V</Button>
-              <Button onClick={() => toggleSymmetry('diagonalMain')} className={symmetryButtonClass(symmetrySettings.diagonalMain)}>D1</Button>
-              <Button onClick={() => toggleSymmetry('diagonalAnti')} className={symmetryButtonClass(symmetrySettings.diagonalAnti)}>D2</Button>
-              <Button onClick={() => toggleSymmetry('quadMirror')} className={symmetryButtonClass(symmetrySettings.quadMirror)}>Quad</Button>
+              <Tooltip text="Toggle Horizontal Symmetry"><Button onClick={() => toggleSymmetry('horizontal')} className={symmetryButtonClass(symmetrySettings.horizontal)}>H</Button></Tooltip>
+              <Tooltip text="Toggle Vertical Symmetry"><Button onClick={() => toggleSymmetry('vertical')} className={symmetryButtonClass(symmetrySettings.vertical)}>V</Button></Tooltip>
+              <Tooltip text="Toggle Diagonal Symmetry (\)"><Button onClick={() => toggleSymmetry('diagonalMain')} className={symmetryButtonClass(symmetrySettings.diagonalMain)}>D1</Button></Tooltip>
+              <Tooltip text="Toggle Anti-Diagonal Symmetry (/)"><Button onClick={() => toggleSymmetry('diagonalAnti')} className={symmetryButtonClass(symmetrySettings.diagonalAnti)}>D2</Button></Tooltip>
+              <Tooltip text="Toggle Quad Symmetry (4-way)"><Button onClick={() => toggleSymmetry('quadMirror')} className={symmetryButtonClass(symmetrySettings.quadMirror)}>Quad</Button></Tooltip>
               <Button onClick={clearAllSymmetry} className="px-1.5 py-0.5 text-[0.65rem] bg-msx-danger text-white hover:bg-opacity-80">Off</Button>
             </div>
           </>

@@ -5581,6 +5581,15 @@ function generateEntityManagement(): string {
             ld hl, active_entity_list_dirty
             ld (hl), 1
 
+    ; Default job scheduler profile for newly created entities
+    ; period=1 (100%), entry=0
+            ld hl, entity_job_period
+            add hl, de
+            ld (hl), 1
+            ld hl, entity_job_entry
+            add hl, de
+            ld (hl), 0
+
     ; Initialize component data based on mask
             bit 0, b; Check COMP_MASK_POSITION (low byte)
             call nz, init_entity_position
@@ -5589,6 +5598,103 @@ function generateEntityManagement(): string {
             call nz, init_entity_sprite
 
     ret 
+
+    ; ------------------------------------------------------------------
+    ; entity_job_set
+    ; Set/update job scheduler profile for one entity.
+    ; Input:  A = entity index (0..31)
+    ;         B = period in frames (0 treated as 1)
+    ;         C = entry slot (wrapped to 0..period-1)
+    ; Output: entity_job_period/entry updated for that entity
+    ; Destroys: AF, DE, HL
+    ; ------------------------------------------------------------------
+entity_job_set:
+            ld e, a
+            ld d, 0
+
+            ld a, b
+            or a
+            jr nz, entity_job_set_period_ok
+            ld a, 1
+entity_job_set_period_ok:
+            ld b, a
+
+            ld a, c
+entity_job_set_entry_wrap:
+            cp b
+            jr c, entity_job_set_entry_ok
+            sub b
+            jr entity_job_set_entry_wrap
+entity_job_set_entry_ok:
+            ld c, a
+
+            ld hl, entity_job_period
+            add hl, de
+            ld a, b
+            ld (hl), a
+
+            ld hl, entity_job_entry
+            add hl, de
+            ld a, c
+            ld (hl), a
+            ret
+
+    ; ------------------------------------------------------------------
+    ; entity_job_should_run_c
+    ; Evaluate per-entity cadence gate for current frame.
+    ; Input:  C = entity index (0..31)
+    ; Output: A = 1 when entity should run this frame, 0 otherwise
+    ; Destroys: AF, BC, DE, HL
+    ; ------------------------------------------------------------------
+entity_job_should_run_c:
+            push bc
+            push de
+            push hl
+
+            ld e, c
+            ld d, 0
+
+            ld hl, entity_job_period
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, entity_job_run_period_ok
+            ld a, 1
+entity_job_run_period_ok:
+            cp 1
+            jr z, entity_job_run_active
+            ld b, a
+
+            ld hl, entity_job_entry
+            add hl, de
+            ld a, (hl)
+entity_job_run_entry_mod:
+            cp b
+            jr c, entity_job_run_entry_ready
+            sub b
+            jr entity_job_run_entry_mod
+entity_job_run_entry_ready:
+            ld e, a
+
+            ld a, (interrupt_counter)
+entity_job_run_frame_mod:
+            cp b
+            jr c, entity_job_run_frame_ready
+            sub b
+            jr entity_job_run_frame_mod
+entity_job_run_frame_ready:
+            cp e
+            jr nz, entity_job_run_inactive
+entity_job_run_active:
+            ld a, 1
+            jr entity_job_run_done
+entity_job_run_inactive:
+            xor a
+entity_job_run_done:
+            pop hl
+            pop de
+            pop bc
+            ret
 
     ; Initialize position component for entity(A = entity ID)
         init_entity_position:
@@ -5660,6 +5766,20 @@ function generateInitComponents(usage: ComponentUsageAnalysis): string {
         ld bc, 31
         ld (hl), 0
         ldir 
+
+    ; Initialize entity job scheduler defaults
+    ; period=1 (100%), entry=0 for every entity slot
+        ld hl, entity_job_period
+        ld de, entity_job_period + 1
+        ld bc, 31
+        ld (hl), 1
+        ldir
+
+        ld hl, entity_job_entry
+        ld de, entity_job_entry + 1
+        ld bc, 31
+        ld (hl), 0
+        ldir
  
     `;
 
@@ -5851,6 +5971,11 @@ update_all_entities:
 execute_all_state_machines:
     ret
 create_entity:
+    ret
+entity_job_set:
+    ret
+entity_job_should_run_c:
+    ld a, 1
     ret
 force_update_entity_sprite:
     ret

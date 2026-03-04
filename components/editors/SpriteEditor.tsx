@@ -5,6 +5,7 @@ import { Sprite, MSXColorValue, PixelData, Point, SpriteFrame, DataFormat, Explo
 import { mirrorPixelDataHorizontally, mirrorPixelDataVertically } from '../utils/spriteUtils';
 import { Panel } from '../common/Panel';
 import { Button } from '../common/Button';
+import { Tooltip } from '../common/Tooltip';
 import { PlusCircleIcon, SaveIcon, DocumentDuplicateIcon, TrashIcon, CodeIcon, RotateCcwIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, PencilIcon, EraserIcon, CogIcon, CompressVerticalIcon, CompressHorizontalIcon, FireIcon, PlayIcon, StopIcon, FolderOpenIcon, SphereIcon, ViewfinderCircleIcon, TilesetIcon, SpriteIcon, ContourIcon, EraserIcon as DisintegrationIcon, CopyIcon, PasteIcon } from '../icons/MsxIcons';
 import { ExportSpriteASMModal } from '../modals/ExportSpriteASMModal';
 import { ExplosionGeneratorModal } from '../modals/ExplosionGeneratorModal';
@@ -1295,16 +1296,16 @@ export const SpriteEditor: React.FC<SpriteEditorProps> = ({ sprite, onUpdate, on
             <div>
                 <h4 className="text-sm pixel-font text-msx-highlight mb-1.5">Transform Frame</h4>
                 <div className="grid grid-cols-3 gap-1 text-xs mb-2">
-                    <Button onClick={() => handleTransform('shiftLeft')} variant="ghost" size="sm" icon={<ArrowLeftIcon className="w-3 h-3"/>} title="Shift Left">{null}</Button>
-                    <Button onClick={() => handleTransform('shiftUp')} variant="ghost" size="sm" icon={<ArrowUpIcon className="w-3 h-3"/>} title="Shift Up">{null}</Button>
-                    <Button onClick={() => handleTransform('shiftRight')} variant="ghost" size="sm" icon={<ArrowRightIcon className="w-3 h-3"/>} title="Shift Right">{null}</Button>
+                    <Tooltip text="Shift pixels left"><Button onClick={() => handleTransform('shiftLeft')} variant="ghost" size="sm" icon={<ArrowLeftIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
+                    <Tooltip text="Shift pixels up"><Button onClick={() => handleTransform('shiftUp')} variant="ghost" size="sm" icon={<ArrowUpIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
+                    <Tooltip text="Shift pixels right"><Button onClick={() => handleTransform('shiftRight')} variant="ghost" size="sm" icon={<ArrowRightIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
 
-                    <Button onClick={() => handleTransform('rotate')} variant="ghost" size="sm" icon={<RotateCcwIcon className="w-3 h-3"/>} title="Rotate 90° CW (Square only)">{null}</Button>
-                    <Button onClick={() => handleTransform('shiftDown')} variant="ghost" size="sm" icon={<ArrowDownIcon className="w-3 h-3"/>} title="Shift Down">{null}</Button>
+                    <Tooltip text="Rotate 90° clockwise"><Button onClick={() => handleTransform('rotate')} variant="ghost" size="sm" icon={<RotateCcwIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
+                    <Tooltip text="Shift pixels down"><Button onClick={() => handleTransform('shiftDown')} variant="ghost" size="sm" icon={<ArrowDownIcon className="w-3 h-3"/>}>{null}</Button></Tooltip>
                     <Button onClick={handleClearFrame} variant="danger" size="sm" className="col-span-1" title="Clear Frame">Clr</Button>
-                    
-                    <Button onClick={handleContractRow} variant="ghost" size="sm" icon={<CompressVerticalIcon className="w-3 h-3"/>} title="Contract Row (Del Mid Row)" disabled={sprite.size.height <= 1}>{null}</Button>
-                    <Button onClick={handleContractColumn} variant="ghost" size="sm" icon={<CompressHorizontalIcon className="w-3 h-3"/>} title="Contract Col (Del Mid Col)" disabled={sprite.size.width <= 1}>{null}</Button>
+
+                    <Tooltip text="Delete middle row"><Button onClick={handleContractRow} variant="ghost" size="sm" icon={<CompressVerticalIcon className="w-3 h-3"/>} disabled={sprite.size.height <= 1}>{null}</Button></Tooltip>
+                    <Tooltip text="Delete middle column"><Button onClick={handleContractColumn} variant="ghost" size="sm" icon={<CompressHorizontalIcon className="w-3 h-3"/>} disabled={sprite.size.width <= 1}>{null}</Button></Tooltip>
                 </div>
                 <div className="grid grid-cols-2 gap-1 text-xs mb-2">
                     <Button onClick={() => handleTransform('flipHorizontal')} variant="ghost" size="sm" className="w-full" justify="start">Flip H</Button>

@@ -297,6 +297,8 @@ export interface IntermediateEntityInstance {
   position: EntityInstance['position'];
   entityTemplateId: string;
   entityTemplateName: string | null;
+  jobRate?: number;
+  jobEntry?: number;
   components: Array<{
     definitionId: string;
     definitionName: string | null;
@@ -489,6 +491,8 @@ function buildIntermediateEntityInstance({
     position: instance.position,
     entityTemplateId: instance.entityTemplateId,
     entityTemplateName: template?.name ?? null,
+    jobRate: instance.jobRate ?? 100,
+    jobEntry: instance.jobEntry ?? 0,
     components,
     spriteIdsUsed: uniqueStrings(Array.from(spriteIdsFound)),
   };

@@ -147,7 +147,7 @@ ${files['statemachine.asm'] && files['statemachine.asm'].trim() !== '; No State 
 
 ${analysis.gameFlow ? files['gameflow.asm'] : '; [gameflow.asm skipped - no GameFlow]\n'}
 
-${(analysis as any).worldmaps?.length > 0 ? files['worlds.asm'] : '; [worlds.asm skipped - no WorldMaps]\n'}
+${files['worlds.asm']}
 
 ; ==================================================================
 ; GAME SYSTEM FUNCTIONS

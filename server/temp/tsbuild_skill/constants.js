@@ -425,7 +425,6 @@ exports.DEFAULT_PSG_INSTRUMENTS = [
         toneLoop: 255,
         ayToneEnabled: true,
         ayNoiseEnabled: false,
-        ayEnvelopeShape: 0, // Decay
     },
     {
         id: 2,

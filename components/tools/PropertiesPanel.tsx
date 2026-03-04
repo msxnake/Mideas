@@ -13,6 +13,39 @@ import { AssetPickerModal } from '../modals/AssetPickerModal';
 import { StartNodeEditor } from '../editors/StartNodeEditor';
 
 const CHILD_LINK_COMPONENT_ID = 'comp_child_link';
+const ENTITY_JOB_RATE_OPTIONS = [100, 50, 33, 25] as const;
+
+const getJobPeriodFromRate = (rate: number): number => {
+  switch (rate) {
+    case 50:
+      return 2;
+    case 33:
+      return 3;
+    case 25:
+      return 4;
+    case 100:
+    default:
+      return 1;
+  }
+};
+
+const normalizeEntityJobRate = (value: any): number => {
+  const raw = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+  if (raw === 1) return 100;
+  if (raw === 2) return 50;
+  if (raw === 3) return 33;
+  if (raw === 4) return 25;
+  if (ENTITY_JOB_RATE_OPTIONS.includes(raw as any)) return raw;
+  return 100;
+};
+
+const normalizeEntityJobEntry = (value: any, period: number): number => {
+  const safePeriod = Math.max(1, period | 0);
+  const raw = typeof value === 'number' ? value : parseInt(String(value ?? ''), 10);
+  const entry = Number.isNaN(raw) ? 0 : (raw | 0);
+  const wrapped = ((entry % safePeriod) + safePeriod) % safePeriod;
+  return wrapped;
+};
 
 
 /**
@@ -172,6 +205,13 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   const [localEntityPosX, setLocalEntityPosX] = useState(entityInstance?.position.x.toString() || "0");
   const [localEntityPosY, setLocalEntityPosY] = useState(entityInstance?.position.y.toString() || "0");
   const [localComponentOverrides, setLocalComponentOverrides] = useState<Record<string, Record<string, any>>>(entityInstance?.componentOverrides || {});
+  const [localEntityJobRate, setLocalEntityJobRate] = useState(
+    String(normalizeEntityJobRate(entityInstance?.jobRate))
+  );
+  const [localEntityJobEntry, setLocalEntityJobEntry] = useState(() => {
+    const rate = normalizeEntityJobRate(entityInstance?.jobRate);
+    return String(normalizeEntityJobEntry(entityInstance?.jobEntry, getJobPeriodFromRate(rate)));
+  });
 
   const [localEffectZoneName, setLocalEffectZoneName] = useState(effectZone?.name || "");
   const [localEffectZoneRect, setLocalEffectZoneRect] = useState(effectZone?.rect || { x: 0, y: 0, width: 4, height: 4 });
@@ -252,8 +292,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       setLocalEntityPosX(entityInstance.position.x.toString());
       setLocalEntityPosY(entityInstance.position.y.toString());
       setLocalComponentOverrides(JSON.parse(JSON.stringify(entityInstance.componentOverrides || {})));
+      const normalizedRate = normalizeEntityJobRate(entityInstance.jobRate);
+      setLocalEntityJobRate(String(normalizedRate));
+      setLocalEntityJobEntry(
+        String(normalizeEntityJobEntry(entityInstance.jobEntry, getJobPeriodFromRate(normalizedRate)))
+      );
     } else {
       setLocalEntityName(""); setLocalEntityPosX("0"); setLocalEntityPosY("0"); setLocalComponentOverrides({});
+      setLocalEntityJobRate("100");
+      setLocalEntityJobEntry("0");
     }
   }, [entityInstance]);
   
@@ -308,6 +355,28 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     else if (prop === 'position.x') { setLocalEntityPosX(value); const numX = parseInt(value, 10); if (!isNaN(numX)) { updatePayload.position = { ...entityInstance.position, x: numX }; }} 
     else if (prop === 'position.y') { setLocalEntityPosY(value); const numY = parseInt(value, 10); if (!isNaN(numY)) { updatePayload.position = { ...entityInstance.position, y: numY }; }}
     if (Object.keys(updatePayload).length > 0) { onUpdateEntityInstance(entityInstance.id, updatePayload); }
+  };
+
+  const handleEntityJobRateChange = (value: string) => {
+    if (!entityInstance || !onUpdateEntityInstance) return;
+    const normalizedRate = normalizeEntityJobRate(value);
+    const period = getJobPeriodFromRate(normalizedRate);
+    const normalizedEntry = normalizeEntityJobEntry(localEntityJobEntry, period);
+    setLocalEntityJobRate(String(normalizedRate));
+    setLocalEntityJobEntry(String(normalizedEntry));
+    onUpdateEntityInstance(entityInstance.id, {
+      jobRate: normalizedRate,
+      jobEntry: normalizedEntry,
+    });
+  };
+
+  const handleEntityJobEntryChange = (value: string) => {
+    if (!entityInstance || !onUpdateEntityInstance) return;
+    const normalizedRate = normalizeEntityJobRate(localEntityJobRate);
+    const period = getJobPeriodFromRate(normalizedRate);
+    const normalizedEntry = normalizeEntityJobEntry(value, period);
+    setLocalEntityJobEntry(String(normalizedEntry));
+    onUpdateEntityInstance(entityInstance.id, { jobEntry: normalizedEntry });
   };
 
   const handleComponentOverrideChange = (componentDefId: string, propertyName: string, value: any, propertyType: ComponentPropertyDefinition['type']) => {
@@ -549,6 +618,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         });
       }
     };
+
+    const currentJobRate = normalizeEntityJobRate(localEntityJobRate);
+    const currentJobPeriod = getJobPeriodFromRate(currentJobRate);
+    const currentJobEntry = normalizeEntityJobEntry(localEntityJobEntry, currentJobPeriod);
+    const jobEntryOptions = Array.from({ length: currentJobPeriod }, (_, index) => index);
   
     return (
       <div className="space-y-3">
@@ -569,6 +643,37 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           <div>
             <label htmlFor="entityPosY" className="block text-xs text-msx-textsecondary mb-0.5">Position Y (cell):</label>
             <input id="entityPosY" type="number" value={localEntityPosY} onChange={e => handleEntityPropertyChange('position.y', e.target.value)} className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label htmlFor="entityJobRate" className="block text-xs text-msx-textsecondary mb-0.5">Job:</label>
+            <select
+              id="entityJobRate"
+              value={String(currentJobRate)}
+              onChange={e => handleEntityJobRateChange(e.target.value)}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            >
+              <option value="100">100%</option>
+              <option value="50">50%</option>
+              <option value="33">33%</option>
+              <option value="25">25%</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="entityJobEntry" className="block text-xs text-msx-textsecondary mb-0.5">
+              Entry (0..{Math.max(0, currentJobPeriod - 1)}):
+            </label>
+            <select
+              id="entityJobEntry"
+              value={String(currentJobEntry)}
+              onChange={e => handleEntityJobEntryChange(e.target.value)}
+              className="w-full p-1 text-xs bg-msx-bgcolor border-msx-border rounded"
+            >
+              {jobEntryOptions.map(entry => (
+                <option key={entry} value={entry}>{entry}</option>
+              ))}
+            </select>
           </div>
         </div>
         <p className="text-xs text-msx-textsecondary">Based on Template: <strong className="text-msx-cyan">{template.name}</strong></p>

@@ -692,12 +692,18 @@ function serializeSignedByteArray(values: number[]): number[] {
 }
 
 function normalizeVolumeEnvelopeData(values: number[]): number[] {
+  const usesLegacy127Scale = values.some((value) => clampByte(value, 0, 127) > 15);
+
   return values.map((value) => {
     const clamped = clampByte(value, 0, 127);
-    if (clamped <= 15) {
-      return clamped;
+    if (!usesLegacy127Scale) {
+      return clampByte(clamped, 0, 15);
     }
-    return clampByte(Math.round((clamped / 127) * 15), 0, 15);
+    const scaled = clampByte(Math.round((clamped / 127) * 15), 0, 15);
+    if (clamped > 0 && scaled === 0) {
+      return 1;
+    }
+    return scaled;
   });
 }
 
@@ -1145,19 +1151,49 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    inc hl',
     '    ld d, (hl)',
     '    pop hl',
+    '    push hl',
     '    ld hl, music_ch_vol_step_base',
     '    call music_load_channel_byte',
     '    cp b',
+    '    jr c, .step_ok_restore',
+    '    pop hl',
+    '    push de',
+    '    push hl',
+    '    ld de, 9',
+    '    add hl, de',
+    '    ld a, (hl)',
+    '    pop hl',
+    '    pop de',
+    '    cp b',
     '    jr c, .step_ok',
     '    ld a, b',
-    '    dec a',
+    '    push af',
+    '    ld hl, music_ch_vol_step_base',
+    '    call music_store_channel_byte',
+    '    pop af',
+    '    ld hl, music_ch_note_base',
+    '    ld a, #FF',
+    '    call music_store_channel_byte',
+    '    xor a',
+    '    ld b, a',
+    '    jp .mrcv_done',
+    '.step_ok_restore:',
+    '    pop hl',
     '.step_ok:',
     '    push af',
     '    inc a',
     '    cp b',
     '    jr c, .next_step_ok',
+    '    push de',
+    '    push hl',
+    '    ld de, 9',
+    '    add hl, de',
+    '    ld a, (hl)',
+    '    pop hl',
+    '    pop de',
+    '    cp b',
+    '    jr c, .next_step_ok',
     '    ld a, b',
-    '    dec a',
     '.next_step_ok:',
     '    push de',
     '    ld hl, music_ch_vol_step_base',
@@ -1203,20 +1239,26 @@ function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {
     '    ld hl, music_ch_vol_step_base',
     '    call music_load_channel_byte',
     '.hw_phase_ready:',
-    '    ld e, a',
-    '    push hl',
+    '    push af',           // save phase (A=0..15) before call destroys AF/DE/HL
+    '    call music_get_channel_instrument_ptr', // HL = instrument ptr (or 0)
+    '    ld a, h',
+    '    or l',
+    '    pop af',            // restore A = phase
+    '    jr z, .hw_decay',  // no instrument → decay
+    '    push af',           // save phase again while reading instrument byte
     '    inc hl',
-    '    inc hl',
+    '    inc hl',            // HL = &instrument[2] = ayEnvelopeShape
     '    ld a, (hl)',
-    '    and #04',
-    '    pop hl',
+    '    and #04',           // bit 2 of ayEnvelopeShape: 1=attack, 0=decay
+    '    pop af',            // restore A = phase
     '    jr z, .hw_decay',
-    '    ld b, e',
+    '    ld b, a',           // attack: B = phase (0→15 = volume increases)
     '    jp .mrcv_done',
     '.hw_decay:',
+    '    ld e, a',           // E = phase
     '    ld a, 15',
     '    sub e',
-    '    ld b, a',
+    '    ld b, a',           // decay: B = 15-phase (15→0 = volume decreases)
     '    jp .mrcv_done',
     '.fallback_base:',
     '    ld hl, music_ch_volume_base',
