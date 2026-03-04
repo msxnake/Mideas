@@ -85,6 +85,18 @@ interface SoftwareToneEnvelopeState {
     currentStep: number;
 }
 
+/**
+ * Represents the state of a software noise envelope for a channel.
+ */
+interface SoftwareNoiseEnvelopeState {
+    /** The noise envelope data points (AY noise periods 0-31). */
+    envelope: number[];
+    /** The loop position in the envelope. */
+    loopPosition?: number;
+    /** The current step in the envelope. */
+    currentStep: number;
+}
+
 
 /**
  * Emulates the AY-3-8910 sound chip to play tracker music in the browser.
@@ -115,6 +127,7 @@ export class AYSynthesizer {
     private channelHardwareEnvelopeState: (HardwareEnvelopeState | null)[] = [null, null, null];
     private channelSoftwareVolumeEnvelopeState: (SoftwareVolumeEnvelopeState | null)[] = [null, null, null];
     private channelSoftwareToneEnvelopeState: (SoftwareToneEnvelopeState | null)[] = [null, null, null];
+    private channelSoftwareNoiseEnvelopeState: (SoftwareNoiseEnvelopeState | null)[] = [null, null, null];
     private channelOrnamentState: (OrnamentState | null)[] = [null, null, null];
 
     private channelBaseVolumeForEffects: number[] = [15, 15, 15]; // Default full volume
@@ -143,6 +156,10 @@ export class AYSynthesizer {
                 this.channelActiveInstrument[ch] = newInstrument || null;
             }
         }
+    }
+
+    public getSongData(): TrackerSongData | null {
+        return this.songDataRef;
     }
 
     private getNotePeriod(noteString: string | null): number | null {
@@ -258,11 +275,13 @@ export class AYSynthesizer {
         this.channelHardwareEnvelopeState[channel] = null;
         this.channelSoftwareVolumeEnvelopeState[channel] = null;
         this.channelSoftwareToneEnvelopeState[channel] = null;
+        this.channelSoftwareNoiseEnvelopeState[channel] = null;
         this.envelopeTickCounters[channel] = 0;
 
         const useHardwareEnv = instrument.ayEnvelopeShape !== undefined && instrument.ayEnvelopeShape >= 0 && instrument.ayEnvelopeShape <= 15;
         const useSoftwareEnv = instrument.volumeEnvelope && instrument.volumeEnvelope.length > 0;
         const useToneEnv = instrument.toneEnvelope && instrument.toneEnvelope.length > 0;
+        const useNoiseEnv = instrument.noiseEnvelope && instrument.noiseEnvelope.length > 0;
 
         if (useHardwareEnv && this.songDataRef) {
             const shape = instrument.ayEnvelopeShape!;
@@ -295,6 +314,52 @@ export class AYSynthesizer {
                 currentStep: 0,
             };
         }
+
+        if (useNoiseEnv) {
+            const noiseLoop = instrument.noiseLoop;
+            this.channelSoftwareNoiseEnvelopeState[channel] = {
+                envelope: instrument.noiseEnvelope!,
+                loopPosition: (noiseLoop !== undefined && noiseLoop >= 0 && noiseLoop < instrument.noiseEnvelope!.length) ? noiseLoop : undefined,
+                currentStep: 0,
+            };
+        }
+    }
+
+    private getResolvedNoisePeriod(channel: 0 | 1 | 2, shouldAdvanceEnvelope: boolean): number {
+        const currentInstrument = this.channelActiveInstrument[channel];
+        const fallbackNoisePeriod = currentInstrument?.noiseBaseFrequency ?? this.songDataRef?.ayNoisePeriod ?? 16;
+        const noiseEnvState = this.channelSoftwareNoiseEnvelopeState[channel];
+
+        if (!noiseEnvState || noiseEnvState.envelope.length === 0) {
+            return Math.max(0, Math.min(31, fallbackNoisePeriod));
+        }
+
+        const currentIndex = Math.max(
+            0,
+            Math.min(
+                noiseEnvState.currentStep,
+                noiseEnvState.envelope.length - 1
+            )
+        );
+        const currentValue = noiseEnvState.envelope[currentIndex];
+
+        if (shouldAdvanceEnvelope) {
+            let nextStep = currentIndex + 1;
+            if (nextStep >= noiseEnvState.envelope.length) {
+                if (
+                    noiseEnvState.loopPosition !== undefined &&
+                    noiseEnvState.loopPosition >= 0 &&
+                    noiseEnvState.loopPosition < noiseEnvState.envelope.length
+                ) {
+                    nextStep = noiseEnvState.loopPosition;
+                } else {
+                    nextStep = noiseEnvState.envelope.length - 1;
+                }
+            }
+            noiseEnvState.currentStep = nextStep;
+        }
+
+        return Math.max(0, Math.min(31, currentValue));
     }
 
     private configureAudioNodeMixer(channel: 0 | 1 | 2) {
@@ -323,7 +388,7 @@ export class AYSynthesizer {
         }
     }
 
-    private setupNoiseSource(channel: 0 | 1 | 2, noteFrequency?: number | null) {
+    private setupNoiseSource(channel: 0 | 1 | 2) {
         if (!this.audioContext || !this.noiseBuffer || !this.channelMainGains[channel]) return;
         this.stopNoiseSource(channel);
 
@@ -333,8 +398,7 @@ export class AYSynthesizer {
         noiseSourceNode.loop = true;
 
         // Adjust playback rate based on noise period to simulate AY noise frequency control
-        const currentInstrument = this.channelActiveInstrument[channel];
-        const noisePeriod = currentInstrument?.noiseBaseFrequency ?? this.songDataRef?.ayNoisePeriod ?? 16;
+        const noisePeriod = this.getResolvedNoisePeriod(channel, false);
         // The AY noise period divides the noise clock further. Period 1 = fastest, 31 = slowest.
         // We baked the base noise clock into the buffer, so adjust playback rate by the period.
         const effectivePeriod = Math.max(1, noisePeriod & 0x1F);
@@ -379,10 +443,10 @@ export class AYSynthesizer {
             this.stopChannelSound(channel, true);
             this.channelBasePeriod[channel] = null;
             this.channelCurrentPeriod[channel] = null;
-            this.channelActiveInstrument[channel] = null;
             this.channelHardwareEnvelopeState[channel] = null;
             this.channelSoftwareVolumeEnvelopeState[channel] = null;
             this.channelSoftwareToneEnvelopeState[channel] = null;
+            this.channelSoftwareNoiseEnvelopeState[channel] = null;
             this.channelOrnamentState[channel] = null;
             this.channelBaseVolumeForEffects[channel] = 0;
             this.envelopeTickCounters[channel] = 0;
@@ -395,17 +459,22 @@ export class AYSynthesizer {
 
         let activeInstrumentChanged = false;
         // 2. Determine Instrument for this step
-        if (instrumentIdFromCell !== null && instrumentIdFromCell > 0 && this.songDataRef) {
-            const newInstrument = this.songDataRef.instruments.find(i => i.id === instrumentIdFromCell);
-            if (newInstrument && this.channelActiveInstrument[channel]?.id !== newInstrument.id) {
+        let effectiveInstrumentId = instrumentIdFromCell;
+        if (effectiveInstrumentId === null && this.channelActiveInstrument[channel]) {
+            effectiveInstrumentId = this.channelActiveInstrument[channel]!.id;
+        }
+
+        if (effectiveInstrumentId !== null && effectiveInstrumentId > 0 && this.songDataRef) {
+            const newInstrument = this.songDataRef.instruments.find(i => i.id === effectiveInstrumentId);
+            if (newInstrument) {
+                activeInstrumentChanged = this.channelActiveInstrument[channel] !== newInstrument;
                 this.channelActiveInstrument[channel] = newInstrument;
-                activeInstrumentChanged = true;
             }
         } else if (instrumentIdFromCell === 0 && isNewActualNote) { // Instrument 0 on new note means stop/no instrument
             this.channelActiveInstrument[channel] = null;
             activeInstrumentChanged = true; // Considered a change if it was previously set
         }
-        // If instrumentIdFromCell is null, channelActiveInstrument[channel] persists.
+        // If instrumentIdFromCell is null, the channel keeps using the last instrument in effect.
 
         // 3. Handle State Resets & Pitch for New Notes
         if (isNewActualNote) {
@@ -416,6 +485,7 @@ export class AYSynthesizer {
             this.channelHardwareEnvelopeState[channel] = null;
             this.channelSoftwareVolumeEnvelopeState[channel] = null;
             this.channelSoftwareToneEnvelopeState[channel] = null;
+            this.channelSoftwareNoiseEnvelopeState[channel] = null;
             this.channelOrnamentState[channel] = null;
             this.envelopeTickCounters[channel] = 0;
         }
@@ -475,9 +545,7 @@ export class AYSynthesizer {
             // Noise Source
             if (useNoise && this.noiseBuffer) {
                 if (!this.noiseSources[channel] || isNewActualNote || activeInstrumentChanged) {
-                    // Pass the note frequency to create tonal noise when tone is also enabled
-                    const noteFreq = useTone ? this.getFrequencyFromPeriod(this.channelCurrentPeriod[channel]) : null;
-                    this.setupNoiseSource(channel, noteFreq);
+                    this.setupNoiseSource(channel);
                 }
             } else if (!useNoise) {
                 this.stopNoiseSource(channel);
@@ -593,10 +661,11 @@ export class AYSynthesizer {
             }
         }
 
-        // Update noise playback rate based on noise period (no filter, period controls rate)
-        if (this.noiseSources[channel] && this.channelCurrentPeriod[channel] !== null) {
-            // Noise playback rate is already set based on instrument noise period.
-            // No filter frequency tracking needed with the LFSR approach.
+        // Update noise playback rate based on the resolved per-tick noise period.
+        if (this.noiseSources[channel]) {
+            const noisePeriod = this.getResolvedNoisePeriod(channel, shouldAdvanceEnvelope);
+            const effectivePeriod = Math.max(1, noisePeriod & 0x1F);
+            this.noiseSources[channel]!.playbackRate.setTargetAtTime(1.0 / effectivePeriod, this.audioContext.currentTime, 0.001);
         }
 
         // --- Volume processing ---
@@ -692,6 +761,7 @@ export class AYSynthesizer {
             this.channelHardwareEnvelopeState[ch] = null;
             this.channelSoftwareVolumeEnvelopeState[ch] = null;
             this.channelSoftwareToneEnvelopeState[ch] = null;
+            this.channelSoftwareNoiseEnvelopeState[ch] = null;
             this.channelOrnamentState[ch] = null;
             this.channelBaseVolumeForEffects[ch] = 15;
             this.envelopeTickCounters[ch] = 0;

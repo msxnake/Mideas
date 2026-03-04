@@ -11,11 +11,13 @@ import { AYEnvelopeVisualizer } from './AYEnvelopeVisualizer';
  * but keeps envelope data as strings for easier editing in text inputs.
  * @internal
  */
-interface InstrumentModalBuffer extends Omit<Partial<PT3Instrument>, 'volumeEnvelope' | 'toneEnvelope'> {
+interface InstrumentModalBuffer extends Omit<Partial<PT3Instrument>, 'volumeEnvelope' | 'toneEnvelope' | 'noiseEnvelope'> {
     /** The volume envelope as a comma-separated string. */
     volumeEnvelope?: string;
     /** The tone envelope as a comma-separated string. */
     toneEnvelope?: string;
+    /** The noise envelope as a comma-separated string. */
+    noiseEnvelope?: string;
 }
 
 /**
@@ -43,7 +45,26 @@ interface InstrumentEditorModalProps {
  * The types of predefined instruments available as templates.
  * @internal
  */
-type PredefinedInstrumentType = "Custom" | "Piano" | "Soft Piano" | "Banjo" | "Violin" | "Strings" | "Synth Lead" | "Bass" | "Drum" | "Hihat" | "Random";
+type PredefinedInstrumentType =
+    | "Custom"
+    | "Piano"
+    | "Soft Piano"
+    | "Banjo"
+    | "Violin"
+    | "Strings"
+    | "Synth Lead"
+    | "Bass"
+    | "Kick"
+    | "Snare"
+    | "Hi-Hat"
+    | "Snare Seca"
+    | "Snare Gorda"
+    | "Kick Techno"
+    | "Closed Hat"
+    | "Open Hat"
+    | "Drum"
+    | "Hihat"
+    | "Random";
 
 /**
  * A record of predefined instrument templates.
@@ -78,7 +99,7 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
         // Ratio 1.0 = envelope period = tone period / 16, creating rich harmonics
         // This is how PT3 trackers create the classic MSX violin/bowed string sound
         volumeEnvelope: "",
-        toneEnvelope: "0,0,0.3,0.5,0.3,0,-0.3,-0.5,-0.3,0",
+        toneEnvelope: "0,0,1,1,1,0,-1,-1,-1,0",
         toneLoop: 0,
         ayEnvelopeShape: 14,
         hardwareEnvelopeRatio: 1.0,
@@ -88,7 +109,7 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
         // Smoother string variant: shape 10 = continuous triangle
         // Ratio 2.0 = higher harmonics, brighter timbre
         volumeEnvelope: "",
-        toneEnvelope: "0,0,0.2,0,-0.2,0",
+        toneEnvelope: "0,0,1,0,-1,0",
         toneLoop: 0,
         ayEnvelopeShape: 10,
         hardwareEnvelopeRatio: 2.0,
@@ -108,19 +129,115 @@ const PREDEFINED_INSTRUMENTS: Record<PredefinedInstrumentType, Partial<Instrumen
         ayEnvelopeShape: 8,
         ayToneEnabled: true, ayNoiseEnabled: false,
     },
-    "Drum": {
-        volumeEnvelope: "127,80,40,15,0",
-        toneEnvelope: "0,0,0",
+    "Kick": {
+        volumeEnvelope: "127,118,100,78,56,32,12,0",
+        volumeLoop: 255,
+        toneEnvelope: "-24,-18,-14,-10,-7,-4,-2,0",
+        toneLoop: 255,
         ayEnvelopeShape: 0,
         ayToneEnabled: true, ayNoiseEnabled: true,
-        noiseBaseFrequency: 8,
+        noiseBaseFrequency: 2,
+        noiseEnvelope: "2,4,7,12,20,31",
+        noiseLoop: 255,
     },
-    "Hihat": {
-        volumeEnvelope: "110,50,10,0",
+    "Snare": {
+        volumeEnvelope: "127,116,96,72,50,30,14,0",
+        volumeLoop: 255,
+        toneEnvelope: "7,4,2,0",
+        toneLoop: 255,
+        ayEnvelopeShape: 0,
+        ayToneEnabled: true, ayNoiseEnabled: true,
+        noiseBaseFrequency: 3,
+        noiseEnvelope: "3,5,8,12,18,24,31",
+        noiseLoop: 255,
+    },
+    "Hi-Hat": {
+        volumeEnvelope: "120,84,48,20,0",
+        volumeLoop: 255,
         toneEnvelope: "0",
+        toneLoop: 255,
         ayEnvelopeShape: 0,
         ayToneEnabled: false, ayNoiseEnabled: true,
+        noiseBaseFrequency: 1,
+        noiseEnvelope: "1,1,2,4,8,16,31",
+        noiseLoop: 255,
+    },
+    "Snare Seca": {
+        volumeEnvelope: "127,110,84,56,30,10,0",
+        volumeLoop: 255,
+        toneEnvelope: "5,2,0",
+        toneLoop: 255,
+        ayEnvelopeShape: 0,
+        ayToneEnabled: true, ayNoiseEnabled: true,
+        noiseBaseFrequency: 4,
+        noiseEnvelope: "4,6,9,14,22,31",
+        noiseLoop: 255,
+    },
+    "Snare Gorda": {
+        volumeEnvelope: "127,124,116,102,84,60,38,18,0",
+        volumeLoop: 255,
+        toneEnvelope: "10,7,5,3,1,0",
+        toneLoop: 255,
+        ayEnvelopeShape: 0,
+        ayToneEnabled: true, ayNoiseEnabled: true,
         noiseBaseFrequency: 2,
+        noiseEnvelope: "2,3,5,8,12,18,26,31",
+        noiseLoop: 255,
+    },
+    "Kick Techno": {
+        volumeEnvelope: "127,127,120,108,90,68,42,20,0",
+        volumeLoop: 255,
+        toneEnvelope: "-30,-24,-18,-13,-9,-6,-3,0",
+        toneLoop: 255,
+        ayEnvelopeShape: 0,
+        ayToneEnabled: true, ayNoiseEnabled: true,
+        noiseBaseFrequency: 1,
+        noiseEnvelope: "1,2,3,6,12,24,31",
+        noiseLoop: 255,
+    },
+    "Closed Hat": {
+        volumeEnvelope: "120,92,60,28,0",
+        volumeLoop: 255,
+        toneEnvelope: "0",
+        toneLoop: 255,
+        ayEnvelopeShape: 0,
+        ayToneEnabled: false, ayNoiseEnabled: true,
+        noiseBaseFrequency: 1,
+        noiseEnvelope: "1,1,2,3,6,12,24,31",
+        noiseLoop: 255,
+    },
+    "Open Hat": {
+        volumeEnvelope: "118,108,96,82,68,54,40,28,18,10,0",
+        volumeLoop: 255,
+        toneEnvelope: "0",
+        toneLoop: 255,
+        ayEnvelopeShape: 0,
+        ayToneEnabled: false, ayNoiseEnabled: true,
+        noiseBaseFrequency: 1,
+        noiseEnvelope: "1,1,1,2,2,4,6,9,14,22,31",
+        noiseLoop: 255,
+    },
+    "Drum": {
+        volumeEnvelope: "127,118,100,78,56,32,12,0",
+        volumeLoop: 255,
+        toneEnvelope: "-24,-18,-14,-10,-7,-4,-2,0",
+        toneLoop: 255,
+        ayEnvelopeShape: 0,
+        ayToneEnabled: true, ayNoiseEnabled: true,
+        noiseBaseFrequency: 2,
+        noiseEnvelope: "2,4,7,12,20,31",
+        noiseLoop: 255,
+    },
+    "Hihat": {
+        volumeEnvelope: "120,84,48,20,0",
+        volumeLoop: 255,
+        toneEnvelope: "0",
+        toneLoop: 255,
+        ayEnvelopeShape: 0,
+        ayToneEnabled: false, ayNoiseEnabled: true,
+        noiseBaseFrequency: 1,
+        noiseEnvelope: "1,1,2,4,8,16,31",
+        noiseLoop: 255,
     },
     "Random": {}
 };
@@ -193,6 +310,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
     // Parse envelopes for visual editors
     const volumeEnvelopeArray = useMemo(() => parseEnvelope(instrumentModalBuffer.volumeEnvelope), [instrumentModalBuffer.volumeEnvelope]);
     const toneEnvelopeArray = useMemo(() => parseEnvelope(instrumentModalBuffer.toneEnvelope), [instrumentModalBuffer.toneEnvelope]);
+    const noiseEnvelopeArray = useMemo(() => parseEnvelope(instrumentModalBuffer.noiseEnvelope), [instrumentModalBuffer.noiseEnvelope]);
 
     // Handle field changes
     const handleFieldChange = useCallback((field: keyof InstrumentModalBuffer, value: string | number | boolean | undefined) => {
@@ -229,6 +347,10 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
         onInstrumentModalBufferChange('toneEnvelope', values.join(','));
     }, [onInstrumentModalBufferChange]);
 
+    const handleNoiseEnvelopeChange = useCallback((values: number[]) => {
+        onInstrumentModalBufferChange('noiseEnvelope', values.join(','));
+    }, [onInstrumentModalBufferChange]);
+
     // Audio preview
     const handlePreview = useCallback(async () => {
         if (!synthesizer || isPreviewing) return;
@@ -241,8 +363,10 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
             name: instrumentModalBuffer.name || 'Preview',
             volumeEnvelope: volumeEnvelopeArray,
             toneEnvelope: toneEnvelopeArray,
+            noiseEnvelope: noiseEnvelopeArray,
             volumeLoop: instrumentModalBuffer.volumeLoop,
             toneLoop: instrumentModalBuffer.toneLoop,
+            noiseLoop: instrumentModalBuffer.noiseLoop,
             ayEnvelopeShape: instrumentModalBuffer.ayEnvelopeShape,
             ayToneEnabled: instrumentModalBuffer.ayToneEnabled ?? true,
             ayNoiseEnabled: instrumentModalBuffer.ayNoiseEnabled ?? false,
@@ -254,11 +378,24 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
         try {
             await synthesizer.ensureAudioContext();
 
-            // Temporarily add instrument to synthesizer
-            const originalInstruments = synthesizer.songData?.instruments || [];
+            const originalSongData = typeof synthesizer.getSongData === 'function'
+                ? synthesizer.getSongData()
+                : null;
+            if (!originalSongData) {
+                setIsPreviewing(false);
+                return;
+            }
+
+            // Temporarily replace the instrument in the synth while preserving the full tracker state.
+            const originalInstruments = originalSongData.instruments || [];
+            const previewInstruments = [
+                ...originalInstruments.filter(instrument => instrument.id !== tempInstrument.id),
+                tempInstrument
+            ].sort((a, b) => a.id - b.id);
+
             synthesizer.setSongData({
-                ...synthesizer.songData,
-                instruments: [...originalInstruments, tempInstrument]
+                ...originalSongData,
+                instruments: previewInstruments
             });
 
             // Play preview note
@@ -271,7 +408,7 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
 
                 // Restore original instruments
                 synthesizer.setSongData({
-                    ...synthesizer.songData,
+                    ...originalSongData,
                     instruments: originalInstruments
                 });
             }, 1000);
@@ -531,6 +668,31 @@ export const InstrumentEditorModal: React.FC<InstrumentEditorModalProps> = ({
                                         className="w-full p-2 bg-msx-bgcolor border border-msx-border rounded focus:ring-2 focus:ring-msx-accent"
                                     />
                                     <p className="text-[10px] text-msx-textsecondary mt-1">Overrides fixed period. Env period = Note Period * Ratio.</p>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-msx-border pt-4 space-y-3">
+                                <EnvelopeEditor
+                                    type="noise"
+                                    values={noiseEnvelopeArray}
+                                    loopPoint={instrumentModalBuffer.noiseLoop}
+                                    onChange={handleNoiseEnvelopeChange}
+                                    onLoopChange={(loop) => handleFieldChange('noiseLoop', loop)}
+                                    label="Noise Macro (0-31 PSG noise period)"
+                                />
+
+                                <div>
+                                    <label className="block text-xs text-msx-textsecondary mb-1 font-semibold">
+                                        Noise Macro CSV
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={instrumentModalBuffer.noiseEnvelope || ""}
+                                        onChange={e => handleFieldChange('noiseEnvelope', e.target.value)}
+                                        className="w-full p-2 bg-msx-bgcolor border border-msx-border rounded font-mono text-sm focus:ring-2 focus:ring-msx-accent"
+                                        placeholder="e.g. 2,4,8,16,31"
+                                    />
+                                    <p className="text-[10px] text-msx-textsecondary mt-1">PT3-inspired per-tick noise period macro for snares, hats and textured drums.</p>
                                 </div>
                             </div>
                         </div>

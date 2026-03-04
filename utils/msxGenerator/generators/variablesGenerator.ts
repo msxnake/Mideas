@@ -656,6 +656,7 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
     { base: 'music_ch_volume_base', prefix: 'music_ch', suffix: 'volume', comment: 'Current base volume (0-15)' },
     { base: 'music_ch_vol_step_base', prefix: 'music_ch', suffix: 'vol_step', comment: 'Reserved software volume envelope step' },
     { base: 'music_ch_tone_step_base', prefix: 'music_ch', suffix: 'tone_step', comment: 'Reserved software tone envelope step' },
+    { base: 'music_ch_noise_step_base', prefix: 'music_ch', suffix: 'noise_step', comment: 'Reserved software noise envelope step' },
     { base: 'music_ch_orn_step_base', prefix: 'music_ch', suffix: 'orn_step', comment: 'Reserved ornament step' },
   ];
   const musicChannelNames = ['a', 'b', 'c'];

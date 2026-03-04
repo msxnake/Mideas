@@ -7,7 +7,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
  */
 interface EnvelopeEditorProps {
     /** The type of envelope being edited. */
-    type: 'volume' | 'tone';
+    type: 'volume' | 'tone' | 'noise';
     /** The envelope data as an array of numbers. */
     values: number[];
     /** The loop point index (0-31, or 255 for no loop). */
@@ -46,7 +46,9 @@ export const EnvelopeEditor: React.FC<EnvelopeEditorProps> = ({
     // Configuration based on envelope type
     const config = type === 'volume'
         ? { min: 0, max: 127, color: '#4ade80', gridLines: 8 }
-        : { min: -128, max: 127, color: '#60a5fa', gridLines: 16 };
+        : type === 'tone'
+            ? { min: -128, max: 127, color: '#60a5fa', gridLines: 16 }
+            : { min: 0, max: 31, color: '#f59e0b', gridLines: 8 };
 
     const width = 400;
     const height = 150;

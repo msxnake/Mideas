@@ -684,10 +684,14 @@ export interface PT3Instrument {
   volumeEnvelope?: number[];
   /** An array of tone envelope points (pitch offsets). */
   toneEnvelope?: number[];
+  /** An array of noise envelope points (AY noise period 0-31 per step). */
+  noiseEnvelope?: number[];
   /** The loop position for the volume envelope. */
   volumeLoop?: number;
   /** The loop position for the tone envelope. */
   toneLoop?: number;
+  /** The loop position for the noise envelope. */
+  noiseLoop?: number;
   /** (Not implemented) Sample data for the instrument. */
   sampleData?: any;
   /** The AY hardware envelope shape (0-15). */
@@ -779,6 +783,8 @@ export interface TrackerSongData {
   id: string;
   /** The name of the song asset. */
   name: string;
+  /** Playback backend used by the music asset. */
+  playbackBackend?: 'native' | 'external-pt3';
   /** The sound chip to target. */
   soundChip: 'PSG' | 'SCC';
   /** The display title of the song. */
@@ -813,6 +819,12 @@ export interface TrackerSongData {
   currentPatternId?: string;
   /** The calculated total length of the song in ticks. */
   currentSongLengthTicks?: number;
+  /** Optional raw PT3 data (full file or headerless payload) for external PT3 playback. */
+  externalPt3Data?: number[];
+  /** Whether the external PT3 payload still includes the standard 100-byte PT3 header. */
+  externalPt3HasHeader?: boolean;
+  /** Reference implementation selected for the external PT3 player integration. */
+  externalPt3PlayerId?: 'msxgl-pt3' | 'custom';
 }
 
 /**

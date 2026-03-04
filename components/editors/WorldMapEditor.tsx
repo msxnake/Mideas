@@ -119,6 +119,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
   const [editingConnectionsForNode, setEditingConnectionsForNode] = useState<WorldMapScreenNode | null>(null);
   const [movingNodeId, setMovingNodeId] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number, y: number } | null>(null);
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [dragNodeOffset, setDragNodeOffset] = useState<{ x: number, y: number } | null>(null);
 
 
   useEffect(() => {
@@ -283,6 +285,14 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     }
   };
 
+  const handleStartNodeDrag = useCallback((nodeId: string, svgX: number, svgY: number) => {
+    const node = worldMapGraph.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    setDraggingNodeId(nodeId);
+    setDragNodeOffset({ x: svgX - node.position.x, y: svgY - node.position.y });
+    setMovingNodeId(null);
+  }, [worldMapGraph.nodes]);
+
   const handleSvgMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
     // If a node is being moved, a click on the canvas background should place it.
     // The `NodeComponent`'s own mouseDown handler stops propagation, so this won't fire when clicking another node.
@@ -323,6 +333,21 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
       const dy = (e.clientY - panStart.y);
       onUpdate({ panOffset: { x: worldMapGraph.panOffset.x - dx / worldMapGraph.zoomLevel, y: worldMapGraph.panOffset.y - dy / worldMapGraph.zoomLevel } });
       setPanStart({ x: e.clientX, y: e.clientY });
+    } else if (draggingNodeId && dragNodeOffset && svgRef.current) {
+      const svgPoint = svgRef.current.createSVGPoint();
+      svgPoint.x = e.clientX;
+      svgPoint.y = e.clientY;
+      const CTM = svgRef.current.getScreenCTM()?.inverse();
+      if (CTM) {
+        const { x, y } = svgPoint.matrixTransform(CTM);
+        const newX = snapToGrid(x - dragNodeOffset.x);
+        const newY = snapToGrid(y - dragNodeOffset.y);
+        onUpdate({
+          nodes: worldMapGraph.nodes.map(n =>
+            n.id === draggingNodeId ? { ...n, position: { x: newX, y: newY } } : n
+          )
+        });
+      }
     } else if (movingNodeId && svgRef.current) {
       const svgPoint = svgRef.current.createSVGPoint();
       svgPoint.x = e.clientX;
@@ -338,6 +363,11 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     if (isPanning) {
       setIsPanning(false);
       if (e.currentTarget) e.currentTarget.style.cursor = 'grab';
+    } else if (draggingNodeId) {
+      const movedNode = worldMapGraph.nodes.find(n => n.id === draggingNodeId);
+      if (movedNode) checkForAutoConnections(movedNode);
+      setDraggingNodeId(null);
+      setDragNodeOffset(null);
     }
   };
 
@@ -654,11 +684,13 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setLinkingState: (state: { fromNodeId: string; fromDirection: ConnectionDirection } | null) => void;
     onNavigateToAsset: (assetId: string) => void;
     onShowContextMenu: (position: { x: number; y: number }, items: ContextMenuItem[]) => void;
+    onStartDrag: (nodeId: string, svgX: number, svgY: number) => void;
     svgGlobalRef?: React.RefObject<SVGSVGElement>;
     isLinking: boolean;
     isNodeSelected: boolean;
     isStartNode: boolean;
     isMoving: boolean;
+    isDragging: boolean;
   }
 
   const NodeComponent: React.FC<NodeComponentProps> = React.memo(({
@@ -668,28 +700,48 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
     setLinkingState,
     onNavigateToAsset,
     onShowContextMenu,
+    onStartDrag,
     svgGlobalRef,
     isLinking,
     isNodeSelected,
     isStartNode,
-    isMoving
+    isMoving,
+    isDragging
   }) => {
     const screenMapAsset = availableScreenMaps.find(sm => sm.id === node.screenAssetId);
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
       if (e.button !== 0) return;
+      e.stopPropagation();
 
-      setMovingNodeId(prev => prev === node.id ? null : node.id);
+      if (e.ctrlKey || e.metaKey) {
+        // Ctrl+Click: drag the node
+        const svgPoint = svgGlobalRef?.current?.createSVGPoint();
+        if (svgPoint && svgGlobalRef?.current) {
+          svgPoint.x = e.clientX;
+          svgPoint.y = e.clientY;
+          const CTM = svgGlobalRef.current.getScreenCTM()?.inverse();
+          if (CTM) {
+            const { x: svgX, y: svgY } = svgPoint.matrixTransform(CTM);
+            onStartDrag(node.id, svgX, svgY);
+          }
+        }
+        setSelectedNodeId(node.id);
+        setSelectedConnectionId(null);
+        setLinkingState(null);
+        if (svgGlobalRef?.current) svgGlobalRef.current.focus();
+        return;
+      }
+
       setSelectedNodeId(node.id);
       setSelectedConnectionId(null);
       setLinkingState(null);
-      e.stopPropagation();
 
       if (svgGlobalRef?.current) {
         svgGlobalRef.current.focus(); // Focus SVG for keyboard events
       }
 
-    }, [node.id, setSelectedNodeId, setSelectedConnectionId, setLinkingState, svgGlobalRef]);
+    }, [node.id, setSelectedNodeId, setSelectedConnectionId, setLinkingState, onStartDrag, svgGlobalRef]);
 
     const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault();
@@ -709,7 +761,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
         onMouseDown={handleMouseDown}
         onContextMenu={handleContextMenu}
         onDoubleClick={() => setEditingConnectionsForNode(node)}
-        style={{ cursor: 'pointer' }}
+        style={{ cursor: isDragging ? 'grabbing' : 'pointer' }}
         role="button"
         aria-label={`Screen node ${node.name}`}
         tabIndex={-1}
@@ -718,8 +770,8 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
           width={NODE_WIDTH}
           height={NODE_HEIGHT}
           fill={isNodeSelected ? "hsl(220, 70%, 65%)" : "hsl(220, 30%, 40%)"}
-          stroke={isMoving ? "hsl(30, 100%, 70%)" : (isStartNode ? "hsl(100, 70%, 60%)" : (isNodeSelected ? "hsl(220, 80%, 80%)" : "hsl(220, 50%, 70%)"))}
-          strokeWidth={isMoving || isStartNode || isNodeSelected ? 2.5 : 1.5}
+          stroke={isDragging ? "hsl(60, 100%, 70%)" : (isMoving ? "hsl(30, 100%, 70%)" : (isStartNode ? "hsl(100, 70%, 60%)" : (isNodeSelected ? "hsl(220, 80%, 80%)" : "hsl(220, 50%, 70%)")))}
+          strokeWidth={isDragging || isMoving || isStartNode || isNodeSelected ? 2.5 : 1.5}
           rx={5}
           ry={5}
         />
@@ -812,7 +864,7 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
               e.preventDefault();
             }
           }}
-          style={{ cursor: isPanning ? 'grabbing' : (linkingState ? 'crosshair' : 'grab'), outline: 'none' }}
+          style={{ cursor: isPanning || draggingNodeId ? 'grabbing' : (linkingState ? 'crosshair' : 'grab'), outline: 'none' }}
           aria-label="World map canvas"
           tabIndex={0}
         >
@@ -861,11 +913,13 @@ export const WorldMapEditor: React.FC<WorldMapEditorProps> = ({
               setLinkingState={setLinkingState}
               onNavigateToAsset={onNavigateToAsset}
               onShowContextMenu={onShowContextMenu}
+              onStartDrag={handleStartNodeDrag}
               svgGlobalRef={svgRef}
               isLinking={linkingState?.fromNodeId === node.id}
               isNodeSelected={selectedNodeId === node.id}
               isStartNode={worldMapGraph.startScreenNodeId === node.id}
               isMoving={movingNodeId === node.id}
+              isDragging={draggingNodeId === node.id}
             />
           ))}
 

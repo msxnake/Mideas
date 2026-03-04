@@ -278,6 +278,8 @@ const GameFlowNodeComponent: React.FC<{
     : node.id;
   const hasInput = node.type !== 'Start';
   const hasOutput = node.type !== 'End' && node.type !== 'Restart';
+  // In linking mode, disable pointer events on Edit buttons so clicks pass through to the node body
+  const foStyle: React.CSSProperties = { pointerEvents: isLinkingMode ? 'none' : 'auto' };
 
   const handleNodeClick = (e: React.MouseEvent) => {
     // Solo procesar click izquierdo (button 0)
@@ -404,7 +406,12 @@ const GameFlowNodeComponent: React.FC<{
       )}
 
       {hasOutput && node.type !== 'Waypoint' && node.type !== 'IfThenElse' && (
-        <rect x={nodeWidth - PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} />
+        <g onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'out'); }} style={{ cursor: 'crosshair' }}>
+          {/* Larger invisible hit area */}
+          <rect x={nodeWidth - 22} y={nodeHeight/2 - 22} width={44} height={44} fill="transparent" />
+          {/* Visible port */}
+          <rect x={nodeWidth - PORT_SIZE/2} y={nodeHeight/2 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" />
+        </g>
       )}
 
       {node.type === 'SubMenu' && (
@@ -414,11 +421,11 @@ const GameFlowNodeComponent: React.FC<{
               return (
                   <g key={option.id}>
                       <text x={10} y={yOffset + 4} fill="white" fontSize="10px">{option.text}</text>
-                      <rect x={NODE_WIDTH - PORT_SIZE/2} y={yOffset - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, option.id); }}/>
+                      <rect x={NODE_WIDTH - PORT_SIZE/2} y={yOffset - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(50, 80%, 60%)" style={{ cursor: 'crosshair' }} onClick={(e) => { e.stopPropagation(); onPortClick(node.id, option.id); }}/>
                   </g>
               )
           })}
-          <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+          <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
             <Button onClick={() => onEditAppearance(node as GameFlowSubMenuNode)} size="xs">Edit Appearance</Button>
           </foreignObject>
         </>
@@ -427,35 +434,37 @@ const GameFlowNodeComponent: React.FC<{
       {node.type === 'IfThenElse' && (
         <>
           {/* THEN port (top right) */}
-          <g>
+          <g onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'then'); }} style={{ cursor: 'crosshair' }}>
             <text x={nodeWidth - 15} y={25} textAnchor="end" fill="hsl(120, 100%, 70%)" fontSize="9px" fontWeight="bold" className="pixel-font select-none pointer-events-none">THEN</text>
-            <rect x={nodeWidth - PORT_SIZE/2} y={20 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(120, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'then'); }}/>
+            <rect x={nodeWidth - 22} y={20 - 22} width={44} height={44} fill="transparent" />
+            <rect x={nodeWidth - PORT_SIZE/2} y={20 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(120, 80%, 60%)" className="pointer-events-none"/>
           </g>
           {/* ELSE port (bottom right) */}
-          <g>
+          <g onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'else'); }} style={{ cursor: 'crosshair' }}>
             <text x={nodeWidth - 15} y={nodeHeight - 15} textAnchor="end" fill="hsl(0, 100%, 70%)" fontSize="9px" fontWeight="bold" className="pixel-font select-none pointer-events-none">ELSE</text>
-            <rect x={nodeWidth - PORT_SIZE/2} y={nodeHeight - 20 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(0, 80%, 60%)" onClick={(e) => { e.stopPropagation(); onPortClick(node.id, 'else'); }}/>
+            <rect x={nodeWidth - 22} y={nodeHeight - 20 - 22} width={44} height={44} fill="transparent" />
+            <rect x={nodeWidth - PORT_SIZE/2} y={nodeHeight - 20 - PORT_SIZE/2} width={PORT_SIZE} height={PORT_SIZE} fill="hsl(0, 80%, 60%)" className="pointer-events-none"/>
           </g>
-          <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+          <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
             <Button onClick={() => onEditIfThenElseNode(node as GameFlowIfThenElseNode)} size="xs">Edit Condition</Button>
           </foreignObject>
         </>
       )}
 
       {node.type === 'Text' && (
-        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
           <Button onClick={() => onEditTextNode(node as GameFlowTextNode)} size="xs">Edit</Button>
         </foreignObject>
       )}
 
       {node.type === 'Restart' && (
-        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
           <Button onClick={() => onEditRestartNode(node as GameFlowRestartNode)} size="xs">Edit</Button>
         </foreignObject>
       )}
 
       {node.type === 'Music' && (
-        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
           <Button onClick={() => onEditMusicNode(node)} size="xs">Edit</Button>
         </foreignObject>
       )}
@@ -465,14 +474,14 @@ const GameFlowNodeComponent: React.FC<{
           <text x={nodeWidth / 2} y={nodeHeight - 15} textAnchor="middle" fill="hsl(40, 100%, 80%)" fontSize="9px" className="pixel-font select-none pointer-events-none">
             Transición
           </text>
-          <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+          <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
           <Button onClick={() => onEditTransitionNode(node)} size="xs">Edit Effect</Button>
           </foreignObject>
         </>
       )}
 
       {node.type === 'Globals' && (
-        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25">
+        <foreignObject x="10" y={nodeHeight - 30} width="130" height="25" style={foStyle}>
           <Button onClick={() => onEditGlobalsNode(node as GameFlowGlobalsNode)} size="xs">Edit</Button>
         </foreignObject>
       )}

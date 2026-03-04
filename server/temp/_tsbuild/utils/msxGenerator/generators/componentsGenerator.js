@@ -1481,12 +1481,6 @@ function generateInputSystem() {
         ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
         ; ==================================================================
 
-; Direction flags for Cursors component
-DIR_ALLOW_UP     EQU #01 ; Bit 0: Allow UP movement
-DIR_ALLOW_DOWN   EQU #02 ; Bit 1: Allow DOWN movement
-DIR_ALLOW_LEFT   EQU #04 ; Bit 2: Allow LEFT movement
-DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
-
         init_input_system:
             ; Initialize input handling system
             xor a

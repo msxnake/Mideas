@@ -47,9 +47,10 @@ interface TrackerComposerProps {
  * A buffer for editing instrument data in a modal.
  * @internal
  */
-interface InstrumentModalBuffer extends Omit<Partial<PT3Instrument>, 'volumeEnvelope' | 'toneEnvelope'> {
+interface InstrumentModalBuffer extends Omit<Partial<PT3Instrument>, 'volumeEnvelope' | 'toneEnvelope' | 'noiseEnvelope'> {
   volumeEnvelope?: string;
   toneEnvelope?: string;
+  noiseEnvelope?: string;
 }
 
 /**
@@ -81,34 +82,44 @@ const createOdeToJoySampleSong = (): TrackerSongData => {
     {
       id: 2,
       name: "Caja / Snare Drum",
-      volumeEnvelope: [127, 100, 80, 40, 20, 0],
+      volumeEnvelope: [127, 116, 96, 72, 50, 30, 14, 0],
+      noiseEnvelope: [3, 5, 8, 12, 18, 24, 31],
       volumeLoop: 255,
-      toneEnvelope: [0],
-      ayToneEnabled: false,
+      noiseLoop: 255,
+      toneEnvelope: [7, 4, 2, 0],
+      toneLoop: 255,
+      ayToneEnabled: true,
       ayNoiseEnabled: true,
       ayEnvelopeShape: 0,
+      noiseBaseFrequency: 3,
     },
     {
       id: 3,
       name: "Bombo / Kick Drum",
-      volumeEnvelope: [127, 90, 70, 50, 20, 0],
-      toneEnvelope: [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+      volumeEnvelope: [127, 118, 100, 78, 56, 32, 12, 0],
+      noiseEnvelope: [2, 4, 7, 12, 20, 31],
+      toneEnvelope: [-24, -18, -14, -10, -7, -4, -2, 0],
       volumeLoop: 255,
+      noiseLoop: 255,
       toneLoop: 255,
       ayToneEnabled: true,
-      ayNoiseEnabled: false,
+      ayNoiseEnabled: true,
       ayEnvelopeShape: 0,
+      noiseBaseFrequency: 2,
     },
     {
       id: 4,
       name: "Platillo / Hi-Hat",
-      volumeEnvelope: [80, 70, 60, 40, 20, 0],
+      volumeEnvelope: [120, 84, 48, 20, 0],
+      noiseEnvelope: [1, 1, 2, 4, 8, 16, 31],
       toneEnvelope: [0],
       volumeLoop: 255,
       toneLoop: 255,
+      noiseLoop: 255,
       ayToneEnabled: false,
       ayNoiseEnabled: true,
       ayEnvelopeShape: 0,
+      noiseBaseFrequency: 1,
     },
     {
       id: 5,
@@ -367,6 +378,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const currentPattern = useMemo(() => {
     return songData.patterns.find(p => p.id === activePatternIdToUse);
   }, [songData.patterns, activePatternIdToUse]);
+
+  const getResolvedCellValue = useCallback((
+    rowIndex: number,
+    channelId: TrackerChannelId,
+    field: 'instrument' | 'ornament' | 'volume'
+  ): number | null => {
+    if (!currentPattern || rowIndex < 0) return null;
+
+    for (let scanRow = rowIndex; scanRow >= 0; scanRow--) {
+      const cell = currentPattern.rows[scanRow]?.[channelId];
+      const value = cell?.[field];
+      if (value !== null && value !== undefined) {
+        return value as number;
+      }
+    }
+
+    return null;
+  }, [currentPattern]);
 
 
   useEffect(() => {
@@ -723,15 +752,17 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       const layoutEntry = PT3_PIANO_KEY_LAYOUT[keyLower];
       const finalOctave = Math.max(0, Math.min(7, layoutEntry.baseOctave + keyboardOctaveOffset));
       const noteString = `${PT3_NOTE_NAMES[layoutEntry.noteNameIndex]}${finalOctave}`;
+      const resolvedInstrumentId = getResolvedCellValue(rowIndex, channelId, 'instrument');
+      const resolvedOrnamentId = getResolvedCellValue(rowIndex, channelId, 'ornament');
+      const resolvedVolume = currentPattern.rows[rowIndex]?.[channelId]?.volume ?? null;
 
       handleCellChange(rowIndex, channelId, 'note', noteString);
 
-      const cellData = currentPattern.rows[rowIndex]?.[channelId];
       synthesizer.playNote(
         channelIndex as any, noteString,
-        cellData?.instrument !== null && cellData?.instrument !== undefined ? cellData.instrument : activeInstrumentId,
-        cellData?.ornament !== null && cellData?.ornament !== undefined ? cellData.ornament : activeOrnamentId, // Consider active ornament
-        cellData?.volume
+        resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
+        resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
+        resolvedVolume
       );
       schedulePreviewNoteCut(channelIndex);
 
@@ -783,7 +814,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       case 'Delete': case 'Backspace': e.preventDefault(); handleCellChange(rowIndex, channelId, field, null); break;
       default: break;
     }
-  }, [focusedCell, currentPattern, channels, handleCellChange, focusCellAndSelectText, keyboardOctaveOffset, synthesizer, activeInstrumentId, activeOrnamentId, editStepJump, fieldsOrder, songData.instruments, songData.ornaments, schedulePreviewNoteCut]);
+  }, [focusedCell, currentPattern, channels, handleCellChange, focusCellAndSelectText, keyboardOctaveOffset, synthesizer, activeInstrumentId, activeOrnamentId, editStepJump, fieldsOrder, songData.instruments, songData.ornaments, schedulePreviewNoteCut, getResolvedCellValue]);
 
   const handleCurrentPatternIndexInOrderChange = useCallback((newIndex: number) => {
     if (songData.order && newIndex >= 0 && newIndex < songData.order.length) {
@@ -897,11 +928,16 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
       name: instrumentModalBuffer.name,
       volumeEnvelope: instrumentModalBuffer.volumeEnvelope?.split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)),
       toneEnvelope: instrumentModalBuffer.toneEnvelope?.split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)),
+      noiseEnvelope: instrumentModalBuffer.noiseEnvelope?.split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n)),
       volumeLoop: instrumentModalBuffer.volumeLoop,
       toneLoop: instrumentModalBuffer.toneLoop,
+      noiseLoop: instrumentModalBuffer.noiseLoop,
       ayEnvelopeShape: instrumentModalBuffer.ayEnvelopeShape,
       ayToneEnabled: instrumentModalBuffer.ayToneEnabled,
       ayNoiseEnabled: instrumentModalBuffer.ayNoiseEnabled,
+      noiseBaseFrequency: instrumentModalBuffer.noiseBaseFrequency,
+      hardwareEnvelopePeriod: instrumentModalBuffer.hardwareEnvelopePeriod,
+      hardwareEnvelopeRatio: instrumentModalBuffer.hardwareEnvelopeRatio,
     };
 
     let updatedInstruments;
@@ -956,11 +992,13 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   const handleVirtualPianoKeyPress = useCallback((noteName: string) => {
     if (focusedCell && currentPattern) {
       const channelIndex = channels.indexOf(focusedCell.channelId);
+      const resolvedInstrumentId = getResolvedCellValue(focusedCell.rowIndex, focusedCell.channelId, 'instrument');
+      const resolvedOrnamentId = getResolvedCellValue(focusedCell.rowIndex, focusedCell.channelId, 'ornament');
       synthesizer?.playNote(
         channelIndex as any,
         noteName,
-        activeInstrumentId,
-        currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].ornament ?? activeOrnamentId, // Consider active ornament
+        resolvedInstrumentId !== null ? resolvedInstrumentId : activeInstrumentId,
+        resolvedOrnamentId !== null ? resolvedOrnamentId : activeOrnamentId,
         currentPattern.rows[focusedCell.rowIndex][focusedCell.channelId].volume ?? 15
       );
       schedulePreviewNoteCut(channelIndex);
@@ -971,7 +1009,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         'note'
       );
     }
-  }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump, channels, schedulePreviewNoteCut]);
+  }, [focusedCell, synthesizer, currentPattern, handleCellChange, activeInstrumentId, activeOrnamentId, focusCellAndSelectText, editStepJump, channels, schedulePreviewNoteCut, getResolvedCellValue]);
 
   const handleOpenInstrumentModal = useCallback((instrument: PT3Instrument | null) => {
     if (instrument) {
@@ -980,6 +1018,7 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         ...instrument,
         volumeEnvelope: instrument.volumeEnvelope?.join(','),
         toneEnvelope: instrument.toneEnvelope?.join(','),
+        noiseEnvelope: instrument.noiseEnvelope?.join(','),
       });
     } else {
       const existingIds = (songData.instruments || []).map(i => i.id);
@@ -997,8 +1036,10 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         name: `Instrument ${newId}`,
         volumeEnvelope: "127,0",
         toneEnvelope: "0",
+        noiseEnvelope: "",
         volumeLoop: 255,
         toneLoop: 255,
+        noiseLoop: 255,
         ayToneEnabled: true,
         ayNoiseEnabled: false,
         ayEnvelopeShape: 0,

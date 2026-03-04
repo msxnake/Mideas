@@ -159,7 +159,7 @@ psg_set_tone:
 ; psg_set_volume
 ; Set volume for a channel
 ; Input:  A = Channel (0=A, 1=B, 2=C)
-;         B = Volume (0-15, 0=silent, 15=max)
+;         B = Volume (0-15) or #10 to enable PSG hardware envelope
 ; Destroys: AF, E
 ; ------------------------------------------------------------------
 psg_set_volume:
@@ -191,6 +191,27 @@ psg_set_noise:
 psg_set_mixer:
     ld e, a
     ld a, PSG_MIXER
+    call WRTPSG
+    ret
+
+; ------------------------------------------------------------------
+; psg_set_envelope
+; Program the global PSG hardware envelope generator
+; Input:  HL = Envelope period
+;         B = Envelope shape (0-15)
+; Destroys: AF, E
+; ------------------------------------------------------------------
+psg_set_envelope:
+    ld a, PSG_ENV_LO
+    ld e, l
+    call WRTPSG
+    ld a, PSG_ENV_HI
+    ld e, h
+    call WRTPSG
+    ld a, b
+    and #0F
+    ld e, a
+    ld a, PSG_ENV_SHAPE
     call WRTPSG
     ret
 
@@ -505,6 +526,13 @@ function toAsmByte(value) {
 function toAsmWord(value) {
     return `#${clampWord(value).toString(16).toUpperCase().padStart(4, '0')}`;
 }
+function toAyHardwareEnvelopePeriod(value) {
+    const logicalPeriod = clampWord(value ?? 1, 1, 0xffff);
+    // The browser preview advances AY "hardware" envelopes on a coarse ~30ms software tick,
+    // while the real PSG runs the envelope generator continuously.
+    // Scale the editor value so ROM playback stays close to preview timing.
+    return clampWord(Math.round(logicalPeriod * 210), 1, 0xffff);
+}
 function sanitizeLabel(value) {
     const cleaned = value.replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_');
     return cleaned.length > 0 ? cleaned : 'track';
@@ -645,6 +673,9 @@ function normalizeVolumeEnvelopeData(values) {
         return clampByte(Math.round((clamped / 127) * 15), 0, 15);
     });
 }
+function normalizeNoiseEnvelopeData(values) {
+    return values.map((value) => clampByte(value, 0, 31));
+}
 function buildNotePeriodTable() {
     const ayClock = 3579545 / 2;
     const c0Frequency = 16.351597831287414;
@@ -679,7 +710,7 @@ function buildTrackData(song, trackIndex) {
     lines.push(`    DW ${labelBase}_pattern_table`);
     lines.push(`    DW ${labelBase}_instrument_ptr_table`);
     lines.push(`    DW ${labelBase}_ornament_ptr_table`);
-    lines.push(`    DW ${toAsmWord(clampWord(song.ayHardwareEnvelopePeriod ?? 256, 1, 0xffff))}`);
+    lines.push(`    DW ${toAsmWord(toAyHardwareEnvelopePeriod(song.ayHardwareEnvelopePeriod))}`);
     lines.push(`    DB ${toAsmByte(clampByte(song.ayNoisePeriod ?? 16, 0, 31))}`);
     lines.push('');
     lines.push(buildDbLines(`${labelBase}_order_table`, order.map((value) => clampByte(value, 0, Math.max(0, patterns.length - 1)))));
@@ -721,6 +752,7 @@ function buildTrackData(song, trackIndex) {
     Array.from(instrumentMap.entries()).sort((left, right) => left[0] - right[0]).forEach(([instrumentId, instrument]) => {
         const volumeEnvelope = normalizeVolumeEnvelopeData(instrument.volumeEnvelope || []);
         const toneEnvelope = serializeSignedByteArray(instrument.toneEnvelope || []);
+        const noiseEnvelope = normalizeNoiseEnvelopeData(instrument.noiseEnvelope || []);
         const flags = ((instrument.ayToneEnabled === false ? 0 : 1) << 0) |
             ((instrument.ayNoiseEnabled ? 1 : 0) << 1) |
             ((typeof instrument.ayEnvelopeShape === 'number' ? 1 : 0) << 2);
@@ -730,6 +762,9 @@ function buildTrackData(song, trackIndex) {
         const toneLoop = toneEnvelope.length > 0 && typeof instrument.toneLoop === 'number'
             ? (instrument.toneLoop === 0xff ? 0xff : clampByte(instrument.toneLoop, 0, toneEnvelope.length - 1))
             : 0xff;
+        const noiseLoop = noiseEnvelope.length > 0 && typeof instrument.noiseLoop === 'number'
+            ? (instrument.noiseLoop === 0xff ? 0xff : clampByte(instrument.noiseLoop, 0, noiseEnvelope.length - 1))
+            : 0xff;
         const defaultVolume = volumeEnvelope.length > 0
             ? volumeEnvelope[0]
             : 15;
@@ -738,17 +773,22 @@ function buildTrackData(song, trackIndex) {
         lines.push(`    DB ${toAsmByte(defaultVolume)}`);
         lines.push(`    DB ${toAsmByte(clampByte(instrument.ayEnvelopeShape ?? 0, 0, 15))}`);
         lines.push(`    DB ${toAsmByte(clampByte(instrument.noiseBaseFrequency ?? song.ayNoisePeriod ?? 16, 0, 31))}`);
-        lines.push(`    DW ${toAsmWord(clampWord(instrument.hardwareEnvelopePeriod ?? song.ayHardwareEnvelopePeriod ?? 256, 1, 0xffff))}`);
+        lines.push(`    DW ${toAsmWord(toAyHardwareEnvelopePeriod(instrument.hardwareEnvelopePeriod ?? song.ayHardwareEnvelopePeriod))}`);
         lines.push(`    DW ${volumeEnvelope.length > 0 ? `${labelBase}_inst_${instrumentId}_vol_env` : '0'}`);
         lines.push(`    DB ${toAsmByte(volumeEnvelope.length)}`);
         lines.push(`    DB ${toAsmByte(volumeLoop)}`);
         lines.push(`    DW ${toneEnvelope.length > 0 ? `${labelBase}_inst_${instrumentId}_tone_env` : '0'}`);
         lines.push(`    DB ${toAsmByte(toneEnvelope.length)}`);
         lines.push(`    DB ${toAsmByte(toneLoop)}`);
+        lines.push(`    DW ${noiseEnvelope.length > 0 ? `${labelBase}_inst_${instrumentId}_noise_env` : '0'}`);
+        lines.push(`    DB ${toAsmByte(noiseEnvelope.length)}`);
+        lines.push(`    DB ${toAsmByte(noiseLoop)}`);
         if (volumeEnvelope.length > 0)
             lines.push(buildDbLines(`${labelBase}_inst_${instrumentId}_vol_env`, volumeEnvelope));
         if (toneEnvelope.length > 0)
             lines.push(buildDbLines(`${labelBase}_inst_${instrumentId}_tone_env`, toneEnvelope));
+        if (noiseEnvelope.length > 0)
+            lines.push(buildDbLines(`${labelBase}_inst_${instrumentId}_noise_env`, noiseEnvelope));
         lines.push('');
     });
     Array.from(ornamentMap.entries()).sort((left, right) => left[0] - right[0]).forEach(([ornamentId, ornament]) => {
@@ -781,6 +821,7 @@ function buildTrackerMusicBlock(tracks) {
         'MUSIC_TRACK_ORDER_TABLE     EQU 5',
         'MUSIC_TRACK_PATTERN_TABLE   EQU 7',
         'MUSIC_TRACK_INSTRUMENT_TABLE EQU 9',
+        'MUSIC_TRACK_NOISE_DEFAULT   EQU 15',
         '',
         '; ------------------------------------------------------------------',
         '; music_init_system',
@@ -828,6 +869,9 @@ function buildTrackerMusicBlock(tracks) {
         '    ld (music_ch_a_tone_step), a',
         '    ld (music_ch_b_tone_step), a',
         '    ld (music_ch_c_tone_step), a',
+        '    ld (music_ch_a_noise_step), a',
+        '    ld (music_ch_b_noise_step), a',
+        '    ld (music_ch_c_noise_step), a',
         '    ld (music_ch_a_orn_step), a',
         '    ld (music_ch_b_orn_step), a',
         '    ld (music_ch_c_orn_step), a',
@@ -971,11 +1015,61 @@ function buildTrackerMusicBlock(tracks) {
         '    ret',
         '',
         '; ------------------------------------------------------------------',
+        '; music_get_channel_instrument_ptr',
+        '; Resolve current channel instrument pointer from the cached channel id.',
+        '; Input:  C = channel index (0=A, 1=B, 2=C)',
+        '; Output: HL = instrument descriptor or 0 when none is active',
+        '; Destroys: AF, DE, HL',
+        '; ------------------------------------------------------------------',
+        'music_get_channel_instrument_ptr:',
+        '    ld hl, music_ch_instrument_base',
+        '    call music_load_channel_byte',
+        '    call music_get_instrument_ptr',
+        '    ret',
+        '',
+        '; ------------------------------------------------------------------',
+        '; music_channel_uses_hardware_env',
+        '; Check if the active instrument routes channel volume through PSG ENV.',
+        '; Input:  C = channel index (0=A, 1=B, 2=C)',
+        '; Output: A = 1 when PSG hardware envelope is enabled, else 0',
+        '; Destroys: AF, DE, HL',
+        '; ------------------------------------------------------------------',
+        'music_channel_uses_hardware_env:',
+        '    push hl',
+        '    call music_get_channel_instrument_ptr',
+        '    ld a, h',
+        '    or l',
+        '    jr z, music_channel_uses_hardware_env_no_hw_env',
+        '    ld a, (hl)',
+        '    and #04',
+        '    jr z, music_channel_uses_hardware_env_no_hw_env',
+        '    ld a, 1',
+        '    pop hl',
+        '    ret',
+        'music_channel_uses_hardware_env_no_hw_env:',
+        '    xor a',
+        '    pop hl',
+        '    ret',
+        '',
+        '; ------------------------------------------------------------------',
+        '; music_trigger_channel_attack',
+        '; Hook kept for compatibility. The preview-style hardware envelope is',
+        '; emulated in software per channel, so new-note state is already reset',
+        '; by music_apply_channel_cell before this helper is called.',
+        '; Input:  C = channel index (0=A, 1=B, 2=C)',
+        '; Output: None',
+        '; Destroys: None',
+        '; ------------------------------------------------------------------',
+        'music_trigger_channel_attack:',
+        '    ret',
+        '',
+        '; ------------------------------------------------------------------',
         '; music_resolve_channel_volume',
         '; Resolve per-frame channel volume.',
         '; Current Phase 1 behavior:',
-        '; - falls back to music_ch_volume_base when no instrument envelope exists',
-        '; - applies a simple non-looping volumeEnvelope decay when present',
+        '; - emulates AY hardware envelope shapes in software when ayEnvelopeShape is set',
+        '; - falls back to music_ch_volume_base when no envelope data exists',
+        '; - applies a simple software volumeEnvelope when present',
         '; Input:  C = channel index (0=A, 1=B, 2=C)',
         '; Output: B = PSG volume 0-15',
         '; Destroys: AF, DE, HL',
@@ -987,11 +1081,15 @@ function buildTrackerMusicBlock(tracks) {
         '    ld hl, music_ch_instrument_base',
         '    call music_load_channel_byte',
         '    or a',
-        '    jr z, .fallback_base',
+        '    jp z, .fallback_base',
         '    call music_get_instrument_ptr',
         '    ld a, h',
         '    or l',
-        '    jr z, .fallback_base',
+        '    jp z, .fallback_base',
+        '    ld a, (hl)',
+        '    and #04',
+        '    jp nz, .hardware_env',
+        '.check_software_env:',
         '    push hl',
         '    ld de, 8',
         '    add hl, de',
@@ -999,7 +1097,7 @@ function buildTrackerMusicBlock(tracks) {
         '    pop hl',
         '    ld a, b',
         '    or a',
-        '    jr z, .fallback_base',
+        '    jp z, .fallback_base',
         '    push hl',
         '    ld de, 6',
         '    add hl, de',
@@ -1035,7 +1133,51 @@ function buildTrackerMusicBlock(tracks) {
         '    ld a, 15',
         '.env_volume_ok:',
         '    ld b, a',
-        '    jr .mrcv_done',
+        '    jp .mrcv_done',
+        '.hardware_env:',
+        '    ld hl, music_ch_tone_step_base',
+        '    call music_load_channel_byte',
+        '    inc a',
+        '    cp 2',
+        '    jr c, .hw_store_counter',
+        '    xor a',
+        '    push af',
+        '    ld hl, music_ch_tone_step_base',
+        '    call music_store_channel_byte',
+        '    pop af',
+        '    ld hl, music_ch_vol_step_base',
+        '    call music_load_channel_byte',
+        '    cp 15',
+        '    jr nc, .hw_phase_ready',
+        '    inc a',
+        '    push af',
+        '    ld hl, music_ch_vol_step_base',
+        '    call music_store_channel_byte',
+        '    pop af',
+        '    jr .hw_phase_ready',
+        '.hw_store_counter:',
+        '    push af',
+        '    ld hl, music_ch_tone_step_base',
+        '    call music_store_channel_byte',
+        '    pop af',
+        '    ld hl, music_ch_vol_step_base',
+        '    call music_load_channel_byte',
+        '.hw_phase_ready:',
+        '    ld e, a',
+        '    push hl',
+        '    inc hl',
+        '    inc hl',
+        '    ld a, (hl)',
+        '    and #04',
+        '    pop hl',
+        '    jr z, .hw_decay',
+        '    ld b, e',
+        '    jp .mrcv_done',
+        '.hw_decay:',
+        '    ld a, 15',
+        '    sub e',
+        '    ld b, a',
+        '    jp .mrcv_done',
         '.fallback_base:',
         '    ld hl, music_ch_volume_base',
         '    call music_load_channel_byte',
@@ -1044,6 +1186,94 @@ function buildTrackerMusicBlock(tracks) {
         '    pop hl',
         '    pop de',
         '    pop af',
+        '    ret',
+        '',
+        '; ------------------------------------------------------------------',
+        '; music_resolve_channel_noise',
+        '; Resolve per-frame channel noise period, including the PT3-inspired',
+        '; software noise macro appended to the instrument descriptor.',
+        '; Input:  C = channel index (0=A, 1=B, 2=C)',
+        '; Output: A = PSG noise period 0-31',
+        '; Destroys: AF, DE, HL',
+        '; Preserves: Stack balance restored before return',
+        '; ------------------------------------------------------------------',
+        'music_resolve_channel_noise:',
+        '    push de',
+        '    push hl',
+        '    ld hl, music_ch_instrument_base',
+        '    call music_load_channel_byte',
+        '    or a',
+        '    jp z, .mrcn_track_default',
+        '    call music_get_instrument_ptr',
+        '    ld a, h',
+        '    or l',
+        '    jp z, .mrcn_track_default',
+        '    push hl',
+        '    ld de, 16',
+        '    add hl, de',
+        '    ld b, (hl)',
+        '    pop hl',
+        '    ld a, b',
+        '    or a',
+        '    jp z, .mrcn_static_noise',
+        '    push hl',
+        '    ld hl, music_ch_noise_step_base',
+        '    call music_load_channel_byte',
+        '    cp b',
+        '    jr c, .mrcn_step_ok',
+        '    ld a, b',
+        '    dec a',
+        '.mrcn_step_ok:',
+        '    push af',
+        '    pop af',
+        '    pop hl',
+        '    push af',
+        '    inc a',
+        '    cp b',
+        '    jr c, .mrcn_store_next',
+        '    push de',
+        '    ld de, 17',
+        '    add hl, de',
+        '    ld a, (hl)',
+        '    pop de',
+        '    cp b',
+        '    jr c, .mrcn_store_next',
+        '    ld a, b',
+        '    dec a',
+        '.mrcn_store_next:',
+        '    push hl',
+        '    push af',
+        '    ld hl, music_ch_noise_step_base',
+        '    call music_store_channel_byte',
+        '    pop af',
+        '    pop hl',
+        '    ld de, 14',
+        '    add hl, de',
+        '    ld e, (hl)',
+        '    inc hl',
+        '    ld d, (hl)',
+        '    pop af',
+        '    ld l, a',
+        '    ld h, 0',
+        '    add hl, de',
+        '    ld a, (hl)',
+        '    and #1F',
+        '    jp .mrcn_done',
+        '.mrcn_static_noise:',
+        '    push de',
+        '    ld de, 3',
+        '    add hl, de',
+        '    ld a, (hl)',
+        '    pop de',
+        '    and #1F',
+        '    jp .mrcn_done',
+        '.mrcn_track_default:',
+        '    ld a, MUSIC_TRACK_NOISE_DEFAULT',
+        '    call music_read_track_byte',
+        '    and #1F',
+        '.mrcn_done:',
+        '    pop hl',
+        '    pop de',
         '    ret',
         '',
         '; ------------------------------------------------------------------',
@@ -1102,6 +1332,7 @@ function buildTrackerMusicBlock(tracks) {
         '',
         'music_apply_channel_cell:',
         '    ld c, a',
+        '    ld d, 0',
         '    ld a, (hl)',
         '    inc hl',
         '    cp #FF',
@@ -1109,7 +1340,12 @@ function buildTrackerMusicBlock(tracks) {
         '    cp #FE',
         '    jp nz, .store_note',
         '    ld a, #FF',
+        '    jr .store_note',
         '.store_note:',
+        '    cp #FF',
+        '    jr z, .store_note_value',
+        '    ld d, 1',
+        '.store_note_value:',
         '    push hl',
         '    ld hl, music_ch_note_base',
         '    call music_store_channel_byte',
@@ -1117,6 +1353,8 @@ function buildTrackerMusicBlock(tracks) {
         '    ld hl, music_ch_vol_step_base',
         '    call music_store_channel_byte',
         '    ld hl, music_ch_tone_step_base',
+        '    call music_store_channel_byte',
+        '    ld hl, music_ch_noise_step_base',
         '    call music_store_channel_byte',
         '    ld hl, music_ch_orn_step_base',
         '    call music_store_channel_byte',
@@ -1143,10 +1381,17 @@ function buildTrackerMusicBlock(tracks) {
         '    ld a, (hl)',
         '    inc hl',
         '    cp #FF',
-        '    ret z',
+        '    jr z, .maybe_trigger_attack',
         '    push hl',
         '    ld hl, music_ch_volume_base',
         '    call music_store_channel_byte',
+        '    pop hl',
+        '.maybe_trigger_attack:',
+        '    ld a, d',
+        '    or a',
+        '    ret z',
+        '    push hl',
+        '    call music_trigger_channel_attack',
         '    pop hl',
         '    ret',
         '',
@@ -1322,6 +1567,27 @@ function buildTrackerMusicBlock(tracks) {
         '    push bc',
         '    call psg_set_volume',
         '    pop bc',
+        '    ld d, 1',
+        '    ld e, 0',
+        '    call music_get_channel_instrument_ptr',
+        '    ld a, h',
+        '    or l',
+        '    jr z, .apply_mixer_bits',
+        '    ld a, (hl)',
+        '    and #01',
+        '    ld d, a',
+        '    ld a, (hl)',
+        '    and #02',
+        '    srl a',
+        '    ld e, a',
+        '    ld a, e',
+        '    or a',
+        '    jr z, .apply_mixer_bits',
+        '    push de',
+        '    call music_resolve_channel_noise',
+        '    call psg_set_noise',
+        '    pop de',
+        '.apply_mixer_bits:',
         '    ld a, (music_mixer_shadow)',
         '    ld b, a',
         '    ld a, c',
@@ -1330,15 +1596,51 @@ function buildTrackerMusicBlock(tracks) {
         '    cp 2',
         '    jp z, .enable_c',
         '    ld a, b',
+        '    bit 0, d',
+        '    jr z, .a_tone_off',
         '    and #3E',
+        '    jr .a_noise_gate',
+        '.a_tone_off:',
+        '    or #01',
+        '.a_noise_gate:',
+        '    bit 0, e',
+        '    jr z, .a_noise_off',
+        '    and #37',
+        '    jp .store_mixer',
+        '.a_noise_off:',
+        '    or #08',
         '    jp .store_mixer',
         '.enable_b:',
         '    ld a, b',
+        '    bit 0, d',
+        '    jr z, .b_tone_off',
         '    and #3D',
+        '    jr .b_noise_gate',
+        '.b_tone_off:',
+        '    or #02',
+        '.b_noise_gate:',
+        '    bit 0, e',
+        '    jr z, .b_noise_off',
+        '    and #2F',
+        '    jp .store_mixer',
+        '.b_noise_off:',
+        '    or #10',
         '    jp .store_mixer',
         '.enable_c:',
         '    ld a, b',
+        '    bit 0, d',
+        '    jr z, .c_tone_off',
         '    and #3B',
+        '    jr .c_noise_gate',
+        '.c_tone_off:',
+        '    or #04',
+        '.c_noise_gate:',
+        '    bit 0, e',
+        '    jr z, .c_noise_off',
+        '    and #1F',
+        '    jp .store_mixer',
+        '.c_noise_off:',
+        '    or #20',
         '    jp .store_mixer',
         '.silent_channel:',
         '    ld b, 0',

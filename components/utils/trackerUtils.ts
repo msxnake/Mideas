@@ -163,6 +163,7 @@ export const normalizeImportedPT3Data = (parsedData: Partial<TrackerSongData>, f
   const baseSong: TrackerSongData = {
     id: `song_imported_${Date.now()}`,
     name: parsedData.title || fileName.replace(/\.[^/.]+$/, "") || "Imported Song",
+    playbackBackend: parsedData.playbackBackend || 'native',
     title: parsedData.title || fileName.replace(/\.[^/.]+$/, "") || "Imported Song",
     author: parsedData.author || "Unknown Author",
     bpm: parsedData.bpm || DEFAULT_PT3_BPM,
@@ -177,6 +178,9 @@ export const normalizeImportedPT3Data = (parsedData: Partial<TrackerSongData>, f
     ayHardwareEnvelopePeriod: parsedData.ayHardwareEnvelopePeriod,
     currentPatternIndexInOrder: 0,
     currentPatternId: undefined,
+    externalPt3Data: parsedData.externalPt3Data,
+    externalPt3HasHeader: parsedData.externalPt3HasHeader,
+    externalPt3PlayerId: parsedData.externalPt3PlayerId,
   };
 
   // Normalize patterns

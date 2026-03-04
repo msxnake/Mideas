@@ -113,7 +113,7 @@ interface ToolbarProps {
 /**
  * A reusable dropdown menu component.
  */
-const DropdownMenu: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => {
+const DropdownMenu: React.FC<{ label: string; children: React.ReactNode; alignRight?: boolean }> = ({ label, children, alignRight }) => {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -154,7 +154,7 @@ const DropdownMenu: React.FC<{ label: string; children: React.ReactNode }> = ({ 
         {label}
       </button>
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 bg-msx-panelbg border border-msx-border rounded-md shadow-lg z-30 py-1 w-56 animate-fadeIn">
+        <div className={`absolute top-full mt-1 bg-msx-panelbg border border-msx-border rounded-md shadow-lg z-30 py-1 w-56 animate-fadeIn ${alignRight ? 'right-0' : 'left-0'}`}>
           {childrenWithProps}
         </div>
       )}
@@ -415,7 +415,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <div className="flex-1" />
 
       {/* GROUP 5: Settings + Help — always far right */}
-      <DropdownMenu label="Configure">
+      <DropdownMenu label="Configure" alignRight>
         <DropdownItem onClick={onConfigureASM}>Configure ASM Compiler...</DropdownItem>
         <DropdownItem onClick={onConfigureEmulator}>Configure MSX Emulator...</DropdownItem>
         <DropdownSeparator />

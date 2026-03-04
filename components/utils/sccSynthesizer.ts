@@ -47,6 +47,10 @@ export class SCCSynthesizer {
         this.songDataRef = songData;
     }
 
+    public getSongData(): TrackerSongData | null {
+        return this.songDataRef;
+    }
+
     public async ensureAudioContext(): Promise<boolean> {
         if (!this.isInitialized) {
             try {

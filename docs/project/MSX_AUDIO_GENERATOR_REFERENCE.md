@@ -82,7 +82,7 @@ Las variables que consume `sound.asm` se generan en [variablesGenerator.ts](/c:/
 - `music_order_pos`, `music_pattern_index`, `music_pattern_row`, `music_pattern_rows`
 - `music_track_ptr_l/h`, `music_pattern_ptr_l/h`
 - `music_mixer_shadow`
-- `music_ch_*` para canales `a`, `b`, `c` (note, instrument, ornament, volume y steps)
+- `music_ch_*` para canales `a`, `b`, `c` (note, instrument, ornament, volume y steps de volumen, tono, ruido y ornament)
 
 Si falta este bloque RAM, el runtime compila pero no funciona correctamente.
 
@@ -120,11 +120,15 @@ El flujo normal del tracker es:
 
 1. `music_play_track` valida índice y carga el puntero base del track.
 2. `music_apply_row` resuelve order -> pattern -> row actual.
-3. `music_apply_channel_cell` actualiza cachés por canal.
+3. `music_apply_channel_cell` cachea la fila y, cuando entra una nota nueva, rearma la envolvente hardware del PSG si el instrumento la usa (`ayEnvelopeShape`).
 4. `music_update_channel_effects` empuja el estado cacheado al PSG.
+   Si el instrumento define `noiseEnvelope`, esta fase avanza una macro de ruido software y reprograma el periodo de ruido del PSG.
 5. `music_update` repite el ciclo una vez por frame y decide cuándo avanzar de fila.
 
 El diseño actual es deliberadamente simple: el estado activo se cachea en RAM y las tablas largas viven en ROM.
+Limitación relevante: la envolvente hardware del AY sigue siendo global (como en el chip real), así que si varias voces la disparan a la vez, la última nota que la rearma domina la forma/periodo activos.
+El generador de ruido también es global (registro 6 del PSG), así que si varios canales usan ruido con macros distintas en el mismo frame, prevalece el último canal actualizado.
+Además, el valor `hardwareEnvelopePeriod` del editor no se copia 1:1 al PSG: el export lo reescala para aproximar la cadencia del preview de PC, que avanza esa envolvente con ticks software mucho más lentos que el hardware real.
 
 ## Integración con Game Flow
 
@@ -170,3 +174,4 @@ Esto permite disparar música desde state machines sin pasar por Game Flow, pero
 - Si cambia la firma de `music_play_track`, revisar `Action_PlayMusic`.
 - `music_update` debe seguir siendo segura para llamarse una vez por frame; no asumir llamadas múltiples por frame salvo que se reescriba el temporizador.
 - Cualquier expansión futura (envolventes complejas, ruido por canal, PT3 más completo) debe preservar `music_execute_command` y `music_update` como API estable, o documentar el breaking change en esta misma carpeta.
+- La integración futura de un backend `external-pt3` debe colgarse de esa misma API pública (`music_play_track`, `music_update`, `music_stop`, `music_mute`, `music_resume`) para que Game Flow y State Machine no necesiten cambios estructurales.
