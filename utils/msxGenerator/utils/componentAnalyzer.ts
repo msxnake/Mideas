@@ -92,14 +92,15 @@ export function analyzeComponentUsage(analysis: ProjectAnalysis): ComponentUsage
   console.log(`✅ Used templates: ${Array.from(usedTemplates).join(', ')}`);
 
   // STEP 2: For each active entity, detect which components it uses
-  activeEntities.forEach((entity: any) => {
-    const entityName = entity.name || entity.id;
+  activeEntities.forEach((entity: any, entityIndex: number) => {
+    const entityDisplayName = entity.name || entity.id;
+    const entityKey = entity.id || entity.name || `entity_${entityIndex}`;
 
     // Get template definition
     const template = analysis.templates?.find((t: any) => t.id === entity.entityTemplateId);
 
     if (template) {
-      console.log(`  📦 Analyzing template "${template.name}" for entity "${entityName}"`);
+      console.log(`  📦 Analyzing template "${template.name}" for entity "${entityDisplayName}"`);
 
       // Analyze template components
       if (template.components && Array.isArray(template.components)) {
@@ -117,7 +118,7 @@ export function analyzeComponentUsage(analysis: ProjectAnalysis): ComponentUsage
             if (!componentToEntitiesMap.has(standardName)) {
               componentToEntitiesMap.set(standardName, new Set());
             }
-            componentToEntitiesMap.get(standardName)!.add(entityName);
+            componentToEntitiesMap.get(standardName)!.add(entityKey);
           }
         });
       }
@@ -132,11 +133,11 @@ export function analyzeComponentUsage(analysis: ProjectAnalysis): ComponentUsage
           if (!componentToEntitiesMap.has(standardName)) {
             componentToEntitiesMap.set(standardName, new Set());
           }
-          componentToEntitiesMap.get(standardName)!.add(entityName);
+          componentToEntitiesMap.get(standardName)!.add(entityKey);
         });
       }
     } else {
-      console.warn(`  ⚠️  Template "${entity.entityTemplateId}" not found for entity "${entityName}"`);
+      console.warn(`  ⚠️  Template "${entity.entityTemplateId}" not found for entity "${entityDisplayName}"`);
     }
   });
 

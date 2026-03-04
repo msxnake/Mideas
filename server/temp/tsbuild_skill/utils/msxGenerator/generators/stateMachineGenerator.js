@@ -1755,6 +1755,11 @@ Action_SetCompProp:
 
     push hl                 ; Save Params Ptr
 
+    ; Guard invalid target entity index.
+    ld a, b
+    cp MAX_ENTITIES
+    jp nc, .scp_done
+
     ld a, e                 ; A = PropertyID
     cp 1
     jp z, .scp_set_x
@@ -1826,6 +1831,11 @@ Action_SetCompProp:
     jp .scp_done
 
 .scp_set_sprite:
+    ld a, c
+    cp SM_SpriteAssetCount
+    jr c, .scp_set_sprite_ok
+    ld c, #FF
+.scp_set_sprite_ok:
     ld l, b
     ld h, 0
     ld de, entity_sprite_asset_index

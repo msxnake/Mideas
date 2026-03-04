@@ -74,12 +74,13 @@ function analyzeComponentUsage(analysis) {
     console.log(`✅ Active entities: ${activeEntities.length}`);
     console.log(`✅ Used templates: ${Array.from(usedTemplates).join(', ')}`);
     // STEP 2: For each active entity, detect which components it uses
-    activeEntities.forEach((entity) => {
-        const entityName = entity.name || entity.id;
+    activeEntities.forEach((entity, entityIndex) => {
+        const entityDisplayName = entity.name || entity.id;
+        const entityKey = entity.id || entity.name || `entity_${entityIndex}`;
         // Get template definition
         const template = analysis.templates?.find((t) => t.id === entity.entityTemplateId);
         if (template) {
-            console.log(`  📦 Analyzing template "${template.name}" for entity "${entityName}"`);
+            console.log(`  📦 Analyzing template "${template.name}" for entity "${entityDisplayName}"`);
             // Analyze template components
             if (template.components && Array.isArray(template.components)) {
                 template.components.forEach((comp) => {
@@ -93,7 +94,7 @@ function analyzeComponentUsage(analysis) {
                         if (!componentToEntitiesMap.has(standardName)) {
                             componentToEntitiesMap.set(standardName, new Set());
                         }
-                        componentToEntitiesMap.get(standardName).add(entityName);
+                        componentToEntitiesMap.get(standardName).add(entityKey);
                     }
                 });
             }
@@ -106,12 +107,12 @@ function analyzeComponentUsage(analysis) {
                     if (!componentToEntitiesMap.has(standardName)) {
                         componentToEntitiesMap.set(standardName, new Set());
                     }
-                    componentToEntitiesMap.get(standardName).add(entityName);
+                    componentToEntitiesMap.get(standardName).add(entityKey);
                 });
             }
         }
         else {
-            console.warn(`  ⚠️  Template "${entity.entityTemplateId}" not found for entity "${entityName}"`);
+            console.warn(`  ⚠️  Template "${entity.entityTemplateId}" not found for entity "${entityDisplayName}"`);
         }
     });
     console.log('📊 Component usage summary:');

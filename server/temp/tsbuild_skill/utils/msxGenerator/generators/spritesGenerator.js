@@ -333,6 +333,7 @@ sprite_asset_frame_count:
     if (sprites.length === 0) {
         code += `    db 1 ; Placeholder\n`;
     }
+    code += `SPRITE_ASSET_COUNT EQU ${Math.max(1, sprites.length)}\n`;
     code += `
 ; Table: Sprite Asset Loop Flags
 ; Format: db flags (bit 1: 1=loop, 0=once)

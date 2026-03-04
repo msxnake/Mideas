@@ -209,6 +209,43 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
   const [stamps, setStamps] = useState<TileStamp[]>([]);
   const [selectedStampId, setSelectedStampId] = useState<string | null>(null);
 
+  const getNextEntityInstanceName = useCallback((template: EntityTemplate): string => {
+    const baseName = (template.name || 'Entity').trim() || 'Entity';
+    const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const numberedNameRegex = new RegExp(`^${escapedBase}\\s+(\\d+)$`, 'i');
+    let maxNumber = 0;
+
+    const consumeEntities = (entities: EntityInstance[] | undefined) => {
+      if (!entities) return;
+      entities.forEach(entity => {
+        if (entity.entityTemplateId !== template.id) return;
+        const rawName = (entity.name || '').trim();
+        if (!rawName) return;
+        if (rawName.toLowerCase() === baseName.toLowerCase()) {
+          maxNumber = Math.max(maxNumber, 1);
+          return;
+        }
+        const match = rawName.match(numberedNameRegex);
+        if (!match) return;
+        const parsed = parseInt(match[1], 10);
+        if (!Number.isNaN(parsed)) {
+          maxNumber = Math.max(maxNumber, parsed);
+        }
+      });
+    };
+
+    allProjectAssets.forEach(asset => {
+      if (asset.type !== 'screenmap') return;
+      const mapData = asset.data as ScreenMap;
+      consumeEntities(mapData.layers?.entities);
+    });
+
+    // Ensure unsaved entities in the active screen are also considered.
+    consumeEntities(screenMap.layers.entities);
+
+    return `${baseName} ${Math.max(1, maxNumber + 1)}`;
+  }, [allProjectAssets, screenMap.layers.entities]);
+
   const setActiveLayer = (newLayer: ScreenEditorLayerName) => {
     setActiveLayerInternal(newLayer);
     onActiveLayerChange?.(newLayer); // Call the callback prop
@@ -268,7 +305,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     const newEntityInstance: EntityInstance = {
       id: `entity_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       entityTemplateId: currentEntityTypeToPlace.id,
-      name: `${currentEntityTypeToPlace.name} ${screenMap.layers.entities.filter(e => e.entityTemplateId === currentEntityTypeToPlace.id).length + 1}`,
+      name: getNextEntityInstanceName(currentEntityTypeToPlace),
       jobRate: 100,
       jobEntry: 0,
       position: { x: point.x, y: point.y },
@@ -276,7 +313,7 @@ export const ScreenEditor: React.FC<ScreenEditorProps> = ({
     };
     const updatedEntities = [...screenMap.layers.entities, newEntityInstance];
     onUpdate({ layers: { ...screenMap.layers, entities: updatedEntities } });
-  }, [currentEntityTypeToPlace, screenMap.layers, onUpdate]);
+  }, [currentEntityTypeToPlace, getNextEntityInstanceName, screenMap.layers, onUpdate]);
 
   const handleAddNewEffectZone = () => {
     const newZone: EffectZone = {

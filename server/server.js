@@ -18,6 +18,29 @@ const port = 3001;
 const ZX0_ROUTINE_OVERHEAD_BYTES = 96;
 const ZX0_PER_BLOCK_RUNTIME_OVERHEAD_BYTES = 11;
 
+function isRomFileLockError(text) {
+  const value = String(text || '').toLowerCase();
+  if (!value) return false;
+  return (
+    value.includes('filesystemexception') &&
+    value.includes('.rom') &&
+    (value.includes('secci') || value.includes('user-mapped section') || value.includes('being used by another process'))
+  );
+}
+
+function closeOpenMsxProcesses() {
+  try {
+    if (process.platform === 'win32') {
+      const out = execSync('taskkill /IM openmsx.exe /F', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      return /openmsx\.exe/i.test(String(out || ''));
+    }
+    execSync('pkill -f openmsx', { stdio: ['ignore', 'pipe', 'pipe'] });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function parseAsmByteToken(token) {
   const raw = token.trim();
   if (!raw) return null;
@@ -1211,17 +1234,31 @@ app.post('/compile', (req, res) => {
       console.log(`Symbols will be saved to: ${symbolFilePath}`);
     }
 
-    exec(command, (error, stdout, stderr) => {
+    const runGlassCompile = (attempt = 1) => {
+      exec(command, (error, stdout, stderr) => {
       let compileStdout = stdout || '';
       let compileStderr = stderr || '';
 
       // Log detailed information for debugging
       console.log('=== GLASS COMPILATION RESULTS ===');
       console.log('Command:', command);
+      console.log('Attempt:', attempt);
       console.log('Error object:', error);
       console.log('STDOUT:', compileStdout);
       console.log('STDERR:', compileStderr);
       console.log('===================================');
+
+      if (error && attempt === 1) {
+        const fullErrorText = `${compileStderr}\n${compileStdout}\n${error.message || ''}`;
+        if (isRomFileLockError(fullErrorText)) {
+          const closed = closeOpenMsxProcesses();
+          if (closed) {
+            console.warn('Detected ROM file lock. Closed openMSX and retrying Glass compile once...');
+            return runGlassCompile(2);
+          }
+          console.warn('Detected ROM file lock, but could not close openMSX automatically.');
+        }
+      }
 
       if (error) {
         // Don't delete temp file yet so we can inspect it
@@ -1543,7 +1580,10 @@ app.post('/compile', (req, res) => {
 
         res.send(responseData);
       });
-    });
+      });
+    };
+
+    runGlassCompile(1);
   });
 });
 

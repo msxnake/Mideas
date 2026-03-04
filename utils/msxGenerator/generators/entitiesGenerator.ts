@@ -841,6 +841,14 @@ update_entity_patrol_facing:
     push bc
     push hl
 
+    ; Guard invalid DE index coming from callers.
+    ld a, d
+    or a
+    jp nz, .patrol_facing_done
+    ld a, e
+    cp MAX_ENTITIES
+    jp nc, .patrol_facing_done
+
     ; Read base sprite asset index from ROM init table.
     ; This keeps patrol facing within the entity's directional family
     ; and avoids getting stuck in an unrelated 1-layer sprite asset.
@@ -849,6 +857,8 @@ update_entity_patrol_facing:
     ld a, (hl)
     cp #FF
     jp z, .patrol_facing_done
+    cp SPRITE_ASSET_COUNT
+    jp nc, .patrol_facing_done
     ld c, a
     ld b, 0
 

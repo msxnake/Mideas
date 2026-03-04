@@ -3006,6 +3006,8 @@ function generateAnimationSystem(): string {
             ld a, (hl)
             cp #FF
             jp z, anim_done_entity
+            cp SPRITE_ASSET_COUNT
+            jp nc, anim_done_entity
             ld b, a                    ; B = sprite asset index
 
             ; frameCount = sprite_asset_frame_count[B]
@@ -5563,6 +5565,9 @@ function generateEntityManagement(): string {
 
         ; Create entity with components(A = entity ID, B = mask low byte, C = mask high byte) 
         create_entity:
+    ; Guard invalid indices to avoid RAM table corruption.
+            cp MAX_ENTITIES
+            ret nc
 ; Set component mask for entity
             ld hl, entity_comp_masks
             ld e, a; Entity index
@@ -5609,6 +5614,8 @@ function generateEntityManagement(): string {
     ; Destroys: AF, DE, HL
     ; ------------------------------------------------------------------
 entity_job_set:
+            cp MAX_ENTITIES
+            ret nc
             ld e, a
             ld d, 0
 
@@ -5647,6 +5654,12 @@ entity_job_set_entry_ok:
     ; Destroys: AF, BC, DE, HL
     ; ------------------------------------------------------------------
 entity_job_should_run_c:
+            ld a, c
+            cp MAX_ENTITIES
+            jr c, .entity_job_run_idx_ok
+            xor a
+            ret
+.entity_job_run_idx_ok:
             push bc
             push de
             push hl
