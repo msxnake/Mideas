@@ -40,8 +40,9 @@ ${(0, registerContract_1.buildRegisterContractComment)({
         notes: ['Do not assume any register survives this routine.'],
     })}
 update_all_entities:
-    ; Rebuild entity list only when invalidated (spawn/despawn/screen change)
-    call ensure_used_entity_list_current
+    ; Rebuild entity list every frame so job scheduler cadence
+    ; (entity_job_period/entity_job_entry) is evaluated against interrupt_counter.
+    call rebuild_used_entity_list
 `;
     // Define the component systems in execution order
     // Format: [componentName, functionCall, comment]
@@ -187,6 +188,14 @@ rebuild_used_entity_list:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .next_entity
+
+    ; Keep only entities scheduled to run on this frame.
+    ; entity_job_should_run_c expects C=entity index.
+    push bc
+    call entity_job_should_run_c
+    pop bc
+    or a
+    jr z, .next_entity
 
     ld hl, active_entity_count
     ld a, (hl)
@@ -5560,6 +5569,9 @@ entity_job_set_entry_ok:
     ; Input:  C = entity index (0..31)
     ; Output: A = 1 when entity should run this frame, 0 otherwise
     ; Destroys: AF, BC, DE, HL
+    ; Notes:
+    ;   - Fast path for power-of-two periods using bitmask modulo.
+    ;   - Fallback path keeps generic modulo-by-subtraction for other periods.
     ; ------------------------------------------------------------------
 entity_job_should_run_c:
             ld a, c
@@ -5589,6 +5601,28 @@ entity_job_run_period_ok:
             ld hl, entity_job_entry
             add hl, de
             ld a, (hl)
+            ld e, a
+
+            ; Fast modulo for power-of-two period:
+            ; if (period & (period - 1)) == 0 then use AND mask.
+            ld a, b
+            dec a
+            ld d, a                    ; D = period - 1
+            ld a, d
+            and b
+            jr nz, entity_job_run_fallback_mod
+
+            ld a, e
+            and d
+            ld e, a
+            ld a, (interrupt_counter)
+            and d
+            cp e
+            jr nz, entity_job_run_inactive
+            jr entity_job_run_active
+
+entity_job_run_fallback_mod:
+            ld a, e
 entity_job_run_entry_mod:
             cp b
             jr c, entity_job_run_entry_ready

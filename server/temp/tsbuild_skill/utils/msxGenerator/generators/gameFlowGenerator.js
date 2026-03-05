@@ -244,6 +244,65 @@ function getImportedHudFrameDrawRoutineName(screen) {
     return `hud_imported_frame_${screenName.toLowerCase()}${screenIdSuffix.toLowerCase()}_draw`;
 }
 /**
+ * Resolve runtime screen indexes where HUD has visible elements.
+ * In world-based projects we map by world node index (current_screen_id runtime contract).
+ * Without worlds, fallback to screen array index.
+ */
+function getHudRuntimeScreenIndexes(analysis) {
+    const screenMaps = Array.isArray(analysis.screenMaps) ? analysis.screenMaps : [];
+    const hudScreenAssetIds = new Set();
+    screenMaps.forEach((screen) => {
+        const hasHudElems = Array.isArray(screen?.hudConfiguration?.elements) && screen.hudConfiguration.elements.length > 0;
+        if (hasHudElems && screen?.id) {
+            hudScreenAssetIds.add(String(screen.id));
+        }
+    });
+    if (hudScreenAssetIds.size === 0)
+        return [];
+    const worldMaps = Array.isArray(analysis.worldmaps) ? analysis.worldmaps : [];
+    const runtimeIndexes = new Set();
+    if (worldMaps.length > 0) {
+        worldMaps.forEach((world) => {
+            const nodes = Array.isArray(world?.nodes) ? world.nodes : [];
+            nodes.forEach((node, idx) => {
+                const screenAssetId = String(node?.screenAssetId || '');
+                if (hudScreenAssetIds.has(screenAssetId)) {
+                    runtimeIndexes.add(idx);
+                }
+            });
+        });
+    }
+    else {
+        screenMaps.forEach((screen, idx) => {
+            if (screen?.id && hudScreenAssetIds.has(String(screen.id))) {
+                runtimeIndexes.add(idx);
+            }
+        });
+    }
+    return Array.from(runtimeIndexes).sort((a, b) => a - b);
+}
+/**
+ * Emit conditional HUD rendering for current_screen_id.
+ */
+function generateConditionalRenderHudAsm(runtimeScreenIndexes, labelBase, setDirtyBeforeRender = false) {
+    if (runtimeScreenIndexes.length === 0)
+        return '';
+    let code = `    ld a, (current_screen_id)\n`;
+    runtimeScreenIndexes.forEach((screenId) => {
+        code += `    cp ${screenId}\n`;
+        code += `    jp z, .${labelBase}_do\n`;
+    });
+    code += `    jp .${labelBase}_skip\n`;
+    code += `.${labelBase}_do:\n`;
+    if (setDirtyBeforeRender) {
+        code += `    ld a, 1\n`;
+        code += `    ld (hud_dirty_flag), a\n`;
+    }
+    code += `    call render_hud\n`;
+    code += `.${labelBase}_skip:\n`;
+    return code;
+}
+/**
  * Generate complete GameFlow file (gameflow.asm)
  *
  * This is the CORE of the new architecture. It generates:
@@ -447,8 +506,11 @@ gameflow_no_data:
     // ===================================================================
     // SECTION 5: GAME LOOP (for WorldLink nodes)
     // ===================================================================
-    // Check if project has HUD elements
-    const hasHud = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
+    // HUD is rendered only on runtime screens that actually contain HUD elements.
+    const hudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
+    const hasHud = hudRuntimeScreenIndexes.length > 0;
+    const worldLoopHudRenderAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldloop_hud');
+    const worldLinkHudBootstrapAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldlink_hud', true);
     code += `; ==================================================================
 ; GAME LOOP (WorldLink nodes only)
 ; ==================================================================
@@ -460,6 +522,11 @@ gameflow_world_game_loop:
     ld a, (gameflow_exit_requested)
     or a
     ret nz
+
+    ; Frame sync first: start each tick exactly on V-Blank edge
+    halt
+    ; Upload sprites right after V-Blank edge (60/50 Hz frame-paced)
+    call update_sprites_to_vram
 
     ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
     call task_update_input
@@ -484,14 +551,10 @@ ${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; State-mac
     ; Update timed PSG sound effects
     call sfx_update
 
-    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
+    ; Sprite SAT upload runs once per frame, outside ISR (done at frame start).
 ${hasHud ? `
-    ; Render HUD elements
-    call render_hud
-` : ``}
-    ; Wait for V-Blank
-    halt
-
+    ; Render HUD only on screens that define HUD elements
+${worldLoopHudRenderAsm}` : ``}
     ; Loop
     jp gameflow_world_game_loop
 
@@ -773,7 +836,9 @@ empty_row_data:
  */
 function generateNodeHandlers(nodeTypes, analysis) {
     let code = '';
-    const hasHud = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
+    const hudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
+    const hasHud = hudRuntimeScreenIndexes.length > 0;
+    const worldLinkHudBootstrapAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldlink_hud', true);
     nodeTypes.forEach((nodeType) => {
         switch (nodeType) {
             case 'Start':
@@ -851,11 +916,8 @@ function generateNodeHandlers(nodeTypes, analysis) {
     ; Update sprites
     call update_sprites_to_vram
 ${hasHud ? `
-    ; Set HUD dirty flag so it renders on first frame after screen load
-    ld a, 1
-    ld (hud_dirty_flag), a
-    call render_hud
-` : ``}
+    ; Bootstrap HUD only on screens that actually use HUD
+${worldLinkHudBootstrapAsm}` : ``}
     ; Enter game loop
     call gameflow_world_game_loop
 
@@ -2885,7 +2947,10 @@ ${nodeLabel}_init:
  * Generate default GameFlow when none exists
  */
 function generateDefaultGameFlow(analysis) {
-    const defaultHasHud = analysis.screenMaps?.some(screen => screen.hudConfiguration?.elements && screen.hudConfiguration.elements.length > 0);
+    const defaultHudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
+    const defaultHasHud = defaultHudRuntimeScreenIndexes.length > 0;
+    const defaultStartHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_start_hud', true);
+    const defaultLoopHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_loop_hud');
     const firstScreen = analysis.screenMaps && analysis.screenMaps.length > 0 ? analysis.screenMaps[0] : null;
     const firstImportedHudFrameDrawRoutine = firstScreen ? getImportedHudFrameDrawRoutineName(firstScreen) : null;
     const firstScreenLoadCode = firstScreen
@@ -2903,13 +2968,12 @@ gameflow_start:
 ${firstScreenLoadCode}${firstImportedHudFrameDrawRoutine ? `    ; Draw imported HUD frame once at game start
     call ${firstImportedHudFrameDrawRoutine}
 ` : ``}
-${defaultHasHud ? `    ; Set HUD dirty flag after screen load
-    ld a, 1
-    ld (hud_dirty_flag), a
-    call render_hud
-` : ``}    ret
+${defaultHasHud ? `    ; Bootstrap HUD only on screens that define HUD elements
+${defaultStartHudAsm}` : ``}    ret
 
 gameflow_world_game_loop:
+    halt                            ; Frame sync at loop start (V-Blank edge)
+    call update_sprites_to_vram     ; Frame-paced SAT upload (outside ISR)
     ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
     call task_update_input
     call check_world_screen_transition
@@ -2918,9 +2982,9 @@ gameflow_world_game_loop:
     ; Tracker music runs in VBlank via task_update_music
 ${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; State-machine PLAY_SOUND runs in VBlank via task_update_music
 ` : ``}    call update_animated_tiles
-    ; Sprite SAT upload runs in VBlank via task_update_sprites (interrupt hook)
-${defaultHasHud ? `    call render_hud
-` : ``}    halt                            ; Wait for V-Blank
+${defaultHasHud ? `    ; Render HUD only on screens that define HUD elements
+${defaultLoopHudAsm}
+` : ``}
     jp gameflow_world_game_loop
 
 ; gameflow_exit_requested is allocated in variables.asm (RAM EQU)

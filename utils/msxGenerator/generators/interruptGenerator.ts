@@ -188,7 +188,7 @@ ${buildRegisterContractComment({
   purpose: 'Dispatch enabled interrupt tasks each VBlank and chain BIOS hook.',
   inputs: ['Triggered by H.TIMI hook'],
   outputs: ['interrupt_counter incremented', 'vblank_flag refreshed'],
-  clobbers: ['AF', 'BC', 'HL (restored before exit)'],
+  clobbers: ['AF', 'BC', 'DE', 'HL', 'IX', 'IY (all restored before exit)'],
   preserved: ['DE', 'IX', 'IY'],
   usage: [
     'HL = walks task_table and holds task pointer',
@@ -196,18 +196,21 @@ ${buildRegisterContractComment({
     'C = temporary low byte for pointer reconstruction',
     'A = enabled checks and pointer validation',
   ],
-  notes: ['Only AF/BC/HL are pushed; interrupt tasks must preserve anything else they touch.'],
+  notes: ['Dispatcher saves/restores DE/IX/IY defensively, reducing coupling with task internals.'],
 })}
 ; This routine executes on each V-Blank
 ; CRITICAL: Minimal CPU cycles, maximum efficiency
 ; Overhead: ~80 cycles base + ~40 cycles per active task
 ; ==================================================================
 interrupt_dispatcher:
-    ; --- STEP 1: Save MINIMAL registers (only what we use) ---
+    ; --- STEP 1: Save caller-visible registers used by BIOS/user code ---
     push af                     ; 11 cycles
     push hl                     ; 11 cycles
     push bc                     ; 11 cycles
-    ; Total: 33 cycles overhead
+    push de                     ; 11 cycles
+    push ix                     ; 15 cycles
+    push iy                     ; 15 cycles
+    ; Total: 74 cycles fixed prologue overhead
 
     ; --- STEP 2: Check if system is enabled ---
     ld a, (interrupt_system_enabled)
@@ -265,6 +268,9 @@ interrupt_dispatcher:
 
 .exit:
     ; --- STEP 5: Restore registers ---
+    pop iy                      ; 14 cycles
+    pop ix                      ; 14 cycles
+    pop de                      ; 10 cycles
     pop bc                      ; 10 cycles
     pop hl                      ; 10 cycles
     pop af                      ; 10 cycles

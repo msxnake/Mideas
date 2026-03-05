@@ -257,8 +257,14 @@ function generateSpritesFile(analysis) {
         });
         currentHwSpriteIndex += spriteInfo.colors.length;
     });
-    // Always reserve full hardware sprite table (32) to keep attributes/LDIRVM in sync
+    // Always reserve full hardware sprite table (32) in RAM.
+    // VRAM upload can be smaller: active range + one SAT end marker sprite.
     const totalHardwareSprites = 32;
+    const usedHardwareSprites = Math.max(1, Math.min(currentHwSpriteIndex, totalHardwareSprites));
+    const uploadHardwareSprites = usedHardwareSprites < totalHardwareSprites
+        ? usedHardwareSprites + 1
+        : totalHardwareSprites;
+    const uploadBytes = uploadHardwareSprites * 4;
     // Phase 2: Generate Code
     let code = `; ==================================================================
 ; SPRITE DATA
@@ -266,6 +272,7 @@ function generateSpritesFile(analysis) {
 ; Description: Sprite pattern and animation data
 ; Entities: ${activeEntities.length}
 ; Total Hardware Sprites (Layers): ${totalHardwareSprites}
+; SAT Upload Sprites per frame: ${uploadHardwareSprites}
 ; ==================================================================
 
 ; ==================================================================
@@ -629,7 +636,7 @@ update_sprites_to_vram:
     ld (sprites_dirty), a
     ld hl, sprite_attributes
     ld de, SPRATR
-    ld bc, ${totalHardwareSprites * 4}  ; 4 bytes per sprite
+    ld bc, ${uploadBytes}  ; Upload active sprite range + SAT end marker
     call FAST_LDIRVM
     ret
 

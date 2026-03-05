@@ -459,36 +459,30 @@ check_world_screen_transition:
     ld (screen_transition_cooldown), a
     ret
 
-    ; Find first ACTIVE entity with Input component in current screen
+    ; Find first controllable entity from active list (already filtered by screen)
+    ; This avoids scanning all 32 entity slots every frame.
 .find_player_start:
-    ld b, MAX_ENTITIES
-    ld e, 0
-    ld d, 0
-.find_player_loop:
-    ; Check entity active flag
-    ld hl, entity_active
-    add hl, de
-    ld a, (hl)
+    ld a, (active_entity_count)
     or a
-    jr z, .find_player_next
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+.find_player_loop:
+    ; E = entity index from compact active list
+    ld e, (hl)
+    inc hl
+    ld d, 0
 
     ; Check Input component mask
+    push hl
     ld hl, entity_comp_masks
     add hl, de
     ld a, (hl)
     and COMP_MASK_INPUT
-    jr z, .find_player_next
-
-    ; Check entity belongs to current screen
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jr z, .player_found
+    pop hl
+    jr nz, .player_found
 
 .find_player_next:
-    inc e
     djnz .find_player_loop
     ret                        ; No controllable entity found
 
