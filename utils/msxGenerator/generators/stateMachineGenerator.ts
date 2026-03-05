@@ -353,7 +353,6 @@ SM_Update:
     push bc
     push de
     push hl
-    push ix
     
     ld c, a             ; C = Entity Index
     ld b, 0             ; BC = Entity Index
@@ -407,24 +406,13 @@ sm_timer_no_overflow:
     ex de, hl           ; HL = State Data Ptr
 
     ; 3. Check Transitions
-    push hl             ; Save State Data Ptr
-    ld bc, 5
-    add hl, bc
+    ld de, 5
+    add hl, de
     ld e, (hl)
     inc hl
     ld d, (hl)
     ; DE = Transitions List Ptr
-
-    ; Restore State Data Ptr
-    pop hl
-
-    ; Get Entity Index from stack
-    ; Stack: IX, HL, DE, BC, AF (pushed at start)
-    ; SP + 0=IX, SP + 2=HL, SP + 4=DE, SP + 6=BC, SP + 8=AF
-    ; Saved A (entity index) is at SP + 9 (SP + 8 is flags)
-    ld ix, 0
-    add ix, sp
-    ld a, (ix + 9)      ; A = Entity Index
+    ld a, c             ; A = Entity Index (kept in C)
     
     call SM_CheckTransitions
 
@@ -434,7 +422,6 @@ sm_timer_no_overflow:
     ; 4. Execute OnUpdate Actions (Optional)
 
 sm_update_done:
-    pop ix
     pop hl
     pop de
     pop bc
@@ -493,10 +480,8 @@ SM_CheckTransitions_Loop:
     ; Transition tail layout after condition payload:
     ;   [0-1] Target State Ptr
     ;   [2-3] Actions Ptr
-    inc hl
-    inc hl
-    inc hl
-    inc hl
+    ld de, 4
+    add hl, de
     
     pop bc; Restore counters
     dec c; Decrement loop counter

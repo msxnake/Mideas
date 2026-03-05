@@ -590,6 +590,7 @@ gameflow_world_game_loop:
 ${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; State-machine PLAY_SOUND runs in VBlank via task_update_music
 ` : ``}
 
+
     ; Update animated background tiles (water, fire, etc.)
     call update_animated_tiles
 

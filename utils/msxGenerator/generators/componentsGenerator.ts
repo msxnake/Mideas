@@ -158,7 +158,8 @@ ${buildRegisterContractComment({
   clobbers: ['AF', 'BC', 'DE', 'HL'],
   preserved: ['None'],
   usage: [
-    'C = entity slot iterator',
+    'B = slots remaining (MAX_ENTITIES..1)',
+    'C = entity slot iterator (0..MAX_ENTITIES-1)',
     'DE = index offset (entity id / active list position)',
     'HL = pointer math over component and state arrays',
     'A = predicate checks and counters',
@@ -167,13 +168,10 @@ ${buildRegisterContractComment({
 rebuild_used_entity_list:
     xor a
     ld (active_entity_count), a
+    ld b, MAX_ENTITIES
     ld c, 0
 
 .rebuild_loop:
-    ld a, c
-    cp MAX_ENTITIES
-    jr z, .rebuild_done
-
     ld e, c
     ld d, 0
     ld hl, entity_active
@@ -221,7 +219,7 @@ rebuild_used_entity_list:
 
 .next_entity:
     inc c
-    jr .rebuild_loop
+    djnz .rebuild_loop
 
 .rebuild_done:
     xor a
@@ -2942,29 +2940,7 @@ function generateAnimationSystem(): string {
             cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
             jp nz, .anim_next_entity
 
-            ; Skip inactive entities
-            push hl
-            ld hl, entity_active
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            pop hl
-            or a
-            jp z, .anim_next_entity
-
-            ; Skip entities that are not in the currently active screen
-            ; Preserve HL because it is the entity_comp_masks loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, .anim_next_entity
+            ; active_entity_list already guarantees active + current_screen_id
 
             push bc
             push hl
@@ -5663,7 +5639,7 @@ entity_job_set_entry_ok:
     ; Destroys: AF, BC, DE, HL
     ; Notes:
     ;   - Fast path for power-of-two periods using bitmask modulo.
-    ;   - Fallback path keeps generic modulo-by-subtraction for other periods.
+    ;   - Fallback path uses 16-bit frame modulo with fixed 16-iteration cost.
     ; ------------------------------------------------------------------
 entity_job_should_run_c:
             ld a, c
@@ -5723,13 +5699,21 @@ entity_job_run_entry_mod:
 entity_job_run_entry_ready:
             ld e, a
 
-            ld a, (interrupt_counter)
-entity_job_run_frame_mod:
+            ; 16-bit frame modulo: (interrupt_counter % period) in A
+            ; Uses shift/subtract division with fixed 16 iterations.
+            ld hl, (interrupt_counter)
+            xor a
+            ld d, 16
+entity_job_run_frame_mod16:
+            add hl, hl
+            adc a, a
             cp b
-            jr c, entity_job_run_frame_ready
+            jr c, entity_job_run_frame_mod16_no_sub
             sub b
-            jr entity_job_run_frame_mod
-entity_job_run_frame_ready:
+entity_job_run_frame_mod16_no_sub:
+            dec d
+            jr nz, entity_job_run_frame_mod16
+
             cp e
             jr nz, entity_job_run_inactive
 entity_job_run_active:
@@ -6660,40 +6644,33 @@ execute_all_state_machines:
     ld a, (hl)                    ; A = entity index
     inc hl                        ; Advance list pointer
     push hl                       ; Save list pointer
-    push bc                       ; Save loop counter
 
-    ; Skip inactive entities early
-    ld c, a                       ; C = entity index
-    ld b, 0                       ; BC = entity index
-    ld hl, entity_active
-    add hl, bc
-    ld a, (hl)                    ; A = active flag
-    or a
-    jr z, .skip_entity            ; Inactive entity, skip
+    ; active_entity_list already guarantees active + current_screen_id
+    ld e, a                       ; DE = entity index
+    ld d, 0
 
     ; Check if this entity has a state machine assigned
     ld hl, entity_sm_ptr_l
-    add hl, bc
-    ld e, (hl)                    ; E = SM ptr low
+    add hl, de
+    ld c, (hl)                    ; C = SM ptr low
     
     ld hl, entity_sm_ptr_h
-    add hl, bc
-    ld d, (hl)                    ; D = SM ptr high
+    add hl, de
+    ld a, (hl)                    ; A = SM ptr high
     
     ; Check if SM pointer is non-zero
-    ld a, d
-    or e
+    or c
     jr z, .skip_entity            ; No SM assigned, skip
 
     ; Entity has a state machine - execute it
-    ld a, c
+    ld a, e
+    push bc                       ; Preserve loop counter (B) across call
     call SM_Update                ; Execute state machine (A = entity index)
+    pop bc
     
 .skip_entity:
-    pop bc                        ; Restore loop counter
     pop hl                        ; Restore list pointer
-    dec b
-    jp nz, .sm_loop               ; Loop for all used entities
+    djnz .sm_loop                 ; Loop for all used entities
     
     ret
 

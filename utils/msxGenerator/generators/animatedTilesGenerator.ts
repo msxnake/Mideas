@@ -455,6 +455,16 @@ ${frames}
     ex de, hl                       ; HL = data pointer
 
     ; frame = global_frame % frame_count
+    ; Fast path for power-of-two frame counts: frame & (count-1)
+    ld a, b
+    dec a
+    ld d, a
+    and b
+    jr nz, .anim_mod_slow
+    ld a, (anim_tile_frame)
+    and d
+    jr .anim_mod_done
+.anim_mod_slow:
     ld a, (anim_tile_frame)
 .anim_mod_loop:
     cp b
@@ -464,20 +474,20 @@ ${frames}
 .anim_mod_done:
 
     ; DE = frame offset (frame * bytes_per_frame)
+    ld b, a
     ld d, 0
     ld e, 0
 .anim_mul_loop:
+    ld a, b
     or a
     jr z, .anim_mul_done
-    push af
     ld a, e
     add a, c
     ld e, a
     ld a, d
     adc a, 0
     ld d, a
-    pop af
-    dec a
+    dec b
     jr .anim_mul_loop
 .anim_mul_done:
     add hl, de                      ; HL = frame data pointer

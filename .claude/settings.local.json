@@ -119,7 +119,12 @@
       "Bash(cmd /c \"npx tsc --noEmit 2>&1\")",
       "Bash(do if:*)",
       "Bash(sort:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(\"/c/Program Files/openMSX/openmsx.exe\":*)",
+      "Read(//c/tmp/**)",
+      "Bash(Get-Process openmsx:*)",
+      "Bash(\"C:/Users/salam/Downloads/pt3_domen.asm\":*)",
+      "Bash(\"C:/Users/salam/Downloads/pt3_base.asm\":*)"
     ],
     "deny": [],
     "ask": []

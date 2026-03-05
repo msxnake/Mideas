@@ -746,9 +746,7 @@ function generateDefaultTasks(analysis: ProjectAnalysis): string {
     code += `    push bc\n`;
     code += `    push de\n`;
     code += `    push hl\n\n`;
-    if (analysis.tracks && analysis.tracks.length > 0) {
-      code += `    call music_update\n`;
-    }
+    code += `    call music_update\n`;
     if (analysis.stateMachines && analysis.stateMachines.length > 0) {
       code += `    call SM_UpdateSound\n`;
     }
