@@ -12,6 +12,18 @@ const bankPacker_1 = require("../utils/bankPacker");
 function toRoutineLabel(name) {
     return name.toLowerCase();
 }
+function formatExecutionPlanComments(executionPlan) {
+    const irqTasks = executionPlan.tasks.length > 0
+        ? executionPlan.tasks.map((task) => `; IRQ Task: slot ${task.slot} -> ${task.routineLabel} (${task.responsibility}, every ${task.period} frame${task.period === 1 ? '' : 's'})`).join('\n')
+        : '; IRQ Task: none';
+    const mainlineWork = executionPlan.mainline.length > 0
+        ? executionPlan.mainline.map((item) => `; Mainline: ${item.phase} -> ${item.routineLabel} (${item.responsibility})`).join('\n')
+        : '; Mainline: none';
+    const warnings = executionPlan.diagnostics.warnings.length > 0
+        ? executionPlan.diagnostics.warnings.map((warning) => `; Warning: ${warning}`).join('\n')
+        : '; Warning: none';
+    return `; Engine Execution Mode: ${executionPlan.mode}\n${irqTasks}\n${mainlineWork}\n${warnings}\n`;
+}
 /**
  * Generate unified file (unitedFiles.asm) - optional all-in-one file
  *
@@ -21,7 +33,7 @@ function toRoutineLabel(name) {
  * @param config - ROM mode/mapper configuration
  * @returns ASM code string with all files combined
  */
-function generateUnifiedFile(files, projectName, analysis, config = {
+function generateUnifiedFile(files, projectName, analysis, executionPlan, config = {
     romMode: 'simple32k',
     targetFormat: 'konami',
     autoMegaROM: false
@@ -33,6 +45,7 @@ function generateUnifiedFile(files, projectName, analysis, config = {
     const needsFont = hasMenus || hasText || hasHud;
     const bankPackReport = (0, bankPacker_1.buildBankPackReport)(files);
     const bankPackComments = (0, bankPacker_1.formatBankPackReportAsAsmComments)(bankPackReport);
+    const executionPlanComments = formatExecutionPlanComments(executionPlan);
     return `; ==================================================================
 ; ${projectName.toUpperCase()} - UNIFIED FILE
 ; File: unitedFiles.asm
@@ -50,8 +63,8 @@ function generateUnifiedFile(files, projectName, analysis, config = {
 ; ROM Mode: ${config.romMode}
 ; Mapper Target: ${config.targetFormat}
 ; Auto MegaROM: ${config.autoMegaROM ? 'Yes' : 'No'}
-; ==================================================================
-${bankPackComments}
+${executionPlanComments}; ==================================================================
+${config.romMode === 'plain48k' ? '; EXPERIMENTAL: plain48k plumbing is enabled, but page-0 asset packing is not implemented yet.\n' : ''}${bankPackComments}
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -129,9 +142,6 @@ ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game ent
     call init_entities
 ` : `    ; No entities to initialize
 `}
-    ; Initialize sound system
-    call init_sound_system
-
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load the first game screen
     call load_game_screen
 ` : `    ; No screens - skip screen loading

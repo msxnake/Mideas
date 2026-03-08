@@ -6,7 +6,7 @@
 ;
 ; OPTIMIZED: Only includes necessary code for this project
 ; Tiles: 12
-; Sprites: 9
+; Sprites: 10
 ; Screens: 5
 ; Entities: 4
 ; Menus: Yes
@@ -19,7 +19,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 118425
+; Estimated payload bytes: 119570
 ; Estimated banks used: 15
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1235 bytes)
@@ -32,26 +32,26 @@
 ; BANK 02 @#0000 : screens.asm part 2/3 (8192 bytes)
 ; BANK 03 @#0000 : screens.asm part 3/3 (6311 bytes)
 ; BANK 03 @#18A7 : sprites.asm part 1/2 (1881 bytes)
-; BANK 04 @#0000 : sprites.asm part 2/2 (8005 bytes)
-; BANK 04 @#1F45 : font.asm (187 bytes)
-; BANK 05 @#0000 : font.asm (3360 bytes)
-; BANK 05 @#0D20 : hud.asm (4467 bytes)
-; BANK 05 @#1E93 : menus.asm (365 bytes)
-; BANK 06 @#0000 : menus.asm (79 bytes)
-; BANK 06 @#004F : sound.asm part 1/2 (8113 bytes)
-; BANK 07 @#0000 : sound.asm part 2/2 (1288 bytes)
-; BANK 07 @#0508 : scroll.asm (2353 bytes)
-; BANK 07 @#0E39 : animtiles.asm (4551 bytes)
-; BANK 08 @#0000 : animtiles.asm (360 bytes)
-; BANK 08 @#0168 : particles.asm (4963 bytes)
-; BANK 08 @#14CB : statemachine.asm part 1/4 (2869 bytes)
+; BANK 04 @#0000 : sprites.asm part 2/2 (8192 bytes)
+; BANK 05 @#0000 : sprites.asm part 3/2 (937 bytes)
+; BANK 05 @#03A9 : font.asm (3547 bytes)
+; BANK 05 @#1184 : hud.asm (3708 bytes)
+; BANK 06 @#0000 : hud.asm (759 bytes)
+; BANK 06 @#02F7 : menus.asm (444 bytes)
+; BANK 06 @#04B3 : sound.asm part 1/2 (6989 bytes)
+; BANK 07 @#0000 : sound.asm part 2/2 (2412 bytes)
+; BANK 07 @#096C : scroll.asm (2353 bytes)
+; BANK 07 @#129D : animtiles.asm (3427 bytes)
+; BANK 08 @#0000 : animtiles.asm (1484 bytes)
+; BANK 08 @#05CC : particles.asm (4963 bytes)
+; BANK 08 @#192F : statemachine.asm part 1/4 (1745 bytes)
 ; BANK 09 @#0000 : statemachine.asm part 2/4 (8192 bytes)
 ; BANK 10 @#0000 : statemachine.asm part 3/4 (8192 bytes)
 ; BANK 11 @#0000 : statemachine.asm part 4/4 (8192 bytes)
-; BANK 12 @#0000 : statemachine.asm part 5/4 (2869 bytes)
-; BANK 12 @#0B35 : gameflow.asm part 1/3 (5323 bytes)
+; BANK 12 @#0000 : statemachine.asm part 5/4 (4007 bytes)
+; BANK 12 @#0FA7 : gameflow.asm part 1/3 (4185 bytes)
 ; BANK 13 @#0000 : gameflow.asm part 2/3 (8192 bytes)
-; BANK 14 @#0000 : gameflow.asm part 3/3 (3737 bytes)
+; BANK 14 @#0000 : gameflow.asm part 3/3 (4882 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -1017,7 +1017,7 @@ NODE_TYPE_UNKNOWN       EQU 255  ; Unknown/unsupported node type
 ; ==================================================================
 
 ; Detected Assets
-TOTAL_SPRITES           EQU 16
+TOTAL_SPRITES           EQU 18
 TOTAL_TILES             EQU 12
 TOTAL_SCREENS           EQU 5
 
@@ -7570,7 +7570,7 @@ load_colors_to_vram:
 ; Description: Sprite pattern and animation data
 ; Entities: 4
 ; Total Hardware Sprites (Layers): 32
-; SAT Upload Sprites per frame: 7
+; SAT Upload Sprites per frame: 8
 ; ==================================================================
 
 ; ==================================================================
@@ -7761,153 +7761,193 @@ SPRITE_NINA_FALL_RIGHT_8_FRAMES    EQU 1
 SPRITE_8_PATTERN EQU NINA_FALL_RIGHT_8_F0_LAYER0
 SPRITE_8_PATTERN_BANK EQU ((SPRITE_8_PATTERN - #4000) / #2000)
 
-; Sprite Asset 9: anec_left
+; Sprite Asset 9: capcuadrat1_right
+;; Sprite: capcuadrat1_right
+;; Total Frames: 2
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FC5554, C2=#D4C154, C3=#CCCCCC
+
+SPRITE_CAPCUADRAT1_RIGHT_9_WIDTH     EQU 16
+SPRITE_CAPCUADRAT1_RIGHT_9_HEIGHT    EQU 16
+SPRITE_CAPCUADRAT1_RIGHT_9_FRAMES    EQU 2
+
+;; ---- Sprite Frame: capcuadrat1_right_9_F0 ----
+;; Size: 16x16
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CAPCUADRAT1_RIGHT_9_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CAPCUADRAT1_RIGHT_9_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CAPCUADRAT1_RIGHT_9_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CAPCUADRAT1_RIGHT_9_F1_DATA (32 bytes)
+SPRITE_9_PATTERN EQU CAPCUADRAT1_RIGHT_9_F0_LAYER2
+SPRITE_9_PATTERN_BANK EQU ((SPRITE_9_PATTERN - #4000) / #2000)
+
+; Sprite Asset 10: anec_left
 ;; Sprite: anec_left
 ;; Total Frames: 2
 ;; Size: 16x16
 ;; Background Color (not exported as a layer): rgba(0,0,0,0)
 ;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FFFFFF, C2=#42EBF5, C3=#00FF00
 
-SPRITE_ANEC_LEFT_9_WIDTH     EQU 16
-SPRITE_ANEC_LEFT_9_HEIGHT    EQU 16
-SPRITE_ANEC_LEFT_9_FRAMES    EQU 2
+SPRITE_ANEC_LEFT_10_WIDTH     EQU 16
+SPRITE_ANEC_LEFT_10_HEIGHT    EQU 16
+SPRITE_ANEC_LEFT_10_FRAMES    EQU 2
 
-;; ---- Sprite Frame: anec_left_9_F0 ----
+;; ---- Sprite Frame: anec_left_10_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_9_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_9_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_9_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_9_F1_DATA (32 bytes)
-SPRITE_9_PATTERN EQU ANEC_LEFT_9_F0_LAYER1
-SPRITE_9_PATTERN_BANK EQU ((SPRITE_9_PATTERN - #4000) / #2000)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_10_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_10_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_10_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_ANEC_LEFT_10_F1_DATA (32 bytes)
+SPRITE_10_PATTERN EQU ANEC_LEFT_10_F0_LAYER1
+SPRITE_10_PATTERN_BANK EQU ((SPRITE_10_PATTERN - #4000) / #2000)
 
-; Sprite Asset 10: nina_walk_left
+; Sprite Asset 11: nina_walk_left
 ;; Sprite: nina_walk_left
 ;; Total Frames: 2
 ;; Size: 16x16
 ;; Background Color (not exported as a layer): rgba(0,0,0,0)
 ;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
 
-SPRITE_NINA_WALK_LEFT_10_WIDTH     EQU 16
-SPRITE_NINA_WALK_LEFT_10_HEIGHT    EQU 16
-SPRITE_NINA_WALK_LEFT_10_FRAMES    EQU 2
+SPRITE_NINA_WALK_LEFT_11_WIDTH     EQU 16
+SPRITE_NINA_WALK_LEFT_11_HEIGHT    EQU 16
+SPRITE_NINA_WALK_LEFT_11_FRAMES    EQU 2
 
-;; ---- Sprite Frame: nina_walk_left_10_F0 ----
+;; ---- Sprite Frame: nina_walk_left_11_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_10_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_10_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_10_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_10_F1_DATA (32 bytes)
-SPRITE_10_PATTERN EQU NINA_WALK_LEFT_10_F0_LAYER0
-SPRITE_10_PATTERN_BANK EQU ((SPRITE_10_PATTERN - #4000) / #2000)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_11_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_11_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_11_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_WALK_LEFT_11_F1_DATA (32 bytes)
+SPRITE_11_PATTERN EQU NINA_WALK_LEFT_11_F0_LAYER0
+SPRITE_11_PATTERN_BANK EQU ((SPRITE_11_PATTERN - #4000) / #2000)
 
-; Sprite Asset 11: nina_jump_left
+; Sprite Asset 12: nina_jump_left
 ;; Sprite: nina_jump_left
 ;; Total Frames: 1
 ;; Size: 16x16
 ;; Background Color (not exported as a layer): rgba(0,0,0,0)
 ;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#21C842
 
-SPRITE_NINA_JUMP_LEFT_11_WIDTH     EQU 16
-SPRITE_NINA_JUMP_LEFT_11_HEIGHT    EQU 16
-SPRITE_NINA_JUMP_LEFT_11_FRAMES    EQU 1
+SPRITE_NINA_JUMP_LEFT_12_WIDTH     EQU 16
+SPRITE_NINA_JUMP_LEFT_12_HEIGHT    EQU 16
+SPRITE_NINA_JUMP_LEFT_12_FRAMES    EQU 1
 
-;; ---- Sprite Frame: nina_jump_left_11_F0 ----
+;; ---- Sprite Frame: nina_jump_left_12_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_11_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_11_F0_DATA (32 bytes)
-SPRITE_11_PATTERN EQU NINA_JUMP_LEFT_11_F0_LAYER0
-SPRITE_11_PATTERN_BANK EQU ((SPRITE_11_PATTERN - #4000) / #2000)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_12_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_12_F0_DATA (32 bytes)
+SPRITE_12_PATTERN EQU NINA_JUMP_LEFT_12_F0_LAYER0
+SPRITE_12_PATTERN_BANK EQU ((SPRITE_12_PATTERN - #4000) / #2000)
 
-; Sprite Asset 12: nina_land_left
+; Sprite Asset 13: nina_land_left
 ;; Sprite: nina_land_left
 ;; Total Frames: 3
 ;; Size: 16x16
 ;; Background Color (not exported as a layer): rgba(0,0,0,0)
 ;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
 
-SPRITE_NINA_LAND_LEFT_12_WIDTH     EQU 16
-SPRITE_NINA_LAND_LEFT_12_HEIGHT    EQU 16
-SPRITE_NINA_LAND_LEFT_12_FRAMES    EQU 3
+SPRITE_NINA_LAND_LEFT_13_WIDTH     EQU 16
+SPRITE_NINA_LAND_LEFT_13_HEIGHT    EQU 16
+SPRITE_NINA_LAND_LEFT_13_FRAMES    EQU 3
 
-;; ---- Sprite Frame: nina_land_left_12_F0 ----
+;; ---- Sprite Frame: nina_land_left_13_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F2_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F2_DATA (32 bytes)
-SPRITE_12_PATTERN EQU NINA_LAND_LEFT_12_F0_LAYER0
-SPRITE_12_PATTERN_BANK EQU ((SPRITE_12_PATTERN - #4000) / #2000)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F2_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F2_DATA (32 bytes)
+SPRITE_13_PATTERN EQU NINA_LAND_LEFT_13_F0_LAYER0
+SPRITE_13_PATTERN_BANK EQU ((SPRITE_13_PATTERN - #4000) / #2000)
 
-; Sprite Asset 13: nina_dead_left
+; Sprite Asset 14: nina_dead_left
 ;; Sprite: nina_dead_left
 ;; Total Frames: 2
 ;; Size: 16x16
 ;; Background Color (not exported as a layer): rgba(0,0,0,0)
 ;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
 
-SPRITE_NINA_DEAD_LEFT_13_WIDTH     EQU 16
-SPRITE_NINA_DEAD_LEFT_13_HEIGHT    EQU 16
-SPRITE_NINA_DEAD_LEFT_13_FRAMES    EQU 2
+SPRITE_NINA_DEAD_LEFT_14_WIDTH     EQU 16
+SPRITE_NINA_DEAD_LEFT_14_HEIGHT    EQU 16
+SPRITE_NINA_DEAD_LEFT_14_FRAMES    EQU 2
 
-;; ---- Sprite Frame: nina_dead_left_13_F0 ----
+;; ---- Sprite Frame: nina_dead_left_14_F0 ----
 ;; Size: 16x16
-NINA_DEAD_LEFT_13_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #D4524D)
+NINA_DEAD_LEFT_14_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #D4524D)
     DB #5F,#4F,#4B,#5B,#5F,#4F,#61,#3B,#0B,#1B,#13,#17,#10,#1E,#08,#0B
     DB #E8,#EC,#A6,#72,#DA,#8A,#8A,#C2,#5E,#CC,#E4,#F4,#84,#BC,#A0,#A0
 
-NINA_DEAD_LEFT_13_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #000000)
+NINA_DEAD_LEFT_14_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #000000)
     DB #20,#30,#34,#24,#20,#30,#1E,#04,#04,#04,#0C,#08,#0F,#01,#07,#04
     DB #10,#10,#58,#8C,#24,#74,#74,#3C,#A0,#30,#18,#08,#78,#40,#40,#40
 
-;; ---- End of Frame: nina_dead_left_13_F0 ----
+;; ---- End of Frame: nina_dead_left_14_F0 ----
 
-;; ---- Sprite Frame: nina_dead_left_13_F1 ----
+;; ---- Sprite Frame: nina_dead_left_14_F1 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_DEAD_LEFT_13_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_DEAD_LEFT_13_F1_DATA (32 bytes)
-SPRITE_13_PATTERN EQU NINA_DEAD_LEFT_13_F0_LAYER0
-SPRITE_13_PATTERN_BANK EQU ((SPRITE_13_PATTERN - #4000) / #2000)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_DEAD_LEFT_14_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_DEAD_LEFT_14_F1_DATA (32 bytes)
+SPRITE_14_PATTERN EQU NINA_DEAD_LEFT_14_F0_LAYER0
+SPRITE_14_PATTERN_BANK EQU ((SPRITE_14_PATTERN - #4000) / #2000)
 
-; Sprite Asset 14: nina_idle_left
+; Sprite Asset 15: nina_idle_left
 ;; Sprite: nina_idle_left
 ;; Total Frames: 2
 ;; Size: 16x16
 ;; Background Color (not exported as a layer): rgba(0,0,0,0)
 ;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
 
-SPRITE_NINA_IDLE_LEFT_14_WIDTH     EQU 16
-SPRITE_NINA_IDLE_LEFT_14_HEIGHT    EQU 16
-SPRITE_NINA_IDLE_LEFT_14_FRAMES    EQU 2
+SPRITE_NINA_IDLE_LEFT_15_WIDTH     EQU 16
+SPRITE_NINA_IDLE_LEFT_15_HEIGHT    EQU 16
+SPRITE_NINA_IDLE_LEFT_15_FRAMES    EQU 2
 
-;; ---- Sprite Frame: nina_idle_left_14_F0 ----
+;; ---- Sprite Frame: nina_idle_left_15_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_14_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_14_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_14_F1_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_14_F1_DATA (32 bytes)
-SPRITE_14_PATTERN EQU NINA_IDLE_LEFT_14_F0_LAYER0
-SPRITE_14_PATTERN_BANK EQU ((SPRITE_14_PATTERN - #4000) / #2000)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_15_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_15_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_15_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_15_F1_DATA (32 bytes)
+SPRITE_15_PATTERN EQU NINA_IDLE_LEFT_15_F0_LAYER0
+SPRITE_15_PATTERN_BANK EQU ((SPRITE_15_PATTERN - #4000) / #2000)
 
-; Sprite Asset 15: nina_fall_left
+; Sprite Asset 16: nina_fall_left
 ;; Sprite: nina_fall_left
 ;; Total Frames: 1
 ;; Size: 16x16
 ;; Background Color (not exported as a layer): rgba(0,0,0,0)
 ;; Drawable Palette (Hex): C0=#D4524D, C1=#FFFFFF, C2=#000000, C3=#3EB847
 
-SPRITE_NINA_FALL_LEFT_15_WIDTH     EQU 16
-SPRITE_NINA_FALL_LEFT_15_HEIGHT    EQU 16
-SPRITE_NINA_FALL_LEFT_15_FRAMES    EQU 1
+SPRITE_NINA_FALL_LEFT_16_WIDTH     EQU 16
+SPRITE_NINA_FALL_LEFT_16_HEIGHT    EQU 16
+SPRITE_NINA_FALL_LEFT_16_FRAMES    EQU 1
 
-;; ---- Sprite Frame: nina_fall_left_15_F0 ----
+;; ---- Sprite Frame: nina_fall_left_16_F0 ----
 ;; Size: 16x16
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_FALL_LEFT_15_F0_DATA (32 bytes)
-    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_FALL_LEFT_15_F0_DATA (32 bytes)
-SPRITE_15_PATTERN EQU NINA_FALL_LEFT_15_F0_LAYER0
-SPRITE_15_PATTERN_BANK EQU ((SPRITE_15_PATTERN - #4000) / #2000)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_FALL_LEFT_16_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_NINA_FALL_LEFT_16_F0_DATA (32 bytes)
+SPRITE_16_PATTERN EQU NINA_FALL_LEFT_16_F0_LAYER0
+SPRITE_16_PATTERN_BANK EQU ((SPRITE_16_PATTERN - #4000) / #2000)
+
+; Sprite Asset 17: capcuadrat1_left
+;; Sprite: capcuadrat1_left
+;; Total Frames: 2
+;; Size: 16x16
+;; Background Color (not exported as a layer): rgba(0,0,0,0)
+;; Drawable Palette (Hex): C0=rgba(0,0,0,0), C1=#FC5554, C2=#D4C154, C3=#CCCCCC
+
+SPRITE_CAPCUADRAT1_LEFT_17_WIDTH     EQU 16
+SPRITE_CAPCUADRAT1_LEFT_17_HEIGHT    EQU 16
+SPRITE_CAPCUADRAT1_LEFT_17_FRAMES    EQU 2
+
+;; ---- Sprite Frame: capcuadrat1_left_17_F0 ----
+;; Size: 16x16
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CAPCUADRAT1_LEFT_17_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CAPCUADRAT1_LEFT_17_F0_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CAPCUADRAT1_LEFT_17_F1_DATA (32 bytes)
+    ; ZX0 compressed sprite pattern moved to ZX0_SPRITE_FRAME_CAPCUADRAT1_LEFT_17_F1_DATA (32 bytes)
+SPRITE_17_PATTERN EQU CAPCUADRAT1_LEFT_17_F0_LAYER2
+SPRITE_17_PATTERN_BANK EQU ((SPRITE_17_PATTERN - #4000) / #2000)
 
 ; ==================================================================
 ; PLACEHOLDER SPRITE PATTERN (for entities with missing sprite assets)
@@ -7941,14 +7981,16 @@ sprite_asset_frame_count:
     db 2 ; Sprite 6: nina_dead_right
     db 2 ; Sprite 7: nina_idle_right
     db 1 ; Sprite 8: nina_fall_right
-    db 2 ; Sprite 9: anec_left
-    db 2 ; Sprite 10: nina_walk_left
-    db 1 ; Sprite 11: nina_jump_left
-    db 3 ; Sprite 12: nina_land_left
-    db 2 ; Sprite 13: nina_dead_left
-    db 2 ; Sprite 14: nina_idle_left
-    db 1 ; Sprite 15: nina_fall_left
-SPRITE_ASSET_COUNT EQU 16
+    db 2 ; Sprite 9: capcuadrat1_right
+    db 2 ; Sprite 10: anec_left
+    db 2 ; Sprite 11: nina_walk_left
+    db 1 ; Sprite 12: nina_jump_left
+    db 3 ; Sprite 13: nina_land_left
+    db 2 ; Sprite 14: nina_dead_left
+    db 2 ; Sprite 15: nina_idle_left
+    db 1 ; Sprite 16: nina_fall_left
+    db 2 ; Sprite 17: capcuadrat1_left
+SPRITE_ASSET_COUNT EQU 18
 
 ; Table: Sprite Asset Loop Flags
 ; Format: db flags (bit 1: 1=loop, 0=once)
@@ -7962,13 +8004,15 @@ sprite_loop_flags:
     db 0 ; Sprite 6: nina_dead_right
     db 0 ; Sprite 7: nina_idle_right
     db 0 ; Sprite 8: nina_fall_right
-    db 2 ; Sprite 9: anec_left
-    db 2 ; Sprite 10: nina_walk_left
-    db 0 ; Sprite 11: nina_jump_left
-    db 0 ; Sprite 12: nina_land_left
-    db 0 ; Sprite 13: nina_dead_left
-    db 0 ; Sprite 14: nina_idle_left
-    db 0 ; Sprite 15: nina_fall_left
+    db 2 ; Sprite 9: capcuadrat1_right
+    db 2 ; Sprite 10: anec_left
+    db 2 ; Sprite 11: nina_walk_left
+    db 0 ; Sprite 12: nina_jump_left
+    db 0 ; Sprite 13: nina_land_left
+    db 0 ; Sprite 14: nina_dead_left
+    db 0 ; Sprite 15: nina_idle_left
+    db 0 ; Sprite 16: nina_fall_left
+    db 2 ; Sprite 17: capcuadrat1_left
 
 ; Table: Sprite Asset Frame Pointer List Table
 ; Format: dw SPRITE_<id>_FRAME_PTRS
@@ -7989,6 +8033,8 @@ sprite_asset_frame_ptr_table:
     dw SPRITE_13_FRAME_PTRS
     dw SPRITE_14_FRAME_PTRS
     dw SPRITE_15_FRAME_PTRS
+    dw SPRITE_16_FRAME_PTRS
+    dw SPRITE_17_FRAME_PTRS
 
 ; Sprite 0: anec_right frame pointers
 SPRITE_0_FRAME_PTRS:
@@ -8033,39 +8079,49 @@ SPRITE_7_FRAME_PTRS:
 SPRITE_8_FRAME_PTRS:
     dw NINA_FALL_RIGHT_8_F0_LAYER0
 
-; Sprite 9: anec_left frame pointers
+; Sprite 9: capcuadrat1_right frame pointers
 SPRITE_9_FRAME_PTRS:
-    dw ANEC_LEFT_9_F0_LAYER1
-    dw ANEC_LEFT_9_F1_LAYER1
+    dw CAPCUADRAT1_RIGHT_9_F0_LAYER2
+    dw CAPCUADRAT1_RIGHT_9_F1_LAYER2
 
-; Sprite 10: nina_walk_left frame pointers
+; Sprite 10: anec_left frame pointers
 SPRITE_10_FRAME_PTRS:
-    dw NINA_WALK_LEFT_10_F0_LAYER0
-    dw NINA_WALK_LEFT_10_F1_LAYER0
+    dw ANEC_LEFT_10_F0_LAYER1
+    dw ANEC_LEFT_10_F1_LAYER1
 
-; Sprite 11: nina_jump_left frame pointers
+; Sprite 11: nina_walk_left frame pointers
 SPRITE_11_FRAME_PTRS:
-    dw NINA_JUMP_LEFT_11_F0_LAYER0
+    dw NINA_WALK_LEFT_11_F0_LAYER0
+    dw NINA_WALK_LEFT_11_F1_LAYER0
 
-; Sprite 12: nina_land_left frame pointers
+; Sprite 12: nina_jump_left frame pointers
 SPRITE_12_FRAME_PTRS:
-    dw NINA_LAND_LEFT_12_F0_LAYER0
-    dw NINA_LAND_LEFT_12_F1_LAYER0
-    dw NINA_LAND_LEFT_12_F2_LAYER0
+    dw NINA_JUMP_LEFT_12_F0_LAYER0
 
-; Sprite 13: nina_dead_left frame pointers
+; Sprite 13: nina_land_left frame pointers
 SPRITE_13_FRAME_PTRS:
-    dw NINA_DEAD_LEFT_13_F0_LAYER0
-    dw NINA_DEAD_LEFT_13_F1_LAYER0
+    dw NINA_LAND_LEFT_13_F0_LAYER0
+    dw NINA_LAND_LEFT_13_F1_LAYER0
+    dw NINA_LAND_LEFT_13_F2_LAYER0
 
-; Sprite 14: nina_idle_left frame pointers
+; Sprite 14: nina_dead_left frame pointers
 SPRITE_14_FRAME_PTRS:
-    dw NINA_IDLE_LEFT_14_F0_LAYER0
-    dw NINA_IDLE_LEFT_14_F1_LAYER0
+    dw NINA_DEAD_LEFT_14_F0_LAYER0
+    dw NINA_DEAD_LEFT_14_F1_LAYER0
 
-; Sprite 15: nina_fall_left frame pointers
+; Sprite 15: nina_idle_left frame pointers
 SPRITE_15_FRAME_PTRS:
-    dw NINA_FALL_LEFT_15_F0_LAYER0
+    dw NINA_IDLE_LEFT_15_F0_LAYER0
+    dw NINA_IDLE_LEFT_15_F1_LAYER0
+
+; Sprite 16: nina_fall_left frame pointers
+SPRITE_16_FRAME_PTRS:
+    dw NINA_FALL_LEFT_16_F0_LAYER0
+
+; Sprite 17: capcuadrat1_left frame pointers
+SPRITE_17_FRAME_PTRS:
+    dw CAPCUADRAT1_LEFT_17_F0_LAYER2
+    dw CAPCUADRAT1_LEFT_17_F1_LAYER2
 
 ; ==================================================================
 ; DIRECTIONAL SPRITE LOOKUP TABLES
@@ -8073,16 +8129,20 @@ SPRITE_15_FRAME_PTRS:
 ; If no directional variant exists, table points back to same index.
 ; ==================================================================
 sprite_dir_left_table:
-    db 9, 1, 2, 10, 11, 12, 13, 14, 15, 9, 10, 11, 12, 13, 14, 15
+    db 10, 1, 2, 11, 12, 13, 14, 15, 16, 17, 10, 11, 12, 13, 14, 15
+    db 16, 17
 
 sprite_dir_right_table:
-    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 3, 4, 5, 6, 7, 8
+    db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 3, 4, 5, 6, 7
+    db 8, 9
 
 sprite_dir_up_table:
     db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    db 16, 17
 
 sprite_dir_down_table:
     db 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+    db 16, 17
 
  
 ; ================================================================== 
@@ -8093,9 +8153,9 @@ sprite_dir_down_table:
 ; Format: db base_hw_sprite_index, layer_count 
 entity_sprite_config: 
     db 0, 2 ; Entity 0 (nina_idle_right)
-    db 2, 1 ; Entity 1 (bola)
-    db 3, 2 ; Entity 2 (anec_right)
-    db 5, 1 ; Entity 3 (bola)
+    db 2, 2 ; Entity 1 (capcuadrat1_right)
+    db 4, 2 ; Entity 2 (anec_right)
+    db 6, 1 ; Entity 3 (bola)
     ds 56, 0 ; Padding
 
 ; Table: Entity -> Sprite Asset Index (ROM initial values)
@@ -8103,7 +8163,7 @@ entity_sprite_config:
 ; Format: db sprite_asset_index (#FF = none)
 entity_sprite_asset_index_init:
     db #07 ; Entity 0 (nina_idle_right)
-    db #01 ; Entity 1 (bola)
+    db #09 ; Entity 1 (capcuadrat1_right)
     db #00 ; Entity 2 (anec_right)
     db #01 ; Entity 3 (bola)
     ds 28, #FF ; Padding
@@ -8115,14 +8175,15 @@ sprite_layer_colors_init:
     ; Entity 0 (nina_idle_right) layers:
     db 6 ; Layer 0
     db 15 ; Layer 1
-    ; Entity 1 (bola) layers:
-    db 13 ; Layer 0
+    ; Entity 1 (capcuadrat1_right) layers:
+    db 10 ; Layer 0
+    db 14 ; Layer 1
     ; Entity 2 (anec_right) layers:
     db 15 ; Layer 0
     db 7 ; Layer 1
     ; Entity 3 (bola) layers:
     db 13 ; Layer 0
-    ds 26, 0 ; Padding
+    ds 25, 0 ; Padding
 
 ; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
 ; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
@@ -8137,13 +8198,15 @@ SM_SpriteLayerColorTable:
     db 6, 1 ; Sprite 6: nina_dead_right
     db 6, 15 ; Sprite 7: nina_idle_right
     db 6, 15 ; Sprite 8: nina_fall_right
-    db 15, 7 ; Sprite 9: anec_left
-    db 6, 15 ; Sprite 10: nina_walk_left
-    db 6, 15 ; Sprite 11: nina_jump_left
-    db 6, 15 ; Sprite 12: nina_land_left
-    db 6, 1 ; Sprite 13: nina_dead_left
-    db 6, 15 ; Sprite 14: nina_idle_left
-    db 6, 15 ; Sprite 15: nina_fall_left
+    db 10, 14 ; Sprite 9: capcuadrat1_right
+    db 15, 7 ; Sprite 10: anec_left
+    db 6, 15 ; Sprite 11: nina_walk_left
+    db 6, 15 ; Sprite 12: nina_jump_left
+    db 6, 15 ; Sprite 13: nina_land_left
+    db 6, 1 ; Sprite 14: nina_dead_left
+    db 6, 15 ; Sprite 15: nina_idle_left
+    db 6, 15 ; Sprite 16: nina_fall_left
+    db 10, 14 ; Sprite 17: capcuadrat1_left
 
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
@@ -8172,28 +8235,28 @@ load_sprite_patterns:
     ld de, SPRPAT + (0 * 32)
     ld bc, 64 ; Load 2 layers (32 bytes each)
     call COPY_SPRITE_SRC_TO_VRAM
-    ; Entity 1: bola (1 layers)
+    ; Entity 1: capcuadrat1_right (2 layers)
     ; Base HW Sprite: 2
-    ld a, SPRITE_1_PATTERN_BANK
+    ld a, SPRITE_9_PATTERN_BANK
     call mapper_set_bank_p2
-    ld hl, SPRITE_1_PATTERN
+    ld hl, SPRITE_9_PATTERN
     ld de, SPRPAT + (2 * 32)
-    ld bc, 32 ; Load 1 layers (32 bytes each)
+    ld bc, 64 ; Load 2 layers (32 bytes each)
     call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 2: anec_right (2 layers)
-    ; Base HW Sprite: 3
+    ; Base HW Sprite: 4
     ld a, SPRITE_0_PATTERN_BANK
     call mapper_set_bank_p2
     ld hl, SPRITE_0_PATTERN
-    ld de, SPRPAT + (3 * 32)
+    ld de, SPRPAT + (4 * 32)
     ld bc, 64 ; Load 2 layers (32 bytes each)
     call COPY_SPRITE_SRC_TO_VRAM
     ; Entity 3: bola (1 layers)
-    ; Base HW Sprite: 5
+    ; Base HW Sprite: 6
     ld a, SPRITE_1_PATTERN_BANK
     call mapper_set_bank_p2
     ld hl, SPRITE_1_PATTERN
-    ld de, SPRPAT + (5 * 32)
+    ld de, SPRPAT + (6 * 32)
     ld bc, 32 ; Load 1 layers (32 bytes each)
     call COPY_SPRITE_SRC_TO_VRAM
     call mapper_pop_p2
@@ -8287,7 +8350,7 @@ update_sprites_to_vram:
     ld (sprites_dirty), a
     ld hl, sprite_attributes
     ld de, SPRATR
-    ld bc, 28  ; Upload active sprite range + SAT end marker
+    ld bc, 32  ; Upload active sprite range + SAT end marker
     call FAST_LDIRVM
     ret
 
@@ -18702,7 +18765,7 @@ SM_TemplateHealthMaxTable:
 ; NOTE: frame bank is derived from the frame pointer at runtime.
 ; This keeps ChangeSprite compatible with post-export ZX0 label remaps.
 ; ==================================================================
-SM_SpriteAssetCount EQU 16
+SM_SpriteAssetCount EQU 18
 SM_SpritePatternPtrTable:
     DW SPRITE_0_PATTERN
     DW SPRITE_1_PATTERN
@@ -18720,6 +18783,8 @@ SM_SpritePatternPtrTable:
     DW SPRITE_13_PATTERN
     DW SPRITE_14_PATTERN
     DW SPRITE_15_PATTERN
+    DW SPRITE_16_PATTERN
+    DW SPRITE_17_PATTERN
 
 ; ==================================================================
 ; STATE MACHINE SOUND ASSET TABLES
@@ -20048,7 +20113,7 @@ submenu_get_cursor_pattern_ptr:
 
 SUBMENU_CURSOR_BASE_SPRITE EQU 28
 SUBMENU_CURSOR_MAX_LAYERS  EQU 4
-SUBMENU_CURSOR_PATTERN_COUNT EQU 9
+SUBMENU_CURSOR_PATTERN_COUNT EQU 10
 
 submenu_cursor_sprite_pattern_table:
     dw SPRITE_0_PATTERN
@@ -20060,6 +20125,7 @@ submenu_cursor_sprite_pattern_table:
     dw SPRITE_6_PATTERN
     dw SPRITE_7_PATTERN
     dw SPRITE_8_PATTERN
+    dw SPRITE_9_PATTERN
 
 
 gameflow_handle_transition:
@@ -21608,7 +21674,7 @@ ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F0_DATA:
 ZX0_SPRITE_FRAME_ANEC_RIGHT_0_F1_DATA:
     ; ZX0 compressed sprite frame ANEC_RIGHT_0_F1 (64 -> 57 bytes)
     DB #AA,#00,#01,#16,#03,#02,#03,#01,#00,#20,#10,#09,#0E,#03,#00,#20
-    DB #08,#C0,#B0,#D0,#58,#DC,#F7,#E0,#40,#00,#E0,#78,#F8,#F0,#40,#A0
+    DB #08,#C0,#B0,#90,#58,#DC,#F7,#E0,#40,#00,#E0,#78,#F8,#F0,#40,#A0
     DB #00,#3E,#C5,#E5,#18,#D0,#29,#16,#01,#04,#67,#20,#A0,#20,#A1,#F4
     DB #AD,#E0,#18,#84,#04,#08,#40,#55,#56
 ZX0_SPRITE_FRAME_BOLA_1_F0_DATA:
@@ -21680,74 +21746,94 @@ ZX0_SPRITE_FRAME_NINA_FALL_RIGHT_8_F0_DATA:
     DB #A0,#07,#A5,#05,#0C,#18,#10,#EB,#03,#02,#07,#0F,#3F,#01,#00,#FD
     DB #F8,#89,#FE,#24,#C0,#40,#E0,#F0,#FC,#00,#9B,#02,#03,#01,#9F,#EC
     DB #BE,#92,#F0,#D0,#D8,#F8,#F0,#80,#FF,#FD,#FE,#D5,#F3,#55,#60
-ZX0_SPRITE_FRAME_ANEC_LEFT_9_F0_DATA:
-    ; ZX0 compressed sprite frame ANEC_LEFT_9_F0 (64 -> 59 bytes)
+ZX0_SPRITE_FRAME_CAPCUADRAT1_RIGHT_9_F0_DATA:
+    ; ZX0 compressed sprite frame CAPCUADRAT1_RIGHT_9_F0 (64 -> 46 bytes)
+    DB #0A,#00,#07,#0C,#1C,#6A,#3E,#3A,#34,#00,#49,#86,#0C,#F8,#00,#A9
+    DB #20,#00,#68,#03,#A2,#01,#0A,#03,#1B,#0F,#07,#8A,#03,#00,#9A,#E0
+    DB #90,#D0,#A2,#F0,#00,#80,#A9,#C0,#D5,#80,#00,#C0,#55,#60
+ZX0_SPRITE_FRAME_CAPCUADRAT1_RIGHT_9_F1_DATA:
+    ; ZX0 compressed sprite frame CAPCUADRAT1_RIGHT_9_F1 (64 -> 44 bytes)
+    DB #0A,#00,#07,#0C,#1C,#6A,#3E,#3A,#34,#00,#49,#86,#0C,#F8,#00,#A9
+    DB #20,#00,#68,#03,#A2,#01,#0A,#03,#1B,#0F,#07,#0A,#0E,#1C,#0E,#00
+    DB #6A,#E0,#90,#D0,#F0,#88,#00,#80,#FD,#C4,#55,#56
+ZX0_SPRITE_FRAME_ANEC_LEFT_10_F0_DATA:
+    ; ZX0 compressed sprite frame ANEC_LEFT_10_F0 (64 -> 59 bytes)
     DB #42,#00,#03,#0D,#0B,#1A,#3B,#EF,#07,#02,#00,#07,#1F,#82,#0F,#10
     DB #28,#00,#A8,#80,#39,#C0,#40,#C0,#80,#F1,#26,#00,#90,#70,#E0,#20
     DB #50,#7A,#04,#05,#04,#E4,#6A,#07,#18,#20,#10,#FF,#FD,#FE,#93,#C5
     DB #02,#06,#0C,#98,#68,#88,#B5,#E5,#20,#55,#58
-ZX0_SPRITE_FRAME_ANEC_LEFT_9_F1_DATA:
-    ; ZX0 compressed sprite frame ANEC_LEFT_9_F1 (64 -> 58 bytes)
-    DB #01,#AA,#00,#03,#0D,#0B,#1A,#3B,#EF,#07,#02,#00,#07,#1E,#1F,#0F
+ZX0_SPRITE_FRAME_ANEC_LEFT_10_F1_DATA:
+    ; ZX0 compressed sprite frame ANEC_LEFT_10_F1 (64 -> 58 bytes)
+    DB #01,#AA,#00,#03,#0D,#09,#1A,#3B,#EF,#07,#02,#00,#07,#1E,#1F,#0F
     DB #02,#05,#00,#80,#16,#C0,#40,#C0,#80,#00,#04,#08,#90,#70,#C0,#00
     DB #09,#E8,#04,#05,#04,#F4,#6F,#07,#18,#21,#20,#10,#B3,#FE,#FE,#C5
     DB #A5,#18,#0B,#94,#68,#80,#20,#D5,#55,#60
-ZX0_SPRITE_FRAME_NINA_WALK_LEFT_10_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_LEFT_10_F0 (64 -> 47 bytes)
+ZX0_SPRITE_FRAME_NINA_WALK_LEFT_11_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_WALK_LEFT_11_F0 (64 -> 47 bytes)
     DB #21,#1F,#00,#9A,#03,#16,#03,#E9,#07,#EE,#22,#02,#E0,#E0,#AC,#3A
     DB #01,#69,#C0,#40,#C0,#E8,#F0,#00,#80,#FC,#7B,#0F,#0B,#1B,#1F,#0F
     DB #DD,#29,#9E,#B0,#CA,#A2,#00,#FF,#80,#D3,#FE,#F5,#C2,#55,#58
-ZX0_SPRITE_FRAME_NINA_WALK_LEFT_10_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_WALK_LEFT_10_F1 (64 -> 56 bytes)
+ZX0_SPRITE_FRAME_NINA_WALK_LEFT_11_F1_DATA:
+    ; ZX0 compressed sprite frame NINA_WALK_LEFT_11_F1 (64 -> 56 bytes)
     DB #61,#03,#1F,#00,#91,#E9,#03,#16,#03,#07,#05,#08,#00,#28,#C0,#E0
     DB #E1,#95,#2A,#DE,#6E,#C0,#40,#E0,#F0,#D4,#00,#04,#EB,#4A,#0F,#0B
     DB #1B,#1F,#0F,#01,#88,#29,#7A,#0A,#00,#08,#10,#00,#FE,#6F,#40,#C0
     DB #80,#F0,#BB,#28,#C2,#55,#55,#80
-ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_11_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_JUMP_LEFT_11_F0 (64 -> 48 bytes)
+ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_12_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_JUMP_LEFT_12_F0 (64 -> 48 bytes)
     DB #21,#1F,#00,#82,#03,#02,#03,#07,#08,#A5,#00,#E0,#EE,#90,#28,#04
     DB #08,#04,#C0,#40,#EF,#60,#FC,#E5,#CD,#FF,#0F,#0B,#1B,#1F,#0F,#01
     DB #00,#FD,#FE,#88,#F2,#23,#40,#C0,#80,#80,#A0,#FD,#80,#D5,#55,#60
-ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_LAND_LEFT_12_F0 (64 -> 49 bytes)
+ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_LAND_LEFT_13_F0 (64 -> 49 bytes)
     DB #A2,#00,#1F,#00,#19,#26,#03,#02,#07,#0F,#3F,#00,#A0,#E0,#A5,#A0
     DB #30,#18,#08,#E8,#C0,#40,#E0,#F0,#FC,#00,#80,#CA,#2A,#0F,#0B,#1B
     DB #1F,#01,#FE,#FD,#FF,#F6,#F9,#FE,#B8,#40,#C0,#80,#EE,#F5,#F5,#55
     DB #58
-ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_LAND_LEFT_12_F1 (64 -> 51 bytes)
+ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F1_DATA:
+    ; ZX0 compressed sprite frame NINA_LAND_LEFT_13_F1 (64 -> 51 bytes)
     DB #88,#00,#86,#1F,#00,#49,#03,#02,#07,#0F,#1F,#00,#A8,#E0,#29,#A0
     DB #30,#18,#08,#3E,#C0,#40,#E0,#F0,#F8,#80,#CA,#0A,#0F,#0B,#1B,#1F
     DB #B9,#01,#FD,#E6,#80,#40,#81,#A8,#7E,#40,#C0,#80,#CC,#75,#02,#05
     DB #02,#55,#58
-ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F2_DATA:
-    ; ZX0 compressed sprite frame NINA_LAND_LEFT_12_F2 (64 -> 51 bytes)
+ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F2_DATA:
+    ; ZX0 compressed sprite frame NINA_LAND_LEFT_13_F2 (64 -> 51 bytes)
     DB #61,#00,#1F,#00,#82,#03,#02,#03,#07,#BA,#04,#EC,#12,#E0,#E0,#A0
     DB #30,#18,#08,#08,#C0,#40,#C0,#63,#00,#80,#92,#CD,#0F,#0B,#1B,#1F
     DB #0F,#01,#FB,#FD,#E7,#20,#FE,#F4,#FF,#CB,#FB,#80,#D1,#FE,#AD,#E5
     DB #84,#55,#56
-ZX0_SPRITE_FRAME_NINA_DEAD_LEFT_13_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_DEAD_LEFT_13_F1 (64 -> 54 bytes)
+ZX0_SPRITE_FRAME_NINA_DEAD_LEFT_14_F1_DATA:
+    ; ZX0 compressed sprite frame NINA_DEAD_LEFT_14_F1 (64 -> 54 bytes)
     DB #86,#40,#18,#60,#38,#08,#18,#10,#88,#1E,#08,#98,#0C,#06,#02,#26
     DB #1E,#0C,#04,#22,#3C,#20,#27,#30,#34,#24,#BA,#F9,#1E,#E6,#4E,#0C
     DB #08,#0F,#01,#07,#04,#B7,#17,#58,#8C,#24,#74,#74,#3C,#A0,#30,#18
     DB #00,#78,#B5,#8C,#55,#58
-ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_14_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_IDLE_LEFT_14_F0 (64 -> 48 bytes)
+ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_15_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_IDLE_LEFT_15_F0 (64 -> 48 bytes)
     DB #21,#1F,#00,#92,#03,#02,#03,#07,#0F,#00,#22,#02,#E0,#82,#A0,#30
     DB #18,#08,#97,#C0,#40,#C0,#E0,#F0,#00,#80,#A5,#FC,#B9,#0F,#0B,#1F
     DB #1F,#0F,#01,#00,#B0,#FE,#F2,#CB,#FF,#80,#D3,#FE,#F5,#C2,#55,#58
-ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_14_F1_DATA:
-    ; ZX0 compressed sprite frame NINA_IDLE_LEFT_14_F1 (64 -> 48 bytes)
+ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_15_F1_DATA:
+    ; ZX0 compressed sprite frame NINA_IDLE_LEFT_15_F1 (64 -> 48 bytes)
     DB #21,#1F,#00,#92,#03,#02,#03,#07,#0F,#00,#22,#02,#E0,#82,#A0,#30
     DB #18,#04,#97,#C0,#40,#C0,#E0,#F0,#00,#80,#A5,#FC,#B9,#0F,#0B,#1B
     DB #1F,#0F,#01,#00,#B0,#FE,#F2,#CB,#FF,#80,#D3,#FE,#F5,#C2,#55,#58
-ZX0_SPRITE_FRAME_NINA_FALL_LEFT_15_F0_DATA:
-    ; ZX0 compressed sprite frame NINA_FALL_LEFT_15_F0 (64 -> 49 bytes)
+ZX0_SPRITE_FRAME_NINA_FALL_LEFT_16_F0_DATA:
+    ; ZX0 compressed sprite frame NINA_FALL_LEFT_16_F0 (64 -> 49 bytes)
     DB #21,#1F,#00,#92,#03,#02,#07,#0F,#3F,#00,#6A,#E0,#0A,#A0,#30,#18
     DB #08,#03,#C0,#40,#E0,#F0,#FC,#80,#00,#80,#82,#CB,#0F,#0B,#1B,#1F
     DB #AF,#01,#FD,#F8,#FE,#F2,#9F,#40,#C0,#80,#D1,#8E,#FE,#BE,#D5,#55
     DB #60
+ZX0_SPRITE_FRAME_CAPCUADRAT1_LEFT_17_F0_DATA:
+    ; ZX0 compressed sprite frame CAPCUADRAT1_LEFT_17_F0 (64 -> 45 bytes)
+    DB #61,#30,#1F,#00,#AA,#04,#00,#49,#A6,#E0,#30,#38,#7C,#5C,#2C,#A0
+    DB #00,#26,#07,#09,#0B,#A8,#0F,#AA,#00,#01,#03,#0A,#01,#00,#03,#00
+    DB #8A,#C0,#80,#20,#BB,#C0,#D8,#F0,#E0,#EA,#55,#55,#80
+ZX0_SPRITE_FRAME_CAPCUADRAT1_LEFT_17_F1_DATA:
+    ; ZX0 compressed sprite frame CAPCUADRAT1_LEFT_17_F1 (64 -> 42 bytes)
+    DB #61,#30,#1F,#00,#AA,#04,#00,#49,#A6,#E0,#30,#38,#7C,#5C,#2C,#A0
+    DB #00,#26,#07,#09,#0B,#A8,#0F,#8A,#00,#01,#00,#1A,#C0,#28,#80,#82
+    DB #C0,#D8,#F0,#E0,#9D,#70,#38,#70,#55,#56
 ZX0_SPRITE_FRAME_DATA_END_LABEL:
     DB #00
 
@@ -21827,30 +21913,38 @@ NINA_IDLE_RIGHT_7_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_7_F0_DATA
 NINA_IDLE_RIGHT_7_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_IDLE_RIGHT_7_F1_DATA
 ; Frame group: NINA_FALL_RIGHT_8_F0
 NINA_FALL_RIGHT_8_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_FALL_RIGHT_8_F0_DATA
-; Frame group: ANEC_LEFT_9_F0
-ANEC_LEFT_9_F0_LAYER1 EQU ZX0_SPRITE_FRAME_ANEC_LEFT_9_F0_DATA
-; Frame group: ANEC_LEFT_9_F1
-ANEC_LEFT_9_F1_LAYER1 EQU ZX0_SPRITE_FRAME_ANEC_LEFT_9_F1_DATA
-; Frame group: NINA_WALK_LEFT_10_F0
-NINA_WALK_LEFT_10_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_10_F0_DATA
-; Frame group: NINA_WALK_LEFT_10_F1
-NINA_WALK_LEFT_10_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_10_F1_DATA
-; Frame group: NINA_JUMP_LEFT_11_F0
-NINA_JUMP_LEFT_11_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_11_F0_DATA
-; Frame group: NINA_LAND_LEFT_12_F0
-NINA_LAND_LEFT_12_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F0_DATA
-; Frame group: NINA_LAND_LEFT_12_F1
-NINA_LAND_LEFT_12_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F1_DATA
-; Frame group: NINA_LAND_LEFT_12_F2
-NINA_LAND_LEFT_12_F2_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_LAND_LEFT_12_F2_DATA
-; Frame group: NINA_DEAD_LEFT_13_F1
-NINA_DEAD_LEFT_13_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_DEAD_LEFT_13_F1_DATA
-; Frame group: NINA_IDLE_LEFT_14_F0
-NINA_IDLE_LEFT_14_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_14_F0_DATA
-; Frame group: NINA_IDLE_LEFT_14_F1
-NINA_IDLE_LEFT_14_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_14_F1_DATA
-; Frame group: NINA_FALL_LEFT_15_F0
-NINA_FALL_LEFT_15_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_FALL_LEFT_15_F0_DATA
+; Frame group: CAPCUADRAT1_RIGHT_9_F0
+CAPCUADRAT1_RIGHT_9_F0_LAYER2 EQU ZX0_SPRITE_FRAME_CAPCUADRAT1_RIGHT_9_F0_DATA
+; Frame group: CAPCUADRAT1_RIGHT_9_F1
+CAPCUADRAT1_RIGHT_9_F1_LAYER2 EQU ZX0_SPRITE_FRAME_CAPCUADRAT1_RIGHT_9_F1_DATA
+; Frame group: ANEC_LEFT_10_F0
+ANEC_LEFT_10_F0_LAYER1 EQU ZX0_SPRITE_FRAME_ANEC_LEFT_10_F0_DATA
+; Frame group: ANEC_LEFT_10_F1
+ANEC_LEFT_10_F1_LAYER1 EQU ZX0_SPRITE_FRAME_ANEC_LEFT_10_F1_DATA
+; Frame group: NINA_WALK_LEFT_11_F0
+NINA_WALK_LEFT_11_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_11_F0_DATA
+; Frame group: NINA_WALK_LEFT_11_F1
+NINA_WALK_LEFT_11_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_WALK_LEFT_11_F1_DATA
+; Frame group: NINA_JUMP_LEFT_12_F0
+NINA_JUMP_LEFT_12_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_JUMP_LEFT_12_F0_DATA
+; Frame group: NINA_LAND_LEFT_13_F0
+NINA_LAND_LEFT_13_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F0_DATA
+; Frame group: NINA_LAND_LEFT_13_F1
+NINA_LAND_LEFT_13_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F1_DATA
+; Frame group: NINA_LAND_LEFT_13_F2
+NINA_LAND_LEFT_13_F2_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_LAND_LEFT_13_F2_DATA
+; Frame group: NINA_DEAD_LEFT_14_F1
+NINA_DEAD_LEFT_14_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_DEAD_LEFT_14_F1_DATA
+; Frame group: NINA_IDLE_LEFT_15_F0
+NINA_IDLE_LEFT_15_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_15_F0_DATA
+; Frame group: NINA_IDLE_LEFT_15_F1
+NINA_IDLE_LEFT_15_F1_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_IDLE_LEFT_15_F1_DATA
+; Frame group: NINA_FALL_LEFT_16_F0
+NINA_FALL_LEFT_16_F0_LAYER0 EQU ZX0_SPRITE_FRAME_NINA_FALL_LEFT_16_F0_DATA
+; Frame group: CAPCUADRAT1_LEFT_17_F0
+CAPCUADRAT1_LEFT_17_F0_LAYER2 EQU ZX0_SPRITE_FRAME_CAPCUADRAT1_LEFT_17_F0_DATA
+; Frame group: CAPCUADRAT1_LEFT_17_F1
+CAPCUADRAT1_LEFT_17_F1_LAYER2 EQU ZX0_SPRITE_FRAME_CAPCUADRAT1_LEFT_17_F1_DATA
 
 ; ==================================================================
 ; ZX0 SPRITE COPY HELPER (AUTO-INJECTED)

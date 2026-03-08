@@ -265,6 +265,9 @@ const createOdeToJoySampleSong = (): TrackerSongData => {
     currentPatternId: patterns[0].id,
     ayHardwareEnvelopePeriod: 100,
     ayNoisePeriod: 16,
+    playbackBackend: 'native' as const,
+    externalPt3Data: undefined,
+    externalPt3HasHeader: undefined,
   };
 };
 
@@ -1141,6 +1144,59 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
 
   }, [onUpdate, isPlaying, addLog]);
 
+  const handleImportPT3File = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pt3,.99';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const buffer = evt.target?.result as ArrayBuffer;
+        const bytes = new Uint8Array(buffer);
+
+        const headerText = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(0, 10));
+        const hasHeader = headerText.startsWith('ProTracker');
+
+        let trackBytes: number[];
+        let speed = 6;
+        let title = file.name.replace(/\.[^/.]+$/, '');
+
+        if (hasHeader && bytes.length > 99) {
+          // Full .pt3 file — extract title and speed from header
+          const titleRaw = new TextDecoder('ascii', { fatal: false }).decode(bytes.slice(30, 64));
+          const nullIdx = titleRaw.indexOf('\0');
+          const extractedTitle = (nullIdx >= 0 ? titleRaw.slice(0, nullIdx) : titleRaw).trim();
+          if (extractedTitle) title = extractedTitle;
+          speed = bytes[99] || 6;
+          trackBytes = Array.from(bytes.slice(99)); // strip 99-byte header
+        } else {
+          // Already stripped .99 file
+          speed = bytes[0] || 6;
+          trackBytes = Array.from(bytes);
+        }
+
+        if (isPlaying) setIsPlaying(false);
+        onUpdate({
+          name: title,
+          title,
+          speed,
+          playbackBackend: 'external-pt3',
+          externalPt3Data: trackBytes,
+          externalPt3HasHeader: false,
+          patterns: [],
+          order: [],
+          lengthInPatterns: 0,
+          currentPatternId: undefined,
+          currentPatternIndexInOrder: 0,
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    };
+    input.click();
+  }, [onUpdate, isPlaying]);
+
   const handleSelectPattern = useCallback((id: string) => {
     const patternObject = songData.patterns.find(p => p.id === id);
     if (patternObject) {
@@ -1159,12 +1215,24 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
   if (!currentPattern && songData.patterns.length > 0) {
     return <Panel title="Tracker Composer"><p className="p-4">Loading pattern data...</p></Panel>;
   }
+  if (songData.playbackBackend === 'external-pt3') {
+    return (
+      <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4">
+        <p className="text-msx-highlight font-bold mb-2">✓ PT3 External Backend</p>
+        <p className="text-msx-textsecondary mb-1">Track: <span className="text-msx-text">{songData.title || songData.name || 'Unnamed'}</span></p>
+        <p className="text-msx-textsecondary mb-4">Size: <span className="text-msx-text">{(songData.externalPt3Data?.length ?? 0)} bytes</span></p>
+        <Button onClick={handleImportPT3File} variant="primary" className="mt-2" title="Replace with another .pt3 or .99 file">Replace PT3 File</Button>
+        <Button onClick={() => onUpdate({ playbackBackend: 'native', externalPt3Data: undefined, externalPt3HasHeader: undefined })} variant="secondary" className="mt-2">Switch to Native Tracker</Button>
+      </Panel>
+    );
+  }
   if (songData.patterns.length === 0 || !currentPattern) {
     return (
       <Panel title="Tracker Composer" className="flex-grow flex flex-col items-center justify-center p-4">
         <p className="text-msx-textsecondary mb-4">No patterns in this song yet.</p>
         <Button onClick={handleAddPattern} variant="primary" icon={<PlusCircleIcon />}>Create First Pattern</Button>
         <Button onClick={handleLoadSampleSong} variant="secondary" className="mt-2">Load Sample Song</Button>
+        <Button onClick={handleImportPT3File} variant="secondary" className="mt-2" title="Import external .pt3 or .99 file">Import PT3 File</Button>
       </Panel>
     );
   }
@@ -1190,6 +1258,8 @@ export const TrackerComposer: React.FC<TrackerComposerProps> = ({ songData, onUp
         onSilenceAllChannels={handleSilenceAllChannels}
         soundChip={songData.soundChip}
         onSoundChipChange={(chip) => onUpdate({ soundChip: chip, instruments: [] })}
+        onImportPT3File={handleImportPT3File}
+        isExternalPT3={songData.playbackBackend === 'external-pt3'}
       />
 
       <div className="flex flex-grow overflow-hidden"> {/* Main content area (scrollable) */}

@@ -32,21 +32,56 @@ import { generateSoundFile } from './generators/soundGenerator';
 import { generateScrollFile } from './generators/scrollGenerator';
 import { generateAnimatedTilesFile } from './generators/animatedTilesGenerator';
 import { generateParticlesFile } from './generators/particlesGenerator';
+import { buildExecutionPlan } from './planning/executionPlan';
+import { validateExecutionPlan } from './planning/executionValidators';
+import type { EngineExecutionMode, ExecutionPlan } from './types/executionTypes';
 
 /**
  * MSX Modular Configuration
  */
 export type MSXMapperFormat = 'konami' | 'ascii8' | 'ascii16';
-export type MSXRomMode = 'auto' | 'simple32k' | 'megarom';
+export type MSXRomMode = 'auto' | 'simple32k' | 'plain48k' | 'megarom';
+
+export interface MSXInterruptConfig {
+  enableAudioTask?: boolean;
+  enableFrameCounterTask?: boolean;
+  enableInputTask?: boolean;
+  maxIrqCyclesPerFrame?: number;
+  strictIrqValidation?: boolean;
+}
 
 export interface MSXModularConfig {
   generateUnified?: boolean;
   targetFormat?: MSXMapperFormat;
   romMode?: MSXRomMode;
   autoMegaROM?: boolean;
+  executionMode?: EngineExecutionMode;
   interruptDrivenComponents?: boolean;
   hardwareMode?: 'bios' | 'direct' | 'hybrid'; // Hardware access mode
   optimizeLevel?: 'safe' | 'aggressive'; // Optimization level for direct mode
+  interruptConfig?: MSXInterruptConfig;
+}
+
+function resolveExecutionMode(config: MSXModularConfig): EngineExecutionMode {
+  if (config.executionMode) {
+    return config.executionMode;
+  }
+  return 'gameLoopHalt';
+}
+
+function buildValidatedExecutionPlan(
+  analysis: ProjectAnalysis,
+  config: MSXModularConfig
+): ExecutionPlan {
+  const normalizedConfig: MSXModularConfig = {
+    ...config,
+    executionMode: resolveExecutionMode(config),
+  };
+  const plan = validateExecutionPlan(buildExecutionPlan(analysis, normalizedConfig), analysis);
+  if (plan.diagnostics.errors.length > 0) {
+    throw new Error(`Execution plan validation failed:\n${plan.diagnostics.errors.join('\n')}`);
+  }
+  return plan;
 }
 
 /**
@@ -176,6 +211,7 @@ export function generateModularASM(
   const targetFormat: MSXMapperFormat = config.targetFormat || 'konami';
   const romMode: MSXRomMode = config.romMode || 'simple32k';
   const autoMegaROM = config.autoMegaROM ?? false;
+  const executionPlan = buildValidatedExecutionPlan(analysis, config);
 
   // Generate individual files
   console.log('📝 [MSX GENERATOR] Generating all ASM files...');
@@ -186,8 +222,8 @@ export function generateModularASM(
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
-    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }),
-    'header.asm': generateHeaderFile(projectName, analysis),
+    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
+    'header.asm': generateHeaderFile(projectName, analysis, executionPlan),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
     'components.asm': interruptDrivenComponents
@@ -200,21 +236,21 @@ export function generateModularASM(
     'font.asm': generateFontFile(analysis),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
-    'sound.asm': generateSoundFile(analysis),
+    'sound.asm': generateSoundFile(analysis, executionPlan),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
     'particles.asm': generateParticlesFile(analysis),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
       : '; No State Machines\n',
-    'gameflow.asm': generateGameFlowFile(analysis),
+    'gameflow.asm': generateGameFlowFile(analysis, executionPlan),
     'main.asm': generateMainFile(projectName, analysis),
     'unitedFiles.asm': ''
   };
 
   // Generate unified file if requested
   if (config.generateUnified) {
-    files['unitedFiles.asm'] = generateUnifiedFile(files, projectName, analysis, {
+    files['unitedFiles.asm'] = generateUnifiedFile(files, projectName, analysis, executionPlan, {
       romMode,
       targetFormat,
       autoMegaROM
@@ -267,6 +303,7 @@ export function generateModularASMFromSummary(
   const targetFormat: MSXMapperFormat = config.targetFormat || 'konami';
   const romMode: MSXRomMode = config.romMode || 'simple32k';
   const autoMegaROM = config.autoMegaROM ?? false;
+  const executionPlan = buildValidatedExecutionPlan(analysis, config);
 
   console.log(`[MSX GENERATOR] ROM config: mode=${romMode}, mapper=${targetFormat}, autoMegaROM=${autoMegaROM}`);
 
@@ -276,8 +313,8 @@ export function generateModularASMFromSummary(
     'constants.asm': generateConstantsFile(analysis),
     'variables.asm': generateVariablesFile(analysis),
     'mapper.asm': generateMapperFile({ targetFormat, romMode, autoMegaROM }),
-    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }),
-    'header.asm': generateHeaderFile(summary.projectInfo.name, analysis),
+    'interrupt.asm': generateInterruptFile(analysis, { interruptDrivenComponents, romMode }, executionPlan),
+    'header.asm': generateHeaderFile(summary.projectInfo.name, analysis, executionPlan),
     'patterns.asm': generatePatternsFile(analysis),
     'colors.asm': generateColorsFile(analysis),
     'components.asm': interruptDrivenComponents
@@ -290,21 +327,21 @@ export function generateModularASMFromSummary(
     'font.asm': generateFontFile(analysis),
     'hud.asm': generateHudFile(analysis),
     'menus.asm': generateMenusFile(analysis),
-    'sound.asm': generateSoundFile(analysis),
+    'sound.asm': generateSoundFile(analysis, executionPlan),
     'scroll.asm': generateScrollFile(analysis),
     'animtiles.asm': generateAnimatedTilesFile(analysis),
     'particles.asm': generateParticlesFile(analysis),
     'statemachine.asm': analysis.stateMachines && analysis.stateMachines.length > 0
       ? generateStateMachineSystem(analysis.stateMachines, analysis.globalVariables, analysis.sprites, analysis.tiles, (analysis as any).templates, (analysis as any).sounds, (analysis as any).trackIndexByAssetId)
       : '; No State Machines\n',
-    'gameflow.asm': generateGameFlowFile(analysis),
+    'gameflow.asm': generateGameFlowFile(analysis, executionPlan),
     'main.asm': generateMainFile(summary.projectInfo.name, analysis),
     'unitedFiles.asm': ''
   };
 
   // Generate unified file if requested
   if (config.generateUnified) {
-    files['unitedFiles.asm'] = generateUnifiedFile(files, summary.projectInfo.name, analysis, {
+    files['unitedFiles.asm'] = generateUnifiedFile(files, summary.projectInfo.name, analysis, executionPlan, {
       romMode,
       targetFormat,
       autoMegaROM

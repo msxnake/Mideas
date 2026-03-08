@@ -17,6 +17,9 @@ const port = 3001;
 
 const ZX0_ROUTINE_OVERHEAD_BYTES = 96;
 const ZX0_PER_BLOCK_RUNTIME_OVERHEAD_BYTES = 11;
+const SIMPLE_ROM_LIMIT_BYTES = 32 * 1024;
+const PLAIN48_ROM_LIMIT_BYTES = 48 * 1024;
+const ROM_MODE_VALUES = ['auto', 'simple32k', 'plain48k', 'megarom'];
 
 function isRomFileLockError(text) {
   const value = String(text || '').toLowerCase();
@@ -120,7 +123,7 @@ function parseSourceRomConfig(sourceCode) {
 
   const normalizeRomMode = (value) => {
     const v = String(value || '').trim().toLowerCase();
-    return ['auto', 'simple32k', 'megarom'].includes(v) ? v : null;
+    return ROM_MODE_VALUES.includes(v) ? v : null;
   };
   const normalizeMapper = (value) => {
     const v = String(value || '').trim().toLowerCase();
@@ -134,7 +137,7 @@ function parseSourceRomConfig(sourceCode) {
   };
 
   const unifiedRomMode = normalizeRomMode(
-    sourceCode.match(/^\s*;\s*ROM Mode:\s*(auto|simple32k|megarom)\s*$/im)?.[1]
+    sourceCode.match(/^\s*;\s*ROM Mode:\s*(auto|simple32k|plain48k|megarom)\s*$/im)?.[1]
   );
   const unifiedMapper = normalizeMapper(
     sourceCode.match(/^\s*;\s*Mapper Target:\s*(konami|ascii8|ascii16)\s*$/im)?.[1]
@@ -147,7 +150,7 @@ function parseSourceRomConfig(sourceCode) {
     sourceCode.match(/^\s*;\s*Target mapper:\s*(konami|ascii8|ascii16)\s*$/im)?.[1]
   );
   const mapperAsmModeMatch = sourceCode.match(
-    /^\s*;\s*ROM mode:\s*(auto|simple32k|megarom)\s*\(autoMegaROM=(true|false)\)\s*$/im
+    /^\s*;\s*ROM mode:\s*(auto|simple32k|plain48k|megarom)\s*\(autoMegaROM=(true|false)\)\s*$/im
   );
   const mapperAsmRomMode = normalizeRomMode(mapperAsmModeMatch?.[1]);
   const mapperAsmAutoMega = normalizeYesNo(mapperAsmModeMatch?.[2]);
@@ -172,6 +175,11 @@ function sourceConfigHasMapperWritesEnabled(sourceConfig) {
   if (sourceConfig.romMode === 'megarom') return true;
   if (sourceConfig.romMode === 'auto' && sourceConfig.autoMegaROM !== false) return true;
   return false;
+}
+
+function sourceHasLinear48kLayout(sourceCode) {
+  const text = String(sourceCode || '');
+  return /^\s*org\s+#0000\b/im.test(text) && /^\s*org\s+#4000\b/im.test(text);
 }
 
 function disableMapperWritesForSimple32k(sourceCode) {
@@ -1122,7 +1130,7 @@ app.post('/compile', (req, res) => {
     return res.status(400).send({ error: 'No code provided' });
   }
 
-  const normalizedRomMode = ['auto', 'simple32k', 'megarom'].includes(String(romMode))
+  const normalizedRomMode = ROM_MODE_VALUES.includes(String(romMode))
     ? String(romMode)
     : 'simple32k';
   const normalizedTargetFormat = ['konami', 'ascii8', 'ascii16'].includes(String(targetFormat))
@@ -1291,7 +1299,6 @@ app.post('/compile', (req, res) => {
         return;
       }
 
-      const compileSimpleLimitBytes = 32 * 1024;
       const sourceRomConfigBeforeCompile = parseSourceRomConfig(codeToCompile);
       const mapperWritesActiveInSource = sourceConfigHasMapperWritesEnabled(sourceRomConfigBeforeCompile);
       const compiledSizeBytes = fs.existsSync(outputFilePath) ? fs.statSync(outputFilePath).size : 0;
@@ -1299,7 +1306,7 @@ app.post('/compile', (req, res) => {
         normalizedRomMode !== 'megarom' &&
         mapperWritesActiveInSource &&
         compiledSizeBytes > 0 &&
-        compiledSizeBytes <= compileSimpleLimitBytes;
+        compiledSizeBytes <= SIMPLE_ROM_LIMIT_BYTES;
 
       if (shouldRecompileSimpleSafe) {
         const simpleSafeCode = disableMapperWritesForSimple32k(codeToCompile);
@@ -1353,18 +1360,33 @@ app.post('/compile', (req, res) => {
         const KB_8 = 8192; // 8KB in bytes
         const MIN_FLASHCART_ROM_BYTES = 32 * 1024;
         const ROM_ORIGIN = 0x4000;
-        const SIMPLE_ROM_LIMIT_BYTES = 32 * 1024;
         const originalSize = data.length;
         const sizeMod8192 = originalSize % KB_8;
         const aligned8KBSize = Math.max(KB_8, Math.ceil(originalSize / KB_8) * KB_8);
         const aligned8KBBanks = aligned8KBSize / KB_8;
         const minFlashcartBanks = MIN_FLASHCART_ROM_BYTES / KB_8;
+        const sourceRomConfig = parseSourceRomConfig(codeToCompile);
+        const linear48kCapable = sourceHasLinear48kLayout(codeToCompile) || sourceRomConfig?.romMode === 'plain48k';
         const isPowerOfTwo = (value) => value > 0 && (value & (value - 1)) === 0;
         const powerOfTwoBankCount = isPowerOfTwo(aligned8KBBanks)
           ? aligned8KBBanks
           : Math.pow(2, Math.ceil(Math.log2(aligned8KBBanks)));
         const targetBankCount = Math.max(minFlashcartBanks, powerOfTwoBankCount);
-        const targetSize = targetBankCount * KB_8;
+        let targetSize = targetBankCount * KB_8;
+        let paddingPolicy = 'minimum 32KB + power-of-two 8KB banks';
+        let plain48kSupportWarning = null;
+
+        if (normalizedRomMode === 'plain48k') {
+          if (aligned8KBSize > PLAIN48_ROM_LIMIT_BYTES) {
+            plain48kSupportWarning = 'Requested plain48k, but final ROM exceeds 48KB.';
+          } else if (!linear48kCapable) {
+            plain48kSupportWarning =
+              'Requested plain48k, but source ASM does not contain a linear 48KB page-0 layout. Falling back to standard ROM padding.';
+          } else if (aligned8KBSize > SIMPLE_ROM_LIMIT_BYTES) {
+            targetSize = PLAIN48_ROM_LIMIT_BYTES;
+            paddingPolicy = 'linear plain48k (fixed 48KB image)';
+          }
+        }
 
         let paddedData = data;
         if (originalSize !== targetSize) {
@@ -1388,10 +1410,10 @@ app.post('/compile', (req, res) => {
         const banks8KB = paddedData.length / KB_8;
         const endAddress = ROM_ORIGIN + paddedData.length - 1;
         const exceedsSimpleRomLimit = paddedData.length > SIMPLE_ROM_LIMIT_BYTES;
+        const exceedsPlain48RomLimit = paddedData.length > PLAIN48_ROM_LIMIT_BYTES;
         const mapperHint = exceedsSimpleRomLimit
           ? 'ROM exceeds 32KB simple layout. Use mapper-aware build/runtime (Konami/ASCII).'
           : null;
-        const sourceRomConfig = parseSourceRomConfig(codeToCompile);
         let sourceConfigMismatchWarning = null;
         if (sourceRomConfig) {
           const sourceRomMode = sourceRomConfig.romMode || 'unknown';
@@ -1411,6 +1433,8 @@ app.post('/compile', (req, res) => {
         let romModeConflictWarning = null;
         if (normalizedRomMode === 'simple32k' && exceedsSimpleRomLimit) {
           romModeConflictWarning = 'Requested simple32k, but final ROM exceeds 32KB and requires a mapper.';
+        } else if (normalizedRomMode === 'plain48k' && exceedsPlain48RomLimit) {
+          romModeConflictWarning = 'Requested plain48k, but final ROM exceeds 48KB and requires a mapper.';
         }
 
         let resolvedRomMode = 'simple32k';
@@ -1418,6 +1442,22 @@ app.post('/compile', (req, res) => {
         if (normalizedRomMode === 'megarom') {
           resolvedRomMode = 'megarom';
           mapperResolutionReason = 'Forced megarom by request.';
+        } else if (normalizedRomMode === 'plain48k') {
+          if (exceedsPlain48RomLimit) {
+            resolvedRomMode = 'megarom_required';
+            mapperResolutionReason = 'ROM exceeds 48KB; plain48k request is not valid.';
+          } else if (exceedsSimpleRomLimit) {
+            if (linear48kCapable) {
+              resolvedRomMode = 'plain48k';
+              mapperResolutionReason = 'Forced plain48k by request and source exposes a linear 48KB layout.';
+            } else {
+              resolvedRomMode = 'plain48k_pending';
+              mapperResolutionReason = 'plain48k requested, but source lacks page-0 layout; runtime support is still pending.';
+            }
+          } else {
+            resolvedRomMode = 'simple32k';
+            mapperResolutionReason = 'plain48k requested, but ROM still fits in 32KB.';
+          }
         } else if (normalizedRomMode === 'simple32k') {
           if (exceedsSimpleRomLimit) {
             resolvedRomMode = 'megarom_required';
@@ -1427,15 +1467,20 @@ app.post('/compile', (req, res) => {
             mapperResolutionReason = 'Forced simple32k by request and ROM fits.';
           }
         } else {
-          if (exceedsSimpleRomLimit) {
+          if (exceedsSimpleRomLimit && !exceedsPlain48RomLimit && linear48kCapable) {
+            resolvedRomMode = 'plain48k';
+            mapperResolutionReason = 'Auto mode switched to plain48k because ROM fits in 48KB and source exposes page-0 layout.';
+          } else if (exceedsSimpleRomLimit) {
             resolvedRomMode = 'megarom';
-            mapperResolutionReason = 'Auto mode switched to megarom because ROM exceeds 32KB.';
+            mapperResolutionReason = exceedsPlain48RomLimit
+              ? 'Auto mode switched to megarom because ROM exceeds 48KB.'
+              : 'Auto mode switched to megarom because ROM exceeds 32KB and source has no plain48k layout.';
           } else {
             resolvedRomMode = 'simple32k';
             mapperResolutionReason = 'Auto mode kept simple32k because ROM fits in 32KB.';
           }
         }
-        const mapperActive = resolvedRomMode !== 'simple32k';
+        const mapperActive = resolvedRomMode === 'megarom' || resolvedRomMode === 'megarom_required';
         const resolvedTargetFormat = mapperActive ? normalizedTargetFormat : 'none';
 
         console.log('ROM diagnostics:', {
@@ -1444,10 +1489,14 @@ app.post('/compile', (req, res) => {
           romOrigin: `0x${ROM_ORIGIN.toString(16).toUpperCase()}`,
           endAddress: `0x${endAddress.toString(16).toUpperCase()}`,
           simpleRomLimitBytes: SIMPLE_ROM_LIMIT_BYTES,
+          plain48RomLimitBytes: PLAIN48_ROM_LIMIT_BYTES,
           exceedsSimpleRomLimit,
+          exceedsPlain48RomLimit,
           requestedRomMode: normalizedRomMode,
           requestedTargetFormat: normalizedTargetFormat,
           requestedAutoMegaROM: normalizedAutoMegaROM,
+          linear48kCapable,
+          plain48kSupportWarning,
           romModeConflictWarning,
           resolvedRomMode,
           resolvedTargetFormat,
@@ -1537,6 +1586,7 @@ app.post('/compile', (req, res) => {
           },
           sourceRomConfig: sourceRomConfig,
           sourceConfigMismatchWarning: sourceConfigMismatchWarning,
+          plain48kSupportWarning: plain48kSupportWarning,
           resolvedRomConfig: {
             requestedRomMode: normalizedRomMode,
             resolvedRomMode: resolvedRomMode,
@@ -1550,12 +1600,12 @@ app.post('/compile', (req, res) => {
             originalSize: originalSize,
             paddedSize: paddedData.length,
             paddingAdded: paddedData.length - originalSize,
-            paddingPolicy: 'minimum 32KB + power-of-two 8KB banks',
+            paddingPolicy: paddingPolicy,
             minimumFlashcartSize: MIN_FLASHCART_ROM_BYTES,
             aligned8KBSize: aligned8KBSize,
             aligned8KBBanks: aligned8KBBanks,
             targetHardwareSize: targetSize,
-            targetHardwareBanks: targetBankCount,
+            targetHardwareBanks: targetSize / KB_8,
             hardwareSafePaddingApplied: targetSize !== aligned8KBSize,
             sizeIn8KB: paddedData.length / KB_8,
             sizeMod8192: sizeMod8192,
@@ -1563,7 +1613,9 @@ app.post('/compile', (req, res) => {
             romOrigin: ROM_ORIGIN,
             endAddress: endAddress,
             simpleRomLimitBytes: SIMPLE_ROM_LIMIT_BYTES,
+            plain48RomLimitBytes: PLAIN48_ROM_LIMIT_BYTES,
             exceedsSimpleRomLimit: exceedsSimpleRomLimit,
+            exceedsPlain48RomLimit: exceedsPlain48RomLimit,
             mapperHint: mapperHint
           }
         };

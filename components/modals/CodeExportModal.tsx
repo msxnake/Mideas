@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { startTransition, useState } from 'react';
 import JSZip from 'jszip';
 import { Button } from '../common/Button';
 import { Panel } from '../common/Panel';
@@ -41,10 +41,12 @@ interface CodeExportModalProps {
 type ExportType = 'complete' | 'complete_with_statemachine' | 'statemachine_only' | 'dynamic_project_asm' | 'msx_main_asm' | 'msx_full_project' | 'asm_all_in_one' | 'tiles' | 'sprites' | 'screens' | 'entities';
 type RomMode = 'auto' | 'simple32k' | 'megarom';
 type MapperFormat = 'konami' | 'ascii8' | 'ascii16';
+type EngineExecutionMode = 'gameLoopHalt' | 'interruptTaskManager';
 type RomBuildConfig = {
   romMode: RomMode;
   targetFormat: MapperFormat;
   autoMegaROM: boolean;
+  executionMode: EngineExecutionMode;
 };
 
 interface Zx0CompressionOptions {
@@ -93,6 +95,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
   const [romMode, setRomMode] = useState<RomMode>('simple32k');
   const [mapperFormat, setMapperFormat] = useState<MapperFormat>('konami');
+  const [executionMode, setExecutionMode] = useState<EngineExecutionMode>('gameLoopHalt');
   const [lastGeneratedRomConfig, setLastGeneratedRomConfig] = useState<RomBuildConfig | null>(null);
   const [isQuickValidating, setIsQuickValidating] = useState(false);
   const [quickValidationSummary, setQuickValidationSummary] = useState<string | null>(null);
@@ -118,6 +121,15 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
   const buildBackendUrl = (pathname: string) =>
     `${backendBaseUrl}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
+
+  const yieldToBrowser = () =>
+    new Promise<void>(resolve => {
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => resolve());
+        return;
+      }
+      setTimeout(resolve, 0);
+    });
 
   const buildBackendFetchError = (action: string, error: unknown) => {
     const details = error instanceof Error ? error.message : String(error);
@@ -168,19 +180,21 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const buildCurrentRomConfig = (): RomBuildConfig => ({
     romMode,
     targetFormat: mapperFormat,
-    autoMegaROM: romMode === 'auto'
+    autoMegaROM: romMode === 'auto',
+    executionMode
   });
 
   const isRomConfigDifferent = (generatedConfig: RomBuildConfig | null, currentConfig: RomBuildConfig) => {
     if (!generatedConfig) return false;
     return generatedConfig.romMode !== currentConfig.romMode ||
       generatedConfig.targetFormat !== currentConfig.targetFormat ||
-      generatedConfig.autoMegaROM !== currentConfig.autoMegaROM;
+      generatedConfig.autoMegaROM !== currentConfig.autoMegaROM ||
+      generatedConfig.executionMode !== currentConfig.executionMode;
   };
 
   const formatRomConfig = (config: RomBuildConfig | null) => {
     if (!config) return 'N/A';
-    return `mode=${config.romMode}, mapper=${config.targetFormat}, autoMegaROM=${config.autoMegaROM}`;
+    return `mode=${config.romMode}, mapper=${config.targetFormat}, autoMegaROM=${config.autoMegaROM}, engine=${config.executionMode}`;
   };
 
   const getEnhancedAssets = () => {
@@ -751,15 +765,18 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
             : [compressedFileEntry, ...filesWithoutCompressed];
 
           const compressedIndex = nextFiles.findIndex(f => f.name === compressedFileName);
-          setGeneratedFiles(nextFiles);
-          setActiveFileIndex(compressedIndex >= 0 ? compressedIndex : 0);
-          setGeneratedCode(compressedContent);
           sourceCodeForCompile = compressedContent;
 
           const netSaved = compressionResult?.compressionInfo?.netSavedBytes ?? 0;
           compressionSummary = `Compression: applied (net saved ${netSaved} bytes)`;
           setPipelineProgress(60);
           setPipelineStatus('Compression applied');
+          await yieldToBrowser();
+          startTransition(() => {
+            setGeneratedFiles(nextFiles);
+            setActiveFileIndex(compressedIndex >= 0 ? compressedIndex : 0);
+            setGeneratedCode(compressedContent);
+          });
         } else if (compressionResult.success) {
           compressionSummary = `Compression: ${compressionResult.message || 'skipped (no net gain)'}`;
           setPipelineProgress(60);
@@ -911,10 +928,12 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
           ]
         : [compressedFileEntry, ...existingWithoutCompressed];
 
-      setGeneratedFiles(nextFiles);
       const compressedIndex = nextFiles.findIndex(f => f.name === compressedFileName);
-      setActiveFileIndex(compressedIndex >= 0 ? compressedIndex : 0);
-      setGeneratedCode(compressedContent);
+      startTransition(() => {
+        setGeneratedFiles(nextFiles);
+        setActiveFileIndex(compressedIndex >= 0 ? compressedIndex : 0);
+        setGeneratedCode(compressedContent);
+      });
 
       const info = result.compressionInfo || {};
       alert(
@@ -1120,6 +1139,20 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
                 <div>
                   <label className="block text-sm font-medium text-msx-textsecondary mb-2">
+                    Engine Mode:
+                  </label>
+                  <select
+                    value={executionMode}
+                    onChange={(e) => setExecutionMode(e.target.value as EngineExecutionMode)}
+                    className="w-full p-2 text-sm bg-msx-bgcolor border border-msx-border rounded text-msx-textprimary"
+                  >
+                    <option value="gameLoopHalt">Game Loop + HALT</option>
+                    <option value="interruptTaskManager">Task Manager IRQ (Camino 1)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-msx-textsecondary mb-2">
                     ROM Mode:
                   </label>
                   <select
@@ -1149,7 +1182,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                 </div>
 
                 <div className="bg-msx-bgcolor bg-opacity-40 border border-msx-border rounded p-2 text-xs text-msx-textsecondary">
-                  Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>
+                  Active ROM config: mode=<strong>{romMode}</strong>, mapper=<strong>{mapperFormat}</strong>, engine=<strong>{executionMode}</strong>
                   <div className="mt-1">
                     Last generated ASM config: <strong>{formatRomConfig(lastGeneratedRomConfig)}</strong>
                   </div>
@@ -1294,6 +1327,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
                       <li>• 💾 Creates .ROM file for MSX emulators/flash carts</li>
                       <li>• ROM mode selected: <strong>{romMode}</strong></li>
                       <li>• Mapper selected: <strong>{mapperFormat}</strong></li>
+                      <li>• Engine selected: <strong>{executionMode}</strong></li>
                     </ul>
                     {romMode === 'simple32k' && (
                       <p className="mt-2 text-yellow-300">

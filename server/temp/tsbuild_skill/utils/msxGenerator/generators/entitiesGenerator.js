@@ -238,6 +238,14 @@ init_entities:
     ld bc, 31
     ld (hl), 0
     ldir
+
+    ; Clear facing-direction cache so first-frame ChangeSprite does not
+    ; redirect through stale RAM garbage from a previous run/screen.
+    ld hl, entity_facing_dir
+    ld de, entity_facing_dir+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
     
     ; Initialize State Machine variables (Clear to 0)
     ld hl, entity_sm_ptr_l
@@ -739,6 +747,14 @@ update_entities:
     add hl, de
     ld (hl), ${templateToken}
 
+${hasSprite && hasInput ? `    ; Deterministic spawn facing: right.
+    ; This keeps the first SM ChangeSprite aligned with the same default
+    ; world-facing direction used by Preview/runtime web.
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), 2
+
+` : ''}
 ${animationInitAsm}
 ${patrolInitAsm}
 ${collisionInitAsm}

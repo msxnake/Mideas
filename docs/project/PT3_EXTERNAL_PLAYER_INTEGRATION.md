@@ -2,6 +2,42 @@
 
 Documento de trabajo para integrar un replayer PT3 externo en Mideas sin romper el tracker nativo.
 
+## Update 2026-03-07
+
+Estado actual del repo tras la integracion inicial:
+
+- El tracker ya permite importar `.pt3` y `.99` como backend `external-pt3`.
+- El generador ASM ya emite un bloque PT3 dedicado cuando detecta tracks externos.
+- `sound.asm` ya hace dispatch por backend en la API publica:
+  - `music_play_track`
+  - `music_update`
+  - `music_stop`
+  - `music_mute`
+  - `music_resume`
+- `externalPt3Data` ya se serializa en ROM y se referencia desde `music_pt3_track_table`.
+- La build de prueba con `C:\Users\salam\Downloads\musicaW.json` compila correctamente en `simple32k` y `megarom`.
+- La secuencia PT3 que debe mantenerse en `music_update` es `PT3_PLAY` seguido de `PT3_ROUT`.
+- Para modulos `.99` strippeados, `music_pt3_track_table` debe apuntar a `track_label - 99`.
+- Las llamadas a `PT3_INIT`, `PT3_PLAY` y `PT3_ROUT` deben hacerse en seccion `DI/EI` si el tick musical corre desde el loop principal.
+- `init_sound_system` debe ejecutarse una sola vez en el boot global. No debe llamarse desde `init_game_systems` ni al entrar en `WorldLink`, porque eso resetea la musica justo despues de un nodo `Music`.
+
+## Validacion real 2026-03-07
+
+Resultado final de las pruebas reales en OpenMSX con `MyMSXGame13.json`:
+
+- La integracion PT3 del generador ya reproduce correctamente con modulos buenos.
+- Se verifico que una ROM de control con `mideas_known_good.99` si suena.
+- Tambien se verifico que una cancion de `CASTLEVA` (`ending.pt3`) suena correctamente en el mismo pipeline.
+- El problema original de `MyMSXGame13.json` no era solo el runtime: el asset PT3 importado de origen estaba mal.
+
+Conclusion practica:
+
+- La ruta `external-pt3` queda validada con canciones buenas.
+- Si una cancion PT3 concreta no suena pero una ROM de control con otra si, el siguiente foco debe ser el asset y no el replayer.
+- La carpeta `pt3/PT3/BALQUEST.MSX` se descarto durante esta sesion como fuente fiable de test y se elimino del repo local.
+
+Lo que sigue pendiente no es la conexion basica del backend, sino la validacion de estabilidad real en OpenMSX y la politica de mapper para canciones grandes.
+
 ## Referencia elegida
 
 La implementación de referencia inspeccionada en esta sesión es el player PT3 de MSXgl:

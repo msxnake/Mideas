@@ -313,11 +313,12 @@ ${(0, registerContract_1.buildRegisterContractComment)({
 ;   AF
 ;
 ; Performance:
-;   ~35 cycles vs BIOS ~65 cycles (46% faster)
+;   Slower than a naive single IN, but correct on TMS9918/MSX1 because
+;   VRAM reads require one dummy fetch after setting the address.
 ;
 ; Notes:
 ;   - Useful for collision detection, tile reading
-;   - VDP requires small delay after address set before read
+;   - First IN primes the VDP read-ahead buffer; second IN returns the byte
 ; ==================================================================
 FAST_RDVRM:
     ld a, l
@@ -325,8 +326,9 @@ FAST_RDVRM:
     ld a, h
     and #3F                ; Clear bit 6 for read mode (bit 7 must be 0)
     out (#99), a           ; Address high + read command
-    nop                    ; VDP needs time to process address before read
-    in a, (#98)            ; Read from VRAM data port
+    nop                    ; Let the VDP latch the read address
+    in a, (#98)            ; Dummy read: primes the TMS9918 prefetch buffer
+    in a, (#98)            ; Actual byte from VRAM[HL]
     ret
 
 `;

@@ -60,9 +60,14 @@ function generateMapperFile(options = {}) {
 ; ROM mode: ${romMode} (autoMegaROM=${autoMegaROM ? 'true' : 'false'})
 ; ==================================================================
 ;
-; This build runs in simple32k mode, so bank switching is not active.
+; This build runs without active mapper writes, so bank switching is not active.
 ; Keep mapper API labels as no-op stubs so generated gameplay code can
 ; call the same routines without conditional assembly branches.
+${romMode === 'plain48k' ? `;
+; plain48k note:
+; The current generator only exposes the toolchain mode and runtime metadata.
+; Real page-0 packing for linear 48 KB ROMs is still pending.
+` : ''}
 
 ; ------------------------------------------------------------------
 ; mapper_runtime_init

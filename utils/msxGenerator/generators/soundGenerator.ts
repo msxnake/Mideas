@@ -5,6 +5,7 @@
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
 import { PT3Instrument, PT3Ornament, TrackerCell, TrackerSongData } from '../../../types';
+import type { ExecutionPlan } from '../types/executionTypes';
 
 const ASM_NOTE_KEEP = 0xFF;
 const ASM_NOTE_CUT = 0xFE;
@@ -16,12 +17,18 @@ const TRACK_CHANNELS = ['A', 'B', 'C'] as const;
  * @param analysis - Project analysis (future: could include sound effect definitions)
  * @returns ASM code string with PSG sound system
  */
-export function generateSoundFile(analysis: ProjectAnalysis): string {
-  const tracks = collectPsgTracks(analysis);
+export function generateSoundFile(analysis: ProjectAnalysis, executionPlan?: ExecutionPlan): string {
+  const pt3Tracks = collectPT3Tracks(analysis);
+  const tracks = pt3Tracks.length > 0 ? [] : collectPsgTracks(analysis);
+  const musicBlock = pt3Tracks.length > 0
+    ? buildPT3MusicBlock(pt3Tracks)
+    : buildTrackerMusicBlock(tracks);
+  const usesInterruptAudio = executionPlan?.tasks.some((task) => task.responsibility === 'audio') ?? false;
   return `; ==================================================================
 ; PSG SOUND SYSTEM
 ; File: sound.asm
 ; Description: AY-3-8910 PSG control and sound effects
+; Engine Audio Tick: ${usesInterruptAudio ? 'IRQ task_manager' : 'GameFlow/game loop'}
 ; ==================================================================
 
 ; ==================================================================
@@ -110,6 +117,27 @@ init_sound_system:
     ; Silence all channels
     call sfx_silence_all
 
+    ret
+
+; ------------------------------------------------------------------
+; task_audio_tick
+; Shared audio tick wrapper for IRQ task_manager or HALT game loops.
+; Preserves caller-visible registers on every exit path.
+; ------------------------------------------------------------------
+task_audio_tick:
+    push af
+    push bc
+    push de
+    push hl
+
+    call music_update
+${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    call SM_UpdateSound
+` : ``}
+
+    pop hl
+    pop de
+    pop bc
+    pop af
     ret
 
 ; ==================================================================
@@ -507,7 +535,7 @@ sfx_update:
     ld (sfx_active), a
     ret
 
-${buildTrackerMusicBlock(tracks)}
+${musicBlock}
 
 ; ==================================================================
 ; END OF PSG SOUND SYSTEM
@@ -578,11 +606,16 @@ function isPT3Instrument(value: PT3Instrument | any): value is PT3Instrument {
 function collectPsgTracks(analysis: ProjectAnalysis): TrackerSongData[] {
   const projectTracks = Array.isArray(analysis.tracks) ? analysis.tracks : [];
   return projectTracks
-    .filter((track) => (track?.soundChip || 'PSG') === 'PSG')
+    .filter((track) => (track?.soundChip || 'PSG') === 'PSG' && track?.playbackBackend !== 'external-pt3')
     .map((track) => ({
       ...track,
       soundChip: track?.soundChip || 'PSG'
     }));
+}
+
+function collectPT3Tracks(analysis: ProjectAnalysis): TrackerSongData[] {
+  const projectTracks = Array.isArray(analysis.tracks) ? analysis.tracks : [];
+  return projectTracks.filter((track) => track?.playbackBackend === 'external-pt3');
 }
 
 function getInstrumentMap(song: TrackerSongData): Map<number, PT3Instrument> {
@@ -853,6 +886,267 @@ function buildTrackData(song: TrackerSongData, trackIndex: number): { labelBase:
   }
 
   return { labelBase, asm: lines.join('\n') };
+}
+
+function buildPT3MusicBlock(tracks: TrackerSongData[]): string {
+  const lines: string[] = [
+    '; ==================================================================',
+    '; PT3 MUSIC BACKEND',
+    '; Uses the PT3 replayer for AY-3-8910 music playback.',
+    '; PT3_SETUP, ChanA, AYREGS, etc. are defined in variables.asm.',
+    '; ==================================================================',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_init_system',
+    '; Reset PT3 music state. Call once at startup.',
+    '; Destroys: AF',
+    '; ------------------------------------------------------------------',
+    'music_init_system:',
+    '    xor a',
+    '    ld (music_active), a',
+    '    ld (music_muted), a',
+    '    ld (music_loop), a',
+    '    ld (music_track_index), a',
+    '    ld (PT3_SETUP), a',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_silence_channels',
+    '; Silence all AY channels via BIOS WRTPSG.',
+    '; Destroys: AF, E',
+    '; ------------------------------------------------------------------',
+    'music_silence_channels:',
+    '    xor a',
+    '    ld b, a',
+    '    call psg_set_volume     ; Channel A vol=0',
+    '    ld a, 1',
+    '    ld b, 0',
+    '    call psg_set_volume     ; Channel B vol=0',
+    '    ld a, 2',
+    '    ld b, 0',
+    '    call psg_set_volume     ; Channel C vol=0',
+    '    ld a, PSG_MIXER',
+    '    ld e, #3F',
+    '    call WRTPSG             ; All tones+noise off',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_stop',
+    '; Stop music and silence channels.',
+    '; Destroys: AF',
+    '; ------------------------------------------------------------------',
+    'music_stop:',
+    '    push af',
+    '    xor a',
+    '    ld (music_active), a',
+    '    ld (PT3_SETUP), a',
+    '    call music_silence_channels',
+    '    pop af',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_mute',
+    '; Mute music (keep track position).',
+    '; Destroys: AF',
+    '; ------------------------------------------------------------------',
+    'music_mute:',
+    '    ld a, (music_active)',
+    '    or a',
+    '    ret z',
+    '    ld a, 1',
+    '    ld (music_muted), a',
+    '    call music_silence_channels',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_resume',
+    '; Resume muted music.',
+    '; Destroys: AF',
+    '; ------------------------------------------------------------------',
+    'music_resume:',
+    '    ld a, (music_active)',
+    '    or a',
+    '    ret z',
+    '    xor a',
+    '    ld (music_muted), a',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_execute_command',
+    '; Dispatch a music command from Game Flow nodes.',
+    '; Input:  DE -> [command, trackIndex, loopFlag]',
+    ';         0=stop, 1=play, 2=mute, 3=resume, #FF=no-op',
+    '; Destroys: AF, BC (play path), DE (play path), HL',
+    '; ------------------------------------------------------------------',
+    'music_execute_command:',
+    '    ld a, (de)',
+    '    cp #FF',
+    '    ret z',
+    '    or a',
+    '    jp z, music_stop',
+    '    cp 1',
+    '    jp z, .pt3_exec_play',
+    '    cp 2',
+    '    jp z, music_mute',
+    '    cp 3',
+    '    jp z, music_resume',
+    '    ret',
+    '.pt3_exec_play:',
+    '    inc de',
+    '    ld a, (de)',
+    '    ld c, a',
+    '    inc de',
+    '    ld a, (de)',
+    '    ld b, a',
+    '    ld a, c',
+    '    call music_play_track',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_play_track',
+    '; Start playing a PT3 track.',
+    '; Input:  A = track index (0-based)',
+    ';         B = loop flag (0=no loop, 1=loop)',
+    '; Destroys: AF, BC, DE, HL, IX, IY',
+    '; ------------------------------------------------------------------',
+    'music_play_track:',
+    '    ld (music_track_index), a',
+    '    ld a, b',
+    '    and 1',
+    '    ld (music_loop), a',
+    '    ld a, (music_track_index)',
+    '    add a, a               ; *2 (DW entries)',
+    '    ld e, a',
+    '    ld d, 0',
+    '    ld hl, music_pt3_track_table',
+    '    add hl, de',
+    '    ld e, (hl)',
+    '    inc hl',
+    '    ld d, (hl)',
+    '    ld h, d',
+    '    ld l, e                ; HL = adjusted module address',
+    '    xor a',
+    '    ld (music_muted), a',
+    '    ld (PT3_SETUP), a      ; Clear end-of-song flag',
+    '    di                     ; Disable interrupts while initialising PT3',
+    '    push ix',
+    '    push iy',
+    '    call PT3_INIT',
+    '    pop iy',
+    '    pop ix',
+    '    ld a, 1',
+    '    ld (music_active), a   ; Enable playback AFTER PT3 is fully initialised',
+    '    ei',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; music_update',
+    '; Update PT3 playback. Called every frame from the main loop or ISR.',
+    '; Checks end-of-song flag, handles loop/stop, runs PT3_PLAY+PT3_ROUT.',
+    '; Destroys: AF, HL, DE (saves/restores IX/IY around PT3 calls)',
+    '; ------------------------------------------------------------------',
+    'music_update:',
+    '    ld a, (music_active)',
+    '    or a',
+    '    ret z',
+    '    ld a, (music_muted)',
+    '    or a',
+    '    ret nz',             // return only when muted (non-zero); playing = muted is 0
+    '    ; Check if song ended (CHECKLP sets bit7 of PT3_SETUP)',
+    '    ld a, (PT3_SETUP)',
+    '    bit 7, a',
+    '    jr z, .pt3_upd_play',
+    '    ; Song ended - loop or stop?',
+    '    ld a, (music_loop)',
+    '    or a',
+    '    jr z, .pt3_upd_stop',
+    '    ; Loop: reinitialise from same track',
+    '    ld a, (music_track_index)',
+    '    add a, a',
+    '    ld e, a',
+    '    ld d, 0',
+    '    ld hl, music_pt3_track_table',
+    '    add hl, de',
+    '    ld e, (hl)',
+    '    inc hl',
+    '    ld d, (hl)',
+    '    ld h, d',
+    '    ld l, e',
+    '    di',
+    '    push ix',
+    '    push iy',
+    '    call PT3_INIT',
+    '    pop iy',
+    '    pop ix',
+    '    ei',
+    '    ret',
+    '.pt3_upd_stop:',
+    '    xor a',
+    '    ld (music_active), a',
+    '    ret',
+    '.pt3_upd_play:',
+    '    di',
+    '    push ix',
+    '    push iy',
+    '    call PT3_PLAY',
+    '    call PT3_ROUT',
+    '    pop iy',
+    '    pop ix',
+    '    ei',
+    '    ret',
+    '',
+    '; ------------------------------------------------------------------',
+    '; PT3 REPLAYER (included from server root)',
+    '; ------------------------------------------------------------------',
+    '    include "../PT3-ROM-alltables-glass.asm"',
+    '',
+    '; ------------------------------------------------------------------',
+    '; PT3 TRACK TABLE',
+    '; ------------------------------------------------------------------',
+    'music_pt3_track_count:',
+    `    DB ${toAsmByte(tracks.length)}`,
+    '',
+    'music_pt3_track_table:',
+  ];
+
+  if (tracks.length === 0) {
+    lines.push('    DW 0  ; no tracks');
+  } else {
+    tracks.forEach((track, index) => {
+      const label = `pt3_track_${index}_data`;
+      const name = track.name || `track ${index}`;
+      if (track.externalPt3HasHeader) {
+        // Full file: PT3_MODADDR must point to original byte 0 so PT3_INIT +100 lands on speed byte.
+        lines.push(`    DW ${label}         ; ${name} (full file)`);
+      } else {
+        // 99 bytes stripped: data[0] = original byte 99, data[1] = speed byte.
+        // PT3_MODADDR must still point to original byte 0, so use data_label - 99.
+        lines.push(`    DW ${label} - 99    ; ${name} (.99 stripped)`);
+      }
+    });
+  }
+
+  if (tracks.length > 0) {
+    lines.push('');
+    tracks.forEach((track, index) => {
+      const label = `pt3_track_${index}_data`;
+      const name = track.name || `Track ${index}`;
+      lines.push(`; --- PT3 Track ${index}: ${name} ---`);
+      lines.push(`${label}:`);
+      const bytes = track.externalPt3Data || [];
+      if (bytes.length === 0) {
+        lines.push('    DB 0  ; empty track');
+      } else {
+        for (let i = 0; i < bytes.length; i += 16) {
+          const chunk = bytes.slice(i, i + 16);
+          lines.push(`    DB ${chunk.map((b) => toAsmByte(b)).join(',')}`);
+        }
+      }
+      lines.push('');
+    });
+  }
+
+  return lines.join('\n');
 }
 
 function buildTrackerMusicBlock(tracks: TrackerSongData[]): string {

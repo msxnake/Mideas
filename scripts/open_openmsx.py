@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+DEFAULT_50HZ_MACHINE = "C-BIOS_MSX1_EU"
+
 
 def _codex_roots() -> list[Path]:
     roots: list[Path] = []
@@ -38,7 +40,10 @@ def main() -> int:
         print("Error: skill script not found: abrir-openmsx-rom/scripts/open_openmsx.py", file=sys.stderr)
         print("Checked CODEX_HOME, USERPROFILE/.codex and ~/.codex", file=sys.stderr)
         return 1
-    cmd = [sys.executable, str(target), *sys.argv[1:]]
+    forwarded_args = list(sys.argv[1:])
+    if "--machine" not in forwarded_args:
+        forwarded_args.extend(["--machine", DEFAULT_50HZ_MACHINE])
+    cmd = [sys.executable, str(target), *forwarded_args]
     return subprocess.run(cmd).returncode
 
 

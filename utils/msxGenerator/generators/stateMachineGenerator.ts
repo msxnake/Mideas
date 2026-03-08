@@ -1010,6 +1010,8 @@ Action_ChangeSprite:
     ld a, e                 ; A = facing dir
     or a
     jr z, .acs_dir_done     ; facing = 0 → no hay redirect, usar sprite original
+    cp 5
+    jr nc, .acs_dir_done    ; facing inválido → ignorar redirect y usar sprite original
 
     ; Convertir facing (1-4) a índice de tabla (0-3): dec a
     dec a                   ; A = índice en SM_FacingDirTablePtrs (0=left, 1=right, 2=up, 3=down)
@@ -4508,6 +4510,370 @@ Condition_VariableCompare:
     ret
     `;
 
+// =============================================================================
+// CONDITIONAL HANDLER TREE-SHAKING
+// =============================================================================
+
+/**
+ * Scan all state machines to collect which action and condition types are used.
+ * Used to strip unused handler bodies and reduce ROM binary size.
+ */
+function collectUsedActionsAndConditions(stateMachines: StateMachine[]): {
+    usedActions: Set<string>;
+    usedConditions: Set<string>;
+} {
+    const usedActions = new Set<string>();
+    const usedConditions = new Set<string>();
+
+    function scanActions(actions?: Action[]): void {
+        if (!actions) return;
+        for (const action of actions) {
+            if (action?.type) usedActions.add(action.type);
+        }
+    }
+
+    function scanCondition(cond?: Condition): void {
+        if (!cond) return;
+        if (cond.type) usedConditions.add(cond.type);
+        if (Array.isArray((cond as any).conditions)) {
+            for (const sub of (cond as any).conditions) {
+                scanCondition(sub);
+            }
+        }
+    }
+
+    for (const sm of stateMachines) {
+        for (const state of sm.states ?? []) {
+            scanActions(state.onEnter);
+            scanActions(state.onExit);
+        }
+        for (const t of sm.transitions ?? []) {
+            scanActions(t.actions);
+            scanCondition(t.conditions);
+        }
+    }
+
+    return { usedActions, usedConditions };
+}
+
+/**
+ * Strip ASM text from `\nfromLabel:` up to (not including) `\ntoLabel:`.
+ * Returns asm unchanged if either label is not found.
+ */
+function stripSection(asm: string, fromLabel: string, toLabel: string): string {
+    const fromMark = `\n${fromLabel}:`;
+    const toMark = `\n${toLabel}:`;
+    const startIdx = asm.indexOf(fromMark);
+    if (startIdx < 0) return asm;
+    const endIdx = asm.indexOf(toMark, startIdx);
+    if (endIdx < 0) return asm;
+    return asm.slice(0, startIdx) + `\n; [${fromLabel} stripped - not used]\n` + asm.slice(endIdx);
+}
+
+/**
+ * Strip ASM text from `\nfromLabel:` to the end of the string.
+ * Used for the last handler in a section (no following label to anchor to).
+ */
+function stripSectionToEnd(asm: string, fromLabel: string): string {
+    const fromMark = `\n${fromLabel}:`;
+    const startIdx = asm.indexOf(fromMark);
+    if (startIdx < 0) return asm;
+    return asm.slice(0, startIdx) + `\n; [${fromLabel} stripped - not used]\n`;
+}
+
+/** Patch a SM_ActionTable DW entry to point to Action_Nop. */
+function patchActionEntry(asm: string, label: string): string {
+    // Match "DW Label<spaces>; comment" — spaces between label and ; are required
+    return asm.replace(
+        new RegExp(`DW ${label}\\s*(;[^\\n]*)`),
+        `DW Action_Nop $1 [${label} stripped]`
+    );
+}
+
+/** Patch a SM_ConditionTable DW entry to point to Condition_Nop. */
+function patchConditionEntry(asm: string, label: string): string {
+    return asm.replace(
+        new RegExp(`DW ${label}\\s*(;[^\\n]*)`),
+        `DW Condition_Nop $1 [${label} stripped]`
+    );
+}
+
+/**
+ * Remove unused SM handler bodies from the generated ASM to reduce binary size.
+ * Must be called immediately after assembling Z80_RUNTIME_ENGINE + Z80_DISPATCH_TABLE,
+ * before any SM data tables are appended (so Condition_VariableCompare strip-to-end is safe).
+ */
+function applyConditionalHandlers(
+    asm: string,
+    usedActions: Set<string>,
+    usedConditions: Set<string>
+): string {
+    const hasAction = (...types: string[]) => types.some(t => usedActions.has(t));
+    const hasCond = (...types: string[]) => types.some(t => usedConditions.has(t));
+
+    // ---- ACTION HANDLERS ----
+
+    if (!hasAction(ActionTypes.SET_POSITION)) {
+        asm = stripSection(asm, 'Action_SetPosition', 'Action_MoveBy');
+        asm = patchActionEntry(asm, 'Action_SetPosition');
+    }
+    if (!hasAction(ActionTypes.MOVE_BY)) {
+        asm = stripSection(asm, 'Action_MoveBy', 'Action_SetVelocity');
+        asm = patchActionEntry(asm, 'Action_MoveBy');
+    }
+    if (!hasAction(ActionTypes.SET_VELOCITY)) {
+        asm = stripSection(asm, 'Action_SetVelocity', 'Action_ApplyForce');
+        asm = patchActionEntry(asm, 'Action_SetVelocity');
+    }
+    if (!hasAction(ActionTypes.APPLY_FORCE)) {
+        // ApplyForce ends just before SM_FacingDirTablePtrs (which belongs to ChangeSprite)
+        asm = stripSection(asm, 'Action_ApplyForce', 'SM_FacingDirTablePtrs');
+        asm = patchActionEntry(asm, 'Action_ApplyForce');
+    }
+    if (!hasAction(ActionTypes.CHANGE_SPRITE)) {
+        // SM_FacingDirTablePtrs is only used by Action_ChangeSprite
+        asm = stripSection(asm, 'SM_FacingDirTablePtrs', 'Action_PlayAnimation');
+        asm = patchActionEntry(asm, 'Action_ChangeSprite');
+    }
+    if (!hasAction(ActionTypes.PLAY_ANIMATION)) {
+        asm = stripSection(asm, 'Action_PlayAnimation', 'Action_SetAnimSpeed');
+        asm = patchActionEntry(asm, 'Action_PlayAnimation');
+    }
+    if (!hasAction(ActionTypes.SET_ANIMATION_SPEED)) {
+        asm = stripSection(asm, 'Action_SetAnimSpeed', 'Action_ToggleAnim');
+        asm = patchActionEntry(asm, 'Action_SetAnimSpeed');
+    }
+    if (!hasAction(ActionTypes.TOGGLE_ANIMATION)) {
+        asm = stripSection(asm, 'Action_ToggleAnim', 'Action_PlaySound');
+        asm = patchActionEntry(asm, 'Action_ToggleAnim');
+    }
+    if (!hasAction(ActionTypes.PLAY_SOUND)) {
+        asm = stripSection(asm, 'Action_PlaySound', 'Action_PlayMusic');
+        asm = patchActionEntry(asm, 'Action_PlaySound');
+    }
+    if (!hasAction(ActionTypes.PLAY_MUSIC)) {
+        asm = stripSection(asm, 'Action_PlayMusic', 'Action_MuteMusic');
+        asm = patchActionEntry(asm, 'Action_PlayMusic');
+    }
+    if (!hasAction(ActionTypes.MUTE_MUSIC)) {
+        asm = stripSection(asm, 'Action_MuteMusic', 'Action_StopMusic');
+        asm = patchActionEntry(asm, 'Action_MuteMusic');
+    }
+    if (!hasAction(ActionTypes.STOP_MUSIC)) {
+        asm = stripSection(asm, 'Action_StopMusic', 'Action_SetVariable');
+        asm = patchActionEntry(asm, 'Action_StopMusic');
+    }
+    if (!hasAction(ActionTypes.SET_VARIABLE)) {
+        asm = stripSection(asm, 'Action_SetVariable', 'Action_IncVariable');
+        asm = patchActionEntry(asm, 'Action_SetVariable');
+    }
+    if (!hasAction(ActionTypes.INCREMENT_VARIABLE)) {
+        asm = stripSection(asm, 'Action_IncVariable', 'Action_DecVariable');
+        asm = patchActionEntry(asm, 'Action_IncVariable');
+    }
+    if (!hasAction(ActionTypes.DECREMENT_VARIABLE)) {
+        asm = stripSection(asm, 'Action_DecVariable', 'Action_Wait');
+        asm = patchActionEntry(asm, 'Action_DecVariable');
+    }
+    if (!hasAction(ActionTypes.WAIT)) {
+        asm = stripSection(asm, 'Action_Wait', 'Action_GotoState');
+        asm = patchActionEntry(asm, 'Action_Wait');
+    }
+    if (!hasAction(ActionTypes.GOTO_STATE)) {
+        asm = stripSection(asm, 'Action_GotoState', 'Action_SetCompProp');
+        asm = patchActionEntry(asm, 'Action_GotoState');
+    }
+    if (!hasAction(ActionTypes.SET_COMPONENT_PROPERTY)) {
+        asm = stripSection(asm, 'Action_SetCompProp', 'Action_DestroyEntity');
+        asm = patchActionEntry(asm, 'Action_SetCompProp');
+    }
+    if (!hasAction(ActionTypes.DESTROY_ENTITY)) {
+        asm = stripSection(asm, 'Action_DestroyEntity', 'Action_SpawnEntity');
+        asm = patchActionEntry(asm, 'Action_DestroyEntity');
+    }
+    if (!hasAction(ActionTypes.SPAWN_ENTITY, ActionTypes.GET_RANDOM_ENTITY_POSITION)) {
+        asm = stripSection(asm, 'Action_SpawnEntity', 'Action_ChangeGameFlow');
+        asm = patchActionEntry(asm, 'Action_SpawnEntity');
+        asm = patchActionEntry(asm, 'Action_GetRandomPos');
+    }
+    if (!hasAction(ActionTypes.CHANGE_GAME_FLOW_NODE)) {
+        asm = stripSection(asm, 'Action_ChangeGameFlow', 'Action_DecLives');
+        asm = patchActionEntry(asm, 'Action_ChangeGameFlow');
+    }
+    if (!hasAction(ActionTypes.DECREASE_LIVES, ActionTypes.INCREASE_LIVES, ActionTypes.RESPAWN_PLAYER)) {
+        asm = stripSection(asm, 'Action_DecLives', 'Action_BreakTile');
+        asm = patchActionEntry(asm, 'Action_DecLives');
+        asm = patchActionEntry(asm, 'Action_IncLives');
+        asm = patchActionEntry(asm, 'Action_Respawn');
+    }
+    if (!hasAction(ActionTypes.BREAK_TILE)) {
+        asm = stripSection(asm, 'Action_BreakTile', 'Action_ReplaceTile');
+        asm = patchActionEntry(asm, 'Action_BreakTile');
+    }
+    if (!hasAction(ActionTypes.REPLACE_TILE)) {
+        asm = stripSection(asm, 'Action_ReplaceTile', 'Action_Rnd');
+        asm = patchActionEntry(asm, 'Action_ReplaceTile');
+    }
+    if (!hasAction(ActionTypes.RND)) {
+        asm = stripSection(asm, 'Action_Rnd', 'Action_PointAt');
+        asm = patchActionEntry(asm, 'Action_Rnd');
+    }
+    if (!hasAction(ActionTypes.POINT_AT)) {
+        // Action_PointAt ends just before SM_MusicState (audio data/helpers)
+        asm = stripSection(asm, 'Action_PointAt', 'SM_MusicState');
+        asm = patchActionEntry(asm, 'Action_PointAt');
+    }
+
+    // ---- AUDIO HELPERS (between Action_PointAt and SM_ReadVar) ----
+    // SM_SilencePSG, SM_ApplySoundFrame, SM_UpdateSound are ALWAYS kept
+    // because gameFlowGenerator/interruptGenerator call SM_UpdateSound unconditionally.
+
+    // SM_PlaySoundAsset is only needed by Action_PlaySound
+    if (!hasAction(ActionTypes.PLAY_SOUND)) {
+        asm = stripSection(asm, 'SM_PlaySoundAsset', 'SM_UpdateSound');
+        // SM_PlaySfx_* come after SM_UpdateSound; also only used by PlaySound
+        asm = stripSection(asm, 'SM_PlaySfx_Beep', 'SM_RandomByte');
+    }
+    // Random/spawn helpers: SM_RandomByte, SM_RandomActiveEntity, etc.
+    const needsRandomHelpers = hasAction(ActionTypes.RND, ActionTypes.SPAWN_ENTITY, ActionTypes.GET_RANDOM_ENTITY_POSITION);
+    if (!needsRandomHelpers) {
+        asm = stripSection(asm, 'SM_RandomByte', 'SM_WriteTileRelativeToEntity');
+    }
+    // SM_WriteTileRelativeToEntity is only used by BreakTile / ReplaceTile
+    if (!hasAction(ActionTypes.BREAK_TILE, ActionTypes.REPLACE_TILE)) {
+        asm = stripSection(asm, 'SM_WriteTileRelativeToEntity', 'SM_ReadVar');
+    }
+
+    // ---- VARIABLE HELPERS ----
+    // SM_ReadVar / SM_WriteVar needed by variable-related actions
+    const needsVarHelpers = hasAction(
+        ActionTypes.SET_VARIABLE, ActionTypes.INCREMENT_VARIABLE, ActionTypes.DECREMENT_VARIABLE,
+        ActionTypes.SET_COMPONENT_PROPERTY,
+        ActionTypes.ADD_VARIABLES, ActionTypes.SUBTRACT_VARIABLES, ActionTypes.MULTIPLY_VARIABLES,
+        ActionTypes.DIVIDE_VARIABLES, ActionTypes.MODULO_VARIABLES, ActionTypes.ASSIGN_VARIABLE
+    );
+    if (!needsVarHelpers) {
+        asm = stripSection(asm, 'SM_ReadVar', 'Action_AddVars');
+    }
+
+    // ---- MATH ACTION HANDLERS ----
+    if (!hasAction(ActionTypes.ADD_VARIABLES)) {
+        asm = stripSection(asm, 'Action_AddVars', 'Action_SubVars');
+        asm = patchActionEntry(asm, 'Action_AddVars');
+    }
+    if (!hasAction(ActionTypes.SUBTRACT_VARIABLES)) {
+        asm = stripSection(asm, 'Action_SubVars', 'Action_MulVars');
+        asm = patchActionEntry(asm, 'Action_SubVars');
+    }
+    if (!hasAction(ActionTypes.MULTIPLY_VARIABLES)) {
+        asm = stripSection(asm, 'Action_MulVars', 'Action_DivVars');
+        asm = patchActionEntry(asm, 'Action_MulVars');
+    }
+    if (!hasAction(ActionTypes.DIVIDE_VARIABLES)) {
+        asm = stripSection(asm, 'Action_DivVars', 'Action_ModVars');
+        asm = patchActionEntry(asm, 'Action_DivVars');
+    }
+    if (!hasAction(ActionTypes.MODULO_VARIABLES)) {
+        asm = stripSection(asm, 'Action_ModVars', 'Action_AssignVar');
+        asm = patchActionEntry(asm, 'Action_ModVars');
+    }
+    if (!hasAction(ActionTypes.ASSIGN_VARIABLE)) {
+        asm = stripSection(asm, 'Action_AssignVar', 'Action_DisableInput');
+        asm = patchActionEntry(asm, 'Action_AssignVar');
+    }
+    if (!hasAction(ActionTypes.DISABLE_INPUT)) {
+        asm = stripSection(asm, 'Action_DisableInput', 'Action_EnableInput');
+        asm = patchActionEntry(asm, 'Action_DisableInput');
+    }
+    if (!hasAction(ActionTypes.ENABLE_INPUT)) {
+        asm = stripSection(asm, 'Action_EnableInput', 'SM_ConditionTable');
+        asm = patchActionEntry(asm, 'Action_EnableInput');
+    }
+
+    // ---- CONDITION HANDLERS ----
+
+    if (!hasCond(ConditionTypes.AND)) {
+        asm = stripSection(asm, 'Condition_And', 'Condition_Or');
+        asm = patchConditionEntry(asm, 'Condition_And');
+    }
+    if (!hasCond(ConditionTypes.OR)) {
+        asm = stripSection(asm, 'Condition_Or', 'Condition_Xor');
+        asm = patchConditionEntry(asm, 'Condition_Or');
+    }
+    if (!hasCond(ConditionTypes.XOR)) {
+        asm = stripSection(asm, 'Condition_Xor', 'Condition_Not');
+        asm = patchConditionEntry(asm, 'Condition_Xor');
+    }
+    if (!hasCond(ConditionTypes.NOT)) {
+        // Strip only Condition_Not handler; SM_MatchDirection (next) may still be needed
+        asm = stripSection(asm, 'Condition_Not', 'SM_MatchDirection');
+        asm = patchConditionEntry(asm, 'Condition_Not');
+    }
+    // SM_MatchDirection needed by KEY_PRESSED, KEY_RELEASED, CAN_MOVE_DIRECTION, KEY_AND_MOVEMENT
+    const needsMatchDir = hasCond(
+        ConditionTypes.KEY_PRESSED, ConditionTypes.KEY_RELEASED,
+        ConditionTypes.CAN_MOVE_DIRECTION, ConditionTypes.KEY_AND_MOVEMENT
+    );
+    if (!needsMatchDir) {
+        asm = stripSection(asm, 'SM_MatchDirection', 'SM_DeduceDirectionFromVelocity');
+    }
+    // SM_DeduceDirectionFromVelocity needed by CAN_MOVE_DIRECTION, KEY_AND_MOVEMENT
+    if (!hasCond(ConditionTypes.CAN_MOVE_DIRECTION, ConditionTypes.KEY_AND_MOVEMENT)) {
+        asm = stripSection(asm, 'SM_DeduceDirectionFromVelocity', 'SM_TestMoveDirection');
+    }
+    // SM_TestMoveDirection needed by CAN_MOVE_DIRECTION, PATH_CLEAR
+    if (!hasCond(ConditionTypes.CAN_MOVE_DIRECTION, ConditionTypes.PATH_CLEAR)) {
+        asm = stripSection(asm, 'SM_TestMoveDirection', 'Condition_KeyPressed');
+    }
+    if (!hasCond(ConditionTypes.KEY_PRESSED)) {
+        asm = stripSection(asm, 'Condition_KeyPressed', 'Condition_KeyReleased');
+        asm = patchConditionEntry(asm, 'Condition_KeyPressed');
+    }
+    if (!hasCond(ConditionTypes.KEY_RELEASED)) {
+        asm = stripSection(asm, 'Condition_KeyReleased', 'Condition_TimeOut');
+        asm = patchConditionEntry(asm, 'Condition_KeyReleased');
+    }
+    if (!hasCond(ConditionTypes.TIME_OUT)) {
+        asm = stripSection(asm, 'Condition_TimeOut', 'Condition_CanMove');
+        asm = patchConditionEntry(asm, 'Condition_TimeOut');
+    }
+    if (!hasCond(ConditionTypes.CAN_MOVE_DIRECTION)) {
+        asm = stripSection(asm, 'Condition_CanMove', 'Condition_HasCollision');
+        asm = patchConditionEntry(asm, 'Condition_CanMove');
+    }
+    if (!hasCond(ConditionTypes.HAS_COLLISION)) {
+        asm = stripSection(asm, 'Condition_HasCollision', 'Condition_PathClear');
+        asm = patchConditionEntry(asm, 'Condition_HasCollision');
+    }
+    if (!hasCond(ConditionTypes.PATH_CLEAR)) {
+        asm = stripSection(asm, 'Condition_PathClear', 'Condition_OnWallCollision');
+        asm = patchConditionEntry(asm, 'Condition_PathClear');
+    }
+    if (!hasCond(ConditionTypes.ON_WALL_COLLISION)) {
+        asm = stripSection(asm, 'Condition_OnWallCollision', 'Condition_DeadlyTile');
+        asm = patchConditionEntry(asm, 'Condition_OnWallCollision');
+    }
+    if (!hasCond(ConditionTypes.HAS_DEADLY_TILE_COLLISION)) {
+        asm = stripSection(asm, 'Condition_DeadlyTile', 'Condition_AnimComplete');
+        asm = patchConditionEntry(asm, 'Condition_DeadlyTile');
+    }
+    if (!hasCond(ConditionTypes.ANIMATION_COMPLETE)) {
+        asm = stripSection(asm, 'Condition_AnimComplete', 'Condition_KeyAndMove');
+        asm = patchConditionEntry(asm, 'Condition_AnimComplete');
+    }
+    if (!hasCond(ConditionTypes.KEY_AND_MOVEMENT)) {
+        asm = stripSection(asm, 'Condition_KeyAndMove', 'Condition_VariableCompare');
+        asm = patchConditionEntry(asm, 'Condition_KeyAndMove');
+    }
+    if (!hasCond(ConditionTypes.VARIABLE_COMPARE)) {
+        // Last condition - strip to end of dispatch table string
+        asm = stripSectionToEnd(asm, 'Condition_VariableCompare');
+        asm = patchConditionEntry(asm, 'Condition_VariableCompare');
+    }
+
+    return asm;
+}
+
 function clampByte(value: any): number {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return 0;
@@ -4649,6 +5015,12 @@ export function generateStateMachineSystem(
     trackIndexByAssetId?: Record<string, number>
 ): string {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
+
+    // Tree-shake: remove unused handler bodies to stay within 32KB ROM budget.
+    if (stateMachines.length > 0) {
+        const { usedActions, usedConditions } = collectUsedActionsAndConditions(stateMachines);
+        asm = applyConditionalHandlers(asm, usedActions, usedConditions);
+    }
 
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
     // Must match spritesGenerator directional expansion to keep indexes aligned.

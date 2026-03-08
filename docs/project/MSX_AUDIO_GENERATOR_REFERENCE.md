@@ -114,6 +114,46 @@ Estas son las rutinas que otros generadores pueden llamar sin conocer el layout 
 6. `music_mute` / `music_resume`
    Pausa o reexpone audio sin perder el estado de reproducción actual.
 
+### Tick de audio actual
+
+Tras las pruebas reales de marzo de 2026, el tick musical ya no debe depender solo de `task_update_music` en `H.TIMI`.
+
+- `header.asm` sigue haciendo `music_init_system` al arrancar, pero ya no auto-registra el task de audio por defecto.
+- `gameflow.asm` llama `music_update` desde los bucles sincronizados con `HALT`.
+- Si el proyecto usa state machines con sonido, esos mismos bucles llaman tambien `SM_UpdateSound`.
+
+Motivo:
+
+- En proyectos GameFlow minimos con PT3 externo se observo reproduccion muda cuando todo el avance musical dependia del hook IRQ.
+- Mover el tick al mismo borde de frame que usa el loop principal mantiene la cadencia de 50/60 Hz y evita depender del scheduler de interrupcion para que la musica arranque.
+
+### Regla PT3 externa
+
+Para el backend `external-pt3` hay dos invariantes que no deben romperse:
+
+- Si `externalPt3HasHeader=false`, la tabla debe apuntar a `track_label - 99`.
+  Motivo: el bloque serializado empieza en el byte original 99 del fichero PT3, y `PT3_INIT` necesita reconstruir `PT3_MODADDR` como base original del modulo.
+- `music_update` debe envolver `PT3_INIT`, `PT3_PLAY` y `PT3_ROUT` con `DI/EI` cuando se llamen desde el loop principal.
+  Motivo: `PT3_ROUT` escribe PSG directamente por puertos y no debe quedar interrumpido a mitad de frame.
+- `init_sound_system` debe inicializarse en el boot global y no dentro de `init_game_systems`.
+  Motivo: en proyectos `Start -> Music -> WorldLink`, reinicializar sonido al entrar al mundo apaga la cancion recien arrancada.
+
+### Regla de validacion de assets PT3
+
+La validez del runtime PT3 no debe juzgarse con una sola cancion de procedencia dudosa.
+
+Proceso recomendado:
+
+1. Probar una ROM de control con un `.99` conocido bueno.
+2. Probar una cancion de referencia de una carpeta fiable.
+3. Solo si ambas fallan, volver al runtime/generador.
+
+Hallazgo practico de esta sesion:
+
+- `mideas_known_good.99` si reproduce.
+- `CASTLEVA/ending.pt3` tambien reproduce tras strip de 99 bytes.
+- Por tanto, si un proyecto concreto sigue mudo con otro asset, el problema probablemente esta en ese modulo PT3 importado.
+
 ### Flujo interno
 
 El flujo normal del tracker es:

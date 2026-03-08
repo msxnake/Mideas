@@ -226,22 +226,46 @@ BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ((BEHAVIOR_${screenName}_${index}_
           const collisionLayer = screen.layers.collision;
           const behaviorMapData: number[] = [];
 
-          collisionLayer.forEach(row => {
-            row.forEach(tile => {
-              if (tile.tileId) {
+          // CRITICAL: Behavior map must ALWAYS be 32x24 (one entry per 8x8 MSX char cell).
+          // The collision layer may use larger logical tiles (e.g. 16x12 for 16x16 tiles).
+          // We expand each collision tile to cover its corresponding 8x8 char cells.
+          const collisionRows = collisionLayer.length;
+          const collisionCols = collisionLayer[0]?.length ?? 0;
+          const tileScaleX = collisionCols > 0 ? Math.max(1, Math.round(SCREEN_WIDTH / collisionCols)) : 1;
+          const tileScaleY = collisionRows > 0 ? Math.max(1, Math.round(SCREEN_HEIGHT / collisionRows)) : 1;
+
+          for (let r = 0; r < SCREEN_HEIGHT; r++) {
+            for (let c = 0; c < SCREEN_WIDTH; c++) {
+              const srcRow = Math.floor(r / tileScaleY);
+              const srcCol = Math.floor(c / tileScaleX);
+              const tile = collisionLayer[srcRow]?.[srcCol];
+              if (tile?.tileId) {
                 const tileAsset = analysis.tiles?.find((t: any) => t.id === tile.tileId);
-                behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
+                // Compute behavior byte from boolean flags directly (not mapId).
+                // Play mode reads causesDamage/isSolid booleans; mapId may be desynchronized.
+                const lp = tileAsset?.logicalProperties;
+                if (lp) {
+                  const familyId = lp.familyId ?? (lp.isSolid ? 1 : 0);
+                  let flagBits = 0;
+                  if (lp.isBreakable) flagBits |= 0x01;
+                  if (lp.isMovable)   flagBits |= 0x02;
+                  if (lp.causesDamage) flagBits |= 0x04;
+                  if (lp.isInteractiveSwitch) flagBits |= 0x08;
+                  behaviorMapData.push((familyId << 4) | flagBits);
+                } else {
+                  behaviorMapData.push(0);
+                }
               } else {
                 behaviorMapData.push(0);
               }
-            });
-          });
+            }
+          }
 
           // Generate behavior map ASM
           const behaviorASM = generateBehaviorMapASMCode(
             screenNameWithIndex,
-            screen.width,
-            screen.height,
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
             behaviorMapData,
             'hex'
           );
@@ -558,6 +582,7 @@ ${importedHudFrameLabelBase}_draw_loop:
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
+    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
     ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
     ld de, NAMETBL + ${activeAreaOffset}
     ld bc, ${activeAreaBytes}
@@ -569,6 +594,7 @@ ${importedHudFrameLabelBase}_draw_loop:
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
+    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rectangle
     ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
     ld de, NAMETBL + ${activeAreaOffset}
     ld a, ${activeAreaHeight}

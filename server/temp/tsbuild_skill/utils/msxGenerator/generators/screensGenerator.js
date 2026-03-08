@@ -498,6 +498,7 @@ ${importedHudFrameLabelBase}_draw_loop:
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
+    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rows
     ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
     ld de, NAMETBL + ${activeAreaOffset}
     ld bc, ${activeAreaBytes}
@@ -510,6 +511,7 @@ ${importedHudFrameLabelBase}_draw_loop:
     call mapper_push_p2
     ld a, SCREEN_${screenName}_${index}_LAYOUT_BANK
     call mapper_set_bank_p2
+    ; Preserve HUD / non-active VRAM area: overwrite only gameplay rectangle
     ld hl, SCREEN_${screenName}_${index}_LAYOUT + ${activeAreaOffset}
     ld de, NAMETBL + ${activeAreaOffset}
     ld a, ${activeAreaHeight}

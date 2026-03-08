@@ -205,6 +205,8 @@ MAX_ENTITIES        EQU 32
     currentAddress += 32;
     code += `entity_job_entry    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity job entry slot within period window (32 bytes)\n`;
     currentAddress += 32;
+    code += `entity_job_scheduler_active EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1 when any entity uses non-default job cadence\n`;
+    currentAddress++;
     code += `entity_dir_mask     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity direction mask (32 bytes)\n`;
     currentAddress += 32;
     code += `entity_input_speed  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Entity input/cursor speed (32 bytes)\n`;
@@ -556,6 +558,64 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
             code += `${def.prefix}_${channelName}_${def.suffix} EQU #${(baseAddress + index).toString(16).toUpperCase().padStart(4, '0')}   ; Channel ${channelName.toUpperCase()}\n`;
         });
         currentAddress += 3;
+    }
+    // PT3 workspace (if any track uses external PT3 backend)
+    const hasPT3 = Array.isArray(analysis.tracks) &&
+        analysis.tracks.some((t) => t?.playbackBackend === 'external-pt3');
+    if (hasPT3) {
+        const pt3Base = currentAddress;
+        const hex = (offset) => (pt3Base + offset).toString(16).toUpperCase().padStart(4, '0');
+        code += `
+; ==================================================================
+; PT3 REPLAYER WORKSPACE (~448 bytes)
+; Layout matches PT3-ROM-alltables-glass.asm expected labels
+; ==================================================================
+PT3_SETUP       EQU #${hex(0x00)}   ; PT3 state flags (bit0=loop, bit7=song_ended)
+PT3_MODADDR     EQU #${hex(0x01)}   ; Module address pointer (2 bytes)
+PT3_CrPsPtr     EQU #${hex(0x03)}   ; Current position pointer
+PT3_SAMPTRS     EQU #${hex(0x05)}   ; Sample pointers base
+PT3_OrnPtrs     EQU #${hex(0x07)}   ; Ornament pointers base
+PT3_PDSP        EQU #${hex(0x09)}   ; Pattern data start pointer
+PT3_CSP         EQU #${hex(0x0B)}   ; Saved SP (CHREGS SP trick)
+PT3_PSP         EQU #${hex(0x0D)}   ; PT3 stack pointer save
+PT3_PrNote      EQU #${hex(0x0F)}   ; Previous note
+PT3_PrSlide     EQU #${hex(0x10)}   ; Previous slide (2 bytes)
+PT3_AdInPtA     EQU #${hex(0x12)}   ; Channel A inline pointer
+PT3_AdInPtB     EQU #${hex(0x14)}   ; Channel B inline pointer
+PT3_AdInPtC     EQU #${hex(0x16)}   ; Channel C inline pointer
+PT3_LPosPtr     EQU #${hex(0x18)}   ; Loop position pointer
+PT3_PatsPtr     EQU #${hex(0x1A)}   ; Patterns table pointer
+PT3_Delay       EQU #${hex(0x1C)}   ; Song speed/delay
+PT3_AddToEn     EQU #${hex(0x1D)}   ; Add to envelope
+PT3_Env_Del     EQU #${hex(0x1E)}   ; Envelope delay
+PT3_ESldAdd     EQU #${hex(0x1F)}   ; Envelope slide add (2 bytes)
+PT3_NTL3        EQU #${hex(0x21)}   ; Note table link 3
+VARS            EQU #${hex(0x23)}   ; Channel vars base
+ChanA           EQU #${hex(0x23)}   ; Channel A data (29 bytes)
+ChanB           EQU #${hex(0x40)}   ; Channel B data (29 bytes)
+ChanC           EQU #${hex(0x5D)}   ; Channel C data (29 bytes)
+DelyCnt         EQU #${hex(0x7A)}   ; Delay counter
+CurESld         EQU #${hex(0x7B)}   ; Current envelope slide (2 bytes)
+CurEDel         EQU #${hex(0x7D)}   ; Current envelope delay
+Ns_Base_AddToNs EQU #${hex(0x7E)}   ; Noise base + add to noise (combined)
+Ns_Base         EQU #${hex(0x7E)}   ; Noise base
+AddToNs         EQU #${hex(0x7F)}   ; Add to noise
+NT_             EQU #${hex(0x80)}   ; Note table (192 bytes)
+AYREGS          EQU #${hex(0x140)}  ; AY registers mirror (14 bytes)
+VT_             EQU #${hex(0x140)}  ; Volume table base (alias for AYREGS)
+EnvBase         EQU #${hex(0x14E)}  ; Envelope base
+VAR0END         EQU #${hex(0x150)}  ; End of fixed workspace
+T1_             EQU #${hex(0x150)}  ; Tone tables start (unpacked by PT3_INIT)
+T_NEW_1         EQU #${hex(0x150)}  ; Tone table new 1
+T_OLD_1         EQU #${hex(0x150)}  ; Tone table old 1
+T_OLD_2         EQU #${hex(0x168)}  ; Tone table old 2
+T_NEW_3         EQU #${hex(0x180)}  ; Tone table new 3
+T_OLD_3         EQU #${hex(0x180)}  ; Tone table old 3
+T_OLD_0         EQU #${hex(0x182)}  ; Tone table old 0
+T_NEW_0         EQU #${hex(0x182)}  ; Tone table new 0
+T_NEW_2         EQU #${hex(0x19A)}  ; Tone table new 2 (last, ends at +0x1B2)
+`;
+        currentAddress = pt3Base + 0x240; // Reserve 576 bytes for PT3 workspace (RAM LENGTH per replayer spec)
     }
     // End marker
     code += `

@@ -162,16 +162,17 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
 ; TILE BEHAVIOR CONSTANTS (for collision detection)
 ; ==================================================================
 
-; Tile Behavior Types (bitmask)
-TILE_PASSABLE       EQU #00    ; No collision (air, background)
-TILE_SOLID          EQU #01    ; Solid wall/floor (blocks all movement)
-TILE_PLATFORM       EQU #02    ; One-way platform (solid from above only)
-TILE_LADDER         EQU #04    ; Climbable (allows vertical movement)
-TILE_DEADLY         EQU #08    ; Damages/kills on contact (spikes, lava)
-TILE_WATER          EQU #10    ; Water (slows movement, swim logic)
-TILE_ICE            EQU #20    ; Slippery surface (reduced friction)
-TILE_BREAKABLE      EQU #40    ; Can be destroyed by player
-TILE_TRIGGER        EQU #80    ; Activates events on contact
+; Tile Behavior encoding matches TileEditor logicalProperties.mapId:
+;   bits 7-4 = solidity family
+;   bits 3-0 = property flags
+TILE_PASSABLE       EQU #00    ; Family 0: passable / no-solid
+TILE_SOLID          EQU #10    ; Family 1: solid wall/floor
+TILE_PLATFORM       EQU #20    ; Family 2: top-solid platform
+TILE_SLOPE          EQU #30    ; Family 3: slope / custom solid family
+TILE_BREAKABLE      EQU #01    ; Flag bit 0
+TILE_MOVABLE        EQU #02    ; Flag bit 1
+TILE_DEADLY         EQU #04    ; Flag bit 2: causesDamage
+TILE_INTERACTABLE   EQU #08    ; Flag bit 3: isInteractiveSwitch
 
 ; Collision Directions (for platform logic)
 COLL_FROM_ABOVE     EQU #01    ; Entity approaching from above

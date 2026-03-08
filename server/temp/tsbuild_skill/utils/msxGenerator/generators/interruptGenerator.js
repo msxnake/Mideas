@@ -12,7 +12,7 @@ const registerContract_1 = require("./registerContract");
 /**
  * Generate interrupt.asm file
  */
-function generateInterruptFile(analysis, config = {}) {
+function generateInterruptFile(analysis, config = {}, executionPlan) {
     console.log('ÐYZî [INTERRUPT GENERATOR] Generating interrupt.asm...');
     let code = '';
     code += `; ==================================================================\n`;
@@ -26,8 +26,15 @@ function generateInterruptFile(analysis, config = {}) {
     code += generateStopInterruptSystem();
     code += generateInterruptDispatcher();
     code += generateTaskManagementFunctions();
+    code += generateInitDefaultTasksFromPlan(executionPlan);
     // Default tasks
-    code += generateDefaultTasks(analysis);
+    if (executionPlan?.mode === 'interruptTaskManager') {
+        code += generateSharedMainlineTaskWrappers();
+        code += generatePlannedTasks(executionPlan);
+    }
+    else {
+        code += generateDefaultTasks(analysis);
+    }
     // Optional: Generate full component systems inside interrupt.asm
     // This makes interrupt.asm self-contained for all ECS routines.
     // NOTE: In this mode, components.asm should be skipped/emptied by the caller to avoid duplicate labels.
@@ -422,6 +429,240 @@ get_frame_count:
 
 `;
 }
+function generateInitDefaultTasksFromPlan(executionPlan) {
+    const tasks = executionPlan?.mode === 'interruptTaskManager'
+        ? executionPlan.tasks.filter((task) => task.enabledAtBoot)
+        : [];
+    let code = `; ==================================================================\n`;
+    code += `; INIT_DEFAULT_TASKS_FROM_PLAN - Register engine-selected IRQ tasks\n`;
+    code += `; ==================================================================\n`;
+    code += (0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Enable the IRQ task set selected by the engine execution plan.',
+        inputs: ['None'],
+        outputs: ['task_table updated for all enabled-at-boot tasks'],
+        clobbers: ['AF', 'HL'],
+        preserved: ['BC', 'DE'],
+        usage: ['A = task slot', 'HL = task routine address'],
+        notes: ['Calls enable_task once per enabled task.'],
+    });
+    code += `init_default_tasks_from_plan:\n`;
+    if (tasks.length === 0) {
+        code += `    ret\n\n`;
+        return code;
+    }
+    tasks.forEach((task) => {
+        code += `    ld a, ${task.slot}\n`;
+        code += `    ld hl, ${task.routineLabel}\n`;
+        code += `    call enable_task\n`;
+    });
+    code += `    ret\n\n`;
+    return code;
+}
+function generatePlannedTasks(executionPlan) {
+    const hasFrameCounterTask = executionPlan.tasks.some((task) => task.routineLabel === 'task_frame_counter');
+    let code = `; ==================================================================\n`;
+    code += `; ENGINE EXECUTION PLAN TASKS\n`;
+    code += `; ==================================================================\n\n`;
+    if (executionPlan.tasks.length === 0) {
+        code += `; No IRQ tasks selected by engine execution plan.\n\n`;
+    }
+    else {
+        executionPlan.tasks.forEach((task) => {
+            code += `; Slot ${task.slot}: ${task.id} -> ${task.routineLabel} (period=${task.period})\n`;
+        });
+        code += `\n`;
+    }
+    if (hasFrameCounterTask) {
+        code += generateFrameCounterTask();
+    }
+    code += `; ==================================================================\n`;
+    code += `; USER CUSTOM TASK SLOTS (5-7)\n`;
+    code += `; ==================================================================\n`;
+    code += `; These slots are reserved for user-defined tasks\n`;
+    code += `; Enable them dynamically using:\n`;
+    code += `;   LD A, 5                    ; Slot 5\n`;
+    code += `;   LD HL, my_custom_task\n`;
+    code += `;   CALL enable_task\n`;
+    code += `; ==================================================================\n\n`;
+    return code;
+}
+function generateSharedMainlineTaskWrappers() {
+    let code = `; ==================================================================\n`;
+    code += `; SHARED MAINLINE TASK WRAPPERS\n`;
+    code += `; ==================================================================\n`;
+    code += `; These wrappers stay available in interruptTaskManager mode because\n`;
+    code += `; the HALT-driven GameFlow loops still call them directly.\n`;
+    code += `; ==================================================================\n\n`;
+    code += `; ==================================================================\n`;
+    code += `; TASK_UPDATE_INPUT - Joystick/Cursor polling wrapper\n`;
+    code += `; ==================================================================\n`;
+    code += (0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Poll joystick + keyboard fallback and update input state buffers.',
+        inputs: ['Reads hardware via FAST_GTSTCK / FAST_GTTRIG / FAST_SNSMAT'],
+        outputs: ['input_state, prev_input_state, input_btn_curr, input_btn_prev, input_fire'],
+        clobbers: ['AF', 'BC', 'DE'],
+        preserved: ['AF', 'BC', 'DE (by push/pop wrapper)', 'HL'],
+        usage: [
+            'A = hardware reads and final scalar writes',
+            'B = direction accumulator',
+            'D = button bitmask and keyboard direction flags',
+            'E = temporary keyboard row bits',
+        ],
+        notes: ['Wrapper preserves caller-visible regs despite internal mutation.'],
+    });
+    code += `task_update_input:\n`;
+    code += `    push af\n`;
+    code += `    push bc\n`;
+    code += `    push de\n\n`;
+    code += `    ; Save previous state\n`;
+    code += `    ld a, (input_state)\n`;
+    code += `    ld (prev_input_state), a\n`;
+    code += `    ld a, (input_btn_curr)\n`;
+    code += `    ld (input_btn_prev), a\n\n`;
+    code += `    ; Read joystick direction first (priority source, direct hardware)\n`;
+    code += `    xor a                       ; Joystick 0\n`;
+    code += `    call FAST_GTSTCK            ; Direct hardware read\n`;
+    code += `    ld b, a                     ; B = joystick direction\n`;
+    code += `    or a\n`;
+    code += `    jr nz, .dir_ready\n\n`;
+    code += `    ; Fallback to keyboard cursor keys (row 8, direct matrix read)\n`;
+    code += `    ld a, 8\n`;
+    code += `    call FAST_SNSMAT            ; Active low bits\n`;
+    code += `    ld e, a\n`;
+    code += `    xor a\n`;
+    code += `    ld d, a                     ; D = direction flags: 0=none\n`;
+    code += `    bit 5, e                    ; Up\n`;
+    code += `    jr nz, .kbd_no_up\n`;
+    code += `    set 0, d\n`;
+    code += `.kbd_no_up:\n`;
+    code += `    bit 6, e                    ; Down\n`;
+    code += `    jr nz, .kbd_no_down\n`;
+    code += `    set 1, d\n`;
+    code += `.kbd_no_down:\n`;
+    code += `    bit 4, e                    ; Left\n`;
+    code += `    jr nz, .kbd_no_left\n`;
+    code += `    set 2, d\n`;
+    code += `.kbd_no_left:\n`;
+    code += `    bit 7, e                    ; Right\n`;
+    code += `    jr nz, .kbd_no_right\n`;
+    code += `    set 3, d\n`;
+    code += `.kbd_no_right:\n`;
+    code += `    xor a\n`;
+    code += `    bit 0, d\n`;
+    code += `    jr z, .kbd_check_down\n`;
+    code += `    bit 3, d\n`;
+    code += `    jr nz, .kbd_upright\n`;
+    code += `    bit 2, d\n`;
+    code += `    jr nz, .kbd_upleft\n`;
+    code += `    ld a, STICK_UP\n`;
+    code += `    jr .kbd_done\n`;
+    code += `.kbd_upright:\n`;
+    code += `    ld a, STICK_UPRIGHT\n`;
+    code += `    jr .kbd_done\n`;
+    code += `.kbd_upleft:\n`;
+    code += `    ld a, STICK_UPLEFT\n`;
+    code += `    jr .kbd_done\n`;
+    code += `.kbd_check_down:\n`;
+    code += `    bit 1, d\n`;
+    code += `    jr z, .kbd_check_lr\n`;
+    code += `    bit 3, d\n`;
+    code += `    jr nz, .kbd_downright\n`;
+    code += `    bit 2, d\n`;
+    code += `    jr nz, .kbd_downleft\n`;
+    code += `    ld a, STICK_DOWN\n`;
+    code += `    jr .kbd_done\n`;
+    code += `.kbd_downright:\n`;
+    code += `    ld a, STICK_DOWNRIGHT\n`;
+    code += `    jr .kbd_done\n`;
+    code += `.kbd_downleft:\n`;
+    code += `    ld a, STICK_DOWNLEFT\n`;
+    code += `    jr .kbd_done\n`;
+    code += `.kbd_check_lr:\n`;
+    code += `    bit 2, d\n`;
+    code += `    jr z, .kbd_check_right\n`;
+    code += `    ld a, STICK_LEFT\n`;
+    code += `    jr .kbd_done\n`;
+    code += `.kbd_check_right:\n`;
+    code += `    bit 3, d\n`;
+    code += `    jr z, .kbd_done\n`;
+    code += `    ld a, STICK_RIGHT\n`;
+    code += `.kbd_done:\n`;
+    code += `    ld b, a\n`;
+    code += `.dir_ready:\n`;
+    code += `    ; Normalize diagonals to cardinal directions for runtime stability\n`;
+    code += `    ; UP+RIGHT/DOWN+RIGHT -> RIGHT, UP+LEFT/DOWN+LEFT -> LEFT\n`;
+    code += `    ld a, b\n`;
+    code += `    cp STICK_UPRIGHT\n`;
+    code += `    jr z, .dir_norm_right\n`;
+    code += `    cp STICK_DOWNRIGHT\n`;
+    code += `    jr z, .dir_norm_right\n`;
+    code += `    cp STICK_UPLEFT\n`;
+    code += `    jr z, .dir_norm_left\n`;
+    code += `    cp STICK_DOWNLEFT\n`;
+    code += `    jr z, .dir_norm_left\n`;
+    code += `    jr .dir_norm_done\n`;
+    code += `.dir_norm_right:\n`;
+    code += `    ld a, STICK_RIGHT\n`;
+    code += `    jr .dir_norm_store\n`;
+    code += `.dir_norm_left:\n`;
+    code += `    ld a, STICK_LEFT\n`;
+    code += `.dir_norm_store:\n`;
+    code += `    ld b, a\n`;
+    code += `.dir_norm_done:\n`;
+    code += `    xor a                       ; Joystick 0\n`;
+    code += `    call FAST_GTTRIG            ; A = #FF if pressed, 0 if not\n`;
+    code += `    ld d, 0                     ; D = button bitmask\n`;
+    code += `    or a\n`;
+    code += `    jr z, .no_fire              ; Jump if NOT pressed (A=0)\n`;
+    code += `    ld d, INPUT_BTN_FIRE\n`;
+    code += `    ld a, 1                     ; Fire pressed\n`;
+    code += `    ld (input_fire), a\n`;
+    code += `    jr .fire_done\n`;
+    code += `.no_fire:\n`;
+    code += `    ; Keyboard fallback for fire (SPACE, row 8 bit 0, active low)\n`;
+    code += `    ld a, 8\n`;
+    code += `    call FAST_SNSMAT\n`;
+    code += `    bit 0, a\n`;
+    code += `    jr nz, .fire_released\n`;
+    code += `    ld d, INPUT_BTN_FIRE\n`;
+    code += `    ld a, 1\n`;
+    code += `    ld (input_fire), a\n`;
+    code += `    jr .fire_done\n`;
+    code += `.fire_released:\n`;
+    code += `    xor a                       ; Fire not pressed\n`;
+    code += `    ld (input_fire), a\n`;
+    code += `.fire_done:\n`;
+    code += `    ld a, b\n`;
+    code += `    ld (input_state), a\n`;
+    code += `    ld a, d\n`;
+    code += `    ld (input_btn_curr), a\n\n`;
+    code += `    pop de\n`;
+    code += `    pop bc\n`;
+    code += `    pop af\n`;
+    code += `    ret\n\n`;
+    return code;
+}
+function generateFrameCounterTask() {
+    let code = `; ==================================================================\n`;
+    code += `; TASK_FRAME_COUNTER - Custom timing/animations\n`;
+    code += `; ==================================================================\n`;
+    code += `; Placeholder for user-defined frame-based timing\n`;
+    code += `; interrupt_counter is already incremented in dispatcher\n`;
+    code += `; ==================================================================\n`;
+    code += (0, registerContract_1.buildRegisterContractComment)({
+        purpose: 'Optional per-frame timing hook for lightweight counters/animations.',
+        inputs: ['None'],
+        outputs: ['None'],
+        clobbers: ['None'],
+        preserved: ['AF', 'BC', 'DE', 'HL'],
+        usage: ['No registers modified in the default implementation'],
+    });
+    code += `task_frame_counter:\n`;
+    code += `    ; Placeholder - counter is already incremented in dispatcher\n`;
+    code += `    ; Add custom timing logic here if needed\n`;
+    code += `    ret\n\n`;
+    return code;
+}
 /**
  * Generate default tasks (input, physics, collision, sprites)
  */
@@ -723,9 +964,7 @@ function generateDefaultTasks(analysis) {
         code += `    push bc\n`;
         code += `    push de\n`;
         code += `    push hl\n\n`;
-        if (analysis.tracks && analysis.tracks.length > 0) {
-            code += `    call music_update\n`;
-        }
+        code += `    call music_update\n`;
         if (analysis.stateMachines && analysis.stateMachines.length > 0) {
             code += `    call SM_UpdateSound\n`;
         }

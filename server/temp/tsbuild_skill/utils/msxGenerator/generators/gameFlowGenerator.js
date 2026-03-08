@@ -10,6 +10,21 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateGameFlowFile = generateGameFlowFile;
 const constants_1 = require("../../../constants");
+function hasFrameAudio(analysis) {
+    return ((analysis.tracks?.length || 0) > 0) || ((analysis.stateMachines?.length || 0) > 0);
+}
+function shouldTickAudioInGameFlow(analysis, executionPlan) {
+    if (!hasFrameAudio(analysis)) {
+        return false;
+    }
+    return !executionPlan?.tasks.some((task) => task.responsibility === 'audio');
+}
+function buildGameFlowAudioTickAsm(analysis, executionPlan) {
+    if (!shouldTickAudioInGameFlow(analysis, executionPlan)) {
+        return '';
+    }
+    return '    call task_audio_tick\n';
+}
 /**
  * Sanitize node ID for use in ASM labels
  */
@@ -314,12 +329,13 @@ function generateConditionalRenderHudAsm(runtimeScreenIndexes, labelBase, setDir
  * @param analysis - Project analysis with GameFlow data
  * @returns Complete ASM code for GameFlow execution
  */
-function generateGameFlowFile(analysis) {
+function generateGameFlowFile(analysis, executionPlan) {
     // If no GameFlow exists, generate a minimal default one
     if (!analysis.gameFlow) {
-        return generateDefaultGameFlow(analysis);
+        return generateDefaultGameFlow(analysis, executionPlan);
     }
     const gameFlow = analysis.gameFlow;
+    const frameAudioTickAsm = buildGameFlowAudioTickAsm(analysis, executionPlan);
     let code = `; ==================================================================
 ; GAMEFLOW EXECUTION ENGINE
 ; File: gameflow.asm
@@ -419,7 +435,7 @@ gameflow_execute_node:
 ; ==================================================================
 
 `;
-    code += generateNodeHandlers(nodeTypes, analysis);
+    code += generateNodeHandlers(nodeTypes, analysis, executionPlan);
     // ===================================================================
     // SECTION 4: CONNECTION UTILITIES
     // ===================================================================
@@ -525,8 +541,12 @@ gameflow_world_game_loop:
 
     ; Frame sync first: start each tick exactly on V-Blank edge
     halt
-    ; Upload sprites right after V-Blank edge (60/50 Hz frame-paced)
+${frameAudioTickAsm}    ; Upload sprites right after V-Blank edge (60/50 Hz frame-paced)
     call update_sprites_to_vram
+
+    ; Animated transform tiles do VRAM read-modify-write, so update them
+    ; near the V-Blank edge before the expensive gameplay work.
+    call update_animated_tiles
 
     ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
     call task_update_input
@@ -539,14 +559,6 @@ gameflow_world_game_loop:
 
     ; Execute all state machines
     call execute_all_state_machines
-
-    ; Tracker music runs in VBlank via task_update_music
-
-${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; State-machine PLAY_SOUND runs in VBlank via task_update_music
-` : ``}
-
-    ; Update animated background tiles (water, fire, etc.)
-    call update_animated_tiles
 
     ; Update timed PSG sound effects
     call sfx_update
@@ -627,10 +639,13 @@ clear_sprite_table:
     ld bc, 128           ; 128 bytes (32 sprites × 4 bytes)
     ld a, #D1            ; Y=209 (off-screen)
 .cst_loop:
+    push af
+    push bc
     push hl
-    ld c, a
     call WRTVRM          ; Write to VRAM
     pop hl
+    pop bc
+    pop af
     inc hl
     dec bc
     ld a, b
@@ -658,10 +673,13 @@ clear_vram_areas:
     ld bc, 6144
     ld a, 0
 .clear_patterns:
+    push af
+    push bc
     push hl
-    ld c, a
     call WRTVRM
     pop hl
+    pop bc
+    pop af
     inc hl
     dec bc
     ld a, b
@@ -673,10 +691,13 @@ clear_vram_areas:
     ld bc, 6144
     ld a, #F0            ; White on black
 .clear_colors:
+    push af
+    push bc
     push hl
-    ld c, a
     call WRTVRM
     pop hl
+    pop bc
+    pop af
     inc hl
     dec bc
     ld a, b
@@ -834,8 +855,9 @@ empty_row_data:
 /**
  * Generate handlers for all node types
  */
-function generateNodeHandlers(nodeTypes, analysis) {
+function generateNodeHandlers(nodeTypes, analysis, executionPlan) {
     let code = '';
+    const frameAudioTickAsm = buildGameFlowAudioTickAsm(analysis, executionPlan);
     const hudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
     const hasHud = hudRuntimeScreenIndexes.length > 0;
     const worldLinkHudBootstrapAsm = generateConditionalRenderHudAsm(hudRuntimeScreenIndexes, 'gf_worldlink_hud', true);
@@ -958,6 +980,7 @@ ${worldLinkHudBootstrapAsm}` : ``}
     ; End screen loop - wait for input or timeout
 .end_screen_loop:
     halt                          ; Wait V-blank
+${frameAudioTickAsm}
 
     ; Avoid BIOS joystick helpers here because they touch the PSG while
     ; VBlank music is writing it. Use keyboard matrix reads only.
@@ -1170,6 +1193,7 @@ show_menu_placeholder:
 
 .smp_loop:
     halt
+${frameAudioTickAsm}
     ld a, 0
     call GTSTCK
     cp 1                          ; Up
@@ -1206,6 +1230,7 @@ show_menu_placeholder:
 
 .smp_wait_fire_release:
     halt
+${frameAudioTickAsm}
     ld a, 0
     call GTTRIG
     or a
@@ -1215,6 +1240,7 @@ show_menu_placeholder:
 .smp_wait_neutral:
 .smp_wait_neutral_loop:
     halt
+${frameAudioTickAsm}
     ld a, 0
     call GTSTCK
     or a
@@ -1880,6 +1906,7 @@ wait_for_fire:
     ; Wait for fire button press
 .wait_press:
     halt
+${frameAudioTickAsm}
     ld a, 0                       ; Trigger 0 = space bar
     call GTTRIG
     or a
@@ -1888,6 +1915,7 @@ wait_for_fire:
     ; Wait for fire button release
 .wait_release:
     halt
+${frameAudioTickAsm}
     ld a, 0
     call GTTRIG
     or a
@@ -1897,6 +1925,8 @@ wait_for_fire:
     ld b, 5
 .delay_loop:
     halt
+    push bc
+${frameAudioTickAsm}    pop bc
     djnz .delay_loop
 
     pop bc
@@ -2321,6 +2351,8 @@ trans_wait_frames:
     ld b, a
 .twf_loop:
     halt                          ; Wait for V-blank (~20ms at 50Hz)
+    push bc
+${frameAudioTickAsm}    pop bc
     djnz .twf_loop
 .twf_done:
     pop bc
@@ -2946,11 +2978,12 @@ ${nodeLabel}_init:
 /**
  * Generate default GameFlow when none exists
  */
-function generateDefaultGameFlow(analysis) {
+function generateDefaultGameFlow(analysis, executionPlan) {
     const defaultHudRuntimeScreenIndexes = getHudRuntimeScreenIndexes(analysis);
     const defaultHasHud = defaultHudRuntimeScreenIndexes.length > 0;
     const defaultStartHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_start_hud', true);
     const defaultLoopHudAsm = generateConditionalRenderHudAsm(defaultHudRuntimeScreenIndexes, 'gf_default_loop_hud');
+    const frameAudioTickAsm = buildGameFlowAudioTickAsm(analysis, executionPlan);
     const firstScreen = analysis.screenMaps && analysis.screenMaps.length > 0 ? analysis.screenMaps[0] : null;
     const firstImportedHudFrameDrawRoutine = firstScreen ? getImportedHudFrameDrawRoutineName(firstScreen) : null;
     const firstScreenLoadCode = firstScreen
@@ -2973,15 +3006,15 @@ ${defaultStartHudAsm}` : ``}    ret
 
 gameflow_world_game_loop:
     halt                            ; Frame sync at loop start (V-Blank edge)
-    call update_sprites_to_vram     ; Frame-paced SAT upload (outside ISR)
+${frameAudioTickAsm}    call update_sprites_to_vram     ; Frame-paced SAT upload (outside ISR)
+    ; Animated transform tiles do VRAM read-modify-write, so update them
+    ; near the V-Blank edge before the expensive gameplay work.
+    call update_animated_tiles
     ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
     call task_update_input
     call check_world_screen_transition
     call update_all_entities
     call execute_all_state_machines
-    ; Tracker music runs in VBlank via task_update_music
-${analysis.stateMachines && analysis.stateMachines.length > 0 ? `    ; State-machine PLAY_SOUND runs in VBlank via task_update_music
-` : ``}    call update_animated_tiles
 ${defaultHasHud ? `    ; Render HUD only on screens that define HUD elements
 ${defaultLoopHudAsm}
 ` : ``}

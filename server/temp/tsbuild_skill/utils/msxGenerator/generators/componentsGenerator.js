@@ -40,9 +40,17 @@ ${(0, registerContract_1.buildRegisterContractComment)({
         notes: ['Do not assume any register survives this routine.'],
     })}
 update_all_entities:
-    ; Rebuild entity list every frame so job scheduler cadence
-    ; (entity_job_period/entity_job_entry) is evaluated against interrupt_counter.
+    ; Fast path: when all entities use default job cadence (period=1, entry=0),
+    ; rebuild the compact list only when entity/screen membership changes.
+    ld a, (entity_job_scheduler_active)
+    or a
+    jp nz, .update_all_entities_rebuild_list
+    call ensure_used_entity_list_current
+    jp .update_all_entities_list_ready
+.update_all_entities_rebuild_list:
+    ; Scheduler active: cadence depends on interrupt_counter, so rebuild every frame.
     call rebuild_used_entity_list
+.update_all_entities_list_ready:
 `;
     // Define the component systems in execution order
     // Format: [componentName, functionCall, comment]
@@ -149,7 +157,8 @@ ${(0, registerContract_1.buildRegisterContractComment)({
         clobbers: ['AF', 'BC', 'DE', 'HL'],
         preserved: ['None'],
         usage: [
-            'C = entity slot iterator',
+            'B = slots remaining (MAX_ENTITIES..1)',
+            'C = entity slot iterator (0..MAX_ENTITIES-1)',
             'DE = index offset (entity id / active list position)',
             'HL = pointer math over component and state arrays',
             'A = predicate checks and counters',
@@ -158,13 +167,10 @@ ${(0, registerContract_1.buildRegisterContractComment)({
 rebuild_used_entity_list:
     xor a
     ld (active_entity_count), a
+    ld b, MAX_ENTITIES
     ld c, 0
 
 .rebuild_loop:
-    ld a, c
-    cp MAX_ENTITIES
-    jr z, .rebuild_done
-
     ld e, c
     ld d, 0
     ld hl, entity_active
@@ -212,7 +218,7 @@ rebuild_used_entity_list:
 
 .next_entity:
     inc c
-    jr .rebuild_loop
+    djnz .rebuild_loop
 
 .rebuild_done:
     xor a
@@ -840,35 +846,107 @@ function generateCollisionSystem(analysis) {
 
 .ground_check_done:
     ; Check for deadly tile collision (lava, spikes, etc.)
-    ; Get entity position (x, y)
-    ld hl, entity_x_pos
+    ; IMPORTANT:
+    ;   - Read from the behavior map generated from the collision layer,
+    ;     NOT from the visual screen layout.
+    ;   - Mirror the Preview logic by sampling:
+    ;       center/middle, left/middle, right/middle, center/bottom+1.
+    ; This catches no-solid deadly tiles like ropes that overlap the body,
+    ; not just the feet.
+    ;
+    ; Deadly flag uses logicalProperties.causesDamage (mapId bit 2 = #04).
     ld e, c
     ld d, 0
+
+    ld hl, entity_x_pos
     add hl, de
-    ld a, (hl)                    ; A = X position (keep DE as entity index)
+    ld a, (hl)
+    ld (wall_temp_x), a
 
     ld hl, entity_y_pos
     add hl, de
-    ld e, (hl)                    ; E = Y position
-    ld d, a                       ; D = X position
+    ld a, (hl)
+    ld (wall_temp_y), a
 
-    ; Get tile at entity's feet position (center-bottom)
+    call wall_build_hitbox_cache
+
     push bc
-    push de
-    ld a, d
-    add a, 8                      ; Center X (assuming 16-pixel wide entity)
-    ld d, a
-    ld a, e
-    add a, 15                     ; Bottom Y (assuming 16-pixel tall entity)
-    ld e, a
-    call get_tile_at_position     ; A = tile ID
-    call get_tile_behavior        ; A = behavior flags
-    pop de
-    pop bc
 
-    ; Check if tile is deadly (bit 3 = TILE_DEADLY)
-    bit 3, a
-    jr z, .no_deadly_tile         ; Not deadly, safe
+    ; Mid row = top + floor(height / 2)
+    ld a, (wall_hit_h)
+    srl a
+    ld c, a
+    ld a, (wall_hit_top)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; B = middle row
+
+    ; Center column = left + floor(width / 2)
+    ld a, (wall_hit_w)
+    srl a
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; C = center column
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Left middle
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Right middle
+    ld a, (wall_hit_right)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Center bottom + 1 (matches Preview bottom sample and still catches
+    ; standing on deadly floors after wall-collision snap)
+    ld a, (wall_hit_bottom)
+    cp 191
+    jr nc, .deadly_y_clamped
+    inc a
+    jr .deadly_y_ready
+.deadly_y_clamped:
+    ld a, 191
+.deadly_y_ready:
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; B = bottom row
+
+    ld a, (wall_hit_w)
+    srl a
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; C = center column
+    call get_behavior_tile_nb
+    bit 2, a
+    jr z, .no_deadly_tile
+
+.deadly_tile_found:
+    pop bc
 
     ; Entity is touching deadly area - set flag
     ld hl, entity_deadly_collision
@@ -879,6 +957,8 @@ function generateCollisionSystem(analysis) {
     jr .deadly_check_done
 
 .no_deadly_tile:
+    pop bc
+
     ; Clear deadly tile flag
     ld hl, entity_deadly_collision
     ld e, c
@@ -2913,29 +2993,7 @@ function generateAnimationSystem() {
             cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
             jp nz, .anim_next_entity
 
-            ; Skip inactive entities
-            push hl
-            ld hl, entity_active
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            pop hl
-            or a
-            jp z, .anim_next_entity
-
-            ; Skip entities that are not in the currently active screen
-            ; Preserve HL because it is the entity_comp_masks loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, .anim_next_entity
+            ; active_entity_list already guarantees active + current_screen_id
 
             push bc
             push hl
@@ -5075,11 +5133,177 @@ update_slash_component:
 ${bonusRespawnRuntimeCode}
 
 ; ------------------------------------------------------------------
+; runtime_tile_is_deadly_nb
+; Purpose:
+;   Read an in-bounds tile directly from runtime_behavior_map and return only
+;   the deadly flag bit. This mirrors the collectible path, which does not go
+;   through current_behavior_map row caching.
+; Input:
+;   B = tile row (0..23)
+;   C = tile column (0..31)
+; Output:
+;   A = TILE_DEADLY when the sampled tile is deadly, otherwise 0
+; Clobbers:
+;   AF, DE, HL
+; Preserves:
+;   BC, IX, IY, SP
+; ------------------------------------------------------------------
+runtime_tile_is_deadly_nb:
+    push hl
+    push de
+
+    ld h, 0
+    ld l, b                        ; HL = tileY
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                     ; HL = tileY * 32
+    ld e, c
+    ld d, 0
+    add hl, de                     ; HL = idx
+    ld de, runtime_behavior_map
+    add hl, de                     ; HL = &runtime_behavior_map[idx]
+    ld a, (hl)
+    and TILE_DEADLY
+
+    pop de
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; update_entity_deadly_flag_runtime
+; Purpose:
+;   Update entity_deadly_collision for one entity using the same late-frame
+;   runtime collision map access pattern as collectible tiles. This matches
+;   Preview timing better than the early collision-system pass.
+; Input:
+;   C = entity index
+; Output:
+;   None
+; Clobbers:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Notes:
+;   - Samples center, left, right and bottom points of the hitbox.
+;   - Uses wall_build_hitbox_cache for the same collision box the wall system uses.
+; ------------------------------------------------------------------
+update_entity_deadly_flag_runtime:
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_x), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_y), a
+
+    call wall_build_hitbox_cache
+
+    push bc
+
+    ; Middle row = top + floor(height / 2)
+    ld a, (wall_hit_h)
+    srl a
+    ld c, a
+    ld a, (wall_hit_top)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld b, a
+
+    ; Center column = left + floor(width / 2)
+    ld a, (wall_hit_w)
+    srl a
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call runtime_tile_is_deadly_nb
+    or a
+    jr nz, .udefr_found
+
+    ; Left edge (matches Preview finalHitbox.x)
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call runtime_tile_is_deadly_nb
+    or a
+    jr nz, .udefr_found
+
+    ; Right edge (matches Preview finalHitbox.x + width)
+    ld a, (wall_hit_right)
+    cp 255
+    jr z, .udefr_right_ready
+    inc a
+.udefr_right_ready:
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call runtime_tile_is_deadly_nb
+    or a
+    jr nz, .udefr_found
+
+    ; Bottom edge (matches Preview finalHitbox.y + height)
+    ld a, (wall_hit_bottom)
+    cp 191
+    jr nc, .udefr_bottom_ready
+    inc a
+.udefr_bottom_ready:
+    srl a
+    srl a
+    srl a
+    ld b, a
+
+    ld a, (wall_hit_w)
+    srl a
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call runtime_tile_is_deadly_nb
+    or a
+    jr z, .udefr_clear
+
+.udefr_found:
+    pop bc
+    ld hl, entity_deadly_collision
+    ld e, c
+    ld d, 0
+    add hl, de
+    set 0, (hl)
+    ret
+
+.udefr_clear:
+    pop bc
+    ld hl, entity_deadly_collision
+    ld e, c
+    ld d, 0
+    add hl, de
+    res 0, (hl)
+    ret
+
+; ------------------------------------------------------------------
 ; check_tile_interaction
 ; Purpose:
 ;   Scan active input-driven entities against the interactable tile map,
 ;   collect matching tiles, update counters, optional target variable, sound,
-;   and persistent collected-tile state.
+;   persistent collected-tile state, and late-frame deadly-tile contact.
 ; Input:
 ;   None (reads active_entity_list / active_entity_count and runtime maps)
 ; Output:
@@ -5117,6 +5341,14 @@ check_tile_interaction:
     ld a, (hl)
     and COMP_MASK_INPUT
     jp z, .ti_next                 ; No input component → skip
+
+    ; Mirror Preview timing for deadly tiles using the same runtime map access
+    ; strategy as collectibles.
+    push bc
+    push de
+    call update_entity_deadly_flag_runtime
+    pop de
+    pop bc
 
     ; Get center X
     ld hl, entity_x_pos
@@ -5561,6 +5793,15 @@ entity_job_set_entry_ok:
             add hl, de
             ld a, c
             ld (hl), a
+            ld a, b
+            cp 1
+            jr nz, entity_job_set_enable_scheduler
+            ld a, c
+            or a
+            ret z
+entity_job_set_enable_scheduler:
+            ld a, 1
+            ld (entity_job_scheduler_active), a
             ret
 
     ; ------------------------------------------------------------------
@@ -5571,7 +5812,7 @@ entity_job_set_entry_ok:
     ; Destroys: AF, BC, DE, HL
     ; Notes:
     ;   - Fast path for power-of-two periods using bitmask modulo.
-    ;   - Fallback path keeps generic modulo-by-subtraction for other periods.
+    ;   - Fallback path uses 16-bit frame modulo with fixed 16-iteration cost.
     ; ------------------------------------------------------------------
 entity_job_should_run_c:
             ld a, c
@@ -5631,13 +5872,21 @@ entity_job_run_entry_mod:
 entity_job_run_entry_ready:
             ld e, a
 
-            ld a, (interrupt_counter)
-entity_job_run_frame_mod:
+            ; 16-bit frame modulo: (interrupt_counter % period) in A
+            ; Uses shift/subtract division with fixed 16 iterations.
+            ld hl, (interrupt_counter)
+            xor a
+            ld d, 16
+entity_job_run_frame_mod16:
+            add hl, hl
+            adc a, a
             cp b
-            jr c, entity_job_run_frame_ready
+            jr c, entity_job_run_frame_mod16_no_sub
             sub b
-            jr entity_job_run_frame_mod
-entity_job_run_frame_ready:
+entity_job_run_frame_mod16_no_sub:
+            dec d
+            jr nz, entity_job_run_frame_mod16
+
             cp e
             jr nz, entity_job_run_inactive
 entity_job_run_active:
@@ -5733,6 +5982,8 @@ function generateInitComponents(usage) {
         ld bc, 31
         ld (hl), 0
         ldir
+        xor a
+        ld (entity_job_scheduler_active), a
  
     `;
     code += `    ; Initialize position system (always)
@@ -6529,40 +6780,33 @@ execute_all_state_machines:
     ld a, (hl)                    ; A = entity index
     inc hl                        ; Advance list pointer
     push hl                       ; Save list pointer
-    push bc                       ; Save loop counter
 
-    ; Skip inactive entities early
-    ld c, a                       ; C = entity index
-    ld b, 0                       ; BC = entity index
-    ld hl, entity_active
-    add hl, bc
-    ld a, (hl)                    ; A = active flag
-    or a
-    jr z, .skip_entity            ; Inactive entity, skip
+    ; active_entity_list already guarantees active + current_screen_id
+    ld e, a                       ; DE = entity index
+    ld d, 0
 
     ; Check if this entity has a state machine assigned
     ld hl, entity_sm_ptr_l
-    add hl, bc
-    ld e, (hl)                    ; E = SM ptr low
+    add hl, de
+    ld c, (hl)                    ; C = SM ptr low
     
     ld hl, entity_sm_ptr_h
-    add hl, bc
-    ld d, (hl)                    ; D = SM ptr high
+    add hl, de
+    ld a, (hl)                    ; A = SM ptr high
     
     ; Check if SM pointer is non-zero
-    ld a, d
-    or e
+    or c
     jr z, .skip_entity            ; No SM assigned, skip
 
     ; Entity has a state machine - execute it
-    ld a, c
+    ld a, e
+    push bc                       ; Preserve loop counter (B) across call
     call SM_Update                ; Execute state machine (A = entity index)
+    pop bc
     
 .skip_entity:
-    pop bc                        ; Restore loop counter
     pop hl                        ; Restore list pointer
-    dec b
-    jp nz, .sm_loop               ; Loop for all used entities
+    djnz .sm_loop                 ; Loop for all used entities
     
     ret
 

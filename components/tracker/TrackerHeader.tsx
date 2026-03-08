@@ -61,6 +61,10 @@ interface TrackerHeaderProps {
   soundChip: 'PSG' | 'SCC';
   /** Callback to update the sound chip. */
   onSoundChipChange: (chip: 'PSG' | 'SCC') => void;
+  /** Optional callback to import a PT3 file as external backend. */
+  onImportPT3File?: () => void;
+  /** Whether the current track uses the external PT3 backend. */
+  isExternalPT3?: boolean;
 }
 
 /**
@@ -77,7 +81,7 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
   ayHardwareEnvelopePeriod, onAyHardwareEnvelopePeriodChange,
   ayNoisePeriod, onAyNoisePeriodChange,
   isPlaying, onPlayStop, onLoadSampleSong, onSilenceAllChannels,
-  soundChip, onSoundChipChange
+  soundChip, onSoundChipChange, onImportPT3File, isExternalPT3
 }) => {
   const [localPatternRows, setLocalPatternRows] = useState(String(patternRows));
 
@@ -105,7 +109,17 @@ export const TrackerHeader: React.FC<TrackerHeaderProps> = ({
         <input type="text" value={songAuthor} onChange={e => onSongAuthorChange(e.target.value)} className="p-1 bg-msx-bgcolor border border-msx-border rounded w-28"/>
       </div>
       <div className="flex items-center space-x-1">
-        <Button onClick={onLoadSampleSong} size="sm" variant="ghost" icon={<MusicNoteIcon />} title="Load 'Ode to Joy' Sample">Sample</Button> 
+        <Button onClick={onLoadSampleSong} size="sm" variant="ghost" icon={<MusicNoteIcon />} title="Load 'Ode to Joy' Sample">Sample</Button>
+        {onImportPT3File && soundChip === 'PSG' && (
+          <Button
+            onClick={onImportPT3File}
+            size="sm"
+            variant={isExternalPT3 ? 'primary' : 'ghost'}
+            title="Import external PT3 file (.pt3 or .99) — replaces native tracker data"
+          >
+            {isExternalPT3 ? '✓ PT3' : 'Import PT3'}
+          </Button>
+        )}
       </div>
       <span className="border-l border-msx-border h-5 mx-1"></span>
       <div>

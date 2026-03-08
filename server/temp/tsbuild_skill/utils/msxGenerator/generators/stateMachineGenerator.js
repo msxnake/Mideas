@@ -325,7 +325,6 @@ SM_Update:
     push bc
     push de
     push hl
-    push ix
     
     ld c, a             ; C = Entity Index
     ld b, 0             ; BC = Entity Index
@@ -379,24 +378,13 @@ sm_timer_no_overflow:
     ex de, hl           ; HL = State Data Ptr
 
     ; 3. Check Transitions
-    push hl             ; Save State Data Ptr
-    ld bc, 5
-    add hl, bc
+    ld de, 5
+    add hl, de
     ld e, (hl)
     inc hl
     ld d, (hl)
     ; DE = Transitions List Ptr
-
-    ; Restore State Data Ptr
-    pop hl
-
-    ; Get Entity Index from stack
-    ; Stack: IX, HL, DE, BC, AF (pushed at start)
-    ; SP + 0=IX, SP + 2=HL, SP + 4=DE, SP + 6=BC, SP + 8=AF
-    ; Saved A (entity index) is at SP + 9 (SP + 8 is flags)
-    ld ix, 0
-    add ix, sp
-    ld a, (ix + 9)      ; A = Entity Index
+    ld a, c             ; A = Entity Index (kept in C)
     
     call SM_CheckTransitions
 
@@ -406,7 +394,6 @@ sm_timer_no_overflow:
     ; 4. Execute OnUpdate Actions (Optional)
 
 sm_update_done:
-    pop ix
     pop hl
     pop de
     pop bc
@@ -465,10 +452,8 @@ SM_CheckTransitions_Loop:
     ; Transition tail layout after condition payload:
     ;   [0-1] Target State Ptr
     ;   [2-3] Actions Ptr
-    inc hl
-    inc hl
-    inc hl
-    inc hl
+    ld de, 4
+    add hl, de
     
     pop bc; Restore counters
     dec c; Decrement loop counter
@@ -995,6 +980,8 @@ Action_ChangeSprite:
     ld a, e                 ; A = facing dir
     or a
     jr z, .acs_dir_done     ; facing = 0 → no hay redirect, usar sprite original
+    cp 5
+    jr nc, .acs_dir_done    ; facing inválido → ignorar redirect y usar sprite original
 
     ; Convertir facing (1-4) a índice de tabla (0-3): dec a
     dec a                   ; A = índice en SM_FacingDirTablePtrs (0=left, 1=right, 2=up, 3=down)
@@ -4492,6 +4479,336 @@ Condition_VariableCompare:
     ld a, 0
     ret
     `;
+// =============================================================================
+// CONDITIONAL HANDLER TREE-SHAKING
+// =============================================================================
+/**
+ * Scan all state machines to collect which action and condition types are used.
+ * Used to strip unused handler bodies and reduce ROM binary size.
+ */
+function collectUsedActionsAndConditions(stateMachines) {
+    const usedActions = new Set();
+    const usedConditions = new Set();
+    function scanActions(actions) {
+        if (!actions)
+            return;
+        for (const action of actions) {
+            if (action?.type)
+                usedActions.add(action.type);
+        }
+    }
+    function scanCondition(cond) {
+        if (!cond)
+            return;
+        if (cond.type)
+            usedConditions.add(cond.type);
+        if (Array.isArray(cond.conditions)) {
+            for (const sub of cond.conditions) {
+                scanCondition(sub);
+            }
+        }
+    }
+    for (const sm of stateMachines) {
+        for (const state of sm.states ?? []) {
+            scanActions(state.onEnter);
+            scanActions(state.onExit);
+        }
+        for (const t of sm.transitions ?? []) {
+            scanActions(t.actions);
+            scanCondition(t.conditions);
+        }
+    }
+    return { usedActions, usedConditions };
+}
+/**
+ * Strip ASM text from `\nfromLabel:` up to (not including) `\ntoLabel:`.
+ * Returns asm unchanged if either label is not found.
+ */
+function stripSection(asm, fromLabel, toLabel) {
+    const fromMark = `\n${fromLabel}:`;
+    const toMark = `\n${toLabel}:`;
+    const startIdx = asm.indexOf(fromMark);
+    if (startIdx < 0)
+        return asm;
+    const endIdx = asm.indexOf(toMark, startIdx);
+    if (endIdx < 0)
+        return asm;
+    return asm.slice(0, startIdx) + `\n; [${fromLabel} stripped - not used]\n` + asm.slice(endIdx);
+}
+/**
+ * Strip ASM text from `\nfromLabel:` to the end of the string.
+ * Used for the last handler in a section (no following label to anchor to).
+ */
+function stripSectionToEnd(asm, fromLabel) {
+    const fromMark = `\n${fromLabel}:`;
+    const startIdx = asm.indexOf(fromMark);
+    if (startIdx < 0)
+        return asm;
+    return asm.slice(0, startIdx) + `\n; [${fromLabel} stripped - not used]\n`;
+}
+/** Patch a SM_ActionTable DW entry to point to Action_Nop. */
+function patchActionEntry(asm, label) {
+    // Match "DW Label<spaces>; comment" — spaces between label and ; are required
+    return asm.replace(new RegExp(`DW ${label}\\s*(;[^\\n]*)`), `DW Action_Nop $1 [${label} stripped]`);
+}
+/** Patch a SM_ConditionTable DW entry to point to Condition_Nop. */
+function patchConditionEntry(asm, label) {
+    return asm.replace(new RegExp(`DW ${label}\\s*(;[^\\n]*)`), `DW Condition_Nop $1 [${label} stripped]`);
+}
+/**
+ * Remove unused SM handler bodies from the generated ASM to reduce binary size.
+ * Must be called immediately after assembling Z80_RUNTIME_ENGINE + Z80_DISPATCH_TABLE,
+ * before any SM data tables are appended (so Condition_VariableCompare strip-to-end is safe).
+ */
+function applyConditionalHandlers(asm, usedActions, usedConditions) {
+    const hasAction = (...types) => types.some(t => usedActions.has(t));
+    const hasCond = (...types) => types.some(t => usedConditions.has(t));
+    // ---- ACTION HANDLERS ----
+    if (!hasAction(statemachine_types_1.ActionTypes.SET_POSITION)) {
+        asm = stripSection(asm, 'Action_SetPosition', 'Action_MoveBy');
+        asm = patchActionEntry(asm, 'Action_SetPosition');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.MOVE_BY)) {
+        asm = stripSection(asm, 'Action_MoveBy', 'Action_SetVelocity');
+        asm = patchActionEntry(asm, 'Action_MoveBy');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.SET_VELOCITY)) {
+        asm = stripSection(asm, 'Action_SetVelocity', 'Action_ApplyForce');
+        asm = patchActionEntry(asm, 'Action_SetVelocity');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.APPLY_FORCE)) {
+        // ApplyForce ends just before SM_FacingDirTablePtrs (which belongs to ChangeSprite)
+        asm = stripSection(asm, 'Action_ApplyForce', 'SM_FacingDirTablePtrs');
+        asm = patchActionEntry(asm, 'Action_ApplyForce');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.CHANGE_SPRITE)) {
+        // SM_FacingDirTablePtrs is only used by Action_ChangeSprite
+        asm = stripSection(asm, 'SM_FacingDirTablePtrs', 'Action_PlayAnimation');
+        asm = patchActionEntry(asm, 'Action_ChangeSprite');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.PLAY_ANIMATION)) {
+        asm = stripSection(asm, 'Action_PlayAnimation', 'Action_SetAnimSpeed');
+        asm = patchActionEntry(asm, 'Action_PlayAnimation');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.SET_ANIMATION_SPEED)) {
+        asm = stripSection(asm, 'Action_SetAnimSpeed', 'Action_ToggleAnim');
+        asm = patchActionEntry(asm, 'Action_SetAnimSpeed');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.TOGGLE_ANIMATION)) {
+        asm = stripSection(asm, 'Action_ToggleAnim', 'Action_PlaySound');
+        asm = patchActionEntry(asm, 'Action_ToggleAnim');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.PLAY_SOUND)) {
+        asm = stripSection(asm, 'Action_PlaySound', 'Action_PlayMusic');
+        asm = patchActionEntry(asm, 'Action_PlaySound');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.PLAY_MUSIC)) {
+        asm = stripSection(asm, 'Action_PlayMusic', 'Action_MuteMusic');
+        asm = patchActionEntry(asm, 'Action_PlayMusic');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.MUTE_MUSIC)) {
+        asm = stripSection(asm, 'Action_MuteMusic', 'Action_StopMusic');
+        asm = patchActionEntry(asm, 'Action_MuteMusic');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.STOP_MUSIC)) {
+        asm = stripSection(asm, 'Action_StopMusic', 'Action_SetVariable');
+        asm = patchActionEntry(asm, 'Action_StopMusic');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.SET_VARIABLE)) {
+        asm = stripSection(asm, 'Action_SetVariable', 'Action_IncVariable');
+        asm = patchActionEntry(asm, 'Action_SetVariable');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.INCREMENT_VARIABLE)) {
+        asm = stripSection(asm, 'Action_IncVariable', 'Action_DecVariable');
+        asm = patchActionEntry(asm, 'Action_IncVariable');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.DECREMENT_VARIABLE)) {
+        asm = stripSection(asm, 'Action_DecVariable', 'Action_Wait');
+        asm = patchActionEntry(asm, 'Action_DecVariable');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.WAIT)) {
+        asm = stripSection(asm, 'Action_Wait', 'Action_GotoState');
+        asm = patchActionEntry(asm, 'Action_Wait');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.GOTO_STATE)) {
+        asm = stripSection(asm, 'Action_GotoState', 'Action_SetCompProp');
+        asm = patchActionEntry(asm, 'Action_GotoState');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.SET_COMPONENT_PROPERTY)) {
+        asm = stripSection(asm, 'Action_SetCompProp', 'Action_DestroyEntity');
+        asm = patchActionEntry(asm, 'Action_SetCompProp');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.DESTROY_ENTITY)) {
+        asm = stripSection(asm, 'Action_DestroyEntity', 'Action_SpawnEntity');
+        asm = patchActionEntry(asm, 'Action_DestroyEntity');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.SPAWN_ENTITY, statemachine_types_1.ActionTypes.GET_RANDOM_ENTITY_POSITION)) {
+        asm = stripSection(asm, 'Action_SpawnEntity', 'Action_ChangeGameFlow');
+        asm = patchActionEntry(asm, 'Action_SpawnEntity');
+        asm = patchActionEntry(asm, 'Action_GetRandomPos');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.CHANGE_GAME_FLOW_NODE)) {
+        asm = stripSection(asm, 'Action_ChangeGameFlow', 'Action_DecLives');
+        asm = patchActionEntry(asm, 'Action_ChangeGameFlow');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.DECREASE_LIVES, statemachine_types_1.ActionTypes.INCREASE_LIVES, statemachine_types_1.ActionTypes.RESPAWN_PLAYER)) {
+        asm = stripSection(asm, 'Action_DecLives', 'Action_BreakTile');
+        asm = patchActionEntry(asm, 'Action_DecLives');
+        asm = patchActionEntry(asm, 'Action_IncLives');
+        asm = patchActionEntry(asm, 'Action_Respawn');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.BREAK_TILE)) {
+        asm = stripSection(asm, 'Action_BreakTile', 'Action_ReplaceTile');
+        asm = patchActionEntry(asm, 'Action_BreakTile');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.REPLACE_TILE)) {
+        asm = stripSection(asm, 'Action_ReplaceTile', 'Action_Rnd');
+        asm = patchActionEntry(asm, 'Action_ReplaceTile');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.RND)) {
+        asm = stripSection(asm, 'Action_Rnd', 'Action_PointAt');
+        asm = patchActionEntry(asm, 'Action_Rnd');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.POINT_AT)) {
+        // Action_PointAt ends just before SM_MusicState (audio data/helpers)
+        asm = stripSection(asm, 'Action_PointAt', 'SM_MusicState');
+        asm = patchActionEntry(asm, 'Action_PointAt');
+    }
+    // ---- AUDIO HELPERS (between Action_PointAt and SM_ReadVar) ----
+    // SM_SilencePSG, SM_ApplySoundFrame, SM_UpdateSound are ALWAYS kept
+    // because gameFlowGenerator/interruptGenerator call SM_UpdateSound unconditionally.
+    // SM_PlaySoundAsset is only needed by Action_PlaySound
+    if (!hasAction(statemachine_types_1.ActionTypes.PLAY_SOUND)) {
+        asm = stripSection(asm, 'SM_PlaySoundAsset', 'SM_UpdateSound');
+        // SM_PlaySfx_* come after SM_UpdateSound; also only used by PlaySound
+        asm = stripSection(asm, 'SM_PlaySfx_Beep', 'SM_RandomByte');
+    }
+    // Random/spawn helpers: SM_RandomByte, SM_RandomActiveEntity, etc.
+    const needsRandomHelpers = hasAction(statemachine_types_1.ActionTypes.RND, statemachine_types_1.ActionTypes.SPAWN_ENTITY, statemachine_types_1.ActionTypes.GET_RANDOM_ENTITY_POSITION);
+    if (!needsRandomHelpers) {
+        asm = stripSection(asm, 'SM_RandomByte', 'SM_WriteTileRelativeToEntity');
+    }
+    // SM_WriteTileRelativeToEntity is only used by BreakTile / ReplaceTile
+    if (!hasAction(statemachine_types_1.ActionTypes.BREAK_TILE, statemachine_types_1.ActionTypes.REPLACE_TILE)) {
+        asm = stripSection(asm, 'SM_WriteTileRelativeToEntity', 'SM_ReadVar');
+    }
+    // ---- VARIABLE HELPERS ----
+    // SM_ReadVar / SM_WriteVar needed by variable-related actions
+    const needsVarHelpers = hasAction(statemachine_types_1.ActionTypes.SET_VARIABLE, statemachine_types_1.ActionTypes.INCREMENT_VARIABLE, statemachine_types_1.ActionTypes.DECREMENT_VARIABLE, statemachine_types_1.ActionTypes.SET_COMPONENT_PROPERTY, statemachine_types_1.ActionTypes.ADD_VARIABLES, statemachine_types_1.ActionTypes.SUBTRACT_VARIABLES, statemachine_types_1.ActionTypes.MULTIPLY_VARIABLES, statemachine_types_1.ActionTypes.DIVIDE_VARIABLES, statemachine_types_1.ActionTypes.MODULO_VARIABLES, statemachine_types_1.ActionTypes.ASSIGN_VARIABLE);
+    if (!needsVarHelpers) {
+        asm = stripSection(asm, 'SM_ReadVar', 'Action_AddVars');
+    }
+    // ---- MATH ACTION HANDLERS ----
+    if (!hasAction(statemachine_types_1.ActionTypes.ADD_VARIABLES)) {
+        asm = stripSection(asm, 'Action_AddVars', 'Action_SubVars');
+        asm = patchActionEntry(asm, 'Action_AddVars');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.SUBTRACT_VARIABLES)) {
+        asm = stripSection(asm, 'Action_SubVars', 'Action_MulVars');
+        asm = patchActionEntry(asm, 'Action_SubVars');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.MULTIPLY_VARIABLES)) {
+        asm = stripSection(asm, 'Action_MulVars', 'Action_DivVars');
+        asm = patchActionEntry(asm, 'Action_MulVars');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.DIVIDE_VARIABLES)) {
+        asm = stripSection(asm, 'Action_DivVars', 'Action_ModVars');
+        asm = patchActionEntry(asm, 'Action_DivVars');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.MODULO_VARIABLES)) {
+        asm = stripSection(asm, 'Action_ModVars', 'Action_AssignVar');
+        asm = patchActionEntry(asm, 'Action_ModVars');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.ASSIGN_VARIABLE)) {
+        asm = stripSection(asm, 'Action_AssignVar', 'Action_DisableInput');
+        asm = patchActionEntry(asm, 'Action_AssignVar');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.DISABLE_INPUT)) {
+        asm = stripSection(asm, 'Action_DisableInput', 'Action_EnableInput');
+        asm = patchActionEntry(asm, 'Action_DisableInput');
+    }
+    if (!hasAction(statemachine_types_1.ActionTypes.ENABLE_INPUT)) {
+        asm = stripSection(asm, 'Action_EnableInput', 'SM_ConditionTable');
+        asm = patchActionEntry(asm, 'Action_EnableInput');
+    }
+    // ---- CONDITION HANDLERS ----
+    if (!hasCond(statemachine_types_1.ConditionTypes.AND)) {
+        asm = stripSection(asm, 'Condition_And', 'Condition_Or');
+        asm = patchConditionEntry(asm, 'Condition_And');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.OR)) {
+        asm = stripSection(asm, 'Condition_Or', 'Condition_Xor');
+        asm = patchConditionEntry(asm, 'Condition_Or');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.XOR)) {
+        asm = stripSection(asm, 'Condition_Xor', 'Condition_Not');
+        asm = patchConditionEntry(asm, 'Condition_Xor');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.NOT)) {
+        // Strip only Condition_Not handler; SM_MatchDirection (next) may still be needed
+        asm = stripSection(asm, 'Condition_Not', 'SM_MatchDirection');
+        asm = patchConditionEntry(asm, 'Condition_Not');
+    }
+    // SM_MatchDirection needed by KEY_PRESSED, KEY_RELEASED, CAN_MOVE_DIRECTION, KEY_AND_MOVEMENT
+    const needsMatchDir = hasCond(statemachine_types_1.ConditionTypes.KEY_PRESSED, statemachine_types_1.ConditionTypes.KEY_RELEASED, statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION, statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT);
+    if (!needsMatchDir) {
+        asm = stripSection(asm, 'SM_MatchDirection', 'SM_DeduceDirectionFromVelocity');
+    }
+    // SM_DeduceDirectionFromVelocity needed by CAN_MOVE_DIRECTION, KEY_AND_MOVEMENT
+    if (!hasCond(statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION, statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT)) {
+        asm = stripSection(asm, 'SM_DeduceDirectionFromVelocity', 'SM_TestMoveDirection');
+    }
+    // SM_TestMoveDirection needed by CAN_MOVE_DIRECTION, PATH_CLEAR
+    if (!hasCond(statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION, statemachine_types_1.ConditionTypes.PATH_CLEAR)) {
+        asm = stripSection(asm, 'SM_TestMoveDirection', 'Condition_KeyPressed');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.KEY_PRESSED)) {
+        asm = stripSection(asm, 'Condition_KeyPressed', 'Condition_KeyReleased');
+        asm = patchConditionEntry(asm, 'Condition_KeyPressed');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.KEY_RELEASED)) {
+        asm = stripSection(asm, 'Condition_KeyReleased', 'Condition_TimeOut');
+        asm = patchConditionEntry(asm, 'Condition_KeyReleased');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.TIME_OUT)) {
+        asm = stripSection(asm, 'Condition_TimeOut', 'Condition_CanMove');
+        asm = patchConditionEntry(asm, 'Condition_TimeOut');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.CAN_MOVE_DIRECTION)) {
+        asm = stripSection(asm, 'Condition_CanMove', 'Condition_HasCollision');
+        asm = patchConditionEntry(asm, 'Condition_CanMove');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.HAS_COLLISION)) {
+        asm = stripSection(asm, 'Condition_HasCollision', 'Condition_PathClear');
+        asm = patchConditionEntry(asm, 'Condition_HasCollision');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.PATH_CLEAR)) {
+        asm = stripSection(asm, 'Condition_PathClear', 'Condition_OnWallCollision');
+        asm = patchConditionEntry(asm, 'Condition_PathClear');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.ON_WALL_COLLISION)) {
+        asm = stripSection(asm, 'Condition_OnWallCollision', 'Condition_DeadlyTile');
+        asm = patchConditionEntry(asm, 'Condition_OnWallCollision');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.HAS_DEADLY_TILE_COLLISION)) {
+        asm = stripSection(asm, 'Condition_DeadlyTile', 'Condition_AnimComplete');
+        asm = patchConditionEntry(asm, 'Condition_DeadlyTile');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.ANIMATION_COMPLETE)) {
+        asm = stripSection(asm, 'Condition_AnimComplete', 'Condition_KeyAndMove');
+        asm = patchConditionEntry(asm, 'Condition_AnimComplete');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.KEY_AND_MOVEMENT)) {
+        asm = stripSection(asm, 'Condition_KeyAndMove', 'Condition_VariableCompare');
+        asm = patchConditionEntry(asm, 'Condition_KeyAndMove');
+    }
+    if (!hasCond(statemachine_types_1.ConditionTypes.VARIABLE_COMPARE)) {
+        // Last condition - strip to end of dispatch table string
+        asm = stripSectionToEnd(asm, 'Condition_VariableCompare');
+        asm = patchConditionEntry(asm, 'Condition_VariableCompare');
+    }
+    return asm;
+}
 function clampByte(value) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric))
@@ -4602,6 +4919,11 @@ function generateStateMachineSoundTables(sounds) {
  */
 function generateStateMachineSystem(stateMachines, globalVariables, sprites, tiles, templates, sounds, trackIndexByAssetId) {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
+    // Tree-shake: remove unused handler bodies to stay within 32KB ROM budget.
+    if (stateMachines.length > 0) {
+        const { usedActions, usedConditions } = collectUsedActionsAndConditions(stateMachines);
+        asm = applyConditionalHandlers(asm, usedActions, usedConditions);
+    }
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
     // Must match spritesGenerator directional expansion to keep indexes aligned.
     const spriteCatalog = (0, spriteUtils_1.buildMSXDirectionalSpriteCatalog)((sprites || []));

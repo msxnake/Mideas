@@ -8,30 +8,29 @@
  */
 
 import { ProjectAnalysis } from '../../asmTemplateGenerator';
+import type { ExecutionPlan } from '../types/executionTypes';
 
 /**
  * Generate task registration code for interrupt system
  */
-function generateTaskRegistration(analysis?: ProjectAnalysis): string {
+function generateTaskRegistration(analysis?: ProjectAnalysis, executionPlan?: ExecutionPlan): string {
   if (!analysis) return '';
 
   let code = '';
   const hasAudioTick = !!((analysis.tracks && analysis.tracks.length > 0) || (analysis.stateMachines && analysis.stateMachines.length > 0));
+  const usesInterruptTaskManager = executionPlan?.mode === 'interruptTaskManager';
 
-  // Keep ISR focused on minimal deterministic work only.
-  // Input and sprite SAT upload run in the frame loop synchronized by HALT.
-  // This avoids long ISR paths that can cause slowdowns/hangs on busy screens.
-
-  // Task 4: Audio tick in VBlank to keep tracker/SM sound cadence stable.
   if (hasAudioTick) {
-    code += `    ld a, 4\n`;
-    code += `    ld hl, task_update_music\n`;
-    code += `    call enable_task\n\n`;
+    code += `    ; Initialize PSG/audio once at boot. WorldLink must not reset music after a Music node.\n`;
+    code += `    call init_sound_system\n\n`;
   }
 
-  // NOTE: To keep gameplay deterministic and identical to Mideas' GameFlow update order,
-  // we do NOT auto-register gameplay-mutating tasks (physics/collision) here.
-  // Those updates should run in the main (GameFlow-driven) tick.
+  if (usesInterruptTaskManager) {
+    code += `    ; Register boot-time IRQ tasks defined by the engine execution plan.\n`;
+    code += `    call init_default_tasks_from_plan\n\n`;
+  } else {
+    code += `    ; GameLoop+HALT mode: keep gameplay/audio ticks in the main GameFlow loops.\n\n`;
+  }
 
   return code;
 }
@@ -44,7 +43,7 @@ function generateTaskRegistration(analysis?: ProjectAnalysis): string {
  * @param analysis - Project analysis with GameFlow data
  * @returns ASM code string with ROM header and initialization
  */
-export function generateHeaderFile(projectName: string, analysis?: ProjectAnalysis): string {
+export function generateHeaderFile(projectName: string, analysis?: ProjectAnalysis, executionPlan?: ExecutionPlan): string {
   // Generate GameFlow comment for documentation
   let gameFlowComment = '';
 
@@ -162,7 +161,7 @@ restart_rom_continue:
     di
 
     ; Register default tasks based on project needs
-    ${generateTaskRegistration(analysis)}
+    ${generateTaskRegistration(analysis, executionPlan)}
     ei
 
 ${analysis.hasGameFlow ? `    ; ====================================================

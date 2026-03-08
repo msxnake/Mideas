@@ -1,0 +1,9 @@
+PT3 source:
+- OpenGameArt: "It's come from the dark" by Shiru
+- Downloaded from: https://opengameart.org/content/its-come-from-the-dark
+- Asset ZIP used: https://opengameart.org/sites/default/files/itscomefromthedark.zip
+- License shown on the asset page: CC-BY 3.0
+
+Build note:
+- The replayer in server/PT3-ROM-alltables-glass.asm expects PT3 data without the first 99 bytes.
+- itscomefromthedark_stripped.pt3 is the downloaded itscomefromthedark.pt3 with that 99-byte header removed.
