@@ -12,43 +12,55 @@
 ; Menus: No
 ; HUD: No
 ; State Machines: 2
-; ROM Mode: auto
+; ROM Mode: simple32k
 ; Mapper Target: konami
-; Auto MegaROM: Yes
+; Auto MegaROM: No
+; Engine Execution Mode: interruptTaskManager
+; IRQ Task: slot 0 -> task_audio_tick (audio, every 1 frame)
+; IRQ Task: slot 1 -> task_frame_counter (timer, every 1 frame)
+; Mainline: postHalt -> update_sprites_to_vram (sprites)
+; Mainline: preUpdate -> check_world_screen_transition (screenFlow)
+; Mainline: postUpdate -> update_all_entities (entities)
+; Mainline: postUpdate -> execute_all_state_machines (stateMachines)
+; Mainline: postUpdate -> update_animated_tiles (animation)
+; Mainline: postUpdate -> sfx_update (sfx)
+; Mainline: render -> render_hud (hud)
+; Warning: none
 ; ==================================================================
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 93760
-; Estimated banks used: 12
+; Estimated payload bytes: 99418
+; Estimated banks used: 13
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1760 bytes)
 ; BANK 00 @#06E0 : colors.asm (1405 bytes)
 ; BANK 00 @#0C5D : components.asm (22 bytes)
-; BANK 00 @#0C73 : entities.asm part 1/2 (5005 bytes)
-; BANK 01 @#0000 : entities.asm part 2/2 (8192 bytes)
-; BANK 02 @#0000 : entities.asm part 3/2 (1151 bytes)
-; BANK 02 @#047F : worlds.asm (6406 bytes)
-; BANK 02 @#1D85 : screens.asm part 1/3 (635 bytes)
-; BANK 03 @#0000 : screens.asm part 2/3 (8192 bytes)
-; BANK 04 @#0000 : screens.asm part 3/3 (8192 bytes)
-; BANK 05 @#0000 : screens.asm part 4/3 (1849 bytes)
-; BANK 05 @#0739 : sprites.asm part 1/2 (6343 bytes)
-; BANK 06 @#0000 : sprites.asm part 2/2 (7492 bytes)
-; BANK 06 @#1D44 : font.asm (174 bytes)
-; BANK 06 @#1DF2 : hud.asm (71 bytes)
-; BANK 06 @#1E39 : menus.asm (168 bytes)
-; BANK 06 @#1EE1 : sound.asm (287 bytes)
-; BANK 07 @#0000 : sound.asm (2897 bytes)
-; BANK 07 @#0B51 : scroll.asm (2353 bytes)
-; BANK 07 @#1482 : animtiles.asm (2942 bytes)
-; BANK 08 @#0000 : animtiles.asm (407 bytes)
-; BANK 08 @#0197 : particles.asm (4963 bytes)
-; BANK 08 @#14FA : statemachine.asm part 1/3 (2822 bytes)
-; BANK 09 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 10 @#0000 : statemachine.asm part 3/3 (5713 bytes)
-; BANK 10 @#1651 : gameflow.asm (2479 bytes)
-; BANK 11 @#0000 : gameflow.asm (3648 bytes)
+; BANK 00 @#0C73 : entities.asm part 1/3 (5005 bytes)
+; BANK 01 @#0000 : entities.asm part 2/3 (8192 bytes)
+; BANK 02 @#0000 : entities.asm part 3/3 (3395 bytes)
+; BANK 02 @#0D43 : worlds.asm (4797 bytes)
+; BANK 03 @#0000 : worlds.asm (2588 bytes)
+; BANK 03 @#0A1C : screens.asm part 1/3 (5604 bytes)
+; BANK 04 @#0000 : screens.asm part 2/3 (8192 bytes)
+; BANK 05 @#0000 : screens.asm part 3/3 (5960 bytes)
+; BANK 05 @#1748 : sprites.asm part 1/2 (2232 bytes)
+; BANK 06 @#0000 : sprites.asm part 2/2 (6354 bytes)
+; BANK 06 @#18D2 : font.asm (174 bytes)
+; BANK 06 @#1980 : hud.asm (79 bytes)
+; BANK 06 @#19CF : menus.asm (168 bytes)
+; BANK 06 @#1A77 : sound.asm part 1/2 (1417 bytes)
+; BANK 07 @#0000 : sound.asm part 2/2 (8120 bytes)
+; BANK 07 @#1FB8 : scroll.asm (72 bytes)
+; BANK 08 @#0000 : scroll.asm (2281 bytes)
+; BANK 08 @#08E9 : animtiles.asm (4605 bytes)
+; BANK 08 @#1AE6 : particles.asm (1306 bytes)
+; BANK 09 @#0000 : particles.asm (3657 bytes)
+; BANK 09 @#0E49 : statemachine.asm part 1/2 (4535 bytes)
+; BANK 10 @#0000 : statemachine.asm part 2/2 (8192 bytes)
+; BANK 11 @#0000 : statemachine.asm part 3/2 (2977 bytes)
+; BANK 11 @#0BA1 : gameflow.asm (5215 bytes)
+; BANK 12 @#0000 : gameflow.asm (1114 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -143,9 +155,11 @@ restart_rom_continue:
     di
 
     ; Register default tasks based on project needs
-        ld a, 0
-    ld hl, task_update_input
-    call enable_task
+        ; Initialize PSG/audio once at boot. WorldLink must not reset music after a Music node.
+    call init_sound_system
+
+    ; Register boot-time IRQ tasks defined by the engine execution plan.
+    call init_default_tasks_from_plan
 
 
     ei
@@ -357,6 +371,8 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ;   FAST_WRTVRM:  ~43% faster (40 vs 70 cycles)
 ;   FAST_WRTVDP:  ~55% faster (25 vs 55 cycles)
 ;   FAST_GTSTCK:  ~58% faster (50 vs 120 cycles)
+;   FAST_GTTRIG:  direct trigger read (joystick button)
+;   FAST_SNSMAT:  direct keyboard matrix row read
 ;
 ; Compatibility: MSX1, MSX2, MSX2+
 ; ==================================================================
@@ -365,6 +381,28 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ; ==================================================================
 ; FAST_LDIRVM - Fast Block Transfer to VRAM
 ; ==================================================================
+; Register Contract:
+;   Purpose: Block copy from RAM to VRAM using VDP data port auto-increment.
+;   Inputs:
+;     - HL = source address (RAM)
+;     - DE = destination address (VRAM)
+;     - BC = byte count
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - HL
+;   Preserved:
+;     - DE
+;   Register roles:
+;     - A = VDP address bytes and data byte being transferred
+;     - HL = RAM read pointer (increments each byte)
+;     - DE = only used to program initial VRAM address
+;     - BC = countdown loop counter
+;   Notes:
+;     - Caller must preserve AF/BC/HL if needed after call.
+
 ; Replaces BIOS LDIRVM with direct hardware access
 ;
 ; Input:
@@ -384,16 +422,24 @@ isComputer50HzOr60Hz EQU #F3EB  ; System frequency flag
 ;
 ; Notes:
 ;   - Auto-increments VRAM address (VDP feature)
-;   - Safe to use with interrupts enabled
+;   - Keeps IRQs masked for the whole transfer to avoid VDP port races
+;   - Restores previous IRQ enable state on return
 ;   - Works on all MSX models (TMS9918, V9938, V9958)
 ; ==================================================================
 FAST_LDIRVM:
+    ; Preserve previous IRQ state (LD A,I copies IFF2 into P/V)
+    ld a, i
+    push af
+    di
+
     ; Set VRAM write address
     ld a, e
     out (#99), a           ; Write address low byte to VDP
+    nop                    ; Real VDPs need a short settle time between control writes
     ld a, d
     or #40                 ; Set bit 6 for write mode
     out (#99), a           ; Write address high byte + write command
+    nop                    ; Let the VDP latch the address before the first data write
 
     ; Copy loop
 .ldirvm_loop:
@@ -404,12 +450,37 @@ FAST_LDIRVM:
     ld a, b                ; Check if BC = 0 (4 cycles)
     or c                   ; (4 cycles)
     jr nz, .ldirvm_loop    ; Loop if not zero (12/7 cycles)
+
+    ; Restore previous IRQ state
+    pop af
+    ret po                 ; P/V=0 => IRQs were disabled on entry
+    ei
     ret
 
 
 ; ==================================================================
 ; FAST_WRTVRM - Write Single Byte to VRAM
 ; ==================================================================
+; Register Contract:
+;   Purpose: Write one byte into VRAM while preserving caller-visible state.
+;   Inputs:
+;     - A = byte to write
+;     - HL = VRAM destination address
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - None (all registers preserved)
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = temporarily saved/restored around VDP address programming
+;     - HL = VRAM address source (not modified)
+;   Notes:
+;     - Safe helper when the caller cannot tolerate register changes.
+
 ; Replaces BIOS WRTVRM
 ;
 ; Input:
@@ -427,24 +498,55 @@ FAST_LDIRVM:
 ;
 ; Notes:
 ;   - Preserves all registers including AF
-;   - Safe for HUD updates, tile changes
+;   - VDP write sequence is atomic against ISR VRAM writes
 ; ==================================================================
 FAST_WRTVRM:
-    push af                ; Save data byte (11 cycles)
+    ; Preserve caller-visible state and previous IRQ status.
+    push bc
+    ld c, a                ; C = input data byte
+    push af                ; Save caller AF
+    ld a, i
+    push af                ; Save previous IFF2 in P/V
+    di
     ld a, l
     out (#99), a           ; Address low (11 cycles)
     ld a, h
     or #40                 ; Write mode (7 cycles)
     out (#99), a           ; Address high + command (11 cycles)
-    pop af                 ; Restore data (10 cycles)
+    ld a, c
     out (#98), a           ; Write to VRAM (11 cycles)
-    ret                    ; (10 cycles)
-                           ; Total: ~40 cycles
+
+    ; Restore previous IRQ state.
+    pop af
+    jp po, .fwv_no_ei      ; P/V=0 => IRQs were disabled on entry
+    ei
+.fwv_no_ei:
+    pop af                 ; Restore caller AF
+    pop bc
+    ret
 
 
 ; ==================================================================
 ; FAST_RDVRM - Read Single Byte from VRAM
 ; ==================================================================
+; Register Contract:
+;   Purpose: Read one byte from VRAM data port.
+;   Inputs:
+;     - HL = VRAM source address
+;   Outputs:
+;     - A = byte read from VRAM
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = VDP addressing command then read result
+;     - HL = address source only (unchanged)
+;   Notes:
+;     - Callers relying on flags must account for AF clobber.
+
 ; Replaces BIOS RDVRM
 ;
 ; Input:
@@ -457,11 +559,12 @@ FAST_WRTVRM:
 ;   AF
 ;
 ; Performance:
-;   ~35 cycles vs BIOS ~65 cycles (46% faster)
+;   Slower than a naive single IN, but correct on TMS9918/MSX1 because
+;   VRAM reads require one dummy fetch after setting the address.
 ;
 ; Notes:
 ;   - Useful for collision detection, tile reading
-;   - VDP requires small delay after address set before read
+;   - First IN primes the VDP read-ahead buffer; second IN returns the byte
 ; ==================================================================
 FAST_RDVRM:
     ld a, l
@@ -469,13 +572,34 @@ FAST_RDVRM:
     ld a, h
     and #3F                ; Clear bit 6 for read mode (bit 7 must be 0)
     out (#99), a           ; Address high + read command
-    in a, (#98)            ; Read from VRAM data port
+    nop                    ; Let the VDP latch the read address
+    in a, (#98)            ; Dummy read: primes the TMS9918 prefetch buffer
+    in a, (#98)            ; Actual byte from VRAM[HL]
     ret
 
 
 ; ==================================================================
 ; FAST_WRTVDP - Write VDP Register
 ; ==================================================================
+; Register Contract:
+;   Purpose: Write one VDP register value (value first, then register index).
+;   Inputs:
+;     - B = register value
+;     - C = register number
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = output staging register for both OUT operations
+;     - B/C = preserved input pair for value and register id
+;   Notes:
+;     - Order of writes is mandatory for VDP register writes.
+
 ; Replaces BIOS WRTVDP
 ;
 ; Input:
@@ -508,6 +632,24 @@ FAST_WRTVDP:
 ; ==================================================================
 ; FAST_GTSTCK - Read Joystick Direction
 ; ==================================================================
+; Register Contract:
+;   Purpose: Read joystick direction and map PSG bits to MSX GTSTCK direction code.
+;   Inputs:
+;     - A = joystick port (0 or 1)
+;   Outputs:
+;     - A = direction code (0-8)
+;   Clobbers:
+;     - AF
+;     - HL
+;   Preserved:
+;     - BC
+;     - DE
+;   Register roles:
+;     - A = PSG register selection, raw read, and final direction code
+;     - HL = lookup table pointer into joystick_direction_table
+;   Notes:
+;     - Bits are active-low; routine inverts and masks input nibble.
+
 ; Replaces BIOS GTSTCK (which is notoriously slow)
 ;
 ; Input:
@@ -542,9 +684,12 @@ FAST_GTSTCK:
     and #0F                ; Mask to valid range
     or #0E                 ; Add 14 (base register for joystick)
 
-    ; Select PSG register
+    ; Make PSG select+read atomic so VBlank music writes cannot
+    ; corrupt the selected register mid-access.
+    di
     out (#A0), a           ; Write register number to PSG address port
     in a, (#A2)            ; Read value from PSG data port
+    ei
 
     ; Process joystick data
     cpl                    ; Invert bits (joystick is active-low)
@@ -584,6 +729,106 @@ joystick_direction_table:
     db 0  ; 1101 = Invalid
     db 0  ; 1110 = Invalid
     db 0  ; 1111 = All directions (invalid)
+
+
+; ==================================================================
+; FAST_GTTRIG - Read Joystick Trigger
+; ==================================================================
+; Register Contract:
+;   Purpose: Read joystick trigger bit directly from PSG register.
+;   Inputs:
+;     - A = joystick port (0 or 1)
+;   Outputs:
+;     - A = #FF if pressed, #00 if released
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = register select, raw PSG read, and normalized return value
+;   Notes:
+;     - Trigger is active-low in PSG bit 4.
+
+; Direct hardware replacement for BIOS GTTRIG
+;
+; Input:
+;   A = Joystick port (0 = port 1, 1 = port 2)
+;
+; Output:
+;   A = #FF if pressed, 0 if released
+;
+; Destroys:
+;   AF
+;
+; Notes:
+;   - Reads PSG register 14/15 directly
+;   - Trigger bit is active-low
+; ==================================================================
+FAST_GTTRIG:
+    ; Calculate PSG register: 14 (port 1) or 15 (port 2)
+    rrca
+    and #0F
+    or #0E
+
+    ; Make PSG select+read atomic so VBlank music writes cannot
+    ; corrupt the selected register mid-access.
+    di
+    out (#A0), a
+    in a, (#A2)
+    ei
+
+    ; Trigger bit (bit 4): 0 when pressed, 1 when released
+    and #10
+    ld a, #00
+    ret nz
+    ld a, #FF
+    ret
+
+
+; ==================================================================
+; FAST_SNSMAT - Sense Keyboard Matrix Row
+; ==================================================================
+; Register Contract:
+;   Purpose: Select keyboard matrix row via PPI and return row state.
+;   Inputs:
+;     - A = matrix row (0-11)
+;   Outputs:
+;     - A = row bits (active-low)
+;   Clobbers:
+;     - AF
+;     - C
+;   Preserved:
+;     - B
+;     - DE
+;     - HL
+;   Register roles:
+;     - A = row selector composition and final row read
+;     - C = cached low nibble used to build PPI port C output
+;   Notes:
+;     - Upper nibble of current PPI port C is preserved.
+
+; Direct hardware replacement for BIOS SNSMAT
+;
+; Input:
+;   A = row (0-11)
+;
+; Output:
+;   A = row bits (active-low, 0=pressed)
+;
+; Destroys:
+;   AF, C
+; ==================================================================
+FAST_SNSMAT:
+    and #0F                 ; Keep valid row bits
+    ld c, a
+    in a, (#AA)             ; Read current PPI port C
+    and #F0                 ; Preserve upper nibble
+    or c                    ; Set keyboard row in lower nibble
+    out (#AA), a            ; Select row
+    in a, (#A9)             ; Read keyboard matrix row
+    ret
 
 
 ; ==================================================================
@@ -696,26 +941,45 @@ TRIG_B      EQU #20      ; Trigger B (MSX2+)
 ; Input Button Bitmask
 INPUT_BTN_FIRE EQU #01   ; Fire/Space button bit in input_btn_curr/input_btn_prev
 
+; Direction flags shared by input/state machine helpers
+DIR_ALLOW_UP     EQU #01 ; Bit 0: Allow UP movement
+DIR_ALLOW_DOWN   EQU #02 ; Bit 1: Allow DOWN movement
+DIR_ALLOW_LEFT   EQU #04 ; Bit 2: Allow LEFT movement
+DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
+
 ; ==================================================================
 ; TILE BEHAVIOR CONSTANTS (for collision detection)
 ; ==================================================================
 
-; Tile Behavior Types (bitmask)
-TILE_PASSABLE       EQU #00    ; No collision (air, background)
-TILE_SOLID          EQU #01    ; Solid wall/floor (blocks all movement)
-TILE_PLATFORM       EQU #02    ; One-way platform (solid from above only)
-TILE_LADDER         EQU #04    ; Climbable (allows vertical movement)
-TILE_DEADLY         EQU #08    ; Damages/kills on contact (spikes, lava)
-TILE_WATER          EQU #10    ; Water (slows movement, swim logic)
-TILE_ICE            EQU #20    ; Slippery surface (reduced friction)
-TILE_BREAKABLE      EQU #40    ; Can be destroyed by player
-TILE_TRIGGER        EQU #80    ; Activates events on contact
+; Tile Behavior encoding matches TileEditor logicalProperties.mapId:
+;   bits 7-4 = solidity family
+;   bits 3-0 = property flags
+TILE_PASSABLE       EQU #00    ; Family 0: passable / no-solid
+TILE_SOLID          EQU #10    ; Family 1: solid wall/floor
+TILE_PLATFORM       EQU #20    ; Family 2: top-solid platform
+TILE_SLOPE          EQU #30    ; Family 3: slope / custom solid family
+TILE_BREAKABLE      EQU #01    ; Flag bit 0
+TILE_MOVABLE        EQU #02    ; Flag bit 1
+TILE_DEADLY         EQU #04    ; Flag bit 2: causesDamage
+TILE_INTERACTABLE   EQU #08    ; Flag bit 3: isInteractiveSwitch
 
 ; Collision Directions (for platform logic)
 COLL_FROM_ABOVE     EQU #01    ; Entity approaching from above
 COLL_FROM_BELOW     EQU #02    ; Entity approaching from below
 COLL_FROM_LEFT      EQU #04    ; Entity approaching from left
 COLL_FROM_RIGHT     EQU #08    ; Entity approaching from right
+
+; Entity Collision Layer Presets (entity_collision_layer / entity_collides_with)
+COLLISION_LAYER_PLAYER      EQU #01
+COLLISION_LAYER_ENEMY       EQU #02
+COLLISION_LAYER_PROJECTILE  EQU #04
+COLLISION_LAYER_PLATFORM    EQU #08
+COLLISION_LAYER_ITEM        EQU #10
+
+; Entity-Entity Collision Event Flags (entity_entity_collision_flags)
+COLLISION_EVENT_ENTITY      EQU #01
+COLLISION_EVENT_ENEMY       EQU #02
+COLLISION_EVENT_ITEM        EQU #04
 
 ; ==================================================================
 ; MIDEAS GLOBAL VARIABLES - CONSTANTS FOR VALUES
@@ -819,186 +1083,315 @@ mapper_saved_bank_p3 EQU #C018   ; Saved mapper bank for page/window 3 helpers
 mapper_saved_bank_p4 EQU #C019   ; Saved mapper bank for page/window 4 helpers
 frame_counter       EQU #C01A   ; Frame counter (16-bit)
 
+; Profiling counters (16-bit, cumulative)
+prof_update_all_entities_calls EQU #C01C   ; Calls to update_all_entities
+prof_execute_sm_calls EQU #C01E   ; Calls to execute_all_state_machines
+prof_sm_update_calls  EQU #C020   ; Calls to SM_Update
+prof_collision_calls  EQU #C022   ; Calls to update_collision_component
+prof_wall_calls       EQU #C024   ; Calls to update_wallcollision_component
+prof_deadly_calls     EQU #C026   ; Calls to update_deadly_tiles_component
+prof_tile_interaction_calls EQU #C028   ; Calls to check_tile_interaction
+prof_animation_calls  EQU #C02A   ; Calls to update_animation_component
+prof_sprite_calls     EQU #C02C   ; Calls to update_sprite_component
+prof_music_task_calls EQU #C02E   ; Calls to task_update_music
+prof_deadly_behavior_reads EQU #C030   ; Deadly helper behavior-map reads
+
 ; ==================================================================
 ; SCREEN MAP POINTERS (Current active screen)
 ; ==================================================================
-current_screen_layout   EQU #C01C   ; Pointer to current screen layout data (16-bit)
-current_screen_layout_bank EQU #C01E   ; Mapper bank for current screen layout data
-current_behavior_map    EQU #C01F   ; Pointer to current behavior map data (16-bit)
-current_behavior_map_bank EQU #C021   ; Mapper bank for current behavior map data
-behavior_cache_row     EQU #C022   ; Cached behavior row (255=invalid)
-behavior_cache_map_l   EQU #C023   ; Cached behavior map pointer low byte
-behavior_cache_map_h   EQU #C024   ; Cached behavior map pointer high byte
-behavior_cache_row_base EQU #C025   ; Cached row base address in behavior map (16-bit)
+current_screen_layout   EQU #C032   ; Pointer to current screen layout data (16-bit)
+current_screen_layout_bank EQU #C034   ; Mapper bank for current screen layout data
+current_behavior_map    EQU #C035   ; Pointer to current behavior map data (16-bit)
+current_behavior_map_bank EQU #C037   ; Mapper bank for current behavior map data
+behavior_cache_row     EQU #C038   ; Cached behavior row (255=invalid)
+behavior_cache_map_l   EQU #C039   ; Cached behavior map pointer low byte
+behavior_cache_map_h   EQU #C03A   ; Cached behavior map pointer high byte
+behavior_cache_row_base EQU #C03B   ; Cached row base address in behavior map (16-bit)
+RUNTIME_SCREEN_MAP_SIZE EQU 768
+runtime_screen_layout  EQU #C03D   ; Mutable copy of current screen layout (32x24)
+runtime_behavior_map   EQU #C33D   ; Mutable copy of current behavior map (32x24)
 
 ; ==================================================================
 ; VIEWPORT/CAMERA VARIABLES (for scroll system)
 ; ==================================================================
-camera_x            EQU #C027   ; Camera X position in pixels (16-bit)
-camera_y            EQU #C029   ; Camera Y position in pixels (16-bit)
-camera_tile_x       EQU #C02B   ; Camera tile X (column)
-camera_tile_y       EQU #C02C   ; Camera tile Y (row)
-world_width_tiles   EQU #C02D   ; World width in tiles
-world_height_tiles  EQU #C02E   ; World height in tiles
-scroll_dirty_flag   EQU #C02F   ; 1=viewport changed, needs redraw
-hud_dirty_flag      EQU #C030   ; 1=HUD needs redraw, 0=clean
+camera_x            EQU #C63D   ; Camera X position in pixels (16-bit)
+camera_y            EQU #C63F   ; Camera Y position in pixels (16-bit)
+camera_tile_x       EQU #C641   ; Camera tile X (column)
+camera_tile_y       EQU #C642   ; Camera tile Y (row)
+world_width_tiles   EQU #C643   ; World width in tiles
+world_height_tiles  EQU #C644   ; World height in tiles
+scroll_dirty_flag   EQU #C645   ; 1=viewport changed, needs redraw
+hud_dirty_flag      EQU #C646   ; 1=HUD needs redraw, 0=clean
 
 ; ==================================================================
 ; ANIMATED TILES VARIABLES
 ; ==================================================================
-anim_tile_timer     EQU #C031   ; Animation frame timer
-anim_tile_frame     EQU #C032   ; Current animation frame (0-3)
-anim_tile_speed     EQU #C033   ; Frames between animation updates
+anim_tile_timer     EQU #C647   ; Animation frame timer
+anim_tile_frame     EQU #C648   ; Current animation frame (0-3)
+anim_tile_speed     EQU #C649   ; Frames between animation updates
+anim_tile_transform_flags EQU #C64A   ; Runtime flags for transform-mode tile animation (byte0=flags, byte1=opcode scratch)
+anim_tile_row_buffer EQU #C64C   ; Temp buffer (8 bytes) for row transforms
 
 ; ==================================================================
 ; PARTICLE SYSTEM VARIABLES
 ; ==================================================================
-particle_pool       EQU #C034   ; Particle pool (8 particles * 8 bytes = 64 bytes)
+particle_pool       EQU #C654   ; Particle pool (8 particles * 8 bytes = 64 bytes)
 
 ; ==================================================================
 ; ENTITY SYSTEM VARIABLES (Fixed 32 entities)
 ; ==================================================================
 MAX_ENTITIES        EQU 32
-entity_active       EQU #C074   ; Entity active flags (32 bytes, 0=inactive, 1=active)
-entity_x_pos        EQU #C094   ; Entity X positions (32 bytes)
-entity_y_pos        EQU #C0B4   ; Entity Y positions (32 bytes)
-entity_vel_x        EQU #C0D4   ; Entity X velocity (32 bytes)
-entity_vel_y        EQU #C0F4   ; Entity Y velocity (32 bytes)
-entity_comp_masks   EQU #C114   ; Entity component masks (32 bytes)
-entity_comp_masks_hi EQU #C134   ; Entity component masks high byte (32 bytes)
-entity_screen_id    EQU #C154   ; Entity screen ID (32 bytes)
-entity_dir_mask     EQU #C174   ; Entity direction mask (32 bytes)
-entity_health       EQU #C194   ; Entity health (32 bytes)
-entity_anim_frame   EQU #C1B4   ; Entity animation frame (32 bytes)
-entity_anim_tick    EQU #C1D4   ; Entity animation tick counter (32 bytes)
-entity_anim_speed   EQU #C1F4   ; Entity animation speed (ticks per frame) (32 bytes)
-entity_anim_flags   EQU #C214   ; Entity animation flags (32 bytes)
-entity_sm_ptr_l     EQU #C234   ; Entity State Pointer Low (32 bytes)
-entity_sm_ptr_h     EQU #C254   ; Entity State Pointer High (32 bytes)
-entity_sm_timer_l   EQU #C274   ; Entity State Timer Low (32 bytes)
-entity_sm_timer_h   EQU #C294   ; Entity State Timer High (32 bytes)
-entity_sm_wait_timer EQU #C2B4   ; Entity State Wait Timer (32 bytes)
-entity_lifetime     EQU #C2D4   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
-entity_carried_by   EQU #C2F4   ; Entity carrier ID (32 bytes, 255=not carried)
-entity_sm_var_0     EQU #C314   ; Entity Variable 0 (32 bytes)
-entity_sm_var_1     EQU #C334   ; Entity Variable 1 (32 bytes)
-entity_sm_var_2     EQU #C354   ; Entity Variable 2 (32 bytes)
-entity_sm_var_3     EQU #C374   ; Entity Variable 3 (32 bytes)
-entity_sm_var_4     EQU #C394   ; Entity Variable 4 (32 bytes)
-entity_sm_var_5     EQU #C3B4   ; Entity Variable 5 (32 bytes)
-entity_sm_var_6     EQU #C3D4   ; Entity Variable 6 (32 bytes)
-entity_sm_var_7     EQU #C3F4   ; Entity Variable 7 (32 bytes)
+entity_active       EQU #C694   ; Entity active flags (32 bytes, 0=inactive, 1=active)
+entity_x_pos        EQU #C6B4   ; Entity X positions (32 bytes)
+entity_y_pos        EQU #C6D4   ; Entity Y positions (32 bytes)
+entity_vel_x        EQU #C6F4   ; Entity X velocity (32 bytes)
+entity_vel_y        EQU #C714   ; Entity Y velocity (32 bytes)
+entity_comp_masks   EQU #C734   ; Entity component masks (32 bytes)
+entity_comp_masks_hi EQU #C754   ; Entity component masks high byte (32 bytes)
+entity_screen_id    EQU #C774   ; Entity screen ID (32 bytes)
+entity_job_period   EQU #C794   ; Entity job period in frames (32 bytes, 1=100%,2=50%,3=33%,4=25%)
+entity_job_entry    EQU #C7B4   ; Entity job entry slot within period window (32 bytes)
+entity_job_scheduler_active EQU #C7D4   ; 1 when any entity uses non-default job cadence
+entity_dir_mask     EQU #C7D5   ; Entity direction mask (32 bytes)
+entity_input_speed  EQU #C7F5   ; Entity input/cursor speed (32 bytes)
+entity_health       EQU #C815   ; Entity health (32 bytes)
+entity_anim_frame   EQU #C835   ; Entity animation frame (32 bytes)
+entity_anim_tick    EQU #C855   ; Entity animation tick counter (32 bytes)
+entity_anim_speed   EQU #C875   ; Entity animation speed (ticks per frame) (32 bytes)
+entity_anim_flags   EQU #C895   ; Entity animation flags (32 bytes)
+entity_sm_ptr_l     EQU #C8B5   ; Entity State Pointer Low (32 bytes)
+entity_sm_ptr_h     EQU #C8D5   ; Entity State Pointer High (32 bytes)
+entity_sm_timer_l   EQU #C8F5   ; Entity State Timer Low (32 bytes)
+entity_sm_timer_h   EQU #C915   ; Entity State Timer High (32 bytes)
+entity_sm_wait_timer EQU #C935   ; Entity State Wait Timer (32 bytes)
+entity_lifetime     EQU #C955   ; Entity lifetime for auto-destroy (32 bytes, 0=infinite)
+entity_carried_by   EQU #C975   ; Entity carrier ID (32 bytes, 255=not carried)
+entity_template_token EQU #C995   ; Entity template token (32 bytes, 0=unknown)
+entity_facing_dir   EQU #C9B5   ; Last facing direction (32 bytes, 0=none,1=left,2=right,3=up,4=down)
+entity_sm_var_0     EQU #C9D5   ; Entity Variable 0 (32 bytes)
+entity_sm_var_1     EQU #C9F5   ; Entity Variable 1 (32 bytes)
+entity_sm_var_2     EQU #CA15   ; Entity Variable 2 (32 bytes)
+entity_sm_var_3     EQU #CA35   ; Entity Variable 3 (32 bytes)
+entity_sm_var_4     EQU #CA55   ; Entity Variable 4 (32 bytes)
+entity_sm_var_5     EQU #CA75   ; Entity Variable 5 (32 bytes)
+entity_sm_var_6     EQU #CA95   ; Entity Variable 6 (32 bytes)
+entity_sm_var_7     EQU #CAB5   ; Entity Variable 7 (32 bytes)
 
 ; ==================================================================
 ; SPRITE SYSTEM VARIABLES
 ; ==================================================================
-entity_sprite_asset_index EQU #C414   ; Entity sprite asset index - RAM copy (32 bytes)
-active_sprite_count EQU #C434   ; Number of sprites currently active
-sprites_dirty      EQU #C435   ; 1=sprite_attributes changed, needs VRAM sync
-sprite_pattern      EQU #C436   ; Sprite pattern IDs (32 bytes)
-sprite_color        EQU #C456   ; Sprite colors (32 bytes)
-sprite_attributes   EQU #C476   ; Interleaved sprite attributes (32 * 4 bytes)
+entity_sprite_asset_index EQU #CAD5   ; Entity sprite asset index - RAM copy (32 bytes)
+active_sprite_count EQU #CAF5   ; Number of sprites currently active
+sprites_dirty      EQU #CAF6   ; 1=sprite_attributes changed, needs VRAM sync
+sprite_pattern      EQU #CAF7   ; Sprite pattern IDs (32 bytes)
+sprite_color        EQU #CB17   ; Sprite colors (32 bytes)
+sprite_layer_colors EQU #CB37   ; HW sprite layer color cache - RAM copy (32 bytes, indexed by HW sprite index)
+sprite_attributes   EQU #CB57   ; Interleaved sprite attributes (32 * 4 bytes)
 
 ; ==================================================================
 ; SCREEN SYSTEM VARIABLES (7 screens detected)
 ; ==================================================================
-current_screen_id   EQU #C4F6   ; Currently displayed screen ID
-screen_dirty_flag   EQU #C4F7   ; Screen needs redraw flag
-screen_transition_cooldown EQU #C4F8   ; Cooldown frames after screen transition
-current_world_id    EQU #C4F9   ; Current world ID (for multi-world support)
-current_screen_index EQU #C4FA   ; Current screen index within world
+current_screen_id   EQU #CBD7   ; Currently displayed screen ID
+screen_dirty_flag   EQU #CBD8   ; Screen needs redraw flag
+screen_transition_cooldown EQU #CBD9   ; Cooldown frames after screen transition
+current_world_id    EQU #CBDA   ; Current world ID (for multi-world support)
+current_screen_index EQU #CBDB   ; Current screen index within world
 
 ; ==================================================================
 ; PLAYER SYSTEM VARIABLES (player entity detected)
 ; ==================================================================
-player_x            EQU #C4FB   ; Player X position (16-bit)
-player_y            EQU #C4FD   ; Player Y position (16-bit)
-player_health       EQU #C4FF   ; Player health points
-player_score        EQU #C500   ; Player score (16-bit)
+player_x            EQU #CBDC   ; Player X position (16-bit)
+player_y            EQU #CBDE   ; Player Y position (16-bit)
+player_health       EQU #CBE0   ; Player health points
+player_score        EQU #CBE1   ; Player score (16-bit)
+gem_count           EQU #CBE3   ; Collectible tile counter (8-bit)
+last_gem_char       EQU #CBE4   ; Char code of last collected gem tile (for SM VARIABLE_COMPARE)
+
+; Persistent collectibles list (survives screen re-entry)
+MAX_COLLECTIBLES     EQU 64              ; Max persistent collectible records
+collected_count      EQU #CBE5   ; Number of collected tiles recorded (8-bit)
+collected_world      EQU #CBE6   ; World IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_screen     EQU #CC26   ; Screen IDs for each collected tile (MAX_COLLECTIBLES bytes)
+collected_idx_l      EQU #CC66   ; Tile name-table index low byte (MAX_COLLECTIBLES bytes)
+collected_idx_h      EQU #CCA6   ; Tile name-table index high byte (MAX_COLLECTIBLES bytes)
+
+; Timed bonus tile respawn slots (bonus gem regeneration)
+MAX_BONUS_RESPAWNS   EQU 16              ; Max timed bonus tiles waiting to respawn
+bonus_respawn_world  EQU #CCE6   ; World IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_screen EQU #CCF6   ; Screen IDs for timed bonus respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_l  EQU #CD06   ; Tile index low byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_idx_h  EQU #CD16   ; Tile index high byte for timed respawns (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_secs   EQU #CD26   ; Remaining seconds per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
+bonus_respawn_frames EQU #CD36   ; Frame countdown (60..1) per timed respawn slot (MAX_BONUS_RESPAWNS bytes)
 
 ; ==================================================================
 ; AUXILIARY VARIABLES 
 ; ==================================================================
-deterministic        EQU #C502   ; Deterministic mode flag
+deterministic        EQU #CD46   ; Deterministic mode flag
 
 ; ==================================================================
 ; TEMPORARY VARIABLES (ALWAYS NEEDED)
 ; ==================================================================
-temp_word_1         EQU #C503   ; Temporary 16-bit storage
-temp_word_2         EQU #C505   ; Temporary 16-bit storage
-temp_byte_1         EQU #C507   ; Temporary 8-bit storage
-temp_byte_2         EQU #C508   ; Temporary 8-bit storage
-temp_byte_3         EQU #C509   ; Temporary 8-bit storage (32 bytes)
-temp_byte_4         EQU #C529   ; Temporary 8-bit storage (32 bytes)
-temp_byte_5         EQU #C549   ; Temporary 8-bit storage (32 bytes)
-temp_byte_6         EQU #C569   ; Temporary 8-bit storage (32 bytes)
-temp_byte_7         EQU #C589   ; Temporary 8-bit storage (32 bytes)
-temp_byte_8         EQU #C5A9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_9         EQU #C5C9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_10        EQU #C5E9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_11        EQU #C609   ; Temporary 8-bit storage (32 bytes)
-temp_byte_12        EQU #C629   ; Temporary 8-bit storage (32 bytes)
-temp_byte_13        EQU #C649   ; Temporary 8-bit storage (32 bytes)
-temp_byte_14        EQU #C669   ; Temporary 8-bit storage (32 bytes)
-temp_byte_15        EQU #C689   ; Temporary 8-bit storage (32 bytes)
-temp_byte_16        EQU #C6A9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_17        EQU #C6C9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_18        EQU #C6E9   ; Temporary 8-bit storage (32 bytes)
-temp_byte_19        EQU #C709   ; Temporary 8-bit storage (32 bytes)
-temp_byte_20        EQU #C729   ; Temporary 8-bit storage (32 bytes)
-temp_byte_21        EQU #C749   ; Temporary 8-bit storage (32 bytes)
-temp_byte_22        EQU #C769   ; Temporary 8-bit storage (32 bytes)
-temp_byte_23        EQU #C789   ; Temporary 8-bit storage (32 bytes)
-temp_byte_24        EQU #C7A9   ; Temporary 8-bit storage (32 bytes)
-temp_word_3         EQU #C7C9   ; Temporary 16-bit storage (64 bytes)
-temp_word_4         EQU #C809   ; Temporary 16-bit storage (64 bytes)
+temp_word_1         EQU #CD47   ; Temporary 16-bit storage
+temp_word_2         EQU #CD49   ; Temporary 16-bit storage
+temp_byte_1         EQU #CD4B   ; Temporary 8-bit storage
+temp_byte_2         EQU #CD4C   ; Temporary 8-bit storage
+temp_byte_3         EQU #CD4D   ; Temporary 8-bit storage (32 bytes)
+temp_byte_4         EQU #CD6D   ; Temporary 8-bit storage (32 bytes)
+temp_byte_5         EQU #CD8D   ; Temporary 8-bit storage (32 bytes)
+temp_byte_6         EQU #CDAD   ; Temporary 8-bit storage (32 bytes)
+
+; ==================================================================
+; SOUND SYSTEM VARIABLES
+; ==================================================================
+sfx_active          EQU #CDCD   ; 0=no SFX active, 1=playing
+sfx_timer           EQU #CDCE   ; Frames remaining for current SFX
+sfx_fadeout         EQU #CDCF   ; Reserved fadeout flag/state
+temp_byte_7         EQU #CDD0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_8         EQU #CDF0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_9         EQU #CE10   ; Temporary 8-bit storage (32 bytes)
+temp_byte_10        EQU #CE30   ; Temporary 8-bit storage (32 bytes)
+temp_byte_11        EQU #CE50   ; Temporary 8-bit storage (32 bytes)
+temp_byte_12        EQU #CE70   ; Temporary 8-bit storage (32 bytes)
+temp_byte_13        EQU #CE90   ; Temporary 8-bit storage (32 bytes)
+temp_byte_14        EQU #CEB0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_15        EQU #CED0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_16        EQU #CEF0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_17        EQU #CF10   ; Temporary 8-bit storage (32 bytes)
+temp_byte_18        EQU #CF30   ; Temporary 8-bit storage (32 bytes)
+temp_byte_19        EQU #CF50   ; Temporary 8-bit storage (32 bytes)
+temp_byte_20        EQU #CF70   ; Temporary 8-bit storage (32 bytes)
+temp_byte_21        EQU #CF90   ; Temporary 8-bit storage (32 bytes)
+temp_byte_22        EQU #CFB0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_23        EQU #CFD0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_24        EQU #CFF0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_25        EQU #D010   ; Temporary 8-bit storage (32 bytes)
+temp_word_3         EQU #D030   ; Temporary 16-bit storage (64 bytes)
+temp_word_4         EQU #D070   ; Temporary 16-bit storage (64 bytes)
+temp_byte_26        EQU #D0B0   ; Temporary 8-bit storage (32 bytes)
+temp_byte_27        EQU #D0D0   ; Temporary 8-bit storage (32 bytes)
+tileDead_dbg        EQU #D0F0   ; Debug byte: current hero deadly contact
+tileDead_latched_dbg EQU #D0F1   ; Debug byte: latched hero deadly contact
+tileDead_x_dbg      EQU #D0F2   ; Debug byte: last sampled deadly tile X
+tileDead_y_dbg      EQU #D0F3   ; Debug byte: last sampled deadly tile Y
+tileDead_value_dbg  EQU #D0F4   ; Debug byte: last raw deadly behavior value
 
 ; Wall collision temporary variables
-wall_temp_x         EQU #C849   ; Cached entity X for wall checks
-wall_temp_y         EQU #C84A   ; Cached entity Y for wall checks
+wall_temp_x         EQU #D0F5   ; Cached entity X for wall checks
+wall_temp_y         EQU #D0F6   ; Cached entity Y for wall checks
+wall_hit_left       EQU #D0F7   ; Hitbox left edge cache
+wall_hit_top        EQU #D0F8   ; Hitbox top edge cache
+wall_hit_right      EQU #D0F9   ; Hitbox right edge cache
+wall_hit_bottom     EQU #D0FA   ; Hitbox bottom edge cache
+wall_hit_w          EQU #D0FB   ; Hitbox width cache (min 1)
+wall_hit_h          EQU #D0FC   ; Hitbox height cache (min 1)
+wall_probe_left     EQU #D0FD   ; X probe near hitbox left (adaptive inset)
+wall_probe_right    EQU #D0FE   ; X probe near hitbox right (adaptive inset)
+wall_probe_top      EQU #D0FF   ; Y probe near hitbox top (adaptive inset)
+wall_probe_bottom   EQU #D100   ; Y probe near hitbox bottom (adaptive inset)
 
 ; Unified update helpers
-active_entity_list  EQU #C84B   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
-active_entity_count EQU #C86B   ; Number of entries in active_entity_list
+active_entity_list  EQU #D101   ; Entity indices with non-zero component masks (MAX_ENTITIES bytes)
+active_entity_count EQU #D121   ; Number of entries in active_entity_list
+active_entity_list_dirty EQU #D122   ; 1=rebuild active_entity_list required
 
 ; Entity-entity collision optimized variables
-coll_list           EQU #C86C   ; Active collidable entity indices (MAX_ENTITIES bytes)
-coll_list_count     EQU #C88C   ; Number of entities in coll_list
-coll_src_left       EQU #C88D   ; Source AABB left edge (scratch)
-coll_src_right      EQU #C88E   ; Source AABB right edge (scratch)
-coll_src_top        EQU #C88F   ; Source AABB top edge (scratch)
-coll_src_bottom     EQU #C890   ; Source AABB bottom edge (scratch)
+coll_list           EQU #D123   ; Active collidable entity indices (MAX_ENTITIES bytes)
+coll_list_count     EQU #D143   ; Number of entities in coll_list
+coll_src_left       EQU #D144   ; Source AABB left edge (scratch)
+coll_src_right      EQU #D145   ; Source AABB right edge (scratch)
+coll_src_top        EQU #D146   ; Source AABB top edge (scratch)
+coll_src_bottom     EQU #D147   ; Source AABB bottom edge (scratch)
 
 ; ==================================================================
 ; INTERRUPT SYSTEM VARIABLES (dynamically allocated)
 ; ==================================================================
-task_table              EQU #C891   ; Task table base (8 slots x 2 bytes = 16 bytes)
-task_0_ptr              EQU #C891   ; Slot 0 pointer (2 bytes)
-task_1_ptr              EQU #C893   ; Slot 1 pointer (2 bytes)
-task_2_ptr              EQU #C895   ; Slot 2 pointer (2 bytes)
-task_3_ptr              EQU #C897   ; Slot 3 pointer (2 bytes)
-task_4_ptr              EQU #C899   ; Slot 4 pointer (2 bytes)
-task_5_ptr              EQU #C89B   ; Slot 5 pointer (2 bytes)
-task_6_ptr              EQU #C89D   ; Slot 6 pointer (2 bytes)
-task_7_ptr              EQU #C89F   ; Slot 7 pointer (2 bytes)
-interrupt_system_enabled EQU #C8A1   ; 0=disabled, 1=enabled (1 byte)
-old_htimi_hook          EQU #C8A2   ; Original H.TIMI hook (5 bytes)
-interrupt_counter       EQU #C8A7   ; Frame counter (16-bit)
-task_exec_time          EQU #C8A9   ; Cycles used by tasks (16-bit, debug)
-vblank_flag             EQU #C8AB   ; Set to 1 on each VBlank (1 byte)
-RAM_INTERRUPT_END       EQU #C8AC   ; End of interrupt system
+task_table              EQU #D148   ; Task table base (8 slots x 2 bytes = 16 bytes)
+task_0_ptr              EQU #D148   ; Slot 0 pointer (2 bytes)
+task_1_ptr              EQU #D14A   ; Slot 1 pointer (2 bytes)
+task_2_ptr              EQU #D14C   ; Slot 2 pointer (2 bytes)
+task_3_ptr              EQU #D14E   ; Slot 3 pointer (2 bytes)
+task_4_ptr              EQU #D150   ; Slot 4 pointer (2 bytes)
+task_5_ptr              EQU #D152   ; Slot 5 pointer (2 bytes)
+task_6_ptr              EQU #D154   ; Slot 6 pointer (2 bytes)
+task_7_ptr              EQU #D156   ; Slot 7 pointer (2 bytes)
+interrupt_system_enabled EQU #D158   ; 0=disabled, 1=enabled (1 byte)
+old_htimi_hook          EQU #D159   ; Original H.TIMI hook (5 bytes)
+interrupt_counter       EQU #D15E   ; Frame counter (16-bit)
+task_exec_time          EQU #D160   ; Cycles used by tasks (16-bit, debug)
+vblank_flag             EQU #D162   ; Set to 1 on each VBlank (1 byte)
+RAM_INTERRUPT_END       EQU #D163   ; End of interrupt system
+
+; ==================================================================
+; STATE MACHINE SOUND RUNTIME (one active sound asset)
+; ==================================================================
+sm_sound_active       EQU #D163   ; 0=idle, 1=playing state-machine sound asset
+sm_sound_frames_left  EQU #D164   ; Frames left for current state-machine sound asset
+sm_sound_ptr_l        EQU #D165   ; Next sound frame pointer low byte
+sm_sound_ptr_h        EQU #D166   ; Next sound frame pointer high byte
+
+; ==================================================================
+; TRACKER MUSIC RUNTIME
+; ==================================================================
+music_active         EQU #D167   ; 0=stopped, 1=track active
+music_muted          EQU #D168   ; 0=audible, 1=muted/pause
+music_loop           EQU #D169   ; 0=no loop, 1=loop enabled
+music_track_index    EQU #D16A   ; Current ROM track index
+music_row_frames     EQU #D16B   ; Frames per tracker row
+music_row_countdown  EQU #D16C   ; Countdown to next row
+music_order_pos      EQU #D16D   ; Current order position
+music_pattern_index  EQU #D16E   ; Current pattern index
+music_pattern_row    EQU #D16F   ; Current row inside pattern
+music_pattern_rows   EQU #D170   ; Cached rows in current pattern
+music_track_ptr_l    EQU #D171   ; Current track pointer low byte
+music_track_ptr_h    EQU #D172   ; Current track pointer high byte
+music_pattern_ptr_l  EQU #D173   ; Current pattern rows pointer low byte
+music_pattern_ptr_h  EQU #D174   ; Current pattern rows pointer high byte
+music_mixer_shadow   EQU #D175   ; PSG mixer shadow for music runtime
+music_ch_note_base EQU #D176   ; Current note index (255=silent) (3 bytes)
+music_ch_a_note EQU #D176   ; Channel A
+music_ch_b_note EQU #D177   ; Channel B
+music_ch_c_note EQU #D178   ; Channel C
+music_ch_instrument_base EQU #D179   ; Current instrument id (0=none) (3 bytes)
+music_ch_a_instrument EQU #D179   ; Channel A
+music_ch_b_instrument EQU #D17A   ; Channel B
+music_ch_c_instrument EQU #D17B   ; Channel C
+music_ch_ornament_base EQU #D17C   ; Current ornament id (0=none) (3 bytes)
+music_ch_a_ornament EQU #D17C   ; Channel A
+music_ch_b_ornament EQU #D17D   ; Channel B
+music_ch_c_ornament EQU #D17E   ; Channel C
+music_ch_volume_base EQU #D17F   ; Current base volume (0-15) (3 bytes)
+music_ch_a_volume EQU #D17F   ; Channel A
+music_ch_b_volume EQU #D180   ; Channel B
+music_ch_c_volume EQU #D181   ; Channel C
+music_ch_vol_step_base EQU #D182   ; Reserved software volume envelope step (3 bytes)
+music_ch_a_vol_step EQU #D182   ; Channel A
+music_ch_b_vol_step EQU #D183   ; Channel B
+music_ch_c_vol_step EQU #D184   ; Channel C
+music_ch_tone_step_base EQU #D185   ; Reserved software tone envelope step (3 bytes)
+music_ch_a_tone_step EQU #D185   ; Channel A
+music_ch_b_tone_step EQU #D186   ; Channel B
+music_ch_c_tone_step EQU #D187   ; Channel C
+music_ch_noise_step_base EQU #D188   ; Reserved software noise envelope step (3 bytes)
+music_ch_a_noise_step EQU #D188   ; Channel A
+music_ch_b_noise_step EQU #D189   ; Channel B
+music_ch_c_noise_step EQU #D18A   ; Channel C
+music_ch_orn_step_base EQU #D18B   ; Reserved ornament step (3 bytes)
+music_ch_a_orn_step EQU #D18B   ; Channel A
+music_ch_b_orn_step EQU #D18C   ; Channel B
+music_ch_c_orn_step EQU #D18D   ; Channel C
 
 ; ==================================================================
 ; END OF VARIABLES
 ; ==================================================================
-RAM_USAGE_END       EQU #C8AC   ; End of project variables (2220 bytes used)
+RAM_USAGE_END       EQU #D18E   ; End of project variables (4494 bytes used)
 
 ; ==================================================================
 ; MEMORY LAYOUT INFO (Reference only - no code generated)
 ; ==================================================================
 ; RAM Layout:
-;   #C000-#C8AC: Project variables (2220 bytes)
-;   #C8AC-#F37F: Free RAM (~10964 bytes available)
+;   #C000-#D18E: Project variables (4494 bytes)
+;   #D18E-#F37F: Free RAM (~8690 bytes available)
 ;   #F380-#FFFF: MSX System variables (DO NOT TOUCH)
 ;
 ; NOTE: Variables are defined using EQU (address labels only).
@@ -1010,25 +1403,19 @@ RAM_USAGE_END       EQU #C8AC   ; End of project variables (2220 bytes used)
 ; ==================================================================
 ; MAPPER RUNTIME API
 ; File: mapper.asm
-; Description: Centralized mapper register writes (no scattered inline writes)
+; Description: Minimal compatibility stubs for simple32k builds
 ; Target mapper: konami
-; ROM mode: auto (autoMegaROM=true)
+; ROM mode: simple32k (autoMegaROM=false)
 ; ==================================================================
+;
+; This build runs without active mapper writes, so bank switching is not active.
+; Keep mapper API labels as no-op stubs so generated gameplay code can
+; call the same routines without conditional assembly branches.
 
-; Konami (without SCC) write window references:
-;   6000h-7FFFh, 8000h-9FFFh, A000h-BFFFh are switch registers.
-; Note: in original Konami cartridges 4000h-5FFFh is typically fixed.
-; Mapper register writes are enabled for this build configuration.
-
-; Mapper registers for active target format
-MAPPER_REG_P1       EQU #6000
-MAPPER_REG_P2       EQU #8000
-MAPPER_REG_P3       EQU #A000
-MAPPER_REG_P4       EQU #A000
 
 ; ------------------------------------------------------------------
 ; mapper_runtime_init
-; Initializes mapper state variables with deterministic defaults.
+; Initializes runtime mirrors only (no hardware mapper writes).
 ; ------------------------------------------------------------------
 mapper_runtime_init:
     xor a
@@ -1043,30 +1430,26 @@ mapper_runtime_init:
 
 ; ------------------------------------------------------------------
 ; API: mapper_set_bank_pX
-; Input: A = bank number
+; Input: A = bank number (stored only for compatibility)
 ; ------------------------------------------------------------------
 mapper_set_bank_p1:
     ld (mapper_bank_p1_current), a
-    ld (MAPPER_REG_P1), a
     ret
 
 mapper_set_bank_p2:
     ld (mapper_bank_p2_current), a
-    ld (MAPPER_REG_P2), a
     ret
 
 mapper_set_bank_p3:
     ld (mapper_bank_p3_current), a
-    ld (MAPPER_REG_P3), a
     ret
 
 mapper_set_bank_p4:
     ld (mapper_bank_p4_current), a
-    ld (MAPPER_REG_P4), a
     ret
 
 ; ------------------------------------------------------------------
-; Helpers for deterministic save/restore around far calls.
+; Save/restore helpers (compatibility only).
 ; ------------------------------------------------------------------
 mapper_push_p1:
     ld a, (mapper_bank_p1_current)
@@ -1105,103 +1488,26 @@ mapper_pop_p4:
     jp mapper_set_bank_p4
 
 ; ------------------------------------------------------------------
-; Far call helpers (dynamic target address in HL)
-; Input:
-;   A = target bank number
-;   HL = target routine address in selected page window
-; Output:
-;   Returns after restoring previous bank.
+; Far call helpers (simple32k no-op bank switch).
 ; ------------------------------------------------------------------
 mapper_call_hl_p1:
-    push hl
-    push af
-    call mapper_push_p1
-    pop af
-    call mapper_set_bank_p1
-    pop hl
     ld de, .return_p1
     push de
     jp (hl)
 .return_p1:
-    call mapper_pop_p1
     ret
 
 mapper_call_hl_p2:
-    push hl
-    push af
-    call mapper_push_p2
-    pop af
-    call mapper_set_bank_p2
-    pop hl
-    ld de, .return_p2
-    push de
-    jp (hl)
-.return_p2:
-    call mapper_pop_p2
-    ret
-
-mapper_call_hl_p3:
-    push hl
-    push af
-    call mapper_push_p3
-    pop af
-    call mapper_set_bank_p3
-    pop hl
-    ld de, .return_p3
-    push de
-    jp (hl)
-.return_p3:
-    call mapper_pop_p3
-    ret
-
-mapper_call_hl_p4:
-    push hl
-    push af
-    call mapper_push_p4
-    pop af
-    call mapper_set_bank_p4
-    pop hl
-    ld de, .return_p4
-    push de
-    jp (hl)
-.return_p4:
-    call mapper_pop_p4
-    ret
-
-; ------------------------------------------------------------------
-; mapper_call_hl_auto
-; Auto-select mapper window from HL target address range:
-;   4000-5FFF -> p1
-;   6000-7FFF -> p2
-;   8000-9FFF -> p3
-;   A000-BFFF -> p4
-; Input:
-;   A = target bank
-;   HL = target routine address
-; ------------------------------------------------------------------
-mapper_call_hl_auto:
-    push af
-    ld a, h
-    cp #60
-    jr c, .use_p1
-    cp #80
-    jr c, .use_p2
-    cp #A0
-    jr c, .use_p3
-    pop af
-    jp mapper_call_hl_p4
-
-.use_p1:
-    pop af
     jp mapper_call_hl_p1
 
-.use_p2:
-    pop af
-    jp mapper_call_hl_p2
+mapper_call_hl_p3:
+    jp mapper_call_hl_p1
 
-.use_p3:
-    pop af
-    jp mapper_call_hl_p3
+mapper_call_hl_p4:
+    jp mapper_call_hl_p1
+
+mapper_call_hl_auto:
+    jp mapper_call_hl_p1
 
 
 ; ==================================================================
@@ -1222,6 +1528,25 @@ mapper_call_hl_auto:
 ; ==================================================================
 ; INIT_INTERRUPT_SYSTEM - Install H.TIMI hook
 ; ==================================================================
+; Register Contract:
+;   Purpose: Install JP hook on H.TIMI and initialize interrupt task state.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - HL/DE/BC = block copy parameters for hook backup and task table clear
+;     - A = enable flag and zeroing value
+;   Notes:
+;     - Runs with DI/EI, so caller must not assume interrupt state is unchanged.
+
 ; Inputs: None
 ; Outputs: None
 ; Modifies: AF, BC, DE, HL
@@ -1265,6 +1590,25 @@ init_interrupt_system:
 ; ==================================================================
 ; STOP_INTERRUPT_SYSTEM - Restore original H.TIMI hook
 ; ==================================================================
+; Register Contract:
+;   Purpose: Restore original H.TIMI bytes and mark system disabled.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - HL/DE/BC = LDIR source/destination/count for hook restore
+;     - A = zero flag write to interrupt_system_enabled
+;   Notes:
+;     - Runs with DI/EI for atomic hook restoration.
+
 ; Inputs: None
 ; Outputs: None
 ; Modifies: AF, BC, DE, HL
@@ -1288,16 +1632,45 @@ stop_interrupt_system:
 ; ==================================================================
 ; INTERRUPT_DISPATCHER - Main ISR (60Hz/50Hz)
 ; ==================================================================
+; Register Contract:
+;   Purpose: Dispatch enabled interrupt tasks each VBlank and chain BIOS hook.
+;   Inputs:
+;     - Triggered by H.TIMI hook
+;   Outputs:
+;     - interrupt_counter incremented
+;     - vblank_flag refreshed
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;     - IX
+;     - IY (all restored before exit)
+;   Preserved:
+;     - DE
+;     - IX
+;     - IY
+;   Register roles:
+;     - HL = walks task_table and holds task pointer
+;     - B = task slot loop counter
+;     - C = temporary low byte for pointer reconstruction
+;     - A = enabled checks and pointer validation
+;   Notes:
+;     - Dispatcher saves/restores DE/IX/IY defensively, reducing coupling with task internals.
+
 ; This routine executes on each V-Blank
 ; CRITICAL: Minimal CPU cycles, maximum efficiency
 ; Overhead: ~80 cycles base + ~40 cycles per active task
 ; ==================================================================
 interrupt_dispatcher:
-    ; --- STEP 1: Save MINIMAL registers (only what we use) ---
+    ; --- STEP 1: Save caller-visible registers used by BIOS/user code ---
     push af                     ; 11 cycles
     push hl                     ; 11 cycles
     push bc                     ; 11 cycles
-    ; Total: 33 cycles overhead
+    push de                     ; 11 cycles
+    push ix                     ; 15 cycles
+    push iy                     ; 15 cycles
+    ; Total: 74 cycles fixed prologue overhead
 
     ; --- STEP 2: Check if system is enabled ---
     ld a, (interrupt_system_enabled)
@@ -1355,6 +1728,9 @@ interrupt_dispatcher:
 
 .exit:
     ; --- STEP 5: Restore registers ---
+    pop iy                      ; 14 cycles
+    pop ix                      ; 14 cycles
+    pop de                      ; 10 cycles
     pop bc                      ; 10 cycles
     pop hl                      ; 10 cycles
     pop af                      ; 10 cycles
@@ -1380,6 +1756,19 @@ interrupt_dispatcher:
 ; ==================================================================
 ; UPDATE_VBLANK_FLAG - For interrupt dispatcher use only
 ; ==================================================================
+; Register Contract:
+;   Purpose: Read VDP status register and latch VBlank state in RAM flag.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - vblank_flag = 0/1
+;   Clobbers:
+;     - AF (internally saved/restored)
+;   Preserved:
+;     - AF, BC, DE, HL
+;   Register roles:
+;     - A = VDP status read and boolean conversion
+
 ; Updates vblank_flag only if we're actually in VBlank
 ; Called from interrupt_dispatcher
 ; Inputs: None
@@ -1404,6 +1793,26 @@ update_vblank_flag:
 ; ==================================================================
 ; ENABLE_TASK - Activate a task in the system
 ; ==================================================================
+; Register Contract:
+;   Purpose: Store routine pointer into task_table slot.
+;   Inputs:
+;     - A = task slot (0-7)
+;     - HL = task routine address
+;   Outputs:
+;     - task_table[slot] = HL
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - A = slot validation and offset math
+;     - DE = holds routine address while HL is repurposed as slot pointer
+;     - BC = task_table base address
+;     - HL = slot address calculation / pointer write
+
 ; Inputs:
 ;   A = task slot (0-7)
 ;   HL = address of task routine
@@ -1436,6 +1845,23 @@ enable_task:
 ; ==================================================================
 ; DISABLE_TASK - Deactivate a task
 ; ==================================================================
+; Register Contract:
+;   Purpose: Clear routine pointer in selected task slot.
+;   Inputs:
+;     - A = task slot (0-7)
+;   Outputs:
+;     - task_table[slot] = 0
+;   Clobbers:
+;     - AF
+;     - DE
+;     - HL
+;   Preserved:
+;     - BC
+;   Register roles:
+;     - A = slot validation and zero value for clearing
+;     - HL = destination slot pointer
+;     - DE = computed slot offset
+
 ; Inputs:
 ;   A = task slot (0-7)
 ; Outputs: None
@@ -1464,6 +1890,21 @@ disable_task:
 ; ==================================================================
 ; GET_FRAME_COUNT - Get frame counter value
 ; ==================================================================
+; Register Contract:
+;   Purpose: Expose current 16-bit interrupt frame counter.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - HL = interrupt_counter
+;   Clobbers:
+;     - HL
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;   Register roles:
+;     - HL = loaded return value
+
 ; Inputs: None
 ; Outputs: HL = frame count (16-bit)
 ; Modifies: HL
@@ -1473,15 +1914,66 @@ get_frame_count:
     ret
 
 ; ==================================================================
-; DEFAULT INTERRUPT TASKS (60Hz Execution)
+; INIT_DEFAULT_TASKS_FROM_PLAN - Register engine-selected IRQ tasks
+; ==================================================================
+; Register Contract:
+;   Purpose: Enable the IRQ task set selected by the engine execution plan.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - task_table updated for all enabled-at-boot tasks
+;   Clobbers:
+;     - AF
+;     - HL
+;   Preserved:
+;     - BC
+;     - DE
+;   Register roles:
+;     - A = task slot
+;     - HL = task routine address
+;   Notes:
+;     - Calls enable_task once per enabled task.
+init_default_tasks_from_plan:
+    ld a, 0
+    ld hl, task_audio_tick
+    call enable_task
+    ld a, 1
+    ld hl, task_frame_counter
+    call enable_task
+    ret
+
+; ==================================================================
+; SHARED MAINLINE TASK WRAPPERS
+; ==================================================================
+; These wrappers stay available in interruptTaskManager mode because
+; the HALT-driven GameFlow loops still call them directly.
 ; ==================================================================
 
 ; ==================================================================
-; TASK_UPDATE_INPUT - Joystick/Cursor polling at 60Hz
+; TASK_UPDATE_INPUT - Joystick/Cursor polling wrapper
 ; ==================================================================
-; This task guarantees responsive input (no missed button presses)
-; Compatible with update_input_component existing function
-; ==================================================================
+; Register Contract:
+;   Purpose: Poll joystick + keyboard fallback and update input state buffers.
+;   Inputs:
+;     - Reads hardware via FAST_GTSTCK / FAST_GTTRIG / FAST_SNSMAT
+;   Outputs:
+;     - input_state, prev_input_state, input_btn_curr, input_btn_prev, input_fire
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE (by push/pop wrapper)
+;     - HL
+;   Register roles:
+;     - A = hardware reads and final scalar writes
+;     - B = direction accumulator
+;     - D = button bitmask and keyboard direction flags
+;     - E = temporary keyboard row bits
+;   Notes:
+;     - Wrapper preserves caller-visible regs despite internal mutation.
 task_update_input:
     push af
     push bc
@@ -1493,16 +1985,16 @@ task_update_input:
     ld a, (input_btn_curr)
     ld (input_btn_prev), a
 
-    ; Read joystick direction first (priority source)
+    ; Read joystick direction first (priority source, direct hardware)
     xor a                       ; Joystick 0
-    call GTSTCK                 ; BIOS call: A = direction
+    call FAST_GTSTCK            ; Direct hardware read
     ld b, a                     ; B = joystick direction
     or a
     jr nz, .dir_ready
 
-    ; Fallback to keyboard cursor keys (SNSMAT row 8)
+    ; Fallback to keyboard cursor keys (row 8, direct matrix read)
     ld a, 8
-    call SNSMAT                 ; Active low bits
+    call FAST_SNSMAT            ; Active low bits
     ld e, a
     xor a
     ld d, a                     ; D = direction flags: 0=none
@@ -1564,8 +2056,28 @@ task_update_input:
 .kbd_done:
     ld b, a
 .dir_ready:
+    ; Normalize diagonals to cardinal directions for runtime stability
+    ; UP+RIGHT/DOWN+RIGHT -> RIGHT, UP+LEFT/DOWN+LEFT -> LEFT
+    ld a, b
+    cp STICK_UPRIGHT
+    jr z, .dir_norm_right
+    cp STICK_DOWNRIGHT
+    jr z, .dir_norm_right
+    cp STICK_UPLEFT
+    jr z, .dir_norm_left
+    cp STICK_DOWNLEFT
+    jr z, .dir_norm_left
+    jr .dir_norm_done
+.dir_norm_right:
+    ld a, STICK_RIGHT
+    jr .dir_norm_store
+.dir_norm_left:
+    ld a, STICK_LEFT
+.dir_norm_store:
+    ld b, a
+.dir_norm_done:
     xor a                       ; Joystick 0
-    call GTTRIG                 ; A = #FF if pressed, 0 if not
+    call FAST_GTTRIG            ; A = #FF if pressed, 0 if not
     ld d, 0                     ; D = button bitmask
     or a
     jr z, .no_fire              ; Jump if NOT pressed (A=0)
@@ -1574,6 +2086,16 @@ task_update_input:
     ld (input_fire), a
     jr .fire_done
 .no_fire:
+    ; Keyboard fallback for fire (SPACE, row 8 bit 0, active low)
+    ld a, 8
+    call FAST_SNSMAT
+    bit 0, a
+    jr nz, .fire_released
+    ld d, INPUT_BTN_FIRE
+    ld a, 1
+    ld (input_fire), a
+    jr .fire_done
+.fire_released:
     xor a                       ; Fire not pressed
     ld (input_fire), a
 .fire_done:
@@ -1588,79 +2110,33 @@ task_update_input:
     ret
 
 ; ==================================================================
-; TASK_UPDATE_PHYSICS - Apply vx, vy -> X, Y (OPTIMIZED)
+; ENGINE EXECUTION PLAN TASKS
 ; ==================================================================
-; Only calls physics systems that are actually used in this project
-; ==================================================================
-task_update_physics:
-    push af
-    push bc
-    push de
-    push hl
 
-    ; Keep system loops in sync with current component masks
-    call rebuild_used_entity_list
-    call update_jump_component      ; Jump impulse
-    call update_movement_component  ; Movement/velocity
-    call update_gravity_component   ; Gravity acceleration
-    call update_position_component  ; Apply velocity to position
-
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
-
-; ==================================================================
-; TASK_UPDATE_COLLISION - Collision detection
-; ==================================================================
-; Detects collisions using collision layers (bitmask system)
-; AABB collision for 16x16 sprites
-; ==================================================================
-task_update_collision:
-    push af
-    push bc
-    push de
-    push hl
-
-    ; TODO: Implement collision detection
-    ; Loop over entities with COMP_MASK_COLLISION
-    ; Check: collisionLayer & collidesWith for each pair
-    ; AABB test: |X1-X2| < 16 && |Y1-Y2| < 16
-
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
-
-; ==================================================================
-; TASK_UPDATE_SPRITES - Update sprites to VRAM
-; ==================================================================
-; WARNING: This task is HEAVY (~800 cycles)
-; Consider executing every N frames instead of every frame
-; ==================================================================
-task_update_sprites:
-    push af
-    push bc
-    push de
-    push hl
-
-    ; Call existing sprite update function
-    call update_sprites_to_vram
-
-    pop hl
-    pop de
-    pop bc
-    pop af
-    ret
+; Slot 0: audio_tick -> task_audio_tick (period=1)
+; Slot 1: frame_counter -> task_frame_counter (period=1)
 
 ; ==================================================================
 ; TASK_FRAME_COUNTER - Custom timing/animations
 ; ==================================================================
 ; Placeholder for user-defined frame-based timing
-; Example: Increment animation timers, etc.
+; interrupt_counter is already incremented in dispatcher
 ; ==================================================================
+; Register Contract:
+;   Purpose: Optional per-frame timing hook for lightweight counters/animations.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - None
+;   Clobbers:
+;     - None
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Register roles:
+;     - No registers modified in the default implementation
 task_frame_counter:
     ; Placeholder - counter is already incremented in dispatcher
     ; Add custom timing logic here if needed
@@ -1711,6 +2187,7 @@ COMP_HEALTH     EQU 6; Health / damage component
 COMP_ANIMATION  EQU 7; Animation state component
 COMP_JUMP       EQU 8; Jump behavior component(platformer physics)
 COMP_GRAVITY    EQU 9; Gravity physics component
+COMP_DEADLY_TILES EQU 13; Deadly behavior-map tile detection marker
 
     ; Component flags for entity filtering(16 - bit masks for 10 + components)
 COMP_MASK_POSITION   EQU #0001; Binary: 0000000000000001
@@ -1724,6 +2201,7 @@ COMP_MASK_ANIMATION  EQU #0080; Binary: 0000000010000000
 COMP_MASK_JUMP       EQU #0100; Binary: 0000000100000000
 COMP_MASK_GRAVITY    EQU #0200; Binary: 0000001000000000
 COMP_MASK_AUTO_DESTROY EQU #0400; Binary: 0000010000000000
+COMP_MASK_DEADLY_TILES EQU #2000; Binary: 0010000000000000
 
 ; ==================================================================
 ; ANIMATION FLAGS (entity_anim_flags)
@@ -1731,6 +2209,7 @@ COMP_MASK_AUTO_DESTROY EQU #0400; Binary: 0000010000000000
 ANIM_FLAG_PLAYING            EQU #01
 ANIM_FLAG_LOOP               EQU #02
 ANIM_FLAG_ONLY_WHEN_MOVING   EQU #04
+ANIM_FLAG_COMPLETED          EQU #08
 ANIM_DEFAULT_SPEED           EQU 8
 
     ; ==================================================================
@@ -1743,7 +2222,10 @@ ANIM_DEFAULT_SPEED           EQU 8
     ; Jump Component Data(Fixed - Point 8.8 for smooth physics)
     ; Using temporary storage for optional components to save RAM
 entity_jump_vel_y   EQU temp_word_3; Y velocity for jumping(signed word, 32 words = 64 bytes)
+entity_slash_vel_x  EQU temp_byte_3; Additive horizontal slash velocity from bonus tiles (32 bytes)
 entity_jump_count   EQU temp_byte_4; Current jump count(0 = grounded, 1 = first jump, etc.)(32 bytes)
+entity_jump_max     EQU temp_byte_25; Configured max jumps for this entity (32 bytes)
+entity_jump_bonus   EQU temp_byte_27; Temporary extra jumps granted by bonus tiles (32 bytes)
 entity_on_ground    EQU temp_byte_5; Ground contact flag(bit 0 = on ground)(32 bytes)
 
     ; Gravity Component Data
@@ -1753,8 +2235,14 @@ entity_gravity_vel  EQU temp_word_4; Accumulated gravity velocity(signed word, 6
 entity_health_current EQU temp_byte_6 ; Current health/lives (32 bytes)
 entity_health_max     EQU temp_byte_7 ; Maximum health/lives (32 bytes)
 
-    ; Deadly Tile Collision Data
-entity_deadly_collision EQU temp_byte_8 ; Flag: bit 0 = touching deadly tile (32 bytes)
+; Deadly Tile Collision Data
+entity_flag_deadly_tile EQU temp_byte_8 ; Flag: bit 0 = touching deadly tile (32 bytes)
+entity_deadly_collision EQU temp_byte_8 ; Backward-compatible alias
+tileDead EQU tileDead_dbg ; Debug byte: mirrors hero deadly contact (entity 0)
+tileDeadLatched EQU tileDead_latched_dbg ; Debug byte: latched hero deadly detection
+tileDeadX EQU tileDead_x_dbg ; Debug byte: last sampled tile X
+tileDeadY EQU tileDead_y_dbg ; Debug byte: last sampled tile Y
+tileDeadValue EQU tileDead_value_dbg ; Debug byte: raw behavior byte read
 
     ; Damage Component Data
 entity_invincibility_frames EQU temp_byte_9  ; Countdown timer for invulnerability (32 bytes)
@@ -1780,6 +2268,9 @@ entity_collision_offset_y EQU temp_byte_22 ; Entity collision hitbox Y offset (3
 entity_entity_collision_flags EQU temp_byte_23 ; bit0 entity(any), bit1 enemy, bit2 item (32 bytes)
 entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=none) (32 bytes)
 
+    ; Input Disable Flag
+entity_input_disabled EQU temp_byte_26 ; 0=enabled, 1=disabled (32 bytes)
+
 
     ; ==================================================================
 ; CORE ECS SYSTEM FUNCTIONS
@@ -1792,7 +2283,21 @@ entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=
 ; Initialize current screen ID(multi - screen support) 
         ld a, 0; Start at screen 0 
         ld (current_screen_id), a 
- 
+        ld (current_world_id), a
+        ld (current_screen_index), a
+        ld (screen_transition_cooldown), a
+        ld hl, active_entity_list_dirty
+        ld (hl), 1
+
+    ; Reset collectible persistence state on new game / restart.
+    ; Cartridge RAM is not guaranteed to be zeroed.
+        ld hl, gem_count
+        ld de, gem_count + 1
+        ld bc, 354                 ; bytes to clear - 1 (gem_count..bonus_respawn_frames)
+        xor a
+        ld (hl), a
+        ldir
+
     ; Clear all component masks 
         ld hl, entity_comp_masks 
         ld de, entity_comp_masks + 1 
@@ -1806,6 +2311,22 @@ entity_last_collision_entity EQU temp_byte_24 ; Last collided entity index (255=
         ld bc, 31
         ld (hl), 0
         ldir 
+
+    ; Initialize entity job scheduler defaults
+    ; period=1 (100%), entry=0 for every entity slot
+        ld hl, entity_job_period
+        ld de, entity_job_period + 1
+        ld bc, 31
+        ld (hl), 1
+        ldir
+
+        ld hl, entity_job_entry
+        ld de, entity_job_entry + 1
+        ld bc, 31
+        ld (hl), 0
+        ldir
+        xor a
+        ld (entity_job_scheduler_active), a
  
         ; Initialize position system (always)
     call init_position_system
@@ -1892,18 +2413,7 @@ position_update_loop:
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jr z, position_next_entity ; Skip velocity if no movement/input source
 
-    ; Skip entities that are not in the currently active screen
-    ; Preserve HL because it is the entity_comp_masks loop pointer.
-    push hl
-    ld hl, entity_screen_id
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    pop hl
-    jp nz, position_next_entity
+    ; active_entity_list already guarantees current_screen_id membership
 
     push bc
     push hl
@@ -1924,10 +2434,22 @@ position_update_loop:
     ld (hl), a                 ; Store new X
 
     ; Update Y Position
-    ; Y = Y + VelY
+    ; Y = Y + VelY (defensive clamp to avoid byte-wrap teleports)
     ld hl, entity_vel_y
     add hl, de
-    ld a, (hl)                 ; A = VelY
+    ld a, (hl)                 ; A = VelY (signed)
+    ; Clamp vertical delta to [-16..+16] to avoid single-frame wrap jumps
+    bit 7, a
+    jr z, .pos_vy_positive
+    cp #F0                     ; -16
+    jr nc, .pos_vy_ready       ; already in [-16..-1]
+    ld a, #F0
+    jr .pos_vy_ready
+.pos_vy_positive:
+    cp #11                     ; 17
+    jr c, .pos_vy_ready        ; already in [0..16]
+    ld a, #10                  ; +16
+.pos_vy_ready:
     ld b, a                    ; B = VelY
 
     ld hl, entity_y_pos
@@ -1980,16 +2502,7 @@ sprite_update_loop:
     and COMP_MASK_SPRITE       ; Check if has sprite component
     jp z, sprite_next_entity   ; Skip if no sprite component (jp because distance > 127 bytes)
 
-    ; Skip inactive entities (prevents ghost sprite rendering)
-    push hl
-    ld hl, entity_active
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    pop hl
-    or a
-    jp z, sprite_next_entity
+    ; active_entity_list already excludes inactive entities
 
     ; Check if entity is in current screen (multi-screen support)
     push bc
@@ -2331,35 +2844,145 @@ update_movement_component:
 
 .ground_check_done:
     ; Check for deadly tile collision (lava, spikes, etc.)
-    ; Get entity position (x, y)
-    ld hl, entity_x_pos
+    ; IMPORTANT:
+    ;   - Read from the behavior map generated from the collision layer,
+    ;     NOT from the visual screen layout.
+    ;   - Mirror the Preview logic by sampling:
+    ;       center/middle, left/middle, right/middle,
+    ;       left/bottom+1, center/bottom+1, right/bottom+1.
+    ; This catches no-solid deadly tiles like ropes that overlap the body,
+    ; not just the feet.
+    ;
+    ; Deadly flag uses logicalProperties.causesDamage (mapId bit 2 = #04).
     ld e, c
     ld d, 0
+    ld hl, entity_comp_masks_hi
     add hl, de
-    ld a, (hl)                    ; A = X position (keep DE as entity index)
+    ld a, (hl)
+    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
+    jr nz, .deadly_component_active
+
+    ld hl, entity_flag_deadly_tile
+    add hl, de
+    res 0, (hl)
+    jp .deadly_check_done
+
+.deadly_component_active:
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_x), a
 
     ld hl, entity_y_pos
     add hl, de
-    ld e, (hl)                    ; E = Y position
-    ld d, a                       ; D = X position
+    ld a, (hl)
+    ld (wall_temp_y), a
 
-    ; Get tile at entity's feet position (center-bottom)
+    call wall_build_hitbox_cache
+
     push bc
-    push de
-    ld a, d
-    add a, 8                      ; Center X (assuming 16-pixel wide entity)
-    ld d, a
-    ld a, e
-    add a, 15                     ; Bottom Y (assuming 16-pixel tall entity)
-    ld e, a
-    call get_tile_at_position     ; A = tile ID
-    call get_tile_behavior        ; A = behavior flags
-    pop de
-    pop bc
 
-    ; Check if tile is deadly (bit 3 = TILE_DEADLY)
-    bit 3, a
-    jr z, .no_deadly_tile         ; Not deadly, safe
+    ; Mid row = top + floor(height / 2)
+    ld a, (wall_hit_h)
+    srl a
+    ld c, a
+    ld a, (wall_hit_top)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; B = middle row
+
+    ; Center column = left + floor(width / 2)
+    ld a, (wall_hit_w)
+    srl a
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; C = center column
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Left middle
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Right middle
+    ld a, (wall_hit_right)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Bottom row (matches Preview bottom sample and still catches
+    ; standing on deadly floors after wall-collision snap)
+    ld a, (wall_hit_bottom)
+    cp 191
+    jr nc, .deadly_y_clamped
+    inc a
+    jr .deadly_y_ready
+.deadly_y_clamped:
+    ld a, 191
+.deadly_y_ready:
+    srl a
+    srl a
+    srl a
+    ld b, a                       ; B = bottom row
+
+    ; Left bottom
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Right bottom
+    ld a, (wall_hit_right)
+    cp 255
+    jr z, .deadly_right_bottom_ready
+    inc a
+.deadly_right_bottom_ready:
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Center bottom
+    ld a, (wall_hit_w)
+    srl a
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld c, a                       ; C = center column
+    call get_behavior_tile_nb
+    bit 2, a
+    jr z, .no_deadly_tile
+
+.deadly_tile_found:
+    pop bc
 
     ; Entity is touching deadly area - set flag
     ld hl, entity_deadly_collision
@@ -2367,9 +2990,11 @@ update_movement_component:
     ld d, 0
     add hl, de
     set 0, (hl)                   ; Mark as touching deadly tile
-    jr .deadly_check_done
+    jp .deadly_check_done
 
 .no_deadly_tile:
+    pop bc
+
     ; Clear deadly tile flag
     ld hl, entity_deadly_collision
     ld e, c
@@ -2506,10 +3131,7 @@ update_entity_collision_fast:
     ld a, (hl)
     ld hl, entity_collision_offset_x
     add hl, de
-    add a, (hl)
-    jp nc, .src_left_ok
-    ld a, 255                     ; Clamp on overflow
-.src_left_ok:
+    call coll_add_signed_offset_clamped
     ld (coll_src_left), a
 
     ; source right = left + hitbox_w (clamped)
@@ -2527,10 +3149,7 @@ update_entity_collision_fast:
     ld a, (hl)
     ld hl, entity_collision_offset_y
     add hl, de
-    add a, (hl)
-    jp nc, .src_top_ok
-    ld a, 255
-.src_top_ok:
+    call coll_add_signed_offset_clamped
     ld (coll_src_top), a
 
     ; source bottom = top + hitbox_h (clamped)
@@ -2543,8 +3162,10 @@ update_entity_collision_fast:
     ld (coll_src_bottom), a
 
     ; Inner loop: j = i+1 .. count-1
-    pop bc                        ; Restore B=i
-    push bc                       ; Save again for later
+    ; Preserve C=source entity index while restoring outer index i.
+    pop de                        ; D = outer index i, E = saved scratch
+    ld b, d
+    push de                       ; Save i again for .inner_done
     ld a, b
     inc a                         ; A = i+1
     ld b, a                       ; B = inner index j (reusing B temporarily)
@@ -2599,17 +3220,16 @@ update_entity_collision_fast:
     ld a, (hl)
     ld hl, entity_collision_offset_x
     add hl, de
-    add a, (hl)
-    jp nc, .tgt_left_ok
-    ld a, 255
-.tgt_left_ok:
+    push bc
+    call coll_add_signed_offset_clamped
+    pop bc
     ld e, a                       ; E = target_left
 
-    ; source.right <= target.left => no overlap
+    ; source.right < target.left => no overlap
+    ; (edge-touch counts as collision contact)
     ld a, (coll_src_right)
     cp e
     jp c, .next_inner
-    jp z, .next_inner
 
     ; target right = target_left + hitbox_w (clamped)
     push de                       ; Save E=target_left, D free
@@ -2623,11 +3243,15 @@ update_entity_collision_fast:
     jp nc, .tgt_right_ok
     ld a, 255
 .tgt_right_ok:
-    ; source.left >= target.right => no overlap
+    ; source.left > target.right => no overlap
+    ; (edge-touch counts as collision contact)
     ld d, a                       ; D = target_right
     ld a, (coll_src_left)
     cp d
-    jp nc, .next_inner
+    jp c, .x_overlap_ok
+    jp z, .x_overlap_ok
+    jp .next_inner
+.x_overlap_ok:
 
     ; target top = y + offset_y
     ld e, b
@@ -2637,17 +3261,16 @@ update_entity_collision_fast:
     ld a, (hl)
     ld hl, entity_collision_offset_y
     add hl, de
-    add a, (hl)
-    jp nc, .tgt_top_ok
-    ld a, 255
-.tgt_top_ok:
+    push bc
+    call coll_add_signed_offset_clamped
+    pop bc
     ld e, a                       ; E = target_top
 
-    ; source.bottom <= target.top => no overlap
+    ; source.bottom < target.top => no overlap
+    ; (edge-touch counts as collision contact)
     ld a, (coll_src_bottom)
     cp e
     jp c, .next_inner
-    jp z, .next_inner
 
     ; target bottom = target_top + hitbox_h (clamped)
     push de                       ; Save E=target_top
@@ -2661,11 +3284,15 @@ update_entity_collision_fast:
     jp nc, .tgt_bot_ok
     ld a, 255
 .tgt_bot_ok:
-    ; source.top >= target.bottom => no overlap
+    ; source.top > target.bottom => no overlap
+    ; (edge-touch counts as collision contact)
     ld d, a                       ; D = target_bottom
     ld a, (coll_src_top)
     cp d
-    jp nc, .next_inner
+    jp c, .y_overlap_ok
+    jp z, .y_overlap_ok
+    jp .next_inner
+.y_overlap_ok:
 
     ; ==========  COLLISION DETECTED between source(C) and target(B) ==========
 
@@ -2679,24 +3306,15 @@ update_entity_collision_fast:
     add hl, de
     ld (hl), b
 
-    ; Classify target layer into flags
+    ; Classify target layer into collision event flags
     push de
     ld e, b
     ld d, 0
     ld hl, entity_collision_layer
     add hl, de
-    ld d, (hl)                    ; D = target layer bitmask
+    ld a, (hl)                    ; A = target layer bitmask
     pop de
-
-    ld a, 1                       ; bit0: any collision
-    bit 1, d                      ; enemy layer = 2
-    jp z, .src_no_enemy
-    or 2                          ; bit1: enemy
-.src_no_enemy:
-    bit 4, d                      ; item layer = 16
-    jp z, .src_no_item
-    or 4                          ; bit2: item
-.src_no_item:
+    call coll_flags_from_layer
     ld hl, entity_entity_collision_flags
     add hl, de
     or (hl)                       ; OR with existing flags (multiple hits)
@@ -2714,24 +3332,15 @@ update_entity_collision_fast:
     add hl, de
     ld (hl), c
 
-    ; Classify source layer into flags
+    ; Classify source layer into collision event flags
     push de
     ld e, c
     ld d, 0
     ld hl, entity_collision_layer
     add hl, de
-    ld d, (hl)                    ; D = source layer bitmask
+    ld a, (hl)                    ; A = source layer bitmask
     pop de
-
-    ld a, 1                       ; bit0: any collision
-    bit 1, d                      ; enemy layer = 2
-    jp z, .tgt_no_enemy
-    or 2
-.tgt_no_enemy:
-    bit 4, d                      ; item layer = 16
-    jp z, .tgt_no_item
-    or 4
-.tgt_no_item:
+    call coll_flags_from_layer
     ld hl, entity_entity_collision_flags
     add hl, de
     or (hl)                       ; OR with existing flags
@@ -2747,7 +3356,8 @@ update_entity_collision_fast:
     jp .inner_loop
 
 .inner_done:
-    pop bc                        ; Restore B=i (outer index)
+    pop de                        ; Restore D=i (keep C=source untouched)
+    ld b, d
     inc b                         ; i++
     jp .outer_loop
 
@@ -2757,6 +3367,56 @@ update_entity_collision_fast:
         ; ==================================================================
 ; COLLISION HELPER FUNCTIONS(Critical for Gameplay Parity)
         ; ==================================================================
+
+; ------------------------------------------------------------------
+; coll_add_signed_offset_clamped
+; Input:  A = base coordinate (0..255)
+;         HL = pointer to signed offset byte (-128..127, two's complement)
+; Output: A = clamped (base + offset), saturated to 0..255
+; Clobbers: B
+; ------------------------------------------------------------------
+coll_add_signed_offset_clamped:
+    ld b, (hl)                    ; B = signed offset byte
+    add a, b                      ; A = base + offset (wrapped)
+    bit 7, b
+    jr z, .casc_positive
+    ; Negative offset: carry=0 means underflow (wrapped below 0)
+    jr c, .casc_done
+    xor a                         ; Clamp to 0
+    ret
+.casc_positive:
+    ; Positive offset: carry=1 means overflow (wrapped above 255)
+    jr nc, .casc_done
+    ld a, 255                     ; Clamp to 255
+.casc_done:
+    ret
+
+; ------------------------------------------------------------------
+; coll_flags_from_layer
+; Input:  A = collision layer bitmask of the other entity
+; Output: A = collision event flags (entity/enemy/item)
+; Clobbers: B, C
+; ------------------------------------------------------------------
+coll_flags_from_layer:
+    ld b, a
+    ld c, COLLISION_EVENT_ENTITY
+
+    ld a, b
+    and COLLISION_LAYER_ENEMY
+    jr z, .cffl_no_enemy
+    ld a, c
+    or COLLISION_EVENT_ENEMY
+    ld c, a
+.cffl_no_enemy:
+    ld a, b
+    and COLLISION_LAYER_ITEM
+    jr z, .cffl_done
+    ld a, c
+    or COLLISION_EVENT_ITEM
+    ld c, a
+.cffl_done:
+    ld a, c
+    ret
 
             check_tile_collision:
     ; Check collision with background tiles
@@ -2796,8 +3456,8 @@ update_entity_collision_fast:
         ; For now, assume all non - zero tiles are solid
         ; This would read from the behavior map generated from screen data
     call get_behavior_tile; Returns A = behavior value
-    or a
-    jr z, no_tile_collision; 0 = passable
+    and #F0               ; Family bits only (0=NoSolid, #10+=Solid)
+    jr z, no_tile_collision; 0 = passable (NoSolid family)
 
         ; Collision detected - handle it
     call handle_tile_collision
@@ -2962,12 +3622,12 @@ update_entity_collision_fast:
     jr nc, .not_on_platform ; Not standing on platform
 
     ; Current entity is above other entity
-    ; Check if other entity is a platform (collision_layer & 8)
+    ; Check if other entity is a platform (collision_layer & COLLISION_LAYER_PLATFORM)
     ld hl, entity_collision_layer
     ld d, 0
     add hl, de              ; HL = &entity_collision_layer[other]
     ld a, (hl)              ; A = other entity collision layer
-    and 8                   ; Check bit 3 (platform layer)
+    and COLLISION_LAYER_PLATFORM
     jr z, .not_on_platform  ; Not a platform
 
     ; Other entity IS a platform - set platform reference
@@ -2993,18 +3653,46 @@ update_entity_collision_fast:
         
     ; ------------------------------------------------------------------
     ; get_behavior_tile
-    ; Get behavior value for tile at (B=row, C=column)
-    ; Returns A = behavior value (0 = passable, non-zero = solid)
-    ; Uses current_behavior_map pointer set by load_screen
     ; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Read behavior byte for tile at (B=row, C=column) from the runtime behavior map.
+;   Inputs:
+;     - B = tile row    (0..23, out-of-range → A=0, passable)
+;     - C = tile column (0..31, out-of-range → A=0, passable)
+;     - current_behavior_map = 16-bit pointer to active screen behavior map
+;     - current_behavior_map_bank = memory bank number (mapper context)
+;   Outputs:
+;     - A = behavior byte:
+;     -   bits 7-4 (A & #F0): family / solidity class (0x00 = NoSolid, 0x10+ = Solid)
+;     -   bits 3-0 (A & #0F): flag bits (e.g. 0x08 = Interactable)
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL
+;   Notes:
+;     - Maintains a single-row cache (behavior_cache_row / behavior_cache_row_base)
+;     - so consecutive calls for the same row skip the row*32 multiply.
+;     - Mapper push/pop protects P2 bank around the map read (no-op in simple32k mode).
+;     - MUST be called with DE = entity index already set (DE is preserved, not used).
+
 get_behavior_tile:
     ; Bounds check: row must be 0-23, column must be 0-31
+    ; NOTE: jp nc (not jr nc) to gbt_oob — gbt_oob is a global label defined after
+    ; get_behavior_tile_nb. Using jr would create a local-label scoping conflict in
+    ; glass.jar (get_behavior_tile_nb: starts a new scope, so .bt_out_of_bounds would
+    ; belong to that scope, not get_behavior_tile's scope).
     ld a, b
     cp 24
-    jr nc, .bt_out_of_bounds      ; Row >= 24: treat as passable
+    jp nc, gbt_oob                ; Row >= 24: treat as passable
     ld a, c
     cp 32
-    jr nc, .bt_out_of_bounds      ; Column >= 32: treat as passable
+    jp nc, gbt_oob                ; Column >= 32: treat as passable
+get_behavior_tile_nb:
+    ; Entry point for callers that guarantee B ∈ 0..23 and C ∈ 0..31.
+    ; Saves 36 cycles (4+7+7+4+7+7) by skipping bounds validation.
+    ; DO NOT call this unless the probe coordinates are provably in-bounds.
     push hl
     push de
 
@@ -3055,29 +3743,20 @@ get_behavior_tile:
     ld e, c
     ld d, 0
     add hl, de                    ; HL = row base + column
-    call mapper_push_p2
-    ld a, (current_behavior_map_bank)
-    call mapper_set_bank_p2
-    ld a, (hl)                    ; A = behavior value
-    push af
-    call mapper_pop_p2
-    pop af
+
+    ; simple32k: behavior map is always resident in RAM (no bank switching needed).
+    ; Skip mapper push/pop/set — saves ~169 cycles per call (41% overhead eliminated).
+    ld a, (hl)                    ; A = behavior value (direct RAM read)
     pop de
     pop hl
     ret
-.bt_out_of_bounds:
+gbt_oob:
     xor a                         ; A = 0 (passable)
     ret
     
         ; ==================================================================
         ; INPUT COMPONENT SYSTEM (With direction restrictions - Cursors)
         ; ==================================================================
-
-; Direction flags for Cursors component
-DIR_ALLOW_UP     EQU #01 ; Bit 0: Allow UP movement
-DIR_ALLOW_DOWN   EQU #02 ; Bit 1: Allow DOWN movement
-DIR_ALLOW_LEFT   EQU #04 ; Bit 2: Allow LEFT movement
-DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
 
         init_input_system:
             ; Initialize input handling system
@@ -3093,6 +3772,20 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld de, entity_dir_mask + 1
             ld bc, 31
             ld (hl), #0F               ; Default: 00001111 = all directions enabled
+            ldir
+
+            ; Initialize cursor speed for all entities (default: 2 px/frame)
+            ld hl, entity_input_speed
+            ld de, entity_input_speed + 1
+            ld bc, 31
+            ld (hl), 2
+            ldir
+
+            ; Initialize input disabled flags to 0 (all entities start with input ENABLED)
+            ld hl, entity_input_disabled
+            ld de, entity_input_disabled + 1
+            ld bc, 31
+            ld (hl), 0
             ldir
             ret
 
@@ -3120,18 +3813,31 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and COMP_MASK_INPUT        ; Check if has input component
             jp z, input_next_entity    ; Skip if no input component
 
-            ; Skip entities that are not in the currently active screen
-            ; Preserve HL because it is the entity_comp_masks loop pointer.
+            ; active_entity_list already guarantees current_screen_id membership
+
+            ; Check if input is disabled for this entity (DISABLE_INPUT action)
             push hl
-            ld hl, entity_screen_id
             ld e, c
             ld d, 0
+            ld hl, entity_input_disabled
             add hl, de
             ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
             pop hl
-            jp nz, input_next_entity
+            or a
+            jp z, .input_enabled
+            ; Input disabled: zero velocity and skip
+            push hl
+            ld e, c
+            ld d, 0
+            ld hl, entity_vel_x
+            add hl, de
+            ld (hl), 0
+            ld hl, entity_vel_y
+            add hl, de
+            ld (hl), 0
+            pop hl
+            jp input_next_entity
+        .input_enabled:
 
             ; Apply input to entity movement (real implementation)
             push bc
@@ -3148,6 +3854,29 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, (input_state)
             ld b, 0                    ; Default X velocity
             ld c, 0                    ; Default Y velocity
+
+            ; Resolve per-entity input speed once per update.
+            ; H = cardinal speed, L = diagonal speed (max(1, speed/2)).
+            push af
+            ld a, d
+            push af
+            ld d, 0
+            ld hl, entity_input_speed
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, .input_speed_ok
+            ld a, 1
+        .input_speed_ok:
+            ld h, a
+            srl a
+            jr nz, .input_diag_speed_ok
+            ld a, 1
+        .input_diag_speed_ok:
+            ld l, a
+            pop af
+            ld d, a
+            pop af
 
             ; Check directional input with direction restrictions
             cp STICK_UP
@@ -3173,7 +3902,9 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_UP
             jp z, input_apply_velocity ; Not allowed, skip
-            ld c, -2                   ; Negative Y velocity (up)
+            ld a, h
+            neg
+            ld c, a                    ; Negative Y velocity (up)
             jp input_apply_velocity
 
         input_move_down:
@@ -3181,7 +3912,8 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_DOWN
             jp z, input_apply_velocity ; Not allowed, skip
-            ld c, 2                    ; Positive Y velocity (down)
+            ld a, h
+            ld c, a                    ; Positive Y velocity (down)
             jp input_apply_velocity
 
         input_move_left:
@@ -3189,7 +3921,9 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity ; Not allowed, skip
-            ld b, -2                   ; Negative X velocity (left)
+            ld a, h
+            neg
+            ld b, a                    ; Negative X velocity (left)
             jp input_apply_velocity
 
         input_move_right:
@@ -3197,7 +3931,8 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity ; Not allowed, skip
-            ld b, 2                    ; Positive X velocity (right)
+            ld a, h
+            ld b, a                    ; Positive X velocity (right)
             jp input_apply_velocity
 
         input_move_upright:
@@ -3209,19 +3944,24 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_RIGHT
             jp z, input_check_up_only  ; RIGHT not allowed
             ; Both allowed - diagonal
-            ld b, 1                    ; Diagonal movement (slower)
-            ld c, -1
+            ld a, l                    ; Diagonal movement (slower)
+            ld b, a
+            neg
+            ld c, a
             jp input_apply_velocity
         input_check_right_only:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity
-            ld b, 2
+            ld a, h
+            ld b, a
             jp input_apply_velocity
         input_check_up_only:
             ; Only UP allowed
-            ld c, -2
+            ld a, h
+            neg
+            ld c, a
             jp input_apply_velocity
 
         input_move_upleft:
@@ -3233,19 +3973,25 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_LEFT
             jp z, input_check_up_only1 ; LEFT not allowed
             ; Both allowed - diagonal
-            ld b, -1
-            ld c, -1
+            ld a, l
+            neg
+            ld b, a
+            ld c, a
             jp input_apply_velocity
         input_check_left_only1:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity
-            ld b, -2
+            ld a, h
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_up_only1:
             ; Only UP allowed
-            ld c, -2
+            ld a, h
+            neg
+            ld c, a
             jp input_apply_velocity
 
         input_move_downright:
@@ -3257,19 +4003,22 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_RIGHT
             jp z, input_check_down_only2 ; RIGHT not allowed
             ; Both allowed - diagonal
-            ld b, 1
-            ld c, 1
+            ld a, l
+            ld b, a
+            ld c, a
             jp input_apply_velocity
         input_check_right_only2:
             ; Only RIGHT allowed
             ld a, d
             and DIR_ALLOW_RIGHT
             jp z, input_apply_velocity
-            ld b, 2
+            ld a, h
+            ld b, a
             jp input_apply_velocity
         input_check_down_only2:
             ; Only DOWN allowed
-            ld c, 2
+            ld a, h
+            ld c, a
             jp input_apply_velocity
 
         input_move_downleft:
@@ -3281,19 +4030,24 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             and DIR_ALLOW_LEFT
             jp z, input_check_down_only3 ; LEFT not allowed
             ; Both allowed - diagonal
-            ld b, -1
-            ld c, 1
+            ld a, l
+            ld c, a
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_left_only3:
             ; Only LEFT allowed
             ld a, d
             and DIR_ALLOW_LEFT
             jp z, input_apply_velocity
-            ld b, -2
+            ld a, h
+            neg
+            ld b, a
             jp input_apply_velocity
         input_check_down_only3:
             ; Only DOWN allowed
-            ld c, 2
+            ld a, h
+            ld c, a
 
         input_apply_velocity:
             ; Apply calculated velocity to entity
@@ -3306,6 +4060,56 @@ DIR_ALLOW_RIGHT  EQU #08 ; Bit 3: Allow RIGHT movement
             ld hl, entity_vel_y
             add hl, de
             ld (hl), c                 ; entity_vel_y[entity_index] = Y velocity
+
+            ; Update entity_facing_dir based on input_state
+            ; Only updates for directional inputs (0 = no change, keeps last facing)
+            push af
+            ld a, (input_state)
+            or a
+            jr z, .input_facing_done    ; 0 = no direction pressed, keep last facing
+            cp 2
+            jr c, .input_facing_up      ; 1 = UP only
+            cp 5
+            jr c, .input_facing_right   ; 2,3,4 = UP+RIGHT, RIGHT, DOWN+RIGHT
+            jr z, .input_facing_down    ; 5 = DOWN only
+            ; 6,7,8 = DOWN+LEFT, LEFT, UP+LEFT
+            ld a, 1                     ; FACING_LEFT = 1
+            jr .input_facing_write
+.input_facing_right:
+            ld a, 2                     ; FACING_RIGHT = 2
+            jr .input_facing_write
+.input_facing_up:
+            ld a, 3                     ; FACING_UP = 3
+            jr .input_facing_write
+.input_facing_down:
+            ld a, 4                     ; FACING_DOWN = 4
+.input_facing_write:
+            push hl
+            push de
+            ld hl, entity_facing_dir
+            add hl, de                  ; DE = (0, entity_index)
+            ld (hl), a
+            pop de
+            pop hl
+.input_facing_done:
+            pop af
+
+            ; Sync directional sprite facing for input-driven entities.
+            ; Uses sprite_dir_* lookup tables (left/right/up/down variants).
+            ; SKIP if entity has a State Machine: SM controls sprite via ChangeSprite.
+            ; Calling patrol facing for SM entities overwrites entity_sprite_asset_index
+            ; every frame, undoing what ChangeSprite set (walk sprite would revert to idle).
+            push af
+            ld hl, entity_sm_ptr_l
+            add hl, de              ; DE = (0, entity_index)
+            ld a, (hl)
+            ld hl, entity_sm_ptr_h
+            add hl, de
+            or (hl)                 ; A != 0 if SM pointer is set
+            pop af
+            jr nz, .skip_patrol_facing
+            call update_entity_patrol_facing
+.skip_patrol_facing:
 
             pop hl
             pop bc
@@ -3529,7 +4333,7 @@ increase_entity_lives:
             ld (hl), ANIM_DEFAULT_SPEED
             ldir
 
-            ; Default flags = playing + loop
+            ; Default flags = playing + loop (loop cleared/set per-sprite by Action_ChangeSprite)
             ld hl, entity_anim_flags
             ld de, entity_anim_flags+1
             ld bc, 31
@@ -3561,29 +4365,7 @@ increase_entity_lives:
             cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
             jp nz, .anim_next_entity
 
-            ; Skip inactive entities
-            push hl
-            ld hl, entity_active
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            pop hl
-            or a
-            jp z, .anim_next_entity
-
-            ; Skip entities that are not in the currently active screen
-            ; Preserve HL because it is the entity_comp_masks loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, .anim_next_entity
+            ; active_entity_list already guarantees active + current_screen_id
 
             push bc
             push hl
@@ -3634,6 +4416,8 @@ increase_entity_lives:
             ld a, (hl)
             cp #FF
             jp z, anim_done_entity
+            cp SPRITE_ASSET_COUNT
+            jp nc, anim_done_entity
             ld b, a                    ; B = sprite asset index
 
             ; frameCount = sprite_asset_frame_count[B]
@@ -3673,6 +4457,17 @@ increase_entity_lives:
             push de                    ; Keep balanced
             ld a, d
             dec a                      ; frame = frameCount-1
+            push af                    ; Preserve clamped frame index
+
+            ; Mark one-shot completion and stop playback for non-loop anim.
+            ; State machine condition ANIMATION_COMPLETE consumes this flag.
+            ld e, c
+            ld d, 0
+            ld hl, entity_anim_flags
+            add hl, de
+            set 3, (hl)                ; ANIM_FLAG_COMPLETED
+            res 0, (hl)                ; clear ANIM_FLAG_PLAYING
+            pop af
 
         .store_frame:
             pop de                     ; Clean stack (discard frameCount)
@@ -3781,6 +4576,20 @@ anim_done_entity:
             ld (hl), 0
             ldir
 
+            ; Clear temporary extra-jump charges granted by bonus pickups
+            ld hl, entity_jump_bonus
+            ld de, entity_jump_bonus+1
+            ld bc, 31
+            ld (hl), 0
+            ldir
+
+            ; Initialize configured max jumps (default: single jump)
+            ld hl, entity_jump_max
+            ld de, entity_jump_max+1
+            ld bc, 31
+            ld (hl), 1
+            ldir
+
             ; Clear on-ground flags
             ld hl, entity_on_ground
             ld de, entity_on_ground+1
@@ -3792,7 +4601,7 @@ anim_done_entity:
         update_jump_component:
             ; Update jump logic for entities
             ; Fire button edge triggers jump for entities with Jump+Input
-            ; Uses: entity_jump_count, entity_on_ground, entity_gravity_vel
+            ; Uses: entity_jump_count, entity_jump_max, entity_jump_bonus, entity_on_ground, entity_gravity_vel
             ; Uses global input_btn_curr/input_btn_prev edge detection
 
             ld a, (active_entity_count)
@@ -3812,7 +4621,7 @@ anim_done_entity:
             ld a, (hl)
             pop hl                        ; Restore list pointer
             and #01                       ; Jump bit (COMP_MASK_JUMP=#0100 -> high byte bit0)
-            jr z, jump_next_entity
+            jp z, jump_next_entity
 
             ; Require Input component
             push hl
@@ -3823,7 +4632,7 @@ anim_done_entity:
             ld a, (hl)
             and COMP_MASK_INPUT
             pop hl
-            jr z, jump_next_entity
+            jp z, jump_next_entity
 
             push bc
             push hl
@@ -3842,30 +4651,74 @@ anim_done_entity:
             add hl, de
             ld (hl), 0
 
+            ; Landing also clears any unused extra-jump bonus.
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld (hl), 0
+
         .jump_check:
             ; --- Jump trigger edge (fire pressed now, not pressed previous frame) ---
             ld a, (input_btn_curr)
             and INPUT_BTN_FIRE
-            jr z, jump_done_entity        ; not pressed
+            jp z, jump_done_entity        ; not pressed
             ld a, (input_btn_prev)
             and INPUT_BTN_FIRE
-            jr nz, jump_done_entity       ; already held last frame
+            jp nz, jump_done_entity       ; already held last frame
 
-            ; Check jump count < 2 OR grounded
+            ; Check jump count < configured max OR grounded
             ld hl, entity_jump_count
             ld e, c
             ld d, 0
             add hl, de
             ld a, (hl)
-            cp 2
+            ld hl, entity_jump_max
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld b, (hl)
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld d, (hl)
+            ld a, b
+            add a, d
+            ld b, a
+            ld hl, entity_jump_count
+            ld e, c
+            ld d, 0
+            add hl, de
+            ld a, (hl)
+            cp b
             jr c, .do_jump
 
             ld hl, entity_on_ground
             add hl, de
             bit 0, (hl)
-            jr z, jump_done_entity
+            jp z, jump_done_entity
 
         .do_jump:
+            ; Consume one bonus jump only when performing an airborne jump
+            ; beyond the entity's base maxJumps.
+            ld hl, entity_on_ground
+            add hl, de
+            bit 0, (hl)
+            jr nz, .skip_bonus_consume
+
+            ld hl, entity_jump_count
+            add hl, de
+            ld a, (hl)
+            ld hl, entity_jump_max
+            add hl, de
+            cp (hl)
+            jr c, .skip_bonus_consume
+
+            ld hl, entity_jump_bonus
+            add hl, de
+            ld a, (hl)
+            or a
+            jr z, .skip_bonus_consume
+            dec (hl)
+
+        .skip_bonus_consume:
             ; jump_count++
             ld hl, entity_jump_count
             add hl, de
@@ -3889,7 +4742,7 @@ anim_done_entity:
             add hl, de
             ld a, (hl)
             and #02                       ; Gravity bit (COMP_MASK_GRAVITY=#0200 -> high byte bit1)
-            jr z, jump_done_entity
+            jp z, jump_done_entity
 
             ld hl, entity_gravity_vel
             ld e, c
@@ -3944,18 +4797,7 @@ gravity_update_loop:
             and #02; Check COMP_MASK_GRAVITY(#0200) => bit 1 in high byte
             jr z, gravity_next_entity; Skip if no gravity component
 
-    ; Skip entities that are not in the currently active screen
-    ; Preserve HL because it is the entity_comp_masks_hi loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, gravity_next_entity
+    ; active_entity_list already guarantees current_screen_id membership
 
     ; Entity has gravity - apply acceleration
             push bc
@@ -4109,6 +4951,8 @@ update_auto_destroy_component:
         ld hl, entity_comp_masks_hi
         add hl, de
         ld (hl), 0                    ; Clear high byte
+        ld hl, active_entity_list_dirty
+        ld (hl), 1
 
         ; Move entity off-screen
         ld hl, entity_x_pos
@@ -4515,7 +5359,7 @@ update_platform_riding:
     ; WALL COLLISION COMPONENT SYSTEM
     ; ==================================================================
     ; Prevents entities from moving through walls
-    ; Checks 2 points per direction for robust collision
+    ; Uses per-entity hitbox (offset + width/height)
     ; Snaps entity position to wall edge AND zeros velocity
 
 init_wallcollision_system:
@@ -4523,51 +5367,102 @@ init_wallcollision_system:
 
 ; ------------------------------------------------------------------
 ; update_wallcollision_component
-; Check wall collisions and prevent movement through solid tiles
-; Uses behavior map (current_behavior_map) for collision detection
-; Entity position is cached in wall_temp_x/y to avoid register issues
+; ------------------------------------------------------------------
+; Check wall collisions and prevent movement through solid tiles.
+; Uses behavior map (current_behavior_map) for collision detection.
+; Entity position is cached in wall_temp_x/y and converted to hitbox bounds.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Iterate all entity slots; for each active entity with
+;            WallCollision eligibility, probe solid tiles in movement
+;            direction(s) and snap position + zero velocity on hit.
+;   Inputs:
+;     - entity_active[]         : 1 = entity exists
+;     - entity_comp_masks[]     : low byte component bitmask
+;     - entity_comp_masks_hi[]  : high byte (COMP_MASK_GRAVITY at bit 1)
+;     - entity_collides_with[]  : must include COLLISION_LAYER_PLATFORM (#08)
+;     - entity_screen_id[]      : entity must be on current_screen_id
+;     - entity_x_pos/y_pos[]    : world position
+;     - entity_vel_x/vel_y[]    : signed 8-bit velocity (negative = left/up)
+;     - entity_gravity_vel[]    : 16-bit signed gravity accumulator (word)
+;     - entity_collision_offset_x/y[]: signed offset from origin to hitbox corner
+;     - entity_collision_hitbox_w/h[]: hitbox size (minimum 1 if zero)
+;     - current_behavior_map    : pointer to active screen behavior map
+;     - current_screen_id       : ID of the visible screen
+;   Outputs:
+;     - entity_x_pos/y_pos[]    : snapped on collision
+;     - entity_vel_x/vel_y[]    : zeroed on collision axis
+;     - entity_gravity_vel[]    : zeroed on vertical collision
+;     - entity_on_ground[]      : bit 0 set=floor, cleared at loop start
+;     - entity_wall_collision_flags[]: bits 0=UP,1=DOWN,2=LEFT,3=RIGHT
+;   Clobbers: AF, BC, DE, HL
+;   Preserved: (none — uses scratch RAM wall_temp_x/y, wall_hit_*, wall_probe_*)
+;   Notes:
+;     - Opt-B: loop uses active_entity_list (entities guaranteed active + on screen).
+;       Eliminates ~29 wasted iterations vs 0..MAX_ENTITIES scan (3 entities active).
+;     - Opt-C: wall_build_hitbox_cache is skipped on DOWN snap when new Y == current Y
+;       (entity already on floor). Saves ~200 cycles/entity/frame when standing still.
+;     - wall_build_hitbox_cache is called once at entity entry, and after each snap
+;       where the position actually changes.
+;     - Gravity floor check (.check_wall_y_gravity) runs even when vel_y=0
+;       so entity_on_ground stays accurate when entity is standing still.
 ; ------------------------------------------------------------------
 update_wallcollision_component:
-    ld e, 0                       ; Entity index = 0
-    ld d, 0
+    ; Opt-B: use compact active_entity_list instead of 0..MAX_ENTITIES scan.
+    ; Entities in the list are already guaranteed active and on current_screen_id.
+    ; This eliminates ~29 wasted iterations when only 3 entities are active.
+    call ensure_used_entity_list_current
+    ld a, (active_entity_count)
+    or a
+    ret z                         ; no active entities → done
+    ld b, a                       ; B = entity count (loop counter for djnz)
+    ld hl, active_entity_list
 
 .wall_loop:
-    ld a, e
-    cp MAX_ENTITIES
-    ret z
+    ; ---- Load next entity index from compact list ----
+    ld e, (hl)                    ; E = entity index
+    ld d, 0                       ; DE = entity index (word)
+    push hl                       ; save list pointer (clobbered by hl arithmetic below)
+    push bc                       ; save loop counter
 
-    ; Check if entity is active
-    ld hl, entity_active
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .wall_next
-
-    ; Only process entities with movement capability (Input or Movement)
-    ; Static entities (Nucleo etc.) have no velocity sources - skip them
+    ; --- Filter A: entity must have Collision component ---
+    ; (entity_active and entity_screen_id are implicit via active_entity_list)
+    ; Hitbox data lives in Collision arrays; no Collision = no valid hitbox.
+    ; Opt-D: read comp_masks into B (B is free — loop counter saved on stack above).
+    ; B holds comp_masks for Filter C reuse, eliminating a second memory read.
     ld hl, entity_comp_masks
     add hl, de
+    ld b, (hl)                    ; B = comp_masks[E] (safe: loop ctr on stack)
+    ld a, b
+    and COMP_MASK_COLLISION       ; low byte, bit 3
+    jp z, .wall_next
+
+    ; --- Filter B: entity must collide with the Platform layer ---
+    ; entity_collides_with is a bitmask; COLLISION_LAYER_PLATFORM (#08) = map tiles.
+    ld hl, entity_collides_with
+    add hl, de
     ld a, (hl)
+    and COLLISION_LAYER_PLATFORM
+    jp z, .wall_next
+
+    ; --- Filter C: entity must be moveable (Input or Movement component) ---
+    ; Static entities (platforms, decorations) have no velocity to correct.
+    ; Opt-D: reuse comp_masks from B — no extra ld hl/add hl,de/ld a,(hl) needed (saves 28 cycles/entity).
+    ld a, b
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jp z, .wall_next
 
-    ; Skip entities that are not in the currently active screen
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jp nz, .wall_next
-
-    ; Cache entity position
+    ; ---- Entity passed all filters — cache its position ----
+    ; wall_temp_x/y are scratch RAM used by wall_build_hitbox_cache and
+    ; the snap routines to avoid repeated indexed array lookups.
     ld hl, entity_x_pos
     add hl, de
     ld a, (hl)
-    ld (wall_temp_x), a          ; Cache X
+    ld (wall_temp_x), a          ; scratch X = entity_x_pos[E]
     ld hl, entity_y_pos
     add hl, de
     ld a, (hl)
-    ld (wall_temp_y), a          ; Cache Y
+    ld (wall_temp_y), a          ; scratch Y = entity_y_pos[E]
 
     ; Clear on_ground flag - will be re-set by .wall_down_blocked if floor found
     ; This ensures entity correctly detects walking off platform edges
@@ -4578,6 +5473,9 @@ update_wallcollision_component:
     ld hl, entity_on_ground
     add hl, de                        ; DE still = entity index from above
     res 0, (hl)
+
+    ; Build initial hitbox cache for this entity.
+    call wall_build_hitbox_cache
 
     ; ---- CHECK HORIZONTAL VELOCITY ----
     ld hl, entity_vel_x
@@ -4590,114 +5488,147 @@ update_wallcollision_component:
     jp z, .wall_check_right
 
 .wall_check_left:
-    ; Moving left - check left edge at 2 Y points
-    ld a, (wall_temp_x)
+    ; Moving left - probe one pixel before hitbox left edge
+    ld a, (wall_hit_left)
     or a
-    jp z, .check_wall_y           ; X=0, already at left edge
+    jp z, .check_wall_y           ; already at left boundary
     sub 1
     srl a
     srl a
-    srl a                         ; Column = (X-1) / 8
+    srl a                         ; Column = (left-1) / 8
     ld c, a
 
-    ; Check point 1: upper portion (Y+2)
-    ld a, (wall_temp_y)
-    add a, 2
+    ; Check point 1: adaptive top probe (safe for small hitboxes)
+    ld a, (wall_probe_top)
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+2) / 8
+    ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_left_blocked
 
-    ; Check point 2: lower portion (Y+13)
-    ld a, (wall_temp_y)
-    add a, 13
+    ; Check point 2: adaptive bottom probe (safe for small hitboxes)
+    ; probe_bottom = hitbox_bottom - inset ≤ 191 → row ≤ 23, col = (left-1)/8 ≤ 31 → NB safe
+    ld a, (wall_probe_bottom)
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+13) / 8
-    call get_behavior_tile
-    or a
+    ld b, a                       ; Row = bottom / 8
+    call get_behavior_tile_nb
+    and #F0
     jp z, .check_wall_y           ; Both passable
 
 .wall_left_blocked:
-    ; Snap X to right edge of wall tile: X = (column+1) * 8
+    ; ---------------------------------------------------------------
+    ; Snap formula (LEFT wall):
+    ;   C = tile column that blocked us (from (left-1)/8 probe)
+    ;   new_hitbox_left = (C + 1) * 8   → first pixel right of the wall
+    ;   entity_x = new_hitbox_left - collision_offset_x
+    ;              (wall_sub_signed_offset_clamped reverses the offset)
+    ; After snap: vel_x = 0, entity_wall_collision_flags bit 2 (LEFT) set.
+    ; ---------------------------------------------------------------
     ld a, c
     inc a
     add a, a
     add a, a
-    add a, a                      ; A = (column+1) * 8
-    ld (wall_temp_x), a          ; Update cache
+    add a, a                      ; A = (C+1)*8 = new hitbox left pixel
+    push af                       ; save new hitbox left
+    ld hl, entity_collision_offset_x
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped ; A = entity_x = new_left - offset_x
+    ld (wall_temp_x), a           ; update position cache
     push af
     ld hl, entity_x_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Snap entity X position
+    ld (hl), a                    ; write snapped entity X to RAM
+    call wall_build_hitbox_cache  ; recalculate hitbox after position change
 
-    ; Zero X velocity
+    ; Cancel leftward velocity and flag the collision
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
     ld hl, entity_wall_collision_flags
     add hl, de
-    set 2, (hl)                       ; LEFT wall collision
+    set 2, (hl)                       ; bit 2 = LEFT wall collision
     jp .check_wall_y
 
 .wall_check_right:
-    ; Moving right - check right edge at 2 Y points
-    ld a, (wall_temp_x)
-    add a, 16                     ; Right edge (16px wide sprite)
-    jp c, .check_wall_y           ; Overflow (X+16 > 255), skip
+    ; Moving right - probe one pixel after hitbox right edge
+    ld a, (wall_hit_right)
+    inc a
+    jp z, .check_wall_y           ; overflow (right==255), skip
     srl a
     srl a
     srl a                         ; Column = (X+16) / 8
     ld c, a
 
-    ; Check point 1: upper portion (Y+2)
-    ld a, (wall_temp_y)
-    add a, 2
+    ; Check point 1: adaptive top probe (safe for small hitboxes)
+    ld a, (wall_probe_top)
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+2) / 8
+    ld b, a                       ; Row = top / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_right_blocked
 
-    ; Check point 2: lower portion (Y+13)
-    ld a, (wall_temp_y)
-    add a, 13
+    ; Check point 2: adaptive bottom probe (safe for small hitboxes)
+    ; probe_bottom ≤ 191 → row ≤ 23, col = (right+1)/8 ≤ 31 → NB safe
+    ld a, (wall_probe_bottom)
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+13) / 8
-    call get_behavior_tile
-    or a
+    ld b, a                       ; Row = bottom / 8
+    call get_behavior_tile_nb
+    and #F0
     jp z, .check_wall_y           ; Both passable
 
 .wall_right_blocked:
-    ; Snap X so right edge touches left of wall: X = column*8 - 16
+    ; ---------------------------------------------------------------
+    ; Snap formula (RIGHT wall):
+    ;   C = tile column that blocked us (from (right+1)/8 probe)
+    ;   wall_left_of_tile = C * 8           → left pixel of blocking tile
+    ;   new_hitbox_left   = C*8 - hitbox_w  → push entity left so right edge
+    ;                                         just touches the tile's left side
+    ;   If underflow (hitbox_w > C*8): clamp new_hitbox_left to 0.
+    ;   entity_x = new_hitbox_left - collision_offset_x
+    ; After snap: vel_x = 0, entity_wall_collision_flags bit 3 (RIGHT) set.
+    ; ---------------------------------------------------------------
     ld a, c
     add a, a
     add a, a
-    add a, a                      ; A = column * 8
-    sub 16                        ; A = column*8 - 16
-    ld (wall_temp_x), a          ; Update cache
+    add a, a                      ; A = C * 8 = left pixel of blocking tile
+    ld b, a                       ; B = C*8
+    ld a, (wall_hit_w)
+    ld c, a                       ; C = hitbox width
+    ld a, b
+    sub c                         ; A = C*8 - hitbox_w = new hitbox left
+    jr nc, .wall_right_left_ok
+    xor a                         ; underflow: clamp to 0
+.wall_right_left_ok:
+    push af                       ; save new hitbox left
+    ld hl, entity_collision_offset_x
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped ; A = entity_x = new_left - offset_x
+    ld (wall_temp_x), a           ; update position cache
     push af
     ld hl, entity_x_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Snap entity X position
+    ld (hl), a                    ; write snapped entity X to RAM
+    call wall_build_hitbox_cache  ; recalculate hitbox after position change
 
-    ; Zero X velocity
+    ; Cancel rightward velocity and flag the collision
     ld hl, entity_vel_x
     add hl, de
     ld (hl), 0
     ld hl, entity_wall_collision_flags
     add hl, de
-    set 3, (hl)                       ; RIGHT wall collision
+    set 3, (hl)                       ; bit 3 = RIGHT wall collision
 
 .check_wall_y:
     ; ---- CHECK VERTICAL VELOCITY ----
@@ -4711,47 +5642,64 @@ update_wallcollision_component:
     jp z, .wall_check_down
 
 .wall_check_up:
-    ; Moving up - check top edge at 2 X points
-    ld a, (wall_temp_y)
+    ; Moving up - probe one pixel above hitbox top edge
+    ld a, (wall_hit_top)
     or a
-    jp z, .wall_up_top_edge       ; Y=0, clamp + stop upward velocity
+    jp z, .wall_up_top_edge       ; top=0, clamp + stop upward velocity
     sub 1
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y-1) / 8
+    ld b, a                       ; Row = (top-1) / 8
 
-    ; Check point 1: left portion (X+2)
-    ld a, (wall_temp_x)
-    add a, 2
+    ; Check point 1: adaptive left probe (safe for small hitboxes)
+    ; NOTE: uses get_behavior_tile (with bounds) — entity_y can wrap off-screen,
+    ; making B = (top-1)/8 > 23 (e.g. top=252 → row=31). Bounds check returns 0.
+    ld a, (wall_probe_left)
     srl a
     srl a
     srl a
-    ld c, a                       ; Column = (X+2) / 8
+    ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_up_blocked
 
-    ; Check point 2: right portion (X+13)
-    ld a, (wall_temp_x)
-    add a, 13
+    ; Check point 2: adaptive right probe (safe for small hitboxes)
+    ld a, (wall_probe_right)
     srl a
     srl a
     srl a
-    ld c, a                       ; Column = (X+13) / 8
+    ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp z, .wall_next              ; Both passable
 
 .wall_up_top_edge:
-    ; Top boundary clamp to prevent Y underflow (0 -> 255 -> ... -> 208 SAT terminator)
+    ; ---------------------------------------------------------------
+    ; Screen top boundary clamp (wall_hit_top == 0, no tile above row 0).
+    ; This path is entered when wall_hit_left == 0 (entity already at top
+    ; screen boundary) or when the UP probe is at row -1 (invalid).
+    ; Sanity guard: only snap if entity_y < 24 (i.e. truly near the top).
+    ; If entity_y >= 24, the "top=0" probe is a false positive — just
+    ; cancel velocity via .wall_up_cancel_only without moving entity.
+    ; new_hitbox_top = 0, entity_y = 0 - offset_y (clamped).
+    ; ---------------------------------------------------------------
+    ld a, (wall_temp_y)
+    cp 24
+    jp nc, .wall_up_cancel_only
     xor a
+    push af                       ; keep new hitbox top
+    ld hl, entity_collision_offset_y
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped
     ld (wall_temp_y), a
     push af
     ld hl, entity_y_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Clamp Y = 0
+    ld (hl), a                    ; Clamp entity Y to top boundary
+    call wall_build_hitbox_cache  ; Refresh hitbox cache after snap
 
     ; Zero Y velocity
     ld hl, entity_vel_y
@@ -4771,25 +5719,69 @@ update_wallcollision_component:
     jp .wall_next
 
 .wall_up_blocked:
-    ; Snap Y below ceiling: Y = (row+1) * 8
+    ; ---------------------------------------------------------------
+    ; Snap formula (UP / ceiling):
+    ;   B = tile row that blocked us (from (top-1)/8 probe)
+    ;   new_hitbox_top = (B + 1) * 8  → first pixel below the ceiling tile
+    ;   Safety guard: if new_top < current wall_hit_top, the snap would
+    ;   push us further into the ceiling (sub-pixel rounding artefact).
+    ;   In that case, fall through to .wall_up_cancel_only to just
+    ;   cancel velocity without moving the entity.
+    ;   entity_y = new_hitbox_top - collision_offset_y
+    ; After snap: vel_y = 0, gravity_vel = 0, wall_collision_flags bit 0 (UP) set.
+    ; ---------------------------------------------------------------
     ld a, b
     inc a
     add a, a
     add a, a
-    add a, a                      ; A = (row+1) * 8
-    ld (wall_temp_y), a          ; Update cache
+    add a, a                      ; A = (B+1)*8 = new hitbox top pixel
+    ; Guard: new_top must be >= current hitbox top (no upward nudge)
+    ld c, a
+    ld hl, wall_hit_top
+    ld a, c
+    cp (hl)                       ; new_top < current_top? → carry set
+    jp c, .wall_up_cancel_only    ; invalid snap: only cancel momentum
+    ld a, c
+    push af                       ; save new hitbox top
+    ld hl, entity_collision_offset_y
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped ; A = entity_y = new_top - offset_y
+    ld (wall_temp_y), a           ; update position cache
     push af
     ld hl, entity_y_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Snap entity Y position
+    ld (hl), a                    ; write snapped entity Y to RAM
+    call wall_build_hitbox_cache  ; recalculate hitbox after position change
 
-    ; Zero Y velocity
+    ; Cancel upward velocity and gravity accumulator
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0
 
-    ; Also zero gravity_vel to stop upward momentum (ceiling bonk)
+    ; gravity_vel is 16-bit (word array): DE*2 offset
+    ld hl, entity_gravity_vel
+    add hl, de
+    add hl, de                        ; word index (2 bytes per entity)
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+    ld hl, entity_wall_collision_flags
+    add hl, de
+    set 0, (hl)                       ; bit 0 = UP wall collision
+    jp .wall_next
+
+.wall_up_cancel_only:
+    ; ---------------------------------------------------------------
+    ; Defensive path: snap would move entity upward (invalid) or
+    ; entity is far from the screen top boundary.
+    ; Keep current Y position, but cancel upward momentum this frame.
+    ; ---------------------------------------------------------------
+    ld hl, entity_vel_y
+    add hl, de
+    ld (hl), 0
+
     ld hl, entity_gravity_vel
     add hl, de
     add hl, de                        ; word index
@@ -4802,84 +5794,345 @@ update_wallcollision_component:
     jp .wall_next
 
 .wall_check_down:
-    ; Moving down - check bottom edge at 2 X points
-    ld a, (wall_temp_y)
-    add a, 16                     ; Bottom of entity (16px tall)
-    jp c, .wall_next              ; Overflow, skip
+    ; Moving down - probe one pixel below hitbox bottom edge
+    ld a, (wall_hit_bottom)
+    inc a
+    jp z, .wall_next              ; overflow (bottom==255), skip
     srl a
     srl a
     srl a
-    ld b, a                       ; Row = (Y+16) / 8
+    ld b, a                       ; Row = (bottom+1) / 8
 
-    ; Check point 1: left portion (X+2)
-    ld a, (wall_temp_x)
-    add a, 2
+    ; Check point 1: adaptive left probe (safe for small hitboxes)
+    ld a, (wall_probe_left)
     srl a
     srl a
     srl a
-    ld c, a                       ; Column = (X+2) / 8
+    ld c, a                       ; Column = left / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp nz, .wall_down_blocked
 
-    ; Check point 2: right portion (X+13)
-    ld a, (wall_temp_x)
-    add a, 13
+    ; Check point 2: adaptive right probe (safe for small hitboxes)
+    ld a, (wall_probe_right)
     srl a
     srl a
     srl a
-    ld c, a                       ; Column = (X+13) / 8
+    ld c, a                       ; Column = right / 8
     call get_behavior_tile
-    or a
+    and #F0
     jp z, .wall_next              ; Both passable
 
 .wall_down_blocked:
-    ; Snap Y so bottom touches top of floor: Y = row*8 - 16
+    ; ---------------------------------------------------------------
+    ; Snap formula (DOWN / floor):
+    ;   B = tile row that blocked us (from (bottom+1)/8 probe)
+    ;   floor_top_pixel  = B * 8          → top pixel of the floor tile
+    ;   new_hitbox_top   = B*8 - hitbox_h → push entity up so bottom edge
+    ;                                       just sits on the floor surface
+    ;   If underflow (hitbox_h > B*8): clamp new_hitbox_top to 0.
+    ;   entity_y = new_hitbox_top - collision_offset_y
+    ; After snap: vel_y = 0, gravity_vel = 0, entity_on_ground bit 0 set,
+    ;             entity_wall_collision_flags bit 1 (DOWN) set.
+    ; Note: jp .wall_next skips .check_wall_y_gravity intentionally —
+    ;       floor already detected; no redundant gravity probe needed.
+    ; ---------------------------------------------------------------
     ld a, b
     add a, a
     add a, a
-    add a, a                      ; A = row * 8
-    sub 16                        ; A = row*8 - 16
-    ld (wall_temp_y), a          ; Update cache
+    add a, a                      ; A = B*8 = top pixel of floor tile
+    ld b, a                       ; B = floor_top_pixel
+    ld a, (wall_hit_h)
+    ld c, a                       ; C = hitbox height
+    ld a, b
+    sub c                         ; A = B*8 - hitbox_h = new hitbox top
+    jr nc, .wall_down_top_ok
+    xor a                         ; underflow: clamp to 0
+.wall_down_top_ok:
+    push af                       ; save new hitbox top
+    ld hl, entity_collision_offset_y
+    add hl, de
+    pop af
+    call wall_sub_signed_offset_clamped ; A = entity_y = new_top - offset_y
+    ld (wall_temp_y), a           ; update position cache
     push af
     ld hl, entity_y_pos
     add hl, de
     pop af
-    ld (hl), a                    ; Snap entity Y position
-
-    ; Zero Y velocity and gravity velocity (landing)
+    ; Opt-C: skip rebuild if new Y == current Y (entity already on floor).
+    ; Saves ~200 cycles/frame for standing-still entities (most common state).
+    ; Falls through to normal snap path on actual position change (e.g. landing).
+    cp (hl)
+    jp z, .wall_down_at_floor     ; position unchanged → hitbox still valid
+    ld (hl), a                    ; write snapped entity Y to RAM
+    call wall_build_hitbox_cache  ; recalculate hitbox after position change
+.wall_down_at_floor:
+    ; Cancel downward velocity and gravity accumulator (landing)
     ld hl, entity_vel_y
     add hl, de
     ld (hl), 0
 
+    ; gravity_vel is 16-bit (word array): DE*2 offset
     ld hl, entity_gravity_vel
     add hl, de
-    add hl, de                        ; word index
+    add hl, de                        ; word index (2 bytes per entity)
     ld (hl), 0
     inc hl
     ld (hl), 0
 
-    ; Set entity_on_ground flag (floor detected)
+    ; Mark entity as on-ground and flag DOWN wall collision
     ld hl, entity_on_ground
     add hl, de
-    set 0, (hl)
+    set 0, (hl)                       ; bit 0 = standing on solid floor
     ld hl, entity_wall_collision_flags
     add hl, de
-    set 1, (hl)                       ; DOWN wall collision
-    jp .wall_next                     ; Floor collision handled, move to next entity
+    set 1, (hl)                       ; bit 1 = DOWN wall collision
+    jp .wall_next                     ; floor handled; skip gravity floor check
 
 .check_wall_y_gravity:
-    ; vel_y is 0, but entity might have gravity component
-    ; Check floor anyway to keep entity_on_ground flag correct (prevents jitter)
+    ; ---------------------------------------------------------------
+    ; vel_y == 0, but gravity entities still need a floor probe every
+    ; frame to keep entity_on_ground accurate (e.g. entity walks off
+    ; a platform edge — vel_y is 0 at that instant but the flag must
+    ; be cleared promptly so the gravity system can accelerate it).
+    ; Only enter .wall_check_down if entity has COMP_MASK_GRAVITY
+    ; (stored in entity_comp_masks_hi bit 1).
+    ; Non-gravity entities: skip vertical check entirely.
+    ; ---------------------------------------------------------------
     ld hl, entity_comp_masks_hi
     add hl, de
     ld a, (hl)
     and #02                       ; COMP_MASK_GRAVITY high byte bit 1
-    jp nz, .wall_check_down       ; Has gravity, check floor
-    ; No gravity, skip vertical check
+    jp nz, .wall_check_down       ; gravity entity → check floor
+    ; No gravity component → no vertical wall check needed
 .wall_next:
-    inc e
-    jp .wall_loop
+    ; Opt-B: restore list pointer and count, advance to next entity.
+    ; NOTE: djnz range is ±127 bytes — wall_loop body is too large.
+    ; Use dec b / jp nz instead (jp supports any distance).
+    pop bc
+    pop hl
+    inc hl                        ; next entry in active_entity_list
+    dec b
+    jp nz, .wall_loop
+    ret
+
+; ------------------------------------------------------------------
+; wall_build_hitbox_cache
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Compute and cache hitbox AABB and adaptive probe coordinates
+;            from entity position (wall_temp_x/y) plus collision offsets/sizes.
+;   Inputs:
+;     - DE                        = entity index (used to index per-entity arrays)
+;     - wall_temp_x               = cached entity X origin (set before calling)
+;     - wall_temp_y               = cached entity Y origin (set before calling)
+;     - entity_collision_hitbox_w[DE]: hitbox width  (0 treated as 1)
+;     - entity_collision_hitbox_h[DE]: hitbox height (0 treated as 1)
+;     - entity_collision_offset_x[DE]: signed X offset from entity origin to hitbox left
+;     - entity_collision_offset_y[DE]: signed Y offset from entity origin to hitbox top
+;   Outputs:
+;     - wall_hit_left   = hitbox left  pixel (entity_x + offset_x, clamped 0..255)
+;     - wall_hit_top    = hitbox top   pixel (entity_y + offset_y, clamped 0..255)
+;     - wall_hit_right  = left + (w-1), clamped 0..255
+;     - wall_hit_bottom = top  + (h-1), clamped 0..255
+;     - wall_hit_w      = effective width  (>= 1)
+;     - wall_hit_h      = effective height (>= 1)
+;     - wall_probe_left / wall_probe_right : X probes (inset up to 2px from sides)
+;     - wall_probe_top  / wall_probe_bottom: Y probes (inset up to 2px from top/bottom)
+;   Clobbers: AF, BC, HL
+;   Preserved: DE (entity index is never modified)
+;   Notes:
+;     - Adaptive inset: min(2, floor((right-left)/2)) and min(2, floor((bottom-top)/2)).
+;       Prevents corner-only probes for entities smaller than 4 pixels on an axis.
+;     - Call wall_add_signed_offset_clamped for offset application.
+;     - Called once at entity loop entry; called again after every position snap.
+; ------------------------------------------------------------------
+wall_build_hitbox_cache:
+    ; Width (minimum 1)
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wbhc_w_ok
+    ld a, 1
+.wbhc_w_ok:
+    ld (wall_hit_w), a
+
+    ; Height (minimum 1)
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wbhc_h_ok
+    ld a, 1
+.wbhc_h_ok:
+    ld (wall_hit_h), a
+
+    ; left = entity_x + offset_x (signed, clamped)
+    ld a, (wall_temp_x)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    call wall_add_signed_offset_clamped
+    ld (wall_hit_left), a
+
+    ; top = entity_y + offset_y (signed, clamped)
+    ld a, (wall_temp_y)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    call wall_add_signed_offset_clamped
+    ld (wall_hit_top), a
+
+    ; right = left + (w-1), clamped
+    ld a, (wall_hit_w)
+    dec a
+    ld b, a
+    ld a, (wall_hit_left)
+    add a, b
+    jr nc, .wbhc_right_ok
+    ld a, 255
+.wbhc_right_ok:
+    ld (wall_hit_right), a
+
+    ; bottom = top + (h-1), clamped
+    ld a, (wall_hit_h)
+    dec a
+    ld b, a
+    ld a, (wall_hit_top)
+    add a, b
+    jr nc, .wbhc_bottom_ok
+    ld a, 255
+.wbhc_bottom_ok:
+    ld (wall_hit_bottom), a
+
+    ; ---- Adaptive X probes: inset = min(2, floor((right-left)/2)) ----
+    ; Purpose: avoid probing the exact corner pixels for small sprites.
+    ; For a 16px-wide entity: inset = min(2, 8) = 2.
+    ;   probe_left  = left  + 2  (2px inside left edge)
+    ;   probe_right = right - 2  (2px inside right edge)
+    ; For a 4px-wide entity: inset = min(2, 2) = 2 (probes overlap at center).
+    ; For a 2px-wide entity: inset = min(2, 1) = 1.
+    ld a, (wall_hit_left)
+    ld c, a                       ; C = left pixel
+    ld a, (wall_hit_right)
+    sub c                         ; A = width span (right - left)
+    srl a                         ; A = span / 2
+    cp 3                          ; is span/2 < 3 (i.e. inset < 2)?
+    jr c, .wbhc_inset_x_ready    ; yes: use as-is
+    ld a, 2                       ; no: cap inset at 2
+.wbhc_inset_x_ready:
+    ld b, a                       ; B = inset value
+    ld a, c
+    add a, b
+    ld (wall_probe_left), a       ; probe_left  = left  + inset
+    ld a, (wall_hit_right)
+    sub b
+    ld (wall_probe_right), a      ; probe_right = right - inset
+
+    ; ---- Adaptive Y probes: inset = min(2, floor((bottom-top)/2)) ----
+    ; Same logic on Y axis.
+    ;   probe_top    = top    + inset
+    ;   probe_bottom = bottom - inset
+    ld a, (wall_hit_top)
+    ld c, a                       ; C = top pixel
+    ld a, (wall_hit_bottom)
+    sub c                         ; A = height span (bottom - top)
+    srl a                         ; A = span / 2
+    cp 3
+    jr c, .wbhc_inset_y_ready
+    ld a, 2
+.wbhc_inset_y_ready:
+    ld b, a                       ; B = inset value
+    ld a, c
+    add a, b
+    ld (wall_probe_top), a        ; probe_top    = top    + inset
+    ld a, (wall_hit_bottom)
+    sub b
+    ld (wall_probe_bottom), a     ; probe_bottom = bottom - inset
+    ret
+
+; ------------------------------------------------------------------
+; wall_add_signed_offset_clamped
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Add a signed 8-bit offset to a pixel coordinate, clamping result to 0..255.
+;            Used to apply entity_collision_offset_x/y to entity origin (entity→hitbox).
+;   Inputs:
+;     - A  = base pixel coordinate (unsigned, 0..255)
+;     - HL = pointer to signed offset byte (-128..127)
+;   Outputs:
+;     - A  = clamp(base + offset, 0, 255)
+;   Clobbers: AF, B
+;   Preserved: C, DE, HL
+;   Notes:
+;     - Negative offset: carry=0 after add → underflow → A clamped to 0.
+;     - Positive offset: carry=1 after add → overflow → A clamped to 255.
+;     - B is used to hold the offset byte; caller must save B if needed.
+; ------------------------------------------------------------------
+wall_add_signed_offset_clamped:
+    ld b, (hl)                    ; B = signed offset
+    add a, b
+    bit 7, b
+    jr z, .wasc_positive
+    ; Negative offset: carry=0 means underflow
+    jr c, .wasc_done
+    xor a
+    ret
+.wasc_positive:
+    ; Positive offset: carry=1 means overflow
+    jr nc, .wasc_done
+    ld a, 255
+.wasc_done:
+    ret
+
+; ------------------------------------------------------------------
+; wall_sub_signed_offset_clamped
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Subtract a signed 8-bit offset from a hitbox coordinate, clamping to 0..255.
+;            Used to convert hitbox left/top back to entity origin after a snap.
+;            Inverse of wall_add_signed_offset_clamped.
+;   Inputs:
+;     - A  = hitbox pixel coordinate (left or top, unsigned 0..255)
+;     - HL = pointer to signed collision offset byte (-128..127)
+;            (same pointer passed to wall_add_signed_offset_clamped when building)
+;   Outputs:
+;     - A  = clamp(hitbox - offset, 0, 255)
+;            i.e. the entity origin coordinate that produces the snapped hitbox edge
+;   Clobbers: AF, B, C
+;   Preserved: DE, HL
+;   Notes:
+;     - If offset is negative: hitbox - offset = hitbox + abs(offset).
+;       Overflow (carry clear after add) → A clamped to 255.
+;     - If offset is positive: hitbox - offset computed directly.
+;       Underflow (carry clear after sub) → A clamped to 0.
+;     - B holds the raw offset byte; C holds the original hitbox coordinate.
+; ------------------------------------------------------------------
+wall_sub_signed_offset_clamped:
+    ld c, a
+    ld b, (hl)                    ; B = signed offset
+    bit 7, b
+    jr z, .wssc_positive
+    ; offset < 0 -> hitbox - offset = hitbox + abs(offset)
+    ld a, b
+    neg
+    add a, c
+    jr nc, .wssc_done
+    ld a, 255
+    ret
+.wssc_positive:
+    ld a, c
+    sub b
+    jr nc, .wssc_done
+    xor a
+.wssc_done:
+    ret
+    
+    ; DeadlyTiles system filtered out(not used)
+init_deadly_tiles_system:
+    ret
+
+update_deadly_tiles_component:
+    ret
     
     ; ==================================================================
     ; COLLECTIBLE COMPONENT SYSTEM
@@ -4965,18 +6218,36 @@ update_collectible_component:
     ld d, 0
     add hl, de
     ld (hl), 0                    ; Deactivate entity
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
 
     ; TODO: Increment score or item counter
     ; ld hl, player_score
     ; inc (hl)
 
-    ; TODO: Play collection sound
+    ; Built-in collection sound (coin)
+    ld a, 4
+    call play_sound_effect
 
     pop bc
 
 .collect_next:
     inc c
     jr .collect_loop
+    
+    ; Tile interaction system filtered out(no interactable tiles or no input)
+init_tile_interaction_system:
+    ret
+
+update_slash_component:
+    ret
+
+check_tile_interaction:
+    ret
+
+; Stub: apply_collected_tiles (no interactable tiles in project)
+apply_collected_tiles:
+    ret
      
     ; ================================================================== 
         ; ENTITY MANAGEMENT FUNCTIONS(Based on EntityTemplate system) 
@@ -4984,6 +6255,9 @@ update_collectible_component:
 
         ; Create entity with components(A = entity ID, B = mask low byte, C = mask high byte) 
         create_entity:
+    ; Guard invalid indices to avoid RAM table corruption.
+            cp MAX_ENTITIES
+            ret nc
 ; Set component mask for entity
             ld hl, entity_comp_masks
             ld e, a; Entity index
@@ -4999,6 +6273,17 @@ update_collectible_component:
             ld hl, entity_active
             add hl, de
             ld (hl), 1                    ; entity_active[entity] = 1
+            ld hl, active_entity_list_dirty
+            ld (hl), 1
+
+    ; Default job scheduler profile for newly created entities
+    ; period=1 (100%), entry=0
+            ld hl, entity_job_period
+            add hl, de
+            ld (hl), 1
+            ld hl, entity_job_entry
+            add hl, de
+            ld (hl), 0
 
     ; Initialize component data based on mask
             bit 0, b; Check COMP_MASK_POSITION (low byte)
@@ -5008,6 +6293,153 @@ update_collectible_component:
             call nz, init_entity_sprite
 
     ret 
+
+    ; ------------------------------------------------------------------
+    ; entity_job_set
+    ; Set/update job scheduler profile for one entity.
+    ; Input:  A = entity index (0..31)
+    ;         B = period in frames (0 treated as 1)
+    ;         C = entry slot (wrapped to 0..period-1)
+    ; Output: entity_job_period/entry updated for that entity
+    ; Destroys: AF, DE, HL
+    ; ------------------------------------------------------------------
+entity_job_set:
+            cp MAX_ENTITIES
+            ret nc
+            ld e, a
+            ld d, 0
+
+            ld a, b
+            or a
+            jr nz, entity_job_set_period_ok
+            ld a, 1
+entity_job_set_period_ok:
+            ld b, a
+
+            ld a, c
+entity_job_set_entry_wrap:
+            cp b
+            jr c, entity_job_set_entry_ok
+            sub b
+            jr entity_job_set_entry_wrap
+entity_job_set_entry_ok:
+            ld c, a
+
+            ld hl, entity_job_period
+            add hl, de
+            ld a, b
+            ld (hl), a
+
+            ld hl, entity_job_entry
+            add hl, de
+            ld a, c
+            ld (hl), a
+            ld a, b
+            cp 1
+            jr nz, entity_job_set_enable_scheduler
+            ld a, c
+            or a
+            ret z
+entity_job_set_enable_scheduler:
+            ld a, 1
+            ld (entity_job_scheduler_active), a
+            ret
+
+    ; ------------------------------------------------------------------
+    ; entity_job_should_run_c
+    ; Evaluate per-entity cadence gate for current frame.
+    ; Input:  C = entity index (0..31)
+    ; Output: A = 1 when entity should run this frame, 0 otherwise
+    ; Destroys: AF, BC, DE, HL
+    ; Notes:
+    ;   - Fast path for power-of-two periods using bitmask modulo.
+    ;   - Fallback path uses 16-bit frame modulo with fixed 16-iteration cost.
+    ; ------------------------------------------------------------------
+entity_job_should_run_c:
+            ld a, c
+            cp MAX_ENTITIES
+            jr c, .entity_job_run_idx_ok
+            xor a
+            ret
+.entity_job_run_idx_ok:
+            push bc
+            push de
+            push hl
+
+            ld e, c
+            ld d, 0
+
+            ld hl, entity_job_period
+            add hl, de
+            ld a, (hl)
+            or a
+            jr nz, entity_job_run_period_ok
+            ld a, 1
+entity_job_run_period_ok:
+            cp 1
+            jr z, entity_job_run_active
+            ld b, a
+
+            ld hl, entity_job_entry
+            add hl, de
+            ld a, (hl)
+            ld e, a
+
+            ; Fast modulo for power-of-two period:
+            ; if (period & (period - 1)) == 0 then use AND mask.
+            ld a, b
+            dec a
+            ld d, a                    ; D = period - 1
+            ld a, d
+            and b
+            jr nz, entity_job_run_fallback_mod
+
+            ld a, e
+            and d
+            ld e, a
+            ld a, (interrupt_counter)
+            and d
+            cp e
+            jr nz, entity_job_run_inactive
+            jr entity_job_run_active
+
+entity_job_run_fallback_mod:
+            ld a, e
+entity_job_run_entry_mod:
+            cp b
+            jr c, entity_job_run_entry_ready
+            sub b
+            jr entity_job_run_entry_mod
+entity_job_run_entry_ready:
+            ld e, a
+
+            ; 16-bit frame modulo: (interrupt_counter % period) in A
+            ; Uses shift/subtract division with fixed 16 iterations.
+            ld hl, (interrupt_counter)
+            xor a
+            ld d, 16
+entity_job_run_frame_mod16:
+            add hl, hl
+            adc a, a
+            cp b
+            jr c, entity_job_run_frame_mod16_no_sub
+            sub b
+entity_job_run_frame_mod16_no_sub:
+            dec d
+            jr nz, entity_job_run_frame_mod16
+
+            cp e
+            jr nz, entity_job_run_inactive
+entity_job_run_active:
+            ld a, 1
+            jr entity_job_run_done
+entity_job_run_inactive:
+            xor a
+entity_job_run_done:
+            pop hl
+            pop de
+            pop bc
+            ret
 
     ; Initialize position component for entity(A = entity ID)
         init_entity_position:
@@ -5041,9 +6473,43 @@ update_collectible_component:
 ; ==================================================================
 ; Only calls component systems that are actually used in this project
 ; Unused systems are NOT called (saves Z80 cycles)
+; Register Contract:
+;   Purpose: Main ECS tick entrypoint for one frame.
+;   Inputs:
+;     - Entity/component tables in RAM
+;   Outputs:
+;     - Components updated in fixed order
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None (callers should save what they need)
+;   Register roles:
+;     - Registers are scratch across component CALL chain
+;     - Contract intentionally conservative to prevent hidden coupling
+;   Notes:
+;     - Do not assume any register survives this routine.
+
 update_all_entities:
-    ; Build entity list once per frame (slots with non-zero component masks)
+    ld hl, prof_update_all_entities_calls
+    inc (hl)
+    jr nz, .prof_update_all_entities_counted
+    inc hl
+    inc (hl)
+.prof_update_all_entities_counted:
+    ; Fast path: when all entities use default job cadence (period=1, entry=0),
+    ; rebuild the compact list only when entity/screen membership changes.
+    ld a, (entity_job_scheduler_active)
+    or a
+    jp nz, .update_all_entities_rebuild_list
+    call ensure_used_entity_list_current
+    jp .update_all_entities_list_ready
+.update_all_entities_rebuild_list:
+    ; Scheduler active: cadence depends on interrupt_counter, so rebuild every frame.
     call rebuild_used_entity_list
+.update_all_entities_list_ready:
     call update_input_component         ; 1. Input (player control)
     call update_behavior_component      ; 3. Behavior/AI
     call update_entities                ; 3b. Patrol/per-entity update
@@ -5052,35 +6518,128 @@ update_all_entities:
     call update_gravity_component       ; 6. Gravity
     call update_position_component      ; 7. Apply velocity
     call prepare_platform_detection     ; 8a. Clear platform refs
+    ld hl, prof_collision_calls
+    inc (hl)
+    jr nz, $+4
+    inc hl
+    inc (hl)
     call update_collision_component     ; 8b. Collision detection
     call update_platform_riding         ; 8c. Platform riding
+    ld hl, prof_wall_calls
+    inc (hl)
+    jr nz, $+4
+    inc hl
+    inc (hl)
     call update_wallcollision_component ; 8d. Wall collision
     call update_health_component        ; 9. Health/Death
     call update_damage_component        ; 10. Damage
+    ld hl, prof_animation_calls
+    inc (hl)
+    jr nz, $+4
+    inc hl
+    inc (hl)
     call update_animation_component     ; 11. Animation
+    ld hl, prof_sprite_calls
+    inc (hl)
+    jr nz, $+4
+    inc hl
+    inc (hl)
     call update_sprite_component        ; 13. Sprite rendering
     ret
-; Total systems called: 15 (optimized from 15)
+; Total systems called: 15 (optimized from 16)
 
+
+; ------------------------------------------------------------------
+; mark_used_entity_list_dirty
+; Invalidate compact entity list cache.
+; Call this after spawn/despawn or screen-id changes.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Mark compact active-entity cache as stale.
+;   Inputs:
+;     - None
+;   Outputs:
+;     - active_entity_list_dirty = 1
+;   Clobbers:
+;     - HL
+;   Preserved:
+;     - AF
+;     - BC
+;     - DE
+;   Register roles:
+;     - HL = points to dirty flag byte
+
+mark_used_entity_list_dirty:
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    ret
+
+; ------------------------------------------------------------------
+; ensure_used_entity_list_current
+; Rebuild compact list only when marked dirty.
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Conditionally rebuild compact active list only when dirty.
+;   Inputs:
+;     - active_entity_list_dirty flag
+;   Outputs:
+;     - active_entity_list rebuilt if needed
+;   Clobbers:
+;     - AF
+;   Preserved:
+;     - BC
+;     - DE
+;     - HL (except nested call clobbers when rebuild happens)
+;   Register roles:
+;     - A = dirty flag test and branch
+;   Notes:
+;     - If dirty, downstream rebuild_used_entity_list can clobber many registers.
+
+ensure_used_entity_list_current:
+    ld a, (active_entity_list_dirty)
+    or a
+    ret z
+    call rebuild_used_entity_list
+    ret
 
 ; ------------------------------------------------------------------
 ; rebuild_used_entity_list
 ; Build compact list of ACTIVE entity slots that are in use
-; (entity_active != 0 and mask_l|mask_h != 0)
+; for the CURRENT SCREEN only:
+; (entity_active != 0 and mask_l|mask_h != 0 and entity_screen_id == current_screen_id)
 ; Output:
 ;   active_entity_list[]   = entity indices with components
 ;   active_entity_count    = number of entries
 ; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Recompute compact list of entities active on current screen.
+;   Inputs:
+;     - entity_active, entity_comp_masks(_hi), entity_screen_id, current_screen_id
+;   Outputs:
+;     - active_entity_list[]
+;     - active_entity_count
+;     - active_entity_list_dirty=0
+;   Clobbers:
+;     - AF
+;     - BC
+;     - DE
+;     - HL
+;   Preserved:
+;     - None
+;   Register roles:
+;     - B = slots remaining (MAX_ENTITIES..1)
+;     - C = entity slot iterator (0..MAX_ENTITIES-1)
+;     - DE = index offset (entity id / active list position)
+;     - HL = pointer math over component and state arrays
+;     - A = predicate checks and counters
+
 rebuild_used_entity_list:
     xor a
     ld (active_entity_count), a
+    ld b, MAX_ENTITIES
     ld c, 0
 
 .rebuild_loop:
-    ld a, c
-    cp MAX_ENTITIES
-    ret z
-
     ld e, c
     ld d, 0
     ld hl, entity_active
@@ -5095,6 +6654,22 @@ rebuild_used_entity_list:
     ld hl, entity_comp_masks_hi
     add hl, de
     or (hl)
+    jr z, .next_entity
+
+    ; Keep only entities from currently visible screen
+    ld hl, entity_screen_id
+    add hl, de
+    ld a, (hl)
+    ld hl, current_screen_id
+    cp (hl)
+    jr nz, .next_entity
+
+    ; Keep only entities scheduled to run on this frame.
+    ; entity_job_should_run_c expects C=entity index.
+    push bc
+    call entity_job_should_run_c
+    pop bc
+    or a
     jr z, .next_entity
 
     ld hl, active_entity_count
@@ -5112,13 +6687,24 @@ rebuild_used_entity_list:
 
 .next_entity:
     inc c
-    jr .rebuild_loop
+    djnz .rebuild_loop
+
+.rebuild_done:
+    xor a
+    ld (active_entity_list_dirty), a
+    ret
 
 ; ==================================================================
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
 ; ==================================================================
 ; This function executes the state machine for each entity that has one
 execute_all_state_machines:
+    ld hl, prof_execute_sm_calls
+    inc (hl)
+    jr nz, .prof_execute_sm_counted
+    inc hl
+    inc (hl)
+.prof_execute_sm_counted:
     ld a, (active_entity_count)
     or a
     ret z
@@ -5129,40 +6715,33 @@ execute_all_state_machines:
     ld a, (hl)                    ; A = entity index
     inc hl                        ; Advance list pointer
     push hl                       ; Save list pointer
-    push bc                       ; Save loop counter
 
-    ; Skip inactive entities early
-    ld c, a                       ; C = entity index
-    ld b, 0                       ; BC = entity index
-    ld hl, entity_active
-    add hl, bc
-    ld a, (hl)                    ; A = active flag
-    or a
-    jr z, .skip_entity            ; Inactive entity, skip
+    ; active_entity_list already guarantees active + current_screen_id
+    ld e, a                       ; DE = entity index
+    ld d, 0
 
     ; Check if this entity has a state machine assigned
     ld hl, entity_sm_ptr_l
-    add hl, bc
-    ld e, (hl)                    ; E = SM ptr low
+    add hl, de
+    ld c, (hl)                    ; C = SM ptr low
     
     ld hl, entity_sm_ptr_h
-    add hl, bc
-    ld d, (hl)                    ; D = SM ptr high
+    add hl, de
+    ld a, (hl)                    ; A = SM ptr high
     
     ; Check if SM pointer is non-zero
-    ld a, d
-    or e
+    or c
     jr z, .skip_entity            ; No SM assigned, skip
 
     ; Entity has a state machine - execute it
-    ld a, c
+    ld a, e
+    push bc                       ; Preserve loop counter (B) across call
     call SM_Update                ; Execute state machine (A = entity index)
+    pop bc
     
 .skip_entity:
-    pop bc                        ; Restore loop counter
     pop hl                        ; Restore list pointer
-    dec b
-    jp nz, .sm_loop               ; Loop for all used entities
+    djnz .sm_loop                 ; Loop for all used entities
     
     ret
 
@@ -5855,6 +7434,7 @@ load_colors_to_vram:
 ; Description: Sprite pattern and animation data
 ; Entities: 12
 ; Total Hardware Sprites (Layers): 32
+; SAT Upload Sprites per frame: 14
 ; ==================================================================
 
 ; ==================================================================
@@ -5874,10 +7454,6 @@ SPRITE_HERO_LEFT_0_FRAMES    EQU 4
 
 ;; ---- Sprite Frame: hero_left_0_F0 ----
 ;; Size: 16x16
-HERO_LEFT_0_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_LEFT_0_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#03,#1F,#3B,#71,#FB,#DF,#87,#8F,#07,#00,#00,#00,#00,#03
     DB #00,#00,#80,#F8,#D4,#EB,#DD,#F2,#E0,#E0,#C0,#00,#00,#80,#80,#80
@@ -5886,18 +7462,10 @@ HERO_LEFT_0_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
     DB #03,#1F,#20,#00,#00,#00,#00,#00,#00,#00,#00,#03,#03,#00,#00,#00
     DB #C0,#E0,#70,#00,#00,#00,#00,#00,#00,#00,#00,#C0,#C0,#00,#00,#00
 
-HERO_LEFT_0_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: hero_left_0_F0 ----
 
 ;; ---- Sprite Frame: hero_left_0_F1 ----
 ;; Size: 16x16
-HERO_LEFT_0_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_LEFT_0_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#03,#1F,#3B,#71,#FB,#DF,#87,#8F,#07,#00,#04,#08,#08,#18
     DB #00,#00,#80,#F8,#D4,#EB,#DD,#F2,#E0,#E0,#C0,#00,#20,#10,#08,#18
@@ -5906,18 +7474,10 @@ HERO_LEFT_0_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
     DB #03,#1F,#20,#00,#00,#00,#00,#00,#00,#00,#00,#03,#03,#00,#00,#00
     DB #C0,#E0,#70,#00,#00,#00,#00,#00,#00,#00,#00,#C0,#C0,#00,#00,#00
 
-HERO_LEFT_0_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: hero_left_0_F1 ----
 
 ;; ---- Sprite Frame: hero_left_0_F2 ----
 ;; Size: 16x16
-HERO_LEFT_0_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_LEFT_0_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#00,#03,#1F,#3B,#71,#FB,#DF,#87,#80,#18,#10,#10,#10,#30
     DB #00,#00,#00,#80,#D8,#EC,#D2,#ED,#F2,#E1,#00,#00,#3F,#01,#00,#00
@@ -5926,18 +7486,10 @@ HERO_LEFT_0_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
     DB #00,#03,#1F,#20,#00,#00,#00,#00,#00,#00,#07,#07,#00,#00,#00,#00
     DB #00,#C0,#E0,#70,#00,#00,#00,#00,#00,#00,#E0,#E0,#00,#00,#00,#00
 
-HERO_LEFT_0_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: hero_left_0_F2 ----
 
 ;; ---- Sprite Frame: hero_left_0_F3 ----
 ;; Size: 16x16
-HERO_LEFT_0_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_LEFT_0_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#03,#1F,#3B,#71,#FB,#DF,#87,#80,#00,#04,#04,#04,#04,#0C
     DB #00,#00,#80,#D8,#EC,#D2,#ED,#F2,#E0,#00,#1F,#01,#00,#00,#00,#00
@@ -5945,10 +7497,6 @@ HERO_LEFT_0_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
 HERO_LEFT_0_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
     DB #03,#1F,#20,#00,#00,#00,#00,#00,#00,#07,#07,#00,#00,#00,#00,#00
     DB #C0,#E0,#70,#00,#00,#00,#00,#00,#00,#E0,#E0,#00,#00,#00,#00,#00
-
-HERO_LEFT_0_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_left_0_F3 ----
 
@@ -5970,81 +7518,33 @@ SPRITE_BIRD_1_FRAMES    EQU 4
 
 ;; ---- Sprite Frame: bird_1_F0 ----
 ;; Size: 16x16
-BIRD_1_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 BIRD_1_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#00,#00,#00,#00,#1E,#21,#01,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#F0,#08,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: bird_1_F0 ----
 
 ;; ---- Sprite Frame: bird_1_F1 ----
 ;; Size: 16x16
-BIRD_1_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 BIRD_1_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#00,#00,#00,#00,#0E,#11,#21,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#E0,#10,#08,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: bird_1_F1 ----
 
 ;; ---- Sprite Frame: bird_1_F2 ----
 ;; Size: 16x16
-BIRD_1_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 BIRD_1_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#00,#00,#00,#06,#09,#11,#10,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#C0,#20,#10,#10,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: bird_1_F2 ----
 
 ;; ---- Sprite Frame: bird_1_F3 ----
 ;; Size: 16x16
-BIRD_1_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 BIRD_1_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#00,#00,#00,#06,#09,#11,#10,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#C0,#20,#10,#10,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BIRD_1_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: bird_1_F3 ----
 
@@ -6070,14 +7570,6 @@ BOT1_2_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
     DB #FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF,#FF
 
-BOT1_2_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT1_2_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: bot1_2_F0 ----
 
 
@@ -6102,18 +7594,6 @@ BOT2_RIGHT_3_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #FFFFFF)
     DB #1F,#7F,#CF,#8F,#07,#00,#2F,#6F,#6F,#6F,#00,#0C,#FC,#FC,#C0,#C0
     DB #E0,#B0,#B0,#F0,#E0,#00,#F0,#BD,#BD,#F0,#00,#1C,#1C,#07,#07,#07
 
-BOT2_RIGHT_3_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_RIGHT_3_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #3EB847)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_RIGHT_3_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: bot2_right_3_F0 ----
 
 ;; ---- Sprite Frame: bot2_right_3_F1 ----
@@ -6121,18 +7601,6 @@ BOT2_RIGHT_3_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
 BOT2_RIGHT_3_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #FFFFFF)
     DB #1F,#FF,#CF,#0F,#07,#00,#2F,#6F,#6F,#6E,#00,#01,#01,#01,#01,#01
     DB #E0,#B0,#B0,#F0,#E0,#00,#F0,#F0,#F0,#70,#00,#80,#80,#80,#E0,#E0
-
-BOT2_RIGHT_3_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_RIGHT_3_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #3EB847)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_RIGHT_3_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: bot2_right_3_F1 ----
 
@@ -6154,279 +7622,111 @@ SPRITE_HERO_DEAD_4_FRAMES    EQU 14
 
 ;; ---- Sprite Frame: hero_dead_4_F0 ----
 ;; Size: 16x16
-HERO_DEAD_4_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#03,#5F,#2B,#5B,#2F,#1F,#0F,#0F,#07,#00,#00,#02,#02,#06
     DB #00,#00,#80,#FA,#B4,#AA,#F8,#F0,#E0,#E0,#C0,#00,#00,#40,#40,#60
-
-HERO_DEAD_4_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F0 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F1 ----
 ;; Size: 16x16
-HERO_DEAD_4_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#03,#5F,#2B,#5B,#2F,#1F,#0F,#0F,#07,#00,#00,#02,#02,#06
     DB #00,#00,#80,#FA,#B4,#AA,#F8,#F0,#E0,#E0,#C0,#00,#00,#40,#40,#60
-
-HERO_DEAD_4_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F1 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F2 ----
 ;; Size: 16x16
-HERO_DEAD_4_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#03,#5F,#2B,#5B,#2F,#1F,#0F,#0F,#07,#00,#00,#02,#02,#00
     DB #00,#00,#80,#FA,#B4,#AA,#F8,#F0,#E0,#E0,#C0,#00,#00,#40,#40,#00
-
-HERO_DEAD_4_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F2 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F3 ----
 ;; Size: 16x16
-HERO_DEAD_4_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#06,#BE,#56,#B6,#5E,#3E,#00,#00,#1E,#1E,#0E,#00,#00,#04,#04
     DB #00,#40,#7D,#5A,#55,#7C,#78,#00,#00,#70,#70,#60,#00,#00,#20,#20
-
-HERO_DEAD_4_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F3 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F4 ----
 ;; Size: 16x16
-HERO_DEAD_4_F4_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F4_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#06,#3E,#56,#36,#5E,#3E,#00,#00,#1E,#1E,#0E,#00,#00,#04,#00
     DB #00,#40,#7C,#5A,#54,#7C,#78,#00,#00,#70,#70,#60,#00,#00,#20,#00
-
-HERO_DEAD_4_F4_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F4_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F4 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F5 ----
 ;; Size: 16x16
-HERO_DEAD_4_F5_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F5_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#7C,#2C,#6C,#3C,#7C,#00,#00,#00,#00,#3C,#3C,#1C,#00,#00,#00
     DB #00,#3E,#2C,#2A,#3E,#3C,#00,#00,#00,#00,#38,#38,#30,#00,#00,#00
-
-HERO_DEAD_4_F5_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F5_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F5 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F6 ----
 ;; Size: 16x16
-HERO_DEAD_4_F6_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F6_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#7C,#2C,#6C,#3C,#7C,#00,#00,#00,#00,#3C,#3C,#1C,#00,#00,#00
     DB #00,#3E,#2C,#2A,#3E,#3C,#00,#00,#00,#00,#38,#38,#30,#00,#00,#00
-
-HERO_DEAD_4_F6_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F6_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F6 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F7 ----
 ;; Size: 16x16
-HERO_DEAD_4_F7_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F7_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#58,#58,#78,#78,#00,#00,#00,#00,#00,#00,#78,#78,#38,#00,#00
     DB #00,#16,#14,#1E,#1E,#00,#00,#00,#00,#00,#00,#1C,#1C,#18,#00,#00
-
-HERO_DEAD_4_F7_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F7_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F7 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F8 ----
 ;; Size: 16x16
-HERO_DEAD_4_F8_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F8_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#58,#58,#78,#78,#00,#00,#00,#00,#00,#00,#78,#78,#38,#00,#00
     DB #00,#16,#14,#1E,#1E,#00,#00,#00,#00,#00,#00,#1C,#1C,#18,#00,#00
-
-HERO_DEAD_4_F8_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F8_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F8 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F9 ----
 ;; Size: 16x16
-HERO_DEAD_4_F9_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F9_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#30,#70,#70,#00,#00,#00,#00,#00,#00,#00,#00,#70,#70,#70,#00
     DB #00,#0A,#0E,#0E,#00,#00,#00,#00,#00,#00,#00,#00,#0E,#0E,#0C,#00
-
-HERO_DEAD_4_F9_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F9_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F9 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F10 ----
 ;; Size: 16x16
-HERO_DEAD_4_F10_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F10_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#30,#30,#00,#00,#00,#00,#00,#00,#00,#00,#30,#30,#00,#00
     DB #00,#00,#0C,#0C,#00,#00,#00,#00,#00,#00,#00,#00,#0C,#0C,#00,#00
-
-HERO_DEAD_4_F10_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F10_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F10 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F11 ----
 ;; Size: 16x16
-HERO_DEAD_4_F11_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F11_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#60,#60,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#60,#60,#00
     DB #00,#06,#06,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#06,#06,#00
-
-HERO_DEAD_4_F11_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F11_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F11 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F12 ----
 ;; Size: 16x16
-HERO_DEAD_4_F12_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F12_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#20,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#20,#00,#00
     DB #00,#00,#04,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#04,#00,#00
-
-HERO_DEAD_4_F12_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F12_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_dead_4_F12 ----
 
 ;; ---- Sprite Frame: hero_dead_4_F13 ----
 ;; Size: 16x16
-HERO_DEAD_4_F13_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_DEAD_4_F13_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F13_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-HERO_DEAD_4_F13_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
@@ -6450,28 +7750,10 @@ SPRITE_NEW_SPRITE_5_FRAMES    EQU 1
 
 ;; ---- Sprite Frame: New Sprite_5_F0 ----
 ;; Size: 32x16
-NEW_SPRITE_5_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 NEW_SPRITE_5_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#7F,#FF,#FF,#FE
     DB #FF,#FF,#FF,#FF,#7F,#FF,#FF,#FE,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_5_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-NEW_SPRITE_5_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: New Sprite_5_F0 ----
@@ -6494,33 +7776,17 @@ SPRITE_GEMA1_6_FRAMES    EQU 2
 
 ;; ---- Sprite Frame: gema1_6_F0 ----
 ;; Size: 16x16
-GEMA1_6_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 GEMA1_6_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
     DB #00,#00,#00,#01,#03,#06,#05,#06,#07,#07,#03,#01,#00,#00,#00,#00
     DB #00,#00,#80,#C0,#E0,#F0,#D0,#D0,#90,#90,#20,#40,#80,#00,#00,#00
-
-GEMA1_6_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: gema1_6_F0 ----
 
 ;; ---- Sprite Frame: gema1_6_F1 ----
 ;; Size: 16x16
-GEMA1_6_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 GEMA1_6_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
     DB #00,#10,#08,#01,#03,#06,#05,#66,#07,#07,#03,#01,#08,#10,#00,#00
     DB #00,#04,#88,#C0,#E0,#F0,#D0,#D3,#90,#90,#20,#40,#88,#04,#00,#00
-
-GEMA1_6_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: gema1_6_F1 ----
 
@@ -6546,14 +7812,6 @@ BOX_7_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #D4C154)
     DB #00,#7F,#40,#40,#40,#7E,#41,#7E,#5F,#5F,#5F,#5F,#5F,#5F,#40,#7F
     DB #00,#FE,#02,#02,#02,#7E,#82,#7E,#FE,#FA,#FA,#FA,#FA,#FA,#02,#FE
 
-BOX_7_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #FF0000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOX_7_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: Box_7_F0 ----
 
 
@@ -6574,10 +7832,6 @@ SPRITE_HERO_RIGHT_8_FRAMES    EQU 4
 
 ;; ---- Sprite Frame: hero_right_8_F0 ----
 ;; Size: 16x16
-HERO_RIGHT_8_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_RIGHT_8_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#01,#1F,#2B,#D7,#BB,#4F,#07,#07,#03,#00,#00,#01,#01,#01
     DB #00,#00,#C0,#F8,#DC,#8E,#DF,#FB,#E1,#F1,#E0,#00,#00,#00,#00,#C0
@@ -6586,18 +7840,10 @@ HERO_RIGHT_8_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
     DB #03,#07,#0E,#00,#00,#00,#00,#00,#00,#00,#00,#03,#03,#00,#00,#00
     DB #C0,#F8,#04,#00,#00,#00,#00,#00,#00,#00,#00,#C0,#C0,#00,#00,#00
 
-HERO_RIGHT_8_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: hero_right_8_F0 ----
 
 ;; ---- Sprite Frame: hero_right_8_F1 ----
 ;; Size: 16x16
-HERO_RIGHT_8_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_RIGHT_8_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#01,#1F,#2B,#D7,#BB,#4F,#07,#07,#03,#00,#04,#08,#10,#18
     DB #00,#00,#C0,#F8,#DC,#8E,#DF,#FB,#E1,#F1,#E0,#00,#20,#10,#10,#18
@@ -6606,18 +7852,10 @@ HERO_RIGHT_8_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
     DB #03,#07,#0E,#00,#00,#00,#00,#00,#00,#00,#00,#03,#03,#00,#00,#00
     DB #C0,#F8,#04,#00,#00,#00,#00,#00,#00,#00,#00,#C0,#C0,#00,#00,#00
 
-HERO_RIGHT_8_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: hero_right_8_F1 ----
 
 ;; ---- Sprite Frame: hero_right_8_F2 ----
 ;; Size: 16x16
-HERO_RIGHT_8_F2_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_RIGHT_8_F2_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#00,#01,#1B,#37,#4B,#B7,#4F,#87,#00,#00,#FC,#80,#00,#00
     DB #00,#00,#00,#C0,#F8,#DC,#8E,#DF,#FB,#E1,#01,#18,#08,#08,#08,#0C
@@ -6626,18 +7864,10 @@ HERO_RIGHT_8_F2_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
     DB #00,#03,#07,#0E,#00,#00,#00,#00,#00,#00,#07,#07,#00,#00,#00,#00
     DB #00,#C0,#F8,#04,#00,#00,#00,#00,#00,#00,#E0,#E0,#00,#00,#00,#00
 
-HERO_RIGHT_8_F2_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: hero_right_8_F2 ----
 
 ;; ---- Sprite Frame: hero_right_8_F3 ----
 ;; Size: 16x16
-HERO_RIGHT_8_F3_LAYER0: ; Brush Color Index 0 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 HERO_RIGHT_8_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
     DB #00,#00,#01,#1B,#37,#4B,#B7,#4F,#07,#00,#F8,#80,#00,#00,#00,#00
     DB #00,#00,#C0,#F8,#DC,#8E,#DF,#FB,#E1,#01,#00,#20,#20,#20,#20,#30
@@ -6645,10 +7875,6 @@ HERO_RIGHT_8_F3_LAYER1: ; Brush Color Index 1 (Actual Color: #FFFFFF)
 HERO_RIGHT_8_F3_LAYER2: ; Brush Color Index 2 (Actual Color: #42EBF5)
     DB #03,#07,#0E,#00,#00,#00,#00,#00,#00,#07,#07,#00,#00,#00,#00,#00
     DB #C0,#F8,#04,#00,#00,#00,#00,#00,#00,#E0,#E0,#00,#00,#00,#00,#00
-
-HERO_RIGHT_8_F3_LAYER3: ; Brush Color Index 3 (Actual Color: #00FF00)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: hero_right_8_F3 ----
 
@@ -6674,18 +7900,6 @@ BOT2_LEFT_9_F0_LAYER0: ; Brush Color Index 0 (Actual Color: #FFFFFF)
     DB #07,#0D,#0D,#0F,#07,#00,#0F,#BD,#BD,#0F,#00,#38,#38,#E0,#E0,#E0
     DB #F8,#FE,#F3,#F1,#E0,#00,#F4,#F6,#F6,#F6,#00,#30,#3F,#3F,#03,#03
 
-BOT2_LEFT_9_F0_LAYER1: ; Brush Color Index 1 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_LEFT_9_F0_LAYER2: ; Brush Color Index 2 (Actual Color: #3EB847)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_LEFT_9_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
 ;; ---- End of Frame: bot2_left_9_F0 ----
 
 ;; ---- Sprite Frame: bot2_left_9_F1 ----
@@ -6693,18 +7907,6 @@ BOT2_LEFT_9_F0_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
 BOT2_LEFT_9_F1_LAYER0: ; Brush Color Index 0 (Actual Color: #FFFFFF)
     DB #07,#0D,#0D,#0F,#07,#00,#0F,#0F,#0F,#0E,#00,#01,#01,#01,#07,#07
     DB #F8,#FF,#F3,#F0,#E0,#00,#F4,#F6,#F6,#76,#00,#80,#80,#80,#80,#80
-
-BOT2_LEFT_9_F1_LAYER1: ; Brush Color Index 1 (Actual Color: #000000)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_LEFT_9_F1_LAYER2: ; Brush Color Index 2 (Actual Color: #3EB847)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-
-BOT2_LEFT_9_F1_LAYER3: ; Brush Color Index 3 (Actual Color: #74D07D)
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; ---- End of Frame: bot2_left_9_F1 ----
 
@@ -6745,6 +7947,21 @@ sprite_asset_frame_count:
     db 2 ; Sprite 6: gema1
     db 1 ; Sprite 7: Box
     db 4 ; Sprite 8: hero_right
+    db 2 ; Sprite 9: bot2_left
+SPRITE_ASSET_COUNT EQU 10
+
+; Table: Sprite Asset Loop Flags
+; Format: db flags (bit 1: 1=loop, 0=once)
+sprite_loop_flags:
+    db 2 ; Sprite 0: hero_left
+    db 2 ; Sprite 1: bird
+    db 2 ; Sprite 2: bot1
+    db 2 ; Sprite 3: bot2_right
+    db 0 ; Sprite 4: hero_dead
+    db 0 ; Sprite 5: New Sprite
+    db 2 ; Sprite 6: gema1
+    db 2 ; Sprite 7: Box
+    db 2 ; Sprite 8: hero_right
     db 2 ; Sprite 9: bot2_left
 
 ; Table: Sprite Asset Frame Pointer List Table
@@ -6882,10 +8099,11 @@ entity_sprite_asset_index_init:
     db #06 ; Entity 10 (gema1)
     db #05 ; Entity 11 (New Sprite)
     ds 20, #FF ; Padding
- 
-; Table: Hardware Sprite Layer Colors 
-; Format: db color_index 
-sprite_layer_colors: 
+SPRITE_MAX_ENTITY_LAYERS EQU 2  ; Max HW sprite layers per entity
+
+; Table: Hardware Sprite Layer Colors (ROM initial values - copied to RAM at init)
+; Format: db color_index
+sprite_layer_colors_init:
     ; Entity 0 (hero_left) layers:
     db 15 ; Layer 0
     db 7 ; Layer 1
@@ -6913,11 +8131,31 @@ sprite_layer_colors:
     db 15 ; Layer 0
     ds 19, 0 ; Padding
 
+; Table: SM Sprite Layer Colors (for Action_ChangeSprite runtime color update)
+; Format: SPRITE_MAX_ENTITY_LAYERS bytes per sprite asset
+; Entry[i*SPRITE_MAX_ENTITY_LAYERS + j] = color for HW sprite slot j of sprite i
+SM_SpriteLayerColorTable:
+    db 15, 7 ; Sprite 0: hero_left
+    db 15, 0 ; Sprite 1: bird
+    db 15, 0 ; Sprite 2: bot1
+    db 15, 0 ; Sprite 3: bot2_right
+    db 15, 0 ; Sprite 4: hero_dead
+    db 15, 0 ; Sprite 5: New Sprite
+    db 8, 0 ; Sprite 6: gema1
+    db 10, 0 ; Sprite 7: Box
+    db 15, 7 ; Sprite 8: hero_right
+    db 15, 0 ; Sprite 9: bot2_left
+
 ; ==================================================================
 ; SPRITE INITIALIZATION FUNCTIONS
 ; ==================================================================
 
 init_sprites:
+    ; Copy sprite_layer_colors_init (ROM) -> sprite_layer_colors (RAM)
+    ld hl, sprite_layer_colors_init
+    ld de, sprite_layer_colors
+    ld bc, 32
+    ldir
     call clear_all_sprites
     call load_sprite_patterns
     xor a
@@ -7114,7 +8352,7 @@ update_sprites_to_vram:
     ld (sprites_dirty), a
     ld hl, sprite_attributes
     ld de, SPRATR
-    ld bc, 128  ; 4 bytes per sprite
+    ld bc, 56  ; Upload active sprite range + SAT end marker
     call FAST_LDIRVM
     ret
 
@@ -7238,41 +8476,41 @@ BEHAVIOR_PAN1_0_SIZE      EQU 768
 
 BEHAVIOR_PAN1_0_DATA:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00
+    DB #10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00
+    DB #10,#10,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#00,#00,#00,#00
-    DB #01,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#00,#00,#00,#00
+    DB #10,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
@@ -7374,11 +8612,9 @@ BEHAVIOR_PAN2_1_DATA:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
@@ -7390,22 +8626,24 @@ BEHAVIOR_PAN2_1_DATA:
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#00,#00,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#01,#01,#00,#00,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#00,#00,#10,#10,#10,#10
+    DB #10,#10,#04,#04,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#04,#04,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#10,#10,#00,#00,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10
 
 ;; End of Behavior Map Data for pan2_1
 
@@ -7479,53 +8717,53 @@ BEHAVIOR_PAN3_2_HEIGHT    EQU 24
 BEHAVIOR_PAN3_2_SIZE      EQU 768
 
 BEHAVIOR_PAN3_2_DATA:
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#04,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#10,#04,#04,#04,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#00,#00,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
-    DB #00,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
-    DB #00,#00,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
-    DB #00,#00,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
+    DB #10,#10,#10,#10,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#00,#00,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
+    DB #00,#10,#10,#10,#04,#04,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
+    DB #00,#00,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
+    DB #00,#00,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
 
 ;; End of Behavior Map Data for pan3_2
@@ -7600,54 +8838,54 @@ BEHAVIOR_PAN4_3_HEIGHT    EQU 24
 BEHAVIOR_PAN4_3_SIZE      EQU 768
 
 BEHAVIOR_PAN4_3_DATA:
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#01,#01,#01,#01,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#01,#01,#01,#01,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
-    DB #01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
-    DB #01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
-    DB #00,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#01,#01,#01,#00
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#00,#00,#00,#00,#00
-    DB #00,#01,#01,#01,#01,#00,#01,#00,#00,#00,#00,#00,#01,#01,#01,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#10,#10,#10,#10,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#10,#10,#10,#10,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
+    DB #10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
+    DB #10,#10,#04,#04,#04,#10,#10,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
+    DB #00,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#10,#10,#10,#00
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#00,#00,#00,#00,#00
+    DB #00,#10,#10,#10,#10,#00,#10,#00,#00,#00,#00,#00,#10,#10,#10,#00
 
 ;; End of Behavior Map Data for pan4_3
 
@@ -7721,54 +8959,54 @@ BEHAVIOR_PAN5_4_HEIGHT    EQU 24
 BEHAVIOR_PAN5_4_SIZE      EQU 768
 
 BEHAVIOR_PAN5_4_DATA:
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#01,#01,#00,#00,#01
-    DB #01,#01,#01,#00,#00,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#01,#01,#00,#00,#01
-    DB #01,#01,#01,#00,#00,#01,#01,#00,#00,#01,#01,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00,#00,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#10,#10,#00,#00,#10
+    DB #10,#10,#10,#00,#00,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#10,#10,#00,#00,#10
+    DB #10,#10,#10,#00,#00,#10,#10,#00,#00,#10,#10,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00,#00,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#04,#04,#04,#04,#04,#04,#04,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
 
 ;; End of Behavior Map Data for pan5_4
 
@@ -7842,54 +9080,54 @@ BEHAVIOR_PAN62_5_HEIGHT    EQU 24
 BEHAVIOR_PAN62_5_SIZE      EQU 768
 
 BEHAVIOR_PAN62_5_DATA:
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#04,#04,#04,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
     DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#04,#04,#04,#04,#04,#04,#04,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
 
 ;; End of Behavior Map Data for pan62_5
 
@@ -7963,54 +9201,54 @@ BEHAVIOR_PAN7_6_HEIGHT    EQU 24
 BEHAVIOR_PAN7_6_SIZE      EQU 768
 
 BEHAVIOR_PAN7_6_DATA:
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#00,#00
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
-    DB #01,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
-    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#01,#01,#01,#01
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#11,#11,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#11,#11,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#00,#00
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
+    DB #10,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00
+    DB #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#10,#10,#10,#10
 
 ;; End of Behavior Map Data for pan7_6
 
@@ -8216,14 +9454,32 @@ load_screen_pan1_760723005040:
     ld bc, SCREEN_PAN1_0_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_PAN1_0_LAYOUT
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN1_0_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_PAN1_0_DATA
-    ld (current_behavior_map), hl
+    call mapper_set_bank_p2
+    ld hl, SCREEN_PAN1_0_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
     ld a, BEHAVIOR_PAN1_0_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_PAN1_0_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
+    ld (current_behavior_map), hl
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8254,14 +9510,32 @@ load_screen_pan2_760784762679:
     ld bc, SCREEN_PAN2_1_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_PAN2_1_LAYOUT
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN2_1_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_PAN2_1_DATA
-    ld (current_behavior_map), hl
+    call mapper_set_bank_p2
+    ld hl, SCREEN_PAN2_1_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
     ld a, BEHAVIOR_PAN2_1_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_PAN2_1_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
+    ld (current_behavior_map), hl
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8292,14 +9566,32 @@ load_screen_pan3_760799152493:
     ld bc, SCREEN_PAN3_2_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_PAN3_2_LAYOUT
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN3_2_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_PAN3_2_DATA
-    ld (current_behavior_map), hl
+    call mapper_set_bank_p2
+    ld hl, SCREEN_PAN3_2_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
     ld a, BEHAVIOR_PAN3_2_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_PAN3_2_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
+    ld (current_behavior_map), hl
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8330,14 +9622,32 @@ load_screen_pan4_760799516565:
     ld bc, SCREEN_PAN4_3_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_PAN4_3_LAYOUT
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN4_3_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_PAN4_3_DATA
-    ld (current_behavior_map), hl
+    call mapper_set_bank_p2
+    ld hl, SCREEN_PAN4_3_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
     ld a, BEHAVIOR_PAN4_3_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_PAN4_3_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
+    ld (current_behavior_map), hl
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8368,14 +9678,32 @@ load_screen_pan5_760961565333:
     ld bc, SCREEN_PAN5_4_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_PAN5_4_LAYOUT
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN5_4_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_PAN5_4_DATA
-    ld (current_behavior_map), hl
+    call mapper_set_bank_p2
+    ld hl, SCREEN_PAN5_4_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
     ld a, BEHAVIOR_PAN5_4_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_PAN5_4_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
+    ld (current_behavior_map), hl
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8406,14 +9734,32 @@ load_screen_pan62_761237904051:
     ld bc, SCREEN_PAN62_5_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_PAN62_5_LAYOUT
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN62_5_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_PAN62_5_DATA
-    ld (current_behavior_map), hl
+    call mapper_set_bank_p2
+    ld hl, SCREEN_PAN62_5_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
     ld a, BEHAVIOR_PAN62_5_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_PAN62_5_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
+    ld (current_behavior_map), hl
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8444,14 +9790,32 @@ load_screen_pan7_761471728391:
     ld bc, SCREEN_PAN7_6_SIZE
     call FAST_LDIRVM           ; Fast VRAM write (direct port access)
     call mapper_pop_p2
-    ; Initialize collision system pointers for this screen
-    ld hl, SCREEN_PAN7_6_LAYOUT
-    ld (current_screen_layout), hl
+    ; Build mutable runtime screen/behavior maps in RAM
+    call mapper_push_p2
     ld a, SCREEN_PAN7_6_LAYOUT_BANK
-    ld (current_screen_layout_bank), a
-    ld hl, BEHAVIOR_PAN7_6_DATA
-    ld (current_behavior_map), hl
+    call mapper_set_bank_p2
+    ld hl, SCREEN_PAN7_6_LAYOUT
+    ld de, runtime_screen_layout
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+
+    call mapper_push_p2
     ld a, BEHAVIOR_PAN7_6_DATA_BANK
+    call mapper_set_bank_p2
+    ld hl, BEHAVIOR_PAN7_6_DATA
+    ld de, runtime_behavior_map
+    ld bc, RUNTIME_SCREEN_MAP_SIZE
+    ldir
+    call mapper_pop_p2
+    ; Initialize collision system pointers for this screen
+    ld hl, runtime_screen_layout
+    ld (current_screen_layout), hl
+    ld a, #FF
+    ld (current_screen_layout_bank), a
+    ld hl, runtime_behavior_map
+    ld (current_behavior_map), hl
+    ld a, #FF
     ld (current_behavior_map_bank), a
     ld a, l
     ld (behavior_cache_map_l), a
@@ -8601,6 +9965,21 @@ init_entities:
     ld bc, 31
     ld (hl), 0
     ldir
+
+    ; Clear entity template tokens
+    ld hl, entity_template_token
+    ld de, entity_template_token+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Clear facing-direction cache so first-frame ChangeSprite does not
+    ; redirect through stale RAM garbage from a previous run/screen.
+    ld hl, entity_facing_dir
+    ld de, entity_facing_dir+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
     
     ; Initialize State Machine variables (Clear to 0)
     ld hl, entity_sm_ptr_l
@@ -8623,6 +10002,12 @@ init_entities:
 
     ld hl, entity_sm_timer_h
     ld de, entity_sm_timer_h+1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_sm_wait_timer
+    ld de, entity_sm_wait_timer+1
     ld bc, 31
     ld (hl), 0
     ldir
@@ -8649,6 +10034,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_0
+    ; Run per-entity update
     call update_player_1
 .skip_update_0:
     ; Skip entity update if entity belongs to another screen
@@ -8657,6 +10043,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_1
+    ; Run per-entity update
     call update_e_platform_multi_1
 .skip_update_1:
     ; Skip entity update if entity belongs to another screen
@@ -8665,6 +10052,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_2
+    ; Run per-entity update
     call update_box1_1
 .skip_update_2:
     ; Skip entity update if entity belongs to another screen
@@ -8673,6 +10061,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_3
+    ; Run per-entity update
     call update_key_item_1
 .skip_update_3:
     ; Skip entity update if entity belongs to another screen
@@ -8681,6 +10070,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_4
+    ; Run per-entity update
     call update_basic_enemy_1
 .skip_update_4:
     ; Skip entity update if entity belongs to another screen
@@ -8689,6 +10079,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_5
+    ; Run per-entity update
     call update_item
 .skip_update_5:
     ; Skip entity update if entity belongs to another screen
@@ -8697,6 +10088,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_6
+    ; Run per-entity update
     call update_key_item_2
 .skip_update_6:
     ; Skip entity update if entity belongs to another screen
@@ -8705,6 +10097,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_7
+    ; Run per-entity update
     call update_key_item_3
 .skip_update_7:
     ; Skip entity update if entity belongs to another screen
@@ -8713,6 +10106,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_8
+    ; Run per-entity update
     call update_key_item_1_2
 .skip_update_8:
     ; Skip entity update if entity belongs to another screen
@@ -8721,6 +10115,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_9
+    ; Run per-entity update
     call update_key_item_2_2
 .skip_update_9:
     ; Skip entity update if entity belongs to another screen
@@ -8729,6 +10124,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_10
+    ; Run per-entity update
     call update_key_item_3_2
 .skip_update_10:
     ; Skip entity update if entity belongs to another screen
@@ -8737,6 +10133,7 @@ update_entities:
     ld hl, current_screen_id
     cp (hl)
     jr nz, .skip_update_11
+    ; Run per-entity update
     call update_e_platform_multi_1_2
 .skip_update_11:
     ret
@@ -8755,6 +10152,13 @@ init_player_1:
     ld c, #03              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 0
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 0             ; Entity index
@@ -8770,6 +10174,19 @@ init_player_1:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 0                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 1
+
+    ; Deterministic spawn facing: right.
+    ; This keeps the first SM ChangeSprite aligned with the same default
+    ; world-facing direction used by Preview/runtime web.
+    ld hl, entity_facing_dir
+    add hl, de
+    ld (hl), 2
+
 
 
     ; Initialize Animation component
@@ -8831,6 +10248,17 @@ init_player_1:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+    ; Set Jump component configuration
+    ld hl, entity_jump_max
+    add hl, de
+    ld (hl), 1            ; Maximum jumps before touching ground
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 0
     ld a, (hl)
@@ -8851,6 +10279,18 @@ init_player_1:
     ld (entity_sm_ptr_l + 0), a   ; SM ptr low byte
     ld a, h
     ld (entity_sm_ptr_h + 0), a   ; SM ptr high byte
+
+    ; Fire OnEnter of initial state immediately.
+    ; Normally OnEnter fires via SM_ChangeState, but the first state is set
+    ; directly (no transition). Without this call, ChangeSprite / other
+    ; OnEnter actions never run and entity_sprite_asset_index stays at 0.
+    ; State data layout: [ID:1][OnEnter ptr:2][OnExit ptr:2][Transitions ptr:2]
+    ld hl, SM_player_sm_state_1761075124676 + 1      ; HL = &OnEnter Actions Ptr field
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = OnEnter Actions Ptr (0 if none)
+    ld a, 0                ; A = entity index
+    call SM_ExecuteActions        ; safe: SM_ExecuteActions returns immediately if DE=0
 
     ret
 
@@ -8885,6 +10325,13 @@ init_e_platform_multi_1:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 1
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 1             ; Entity index
@@ -8900,6 +10347,12 @@ init_e_platform_multi_1:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 0                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 11
+
 
 
 
@@ -8963,6 +10416,12 @@ init_e_platform_multi_1:
     ld hl, entity_dir_mask
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
+
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
 
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 1
@@ -9042,6 +10501,13 @@ init_box1_1:
     ld c, #02              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 2
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 2             ; Entity index
@@ -9057,6 +10523,12 @@ init_box1_1:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 0                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 12
+
 
 
 
@@ -9101,6 +10573,12 @@ init_box1_1:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 2
     ld a, (hl)
@@ -9121,6 +10599,18 @@ init_box1_1:
     ld (entity_sm_ptr_l + 2), a   ; SM ptr low byte
     ld a, h
     ld (entity_sm_ptr_h + 2), a   ; SM ptr high byte
+
+    ; Fire OnEnter of initial state immediately.
+    ; Normally OnEnter fires via SM_ChangeState, but the first state is set
+    ; directly (no transition). Without this call, ChangeSprite / other
+    ; OnEnter actions never run and entity_sprite_asset_index stays at 0.
+    ; State data layout: [ID:1][OnEnter ptr:2][OnExit ptr:2][Transitions ptr:2]
+    ld hl, SM_box_sm_state_1762195655252 + 1      ; HL = &OnEnter Actions Ptr field
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = OnEnter Actions Ptr (0 if none)
+    ld a, 2                ; A = entity index
+    call SM_ExecuteActions        ; safe: SM_ExecuteActions returns immediately if DE=0
 
     ret
 
@@ -9155,6 +10645,13 @@ init_key_item_1:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 3
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 3             ; Entity index
@@ -9170,6 +10667,12 @@ init_key_item_1:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 0                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
 
     ; Initialize Animation component
@@ -9231,6 +10734,12 @@ init_key_item_1:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 3
     ld a, (hl)
@@ -9278,6 +10787,13 @@ init_basic_enemy_1:
     ld c, #02              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 4
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 4             ; Entity index
@@ -9293,6 +10809,12 @@ init_basic_enemy_1:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 1                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 2
+
 
 
     ; Initialize Animation component
@@ -9354,6 +10876,12 @@ init_basic_enemy_1:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 4
     ld a, (hl)
@@ -9401,6 +10929,13 @@ init_item:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 5
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 5             ; Entity index
@@ -9416,6 +10951,12 @@ init_item:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 2                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
 
     ; Initialize Animation component
@@ -9477,6 +11018,12 @@ init_item:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 5
     ld a, (hl)
@@ -9524,6 +11071,13 @@ init_key_item_2:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 6
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 6             ; Entity index
@@ -9539,6 +11093,12 @@ init_key_item_2:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 2                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
 
     ; Initialize Animation component
@@ -9600,6 +11160,12 @@ init_key_item_2:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 6
     ld a, (hl)
@@ -9647,6 +11213,13 @@ init_key_item_3:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 7
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 7             ; Entity index
@@ -9662,6 +11235,12 @@ init_key_item_3:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 2                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
 
     ; Initialize Animation component
@@ -9723,6 +11302,12 @@ init_key_item_3:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 7
     ld a, (hl)
@@ -9770,6 +11355,13 @@ init_key_item_1_2:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 8
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 8             ; Entity index
@@ -9785,6 +11377,12 @@ init_key_item_1_2:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 4                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
 
     ; Initialize Animation component
@@ -9846,6 +11444,12 @@ init_key_item_1_2:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 8
     ld a, (hl)
@@ -9893,6 +11497,13 @@ init_key_item_2_2:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 9
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 9             ; Entity index
@@ -9908,6 +11519,12 @@ init_key_item_2_2:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 4                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
 
     ; Initialize Animation component
@@ -9969,6 +11586,12 @@ init_key_item_2_2:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 9
     ld a, (hl)
@@ -10016,6 +11639,13 @@ init_key_item_3_2:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 10
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 10             ; Entity index
@@ -10031,6 +11661,12 @@ init_key_item_3_2:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 4                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 3
+
 
 
     ; Initialize Animation component
@@ -10092,6 +11728,12 @@ init_key_item_3_2:
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
 
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
+
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 10
     ld a, (hl)
@@ -10139,6 +11781,13 @@ init_e_platform_multi_1_2:
     ld c, #00              ; Mask high byte
     call create_entity         ; Create with actual components from template
 
+    ; Configure per-entity job cadence
+    ; period: 1 frame(s), entry: 0
+    ld a, 11
+    ld b, 1
+    ld c, 0
+    call entity_job_set
+
     ; Set real position from JSON data
     ld hl, entity_x_pos
     ld e, 11             ; Entity index
@@ -10154,6 +11803,12 @@ init_e_platform_multi_1_2:
     ld hl, entity_screen_id
     add hl, de
     ld (hl), 5                 ; Screen ID (world node index / fallback screen index)
+
+    ; Template token for state-machine template-aware actions
+    ld hl, entity_template_token
+    add hl, de
+    ld (hl), 11
+
 
 
 
@@ -10217,6 +11872,12 @@ init_e_platform_multi_1_2:
     ld hl, entity_dir_mask
     add hl, de
     ld (hl), #0F            ; Direction restrictions: All directions
+
+    ; Set input speed for Cursors component (if entity has Input component)
+    ld hl, entity_input_speed
+    add hl, de
+    ld (hl), 2            ; Cursor speed (px/frame)
+
 
     ; Force update sprite attributes only if entity is in current screen
     ld hl, entity_screen_id + 11
@@ -10293,6 +11954,14 @@ update_entity_patrol_facing:
     push bc
     push hl
 
+    ; Guard invalid DE index coming from callers.
+    ld a, d
+    or a
+    jp nz, .patrol_facing_done
+    ld a, e
+    cp MAX_ENTITIES
+    jp nc, .patrol_facing_done
+
     ; Read base sprite asset index from ROM init table.
     ; This keeps patrol facing within the entity's directional family
     ; and avoids getting stuck in an unrelated 1-layer sprite asset.
@@ -10301,6 +11970,8 @@ update_entity_patrol_facing:
     ld a, (hl)
     cp #FF
     jp z, .patrol_facing_done
+    cp SPRITE_ASSET_COUNT
+    jp nc, .patrol_facing_done
     ld c, a
     ld b, 0
 
@@ -10356,6 +12027,9 @@ update_entity_patrol_facing:
 
 
 ; [font.asm skipped - no text/menus]
+init_font_system:
+    ret
+
 
 
 ; [hud.asm skipped - no HUD elements]
@@ -10365,6 +12039,7 @@ update_entity_patrol_facing:
 ; PSG SOUND SYSTEM
 ; File: sound.asm
 ; Description: AY-3-8910 PSG control and sound effects
+; Engine Audio Tick: IRQ task_manager
 ; ==================================================================
 
 ; ==================================================================
@@ -10438,9 +12113,42 @@ init_sound_system:
     ; Initialize PSG via BIOS
     call GICINI
 
+    ; Clear runtime sound state so power-on RAM garbage cannot make
+    ; sfx_update / SM_UpdateSound drive the PSG for a few random frames.
+    xor a
+    ld (sfx_active), a
+    ld (sfx_timer), a
+    ld (sfx_fadeout), a
+    ld (sm_sound_active), a
+    ld (sm_sound_frames_left), a
+    ld (sm_sound_ptr_l), a
+    ld (sm_sound_ptr_h), a
+    call music_init_system
+
     ; Silence all channels
     call sfx_silence_all
 
+    ret
+
+; ------------------------------------------------------------------
+; task_audio_tick
+; Shared audio tick wrapper for IRQ task_manager or HALT game loops.
+; Preserves caller-visible registers on every exit path.
+; ------------------------------------------------------------------
+task_audio_tick:
+    push af
+    push bc
+    push de
+    push hl
+
+    call music_update
+    call SM_UpdateSound
+
+
+    pop hl
+    pop de
+    pop bc
+    pop af
     ret
 
 ; ==================================================================
@@ -10492,7 +12200,7 @@ psg_set_tone:
 ; psg_set_volume
 ; Set volume for a channel
 ; Input:  A = Channel (0=A, 1=B, 2=C)
-;         B = Volume (0-15, 0=silent, 15=max)
+;         B = Volume (0-15) or #10 to enable PSG hardware envelope
 ; Destroys: AF, E
 ; ------------------------------------------------------------------
 psg_set_volume:
@@ -10524,6 +12232,27 @@ psg_set_noise:
 psg_set_mixer:
     ld e, a
     ld a, PSG_MIXER
+    call WRTPSG
+    ret
+
+; ------------------------------------------------------------------
+; psg_set_envelope
+; Program the global PSG hardware envelope generator
+; Input:  HL = Envelope period
+;         B = Envelope shape (0-15)
+; Destroys: AF, E
+; ------------------------------------------------------------------
+psg_set_envelope:
+    ld a, PSG_ENV_LO
+    ld e, l
+    call WRTPSG
+    ld a, PSG_ENV_HI
+    ld e, h
+    call WRTPSG
+    ld a, b
+    and #0F
+    ld e, a
+    ld a, PSG_ENV_SHAPE
     call WRTPSG
     ret
 
@@ -10691,10 +12420,66 @@ sfx_damage:
 ; This section provides a simple sound effect manager that can
 ; play effects with automatic duration and fadeout
 
-; Sound effect state
-sfx_active:         db 0         ; 0=no sfx, 1=playing
-sfx_timer:          db 0         ; Frames remaining
-sfx_fadeout:        db 0         ; Fadeout flag
+; Runtime state lives in variables.asm:
+;   sfx_active, sfx_timer, sfx_fadeout
+
+; ------------------------------------------------------------------
+; play_sound_effect
+; Play one of the built-in sound effects by ID
+; Input:  A = sound ID
+;         0=beep, 1=jump, 2=shoot, 3=explosion, 4=coin, 5=damage
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+play_sound_effect:
+    ld a, (music_active)
+    or a
+    ret nz
+    cp 1
+    jp z, play_sound_effect_jump
+    cp 2
+    jp z, play_sound_effect_shoot
+    cp 3
+    jp z, play_sound_effect_explosion
+    cp 4
+    jp z, play_sound_effect_coin
+    cp 5
+    jp z, play_sound_effect_damage
+
+play_sound_effect_beep:
+    ld hl, sfx_beep
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_jump:
+    ld hl, sfx_jump
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_shoot:
+    ld hl, sfx_shoot
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_explosion:
+    ld hl, sfx_explosion
+    ld b, SFX_MEDIUM
+    call sfx_play
+    ret
+
+play_sound_effect_coin:
+    ld hl, sfx_coin
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
+
+play_sound_effect_damage:
+    ld hl, sfx_damage
+    ld b, SFX_SHORT
+    call sfx_play
+    ret
 
 ; ------------------------------------------------------------------
 ; sfx_play
@@ -10703,6 +12488,9 @@ sfx_fadeout:        db 0         ; Fadeout flag
 ;         B = Duration in frames
 ; ------------------------------------------------------------------
 sfx_play:
+    ld a, (music_active)
+    or a
+    ret nz
     ; Call the sound effect function
     push bc
     push hl
@@ -10729,6 +12517,9 @@ sfx_play:
 ; Handles automatic fadeout and silence
 ; ------------------------------------------------------------------
 sfx_update:
+    ld a, (music_active)
+    or a
+    ret nz
     ; Check if sound is active
     ld a, (sfx_active)
     or a
@@ -10754,6 +12545,922 @@ sfx_update:
     xor a
     ld (sfx_active), a
     ret
+
+; ==================================================================
+; TRACKER MUSIC RUNTIME (Phase 1)
+; Phase 1 plays row data and loop state in ROM; descriptor tables are
+; serialized now for compatibility and future expansion.
+; ==================================================================
+
+MUSIC_TRACK_ORDER_TABLE     EQU 5
+MUSIC_TRACK_PATTERN_TABLE   EQU 7
+MUSIC_TRACK_INSTRUMENT_TABLE EQU 9
+MUSIC_TRACK_NOISE_DEFAULT   EQU 15
+
+; ------------------------------------------------------------------
+; music_init_system
+; Reset tracker runtime RAM and default PSG mixer shadow.
+; Input:  None
+; Output: music_active=0, music_muted=0, music_mixer_shadow=#3F
+; Destroys: AF
+; ------------------------------------------------------------------
+music_init_system:
+    xor a
+    ld (music_active), a
+    ld (music_muted), a
+    ld (music_loop), a
+    ld (music_track_index), a
+    ld (music_row_frames), a
+    ld (music_row_countdown), a
+    ld (music_order_pos), a
+    ld (music_pattern_index), a
+    ld (music_pattern_row), a
+    ld (music_pattern_rows), a
+    ld (music_track_ptr_l), a
+    ld (music_track_ptr_h), a
+    ld (music_pattern_ptr_l), a
+    ld (music_pattern_ptr_h), a
+    ld a, #3F
+    ld (music_mixer_shadow), a
+    call music_reset_channel_state
+    ret
+
+music_reset_channel_state:
+    ld a, #FF
+    ld (music_ch_a_note), a
+    ld (music_ch_b_note), a
+    ld (music_ch_c_note), a
+    xor a
+    ld (music_ch_a_instrument), a
+    ld (music_ch_b_instrument), a
+    ld (music_ch_c_instrument), a
+    ld (music_ch_a_ornament), a
+    ld (music_ch_b_ornament), a
+    ld (music_ch_c_ornament), a
+    ld (music_ch_a_vol_step), a
+    ld (music_ch_b_vol_step), a
+    ld (music_ch_c_vol_step), a
+    ld (music_ch_a_tone_step), a
+    ld (music_ch_b_tone_step), a
+    ld (music_ch_c_tone_step), a
+    ld (music_ch_a_noise_step), a
+    ld (music_ch_b_noise_step), a
+    ld (music_ch_c_noise_step), a
+    ld (music_ch_a_orn_step), a
+    ld (music_ch_b_orn_step), a
+    ld (music_ch_c_orn_step), a
+    ld a, #0F
+    ld (music_ch_a_volume), a
+    ld (music_ch_b_volume), a
+    ld (music_ch_c_volume), a
+    ret
+
+music_silence_channels:
+    xor a
+    ld b, 0
+    call psg_set_volume
+    ld a, 1
+    ld b, 0
+    call psg_set_volume
+    ld a, 2
+    ld b, 0
+    call psg_set_volume
+    ld a, #3F
+    call psg_set_mixer
+    ret
+
+music_stop:
+    push af
+    call music_init_system
+    call music_silence_channels
+    pop af
+    ret
+
+music_mute:
+    ld a, (music_active)
+    or a
+    ret z
+    ld a, 1
+    ld (music_muted), a
+    call music_silence_channels
+    ret
+
+music_resume:
+    ld a, (music_active)
+    or a
+    ret z
+    xor a
+    ld (music_muted), a
+    call music_update_channel_effects
+    ret
+
+; ------------------------------------------------------------------
+; music_execute_command
+; Dispatch a compact music command stream used by Game Flow nodes.
+; Input:  DE -> [command, trackIndex, loopFlag]
+;         command: 0=stop, 1=play, 2=mute, 3=resume, #FF=no-op
+; Output: Selected command executed, DE may advance while parsing
+; Destroys: AF, BC (play path), DE (play path), HL (via callees)
+; ------------------------------------------------------------------
+music_execute_command:
+    ld a, (de)
+    cp #FF
+    ret z
+    or a
+    jp z, music_stop
+    cp 1
+    jp z, .play_track
+    cp 2
+    jp z, music_mute
+    cp 3
+    jp z, music_resume
+    ret
+.play_track:
+    inc de
+    ld a, (de)
+    ld c, a
+    inc de
+    ld a, (de)
+    ld b, a
+    ld a, c
+    call music_play_track
+    ret
+
+music_load_track_pointer_from_index:
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, music_track_ptr_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld a, e
+    ld (music_track_ptr_l), a
+    ld a, d
+    ld (music_track_ptr_h), a
+    ret
+
+music_get_track_ptr:
+    ld a, (music_track_ptr_l)
+    ld l, a
+    ld a, (music_track_ptr_h)
+    ld h, a
+    ret
+
+music_get_track_header_ptr:
+    ld e, a
+    ld d, 0
+    call music_get_track_ptr
+    add hl, de
+    ret
+
+music_read_track_byte:
+    call music_get_track_header_ptr
+    ld a, (hl)
+    ret
+
+music_read_track_word:
+    call music_get_track_header_ptr
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld h, d
+    ld l, e
+    ret
+
+music_get_instrument_ptr:
+    or a
+    jr z, .no_instrument
+    add a, a
+    ld e, a
+    ld d, 0
+    ld a, MUSIC_TRACK_INSTRUMENT_TABLE
+    call music_read_track_word
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld h, d
+    ld l, e
+    ret
+.no_instrument:
+    ld hl, 0
+    ret
+
+; ------------------------------------------------------------------
+; music_get_channel_instrument_ptr
+; Resolve current channel instrument pointer from the cached channel id.
+; Input:  C = channel index (0=A, 1=B, 2=C)
+; Output: HL = instrument descriptor or 0 when none is active
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+music_get_channel_instrument_ptr:
+    ld hl, music_ch_instrument_base
+    call music_load_channel_byte
+    call music_get_instrument_ptr
+    ret
+
+; ------------------------------------------------------------------
+; music_channel_uses_hardware_env
+; Check if the active instrument routes channel volume through PSG ENV.
+; Input:  C = channel index (0=A, 1=B, 2=C)
+; Output: A = 1 when PSG hardware envelope is enabled, else 0
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+music_channel_uses_hardware_env:
+    push hl
+    call music_get_channel_instrument_ptr
+    ld a, h
+    or l
+    jr z, music_channel_uses_hardware_env_no_hw_env
+    ld a, (hl)
+    and #04
+    jr z, music_channel_uses_hardware_env_no_hw_env
+    ld a, 1
+    pop hl
+    ret
+music_channel_uses_hardware_env_no_hw_env:
+    xor a
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; music_trigger_channel_attack
+; Hook kept for compatibility. The preview-style hardware envelope is
+; emulated in software per channel, so new-note state is already reset
+; by music_apply_channel_cell before this helper is called.
+; Input:  C = channel index (0=A, 1=B, 2=C)
+; Output: None
+; Destroys: None
+; ------------------------------------------------------------------
+music_trigger_channel_attack:
+    ret
+
+; ------------------------------------------------------------------
+; music_resolve_channel_volume
+; Resolve per-frame channel volume.
+; Current Phase 1 behavior:
+; - emulates AY hardware envelope shapes in software when ayEnvelopeShape is set
+; - falls back to music_ch_volume_base when no envelope data exists
+; - applies a simple software volumeEnvelope when present
+; Input:  C = channel index (0=A, 1=B, 2=C)
+; Output: B = PSG volume 0-15
+; Destroys: AF, DE, HL
+; ------------------------------------------------------------------
+music_resolve_channel_volume:
+    push af
+    push de
+    push hl
+    ld hl, music_ch_instrument_base
+    call music_load_channel_byte
+    or a
+    jp z, .fallback_base
+    call music_get_instrument_ptr
+    ld a, h
+    or l
+    jp z, .fallback_base
+    ld a, (hl)
+    and #04
+    jp nz, .hardware_env
+.check_software_env:
+    push hl
+    ld de, 8
+    add hl, de
+    ld b, (hl)
+    pop hl
+    ld a, b
+    or a
+    jp z, .fallback_base
+    push hl
+    ld de, 6
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    pop hl
+    push hl
+    ld hl, music_ch_vol_step_base
+    call music_load_channel_byte
+    cp b
+    jr c, .step_ok_restore
+    pop hl
+    push de
+    push hl
+    ld de, 9
+    add hl, de
+    ld a, (hl)
+    pop hl
+    pop de
+    cp b
+    jr c, .step_ok
+    ld a, b
+    push af
+    ld hl, music_ch_vol_step_base
+    call music_store_channel_byte
+    pop af
+    ld hl, music_ch_note_base
+    ld a, #FF
+    call music_store_channel_byte
+    xor a
+    ld b, a
+    jp .mrcv_done
+.step_ok_restore:
+    pop hl
+.step_ok:
+    push af
+    inc a
+    cp b
+    jr c, .next_step_ok
+    push de
+    push hl
+    ld de, 9
+    add hl, de
+    ld a, (hl)
+    pop hl
+    pop de
+    cp b
+    jr c, .next_step_ok
+    ld a, b
+.next_step_ok:
+    push de
+    ld hl, music_ch_vol_step_base
+    call music_store_channel_byte
+    pop de
+    pop af
+    ld l, a
+    ld h, 0
+    add hl, de
+    ld a, (hl)
+    cp 16
+    jr c, .env_volume_ok
+    ld a, 15
+.env_volume_ok:
+    ld b, a
+    jp .mrcv_done
+.hardware_env:
+    ld hl, music_ch_tone_step_base
+    call music_load_channel_byte
+    inc a
+    cp 2
+    jr c, .hw_store_counter
+    xor a
+    push af
+    ld hl, music_ch_tone_step_base
+    call music_store_channel_byte
+    pop af
+    ld hl, music_ch_vol_step_base
+    call music_load_channel_byte
+    cp 15
+    jr nc, .hw_phase_ready
+    inc a
+    push af
+    ld hl, music_ch_vol_step_base
+    call music_store_channel_byte
+    pop af
+    jr .hw_phase_ready
+.hw_store_counter:
+    push af
+    ld hl, music_ch_tone_step_base
+    call music_store_channel_byte
+    pop af
+    ld hl, music_ch_vol_step_base
+    call music_load_channel_byte
+.hw_phase_ready:
+    push af
+    call music_get_channel_instrument_ptr
+    ld a, h
+    or l
+    pop af
+    jr z, .hw_decay
+    push af
+    inc hl
+    inc hl
+    ld a, (hl)
+    and #04
+    pop af
+    jr z, .hw_decay
+    ld b, a
+    jp .mrcv_done
+.hw_decay:
+    ld e, a
+    ld a, 15
+    sub e
+    ld b, a
+    jp .mrcv_done
+.fallback_base:
+    ld hl, music_ch_volume_base
+    call music_load_channel_byte
+    ld b, a
+.mrcv_done:
+    pop hl
+    pop de
+    pop af
+    ret
+
+; ------------------------------------------------------------------
+; music_resolve_channel_noise
+; Resolve per-frame channel noise period, including the PT3-inspired
+; software noise macro appended to the instrument descriptor.
+; Input:  C = channel index (0=A, 1=B, 2=C)
+; Output: A = PSG noise period 0-31
+; Destroys: AF, DE, HL
+; Preserves: Stack balance restored before return
+; ------------------------------------------------------------------
+music_resolve_channel_noise:
+    push de
+    push hl
+    ld hl, music_ch_instrument_base
+    call music_load_channel_byte
+    or a
+    jp z, .mrcn_track_default
+    call music_get_instrument_ptr
+    ld a, h
+    or l
+    jp z, .mrcn_track_default
+    push hl
+    ld de, 16
+    add hl, de
+    ld b, (hl)
+    pop hl
+    ld a, b
+    or a
+    jp z, .mrcn_static_noise
+    push hl
+    ld hl, music_ch_noise_step_base
+    call music_load_channel_byte
+    cp b
+    jr c, .mrcn_step_ok
+    ld a, b
+    dec a
+.mrcn_step_ok:
+    push af
+    pop af
+    pop hl
+    push af
+    inc a
+    cp b
+    jr c, .mrcn_store_next
+    push de
+    ld de, 17
+    add hl, de
+    ld a, (hl)
+    pop de
+    cp b
+    jr c, .mrcn_store_next
+    ld a, b
+    dec a
+.mrcn_store_next:
+    push hl
+    push af
+    ld hl, music_ch_noise_step_base
+    call music_store_channel_byte
+    pop af
+    pop hl
+    ld de, 14
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    pop af
+    ld l, a
+    ld h, 0
+    add hl, de
+    ld a, (hl)
+    and #1F
+    jp .mrcn_done
+.mrcn_static_noise:
+    push de
+    ld de, 3
+    add hl, de
+    ld a, (hl)
+    pop de
+    and #1F
+    jp .mrcn_done
+.mrcn_track_default:
+    ld a, MUSIC_TRACK_NOISE_DEFAULT
+    call music_read_track_byte
+    and #1F
+.mrcn_done:
+    pop hl
+    pop de
+    ret
+
+; ------------------------------------------------------------------
+; music_play_track
+; Start a serialized PSG tracker song from ROM.
+; Input:  A = track index in music_track_ptr_table
+;         B bit 0 = loop enabled flag
+; Output: music_active=1 and first row applied immediately
+; Destroys: AF, BC, DE, HL
+; Preserves: Stack balance restored on all exits
+; ------------------------------------------------------------------
+music_play_track:
+    push bc
+    push de
+    push hl
+    ld hl, music_track_count
+    cp (hl)
+    jp nc, .done
+    ld (music_track_index), a
+    call music_load_track_pointer_from_index
+    ld a, b
+    and 1
+    ld (music_loop), a
+    xor a
+    ld (music_muted), a
+    ld (music_order_pos), a
+    ld (music_pattern_index), a
+    ld (music_pattern_row), a
+    ld a, 1
+    ld (music_active), a
+    call music_reset_channel_state
+    call music_apply_row
+.done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+music_store_channel_byte:
+    push de
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld (hl), a
+    pop de
+    ret
+
+music_load_channel_byte:
+    push de
+    ld e, c
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    pop de
+    ret
+
+music_apply_channel_cell:
+    ld c, a
+    ld d, 0
+    ld a, (hl)
+    inc hl
+    cp #FF
+    jp z, .note_done
+    cp #FE
+    jp nz, .store_note
+    ld a, #FF
+    jr .store_note
+.store_note:
+    cp #FF
+    jr z, .store_note_value
+    ld d, 1
+.store_note_value:
+    push hl
+    ld hl, music_ch_note_base
+    call music_store_channel_byte
+    xor a
+    ld hl, music_ch_vol_step_base
+    call music_store_channel_byte
+    ld hl, music_ch_tone_step_base
+    call music_store_channel_byte
+    ld hl, music_ch_noise_step_base
+    call music_store_channel_byte
+    ld hl, music_ch_orn_step_base
+    call music_store_channel_byte
+    pop hl
+.note_done:
+    ld a, (hl)
+    inc hl
+    cp #FF
+    jp z, .instrument_done
+    push hl
+    ld hl, music_ch_instrument_base
+    call music_store_channel_byte
+    pop hl
+.instrument_done:
+    ld a, (hl)
+    inc hl
+    cp #FF
+    jp z, .ornament_done
+    push hl
+    ld hl, music_ch_ornament_base
+    call music_store_channel_byte
+    pop hl
+.ornament_done:
+    ld a, (hl)
+    inc hl
+    cp #FF
+    jr z, .maybe_trigger_attack
+    push hl
+    ld hl, music_ch_volume_base
+    call music_store_channel_byte
+    pop hl
+.maybe_trigger_attack:
+    ld a, d
+    or a
+    ret z
+    push hl
+    call music_trigger_channel_attack
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; music_apply_row
+; Decode current order/pattern row and cache channel state for A/B/C.
+; Input:  Runtime variables select track/order/pattern position
+; Output: Channel note/instrument/volume caches updated
+;         Row countdown reloaded and PSG refreshed once
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+music_apply_row:
+    ld a, MUSIC_TRACK_ORDER_TABLE
+    call music_read_track_word
+    ld a, (music_order_pos)
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld a, (hl)
+    ld (music_pattern_index), a
+    ld a, MUSIC_TRACK_PATTERN_TABLE
+    call music_read_track_word
+    ld a, (music_pattern_index)
+    ld e, a
+    ld d, 0
+    add hl, de
+    add hl, de
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    ld a, (hl)
+    ld (music_pattern_rows), a
+    ld a, e
+    ld (music_pattern_ptr_l), a
+    ld a, d
+    ld (music_pattern_ptr_h), a
+    ld h, d
+    ld l, e
+    ld a, (music_pattern_row)
+    or a
+    jp z, .row_ptr_ready
+    ld b, a
+.row_offset_loop:
+    ld de, 12
+    add hl, de
+    djnz .row_offset_loop
+.row_ptr_ready:
+    xor a
+    call music_apply_channel_cell
+    ld a, 1
+    call music_apply_channel_cell
+    ld a, 2
+    call music_apply_channel_cell
+    ld a, (music_pattern_row)
+    inc a
+    ld d, a
+    ld a, (music_pattern_rows)
+    cp d
+    jp z, .advance_order
+    jp c, .advance_order
+    ld a, d
+    ld (music_pattern_row), a
+    jp .row_done
+.advance_order:
+    xor a
+    ld (music_pattern_row), a
+    ld a, (music_order_pos)
+    inc a
+    ld d, a
+    ld a, 1
+    call music_read_track_byte
+    cp d
+    jp z, .end_of_order
+    jp c, .end_of_order
+    ld a, d
+    ld (music_order_pos), a
+    jp .row_done
+.end_of_order:
+    ld a, (music_loop)
+    or a
+    jp z, music_stop
+    ld a, 2
+    call music_read_track_byte
+    ld (music_order_pos), a
+.row_done:
+    xor a
+    call music_read_track_byte
+    ld (music_row_frames), a
+    ld (music_row_countdown), a
+    call music_update_channel_effects
+    ret
+
+; ------------------------------------------------------------------
+; music_update
+; Advance the tracker once per game frame.
+; Input:  None
+; Output: Current channel PSG state refreshed; next row applied when due
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+music_update:
+    ld a, (music_active)
+    or a
+    ret z
+    ld a, (music_muted)
+    or a
+    ret nz
+    call music_update_channel_effects
+    ld a, (music_row_countdown)
+    or a
+    jp z, music_apply_row
+    dec a
+    ld (music_row_countdown), a
+    ret nz
+    call music_apply_row
+    ret
+
+; ------------------------------------------------------------------
+; music_update_channel_effects
+; Rebuild mixer bits and push current cached channel state to PSG.
+; Input:  music_ch_* caches already populated
+; Output: PSG tone/volume registers updated for channels A/B/C
+;         music_mixer_shadow rewritten with current enable bits
+; Destroys: AF, BC, DE, HL
+; ------------------------------------------------------------------
+music_update_channel_effects:
+    ld a, #3F
+    ld (music_mixer_shadow), a
+    ld c, 0
+    call music_update_one_channel
+    ld c, 1
+    call music_update_one_channel
+    ld c, 2
+    call music_update_one_channel
+    ld a, (music_mixer_shadow)
+    call psg_set_mixer
+    ret
+
+; ------------------------------------------------------------------
+; music_update_one_channel
+; Apply one cached channel to PSG and update the mixer shadow bits.
+; Input:  C = channel index (0=A, 1=B, 2=C)
+; Output: Channel PSG tone/volume updated or silenced
+;         music_mixer_shadow updated for that channel
+; Destroys: AF, BC, DE, HL
+; Preserves: Stack balance restored before return
+; ------------------------------------------------------------------
+music_update_one_channel:
+    push bc
+    push de
+    push hl
+    ld hl, music_ch_note_base
+    call music_load_channel_byte
+    cp #FF
+    jp z, .silent_channel
+    add a, a
+    ld e, a
+    ld d, 0
+    ld hl, music_note_period_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ld h, d
+    ld l, e
+    ld a, c
+    push bc
+    call psg_set_tone
+    pop bc
+    call music_resolve_channel_volume
+    ld a, c
+    push bc
+    call psg_set_volume
+    pop bc
+    ld d, 1
+    ld e, 0
+    call music_get_channel_instrument_ptr
+    ld a, h
+    or l
+    jr z, .apply_mixer_bits
+    ld a, (hl)
+    and #01
+    ld d, a
+    ld a, (hl)
+    and #02
+    srl a
+    ld e, a
+    ld a, e
+    or a
+    jr z, .apply_mixer_bits
+    push de
+    call music_resolve_channel_noise
+    call psg_set_noise
+    pop de
+.apply_mixer_bits:
+    ld a, (music_mixer_shadow)
+    ld b, a
+    ld a, c
+    cp 1
+    jp z, .enable_b
+    cp 2
+    jp z, .enable_c
+    ld a, b
+    bit 0, d
+    jr z, .a_tone_off
+    and #3E
+    jr .a_noise_gate
+.a_tone_off:
+    or #01
+.a_noise_gate:
+    bit 0, e
+    jr z, .a_noise_off
+    and #37
+    jp .store_mixer
+.a_noise_off:
+    or #08
+    jp .store_mixer
+.enable_b:
+    ld a, b
+    bit 0, d
+    jr z, .b_tone_off
+    and #3D
+    jr .b_noise_gate
+.b_tone_off:
+    or #02
+.b_noise_gate:
+    bit 0, e
+    jr z, .b_noise_off
+    and #2F
+    jp .store_mixer
+.b_noise_off:
+    or #10
+    jp .store_mixer
+.enable_c:
+    ld a, b
+    bit 0, d
+    jr z, .c_tone_off
+    and #3B
+    jr .c_noise_gate
+.c_tone_off:
+    or #04
+.c_noise_gate:
+    bit 0, e
+    jr z, .c_noise_off
+    and #1F
+    jp .store_mixer
+.c_noise_off:
+    or #20
+    jp .store_mixer
+.silent_channel:
+    ld b, 0
+    ld a, c
+    push bc
+    call psg_set_volume
+    pop bc
+    ld a, (music_mixer_shadow)
+    ld b, a
+    ld a, c
+    cp 1
+    jp z, .disable_b
+    cp 2
+    jp z, .disable_c
+    ld a, b
+    or #09
+    jp .store_mixer
+.disable_b:
+    ld a, b
+    or #12
+    jp .store_mixer
+.disable_c:
+    ld a, b
+    or #24
+.store_mixer:
+    ld (music_mixer_shadow), a
+    pop hl
+    pop de
+    pop bc
+    ret
+
+music_note_period_table:
+    DW #1AB9,#1939,#17CF,#1679,#1536,#1405,#12E5,#11D6
+    DW #10D6,#0FE4,#0EFF,#0E28,#0D5C,#0C9D,#0BE7,#0B3C
+    DW #0A9B,#0A02,#0973,#08EB,#086B,#07F2,#0780,#0714
+    DW #06AE,#064E,#05F4,#059E,#054D,#0501,#04B9,#0475
+    DW #0435,#03F9,#03C0,#038A,#0357,#0327,#02FA,#02CF
+    DW #02A7,#0281,#025D,#023B,#021B,#01FC,#01E0,#01C5
+    DW #01AC,#0194,#017D,#0168,#0153,#0140,#012E,#011D
+    DW #010D,#00FE,#00F0,#00E2,#00D6,#00CA,#00BE,#00B4
+    DW #00AA,#00A0,#0097,#008F,#0087,#007F,#0078,#0071
+    DW #006B,#0065,#005F,#005A,#0055,#0050,#004C,#0047
+    DW #0043,#0040,#003C,#0039,#0035,#0032,#0030,#002D
+    DW #002A,#0028,#0026,#0024,#0022,#0020,#001E,#001C
+
+music_track_count:
+    DB #00
+
+music_track_ptr_table:
+    DW 0
 
 ; ==================================================================
 ; END OF PSG SOUND SYSTEM
@@ -11110,6 +13817,10 @@ multiply_a_by_b:
 ; Description: Background tile animation for water, lava, fire, etc.
 ; ==================================================================
 
+; Auto-detected animated groups:
+;   frame groups: 0
+;   transform groups: 0
+
 ; ==================================================================
 ; ANIMATED TILES CONSTANTS
 ; ==================================================================
@@ -11120,7 +13831,10 @@ ANIM_SPEED_MEDIUM       EQU 8       ; ~133ms (lava)
 ANIM_SPEED_FAST         EQU 4       ; ~66ms (fire)
 
 ; Maximum animated tiles
-MAX_ANIM_TILES          EQU 8       ; Support up to 8 animated tiles
+MAX_ANIM_TILES          EQU 1
+ANIM_TILE_ENTRY_SIZE    EQU 7       ; char, chars, frames, speed, bytesPerFrame, ptr(2)
+ANIM_TRANS_ENTRY_SIZE   EQU 4       ; char, chars, opCode, flags
+ANIM_TILE_DATA_BANK     EQU ((anim_tile_table - #4000) / #2000)
 
 ; ==================================================================
 ; ANIMATED TILES INITIALIZATION
@@ -11132,9 +13846,12 @@ init_animated_tiles:
     ld (anim_tile_timer), a
     ld (anim_tile_frame), a
 
-    ; Set default animation speed (medium)
-    ld a, ANIM_SPEED_MEDIUM
+    ; Set default global animation speed
+    ld a, 8
     ld (anim_tile_speed), a
+
+    ; Upload initial animation frame state immediately
+    call update_animated_tiles_vram
 
     ret
 
@@ -11156,17 +13873,21 @@ update_animated_tiles:
     ; Check if it's time to advance frame
     ld b, a
     ld a, (anim_tile_speed)
+    or a
+    jr nz, .anim_speed_ok
+    ld a, 1
+    ld (anim_tile_speed), a
+.anim_speed_ok:
     cp b
-    ret nz                          ; Not yet time to update
+    ret nc                          ; Not yet time to update (timer < speed)
 
     ; Reset timer
     xor a
     ld (anim_tile_timer), a
 
-    ; Advance to next animation frame
+    ; Advance global animation counter
     ld a, (anim_tile_frame)
     inc a
-    and #03                         ; Wrap at 4 frames (0-3)
     ld (anim_tile_frame), a
 
     ; Update all animated tiles in VRAM
@@ -11181,81 +13902,16 @@ update_animated_tiles:
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
 update_animated_tiles_vram:
-    ld hl, anim_tile_table          ; HL = animation table pointer
-    ld a, (anim_tile_frame)         ; A = current global frame
+    ; Protect VDP port sequence from ISR VRAM writes (sprite task, etc.)
+    ; Preserve prior interrupt state using LD A,I -> P/V = IFF2
+    ld a, i
+    push af
+    di
 
-.anim_vram_loop:
-    ld c, (hl)                      ; C = tile ID
-    ld a, c
-    cp 255
-    ret z                           ; End of table, done
-
-    inc hl
-    ld b, (hl)                      ; B = number of frames (unused for now)
-    inc hl
-    inc hl                          ; Skip speed byte
-
-    ; Now update this tile in VRAM
-    push hl                         ; Save table pointer
-
-    ; Get current animation frame
-    ld a, (anim_tile_frame)
-    ld b, a                         ; B = current frame
-    ld a, c                         ; A = tile ID
-
-    ; Calculate which animation pattern index
-    ; We need to know which pattern set this tile uses
-    ; For simplicity: tile 240 = pattern 0, tile 241 = pattern 1, etc.
-    sub 240                         ; A = pattern index (0, 1, 2, ...)
-    ld c, a                         ; C = pattern index
-
-    ; Calculate source address
-    ; Source = anim_patterns_data + (pattern_index * 32) + (frame * 8)
-    ld l, c
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    add hl, hl                      ; * 16
-    add hl, hl                      ; * 32 (4 frames * 8 bytes)
-
-    ; Add frame offset
-    ld a, b                         ; A = frame
-    add a, a                        ; * 2
-    add a, a                        ; * 4
-    add a, a                        ; * 8
-    ld e, a
-    ld d, 0
-    add hl, de
-
-    ; Add base address
-    ld de, anim_patterns_data
-    add hl, de                      ; HL = source pattern address
-
-    ; Calculate VRAM destination
-    ; For Screen 2: CHRTBL + (tile_id * 8)
-    ld a, c
-    add a, 240                      ; Convert back to tile ID
-    ld e, a
-    ld d, 0
-    ex de, hl                       ; DE = source, HL = tile_id
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    ld bc, CHRTBL
-    add hl, bc                      ; HL = VRAM address
-
-    ex de, hl                       ; DE = VRAM, HL = source
-
-    ; Copy 8 bytes to VRAM
-    push bc
-    ld bc, 8
-    call LDIRVM
-    pop bc
-
-    pop hl                          ; Restore table pointer
-    jr .anim_vram_loop              ; Next tile
-
+    pop af
+    jp po, .anim_vram_irq_done
+    ei
+.anim_vram_irq_done:
     ret
 
 ; ------------------------------------------------------------------
@@ -11264,126 +13920,528 @@ update_animated_tiles_vram:
 ; Input:  A = Speed (frames between updates)
 ; ------------------------------------------------------------------
 set_animation_speed:
+    or a
+    jr nz, .anim_speed_store
+    ld a, 1
+.anim_speed_store:
     ld (anim_tile_speed), a
     ret
 
 ; ------------------------------------------------------------------
-; animate_tile_pattern
-; Update a specific tile pattern in VRAM with animation frame
-; Input:  A = Tile ID
-;         B = Animation frame (0-3)
+; anim_copy_8_bytes
+; Copy 8 bytes from CPU memory to VRAM
+; Input: DE = source pointer, HL = VRAM destination
 ; Destroys: AF, BC, DE, HL
 ; ------------------------------------------------------------------
-animate_tile_pattern:
-    push af
-    push bc
-
-    ; Calculate pattern address in VRAM
-    ; For Screen 2: Pattern = CHRTBL2 + (tile_id * 8)
-    ld l, a
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    ld de, #0000                    ; CHRTBL2 base
-    add hl, de                      ; HL = VRAM pattern address
-
-    ; Calculate source pattern address
-    ; Source = anim_patterns + (tile_id * 32) + (frame * 8)
-    pop bc                          ; B = frame
-    pop af                          ; A = tile_id
-
-    push hl                         ; Save VRAM address
-
-    ; tile_id * 32 (4 frames * 8 bytes)
-    ld l, a
-    ld h, 0
-    add hl, hl                      ; * 2
-    add hl, hl                      ; * 4
-    add hl, hl                      ; * 8
-    add hl, hl                      ; * 16
-    add hl, hl                      ; * 32
-
-    ; + (frame * 8)
-    ld a, b
-    add a, a                        ; * 2
-    add a, a                        ; * 4
-    add a, a                        ; * 8
-    ld e, a
-    ld d, 0
-    add hl, de
-
-    ; Add base address of animation patterns
-    ld de, anim_patterns_data
-    add hl, de                      ; HL = source address
-
-    ; Copy 8 bytes to VRAM
-    pop de                          ; DE = VRAM address
-    ld bc, 8
-    call LDIRVM
+anim_copy_8_bytes:
+    ld b, 8
+.anim_copy_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_copy_loop
 
     ret
 
 ; ==================================================================
-; ANIMATED TILE DEFINITIONS
+; anim_upload_char_frame
+; Upload one animated char (pattern + color) to all 3 Screen 2 banks
+; Input: A = target char code, HL = source frame chunk (16 bytes)
+; Source layout: 8 pattern bytes + 8 color bytes
+; Destroys: AF, BC, DE, HL
 ; ==================================================================
-; Define which tiles are animated and their pattern data
+anim_upload_char_frame:
+    push af
+    push bc
+    push de
+    push hl
 
-; Example: Water animation (4 frames)
-; Each frame is 8 bytes (one tile pattern)
+    ; BC = target char offset (charCode * 8)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld b, h
+    ld c, l
 
-anim_patterns_data:
-    ; Tile 0: Water (example - 4 frames)
-    ; Frame 0
-    db #00, #00, #42, #24, #00, #00, #84, #48
-    ; Frame 1
-    db #00, #42, #24, #00, #00, #84, #48, #00
-    ; Frame 2
-    db #42, #24, #00, #00, #84, #48, #00, #00
-    ; Frame 3
-    db #24, #00, #00, #84, #48, #00, #00, #42
+    pop hl
+    ex de, hl                      ; DE = source pattern pointer
 
-    ; Tile 1: Lava (example - 4 frames)
-    ; Frame 0
-    db #FF, #AA, #55, #AA, #FF, #AA, #55, #AA
-    ; Frame 1
-    db #AA, #55, #AA, #FF, #AA, #55, #AA, #FF
-    ; Frame 2
-    db #55, #AA, #FF, #AA, #55, #AA, #FF, #AA
-    ; Frame 3
-    db #AA, #FF, #AA, #55, #AA, #FF, #AA, #55
+    ; Pattern bank 0
+    push de
+    ld hl, CHRTBL2
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
 
-    ; Tile 2: Fire (example - 4 frames)
-    ; Frame 0
-    db #18, #3C, #7E, #FF, #E7, #C3, #81, #00
-    ; Frame 1
-    db #3C, #7E, #FF, #E7, #C3, #81, #00, #18
-    ; Frame 2
-    db #7E, #FF, #E7, #C3, #81, #00, #18, #3C
-    ; Frame 3
-    db #FF, #E7, #C3, #81, #00, #18, #3C, #7E
+    ; Pattern bank 1
+    push de
+    ld hl, CHRTBL2 + #800
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
 
-    ; Add more animated tile patterns here...
+    ; Pattern bank 2
+    ld hl, CHRTBL2 + #1000
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+
+    ; DE now points to color bytes (source + 8)
+    ; Color bank 0
+    push de
+    ld hl, CLRTBL2
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Color bank 1
+    push de
+    ld hl, CLRTBL2 + #800
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+    pop de
+
+    ; Color bank 2
+    ld hl, CLRTBL2 + #1000
+    add hl, bc
+    push bc
+    call anim_copy_8_bytes
+    pop bc
+
+    pop de
+    pop bc
+    pop af
+    ret
+
+; ==================================================================
+; TRANSFORM MODE ROUTINES (Z80 runtime bit/row transforms)
+; ==================================================================
+
+; ------------------------------------------------------------------
+; Routine: update_animated_transform_tiles_vram
+; Purpose:
+;   Applies Z80 transform operations directly on tile bytes in VRAM.
+; Input:
+;   None
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Uses PUSH/POP HL, BC and DE internally
+; ------------------------------------------------------------------
+update_animated_transform_tiles_vram:
+    ret
+
+; ------------------------------------------------------------------
+; Routine: anim_transform_char_frame
+; Purpose:
+;   Transform one character pattern in all SCREEN 2 banks.
+; Input:
+;   A = character code
+;   D = transform operation code
+;   (anim_tile_transform_flags).bit0 = transform color rows too
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Pushes/pops BC, DE and HL
+; ------------------------------------------------------------------
+anim_transform_char_frame:
+    push bc
+    push de
+    push hl
+
+    ; BC = charCode * 8 (row offset in pattern/color tables)
+    ld l, a
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    ld b, h
+    ld c, l
+
+    ; Save opcode D to scratch RAM so anim_transform_vram_block can reload it
+    ; after DE is reused internally as a pointer.
+    ld a, d
+    ld (anim_tile_transform_flags + 1), a
+
+    ; Pattern banks: read bank 0 once and mirror the transformed result to all 3
+    ; SCREEN 2 banks to keep animation phase identical across thirds.
+    ld hl, CHRTBL2
+    add hl, bc
+    call anim_transform_vram_block
+
+    ; anim_transform_vram_block reuses DE internally, so reload the opcode
+    ; from scratch RAM before deciding whether color rows also need a transform.
+    ld a, (anim_tile_transform_flags + 1)
+    cp 5
+    jr c, .anim_transform_char_done
+
+    ld a, (anim_tile_transform_flags)
+    and 1
+    jr z, .anim_transform_char_done
+
+    ; Color banks: same approach, read bank 0 and mirror to all 3 banks.
+    ld a, (anim_tile_transform_flags + 1)
+    ld d, a
+    ld hl, CLRTBL2
+    add hl, bc
+    call anim_transform_vram_block
+
+.anim_transform_char_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; Routine: anim_transform_vram_block
+; Purpose:
+;   Apply transform to one 8-byte VRAM block (one char rows table).
+; Input:
+;   HL = VRAM base address for row 0 (8 consecutive bytes)
+;   D  = operation code:
+;        1 rotate_left  (RLCA)
+;        2 rotate_right (RRCA)
+;        3 shift_left   (SLA)
+;        4 shift_right  (SRL)
+;        5 shift_up rows
+;        6 shift_down rows
+;        7 swap top/bottom row
+; Output:
+;   None
+; Modifies:
+;   AF, BC, DE, HL
+; Preserves:
+;   IX, IY, SP
+; Flags:
+;   Not preserved
+; Stack:
+;   Uses stack while reading row bytes
+; ------------------------------------------------------------------
+anim_transform_vram_block:
+    ; HL = VRAM base address for bank 0. The routine captures the source rows
+    ; from bank 0, transforms them in RAM, then writes the same result to the
+    ; three SCREEN 2 banks. This prevents per-bank phase drift.
+    ld a, d
+    cp 5
+    jr nc, .anim_transform_vertical
+
+    ; Step 1: Read bank 0 into the RAM buffer.
+    push hl
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_read_horiz_loop:
+    push hl
+    call FAST_RDVRM                 ; A = row byte from VRAM[HL]
+    pop hl
+    ld (de), a
+    inc de
+    inc hl
+    djnz .anim_read_horiz_loop
+    pop hl
+
+    ; Step 2: Transform the buffered bytes in RAM.
+    ld de, anim_tile_row_buffer
+    ld b, 8
+    ld a, (anim_tile_transform_flags + 1)
+    ld c, a
+.anim_apply_horiz_loop:
+    ld a, (de)
+    push de
+    push bc
+    ld b, a
+    ld a, c
+    cp 1
+    jr nz, .anim_not_rl3
+    ld a, b
+    rlca
+    jr .anim_store_h
+.anim_not_rl3:
+    cp 2
+    jr nz, .anim_not_rr3
+    ld a, b
+    rrca
+    jr .anim_store_h
+.anim_not_rr3:
+    cp 3
+    jr nz, .anim_not_sla3
+    ld a, b
+    sla a
+    jr .anim_store_h
+.anim_not_sla3:
+    ld a, b
+    srl a
+.anim_store_h:
+    pop bc
+    pop de
+    ld (de), a
+    inc de
+    djnz .anim_apply_horiz_loop
+
+    ; Step 3: Mirror the transformed buffer to the 3 pattern/color banks.
+    push hl
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank0_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_bank0_loop
+    pop hl
+
+    push hl
+    ld de, #0800
+    add hl, de
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank1_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_bank1_loop
+    pop hl
+
+    ld de, #1000
+    add hl, de
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_write_bank2_loop:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_bank2_loop
+    ret
+
+.anim_transform_vertical:
+    ; Step 1: Read bank 0 into the RAM buffer.
+    push de
+    ld de, anim_tile_row_buffer
+    ld b, 8
+.anim_read_rows_loop:
+    push hl
+    call FAST_RDVRM                 ; A = row byte
+    pop hl
+    ld (de), a
+    inc de
+    inc hl
+    djnz .anim_read_rows_loop
+    pop de
+
+    ; Restore HL to the start of bank 0 and reload the opcode scratch byte.
+    ld de, #FFF8
+    add hl, de
+
+    ld a, (anim_tile_transform_flags + 1)
+    cp 5
+    jr nz, .anim_not_shift_up
+
+    ; shift_up: row0<-row1 ... row6<-row7 row7<-row0(original)
+    push hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_b0:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_b0
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+
+    push hl
+    ld de, #0800
+    add hl, de
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_b1
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+
+    ld de, #1000
+    add hl, de
+    ld de, anim_tile_row_buffer + 1
+    ld b, 7
+.anim_write_up_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_up_b2
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    ret
+
+.anim_not_shift_up:
+    cp 6
+    jr nz, .anim_not_shift_down
+
+    ; shift_down: row0<-row7(original) row1<-row0 ... row7<-row6
+    push hl
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_dn_b0:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_dn_b0
+    pop hl
+
+    push hl
+    ld de, #0800
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_dn_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_dn_b1
+    pop hl
+
+    ld de, #1000
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer
+    ld b, 7
+.anim_write_dn_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_dn_b2
+    ret
+
+.anim_not_shift_down:
+    ; swap_top_bottom: row0<->row7, middle rows unchanged
+    push hl
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_sw_mid_b0:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_sw_mid_b0
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+
+    push hl
+    ld de, #0800
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_sw_mid_b1:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_sw_mid_b1
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    pop hl
+
+    ld de, #1000
+    add hl, de
+    ld a, (anim_tile_row_buffer + 7)
+    call FAST_WRTVRM
+    inc hl
+    ld de, anim_tile_row_buffer + 1
+    ld b, 6
+.anim_write_sw_mid_b2:
+    ld a, (de)
+    call FAST_WRTVRM
+    inc de
+    inc hl
+    djnz .anim_write_sw_mid_b2
+    ld a, (anim_tile_row_buffer)
+    call FAST_WRTVRM
+    ret
+
+; ==================================================================
+; ANIMATED TILE DEFINITIONS (AUTO-GENERATED)
+; ==================================================================
 
 ; ------------------------------------------------------------------
 ; Animated tile mapping table
-; Maps tile IDs to animation data
-; Format: db tile_id, num_frames, speed
+; Format:
+;   db targetCharCode, charsPerTile, numFrames, speed, bytesPerFrame
+;   dw frameDataPointer
 ; ------------------------------------------------------------------
 anim_tile_table:
-    ; Tile ID, Frames, Speed
-    db 240, 4, ANIM_SPEED_SLOW      ; Water tile (ID 240)
-    db 241, 4, ANIM_SPEED_MEDIUM    ; Lava tile (ID 241)
-    db 242, 4, ANIM_SPEED_FAST      ; Fire tile (ID 242)
+    ; No animated tile groups detected in project data
+    db 255                          ; End marker
+
+; ------------------------------------------------------------------
+; Transform tile mapping table
+; Format:
+;   db targetCharCode, charsPerTile, opCode, flags
+; flags:
+;   bit0 = apply vertical transform on color rows
+; ------------------------------------------------------------------
+anim_transform_table:
+    ; Transform groups are precomputed as frame data in anim_tile_table
     db 255                          ; End marker
 
 ; ==================================================================
-; ADVANCED ANIMATION FUNCTIONS
+; ANIMATION FRAME DATA
 ; ==================================================================
+anim_group_empty_data:
+    db #00
+
 
 ; ------------------------------------------------------------------
 ; register_animated_tile
-; Register a tile ID as animated (adds to runtime table)
+; Runtime registration is not supported in this generator version.
 ; Input:  A = Tile ID to animate
 ;         B = Number of frames (2-4)
 ;         C = Animation speed
@@ -11391,93 +14449,47 @@ anim_tile_table:
 ; Destroys: AF, DE, HL
 ; ------------------------------------------------------------------
 register_animated_tile:
-    push bc
-    push af                         ; Save tile ID
-
-    ; Find end of anim_tile_table (marked by 255)
-    ld hl, anim_tile_table
-.anim_reg_find_end:
-    ld a, (hl)
-    cp 255
-    jr z, .anim_reg_found_end       ; Found end marker
-
-    ; Skip to next entry (3 bytes: id, frames, speed)
-    inc hl
-    inc hl
-    inc hl
-    jr .anim_reg_find_end
-
-.anim_reg_found_end:
-    ; Check if we have space (need 4 bytes: new entry + end marker)
-    ; For safety, we'll assume the table has space
-    ; In production, add bounds checking
-
-    ; Write new entry
-    pop af                          ; A = tile ID
-    ld (hl), a
-    inc hl
-
-    pop bc                          ; B = frames, C = speed
-    ld (hl), b                      ; Store frames
-    inc hl
-    ld (hl), c                      ; Store speed
-    inc hl
-
-    ; Write new end marker
-    ld (hl), 255
-
-    ld a, 1                         ; Success
+    xor a                           ; Not supported (static generated table)
     ret
 
 ; ------------------------------------------------------------------
 ; get_tile_animation_frame
 ; Get current animation frame for a tile
-; Input:  A = Tile ID
-; Output: A = Current frame (0-3), or 0 if not animated
-;         Zero flag set if not animated
-; Destroys: BC, HL
+; Input:  A = target char code
+; Output: A = Current frame index (mod numFrames), or 0 if not animated
+; Destroys: BC, DE, HL
 ; ------------------------------------------------------------------
 get_tile_animation_frame:
-    ld c, a                         ; C = tile ID to search
+    ld c, a                         ; C = char code to search
     ld hl, anim_tile_table
 
 .anim_search_loop:
-    ld a, (hl)                      ; A = tile_id from table
+    ld a, (hl)
     cp 255
-    jr z, .anim_not_found           ; End of table
-
-    ; Check if this is our tile
+    jr z, .anim_not_found
     cp c
-    jr z, .anim_found_tile          ; Found it!
+    jr z, .anim_found_tile
 
-    ; Skip to next entry (3 bytes)
-    inc hl
-    inc hl
-    inc hl
+    ld de, ANIM_TILE_ENTRY_SIZE
+    add hl, de
     jr .anim_search_loop
 
 .anim_found_tile:
-    ; Found the tile, get its current frame
-    ; For now, we use the global frame
-    ; In a more advanced system, each tile could have its own frame counter
-    ld a, (anim_tile_frame)         ; A = current global frame
-
-    ; We could add per-tile frame support here:
-    ; 1. Store per-tile frame counters in RAM
-    ; 2. Use tile index to look up specific frame
-    ; For now, all tiles share the same frame counter
-
-    or a                            ; Clear zero flag (tile found)
+    inc hl
+    inc hl
+    ld b, (hl)                      ; B = numFrames
+    ld a, (anim_tile_frame)
+.anim_found_mod:
+    cp b
+    jr c, .anim_found_done
+    sub b
+    jr .anim_found_mod
+.anim_found_done:
     ret
 
 .anim_not_found:
-    xor a                           ; Return 0 if not animated
-    ret                             ; Zero flag is set
-
-; ==================================================================
-; UTILITY: Copy to VRAM (if not using BIOS)
-; ==================================================================
-; Note: We use LDIRVM from BIOS, defined in bios.asm
+    xor a
+    ret
 
 ; ==================================================================
 ; END OF ANIMATED TILES SYSTEM
@@ -12138,11 +15150,16 @@ spawn_muzzle_flash:
     ; Input: A = Entity Index
     ; ------------------------------------------------------------------
 SM_Update:
+    ld hl, prof_sm_update_calls
+    inc (hl)
+    jr nz, .sm_prof_counted
+    inc hl
+    inc (hl)
+.sm_prof_counted:
     push af
     push bc
     push de
     push hl
-    push ix
     
     ld c, a             ; C = Entity Index
     ld b, 0             ; BC = Entity Index
@@ -12196,24 +15213,13 @@ sm_timer_no_overflow:
     ex de, hl           ; HL = State Data Ptr
 
     ; 3. Check Transitions
-    push hl             ; Save State Data Ptr
-    ld bc, 5
-    add hl, bc
+    ld de, 5
+    add hl, de
     ld e, (hl)
     inc hl
     ld d, (hl)
     ; DE = Transitions List Ptr
-
-    ; Restore State Data Ptr
-    pop hl
-
-    ; Get Entity Index from stack
-    ; Stack: IX, HL, DE, BC, AF (pushed at start)
-    ; SP + 0=IX, SP + 2=HL, SP + 4=DE, SP + 6=BC, SP + 8=AF
-    ; A is at SP + 9
-    ld ix, 0
-    add ix, sp
-    ld a, (ix + 9)      ; A = Entity Index
+    ld a, c             ; A = Entity Index (kept in C)
     
     call SM_CheckTransitions
 
@@ -12223,7 +15229,6 @@ sm_timer_no_overflow:
     ; 4. Execute OnUpdate Actions (Optional)
 
 sm_update_done:
-    pop ix
     pop hl
     pop de
     pop bc
@@ -12282,10 +15287,8 @@ SM_CheckTransitions_Loop:
     ; Transition tail layout after condition payload:
     ;   [0-1] Target State Ptr
     ;   [2-3] Actions Ptr
-    inc hl
-    inc hl
-    inc hl
-    inc hl
+    ld de, 4
+    add hl, de
     
     pop bc; Restore counters
     dec c; Decrement loop counter
@@ -12543,41 +15546,46 @@ SM_ExecuteActions_Loop:
 
 SM_ActionTable:
     DW Action_Nop; 0
-    DW Action_SetPosition; 1
-    DW Action_MoveBy; 2
-    DW Action_SetVelocity; 3
+    DW Action_Nop ; 1 [Action_SetPosition stripped]
+    DW Action_Nop ; 2 [Action_MoveBy stripped]
+    DW Action_Nop ; 3 [Action_SetVelocity stripped]
     DW Action_ApplyForce; 4
     DW Action_ChangeSprite; 5
-    DW Action_PlayAnimation; 6
-    DW Action_SetAnimSpeed; 7
-    DW Action_ToggleAnim; 8
-    DW Action_PlaySound; 9
-    DW Action_PlayMusic; 10
-    DW Action_MuteMusic; 11
-    DW Action_StopMusic; 12
-    DW Action_SetVariable; 13
-    DW Action_IncVariable; 14
-    DW Action_DecVariable; 15
-    DW Action_SetCompProp; 16
-    DW Action_Wait; 17
-    DW Action_GotoState; 18
+    DW Action_Nop ; 6 [Action_PlayAnimation stripped]
+    DW Action_Nop ; 7 [Action_SetAnimSpeed stripped]
+    DW Action_Nop ; 8 [Action_ToggleAnim stripped]
+    DW Action_Nop ; 9 [Action_PlaySound stripped]
+    DW Action_Nop ; 10 [Action_PlayMusic stripped]
+    DW Action_Nop ; 11 [Action_MuteMusic stripped]
+    DW Action_Nop ; 12 [Action_StopMusic stripped]
+    DW Action_Nop ; 13 [Action_SetVariable stripped]
+    DW Action_Nop ; 14 [Action_IncVariable stripped]
+    DW Action_Nop ; 15 [Action_DecVariable stripped]
+    DW Action_Nop ; 16 [Action_SetCompProp stripped]
+    DW Action_Nop ; 17 [Action_Wait stripped]
+    DW Action_Nop ; 18 [Action_GotoState stripped]
     DW Action_DestroyEntity; 19
-    DW Action_SpawnEntity; 20
-    DW Action_GetRandomPos; 21
-    DW Action_ChangeGameFlow; 22
-    DW Action_DecLives; 23
-    DW Action_IncLives; 24
-    DW Action_Respawn; 25
-    DW Action_BreakTile; 26
-    DW Action_ReplaceTile; 27
-    DW Action_Rnd; 28
-    DW Action_PointAt; 29
-    DW Action_AddVars; 30
-    DW Action_SubVars; 31
-    DW Action_MulVars; 32
-    DW Action_DivVars; 33
-    DW Action_ModVars; 34
-    DW Action_AssignVar; 35
+    DW Action_Nop ; 20 [Action_SpawnEntity stripped]
+    DW Action_Nop ; 21 [Action_GetRandomPos stripped]
+    DW Action_Nop ; 22 [Action_ChangeGameFlow stripped]
+    DW Action_Nop ; 23 [Action_RegenerateHud stripped]
+    DW Action_DecLives; 24
+    DW Action_IncLives; 25
+    DW Action_Respawn; 26
+    DW Action_BreakTile; 27
+    DW Action_Nop ; 28 [Action_ReplaceTile stripped]
+    DW Action_Nop ; 29 [Action_Rnd stripped]
+    DW Action_Nop ; 30 [Action_PointAt stripped]
+    DW Action_Nop ; 31 [Action_AddVars stripped]
+    DW Action_Nop ; 32 [Action_SubVars stripped]
+    DW Action_Nop ; 33 [Action_MulVars stripped]
+    DW Action_Nop ; 34 [Action_DivVars stripped]
+    DW Action_Nop ; 35 [Action_ModVars stripped]
+    DW Action_Nop ; 36 [Action_AssignVar stripped]
+    DW Action_Nop ; 37 [Action_DisableInput stripped]
+    DW Action_Nop ; 38 [Action_EnableInput stripped]
+    DW Action_Nop ; 39 [Action_CleanSprites stripped]
+    DW Action_Nop ; 40 [Action_ExitCurrentWorld stripped]
 
     ; ------------------------------------------------------------------
 ; ACTION HANDLERS IMPLEMENTATION
@@ -12586,81 +15594,11 @@ SM_ActionTable:
 Action_Nop:
     ret
 
-Action_SetPosition:
-; Params: X(1 byte), Y(1 byte)
-; Sets entity position (teleport)
-    ld e, (hl)          ; E = X
-    inc hl
-    ld d, (hl)          ; D = Y
-    inc hl
+; [Action_SetPosition stripped - not used]
 
-    push hl             ; Save Params Ptr
+; [Action_MoveBy stripped - not used]
 
-    ld c, b             ; C = Entity Index
-    ld b, 0             ; BC = Entity Index
-
-    ld hl, entity_x_pos
-    add hl, bc
-    ld (hl), e          ; Set X
-
-    ld hl, entity_y_pos
-    add hl, bc
-    ld (hl), d          ; Set Y
-
-    pop hl              ; Restore Params Ptr
-    ret
-
-Action_MoveBy:
-; Params: DX(1 byte signed), DY(1 byte signed)
-    ld e, (hl)          ; E = DX
-    inc hl
-    ld d, (hl)          ; D = DY
-    inc hl
-    
-    push hl             ; Save Params Ptr
-    
-    ld c, b             ; C = Entity Index
-    ld b, 0             ; BC = Entity Index
-    
-    ; Add DX to X position
-    ld hl, entity_x_pos
-    add hl, bc
-    ld a, (hl)
-    add a, e
-    ld (hl), a
-    
-    ; Add DY to Y position
-    ld hl, entity_y_pos
-    add hl, bc
-    ld a, (hl)
-    add a, d
-    ld (hl), a
-    
-    pop hl              ; Restore Params Ptr
-    ret
-
-Action_SetVelocity:
-; Params: VX(1 byte), VY(1 byte)
-    ld e, (hl)          ; E = VX
-    inc hl
-    ld d, (hl)          ; D = VY
-    inc hl
-    
-    push hl             ; Save Params Ptr
-    
-    ld c, b             ; C = Entity Index
-    ld b, 0             ; BC = Entity Index
-    
-    ld hl, entity_vel_x
-    add hl, bc
-    ld (hl), e          ; Set VX
-    
-    ld hl, entity_vel_y
-    add hl, bc
-    ld (hl), d          ; Set VY
-    
-    pop hl              ; Restore Params Ptr
-    ret
+; [Action_SetVelocity stripped - not used]
 
 Action_ApplyForce:
 ; Params: FX(1 byte), FY(1 byte)
@@ -12692,473 +15630,428 @@ Action_ApplyForce:
     ret
 
 
+; Table: SM Facing Direction to Sprite Lookup Table Pointer
+; Maps entity_facing_dir (1=left,2=right,3=up,4=down) to directional sprite tables.
+; Usage: dec facing (→ 0-3), index into this table to get the DW sprite_dir_*_table ptr.
+SM_FacingDirTablePtrs:
+    DW sprite_dir_left_table    ; facing 1 (LEFT)  → dec → 0
+    DW sprite_dir_right_table   ; facing 2 (RIGHT) → dec → 1
+    DW sprite_dir_up_table      ; facing 3 (UP)    → dec → 2
+    DW sprite_dir_down_table    ; facing 4 (DOWN)  → dec → 3
+
+; ==================================================================
+; Action_ChangeSprite
+; ------------------------------------------------------------------
+; Cambia el sprite activo de una entidad. Realiza 5 operaciones:
+;   1. Redirect direccional: si entity_facing_dir != 0, sustituye el
+;      sprite pedido por su variante direccional (left/right/up/down)
+;      usando SM_FacingDirTablePtrs.
+;   2. Commit: escribe el sprite final en entity_sprite_asset_index.
+;   3. Reset de animación: pone entity_anim_frame y entity_anim_tick a 0.
+;   4. Flags de animación: activa PLAYING, aplica el flag de LOOP del
+;      sprite, y para sprites one-shot borra ONLY_WHEN_MOVING para que
+;      la animación avance aunque la entidad esté quieta.
+;   5. Upload inmediato: copia el frame 0 del nuevo sprite a VRAM en
+;      el mismo frame para que el cambio sea visible sin esperar al
+;      siguiente ciclo de update_animation_component.
+;   6. Colores de capas: actualiza sprite_layer_colors (tabla RAM) con
+;      los colores del nuevo sprite desde SM_SpriteLayerColorTable.
+;
+; Input:
+;   HL  = puntero al parámetro (sprite asset ID, 1 byte)
+;   B   = entity index (convención SM_ExecuteActions)
+;
+; Output:
+;   HL  = puntero al byte siguiente a los parámetros (para el caller)
+;
+; Destruye: AF, BC, DE, HL (todos restaurados al salir salvo HL=next param)
+;
+; Stack al entrar (top → bottom):
+;   [llamada desde SM_ExecuteActions]
+; Stack al salir: igual que al entrar.
+;
+; Tablas ROM usadas:
+;   SM_FacingDirTablePtrs      — punteros a las 4 tablas de redirect
+;   sprite_loop_flags          — 1 byte/sprite: 0x02=loop, 0x00=one-shot
+;   SM_SpritePatternPtrTable   — puntero al frame 0 de cada sprite
+;   SM_SpriteLayerColorTable   — colores por sprite (SPRITE_MAX_ENTITY_LAYERS bytes/sprite)
+;
+; Variables RAM usadas:
+;   entity_facing_dir          — dirección actual de la entidad (0-4)
+;   entity_sprite_asset_index  — índice del sprite activo de la entidad
+;   entity_anim_frame          — frame actual de la animación
+;   entity_anim_tick           — contador de ticks entre frames
+;   entity_anim_flags          — flags de animación (ver bits más abajo)
+;   entity_sprite_config       — base HW sprite + layer count (2 bytes/entidad)
+;   sprite_layer_colors        — colores actuales por slot HW sprite (RAM)
+;
+; Bits de entity_anim_flags:
+;   bit 0 = ANIM_FLAG_PLAYING       (1 = animando)
+;   bit 1 = ANIM_FLAG_LOOP          (1 = bucle infinito, 0 = one-shot)
+;   bit 2 = ANIM_FLAG_ONLY_WHEN_MOVING (1 = solo anima si vel != 0)
+;   bit 3 = ANIM_FLAG_COMPLETED     (1 = one-shot llegó al último frame)
+;
+; NOTA: el bloque de redirect direccional usa B como registro temporal
+; para guardar el sprite ID. Al salir del bloque, B queda corrupto.
+; Se restaura explícitamente con "ld b, 0" antes de los add hl, bc.
+; ==================================================================
 Action_ChangeSprite:
-    ; Params: Sprite Asset ID (1 byte)
-    ; Changes the sprite asset used by this entity
-    ; Also resets animation frame to 0
-    ld a, (hl)              ; A = Sprite Asset ID
-    inc hl
+    ld a, (hl)              ; A = Sprite Asset ID pedido por la SM
+    inc hl                  ; HL apunta al byte siguiente al parámetro
+    push hl                 ; [stack] guarda puntero de parámetros para el ret final
 
-    push hl                 ; Save Params Ptr
-    push af                 ; Save Sprite Asset ID
+    push af                 ; [stack] guarda Sprite Asset ID (se necesita tras setup)
 
-    ; BC = Entity Index
-    ld c, b
-    ld b, 0
+    ; ------------------------------------------------------------------
+    ; Setup: convertir B (entity index) a BC = (0, entity_index)
+    ; Convención de SM_ExecuteActions: B = entity index al entrar.
+    ; ------------------------------------------------------------------
+    ld c, b                 ; C = entity index
+    ld b, 0                 ; B = 0  →  BC = (0, entity_index)
 
-    ; Set entity_sprite_asset_index
+    ; Pre-calcular HL = &entity_sprite_asset_index[entity]
+    ; Se usará tras el bloque de redirect para escribir el sprite final.
     ld hl, entity_sprite_asset_index
-    add hl, bc
-    pop af                  ; Restore Sprite Asset ID
-    ld (hl), a              ; entity_sprite_asset_index[entity] = spriteId
+    add hl, bc              ; HL = &entity_sprite_asset_index[entity]
 
-    ; Reset animation frame to 0 (start from first frame of new sprite)
+    pop af                  ; A = Sprite Asset ID (recuperado del stack)
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 1: Redirect direccional
+    ; Si entity_facing_dir[entity] != 0, reemplaza el sprite pedido por
+    ; su variante para la dirección actual.
+    ;   facing 0 = sin dirección → usar sprite tal cual
+    ;   facing 1 = izquierda  → SM_FacingDirTablePtrs[0] → sprite_dir_left_table
+    ;   facing 2 = derecha     → SM_FacingDirTablePtrs[1] → sprite_dir_right_table
+    ;   facing 3 = arriba      → SM_FacingDirTablePtrs[2] → sprite_dir_up_table
+    ;   facing 4 = abajo       → SM_FacingDirTablePtrs[3] → sprite_dir_down_table
+    ;
+    ; Las tablas de dirección son arrays de 1 byte por sprite asset:
+    ;   dir_table[originalSprite] = spriteVariante
+    ; Si no existe variante, la tabla devuelve el mismo ID original.
+    ;
+    ; IMPORTANTE: este bloque usa B como temporal para guardar el sprite ID.
+    ; Al salir, B queda con el sprite ID (no con 0). Se corrige después.
+    ; ------------------------------------------------------------------
+    push hl                 ; [stack] guarda &entity_sprite_asset_index[entity]
+
+    ld h, 0
+    ld l, c                 ; HL = entity index
+    ld de, entity_facing_dir
+    add hl, de              ; HL = &entity_facing_dir[entity]
+    ld e, (hl)              ; E = facing dir (0=none, 1=left, 2=right, 3=up, 4=down)
+
+    ld b, a                 ; B = sprite ID original  [B QUEDA CORRUPTO hasta ld b,0 abajo]
+    ld a, e                 ; A = facing dir
+    or a
+    jr z, .acs_dir_done     ; facing = 0 → no hay redirect, usar sprite original
+    cp 5
+    jr nc, .acs_dir_done    ; facing inválido → ignorar redirect y usar sprite original
+
+    ; Convertir facing (1-4) a índice de tabla (0-3): dec a
+    dec a                   ; A = índice en SM_FacingDirTablePtrs (0=left, 1=right, 2=up, 3=down)
+    ld hl, SM_FacingDirTablePtrs
+    ld d, 0
+    ld e, a
+    add hl, de
+    add hl, de              ; HL = &SM_FacingDirTablePtrs[facing_index * 2]  (tabla de punteros, DW)
+    ld e, (hl)
+    inc hl
+    ld d, (hl)              ; DE = puntero a la tabla de sprites para esta dirección
+
+    ; Leer el sprite redirigido: dir_table[originalSprite]
+    ld l, b                 ; L = sprite ID original
+    ld h, 0
+    add hl, de              ; HL = &dir_table[originalSprite]
+    ld b, (hl)              ; B = sprite ID redirigido (puede ser el mismo si no hay variante)
+
+.acs_dir_done:
+    ; A = sprite ID final (original o redirigido)
+    ld a, b                 ; A = sprite ID (posiblemente redirigido)
+    pop hl                  ; HL = &entity_sprite_asset_index[entity]  [recuperado del stack]
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 2: Commit del sprite y reset de estado de animación
+    ; ------------------------------------------------------------------
+
+    ; D guardará el sprite ID para uso posterior (VRAM upload, loop flags).
+    ; No usar A directamente porque las instrucciones siguientes lo machan.
+    ld d, a                 ; D = Sprite Asset ID final (preservado para los bloques 3-5)
+    ld (hl), a              ; entity_sprite_asset_index[entity] = sprite ID final
+
+    ; RESTAURAR B=0: el bloque de redirect dejó B=sprite_ID.
+    ; Todos los "add hl, bc" siguientes necesitan BC = (0, entity_index).
+    ld b, 0                 ; B = 0  →  BC = (0, entity_index)  [BUG FIX: corrupto por redirect]
+
+    ; Reiniciar frame al principio del nuevo sprite
     ld hl, entity_anim_frame
-    add hl, bc
-    ld (hl), 0              ; entity_anim_frame[entity] = 0
+    add hl, bc              ; HL = &entity_anim_frame[entity]
+    ld (hl), 0              ; entity_anim_frame[entity] = 0  (empieza desde frame 0)
 
-    ; Reset animation tick to 0
+    ; Reiniciar contador de ticks para que el primer avance de frame
+    ; ocurra tras entity_anim_speed ticks completos, no de inmediato.
     ld hl, entity_anim_tick
-    add hl, bc
+    add hl, bc              ; HL = &entity_anim_tick[entity]
     ld (hl), 0              ; entity_anim_tick[entity] = 0
 
-    pop hl                  ; Restore Params Ptr
-    ret
+    ; ------------------------------------------------------------------
+    ; BLOQUE 3: Leer el flag de loop del nuevo sprite
+    ; sprite_loop_flags[spriteId] = 0x02 si loop, 0x00 si one-shot
+    ; El valor se guarda en E para aplicarlo a entity_anim_flags.
+    ; D se restaura al sprite ID tras poner D=0 para el add hl,de.
+    ; ------------------------------------------------------------------
+    ld hl, sprite_loop_flags
+    ld a, d                 ; A = Sprite Asset ID (salvar antes de poner D=0)
+    ld e, a                 ; E = Sprite Asset ID
+    ld d, 0
+    add hl, de              ; HL = &sprite_loop_flags[spriteId]
+    ld e, (hl)              ; E = loop flag (0x02=loop, 0x00=one-shot)
+    ld d, a                 ; D = Sprite Asset ID  (restaurado para el upload)
 
-Action_PlayAnimation:
-    ; Params: Animation Name (1 byte - ignored in MSX, animations are frame-based)
-    ; Starts/restarts animation playback from frame 0
-    inc hl                  ; Skip animationName param (not used in MSX)
-
-    push hl                 ; Save Params Ptr
-
-    ; BC = Entity Index
-    ld c, b
-    ld b, 0
-
-    ; Set PLAYING flag in entity_anim_flags
+    ; ------------------------------------------------------------------
+    ; BLOQUE 4: Actualizar entity_anim_flags
+    ;
+    ; Cambios aplicados:
+    ;   - bit 3 (COMPLETED)       → 0  (el one-shot anterior ya no importa)
+    ;   - bit 0 (PLAYING)         → 1  (arrancar animación)
+    ;   - bit 1 (LOOP)            → según sprite_loop_flags del nuevo sprite
+    ;   - bit 2 (ONLY_WHEN_MOVING)→ 0  SIEMPRE, para cualquier sprite
+    ;
+    ; Razón de limpiar ONLY_WHEN_MOVING siempre:
+    ;   Cuando el SM llama ChangeSprite, lo hace porque quiere mostrar ese
+    ;   sprite ahora. La animación debe avanzar siempre que PLAYING=1,
+    ;   sin importar la velocidad. La lógica de "anima solo si se mueve"
+    ;   es solo relevante para el sprite inicial de la entidad (config del
+    ;   editor). Una vez en la SM, el estado controla qué sprite se muestra.
+    ;   Si se dejara ONLY_WHEN_MOVING=1 para sprites loop, la animación walk
+    ;   no avanzaría: la fricción del movement component puede dejar vel_x=0
+    ;   antes de que llegue el turno de animation (step 11 > step 5).
+    ; ------------------------------------------------------------------
     ld hl, entity_anim_flags
-    add hl, bc
-    ld a, (hl)
-    or ANIM_FLAG_PLAYING    ; Set bit 0 (PLAYING)
-    ld (hl), a
+    add hl, bc              ; HL = &entity_anim_flags[entity]
+    ld a, (hl)              ; A = flags actuales
 
-    ; Reset animation to frame 0
-    ld hl, entity_anim_frame
-    add hl, bc
-    ld (hl), 0
+    res 3, a                ; bit 3 = 0: borrar ANIM_FLAG_COMPLETED
+    or ANIM_FLAG_PLAYING    ; bit 0 = 1: activar ANIM_FLAG_PLAYING
+    and #FD                 ; bit 1 = 0: limpiar ANIM_FLAG_LOOP antes de aplicar el nuevo
+    or e                    ; bit 1 = nuevo loop flag (E=0x02 o 0x00 según el sprite)
+    and #FB                 ; bit 2 = 0: borrar ANIM_FLAG_ONLY_WHEN_MOVING (siempre)
+    ld (hl), a              ; entity_anim_flags[entity] = flags actualizados
 
-    ; Reset tick counter
-    ld hl, entity_anim_tick
-    add hl, bc
-    ld (hl), 0
+    ; ------------------------------------------------------------------
+    ; BLOQUE 5: Upload inmediato del frame 0 a VRAM
+    ;
+    ; update_animation_component no se ejecuta hasta el próximo frame.
+    ; Para que el sprite nuevo se vea en el frame actual, copiamos el
+    ; frame 0 directamente a VRAM ahora.
+    ;
+    ; Stack a la entrada de este bloque (top → bottom):
+    ;   HL = &entity_anim_flags[entity]  ← push hl
+    ;   BC = (0, entity_index)           ← push bc
+    ;   DE = (spriteId, loopFlag)        ← push de
+    ;
+    ; Al salir (.acs_upload_done) se recuperan los tres en orden inverso.
+    ; ------------------------------------------------------------------
+    push hl                 ; [stack] guarda ptr entity_anim_flags (descartado al salir)
+    push bc                 ; [stack] BC = (0, entity_index)
+    push de                 ; [stack] DE = (D=spriteId, E=loopFlag)
 
-    pop hl                  ; Restore Params Ptr
-    ret
+    ; Validar que el sprite ID esté dentro del rango conocido
+    ld a, d                 ; A = sprite asset ID
+    cp SM_SpriteAssetCount  ; ¿fuera de rango?
+    jr nc, .acs_upload_done ; sí → saltar el upload (evitar acceso fuera de tabla)
 
-Action_SetAnimSpeed:
-    ; Params: Speed (1 byte) - frames to wait between animation frames
-    ld a, (hl)              ; A = Speed
-    inc hl
+    ; Obtener puntero al frame 0: SM_SpritePatternPtrTable[spriteId * 2]
+    ; El banco ROM se deriva del propio puntero, no de una tabla separada.
+    ; Esto evita desincronizaciones cuando el export comprimido remapea
+    ; labels de sprite a blobs ZX0 en un postproceso posterior.
+    ld e, a
+    ld d, 0                 ; DE = sprite asset index
 
-    push hl                 ; Save Params Ptr
-
-    ; BC = Entity Index
-    ld c, b
-    ld b, 0
-
-    ; Set entity_anim_speed
-    ld hl, entity_anim_speed
-    add hl, bc
-    ld (hl), a              ; entity_anim_speed[entity] = speed
-
-    pop hl                  ; Restore Params Ptr
-    ret
-
-Action_ToggleAnim:
-    ; Params: Playing (1 byte) - 0 = pause, non-zero = play
-    ld a, (hl)              ; A = Playing flag
-    inc hl
-
-    push hl                 ; Save Params Ptr
-    push af                 ; Save Playing flag
-
-    ; BC = Entity Index
-    ld c, b
-    ld b, 0
-
-    ; Get current flags
-    ld hl, entity_anim_flags
-    add hl, bc
-    ld a, (hl)
-
-    pop de                  ; D = Playing flag (was in A)
-    ld e, a                 ; E = Current flags
-
-    ; Check if we should play or pause
-    ld a, d
-    or a
-    jr z, .pause_anim
-
-.play_anim:
-    ; Set PLAYING flag (bit 0)
-    ld a, e
-    or ANIM_FLAG_PLAYING
-    ld (hl), a
-    jr .done_toggle
-
-.pause_anim:
-    ; Clear PLAYING flag (bit 0)
-    ld a, e
-    and #FE                 ; AND with 11111110 to clear bit 0 (PLAYING flag)
-    ld (hl), a
-
-.done_toggle:
-    pop hl                  ; Restore Params Ptr
-    ret
-
-Action_PlaySound:
-; Params: Sound ID(1 byte)
-    ld a, (hl)
-    inc hl
-    ; TODO: Call Sound Driver
-    ; call AFX_PLAY
-    ret
-
-Action_PlayMusic:
-; Params: Music ID(1 byte)
-    ld a, (hl)
-    inc hl
-    ; TODO: Call Music Driver
-    ; call PT3_INIT
-    ret
-
-Action_MuteMusic:
-; No params
-    ; call PT3_MUTE
-    ret
-
-Action_StopMusic:
-; No params
-    ; call PT3_STOP
-    ret
-
-Action_SetVariable:
-; Params: VarID(1 byte), Value(1 byte)
-; Supports both entity variables (ID 0-5) and global variables (ID 6+)
-    ld a, (hl)              ; A = VarID
-    inc hl
-    ld c, (hl)              ; C = Value
-    inc hl
-
-    push hl                 ; Save Params Ptr
-    push bc                 ; Save Value and Entity Index
-
-    ; Check if VarID < 6 (entity variable)
-    cp 6
-    jr c, .entity_variable
-
-.global_variable:
-    ; VarID >= 6: Global variable
-    ; Calculate table offset: (VarID - 6) * 2
-    sub 6                   ; A = VarID - 6
-    ld l, a
-    ld h, 0
-    add hl, hl              ; HL = (VarID - 6) * 2
-
-    ; Get address from SM_GlobalVarTable
-    ld de, SM_GlobalVarTable
-    add hl, de              ; HL = &SM_GlobalVarTable[VarID - 6]
-
-    ; Read address from table (16-bit)
+    ld hl, SM_SpritePatternPtrTable
+    add hl, de
+    add hl, de              ; HL = &SM_SpritePatternPtrTable[spriteId * 2]
     ld e, (hl)
-    inc hl
-    ld d, (hl)              ; DE = address of global variable
-
-    ; Store value
-    pop bc                  ; Restore Value in C
-    ld a, c
-    ld (de), a              ; Store value in global variable
-
-    pop hl                  ; Restore Params Ptr
-    ret
-
-.entity_variable:
-    ; VarID 0-5: Entity variables (x, y, vx, vy, isOnGround, health)
-    ; Map VarID to entity variable address
-    push af                 ; Save VarID
-    ld c, b                 ; C = Entity Index
-    ld b, 0                 ; BC = Entity Index
-    pop af                  ; A = VarID
-
-    ; Dispatch based on VarID
-    or a
-    jr z, .set_x
-    dec a
-    jr z, .set_y
-    dec a
-    jr z, .set_vx
-    dec a
-    jr z, .set_vy
-    dec a
-    jr z, .set_on_ground
-    ; VarID 5 = health
-
-.set_health:
-    ld hl, entity_health_current
-    add hl, bc
-    pop bc                  ; C = Value
-    ld (hl), c
-    pop hl
-    ret
-
-.set_x:
-    ld hl, entity_x_pos
-    add hl, bc
-    pop bc
-    ld (hl), c
-    pop hl
-    ret
-
-.set_y:
-    ld hl, entity_y_pos
-    add hl, bc
-    pop bc
-    ld (hl), c
-    pop hl
-    ret
-
-.set_vx:
-    ld hl, entity_vel_x
-    add hl, bc
-    pop bc
-    ld (hl), c
-    pop hl
-    ret
-
-.set_vy:
-    ld hl, entity_vel_y
-    add hl, bc
-    pop bc
-    ld (hl), c
-    pop hl
-    ret
-
-.set_on_ground:
-    ld hl, entity_on_ground
-    add hl, bc
-    pop bc                  ; C = Value
-    ld a, c
-    or a
-    jr z, .clear_ground
-    set 0, (hl)             ; Set bit 0
-    pop hl
-    ret
-.clear_ground:
-    res 0, (hl)             ; Clear bit 0
-    pop hl
-    ret
-
-Action_IncVariable:
-; Params: VarID(1 byte), Amount(1 byte)
-; Supports both entity variables (ID 0-5) and global variables (ID 6+)
-    ld a, (hl)              ; A = VarID
-    inc hl
-    ld c, (hl)              ; C = Amount
-    inc hl
-
-    push hl                 ; Save Params Ptr
-
-    ; Check if VarID < 6 (entity variable)
-    cp 6
-    jr nc, .inc_global
-
-.inc_entity:
-    ; Entity variable increment (simplified: only supports x, y positions for now)
-    push bc                 ; Save Amount and Entity Index
-    ld e, b                 ; E = Entity Index
-    ld d, 0                 ; DE = Entity Index
-
-    ; Map VarID to address (0=x, 1=y, 2=vx, 3=vy, 5=health)
-    or a
-    jr z, .inc_entity_x
-    dec a
-    jr z, .inc_entity_y
-    dec a
-    jr z, .inc_entity_vx
-    dec a
-    jr z, .inc_entity_vy
-    jr .inc_entity_health   ; Default to health
-
-.inc_entity_x:
-    ld hl, entity_x_pos
-    jr .do_inc_entity
-.inc_entity_y:
-    ld hl, entity_y_pos
-    jr .do_inc_entity
-.inc_entity_vx:
-    ld hl, entity_vel_x
-    jr .do_inc_entity
-.inc_entity_vy:
-    ld hl, entity_vel_y
-    jr .do_inc_entity
-.inc_entity_health:
-    ld hl, entity_health_current
-
-.do_inc_entity:
-    add hl, de              ; HL = address of entity variable
-    pop bc                  ; C = Amount
-    ld a, (hl)
-    add a, c
-    ld (hl), a
-    pop hl                  ; Restore Params Ptr
-    ret
-
-.inc_global:
-    ; VarID >= 6: Global variable
-    sub 6                   ; A = VarID - 6
-    ld l, a
-    ld h, 0
-    add hl, hl              ; HL = (VarID - 6) * 2
-
-    ld de, SM_GlobalVarTable
-    add hl, de              ; HL = &SM_GlobalVarTable[VarID - 6]
-
-    ; Read address from table
-    ld e, (hl)
-    inc hl
-    ld d, (hl)              ; DE = address of global variable
-
-    ; Increment value
-    ld a, (de)              ; Get current value
-    add a, c                ; Add amount
-    ld (de), a              ; Store new value
-
-    pop hl                  ; Restore Params Ptr
-    ret
-
-Action_DecVariable:
-; Params: VarID(1 byte), Amount(1 byte)
-; Supports both entity variables (ID 0-5) and global variables (ID 6+)
-    ld a, (hl)              ; A = VarID
-    inc hl
-    ld c, (hl)              ; C = Amount
-    inc hl
-
-    push hl                 ; Save Params Ptr
-
-    ; Check if VarID < 6 (entity variable)
-    cp 6
-    jr nc, .dec_global
-
-.dec_entity:
-    push bc                 ; Save Amount and Entity Index
-    ld e, b                 ; E = Entity Index
-    ld d, 0                 ; DE = Entity Index
-
-    ; Map VarID to address
-    or a
-    jr z, .dec_entity_x
-    dec a
-    jr z, .dec_entity_y
-    dec a
-    jr z, .dec_entity_vx
-    dec a
-    jr z, .dec_entity_vy
-    jr .dec_entity_health
-
-.dec_entity_x:
-    ld hl, entity_x_pos
-    jr .do_dec_entity
-.dec_entity_y:
-    ld hl, entity_y_pos
-    jr .do_dec_entity
-.dec_entity_vx:
-    ld hl, entity_vel_x
-    jr .do_dec_entity
-.dec_entity_vy:
-    ld hl, entity_vel_y
-    jr .do_dec_entity
-.dec_entity_health:
-    ld hl, entity_health_current
-
-.do_dec_entity:
-    add hl, de              ; HL = address of entity variable
-    pop bc                  ; C = Amount
-    ld a, (hl)
-    sub c                   ; Subtract amount
-    ld (hl), a
-    pop hl                  ; Restore Params Ptr
-    ret
-
-.dec_global:
-    ; VarID >= 6: Global variable
-    sub 6                   ; A = VarID - 6
-    ld l, a
-    ld h, 0
-    add hl, hl              ; HL = (VarID - 6) * 2
-
-    ld de, SM_GlobalVarTable
-    add hl, de              ; HL = &SM_GlobalVarTable[VarID - 6]
-
-    ; Read address from table
-    ld e, (hl)
-    inc hl
-    ld d, (hl)              ; DE = address of global variable
-
-    ; Decrement value
-    ld a, (de)              ; Get current value
-    sub c                   ; Subtract amount
-    ld (de), a              ; Store new value
-
-    pop hl                  ; Restore Params Ptr
-    ret
-
-Action_Wait:
-; Params: Duration(1 byte)
-    ld a, (hl)          ; A = Duration
-    inc hl
-    
-    push hl             ; Save Params Ptr
-    
-    ld c, b             ; C = Entity Index
-    ld b, 0             ; BC = Entity Index
-    
-    ld hl, entity_sm_wait_timer
-    add hl, bc
-    ld (hl), a          ; Set wait timer
-    
-    pop hl              ; Restore Params Ptr
-    ret
-
-Action_GotoState:
-; Params: StatePtr Low(1 byte), StatePtr High(1 byte)
-    ld e, (hl)          ; E = State Ptr Low
-    inc hl
-    ld d, (hl)          ; D = State Ptr High
-    inc hl
-    
-    push hl             ; Save Params Ptr
-    
-    ld a, b             ; A = Entity Index
-    call SM_ChangeState
-    
-    pop hl              ; Restore Params Ptr
-    ret
-
-Action_SetCompProp:
-    inc hl
     inc hl
     ld d, (hl)
+    ex de, hl               ; HL = puntero al frame 0 (datos de patrón en ROM)
+    push hl                 ; [stack] guarda puntero al frame 0
+
+    ; Mapear el banco ROM que contiene los datos del frame 0.
+    ; Bank = ((framePtr - #4000) / #2000), derivado en runtime desde HL.
+    ld a, h
+    sub #40
+    srl a
+    srl a
+    srl a
+    srl a
+    srl a
+    call mapper_push_p2     ; salva el banco actual de P2 en la pila del mapper
+    call mapper_set_bank_p2 ; mapea el banco del frame 0 en la ventana P2 (#8000-#BFFF)
+
+    ; Leer configuración HW del sprite: entity_sprite_config[entity * 2]
+    ;   byte 0: base HW sprite index (slot en la OAM, 0-31)
+    ;   byte 1: layer count (número de capas HW del sprite, típicamente 1-2)
+    ld e, c                 ; E = entity index (C preservado de antes)
+    ld d, 0
+    ld hl, entity_sprite_config
+    add hl, de
+    add hl, de              ; HL = &entity_sprite_config[entity * 2]
+    ld a, (hl)              ; A = base HW sprite index
     inc hl
-    
-    push hl; Save Params Ptr
-    
-    ld a, b; A = Entity Index
-    call SM_ChangeState
-    
-    pop hl          ; Restore Params Ptr
+    ld c, (hl)              ; C = layer count
+    ld d, a                 ; D = base HW sprite index
+
+    ; Si layer count = 0, no hay sprite HW asignado → saltar upload
+    ld a, c
+    or a
+    jr z, .acs_upload_pop_source
+
+    ; Calcular BC = layerCount * 32  (bytes totales de patrón a copiar)
+    ; Cada capa HW ocupa 32 bytes de patrón (sprite 16x16 = 2 tiles * 16 bytes, comprimido como 32)
+    ld a, c
+    ld b, 0
+    ld c, a                 ; C = layer count
+    sla c
+    rl b                    ; × 2
+    sla c
+    rl b                    ; × 4
+    sla c
+    rl b                    ; × 8
+    sla c
+    rl b                    ; × 16
+    sla c
+    rl b                    ; × 32  →  BC = layerCount * 32
+
+    ; Calcular DE = SPRPAT + baseHwSprite * 32  (destino en VRAM)
+    ld a, d                 ; A = base HW sprite index
+    ld l, a
+    ld h, 0
+    add hl, hl              ; × 2
+    add hl, hl              ; × 4
+    add hl, hl              ; × 8
+    add hl, hl              ; × 16
+    add hl, hl              ; × 32  →  HL = base * 32
+    ld de, SPRPAT
+    add hl, de              ; HL = SPRPAT + base * 32  (dirección VRAM del slot HW)
+    ex de, hl               ; DE = destino VRAM, HL libre para fuente
+
+    pop hl                  ; HL = puntero al frame 0 en ROM  [recuperado del stack]
+    call FAST_LDIRVM        ; copia BC bytes desde HL (ROM/RAM) a DE (VRAM)
+    jr .acs_upload_restore_bank
+
+.acs_upload_pop_source:
+    pop hl                  ; descarta el puntero al frame 0 (layer count = 0, nada que copiar)
+
+.acs_upload_restore_bank:
+    call mapper_pop_p2      ; restaura el banco ROM que estaba antes en P2
+
+.acs_upload_done:
+    pop de                  ; DE: D = sprite asset ID, E = loop flag  [recuperado del stack]
+    pop bc                  ; BC = (0, entity_index)                  [recuperado del stack]
+    pop hl                  ; descarta ptr entity_anim_flags           [recuperado del stack]
+
+    ; ------------------------------------------------------------------
+    ; BLOQUE 6: Actualizar tabla de colores de capas en RAM
+    ;
+    ; sprite_layer_colors es una tabla RAM indexada por slot HW sprite.
+    ; SM_SpriteLayerColorTable es una tabla ROM de SPRITE_MAX_ENTITY_LAYERS
+    ; bytes por sprite, con el color de cada capa del sprite.
+    ;
+    ; Se copian los colores del nuevo sprite a los slots HW de la entidad
+    ; para que render_sprites use los colores correctos en el próximo frame.
+    ;
+    ; Registros a la entrada:
+    ;   D = sprite asset ID
+    ;   C = entity index
+    ;   B = 0
+    ; ------------------------------------------------------------------
+
+    ; Validar rango (mismo guard que en el upload)
+    ld a, d
+    cp SM_SpriteAssetCount
+    jp nc, .acs_skip_color_update  ; fuera de rango → saltar
+
+    push de                 ; [stack] guarda D=spriteId, E=loopFlag
+
+    ; Obtener el base HW sprite de la entidad: entity_sprite_config[entity * 2]
+    ld h, 0
+    ld l, c                 ; HL = entity index
+    add hl, hl              ; HL = entity index * 2
+    ld de, entity_sprite_config
+    add hl, de              ; HL = &entity_sprite_config[entity * 2]
+    ld c, (hl)              ; C = base HW sprite index (slot de partida en la OAM)
+
+    pop de                  ; DE: D=spriteId, E=loopFlag  [recuperado del stack]
+
+    ; Calcular HL = SM_SpriteLayerColorTable + spriteId * SPRITE_MAX_ENTITY_LAYERS
+    ; mediante suma repetida (SPRITE_MAX_ENTITY_LAYERS es pequeño, típicamente 2-4)
+    ld l, d                 ; L = sprite asset ID
+    ld h, 0                 ; HL = sprite asset ID
+    ld e, l
+    ld d, h                 ; DE = sprite asset ID (multiplicando)
+    ld hl, 0
+    ld b, SPRITE_MAX_ENTITY_LAYERS
+.acs_mul_max_layers:
+    add hl, de              ; acumulador += sprite_ID
+    djnz .acs_mul_max_layers ; repetir SPRITE_MAX_ENTITY_LAYERS veces → HL = spriteId * maxLayers
+    ld de, SM_SpriteLayerColorTable
+    add hl, de              ; HL = &SM_SpriteLayerColorTable[spriteId * maxLayers]
+
+    ; Copiar SPRITE_MAX_ENTITY_LAYERS colores desde la tabla ROM a sprite_layer_colors[hw..]
+    ; C = slot HW actual (se incrementa en cada iteración)
+    ; HL = fuente en ROM (se incrementa con inc hl)
+    ld b, SPRITE_MAX_ENTITY_LAYERS  ; B = contador de capas
+.acs_color_update_loop:
+    ld a, (hl)              ; A = color de esta capa en la tabla ROM
+    inc hl                  ; avanzar al siguiente color en la tabla ROM
+    push hl                 ; [stack] preservar HL (fuente ROM) durante el write
+    push bc                 ; [stack] preservar B (contador) y C (slot HW)
+
+    ld h, 0
+    ld l, c                 ; HL = slot HW actual (índice en sprite_layer_colors)
+    ld de, sprite_layer_colors
+    add hl, de              ; HL = &sprite_layer_colors[hw_slot]
+    ld (hl), a              ; sprite_layer_colors[hw_slot] = color del nuevo sprite
+
+    pop bc                  ; [stack] restaurar B=contador, C=slot HW
+    pop hl                  ; [stack] restaurar HL=fuente ROM
+    inc c                   ; avanzar al siguiente slot HW
+    djnz .acs_color_update_loop
+
+.acs_skip_color_update:
+
+    ; ------------------------------------------------------------------
+    ; Epilogue: restaurar puntero de parámetros y retornar al dispatcher
+    ; ------------------------------------------------------------------
+    pop hl                  ; HL = puntero al byte tras los parámetros  [del push inicial]
     ret
+
+; [Action_PlayAnimation stripped - not used]
+
+; [Action_SetAnimSpeed stripped - not used]
+
+; [Action_ToggleAnim stripped - not used]
+
+; [Action_PlaySound stripped - not used]
+
+; [Action_PlayMusic stripped - not used]
+
+; [Action_MuteMusic stripped - not used]
+
+; [Action_StopMusic stripped - not used]
+
+; [Action_SetVariable stripped - not used]
+
+; [Action_IncVariable stripped - not used]
+
+; [Action_DecVariable stripped - not used]
+
+; [Action_Wait stripped - not used]
+
+; [Action_GotoState stripped - not used]
+
+; [Action_SetCompProp stripped - not used]
 
 Action_DestroyEntity:
 ; Params: Target (1 byte) - 0=self, 1=other
@@ -13216,142 +16109,470 @@ Action_DestroyEntity:
     pop hl              ; Restore Params Ptr
     ret
 
-Action_SpawnEntity:
-; Params: TemplateID(1 byte), X(1 byte), Y(1 byte)
-; Spawns a new entity at specified position
-; TODO: Full template-based spawning with component copying
-    ld d, (hl)          ; D = Template ID
-    inc hl
-    ld e, (hl)          ; E = X position
-    inc hl
-    ld c, (hl)          ; C = Y position
-    inc hl
+; [Action_SpawnEntity stripped - not used]
 
-    push hl             ; Save Params Ptr
-    push bc             ; Save Y position and entity index
-    push de             ; Save Template ID and X position
+; [Action_ChangeGameFlow stripped - not used]
 
-    ; Find free entity slot (mask == 0)
-    ld hl, entity_comp_masks
-    ld b, 32            ; Check up to 32 entities
-    ld c, 0             ; Entity index
-
-.find_slot:
-    ld a, (hl)          ; Check low byte
-    or a
-    jr z, .check_high   ; Low byte is 0, check high byte
-
-.next_slot:
-    inc hl              ; Next entity
-    inc c               ; Increment index
-    djnz .find_slot     ; Loop for all entities
-
-    ; No free slot found
-    pop de
-    pop bc
-    pop hl
-    ret
-
-.check_high:
-    push hl
-    ld hl, entity_comp_masks_hi
-    ld a, c
-    add a, l
-    ld l, a
-    ld a, 0
-    adc a, h
-    ld h, a
-    ld a, (hl)          ; Check high byte
-    pop hl
-    or a
-    jr nz, .next_slot   ; High byte not zero, keep searching
-
-.found_slot:
-    ; C = Free entity index
-    ; Stack: X/TemplateID, Y/B, Params Ptr
-    pop de              ; DE = Template ID (D) / X (E)
-    pop hl              ; HL = Y (H) / saved B (L)
-    ld a, h             ; A = Y position
-
-    ; Set entity position
-    push hl
-    push de
-    push bc
-
-    ld h, 0
-    ld l, c             ; HL = Entity index
-    ld bc, entity_x_pos
-    add hl, bc
-    ld (hl), e          ; Set X
-
-    ld h, 0
-    ld l, c             ; HL = Entity index (C preserved)
-    ld de, entity_y_pos
-    add hl, de
-    ld (hl), a          ; Set Y
-
-    ; Activate entity with basic mask (Position + Sprite)
-    ld h, 0
-    ld l, c             ; HL = Entity index
-    ld de, entity_comp_masks
-    add hl, de
-    ld (hl), #03        ; COMP_MASK_POSITION | COMP_MASK_SPRITE (low byte)
-
-    ld h, 0
-    ld l, c
-    ld de, entity_comp_masks_hi
-    add hl, de
-    ld (hl), 0          ; High byte = 0
-
-    ; TODO: Copy template data (velocity, sprite pattern, etc.)
-    ; For now, entity is spawned with basic components only
-
-    pop bc
-    pop de
-    pop hl
-    pop hl              ; Restore Params Ptr
-    ret
-
-Action_GetRandomPos:
-    ret
-
-Action_ChangeGameFlow:
-    inc hl
-    ret
+; [Action_RegenerateHud stripped - not used]
 
 Action_DecLives:
+; Params: Amount(1 byte)
+; Decrease entity health/lives with clamp to 0
+    ld a, (hl)              ; A = amount
+    inc hl
+    or a
+    jr nz, .dec_lives_have_amount
+    ld a, 1                 ; Default amount
+.dec_lives_have_amount:
+    ld c, a                 ; C = amount
+
+    ; Compute entity_health_current[entity] -= amount, clamp at 0
+    ld e, b                 ; DE = entity index
+    ld d, 0
+    ld hl, entity_health_current
+    add hl, de
+    ld a, (hl)              ; A = current health
+    sub c
+    jr nc, .dec_lives_store
+    xor a
+.dec_lives_store:
+    ld (hl), a
     ret
 
 Action_IncLives:
+; Params: Amount(1 byte)
+; Increase entity health/lives with clamp to entity_health_max
+    ld a, (hl)              ; A = amount
+    inc hl
+    or a
+    jr nz, .inc_lives_have_amount
+    ld a, 1                 ; Default amount
+.inc_lives_have_amount:
+    ld c, a                 ; C = amount
+
+    ; DE = entity index
+    ld e, b
+    ld d, 0
+
+    ; result = current + amount
+    ld hl, entity_health_current
+    add hl, de
+    ld a, (hl)              ; A = current
+    add a, c
+    ld c, a                 ; C = tentative result
+
+    ; compare with max
+    ld hl, entity_health_max
+    add hl, de
+    ld a, (hl)              ; A = max
+    cp c
+    jr nc, .inc_lives_store_result
+    ld c, a                 ; clamp to max
+
+.inc_lives_store_result:
+    ld hl, entity_health_current
+    add hl, de
+    ld (hl), c
+    ld a, c
     ret
 
 Action_Respawn:
+; Params: X(1 byte), Y(1 byte)
+; 255 means "keep current coordinate"
+; Also clears velocity/wait timer and re-activates entity.
+    ld d, (hl)              ; D = respawn X
+    inc hl
+    ld e, (hl)              ; E = respawn Y
+    inc hl
+
+    push hl                 ; Save params ptr
+    push de                 ; Save X/Y
+
+    ; BC = entity index
+    ld c, b
+    ld b, 0
+
+    pop de                  ; Restore X/Y
+
+    ; Optional X update
+    ld a, d
+    cp 255
+    jr z, .respawn_skip_x
+    ld hl, entity_x_pos
+    add hl, bc
+    ld (hl), a
+
+.respawn_skip_x:
+    ; Optional Y update
+    ld a, e
+    cp 255
+    jr z, .respawn_skip_y
+    ld hl, entity_y_pos
+    add hl, bc
+    ld (hl), a
+
+.respawn_skip_y:
+    ; Reset velocity
+    ld hl, entity_vel_x
+    add hl, bc
+    ld (hl), 0
+    ld hl, entity_vel_y
+    add hl, bc
+    ld (hl), 0
+
+    ; Clear wait timer so FSM resumes immediately
+    ld hl, entity_sm_wait_timer
+    add hl, bc
+    ld (hl), 0
+
+    ; Ensure entity is active
+    ld hl, entity_active
+    add hl, bc
+    ld (hl), 1
+
+    ; If entity was fully destroyed, restore minimal Position+Sprite mask
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld a, (hl)
+    ld d, a
+    ld hl, entity_comp_masks_hi
+    add hl, bc
+    ld a, (hl)
+    or d
+    jr nz, .respawn_done
+
+    ld hl, entity_comp_masks
+    add hl, bc
+    ld (hl), #03            ; COMP_MASK_POSITION | COMP_MASK_SPRITE
+    ld hl, entity_comp_masks_hi
+    add hl, bc
+    ld (hl), 0
+
+.respawn_done:
+    pop hl
     ret
 
 Action_BreakTile:
-    inc hl
-    inc hl
-    ret
-
-Action_ReplaceTile:
 ; Params: TileID(1 byte), Direction(1 byte)
+; BREAK_TILE is serialized as TileID=0.
+    ld a, (hl)              ; A = replacement tile ID (0 for break)
     inc hl
+    ld c, (hl)              ; C = direction (0..7)
+    inc hl
+    push hl
+    call SM_WriteTileRelativeToEntity
+    pop hl
+    ret
+
+; [Action_ReplaceTile stripped - not used]
+
+; [Action_Rnd stripped - not used]
+
+; [Action_PointAt stripped - not used]
+
+SM_MusicState:
+    db 0                    ; 0=stopped, 1=playing, 2=muted
+SM_MusicTrack:
+    db 0
+SM_RandSeed:
+    db #5A
+SM_TemplateFilterToken:
+    db 0
+
+SM_SilencePSG:
+    xor a
+    ld e, a
+    ld a, 8                 ; Volume A
+    call WRTPSG
+    xor a
+    ld e, a
+    ld a, 9                 ; Volume B
+    call WRTPSG
+    xor a
+    ld e, a
+    ld a, 10                ; Volume C
+    call WRTPSG
+    ld a, #3F               ; Disable all tone/noise
+    ld e, a
+    ld a, 7                 ; Mixer register
+    call WRTPSG
+    ret
+
+SM_ApplySoundFrame:
+    ; Input: HL = pointer to 11-byte pre-expanded sound frame
+    ; Output: HL = pointer to next frame
+    ld e, (hl)
+    ld a, 0
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 1
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 8
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 2
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 3
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 9
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 4
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 5
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 10
+    call WRTPSG
+    inc hl
+
+    ld e, (hl)
+    ld a, 6
+    call WRTPSG
+    inc hl
+    ld e, (hl)
+    ld a, 7
+    call WRTPSG
     inc hl
     ret
 
-Action_Rnd:
-; Params: VarID(1 byte), DataType(1 byte)
-    inc hl
-    inc hl
+; [SM_PlaySoundAsset stripped - not used]
+
+SM_UpdateSound:
+    ; Advances one frame of the active PLAY_SOUND asset.
+    ; The current frame is emitted immediately on SM_PlaySoundAsset, so
+    ; frames_left includes the frame already sounding.
+    ld a, (sm_sound_active)
+    or a
+    ret z
+
+    ld a, (sm_sound_frames_left)
+    or a
+    jr z, .stop_sound
+
+    dec a
+    ld (sm_sound_frames_left), a
+    jr z, .stop_sound
+
+    ld a, (sm_sound_ptr_l)
+    ld l, a
+    ld a, (sm_sound_ptr_h)
+    ld h, a
+    call SM_ApplySoundFrame
+    ld a, l
+    ld (sm_sound_ptr_l), a
+    ld a, h
+    ld (sm_sound_ptr_h), a
     ret
 
-Action_PointAt:
-; Params: X1, Y1, X2, Y2, Speed (5 bytes)
-    inc hl
-    inc hl
-    inc hl
-    inc hl
-    inc hl
+.stop_sound:
+    call SM_SilencePSG
+    xor a
+    ld (sm_sound_active), a
+    ret
+
+; [SM_PlaySfx_Beep stripped - not used]
+
+; [SM_RandomByte stripped - not used]
+
+SM_WriteTileRelativeToEntity:
+    ; Input: A = tile char ID, B = entity index, C = direction (0..7)
+    ; Writes directly to VRAM Name Table at target cell.
+    push af                 ; Save tile ID
+    push bc                 ; Save direction + entity index
+
+    ; Read entity center in pixels (approx center for 16x16 sprites)
+    ld e, b
+    ld d, 0
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld b, a                 ; B = center X pixel
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    add a, 8
+    ld c, a                 ; C = center Y pixel
+
+    ; Convert to tile coordinates (8x8 grid)
+    ld a, b
+    srl a
+    srl a
+    srl a
+    ld b, a                 ; B = tile X
+    ld a, c
+    srl a
+    srl a
+    srl a
+    ld c, a                 ; C = tile Y
+
+    ; Restore direction in A (from pushed BC high byte via stack)
+    pop de                  ; D = old B(entity), E = old C(direction)
+    ld a, e                 ; A = direction
+
+    ; Apply direction offset with bounds checks
+    or a
+    jr z, .swt_up
+    cp 1
+    jr z, .swt_down
+    cp 2
+    jr z, .swt_left
+    cp 3
+    jr z, .swt_right
+    cp 4
+    jr z, .swt_up_right
+    cp 5
+    jr z, .swt_up_left
+    cp 6
+    jr z, .swt_down_right
+    cp 7
+    jr z, .swt_down_left
+    jp .swt_out
+
+.swt_up:
+    ld a, c
+    or a
+    jp z, .swt_out
+    dec c
+    jr .swt_apply
+
+.swt_down:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    inc c
+    jr .swt_apply
+
+.swt_left:
+    ld a, b
+    or a
+    jp z, .swt_out
+    dec b
+    jr .swt_apply
+
+.swt_right:
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    inc b
+    jr .swt_apply
+
+.swt_up_right:
+    ld a, c
+    or a
+    jp z, .swt_out
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    dec c
+    inc b
+    jr .swt_apply
+
+.swt_up_left:
+    ld a, c
+    or a
+    jp z, .swt_out
+    ld a, b
+    or a
+    jp z, .swt_out
+    dec c
+    dec b
+    jr .swt_apply
+
+.swt_down_right:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    ld a, b
+    cp 31
+    jp nc, .swt_out
+    inc c
+    inc b
+    jr .swt_apply
+
+.swt_down_left:
+    ld a, c
+    cp 23
+    jp nc, .swt_out
+    ld a, b
+    or a
+    jp z, .swt_out
+    inc c
+    dec b
+
+.swt_apply:
+    ; HL = tile offset = (tileY * 32) + tileX
+    ld l, c
+    ld h, 0
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl              ; *32
+    ld e, b
+    ld d, 0
+    add hl, de
+
+    pop af                  ; A = tile char ID
+    ld b, a                 ; Preserve tile ID in B
+
+    ; Update mutable screen layout map
+    push hl                 ; Save tile offset
+    ld de, (current_screen_layout)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_screen_layout_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Update mutable behavior map (0 = passable, 1 = solid)
+    push hl
+    ld de, (current_behavior_map)
+    add hl, de
+    call mapper_push_p2
+    ld a, (current_behavior_map_bank)
+    call mapper_set_bank_p2
+    ld a, b
+    or a
+    jr z, .store_behavior_passable
+    ld a, 1
+.store_behavior_passable:
+    ld (hl), a
+    call mapper_pop_p2
+    pop hl
+
+    ; Invalidate cached behavior row after map mutation
+    ld a, #FF
+    ld (behavior_cache_row), a
+
+    ; Write tile character to VRAM Name Table
+    ld de, NAMETBL
+    add hl, de
+    ld a, b
+    call WRTVRM
+    ret
+
+.swt_out:
+    pop af
     ret
 
 ; ==================================================================
@@ -13360,501 +16581,45 @@ Action_PointAt:
 ; Output: A = Variable Value
 ; Destroys: DE, HL
 ; ==================================================================
-SM_ReadVar:
-    cp 6
-    jr nc, .read_global
+; [SM_ReadVar stripped - not used]
 
-    ; Entity variable (0-5) - use jump table for speed
-    push bc
-    ld e, b
-    ld d, 0                 ; DE = Entity Index
+; [Action_AddVars stripped - not used]
 
-    ; Jump table dispatch
-    ld l, a
-    ld h, 0
-    add hl, hl              ; HL = VarID * 2
-    ld bc, .read_entity_var_table
-    add hl, bc
-    ld c, (hl)
-    inc hl
-    ld b, (hl)
-    push bc
-    ret                     ; Jump to handler
+; [Action_SubVars stripped - not used]
 
-.read_entity_var_table:
-    DW .read_x              ; 0
-    DW .read_y              ; 1
-    DW .read_vx             ; 2
-    DW .read_vy             ; 3
-    DW .read_on_ground      ; 4
-    DW .read_health         ; 5
+; [Action_MulVars stripped - not used]
 
-.read_x:
-    ld hl, entity_x_pos
-    jr .do_read_entity
-.read_y:
-    ld hl, entity_y_pos
-    jr .do_read_entity
-.read_vx:
-    ld hl, entity_vel_x
-    jr .do_read_entity
-.read_vy:
-    ld hl, entity_vel_y
-    jr .do_read_entity
-.read_on_ground:
-    ld hl, entity_on_ground
-    add hl, de
-    ld a, (hl)
-    and #01
-    pop bc
-    ret
-.read_health:
-    ld hl, entity_health_current
-    ; Fall through to do_read_entity
+; [Action_DivVars stripped - not used]
 
-.do_read_entity:
-    add hl, de
-    ld a, (hl)
-    pop bc
-    ret
+; [Action_ModVars stripped - not used]
 
-.read_global:
-    ; Global variable (6+)
-    sub 6
-    ld l, a
-    ld h, 0
-    add hl, hl              ; HL = (VarID - 6) * 2
+; [Action_AssignVar stripped - not used]
 
-    push de
-    ld de, SM_GlobalVarTable
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)              ; DE = address
-    ld a, (de)              ; A = value
-    pop de
-    ret
+; [Action_DisableInput stripped - not used]
 
-; ==================================================================
-; HELPER: Write Variable Value
-; Input: A = VarID, C = Value, B = Entity Index
-; Destroys: DE, HL
-; ==================================================================
-SM_WriteVar:
-    cp 6
-    jr nc, .write_global
+; [Action_EnableInput stripped - not used]
 
-    ; Entity variable (0-5) - use jump table for speed
-    push bc
-    ld e, b
-    ld d, 0                 ; DE = Entity Index
+; [Action_CleanSprites stripped - not used]
 
-    ; Jump table dispatch
-    ld l, a
-    ld h, 0
-    add hl, hl              ; HL = VarID * 2
-    ld bc, .write_entity_var_table
-    add hl, bc
-    ld a, (hl)
-    inc hl
-    ld h, (hl)
-    ld l, a
-    ld bc, .do_write
-    push bc
-    jp (hl)                 ; Jump to handler
-
-.write_entity_var_table:
-    DW .write_x             ; 0
-    DW .write_y             ; 1
-    DW .write_vx            ; 2
-    DW .write_vy            ; 3
-    DW .write_on_ground     ; 4
-    DW .write_health        ; 5
-
-.write_x:
-    ld hl, entity_x_pos
-    jr .do_write_entity
-.write_y:
-    ld hl, entity_y_pos
-    jr .do_write_entity
-.write_vx:
-    ld hl, entity_vel_x
-    jr .do_write_entity
-.write_vy:
-    ld hl, entity_vel_y
-    jr .do_write_entity
-.write_on_ground:
-    ld hl, entity_on_ground
-    jr .do_write_entity
-.write_health:
-    ld hl, entity_health_current
-    ; Fall through to do_write_entity
-
-.do_write_entity:
-    add hl, de
-    ld (hl), c
-.do_write:
-    pop bc
-    ret
-
-.write_global:
-    sub 6
-    ld l, a
-    ld h, 0
-    add hl, hl
-
-    push de
-    ld de, SM_GlobalVarTable
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    ld a, c
-    ld (de), a
-    pop de
-    ret
-
-; ==================================================================
-; MATHEMATICAL OPERATIONS
-; ==================================================================
-
-Action_AddVars:
-; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
-; DestVar = Src1 + Src2
-    ld c, (hl)              ; C = DestVarID
-    inc hl
-    ld d, (hl)              ; D = Src1VarID
-    inc hl
-    ld e, (hl)              ; E = Src2VarID
-    inc hl
-
-    push hl                 ; Save params ptr
-    push bc                 ; Save DestVarID
-
-    ; Read Src1
-    ld a, d
-    call SM_ReadVar         ; A = Src1 value
-    ld d, a                 ; D = Src1 value
-
-    ; Read Src2
-    ld a, e
-    call SM_ReadVar         ; A = Src2 value
-
-    ; Add
-    add a, d                ; A = Src1 + Src2
-    ld c, a                 ; C = result
-
-    ; Write to Dest
-    pop de                  ; E = DestVarID
-    ld a, e
-    call SM_WriteVar
-
-    pop hl
-    ret
-
-Action_SubVars:
-; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
-; DestVar = Src1 - Src2
-    ld c, (hl)              ; C = DestVarID
-    inc hl
-    ld d, (hl)              ; D = Src1VarID
-    inc hl
-    ld e, (hl)              ; E = Src2VarID
-    inc hl
-
-    push hl
-    push bc
-
-    ; Read Src1
-    ld a, d
-    call SM_ReadVar
-    ld d, a
-
-    ; Read Src2
-    ld a, e
-    call SM_ReadVar
-
-    ; Subtract
-    ld e, a                 ; E = Src2
-    ld a, d                 ; A = Src1
-    sub e                   ; A = Src1 - Src2
-    ld c, a
-
-    ; Write to Dest
-    pop de
-    ld a, e
-    call SM_WriteVar
-
-    pop hl
-    ret
-
-Action_MulVars:
-; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
-; DestVar = Src1 * Src2 (8-bit multiplication, optimized for powers of 2)
-    ld c, (hl)
-    inc hl
-    ld d, (hl)
-    inc hl
-    ld e, (hl)
-    inc hl
-
-    push hl
-    push bc
-
-    ; Read Src1 (multiplicand)
-    ld a, d
-    call SM_ReadVar
-    ld d, a
-
-    ; Read Src2 (multiplier)
-    ld a, e
-    call SM_ReadVar
-    ld e, a
-
-    ; Optimize for special cases
-    or a
-    jr z, .mul_by_zero      ; multiplier == 0
-    cp 1
-    jr z, .mul_by_one       ; multiplier == 1
-
-    ; Check if multiplier is power of 2 (2,4,8,16,32,64,128)
-    ld b, a                 ; B = multiplier
-
-    ; Test for power of 2: (B & (B-1)) == 0
-    ld a, b
-    dec a
-    and b
-    jr nz, .mul_slow        ; Not power of 2, use slow method
-
-    ; Count shifts needed (find which power of 2)
-    ld a, d                 ; A = multiplicand
-
-    ; Power of 2 detected - use shifts
-    ld a, d                 ; A = multiplicand
-    ld c, b                 ; C = multiplier
-
-.mul_shift_loop:
-    cp 1
-    jr z, .mul_done
-    srl c                   ; Shift multiplier right
-    jr nc, .mul_shift_loop  ; If bit was 0, continue
-    sla a                   ; Shift result left (multiply by 2)
-    jr .mul_shift_loop
-
-.mul_slow:
-    ; Standard multiplication by repeated addition
-    ld a, 0
-    ld c, e                 ; C = multiplier
-
-.mul_loop:
-    add a, d
-    dec c
-    jr nz, .mul_loop
-    jr .mul_done
-
-.mul_by_zero:
-    ld a, 0
-    jr .mul_done
-
-.mul_by_one:
-    ld a, d                 ; result = multiplicand
-
-.mul_done:
-    ld c, a                 ; C = result
-
-    ; Write to Dest
-    pop de
-    ld a, e
-    call SM_WriteVar
-
-    pop hl
-    ret
-
-Action_DivVars:
-; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
-; DestVar = Src1 / Src2 (integer division, optimized for powers of 2)
-    ld c, (hl)
-    inc hl
-    ld d, (hl)
-    inc hl
-    ld e, (hl)
-    inc hl
-
-    push hl
-    push bc
-
-    ; Read Src1 (dividend)
-    ld a, d
-    call SM_ReadVar
-    ld d, a
-
-    ; Read Src2 (divisor)
-    ld a, e
-    call SM_ReadVar
-    ld e, a
-
-    ; Optimize for special cases
-    or a
-    jr z, .div_by_zero      ; divisor == 0
-    cp 1
-    jr z, .div_by_one       ; divisor == 1
-
-    ; Check if divisor is power of 2 (2,4,8,16,32,64,128)
-    ld b, a                 ; B = divisor
-
-    ; Test for power of 2: (B & (B-1)) == 0
-    ld a, b
-    dec a
-    and b
-    jr nz, .div_slow        ; Not power of 2, use slow method
-
-    ; Power of 2 detected - use shifts
-    ld a, d                 ; A = dividend
-    ld c, b                 ; C = divisor
-
-.div_shift_loop:
-    srl c                   ; Shift divisor right
-    jr z, .div_done         ; If divisor became 0, done
-    srl a                   ; Shift dividend right (divide by 2)
-    jr .div_shift_loop
-
-.div_slow:
-    ; Standard division by repeated subtraction
-    ld c, e                 ; C = divisor
-    ld a, d                 ; A = dividend
-    ld d, 0                 ; D = quotient
-
-.div_loop:
-    cp c
-    jr c, .div_done_slow    ; If A < divisor, done
-    sub c                   ; A -= divisor
-    inc d                   ; quotient++
-    jr .div_loop
-
-.div_done_slow:
-    ld a, d                 ; A = quotient
-    jr .div_done
-
-.div_by_zero:
-    ld a, 0                 ; Division by zero = 0
-    jr .div_done
-
-.div_by_one:
-    ld a, d                 ; result = dividend
-
-.div_done:
-    ld c, a                 ; C = result
-
-    ; Write to Dest
-    pop de
-    ld a, e
-    call SM_WriteVar
-
-    pop hl
-    ret
-
-Action_ModVars:
-; Params: DestVarID, Src1VarID, Src2VarID (3 bytes)
-; DestVar = Src1 % Src2 (modulo/remainder, optimized for powers of 2)
-    ld c, (hl)
-    inc hl
-    ld d, (hl)
-    inc hl
-    ld e, (hl)
-    inc hl
-
-    push hl
-    push bc
-
-    ; Read Src1 (dividend)
-    ld a, d
-    call SM_ReadVar
-    ld d, a
-
-    ; Read Src2 (divisor/modulo)
-    ld a, e
-    call SM_ReadVar
-    ld e, a
-
-    ; Optimize for special cases
-    or a
-    jr z, .mod_by_zero      ; modulo == 0
-    cp 1
-    jr z, .mod_by_one       ; modulo == 1 (always 0)
-
-    ; Check if modulo is power of 2 (2,4,8,16,32,64,128)
-    ld b, a                 ; B = modulo
-
-    ; Test for power of 2: (B & (B-1)) == 0
-    ld a, b
-    dec a
-    and b
-    jr nz, .mod_slow        ; Not power of 2, use slow method
-
-    ; Power of 2 detected - use AND mask
-    ; x % (2^n) = x & (2^n - 1)
-    ld a, b
-    dec a                   ; A = modulo - 1 (mask)
-    ld c, a
-    ld a, d                 ; A = dividend
-    and c                   ; A = dividend & (modulo - 1)
-    jr .mod_done
-
-.mod_slow:
-    ; Standard modulo by repeated subtraction
-    ld c, e                 ; C = modulo
-    ld a, d                 ; A = dividend
-
-.mod_loop:
-    cp c
-    jr c, .mod_done         ; If A < modulo, A is the remainder
-    sub c
-    jr .mod_loop
-
-.mod_by_zero:
-    ld a, 0                 ; Modulo by zero = 0
-    jr .mod_done
-
-.mod_by_one:
-    ld a, 0                 ; x % 1 = 0 always
-
-.mod_done:
-    ld c, a                 ; C = result
-
-    ; Write to Dest
-    pop de
-    ld a, e
-    call SM_WriteVar
-
-    pop hl
-    ret
-
-
-Action_AssignVar:
-    inc hl
-    inc hl
-    ret
-
-    ; ------------------------------------------------------------------
-    ; CONDITION DISPATCH TABLE
-    ; ------------------------------------------------------------------
+; [Action_ExitCurrentWorld stripped - not used]
 
 SM_ConditionTable:
     DW Condition_Nop            ; 0
-    DW Condition_And            ; 1
-    DW Condition_Or             ; 2
-    DW Condition_Not            ; 3
+    DW Condition_Nop ; 1 [Condition_And stripped]
+    DW Condition_Nop ; 2 [Condition_Or stripped]
+    DW Condition_Nop ; 3 [Condition_Not stripped]
     DW Condition_KeyPressed     ; 4
-    DW Condition_KeyReleased    ; 5
-    DW Condition_TimeOut        ; 6
-    DW Condition_CanMove        ; 7
+    DW Condition_Nop ; 5 [Condition_KeyReleased stripped]
+    DW Condition_Nop ; 6 [Condition_TimeOut stripped]
+    DW Condition_Nop ; 7 [Condition_CanMove stripped]
     DW Condition_HasCollision   ; 8
-    DW Condition_PathClear      ; 9
+    DW Condition_Nop ; 9 [Condition_PathClear stripped]
     DW Condition_OnWallCollision; 10
     DW Condition_DeadlyTile     ; 11
     DW Condition_AnimComplete   ; 12
-    DW Condition_KeyAndMove     ; 13
-    DW Condition_VariableCompare; 14
+    DW Condition_Nop ; 13 [Condition_KeyAndMove stripped]
+    DW Condition_Nop ; 14 [Condition_VariableCompare stripped]
+    DW Condition_Nop ; 15 [Condition_Xor stripped]
 
     ; ------------------------------------------------------------------
     ; CONDITION HANDLERS IMPLEMENTATION
@@ -13864,140 +16629,105 @@ Condition_Nop:
     ld a, 1                 ; Always true
     ret
 
-Condition_And:
-    ; AND compound condition
-    ; Data format: DB subcondition_count, then N subconditions inline
-    ; Evaluates all subconditions; returns true only if ALL are true
-    ; Input: B = Entity Index, HL = Params (points to count byte)
-    ; Output: A = 1 (all true) or 0 (any false), HL = past all subcondition data
-    ld c, (hl)              ; C = subcondition count
-    inc hl
-    ld d, 1                 ; D = result accumulator (1 = all true so far)
+; [Condition_And stripped - not used]
 
-.and_loop:
-    ld a, c
-    or a
-    jr z, .and_done         ; No more subconditions
+; [Condition_Or stripped - not used]
 
-    push bc                 ; Save count (C) and entity index (implicitly)
-    push de                 ; Save result accumulator (D)
+; [Condition_Xor stripped - not used]
 
-    ld a, b                 ; A = Entity Index
-    call SM_EvaluateCondition ; A = subcondition result, HL advanced
+; [Condition_Not stripped - not used]
 
-    pop de                  ; Restore result accumulator
-    and d                   ; Combine: D = D AND result
-    ld d, a
-
-    pop bc                  ; Restore count and entity index
-    dec c
-    jr .and_loop
-
-.and_done:
-    ld a, d                 ; A = AND result
-    ret
-
-Condition_Or:
-    ; OR compound condition
-    ; Data format: DB subcondition_count, then N subconditions inline
-    ; Evaluates all subconditions; returns true if ANY is true
-    ; Input: B = Entity Index, HL = Params (points to count byte)
-    ; Output: A = 1 (any true) or 0 (all false), HL = past all subcondition data
-    ld c, (hl)              ; C = subcondition count
-    inc hl
-    ld d, 0                 ; D = result accumulator (0 = all false so far)
-
-.or_loop:
-    ld a, c
-    or a
-    jr z, .or_done          ; No more subconditions
-
-    push bc                 ; Save count (C) and entity index
-    push de                 ; Save result accumulator (D)
-
-    ld a, b                 ; A = Entity Index
-    call SM_EvaluateCondition ; A = subcondition result, HL advanced
-
-    pop de                  ; Restore result accumulator
-    or d                    ; Combine: D = D OR result
-    ld d, a
-
-    pop bc                  ; Restore count and entity index
-    dec c
-    jr .or_loop
-
-.or_done:
-    ld a, d                 ; A = OR result
-    ret
-
-Condition_Not:
-    ; NOT compound condition
-    ; Data format: DB 1 (always 1 subcondition), then 1 subcondition inline
-    ; Evaluates the single subcondition and inverts the result
-    ; Input: B = Entity Index, HL = Params (points to count byte)
-    ; Output: A = inverted result, HL = past subcondition data
-    inc hl                  ; Skip count byte (always 1)
-
-    ld a, b                 ; A = Entity Index
-    call SM_EvaluateCondition ; A = subcondition result, HL advanced
-
-    ; Invert: 0 -> 1, non-zero -> 0
-    or a
-    jr z, .not_was_false
-    xor a                   ; Was true -> return false
-    ret
-.not_was_false:
-    ld a, 1                 ; Was false -> return true
-    ret
-
-; ------------------------------------------------------------------
-; HELPER: Match directional key against one input direction value
-; Input: D = Desired key (1/3/5/7), A = direction (0-8)
-; Output: A = 1 if active, 0 if inactive
-; ------------------------------------------------------------------
 SM_MatchDirection:
     ld e, a
     cp d
-    jr z, .smd_match_yes
+    jp z, .smd_match_yes    ; exact match always passes
 
     ld a, d
     cp 1                    ; UP
-    jr nz, .smd_not_up
+    jp nz, .smd_not_up
     ld a, e
     cp 2                    ; UP+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_up
     cp 8                    ; UP+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_up:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_UP
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_up:
     cp 5                    ; DOWN
-    jr nz, .smd_not_down
+    jp nz, .smd_not_down
     ld a, e
     cp 4                    ; DOWN+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_down
     cp 6                    ; DOWN+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_down:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_DOWN
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_down:
     cp 7                    ; LEFT
-    jr nz, .smd_not_left
+    jp nz, .smd_not_left
     ld a, e
     cp 6                    ; DOWN+LEFT
-    jr z, .smd_match_yes
+    jr z, .smd_check_left
     cp 8                    ; UP+LEFT
-    jr z, .smd_match_yes
-    jr .smd_match_no
+    jp nz, .smd_match_no
+.smd_check_left:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_LEFT
+    jp nz, .smd_match_yes
+    jp .smd_match_no
 
 .smd_not_left:
     cp 3                    ; RIGHT
-    jr nz, .smd_match_no
+    jp nz, .smd_match_no
     ld a, e
     cp 2                    ; UP+RIGHT
-    jr z, .smd_match_yes
+    jr z, .smd_check_right
     cp 4                    ; DOWN+RIGHT
-    jr z, .smd_match_yes
+    jp nz, .smd_match_no
+.smd_check_right:
+    push hl
+    push de
+    ld hl, entity_dir_mask
+    ld d, 0
+    ld e, b
+    add hl, de
+    ld a, (hl)
+    pop de
+    pop hl
+    and DIR_ALLOW_RIGHT
+    jp nz, .smd_match_yes
 
 .smd_match_no:
     xor a
@@ -14012,124 +16742,26 @@ SM_MatchDirection:
 ; Input: B = Entity Index
 ; Output: A = direction key id (1/3/5/7) or 0 if idle
 ; ------------------------------------------------------------------
-SM_DeduceDirectionFromVelocity:
-    push de
-    push hl
+; [SM_DeduceDirectionFromVelocity stripped - not used]
 
-    ld e, b
-    ld d, 0
-
-    ld hl, entity_vel_x
-    add hl, de
-    ld a, (hl)
-    or a
-    jr z, .sddv_check_y
-    bit 7, a
-    jr z, .sddv_right
-    ld a, 7
-    jr .sddv_done
-
-.sddv_right:
-    ld a, 3
-    jr .sddv_done
-
-.sddv_check_y:
-    ld hl, entity_vel_y
-    add hl, de
-    ld a, (hl)
-    or a
-    jr z, .sddv_idle
-    bit 7, a
-    jr z, .sddv_down
-    ld a, 1
-    jr .sddv_done
-
-.sddv_down:
-    ld a, 5
-    jr .sddv_done
-
-.sddv_idle:
-    xor a
-
-.sddv_done:
-    pop hl
-    pop de
-    ret
-
-; ------------------------------------------------------------------
-; HELPER: Check if an entity can move one pixel in a direction
-; Input: B = Entity Index, A = direction key id (1/3/5/7)
-; Output: A = 1 if path is clear, 0 if blocked
-; ------------------------------------------------------------------
-SM_TestMoveDirection:
-    push bc
-    push de
-    push hl
-
-    ld c, a                 ; C = direction
-
-    ; Unknown/neutral direction -> treat as clear
-    cp 1
-    jr z, .smtmd_load_pos
-    cp 3
-    jr z, .smtmd_load_pos
-    cp 5
-    jr z, .smtmd_load_pos
-    cp 7
-    jr z, .smtmd_load_pos
-    ld a, 1
-    jr .smtmd_done
-
-.smtmd_load_pos:
-    ld e, b
-    ld d, 0
-
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)              ; A = X (keep DE as entity index)
-
-    ld hl, entity_y_pos
-    add hl, de
-    ld e, (hl)              ; E = Y
-    ld d, a                 ; D = X
-
-    ld a, c
-    cp 1
-    jr nz, .smtmd_not_up
-    dec e
-    jr .smtmd_check
-
-.smtmd_not_up:
-    cp 5
-    jr nz, .smtmd_not_down
-    inc e
-    jr .smtmd_check
-
-.smtmd_not_down:
-    cp 7
-    jr nz, .smtmd_not_left
-    dec d
-    jr .smtmd_check
-
-.smtmd_not_left:
-    inc d                   ; RIGHT (3)
-
-.smtmd_check:
-    call check_collision_box
-    jr z, .smtmd_clear
-    xor a
-    jr .smtmd_done
-
-.smtmd_clear:
-    ld a, 1
-
-.smtmd_done:
-    pop hl
-    pop de
-    pop bc
-    ret
+; [SM_TestMoveDirection stripped - not used]
 
 Condition_KeyPressed:
+    ; Check if input is disabled for this entity
+    push hl
+    ld c, b
+    ld b, 0
+    ld hl, entity_input_disabled
+    add hl, bc
+    ld a, (hl)
+    pop hl
+    ld b, c             ; Restore B = entity index
+    or a
+    jr z, .sm_input_enabled
+    xor a               ; A = 0 (key not pressed, input disabled)
+    inc hl              ; Skip keyId param
+    ret
+.sm_input_enabled:
     ; Edge keydown: active now and inactive previous frame
     ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
     ld d, (hl)
@@ -14167,98 +16799,11 @@ Condition_KeyPressed:
     xor a
     ret
 
-Condition_KeyReleased:
-    ; Edge keyup: inactive now and active previous frame
-    ; Params: Key ID (1=Up, 5=Down, 7=Left, 3=Right, 9=Fire)
-    ld d, (hl)
-    inc hl
+; [Condition_KeyReleased stripped - not used]
 
-    ld a, d
-    cp 9
-    jr z, .ckr_fire
+; [Condition_TimeOut stripped - not used]
 
-    ; Directional edge: current inactive, previous active
-    ld a, (input_state)
-    call SM_MatchDirection
-    or a
-    jr nz, .ckr_not_released
-
-    ld a, (prev_input_state)
-    call SM_MatchDirection
-    or a
-    jr z, .ckr_not_released
-
-    ld a, 1
-    ret
-
-.ckr_fire:
-    ld a, (input_btn_curr)
-    and INPUT_BTN_FIRE
-    jr nz, .ckr_not_released
-    ld a, (input_btn_prev)
-    and INPUT_BTN_FIRE
-    jr z, .ckr_not_released
-    ld a, 1
-    ret
-
-.ckr_not_released:
-    xor a
-    ret
-
-Condition_TimeOut:
-    ; Params: Duration (1 byte) - frames to wait
-    ; Returns: A=1 if entity state timer >= duration, else A=0
-    ld a, (hl)              ; A = Duration threshold
-    inc hl
-
-    push hl                 ; Save Params Ptr
-    push af                 ; Save Duration
-
-    ; BC = Entity Index
-    ld c, b
-    ld b, 0
-
-    ; Read entity state timer (16-bit: entity_sm_timer_h:entity_sm_timer_l)
-    ld hl, entity_sm_timer_l
-    add hl, bc
-    ld e, (hl)              ; E = Timer Low
-
-    ld hl, entity_sm_timer_h
-    add hl, bc
-    ld d, (hl)              ; D = Timer High
-
-    ; Compare timer (DE) with duration (stored in stack)
-    pop af                  ; A = Duration threshold
-    ld b, a                 ; B = Duration
-
-    ; Since duration is 8-bit, compare low byte first
-    ; If timer_low >= duration, return true
-    ld a, e                 ; A = Timer Low
-    cp b
-    jr nc, .timeout_true    ; Timer Low >= Duration -> true
-
-    ; If timer_high > 0, definitely >= duration (since duration is 8-bit max 255)
-    ld a, d
-    or a
-    jr nz, .timeout_true
-
-    ; Timer < Duration
-.timeout_false:
-    xor a                   ; A = 0 (false)
-    pop hl
-    ret
-
-.timeout_true:
-    ld a, 1                 ; A = 1 (true)
-    pop hl
-    ret
-
-Condition_CanMove:
-    ; Params: direction key id (1/3/5/7)
-    ld a, (hl)
-    inc hl
-    call SM_TestMoveDirection
-    ret
+; [Condition_CanMove stripped - not used]
 
 Condition_HasCollision:
     ; Params: collisionType (0=any, 1=wall, 2=enemy, 3=item, 4=entity)
@@ -14314,42 +16859,26 @@ Condition_HasCollision:
 
 .chc_enemy:
     ld a, e
-    and #02
+    and COLLISION_EVENT_ENEMY
     jr z, .chc_none
     ld a, 1
     ret
 
 .chc_item:
     ld a, e
-    and #04
+    and COLLISION_EVENT_ITEM
     jr z, .chc_none
     ld a, 1
     ret
 
 .chc_entity:
     ld a, e
-    and #01
+    and COLLISION_EVENT_ENTITY
     jr z, .chc_none
     ld a, 1
     ret
 
-Condition_PathClear:
-    ; Params: direction key id (1/3/5/7), 0 = deduce from velocity
-    ld a, (hl)
-    inc hl
-    or a
-    jr nz, .cpc_have_direction
-    call SM_DeduceDirectionFromVelocity
-    or a
-    jr z, .cpc_idle
-
-.cpc_have_direction:
-    call SM_TestMoveDirection
-    ret
-
-.cpc_idle:
-    ld a, 1                 ; Idle has clear path by definition
-    ret
+; [Condition_PathClear stripped - not used]
 
 Condition_OnWallCollision:
     ; Params: direction key id (0=any, 1=up, 5=down, 7=left, 3=right)
@@ -14425,7 +16954,7 @@ Condition_DeadlyTile:
     ; Output: A = 1 (touching deadly tile) or 0 (safe)
     ; Destroys: DE, HL
     push hl
-    ld hl, entity_deadly_collision
+    ld hl, entity_flag_deadly_tile
     ld e, b
     ld d, 0
     add hl, de
@@ -14435,240 +16964,83 @@ Condition_DeadlyTile:
     ret                           ; A = 1 if deadly, 0 if safe
 
 Condition_AnimComplete:
-    ; TODO: Implement animation complete check
+    ; One-shot event latched by update_animation_component when
+    ; a non-loop animation reaches its final frame.
+    ; Consume-on-read semantics prevents repeated transitions.
+    push hl
+    ld hl, entity_anim_flags
+    ld e, b
+    ld d, 0
+    add hl, de
+    bit 3, (hl)                    ; ANIM_FLAG_COMPLETED
+    jr z, .anim_complete_false
+    res 3, (hl)                    ; consume event
     ld a, 1
+    pop hl
     ret
 
-Condition_KeyAndMove:
-    ; Params: keyId, directionId (0 means derive from key/velocity)
-    ld d, (hl)              ; keyId
-    inc hl
-    ld c, (hl)              ; directionId
-    inc hl
-
-    ; First: key active (level check)
-    ld a, d
-    cp 9
-    jr z, .ckam_fire
-    ld a, (input_state)
-    call SM_MatchDirection
-    or a
-    jr z, .ckam_false
-    jr .ckam_check_move
-
-.ckam_fire:
-    ld a, (input_btn_curr)
-    and INPUT_BTN_FIRE
-    jr z, .ckam_false
-
-.ckam_check_move:
-    ld a, c
-    or a
-    jr nz, .ckam_have_dir
-
-    ld a, d
-    cp 9
-    jr z, .ckam_from_velocity
-    ld a, d
-    jr .ckam_have_dir
-
-.ckam_from_velocity:
-    call SM_DeduceDirectionFromVelocity
-    or a
-    jr z, .ckam_false
-
-.ckam_have_dir:
-    call SM_TestMoveDirection
-    ret
-
-.ckam_false:
+.anim_complete_false:
     xor a
+    pop hl
     ret
 
-Condition_VariableCompare:
-    ; Params: VarID (1 byte), Operator (1 byte), Value (1 byte)
-    ; Input: B = Entity Index, HL = Params Ptr
-    ; Output: A = 1 (true) or 0 (false), HL = Updated Ptr
-    ; Supports entity variables (ID 0-5) and global variables (ID 6+)
+; [Condition_KeyAndMove stripped - not used]
 
-    ld a, (hl)              ; A = Variable ID
-    inc hl
-    ld c, (hl)              ; C = Operator ID
-    inc hl
-    ld d, (hl)              ; D = Compare Value
-    inc hl
-
-    push hl                 ; Save updated params ptr
-    push bc                 ; Save Operator and Entity Index
-    push de                 ; Save Compare Value
-
-    ; Check if VarID < 6 (entity variable) or >= 6 (global variable)
-    cp 6
-    jr nc, .get_global_var
-
-    ; Entity variables (ID 0-5)
-    ld c, b                 ; C = Entity Index
-    ld b, 0                 ; BC = Entity Index
-
-    cp 0                    ; Check if x
-    jr z, .get_x
-    cp 1                    ; Check if y
-    jr z, .get_y
-    cp 2                    ; Check if vx
-    jr z, .get_vx
-    cp 3                    ; Check if vy
-    jr z, .get_vy
-    cp 4                    ; Check if isOnGround
-    jr z, .get_on_ground
-    ; cp 5: health (fall through)
-
-.get_health:
-    ld hl, entity_health_current
-    add hl, bc
-    ld e, (hl)
-    jr .do_compare
-
-.get_global_var:
-    ; VarID >= 6: Global variable
-    ; Get address from SM_GlobalVarTable
-    sub 6                   ; A = VarID - 6
-    ld l, a
-    ld h, 0
-    add hl, hl              ; HL = (VarID - 6) * 2
-
-    push de                 ; Save Compare Value
-    ld de, SM_GlobalVarTable
-    add hl, de              ; HL = &SM_GlobalVarTable[VarID - 6]
-
-    ; Read address from table
-    ld e, (hl)
-    inc hl
-    ld d, (hl)              ; DE = address of global variable
-
-    ; Read value
-    ld a, (de)              ; A = global variable value
-    ld e, a                 ; E = variable value
-    pop de                  ; Restore Compare Value to D
-    jr .do_compare
-
-.get_x:
-    ld hl, entity_x_pos
-    add hl, bc
-    ld e, (hl)              ; E = entity x position
-    jr .do_compare
-
-.get_y:
-    ld hl, entity_y_pos
-    add hl, bc
-    ld e, (hl)              ; E = entity y position
-    jr .do_compare
-
-.get_vx:
-    ld hl, entity_vel_x
-    add hl, bc
-    ld e, (hl)              ; E = entity x velocity
-    jr .do_compare
-
-.get_vy:
-    ld hl, entity_vel_y
-    add hl, bc
-    ld e, (hl)              ; E = entity y velocity
-    jr .do_compare
-
-.get_on_ground:
-    ld hl, entity_on_ground
-    add hl, bc
-    ld a, (hl)
-    and #01                 ; Extract bit 0
-    ld e, a                 ; E = 1 if on ground, 0 if in air
-    jr .do_compare
-
-.do_compare:
-    ; E = Variable Value
-    ; Stack: Compare Value (D), Operator (C in saved BC), Entity Index
-    pop hl                  ; HL = Compare Value (D in H)
-    ld d, h                 ; D = Compare Value
-    pop bc                  ; C = Operator ID, B = Entity Index (restore)
-    pop hl                  ; HL = Updated Params Ptr
-    
-    ; Now: E = Variable Value, D = Compare Value, C = Operator
-    ; Perform comparison based on operator
-    ld a, c                 ; A = Operator ID
-    
-    cp 0                    ; == operator
-    jr z, .op_equals
-    cp 1                    ; != operator
-    jr z, .op_not_equals
-    cp 2                    ; > operator
-    jr z, .op_greater
-    cp 3                    ; < operator
-    jr z, .op_less
-    cp 4                    ; >= operator
-    jr z, .op_greater_equal
-    cp 5                    ; <= operator
-    jr z, .op_less_equal
-    
-    ; Invalid operator, return false
-    ld a, 0
-    ret
-
-.op_equals:
-    ld a, e                 ; A = Variable Value
-    cp d                    ; Compare with D
-    jr z, .return_true
-    jr .return_false
-
-.op_not_equals:
-    ld a, e
-    cp d
-    jr nz, .return_true
-    jr .return_false
-
-.op_greater:
-    ld a, e
-    cp d
-    jr z, .return_false     ; If equal, not greater
-    jr nc, .return_true     ; If no carry, E >= D, so E > D (since not equal)
-    jr .return_false
-
-.op_less:
-    ld a, e
-    cp d
-    jr c, .return_true      ; If carry, E < D
-    jr .return_false
-
-.op_greater_equal:
-    ld a, e
-    cp d
-    jr nc, .return_true     ; If no carry, E >= D
-    jr .return_false
-
-.op_less_equal:
-    ld a, e
-    cp d
-    jr z, .return_true      ; If equal
-    jr c, .return_true      ; If carry, E < D
-    jr .return_false
-
-.return_true:
-    ld a, 1
-    ret
-
-.return_false:
-    ld a, 0
-    ret
-    
-
+; [Condition_VariableCompare stripped - not used]
 ; ==================================================================
 ; GLOBAL VARIABLES TABLE
 ; ==================================================================
-; No global variables defined
+; Maps variable IDs (6+) to their RAM addresses
+; ID 6 = gem_count, ID 7 = last_gem_char, ID 8+ = user globals
 SM_GlobalVarTable:
-    ; Empty table (no global variables)
+    DW gem_count            ; ID 6: gem_count
+    DW last_gem_char        ; ID 7: last_gem_char (char of last collected tile)
 
 ; ==================================================================
 ; STATE MACHINE DATA
 ; ==================================================================
+
+; ==================================================================
+; TEMPLATE PROFILE TABLES
+; ==================================================================
+SM_TemplateProfileCount EQU 12
+SM_TemplateSpriteTable:
+    DB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 7
+SM_TemplateAnimSpeedTable:
+    DB 6, 8, 10, 15, 6, 6, 6, 6, 6, 6, 6, 6, 6
+SM_TemplateHealthCurrentTable:
+    DB 1, 3, 1, 1, 1, 3, 1, 3, 3, 3, 1, 1, 1
+SM_TemplateHealthMaxTable:
+    DB 1, 3, 1, 1, 1, 3, 1, 3, 3, 3, 1, 1, 1
+
+; ==================================================================
+; STATE MACHINE SPRITE RUNTIME TABLES
+; NOTE: frame bank is derived from the frame pointer at runtime.
+; This keeps ChangeSprite compatible with post-export ZX0 label remaps.
+; ==================================================================
+SM_SpriteAssetCount EQU 10
+SM_SpritePatternPtrTable:
+    DW SPRITE_0_PATTERN
+    DW SPRITE_1_PATTERN
+    DW SPRITE_2_PATTERN
+    DW SPRITE_3_PATTERN
+    DW SPRITE_4_PATTERN
+    DW SPRITE_5_PATTERN
+    DW SPRITE_6_PATTERN
+    DW SPRITE_7_PATTERN
+    DW SPRITE_8_PATTERN
+    DW SPRITE_9_PATTERN
+
+; ==================================================================
+; STATE MACHINE SOUND ASSET TABLES
+; PLAY_SOUND exports a one-shot 60Hz frame stream per sound asset.
+; Channel loops are flattened to a single pass to avoid stuck PSG.
+; Hardware envelopes are not emitted yet in this state-machine path.
+; ==================================================================
+SM_SoundFrameSize EQU 11
+SM_SoundAssetCount EQU 0
+SM_SoundPtrTable:
+    DW 0
 
 ; State Machine: player_sm (statemachine_1761075121583) 
 SM_player_sm_state_1761075124676: 
@@ -14686,37 +17058,38 @@ SM_player_sm_state_1761075124676_Transitions:
     DB 2          ; collisionType: enemy
     DW SM_player_sm_state_1761075128298 
     DW SM_player_sm_state_1761075124676_Transitions_Actions_0 
-SM_player_sm_state_1761075124676_Transitions_Actions_0: 
-    DB 5; CHANGE_SPRITE 
-    DB 4; sprite: hero_dead 
-    DB 0xFF; END
     DB 4; KEY_PRESSED 
     DB 0          ; Key: keyn
     DW SM_player_sm_state_1761075124676 
     DW SM_player_sm_state_1761075124676_Transitions_Actions_1 
-SM_player_sm_state_1761075124676_Transitions_Actions_1: 
-    DB 26; BREAK_TILE 
-    ; Params not implemented for BREAK_TILE
-    DB 0xFF; END
     DB 4; KEY_PRESSED 
     DB 0          ; Key: keyn
     DW SM_player_sm_state_1761075124676 
     DW SM_player_sm_state_1761075124676_Transitions_Actions_2 
-SM_player_sm_state_1761075124676_Transitions_Actions_2: 
-    DB 26; BREAK_TILE 
-    ; Params not implemented for BREAK_TILE
-    DB 0xFF; END
     DB 11; HAS_DEADLY_TILE_COLLISION 
     DW SM_player_sm_state_1761075128298 
     DW SM_player_sm_state_1761075124676_Transitions_Actions_3 
-SM_player_sm_state_1761075124676_Transitions_Actions_3: 
-    DB 5; CHANGE_SPRITE 
-    DB 4; sprite: hero_dead 
-    DB 0xFF; END
     DB 8; HAS_COLLISION 
     DB 3          ; collisionType: item
     DW SM_player_sm_state_1761075124676 
     DW SM_player_sm_state_1761075124676_Transitions_Actions_4 
+
+SM_player_sm_state_1761075124676_Transitions_Actions_0: 
+    DB 5; CHANGE_SPRITE 
+    DB 4; sprite: hero_dead 
+    DB 0xFF; END
+SM_player_sm_state_1761075124676_Transitions_Actions_1: 
+    DB 27; BREAK_TILE 
+    DB 0, 2        ; BREAK_TILE dir=left
+    DB 0xFF; END
+SM_player_sm_state_1761075124676_Transitions_Actions_2: 
+    DB 27; BREAK_TILE 
+    DB 0, 3        ; BREAK_TILE dir=right
+    DB 0xFF; END
+SM_player_sm_state_1761075124676_Transitions_Actions_3: 
+    DB 5; CHANGE_SPRITE 
+    DB 4; sprite: hero_dead 
+    DB 0xFF; END
 SM_player_sm_state_1761075124676_Transitions_Actions_4: 
     DB 4; APPLY_FORCE 
     DB 0, -1 
@@ -14734,9 +17107,10 @@ SM_player_sm_state_1761075128298_Transitions:
     DB 12; ANIMATION_COMPLETE 
     DW SM_player_sm_state_1761164765068 
     DW SM_player_sm_state_1761075128298_Transitions_Actions_0 
+
 SM_player_sm_state_1761075128298_Transitions_Actions_0: 
-    DB 25; RESPAWN_PLAYER 
-    ; Params not implemented for RESPAWN_PLAYER
+    DB 26; RESPAWN_PLAYER 
+    DB 255, 255 
     DB 0xFF; END
 
 SM_player_sm_state_1761164765068: 
@@ -14749,6 +17123,7 @@ SM_player_sm_state_1761164765068_Transitions:
     DB 12; ANIMATION_COMPLETE 
     DW SM_player_sm_state_1761075124676 
     DW SM_player_sm_state_1761164765068_Transitions_Actions_0 
+
 SM_player_sm_state_1761164765068_Transitions_Actions_0: 
     DB 5; CHANGE_SPRITE 
     DB 0; sprite: hero 
@@ -14940,6 +17315,8 @@ gameflow_handle_worldlink:
 
 .after_load:
     ; Set game state
+    xor a
+    ld (gameflow_exit_requested), a
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
 
@@ -15055,6 +17432,10 @@ show_text_screen:
     djnz .sts_clear_loop
 
 .sts_render:
+    ; Background loaders may overwrite character patterns/colors used for text.
+    ; Restore font before rendering text lines.
+    call init_font_system
+
     ; Now render each text line
     pop hl                        ; (1) HL = pointer to numLines
     ld a, (hl)                    ; A = numLines
@@ -15122,6 +17503,7 @@ wait_for_fire:
     ; Wait for fire button press
 .wait_press:
     halt
+
     ld a, 0                       ; Trigger 0 = space bar
     call GTTRIG
     or a
@@ -15130,6 +17512,7 @@ wait_for_fire:
     ; Wait for fire button release
 .wait_release:
     halt
+
     ld a, 0
     call GTTRIG
     or a
@@ -15139,6 +17522,8 @@ wait_for_fire:
     ld b, 5
 .delay_loop:
     halt
+    push bc
+    pop bc
     djnz .delay_loop
 
     pop bc
@@ -15162,10 +17547,8 @@ print_string_vram:
     ; Write character to VRAM
     push hl
     push de
-    push af                       ; Save character
     ex de, hl                     ; HL = VRAM address (from DE)
-    pop af                        ; Restore character to A
-    call WRTVRM                   ; Write A to VRAM at HL
+    call FAST_WRTVRM              ; Write A to VRAM at HL (direct port)
     pop de
     pop hl
 
@@ -15270,6 +17653,18 @@ gameflow_world_game_loop:
     or a
     ret nz
 
+    ; Frame sync first: start each tick exactly on V-Blank edge
+    halt
+    ; Upload sprites right after V-Blank edge (60/50 Hz frame-paced)
+    call update_sprites_to_vram
+
+    ; Animated transform tiles do VRAM read-modify-write, so update them
+    ; near the V-Blank edge before the expensive gameplay work.
+    call update_animated_tiles
+
+    ; Poll input in main loop (avoids BIOS-in-ISR compatibility issues)
+    call task_update_input
+
     ; Handle world screen edge transitions (Preview parity)
     call check_world_screen_transition
 
@@ -15279,11 +17674,10 @@ gameflow_world_game_loop:
     ; Execute all state machines
     call execute_all_state_machines
 
-    ; Update sprites to VRAM
-    call update_sprites_to_vram
+    ; Update timed PSG sound effects
+    call sfx_update
 
-    ; Wait for V-Blank
-    halt
+    ; Sprite SAT upload runs once per frame, outside ISR (done at frame start).
 
     ; Loop
     jp gameflow_world_game_loop
@@ -15433,10 +17827,13 @@ clear_sprite_table:
     ld bc, 128           ; 128 bytes (32 sprites × 4 bytes)
     ld a, #D1            ; Y=209 (off-screen)
 .cst_loop:
+    push af
+    push bc
     push hl
-    ld c, a
     call WRTVRM          ; Write to VRAM
     pop hl
+    pop bc
+    pop af
     inc hl
     dec bc
     ld a, b
@@ -15464,10 +17861,13 @@ clear_vram_areas:
     ld bc, 6144
     ld a, 0
 .clear_patterns:
+    push af
+    push bc
     push hl
-    ld c, a
     call WRTVRM
     pop hl
+    pop bc
+    pop af
     inc hl
     dec bc
     ld a, b
@@ -15479,10 +17879,13 @@ clear_vram_areas:
     ld bc, 6144
     ld a, #F0            ; White on black
 .clear_colors:
+    push af
+    push bc
     push hl
-    ld c, a
     call WRTVRM
     pop hl
+    pop bc
+    pop af
     inc hl
     dec bc
     ld a, b
@@ -15643,10 +18046,13 @@ load_world_worldmap_1760724209990:
     ld a, 0
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
 
     xor a
     ld (screen_transition_cooldown), a
 
+    call apply_collected_tiles     ; Re-apply persistent collection state for this screen
     ret
 
 ; ==================================================================
@@ -15667,6 +18073,9 @@ transition_worldmap_1760724209990_0:
     ld a, 0
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 
 ; Transition: pan3 -> pan2
@@ -15678,6 +18087,9 @@ transition_worldmap_1760724209990_1:
     ld a, 1
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 
 ; Transition: pan4 -> pan3
@@ -15689,6 +18101,9 @@ transition_worldmap_1760724209990_2:
     ld a, 2
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 
 ; Transition: pan5 -> pan4
@@ -15700,6 +18115,9 @@ transition_worldmap_1760724209990_3:
     ld a, 3
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 
 ; Transition: New Screenmap -> pan5
@@ -15711,6 +18129,9 @@ transition_worldmap_1760724209990_4:
     ld a, 4
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 
 ; Transition: pan7 -> New Screenmap
@@ -15722,6 +18143,9 @@ transition_worldmap_1760724209990_5:
     ld a, 5
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 
 ; Transition: pan7 -> pan4
@@ -15733,6 +18157,9 @@ transition_worldmap_1760724209990_6:
     ld a, 3
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
+    call apply_collected_tiles     ; Re-apply persistent collection state
     ret
 
 ; ==================================================================
@@ -15751,36 +18178,30 @@ check_world_screen_transition:
     ld (screen_transition_cooldown), a
     ret
 
-    ; Find first ACTIVE entity with Input component in current screen
+    ; Find first controllable entity from active list (already filtered by screen)
+    ; This avoids scanning all 32 entity slots every frame.
 .find_player_start:
-    ld b, MAX_ENTITIES
-    ld e, 0
-    ld d, 0
-.find_player_loop:
-    ; Check entity active flag
-    ld hl, entity_active
-    add hl, de
-    ld a, (hl)
+    ld a, (active_entity_count)
     or a
-    jr z, .find_player_next
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+.find_player_loop:
+    ; E = entity index from compact active list
+    ld e, (hl)
+    inc hl
+    ld d, 0
 
     ; Check Input component mask
+    push hl
     ld hl, entity_comp_masks
     add hl, de
     ld a, (hl)
     and COMP_MASK_INPUT
-    jr z, .find_player_next
-
-    ; Check entity belongs to current screen
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jr z, .player_found
+    pop hl
+    jr nz, .player_found
 
 .find_player_next:
-    inc e
     djnz .find_player_loop
     ret                        ; No controllable entity found
 
@@ -15796,22 +18217,22 @@ check_world_screen_transition:
 check_transition_world_worldmap_1760724209990:
     ld a, (current_screen_index)
     cp 0
-    jp z, .screen_0
+    jp z, check_transition_worldmap_1760724209990_screen_0
     cp 1
-    jp z, .screen_1
+    jp z, check_transition_worldmap_1760724209990_screen_1
     cp 2
-    jp z, .screen_2
+    jp z, check_transition_worldmap_1760724209990_screen_2
     cp 3
-    jp z, .screen_3
+    jp z, check_transition_worldmap_1760724209990_screen_3
     cp 4
-    jp z, .screen_4
+    jp z, check_transition_worldmap_1760724209990_screen_4
     cp 5
-    jp z, .screen_5
+    jp z, check_transition_worldmap_1760724209990_screen_5
     cp 6
-    jp z, .screen_6
+    jp z, check_transition_worldmap_1760724209990_screen_6
     ret
 
-.screen_0:
+check_transition_worldmap_1760724209990_screen_0:
     ; West exit: X near left edge and leftward input
     ld a, (input_state)
     cp STICK_LEFT
@@ -15835,6 +18256,8 @@ check_transition_worldmap_1760724209990_s0_apply_west:
     ld a, 1
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -15854,12 +18277,13 @@ check_transition_worldmap_1760724209990_s0_apply_west:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s0_skip_west:
     ret
 
-.screen_1:
+check_transition_worldmap_1760724209990_screen_1:
     ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
@@ -15883,6 +18307,8 @@ check_transition_worldmap_1760724209990_s1_apply_east:
     ld a, 0
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -15902,6 +18328,7 @@ check_transition_worldmap_1760724209990_s1_apply_east:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s1_skip_east:
@@ -15928,6 +18355,8 @@ check_transition_worldmap_1760724209990_s1_apply_west:
     ld a, 2
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -15947,12 +18376,13 @@ check_transition_worldmap_1760724209990_s1_apply_west:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s1_skip_west:
     ret
 
-.screen_2:
+check_transition_worldmap_1760724209990_screen_2:
     ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
@@ -15976,6 +18406,8 @@ check_transition_worldmap_1760724209990_s2_apply_east:
     ld a, 1
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -15995,6 +18427,7 @@ check_transition_worldmap_1760724209990_s2_apply_east:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s2_skip_east:
@@ -16014,6 +18447,8 @@ check_transition_worldmap_1760724209990_s2_apply_south:
     ld a, 3
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16033,12 +18468,13 @@ check_transition_worldmap_1760724209990_s2_apply_south:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s2_skip_south:
     ret
 
-.screen_3:
+check_transition_worldmap_1760724209990_screen_3:
     ; West exit: X near left edge and leftward input
     ld a, (input_state)
     cp STICK_LEFT
@@ -16062,6 +18498,8 @@ check_transition_worldmap_1760724209990_s3_apply_west:
     ld a, 6
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16081,6 +18519,7 @@ check_transition_worldmap_1760724209990_s3_apply_west:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s3_skip_west:
@@ -16100,6 +18539,8 @@ check_transition_worldmap_1760724209990_s3_apply_south:
     ld a, 4
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16119,6 +18560,7 @@ check_transition_worldmap_1760724209990_s3_apply_south:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s3_skip_south:
@@ -16138,6 +18580,8 @@ check_transition_worldmap_1760724209990_s3_apply_north:
     ld a, 2
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16157,12 +18601,13 @@ check_transition_worldmap_1760724209990_s3_apply_north:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s3_skip_north:
     ret
 
-.screen_4:
+check_transition_worldmap_1760724209990_screen_4:
     ; West exit: X near left edge and leftward input
     ld a, (input_state)
     cp STICK_LEFT
@@ -16186,6 +18631,8 @@ check_transition_worldmap_1760724209990_s4_apply_west:
     ld a, 5
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16205,6 +18652,7 @@ check_transition_worldmap_1760724209990_s4_apply_west:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s4_skip_west:
@@ -16224,6 +18672,8 @@ check_transition_worldmap_1760724209990_s4_apply_north:
     ld a, 3
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16243,12 +18693,13 @@ check_transition_worldmap_1760724209990_s4_apply_north:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s4_skip_north:
     ret
 
-.screen_5:
+check_transition_worldmap_1760724209990_screen_5:
     ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
@@ -16272,6 +18723,8 @@ check_transition_worldmap_1760724209990_s5_apply_east:
     ld a, 4
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16291,6 +18744,7 @@ check_transition_worldmap_1760724209990_s5_apply_east:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s5_skip_east:
@@ -16310,6 +18764,8 @@ check_transition_worldmap_1760724209990_s5_apply_north:
     ld a, 6
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16329,12 +18785,13 @@ check_transition_worldmap_1760724209990_s5_apply_north:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s5_skip_north:
     ret
 
-.screen_6:
+check_transition_worldmap_1760724209990_screen_6:
     ; East exit: X near right edge and rightward input
     ld a, (input_state)
     cp STICK_RIGHT
@@ -16358,6 +18815,8 @@ check_transition_worldmap_1760724209990_s6_apply_east:
     ld a, 3
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16377,6 +18836,7 @@ check_transition_worldmap_1760724209990_s6_apply_east:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s6_skip_east:
@@ -16396,6 +18856,8 @@ check_transition_worldmap_1760724209990_s6_apply_south:
     ld a, 5
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ld hl, entity_screen_id
     add hl, de
     ld (hl), a
@@ -16415,6 +18877,7 @@ check_transition_worldmap_1760724209990_s6_apply_south:
     ; Debounce immediate re-trigger
     ld a, 8
     ld (screen_transition_cooldown), a
+    call apply_collected_tiles     ; Re-apply persistent collection state for new screen
     ret
 
 check_transition_worldmap_1760724209990_s6_skip_south:
@@ -16441,6 +18904,8 @@ get_current_screen_index:
 set_current_screen:
     ld (current_screen_index), a
     ld (current_screen_id), a
+    ld hl, active_entity_list_dirty
+    ld (hl), 1
     ret
 
 ; ==================================================================
@@ -16469,11 +18934,11 @@ init_game_systems:
     call load_color_bank1
     call load_color_bank2
 
+    ; Initialize animated tile runtime (safe no-op if no animated groups)
+    call init_animated_tiles
+
     ; Initialize game entities with real positions from JSON
     call init_entities
-
-    ; Initialize sound system
-    call GICINI               ; Initialize PSG
 
     ; Load the first game screen
     call load_game_screen

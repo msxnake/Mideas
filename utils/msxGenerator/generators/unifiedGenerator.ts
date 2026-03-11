@@ -148,7 +148,11 @@ ${analysis.entities && analysis.entities.length > 0 ? files['entities.asm'] : ';
 
 ${hasMenus ? files['menus.asm'] : '; [menus.asm skipped - no menus]\n'}
 
-${needsFont ? files['font.asm'] : '; [font.asm skipped - no text/menus]\n'}
+${needsFont ? files['font.asm'] : `; [font.asm skipped - no text/menus]
+init_font_system:
+    ret
+
+`}
 
 ${hasHud ? files['hud.asm'] : '; [hud.asm skipped - no HUD elements]\n'}
 

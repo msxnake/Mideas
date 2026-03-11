@@ -314,18 +314,7 @@ position_update_loop:
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jr z, position_next_entity ; Skip velocity if no movement/input source
 
-    ; Skip entities that are not in the currently active screen
-    ; Preserve HL because it is the entity_comp_masks loop pointer.
-    push hl
-    ld hl, entity_screen_id
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    pop hl
-    jp nz, position_next_entity
+    ; active_entity_list already guarantees current_screen_id membership
 
     push bc
     push hl
@@ -421,16 +410,7 @@ sprite_update_loop:
     and COMP_MASK_SPRITE       ; Check if has sprite component
     jp z, sprite_next_entity   ; Skip if no sprite component (jp because distance > 127 bytes)
 
-    ; Skip inactive entities (prevents ghost sprite rendering)
-    push hl
-    ld hl, entity_active
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    pop hl
-    or a
-    jp z, sprite_next_entity
+    ; active_entity_list already excludes inactive entities
 
     ; Check if entity is in current screen (multi-screen support)
     push bc
@@ -1872,18 +1852,7 @@ function generateInputSystem(): string {
             and COMP_MASK_INPUT        ; Check if has input component
             jp z, input_next_entity    ; Skip if no input component
 
-            ; Skip entities that are not in the currently active screen
-            ; Preserve HL because it is the entity_comp_masks loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, input_next_entity
+            ; active_entity_list already guarantees current_screen_id membership
 
             ; Check if input is disabled for this entity (DISABLE_INPUT action)
             push hl
@@ -2275,18 +2244,7 @@ gravity_update_loop:
             and #02; Check COMP_MASK_GRAVITY(#0200) => bit 1 in high byte
             jr z, gravity_next_entity; Skip if no gravity component
 
-    ; Skip entities that are not in the currently active screen
-    ; Preserve HL because it is the entity_comp_masks_hi loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, gravity_next_entity
+    ; active_entity_list already guarantees current_screen_id membership
 
     ; Entity has gravity - apply acceleration
             push bc
@@ -5250,11 +5208,6 @@ function generateTileInteractionSystem(
     const hudSyncCode = tileCollectorConfig.targetVariable?.asmName === 'global_var_score'
         ? `    ; Keep HUD Score text in sync with the updated global variable.
     push de
-    ld a, (${tileCollectorConfig.targetVariable.asmName})
-    ld l, a
-    ld a, (${tileCollectorConfig.targetVariable.asmName}+1)
-    ld h, a
-    call update_hud_score
     call force_render_hud
     pop de
 `
@@ -5768,27 +5721,8 @@ check_tile_interaction:
     and COMP_MASK_INPUT
     jp z, .ti_next                 ; No input component → skip
 
-    ; Mirror Preview timing for deadly tiles only on entities that opt in
-    ; through comp_deadly_tiles.
-    ld hl, entity_comp_masks_hi
-    add hl, de
-    ld a, (hl)
-    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
-    jr nz, .ti_update_deadly
-
-    ld hl, entity_flag_deadly_tile
-    add hl, de
-    res 0, (hl)
-    jr .ti_deadly_done
-
-.ti_update_deadly:
-    push bc
-    push de
-    call update_entity_deadly_flag_runtime
-    pop de
-    pop bc
-
-.ti_deadly_done:
+    ; Deadly state is produced earlier by update_deadly_tiles_component.
+    ; Tile interaction only consumes entity_flag_deadly_tile.
 
     ; Get center X
     ld hl, entity_x_pos
@@ -6986,13 +6920,12 @@ update_collision_component:
         code += generateGetBehaviorTile(romMode);
     }
 
-    // Wall hitbox helpers are also reused by deadly-tile probes and the
-    // late-frame tile interaction deadly check. When WallCollision is absent,
-    // emit the helpers on their own so those call sites still assemble.
+    // Wall hitbox helpers are required by WallCollision itself and are also
+    // reused by deadly-tile probes / late-frame tile interaction.
     const needsWallHitboxHelpers =
         usedComponents.has('DeadlyTiles') ||
         (hasInteractableTiles && usedComponents.has('Input'));
-    if (!usedComponents.has('WallCollision') && needsWallHitboxHelpers) {
+    if (!usedComponents.has('WallCollision') && (usedComponents.has('Collision') || needsWallHitboxHelpers)) {
         code += generateWallHitboxHelpers();
     }
 
@@ -7295,7 +7228,8 @@ apply_collected_tiles:
     code += generateUpdateAllEntities(usedComponents, !!analysis.hasGameFlow);
 
     // Generate execute_all_state_machines function - called by GameFlow game loop
-    code += `
+    if (usedComponents.has('StateMachine') && Array.isArray(analysis.stateMachines) && analysis.stateMachines.length > 0) {
+        code += `
 ; ==================================================================
 ; EXECUTE ALL STATE MACHINES - Called by GameFlow
 ; ==================================================================
@@ -7348,6 +7282,17 @@ execute_all_state_machines:
     ret
 
 `;
+    } else {
+        code += `
+; ==================================================================
+; EXECUTE ALL STATE MACHINES - Called by GameFlow
+; ==================================================================
+; No state machines are present in this build.
+execute_all_state_machines:
+    ret
+
+`;
+    }
 
     // Tile Collision System
     code += `
@@ -7549,6 +7494,26 @@ div_a_by_c:
     ret
 
 `;
+
+    if (usedComponents.has('WallCollision')) {
+        const wallHitboxHelpersBlock = generateWallHitboxHelpers();
+        const firstWallHitboxHelper = code.indexOf(wallHitboxHelpersBlock);
+        const lastWallHitboxHelper = code.lastIndexOf(wallHitboxHelpersBlock);
+
+        // Collision/deadly projects without WallCollision still need the shared helper block.
+        // When WallCollision is present, that system already embeds the helpers inline.
+        // If a shared copy slipped in earlier, remove only the first duplicate and keep the
+        // WallCollision-local copy so all call sites still resolve to the same contract.
+        if (
+            firstWallHitboxHelper !== -1 &&
+            lastWallHitboxHelper !== -1 &&
+            firstWallHitboxHelper !== lastWallHitboxHelper
+        ) {
+            code =
+                code.slice(0, firstWallHitboxHelper) +
+                code.slice(firstWallHitboxHelper + wallHitboxHelpersBlock.length);
+        }
+    }
 
     // End of file
     code += `

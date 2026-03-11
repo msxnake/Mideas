@@ -1,0 +1,152 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\unitedCompressedFiles.asm",
+  "metrics": {
+    "original_line_count": 19181,
+    "output_line_count": 19122,
+    "net_line_delta": -59,
+    "applied_patches": 6,
+    "by_rule": {
+      "active-list-redundant-screen-check": {
+        "findings": 3,
+        "patchable": 3,
+        "routines": [
+          "update_gravity_component",
+          "update_input_component",
+          "update_position_component"
+        ],
+        "removed_lines": 30
+      },
+      "active-list-redundant-active-check": {
+        "findings": 1,
+        "patchable": 1,
+        "routines": [
+          "update_sprite_component"
+        ],
+        "removed_lines": 9
+      },
+      "deadly-recompute-in-tile-interaction": {
+        "findings": 1,
+        "patchable": 1,
+        "routines": [
+          "check_tile_interaction"
+        ],
+        "removed_lines": 19
+      },
+      "hud-double-work": {
+        "findings": 1,
+        "patchable": 1,
+        "routines": [
+          "check_tile_interaction"
+        ],
+        "removed_lines": 1
+      }
+    },
+    "rom_validation": {
+      "original": {
+        "path": "C:\\Users\\salam\\AppData\\Local\\Temp\\post-asm-glass-64bzxs3o\\unitedCompressedFiles.original.rom",
+        "size_bytes": 22847,
+        "sha256": "d86c33dcde3f9768621a8d1a0c9b7d83aa298c310e76cfd04ce9d9d7a8bf42e4"
+      },
+      "optimized": {
+        "path": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\unitedCompressedFiles.optimized.rom",
+        "size_bytes": 22755,
+        "sha256": "9e0b139d0d9ffe712564d97915fa12b5c771cf6b95e7a03fd40aa203a3a0d3f7"
+      },
+      "delta_bytes": -92,
+      "same_sha256": false
+    }
+  },
+  "findings": [
+    {
+      "rule_id": "active-list-redundant-screen-check",
+      "title": "Redundant screen filter after active_entity_list",
+      "routine": "update_position_component",
+      "line_start": 2419,
+      "line_end": 2428,
+      "summary": "Routine `update_position_component` rechecks `entity_screen_id` against `current_screen_id` after iterating `active_entity_list`, which already encodes current-screen membership.",
+      "patchable": true,
+      "patch": {
+        "start_index": 2418,
+        "end_index": 2428,
+        "replacement_lines": [],
+        "reason": "Remove redundant current_screen_id filter after active_entity_list."
+      }
+    },
+    {
+      "rule_id": "active-list-redundant-active-check",
+      "title": "Redundant entity_active check after active_entity_list",
+      "routine": "update_sprite_component",
+      "line_start": 2518,
+      "line_end": 2526,
+      "summary": "Routine `update_sprite_component` rechecks `entity_active` after iterating `active_entity_list`, which already excludes inactive entities.",
+      "patchable": true,
+      "patch": {
+        "start_index": 2517,
+        "end_index": 2526,
+        "replacement_lines": [],
+        "reason": "Remove redundant entity_active filter after active_entity_list."
+      }
+    },
+    {
+      "rule_id": "active-list-redundant-screen-check",
+      "title": "Redundant screen filter after active_entity_list",
+      "routine": "update_input_component",
+      "line_start": 3839,
+      "line_end": 3848,
+      "summary": "Routine `update_input_component` rechecks `entity_screen_id` against `current_screen_id` after iterating `active_entity_list`, which already encodes current-screen membership.",
+      "patchable": true,
+      "patch": {
+        "start_index": 3838,
+        "end_index": 3848,
+        "replacement_lines": [],
+        "reason": "Remove redundant current_screen_id filter after active_entity_list."
+      }
+    },
+    {
+      "rule_id": "active-list-redundant-screen-check",
+      "title": "Redundant screen filter after active_entity_list",
+      "routine": "update_gravity_component",
+      "line_start": 4804,
+      "line_end": 4813,
+      "summary": "Routine `update_gravity_component` rechecks `entity_screen_id` against `current_screen_id` after iterating `active_entity_list`, which already encodes current-screen membership.",
+      "patchable": true,
+      "patch": {
+        "start_index": 4803,
+        "end_index": 4813,
+        "replacement_lines": [],
+        "reason": "Remove redundant current_screen_id filter after active_entity_list."
+      }
+    },
+    {
+      "rule_id": "deadly-recompute-in-tile-interaction",
+      "title": "Deadly flag recomputed inside tile interaction",
+      "routine": "check_tile_interaction",
+      "line_start": 6461,
+      "line_end": 6479,
+      "summary": "Tile interaction recomputes deadly state late in the frame. This overlaps with earlier deadly/collision passes. A prior `update_deadly_tiles_component` pass already runs earlier in `update_all_entities`, so this block can be removed.",
+      "patchable": true,
+      "patch": {
+        "start_index": 6460,
+        "end_index": 6479,
+        "replacement_lines": [],
+        "reason": "Remove duplicate deadly recomputation in check_tile_interaction; rely on earlier update_deadly_tiles_component pass."
+      }
+    },
+    {
+      "rule_id": "hud-double-work",
+      "title": "HUD score update followed by full HUD render",
+      "routine": "check_tile_interaction",
+      "line_start": 6598,
+      "line_end": 6599,
+      "summary": "Routine `check_tile_interaction` updates score digits and then forces a full HUD render. The first call can be removed because force_render_hud already re-applies score digits.",
+      "patchable": true,
+      "patch": {
+        "start_index": 6597,
+        "end_index": 6598,
+        "replacement_lines": [],
+        "reason": "Remove redundant update_hud_score immediately before force_render_hud."
+      }
+    }
+  ],
+  "applied_patches": 6
+}

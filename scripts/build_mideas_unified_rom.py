@@ -66,6 +66,24 @@ def parse_args() -> argparse.Namespace:
         help="Launch OpenMSX with generated ROM",
     )
     parser.add_argument("--openmsx-path", help="Explicit openmsx executable path")
+    parser.add_argument(
+        "--post-asm-opt",
+        action="store_true",
+        help="Run scripts/post_asm_optimize.py after generating ASM and before Glass compilation",
+    )
+    parser.add_argument(
+        "--post-asm-check-only",
+        action="store_true",
+        help="Run the post-ASM optimizer in analysis mode only; compile the original ASM",
+    )
+    parser.add_argument(
+        "--post-asm-rules",
+        help="Optional comma-separated rule ids for post_asm_optimize.py",
+    )
+    parser.add_argument(
+        "--post-asm-output",
+        help="Explicit optimized ASM output path (default: <asm>.optimized.asm)",
+    )
     return parser.parse_args()
 
 
@@ -340,6 +358,45 @@ def compile_with_glass(
     run_command(cmd, cwd=project_root)
 
 
+def maybe_run_post_asm_optimizer(
+    project_root: Path,
+    asm_output: Path,
+    glass_jar: Path,
+    enabled: bool,
+    check_only: bool,
+    rules: str | None,
+    explicit_output: str | None,
+) -> Path:
+    if not enabled and not check_only:
+        return asm_output
+
+    optimizer = project_root / "scripts" / "post_asm_optimize.py"
+    if not optimizer.exists():
+        raise FileNotFoundError(f"Post-ASM optimizer not found: {optimizer}")
+
+    output_path = (
+        Path(explicit_output).expanduser().resolve()
+        if explicit_output
+        else asm_output.with_suffix(".optimized.asm")
+    )
+    cmd = [
+        sys.executable,
+        str(optimizer),
+        "--input",
+        str(asm_output),
+    ]
+    if rules:
+        cmd.extend(["--rules", rules])
+    if enabled and not check_only:
+        cmd.extend(["--apply", "--output", str(output_path)])
+        cmd.extend(["--validate-glass", str(glass_jar)])
+
+    run_command(cmd, cwd=project_root)
+    if enabled and not check_only:
+        return output_path
+    return asm_output
+
+
 def launch_openmsx(openmsx_exec: str, rom_output: Path, project_root: Path) -> None:
     cmd = [openmsx_exec, "-cart", str(rom_output)]
     print("Running:", " ".join(cmd))
@@ -411,9 +468,19 @@ def main() -> int:
         auto_megarom=args.auto_megarom,
     )
 
+    asm_to_compile = maybe_run_post_asm_optimizer(
+        project_root=project_root,
+        asm_output=asm_output,
+        glass_jar=glass_jar,
+        enabled=args.post_asm_opt,
+        check_only=args.post_asm_check_only,
+        rules=args.post_asm_rules,
+        explicit_output=args.post_asm_output,
+    )
+
     compile_with_glass(
         glass_jar=glass_jar,
-        asm_output=asm_output,
+        asm_output=asm_to_compile,
         rom_output=rom_output,
         sym_output=sym_output,
         project_root=project_root,
@@ -426,12 +493,19 @@ def main() -> int:
     print(f"Project: {project_name}")
     print(f"JSON: {json_path}")
     print(f"ASM: {asm_output} ({asm_chars} chars)")
+    if asm_to_compile != asm_output:
+        print(f"Optimized ASM: {asm_to_compile}")
     print(f"ROM: {rom_output} (original={original_size} bytes, padded={padded_size} bytes)")
     print(f"Glass: {glass_jar}")
     print(
         "Generator config: "
         f"mode={args.rom_mode}, mapper={args.target_format}, engine={args.execution_mode}, autoMegaROM={args.auto_megarom}"
     )
+    if args.post_asm_opt or args.post_asm_check_only:
+        print(
+            "Post-ASM: "
+            f"enabled={args.post_asm_opt}, check_only={args.post_asm_check_only}, rules={args.post_asm_rules or 'all'}"
+        )
 
     if args.run_openmsx:
         try:

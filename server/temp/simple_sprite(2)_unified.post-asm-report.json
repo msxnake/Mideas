@@ -1,0 +1,12 @@
+{
+  "input": "C:\\Users\\salam\\Documents\\Programacion\\Mideas\\server\\temp\\simple_sprite(2)_unified.asm",
+  "metrics": {
+    "original_line_count": 8570,
+    "output_line_count": 8570,
+    "net_line_delta": 0,
+    "applied_patches": 0,
+    "by_rule": {}
+  },
+  "findings": [],
+  "applied_patches": 0
+}

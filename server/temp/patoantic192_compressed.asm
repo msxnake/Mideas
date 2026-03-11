@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 98187
+; Estimated payload bytes: 98188
 ; Estimated banks used: 12
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1383 bytes)
@@ -59,7 +59,7 @@
 ; BANK 09 @#0238 : statemachine.asm part 1/3 (7624 bytes)
 ; BANK 10 @#0000 : statemachine.asm part 2/3 (8192 bytes)
 ; BANK 11 @#0000 : statemachine.asm part 3/3 (1706 bytes)
-; BANK 11 @#06AA : gameflow.asm (6369 bytes)
+; BANK 11 @#06AA : gameflow.asm (6370 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -2414,18 +2414,7 @@ position_update_loop:
     and COMP_MASK_MOVEMENT | COMP_MASK_INPUT
     jr z, position_next_entity ; Skip velocity if no movement/input source
 
-    ; Skip entities that are not in the currently active screen
-    ; Preserve HL because it is the entity_comp_masks loop pointer.
-    push hl
-    ld hl, entity_screen_id
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    pop hl
-    jp nz, position_next_entity
+    ; active_entity_list already guarantees current_screen_id membership
 
     push bc
     push hl
@@ -2514,16 +2503,7 @@ sprite_update_loop:
     and COMP_MASK_SPRITE       ; Check if has sprite component
     jp z, sprite_next_entity   ; Skip if no sprite component (jp because distance > 127 bytes)
 
-    ; Skip inactive entities (prevents ghost sprite rendering)
-    push hl
-    ld hl, entity_active
-    ld e, c
-    ld d, 0
-    add hl, de
-    ld a, (hl)
-    pop hl
-    or a
-    jp z, sprite_next_entity
+    ; active_entity_list already excludes inactive entities
 
     ; Check if entity is in current screen (multi-screen support)
     push bc
@@ -3834,18 +3814,7 @@ gbt_oob:
             and COMP_MASK_INPUT        ; Check if has input component
             jp z, input_next_entity    ; Skip if no input component
 
-            ; Skip entities that are not in the currently active screen
-            ; Preserve HL because it is the entity_comp_masks loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, input_next_entity
+            ; active_entity_list already guarantees current_screen_id membership
 
             ; Check if input is disabled for this entity (DISABLE_INPUT action)
             push hl
@@ -4799,18 +4768,7 @@ gravity_update_loop:
             and #02; Check COMP_MASK_GRAVITY(#0200) => bit 1 in high byte
             jr z, gravity_next_entity; Skip if no gravity component
 
-    ; Skip entities that are not in the currently active screen
-    ; Preserve HL because it is the entity_comp_masks_hi loop pointer.
-            push hl
-            ld hl, entity_screen_id
-            ld e, c
-            ld d, 0
-            add hl, de
-            ld a, (hl)
-            ld hl, current_screen_id
-            cp (hl)
-            pop hl
-            jp nz, gravity_next_entity
+    ; active_entity_list already guarantees current_screen_id membership
 
     ; Entity has gravity - apply acceleration
             push bc
@@ -6456,27 +6414,8 @@ check_tile_interaction:
     and COMP_MASK_INPUT
     jp z, .ti_next                 ; No input component → skip
 
-    ; Mirror Preview timing for deadly tiles only on entities that opt in
-    ; through comp_deadly_tiles.
-    ld hl, entity_comp_masks_hi
-    add hl, de
-    ld a, (hl)
-    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
-    jr nz, .ti_update_deadly
-
-    ld hl, entity_flag_deadly_tile
-    add hl, de
-    res 0, (hl)
-    jr .ti_deadly_done
-
-.ti_update_deadly:
-    push bc
-    push de
-    call update_entity_deadly_flag_runtime
-    pop de
-    pop bc
-
-.ti_deadly_done:
+    ; Deadly state is produced earlier by update_deadly_tiles_component.
+    ; Tile interaction only consumes entity_flag_deadly_tile.
 
     ; Get center X
     ld hl, entity_x_pos
@@ -6591,11 +6530,6 @@ check_tile_interaction:
     ld (hl), a
     ; Keep HUD Score text in sync with the updated global variable.
     push de
-    ld a, (global_var_score)
-    ld l, a
-    ld a, (global_var_score+1)
-    ld h, a
-    call update_hud_score
     call force_render_hud
     pop de
 
@@ -18013,7 +17947,7 @@ text_gfn_1773061671607_prompt:
 
 gameflow_node_gfn_1773061671607_conn:
     db CONNECTION_DEFAULT
-    dw gameflow_node_gfn_1772275295906
+    dw gameflow_node_gf_start_1770754183471
     db CONNECTION_END
 
 

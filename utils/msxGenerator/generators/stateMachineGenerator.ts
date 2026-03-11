@@ -5060,6 +5060,8 @@ export function generateStateMachineSystem(
 ): string {
     let asm = Z80_RUNTIME_ENGINE + '\n' + Z80_DISPATCH_TABLE + '\n\n';
     const hasHardwareSprites = Array.isArray(sprites) && sprites.length > 0;
+    const hasLivesGlobal = Array.isArray(globalVariables) &&
+        globalVariables.some((variable: any) => String(variable?.asmName || '').trim() === 'global_var_lives');
 
     asm = asm.replace(
         /Action_CleanSprites:[\s\S]*?Action_ExitCurrentWorld:/,
@@ -5087,6 +5089,13 @@ Action_ExitCurrentWorld:`
     if (stateMachines.length > 0) {
         const { usedActions, usedConditions } = collectUsedActionsAndConditions(stateMachines);
         asm = applyConditionalHandlers(asm, usedActions, usedConditions);
+    }
+
+    if (!hasLivesGlobal) {
+        asm = asm.replace(
+            /[ \t]*ld \(global_var_lives\), a\s*; Keep FSM global "Lives" in sync with entity health\r?\n/g,
+            ''
+        );
     }
 
     // Build sprite name -> asset index map for CHANGE_SPRITE actions.
