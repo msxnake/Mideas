@@ -996,6 +996,8 @@ function generateNodeHandlers(nodeTypes: string[], analysis: ProjectAnalysis, ex
 
 .after_load:
     ; Set game state
+    xor a
+    ld (gameflow_exit_requested), a
     ld a, FLOW_STATE_GAME
     ld (current_flow_state), a
 

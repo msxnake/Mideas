@@ -372,6 +372,8 @@ update_entities:
                 usedComponentNames.push('Jump');
             if (componentMask & 0x0200)
                 usedComponentNames.push('Gravity');
+            if (componentMask & 0x2000)
+                usedComponentNames.push('DeadlyTiles');
             // Check if entity has Input/Cursors component and extract direction restrictions
             let directionMask = 0x0F; // Default: all directions enabled (binary 00001111)
             let inputSpeed = 2; // Default cursor speed (px/frame)

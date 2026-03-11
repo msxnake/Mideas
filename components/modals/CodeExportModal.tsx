@@ -74,6 +74,13 @@ interface GeneratedFile {
   content: string;
 }
 
+interface Zx0CompressionJobProgress {
+  message?: string;
+  current?: number;
+  total?: number;
+  phase?: string;
+}
+
 export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   isOpen,
   onClose,
@@ -95,7 +102,7 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
   const [projectAnalysis, setProjectAnalysis] = useState<any>(null);
   const [romMode, setRomMode] = useState<RomMode>('simple32k');
   const [mapperFormat, setMapperFormat] = useState<MapperFormat>('konami');
-  const [executionMode, setExecutionMode] = useState<EngineExecutionMode>('gameLoopHalt');
+  const [executionMode, setExecutionMode] = useState<EngineExecutionMode>('interruptTaskManager');
   const [lastGeneratedRomConfig, setLastGeneratedRomConfig] = useState<RomBuildConfig | null>(null);
   const [isQuickValidating, setIsQuickValidating] = useState(false);
   const [quickValidationSummary, setQuickValidationSummary] = useState<string | null>(null);
@@ -130,6 +137,8 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
       }
       setTimeout(resolve, 0);
     });
+
+  const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
   const buildBackendFetchError = (action: string, error: unknown) => {
     const details = error instanceof Error ? error.message : String(error);
@@ -369,9 +378,14 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
     }
   };
 
-  const runCompressRequest = async (sourceCode: string, projectNameInput?: string, zx0Opts?: Zx0CompressionOptions) => {
+  const runCompressRequest = async (
+    sourceCode: string,
+    projectNameInput?: string,
+    zx0Opts?: Zx0CompressionOptions,
+    onProgress?: (progress: Zx0CompressionJobProgress) => void
+  ) => {
     try {
-      const response = await fetch(buildBackendUrl('/compress-unified-asm'), {
+      const response = await fetch(buildBackendUrl('/compress-unified-asm-job'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -406,7 +420,56 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
         };
       }
 
-      return result;
+      const jobId = result.jobId;
+      if (!jobId) {
+        return {
+          success: false,
+          message: 'Compression job did not return a job ID',
+          ...result
+        };
+      }
+
+      for (;;) {
+        await sleep(180);
+
+        const statusResponse = await fetch(buildBackendUrl(`/compress-unified-asm-job/${encodeURIComponent(jobId)}`));
+        const statusText = await statusResponse.text();
+        let statusResult: any;
+
+        try {
+          statusResult = JSON.parse(statusText);
+        } catch (jsonError) {
+          return {
+            success: false,
+            message: `Compression status response error: ${statusText}`,
+            fullDetails: { jsonError, statusText, status: statusResponse.status }
+          };
+        }
+
+        const job = statusResult?.job;
+        if (job?.progress && onProgress) {
+          onProgress(job.progress);
+        }
+
+        if (!statusResponse.ok || statusResult?.success === false) {
+          return {
+            success: false,
+            message: statusResult?.details || statusResult?.error || 'Unknown compression status error',
+            ...statusResult
+          };
+        }
+
+        if (job?.status === 'completed') {
+          return job.result;
+        }
+
+        if (job?.status === 'failed') {
+          return {
+            success: false,
+            message: job.error || 'Compression job failed'
+          };
+        }
+      }
     } catch (error) {
       return {
         success: false,
@@ -743,8 +806,19 @@ export const CodeExportModal: React.FC<CodeExportModalProps> = ({
 
       try {
         setPipelineProgress(42);
-        setPipelineStatus('Compressing ZX0 blocks...');
-        const compressionResult = await runCompressRequest(bundle.mainCode, bundle.projectName, zx0Options);
+        setPipelineStatus('Preparing ZX0 compression...');
+        const compressionResult = await runCompressRequest(
+          bundle.mainCode,
+          bundle.projectName,
+          zx0Options,
+          (progress) => {
+            const total = Math.max(1, Number(progress?.total) || 1);
+            const current = Math.max(0, Math.min(total, Number(progress?.current) || 0));
+            const ratio = current / total;
+            setPipelineProgress(42 + (ratio * 18));
+            setPipelineStatus(progress?.message || 'Compressing ZX0 blocks...');
+          }
+        );
         setAsmCompressionResult(compressionResult);
 
         if (compressionResult.success && compressionResult.applied && compressionResult.compressedCode) {

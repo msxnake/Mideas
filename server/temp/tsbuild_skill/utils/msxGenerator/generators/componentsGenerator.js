@@ -21,6 +21,7 @@ const registerContract_1 = require("./registerContract");
  * @returns ASM code for update_all_entities
  */
 function generateUpdateAllEntities(usedComponents, avoidStateMachineDuplication) {
+    const emitInc16 = (symbol) => `    ld hl, ${symbol}\n    inc (hl)\n    jr nz, $+4\n    inc hl\n    inc (hl)\n`;
     let code = `
 ; ==================================================================
 ; UPDATE ALL ENTITIES - Called by GameFlow (OPTIMIZED)
@@ -40,6 +41,12 @@ ${(0, registerContract_1.buildRegisterContractComment)({
         notes: ['Do not assume any register survives this routine.'],
     })}
 update_all_entities:
+    ld hl, prof_update_all_entities_calls
+    inc (hl)
+    jr nz, .prof_update_all_entities_counted
+    inc hl
+    inc (hl)
+.prof_update_all_entities_counted:
     ; Fast path: when all entities use default job cadence (period=1, entry=0),
     ; rebuild the compact list only when entity/screen membership changes.
     ld a, (entity_job_scheduler_active)
@@ -70,7 +77,8 @@ update_all_entities:
         ['Collision', 'update_collision_component', '8b. Collision detection'],
         ['Collision', 'update_platform_riding', '8c. Platform riding'],
         ['WallCollision', 'update_wallcollision_component', '8d. Wall collision'],
-        ['TileInteraction', 'check_tile_interaction', '8e. Tile interaction (gems/collectibles)'],
+        ['DeadlyTiles', 'update_deadly_tiles_component', '8e. Deadly tiles'],
+        ['TileInteraction', 'check_tile_interaction', '8f. Tile interaction (gems/collectibles)'],
         ['Health', 'update_health_component', '9. Health/Death'],
         ['Damage', 'update_damage_component', '10. Damage'],
         ['Animation', 'update_animation_component', '11. Animation'],
@@ -91,6 +99,18 @@ update_all_entities:
             // Avoid duplicate function calls (e.g., multiple Collision entries)
             if (!processedFunctions.has(funcCall)) {
                 processedFunctions.add(funcCall);
+                const profileCounterByFunc = {
+                    update_collision_component: 'prof_collision_calls',
+                    update_wallcollision_component: 'prof_wall_calls',
+                    update_deadly_tiles_component: 'prof_deadly_calls',
+                    check_tile_interaction: 'prof_tile_interaction_calls',
+                    update_animation_component: 'prof_animation_calls',
+                    update_sprite_component: 'prof_sprite_calls',
+                };
+                const profileCounter = profileCounterByFunc[funcCall];
+                if (profileCounter) {
+                    code += emitInc16(profileCounter);
+                }
                 code += `    call ${funcCall.padEnd(30)} ; ${comment}\n`;
                 if (funcCall === 'update_shoot_component') {
                     code += `    ; Shooting may spawn entities, rebuild only if marked dirty\n`;
@@ -850,13 +870,26 @@ function generateCollisionSystem(analysis) {
     ;   - Read from the behavior map generated from the collision layer,
     ;     NOT from the visual screen layout.
     ;   - Mirror the Preview logic by sampling:
-    ;       center/middle, left/middle, right/middle, center/bottom+1.
+    ;       center/middle, left/middle, right/middle,
+    ;       left/bottom+1, center/bottom+1, right/bottom+1.
     ; This catches no-solid deadly tiles like ropes that overlap the body,
     ; not just the feet.
     ;
     ; Deadly flag uses logicalProperties.causesDamage (mapId bit 2 = #04).
     ld e, c
     ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
+    jr nz, .deadly_component_active
+
+    ld hl, entity_flag_deadly_tile
+    add hl, de
+    res 0, (hl)
+    jp .deadly_check_done
+
+.deadly_component_active:
 
     ld hl, entity_x_pos
     add hl, de
@@ -917,7 +950,7 @@ function generateCollisionSystem(analysis) {
     bit 2, a
     jr nz, .deadly_tile_found
 
-    ; Center bottom + 1 (matches Preview bottom sample and still catches
+    ; Bottom row (matches Preview bottom sample and still catches
     ; standing on deadly floors after wall-collision snap)
     ld a, (wall_hit_bottom)
     cp 191
@@ -932,6 +965,31 @@ function generateCollisionSystem(analysis) {
     srl a
     ld b, a                       ; B = bottom row
 
+    ; Left bottom
+    ld a, (wall_hit_left)
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Right bottom
+    ld a, (wall_hit_right)
+    cp 255
+    jr z, .deadly_right_bottom_ready
+    inc a
+.deadly_right_bottom_ready:
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call get_behavior_tile_nb
+    bit 2, a
+    jr nz, .deadly_tile_found
+
+    ; Center bottom
     ld a, (wall_hit_w)
     srl a
     ld c, a
@@ -954,7 +1012,7 @@ function generateCollisionSystem(analysis) {
     ld d, 0
     add hl, de
     set 0, (hl)                   ; Mark as touching deadly tile
-    jr .deadly_check_done
+    jp .deadly_check_done
 
 .no_deadly_tile:
     pop bc
@@ -4622,6 +4680,449 @@ function resolveTileCollectorRuntimeConfig(analysis) {
         bonusRespawnSeconds: 0,
     };
 }
+function generateWallHitboxHelpers() {
+    return `
+; ------------------------------------------------------------------
+; wall_build_hitbox_cache
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Compute and cache hitbox AABB and adaptive probe coordinates
+;            from entity position (wall_temp_x/y) plus collision offsets/sizes.
+;   Inputs:
+;     - DE                        = entity index (used to index per-entity arrays)
+;     - wall_temp_x               = cached entity X origin (set before calling)
+;     - wall_temp_y               = cached entity Y origin (set before calling)
+;     - entity_collision_hitbox_w[DE]: hitbox width  (0 treated as 1)
+;     - entity_collision_hitbox_h[DE]: hitbox height (0 treated as 1)
+;     - entity_collision_offset_x[DE]: signed X offset from entity origin to hitbox left
+;     - entity_collision_offset_y[DE]: signed Y offset from entity origin to hitbox top
+;   Outputs:
+;     - wall_hit_left   = hitbox left  pixel (entity_x + offset_x, clamped 0..255)
+;     - wall_hit_top    = hitbox top   pixel (entity_y + offset_y, clamped 0..255)
+;     - wall_hit_right  = left + (w-1), clamped 0..255
+;     - wall_hit_bottom = top  + (h-1), clamped 0..255
+;     - wall_hit_w      = effective width  (>= 1)
+;     - wall_hit_h      = effective height (>= 1)
+;     - wall_probe_left / wall_probe_right : X probes (inset up to 2px from sides)
+;     - wall_probe_top  / wall_probe_bottom: Y probes (inset up to 2px from top/bottom)
+;   Clobbers: AF, BC, HL
+;   Preserved: DE (entity index is never modified)
+;   Notes:
+;     - Adaptive inset: min(2, floor((right-left)/2)) and min(2, floor((bottom-top)/2)).
+;       Prevents corner-only probes for entities smaller than 4 pixels on an axis.
+;     - Call wall_add_signed_offset_clamped for offset application.
+;     - Called once at entity loop entry; called again after every position snap.
+; ------------------------------------------------------------------
+wall_build_hitbox_cache:
+    ; Width (minimum 1)
+    ld hl, entity_collision_hitbox_w
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wbhc_w_ok
+    ld a, 1
+.wbhc_w_ok:
+    ld (wall_hit_w), a
+
+    ; Height (minimum 1)
+    ld hl, entity_collision_hitbox_h
+    add hl, de
+    ld a, (hl)
+    or a
+    jr nz, .wbhc_h_ok
+    ld a, 1
+.wbhc_h_ok:
+    ld (wall_hit_h), a
+
+    ; left = entity_x + offset_x (signed, clamped)
+    ld a, (wall_temp_x)
+    ld hl, entity_collision_offset_x
+    add hl, de
+    call wall_add_signed_offset_clamped
+    ld (wall_hit_left), a
+
+    ; top = entity_y + offset_y (signed, clamped)
+    ld a, (wall_temp_y)
+    ld hl, entity_collision_offset_y
+    add hl, de
+    call wall_add_signed_offset_clamped
+    ld (wall_hit_top), a
+
+    ; right = left + (w-1), clamped
+    ld a, (wall_hit_w)
+    dec a
+    ld b, a
+    ld a, (wall_hit_left)
+    add a, b
+    jr nc, .wbhc_right_ok
+    ld a, 255
+.wbhc_right_ok:
+    ld (wall_hit_right), a
+
+    ; bottom = top + (h-1), clamped
+    ld a, (wall_hit_h)
+    dec a
+    ld b, a
+    ld a, (wall_hit_top)
+    add a, b
+    jr nc, .wbhc_bottom_ok
+    ld a, 255
+.wbhc_bottom_ok:
+    ld (wall_hit_bottom), a
+
+    ; ---- Adaptive X probes: inset = min(2, floor((right-left)/2)) ----
+    ; Purpose: avoid probing the exact corner pixels for small sprites.
+    ; For a 16px-wide entity: inset = min(2, 8) = 2.
+    ;   probe_left  = left  + 2  (2px inside left edge)
+    ;   probe_right = right - 2  (2px inside right edge)
+    ; For a 4px-wide entity: inset = min(2, 2) = 2 (probes overlap at center).
+    ; For a 2px-wide entity: inset = min(2, 1) = 1.
+    ld a, (wall_hit_left)
+    ld c, a                       ; C = left pixel
+    ld a, (wall_hit_right)
+    sub c                         ; A = width span (right - left)
+    srl a                         ; A = span / 2
+    cp 3                          ; is span/2 < 3 (i.e. inset < 2)?
+    jr c, .wbhc_inset_x_ready     ; yes: use as-is
+    ld a, 2                       ; no: cap inset at 2
+.wbhc_inset_x_ready:
+    ld b, a                       ; B = inset value
+    ld a, c
+    add a, b
+    ld (wall_probe_left), a       ; probe_left  = left  + inset
+    ld a, (wall_hit_right)
+    sub b
+    ld (wall_probe_right), a      ; probe_right = right - inset
+
+    ; ---- Adaptive Y probes: inset = min(2, floor((bottom-top)/2)) ----
+    ; Same logic on Y axis.
+    ;   probe_top    = top    + inset
+    ;   probe_bottom = bottom - inset
+    ld a, (wall_hit_top)
+    ld c, a                       ; C = top pixel
+    ld a, (wall_hit_bottom)
+    sub c                         ; A = height span (bottom - top)
+    srl a                         ; A = span / 2
+    cp 3
+    jr c, .wbhc_inset_y_ready
+    ld a, 2
+.wbhc_inset_y_ready:
+    ld b, a                       ; B = inset value
+    ld a, c
+    add a, b
+    ld (wall_probe_top), a        ; probe_top    = top    + inset
+    ld a, (wall_hit_bottom)
+    sub b
+    ld (wall_probe_bottom), a     ; probe_bottom = bottom - inset
+    ret
+
+; ------------------------------------------------------------------
+; wall_add_signed_offset_clamped
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Add a signed 8-bit offset to a pixel coordinate, clamping result to 0..255.
+;            Used to apply entity_collision_offset_x/y to entity origin (entity→hitbox).
+;   Inputs:
+;     - A  = base pixel coordinate (unsigned, 0..255)
+;     - HL = pointer to signed offset byte (-128..127)
+;   Outputs:
+;     - A  = clamp(base + offset, 0, 255)
+;   Clobbers: AF, B
+;   Preserved: C, DE, HL
+;   Notes:
+;     - Negative offset: carry=0 after add → underflow → A clamped to 0.
+;     - Positive offset: carry=1 after add → overflow → A clamped to 255.
+;     - B is used to hold the offset byte; caller must save B if needed.
+; ------------------------------------------------------------------
+wall_add_signed_offset_clamped:
+    ld b, (hl)                    ; B = signed offset
+    add a, b
+    bit 7, b
+    jr z, .wasc_positive
+    ; Negative offset: carry=0 means underflow
+    jr c, .wasc_done
+    xor a
+    ret
+.wasc_positive:
+    ; Positive offset: carry=1 means overflow
+    jr nc, .wasc_done
+    ld a, 255
+.wasc_done:
+    ret
+
+; ------------------------------------------------------------------
+; wall_sub_signed_offset_clamped
+; ------------------------------------------------------------------
+; Register Contract:
+;   Purpose: Subtract a signed 8-bit offset from a hitbox coordinate, clamping to 0..255.
+;            Used to convert hitbox left/top back to entity origin after a snap.
+;            Inverse of wall_add_signed_offset_clamped.
+;   Inputs:
+;     - A  = hitbox pixel coordinate (left or top, unsigned 0..255)
+;     - HL = pointer to signed collision offset byte (-128..127)
+;            (same pointer passed to wall_add_signed_offset_clamped when building)
+;   Outputs:
+;     - A  = clamp(hitbox - offset, 0, 255)
+;            i.e. the entity origin coordinate that produces the snapped hitbox edge
+;   Clobbers: AF, B, C
+;   Preserved: DE, HL
+;   Notes:
+;     - If offset is negative: hitbox - offset = hitbox + abs(offset).
+;       Overflow (carry clear after add) → A clamped to 255.
+;     - If offset is positive: hitbox - offset computed directly.
+;       Underflow (carry clear after sub) → A clamped to 0.
+;     - B holds the raw offset byte; C holds the original hitbox coordinate.
+; ------------------------------------------------------------------
+wall_sub_signed_offset_clamped:
+    ld c, a
+    ld b, (hl)                    ; B = signed offset
+    bit 7, b
+    jr z, .wssc_positive
+    ; offset < 0 -> hitbox - offset = hitbox + abs(offset)
+    ld a, b
+    neg
+    add a, c
+    jr nc, .wssc_done
+    ld a, 255
+    ret
+.wssc_positive:
+    ld a, c
+    sub b
+    jr nc, .wssc_done
+    xor a
+.wssc_done:
+    ret
+`;
+}
+function generateDeadlyTilesSystem() {
+    return `
+; ------------------------------------------------------------------
+; DEADLY TILES COMPONENT SYSTEM
+; Purpose:
+;   Scan active entities that carry COMP_MASK_DEADLY_TILES and update
+;   entity_flag_deadly_tile bit 0 when their hitbox overlaps a deadly
+;   behavior-map tile (TILE_DEADLY = #04).
+; Notes:
+;   - Uses the same hitbox sampling strategy as Preview/runtime helpers.
+;   - Entities without the component have the flag forcibly cleared.
+; ------------------------------------------------------------------
+  init_deadly_tiles_system:
+    xor a
+    ld (tileDead), a
+    ld (tileDeadLatched), a
+    ld (tileDeadX), a
+    ld (tileDeadY), a
+    ld (tileDeadValue), a
+
+    ld hl, entity_flag_deadly_tile
+    ld de, entity_flag_deadly_tile + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ; Seed default hitboxes so marker-only entities still have a stable
+    ; 16x16 probe area even when comp_collision is absent.
+    ld hl, entity_collision_hitbox_w
+    ld de, entity_collision_hitbox_w + 1
+    ld bc, 31
+    ld (hl), 16
+    ldir
+
+    ld hl, entity_collision_hitbox_h
+    ld de, entity_collision_hitbox_h + 1
+    ld bc, 31
+    ld (hl), 16
+    ldir
+
+    ld hl, entity_collision_offset_x
+    ld de, entity_collision_offset_x + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+
+    ld hl, entity_collision_offset_y
+    ld de, entity_collision_offset_y + 1
+    ld bc, 31
+    ld (hl), 0
+    ldir
+    ret
+
+  deadly_tiles_runtime_tile_is_deadly_nb:
+      ; Shared deadly probe helper. Mirrors the late-frame path used by
+      ; check_tile_interaction so DeadlyTiles and Tile Collector keep parity.
+      push hl
+      push de
+
+      ld hl, prof_deadly_behavior_reads
+      inc (hl)
+      jr nz, .dttid_prof_counted
+      inc hl
+      inc (hl)
+.dttid_prof_counted:
+
+      ld a, c
+      ld (tileDeadX), a
+      ld a, b
+      ld (tileDeadY), a
+  
+      ld a, b
+      cp 24
+      jr nc, .dttid_out_of_bounds
+    ld a, c
+    cp 32
+    jr nc, .dttid_out_of_bounds
+
+    ld h, 0
+    ld l, b                        ; HL = tileY
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl
+    add hl, hl                     ; HL = tileY * 32
+    ld e, c
+    ld d, 0
+    add hl, de                     ; HL = idx
+      ld de, runtime_behavior_map
+      add hl, de                     ; HL = &runtime_behavior_map[idx]
+      ld a, (hl)
+      ld (tileDeadValue), a
+      and TILE_DEADLY
+      jr .dttid_done
+  
+  .dttid_out_of_bounds:
+      ld a, #FF
+      ld (tileDeadValue), a
+      xor a
+  
+  .dttid_done:
+      pop de
+      pop hl
+    ret
+
+update_entity_deadly_flag_runtime:
+    ; Preserve the caller's entity index before building the hitbox cache.
+    ; wall_build_hitbox_cache may clobber BC, and deadly flag writes must
+    ; still target the original entity slot on every exit path.
+    push bc
+
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_x_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_x), a
+
+    ld hl, entity_y_pos
+    add hl, de
+    ld a, (hl)
+    ld (wall_temp_y), a
+
+    call wall_build_hitbox_cache
+
+    ; Deadly tiles use a single sample point at the entity center.
+    ; This avoids early kills when the hitbox edges approach a deadly tile.
+    ; Center row = top + floor(height / 2)
+    ld a, (wall_hit_h)
+    srl a
+    ld c, a
+    ld a, (wall_hit_top)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld b, a
+
+    ; Center column = left + floor(width / 2)
+    ld a, (wall_hit_w)
+    srl a
+    ld c, a
+    ld a, (wall_hit_left)
+    add a, c
+    srl a
+    srl a
+    srl a
+    ld c, a
+    call deadly_tiles_runtime_tile_is_deadly_nb
+    or a
+    jp nz, .det_found
+    jp .det_clear
+
+  .det_found:
+      pop bc
+      ld hl, entity_flag_deadly_tile
+      ld e, c
+      ld d, 0
+      add hl, de
+      set 0, (hl)
+      ld a, c
+      or a
+      ret nz
+      ld a, 1
+      ld (tileDead), a
+      ld (tileDeadLatched), a
+      ret
+  
+  .det_clear:
+      pop bc
+      ld hl, entity_flag_deadly_tile
+      ld e, c
+      ld d, 0
+      add hl, de
+      res 0, (hl)
+      ld a, c
+      or a
+      ret nz
+      xor a
+      ld (tileDead), a
+      ret
+
+update_deadly_tiles_component:
+    ld a, (active_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld hl, active_entity_list
+
+.deadly_tiles_loop:
+    ld c, (hl)
+    inc hl
+    push hl
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    pop hl
+    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
+    jr nz, .deadly_tiles_update
+
+      push bc
+      ld hl, entity_flag_deadly_tile
+      ld e, c
+      ld d, 0
+      add hl, de
+      res 0, (hl)
+      ld a, c
+      or a
+      jr nz, .deadly_tiles_skip_debug_clear
+      xor a
+      ld (tileDead), a
+.deadly_tiles_skip_debug_clear:
+      pop bc
+      jr .deadly_tiles_next
+
+.deadly_tiles_update:
+    push bc
+    call update_entity_deadly_flag_runtime
+    pop bc
+
+.deadly_tiles_next:
+    dec b
+    jp nz, .deadly_tiles_loop
+    ret
+`;
+}
 function generateTileInteractionSystem(tileCollectorConfig, canUseSoundAssetPlayback) {
     const collectionSoundAssetIndex = tileCollectorConfig.soundAssetIndex;
     const replacementTileChar = tileCollectorConfig.replacementTileChar;
@@ -5133,172 +5634,6 @@ update_slash_component:
 ${bonusRespawnRuntimeCode}
 
 ; ------------------------------------------------------------------
-; runtime_tile_is_deadly_nb
-; Purpose:
-;   Read an in-bounds tile directly from runtime_behavior_map and return only
-;   the deadly flag bit. This mirrors the collectible path, which does not go
-;   through current_behavior_map row caching.
-; Input:
-;   B = tile row (0..23)
-;   C = tile column (0..31)
-; Output:
-;   A = TILE_DEADLY when the sampled tile is deadly, otherwise 0
-; Clobbers:
-;   AF, DE, HL
-; Preserves:
-;   BC, IX, IY, SP
-; ------------------------------------------------------------------
-runtime_tile_is_deadly_nb:
-    push hl
-    push de
-
-    ld h, 0
-    ld l, b                        ; HL = tileY
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl                     ; HL = tileY * 32
-    ld e, c
-    ld d, 0
-    add hl, de                     ; HL = idx
-    ld de, runtime_behavior_map
-    add hl, de                     ; HL = &runtime_behavior_map[idx]
-    ld a, (hl)
-    and TILE_DEADLY
-
-    pop de
-    pop hl
-    ret
-
-; ------------------------------------------------------------------
-; update_entity_deadly_flag_runtime
-; Purpose:
-;   Update entity_deadly_collision for one entity using the same late-frame
-;   runtime collision map access pattern as collectible tiles. This matches
-;   Preview timing better than the early collision-system pass.
-; Input:
-;   C = entity index
-; Output:
-;   None
-; Clobbers:
-;   AF, BC, DE, HL
-; Preserves:
-;   IX, IY, SP
-; Notes:
-;   - Samples center, left, right and bottom points of the hitbox.
-;   - Uses wall_build_hitbox_cache for the same collision box the wall system uses.
-; ------------------------------------------------------------------
-update_entity_deadly_flag_runtime:
-    ld e, c
-    ld d, 0
-
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    ld (wall_temp_x), a
-
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    ld (wall_temp_y), a
-
-    call wall_build_hitbox_cache
-
-    push bc
-
-    ; Middle row = top + floor(height / 2)
-    ld a, (wall_hit_h)
-    srl a
-    ld c, a
-    ld a, (wall_hit_top)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld b, a
-
-    ; Center column = left + floor(width / 2)
-    ld a, (wall_hit_w)
-    srl a
-    ld c, a
-    ld a, (wall_hit_left)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call runtime_tile_is_deadly_nb
-    or a
-    jr nz, .udefr_found
-
-    ; Left edge (matches Preview finalHitbox.x)
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call runtime_tile_is_deadly_nb
-    or a
-    jr nz, .udefr_found
-
-    ; Right edge (matches Preview finalHitbox.x + width)
-    ld a, (wall_hit_right)
-    cp 255
-    jr z, .udefr_right_ready
-    inc a
-.udefr_right_ready:
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call runtime_tile_is_deadly_nb
-    or a
-    jr nz, .udefr_found
-
-    ; Bottom edge (matches Preview finalHitbox.y + height)
-    ld a, (wall_hit_bottom)
-    cp 191
-    jr nc, .udefr_bottom_ready
-    inc a
-.udefr_bottom_ready:
-    srl a
-    srl a
-    srl a
-    ld b, a
-
-    ld a, (wall_hit_w)
-    srl a
-    ld c, a
-    ld a, (wall_hit_left)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call runtime_tile_is_deadly_nb
-    or a
-    jr z, .udefr_clear
-
-.udefr_found:
-    pop bc
-    ld hl, entity_deadly_collision
-    ld e, c
-    ld d, 0
-    add hl, de
-    set 0, (hl)
-    ret
-
-.udefr_clear:
-    pop bc
-    ld hl, entity_deadly_collision
-    ld e, c
-    ld d, 0
-    add hl, de
-    res 0, (hl)
-    ret
-
-; ------------------------------------------------------------------
 ; check_tile_interaction
 ; Purpose:
 ;   Scan active input-driven entities against the interactable tile map,
@@ -5342,13 +5677,27 @@ check_tile_interaction:
     and COMP_MASK_INPUT
     jp z, .ti_next                 ; No input component → skip
 
-    ; Mirror Preview timing for deadly tiles using the same runtime map access
-    ; strategy as collectibles.
+    ; Mirror Preview timing for deadly tiles only on entities that opt in
+    ; through comp_deadly_tiles.
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
+    jr nz, .ti_update_deadly
+
+    ld hl, entity_flag_deadly_tile
+    add hl, de
+    res 0, (hl)
+    jr .ti_deadly_done
+
+.ti_update_deadly:
     push bc
     push de
     call update_entity_deadly_flag_runtime
     pop de
     pop bc
+
+.ti_deadly_done:
 
     ; Get center X
     ld hl, entity_x_pos
@@ -6072,6 +6421,11 @@ function generateInitComponents(usage) {
     call init_wallcollision_system
     `;
     }
+    if (usedComponents.has('DeadlyTiles')) {
+        code += `    ; Initialize deadly tile detection system
+    call init_deadly_tiles_system
+    `;
+    }
     if (usedComponents.has('Collectible')) {
         code += `    ; Initialize collectible system (stub)
     call init_collectible_system
@@ -6127,6 +6481,7 @@ COMP_HEALTH     EQU 6
 COMP_ANIMATION  EQU 7
 COMP_JUMP       EQU 8
 COMP_GRAVITY    EQU 9
+COMP_DEADLY_TILES EQU 13
 
 COMP_MASK_POSITION   EQU #0001
 COMP_MASK_SPRITE     EQU #0002
@@ -6138,6 +6493,7 @@ COMP_MASK_HEALTH     EQU #0040
 COMP_MASK_ANIMATION  EQU #0080
 COMP_MASK_JUMP       EQU #0100
 COMP_MASK_GRAVITY    EQU #0200
+COMP_MASK_DEADLY_TILES EQU #2000
 COMP_MASK_AUTO_DESTROY EQU #0400
 
     ; Minimal stub functions for compatibility
@@ -6195,6 +6551,8 @@ update_shoot_component:
     ret
 update_wallcollision_component:
     ret
+update_deadly_tiles_component:
+    ret
 update_collectible_component:
     ret
 check_tile_interaction:
@@ -6238,6 +6596,8 @@ init_platform_riding_system:
     ret
 init_wallcollision_system:
     ret
+init_deadly_tiles_system:
+    ret
 init_collectible_system:
     ret
 init_tile_interaction_system:
@@ -6257,7 +6617,13 @@ entity_on_ground    EQU temp_byte_5
 entity_gravity_vel  EQU temp_word_4
 entity_health_current EQU temp_byte_6
 entity_health_max     EQU temp_byte_7
+entity_flag_deadly_tile EQU temp_byte_8
 entity_deadly_collision EQU temp_byte_8
+tileDead EQU tileDead_dbg
+tileDeadLatched EQU tileDead_latched_dbg
+tileDeadX EQU tileDead_x_dbg
+tileDeadY EQU tileDead_y_dbg
+tileDeadValue EQU tileDead_value_dbg
 entity_invincibility_frames EQU temp_byte_9
 entity_damage_amount        EQU temp_byte_10
 entity_shoot_cooldown   EQU temp_byte_11
@@ -6347,6 +6713,7 @@ COMP_HEALTH     EQU 6; Health / damage component
 COMP_ANIMATION  EQU 7; Animation state component
 COMP_JUMP       EQU 8; Jump behavior component(platformer physics)
 COMP_GRAVITY    EQU 9; Gravity physics component
+COMP_DEADLY_TILES EQU 13; Deadly behavior-map tile detection marker
 
     ; Component flags for entity filtering(16 - bit masks for 10 + components)
 COMP_MASK_POSITION   EQU #0001; Binary: 0000000000000001
@@ -6360,6 +6727,7 @@ COMP_MASK_ANIMATION  EQU #0080; Binary: 0000000010000000
 COMP_MASK_JUMP       EQU #0100; Binary: 0000000100000000
 COMP_MASK_GRAVITY    EQU #0200; Binary: 0000001000000000
 COMP_MASK_AUTO_DESTROY EQU #0400; Binary: 0000010000000000
+COMP_MASK_DEADLY_TILES EQU #2000; Binary: 0010000000000000
 
 ; ==================================================================
 ; ANIMATION FLAGS (entity_anim_flags)
@@ -6393,8 +6761,14 @@ entity_gravity_vel  EQU temp_word_4; Accumulated gravity velocity(signed word, 6
 entity_health_current EQU temp_byte_6 ; Current health/lives (32 bytes)
 entity_health_max     EQU temp_byte_7 ; Maximum health/lives (32 bytes)
 
-    ; Deadly Tile Collision Data
-entity_deadly_collision EQU temp_byte_8 ; Flag: bit 0 = touching deadly tile (32 bytes)
+; Deadly Tile Collision Data
+entity_flag_deadly_tile EQU temp_byte_8 ; Flag: bit 0 = touching deadly tile (32 bytes)
+entity_deadly_collision EQU temp_byte_8 ; Backward-compatible alias
+tileDead EQU tileDead_dbg ; Debug byte: mirrors hero deadly contact (entity 0)
+tileDeadLatched EQU tileDead_latched_dbg ; Debug byte: latched hero deadly detection
+tileDeadX EQU tileDead_x_dbg ; Debug byte: last sampled tile X
+tileDeadY EQU tileDead_y_dbg ; Debug byte: last sampled tile Y
+tileDeadValue EQU tileDead_value_dbg ; Debug byte: raw behavior byte read
 
     ; Damage Component Data
 entity_invincibility_frames EQU temp_byte_9  ; Countdown timer for invulnerability (32 bytes)
@@ -6482,6 +6856,14 @@ update_collision_component:
     // Generate get_behavior_tile (shared utility for Collision and WallCollision)
     if (usedComponents.has('Collision') || usedComponents.has('WallCollision')) {
         code += generateGetBehaviorTile(romMode);
+    }
+    // Wall hitbox helpers are also reused by deadly-tile probes and the
+    // late-frame tile interaction deadly check. When WallCollision is absent,
+    // emit the helpers on their own so those call sites still assemble.
+    const needsWallHitboxHelpers = usedComponents.has('DeadlyTiles') ||
+        (hasInteractableTiles && usedComponents.has('Input'));
+    if (!usedComponents.has('WallCollision') && needsWallHitboxHelpers) {
+        code += generateWallHitboxHelpers();
     }
     // Generate Input System (if used)
     if (usedComponents.has('Input')) {
@@ -6717,6 +7099,19 @@ update_wallcollision_component:
     else {
         code += generateWallCollisionSystem(romMode);
     }
+    if (!usedComponents.has('DeadlyTiles')) {
+        code += `
+    ; DeadlyTiles system filtered out(not used)
+init_deadly_tiles_system:
+    ret
+
+update_deadly_tiles_component:
+    ret
+    `;
+    }
+    else {
+        code += generateDeadlyTilesSystem();
+    }
     // Generate Collectible System stub (if used)
     if (!usedComponents.has('Collectible')) {
         code += `
@@ -6770,6 +7165,12 @@ apply_collected_tiles:
 ; ==================================================================
 ; This function executes the state machine for each entity that has one
 execute_all_state_machines:
+    ld hl, prof_execute_sm_calls
+    inc (hl)
+    jr nz, .prof_execute_sm_counted
+    inc hl
+    inc (hl)
+.prof_execute_sm_counted:
     ld a, (active_entity_count)
     or a
     ret z

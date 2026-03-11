@@ -231,13 +231,18 @@ BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ((BEHAVIOR_${screenName}_${index}_
           // We expand each collision tile to cover its corresponding 8x8 char cells.
           const collisionRows = collisionLayer.length;
           const collisionCols = collisionLayer[0]?.length ?? 0;
-          const tileScaleX = collisionCols > 0 ? Math.max(1, Math.round(SCREEN_WIDTH / collisionCols)) : 1;
-          const tileScaleY = collisionRows > 0 ? Math.max(1, Math.round(SCREEN_HEIGHT / collisionRows)) : 1;
 
           for (let r = 0; r < SCREEN_HEIGHT; r++) {
             for (let c = 0; c < SCREEN_WIDTH; c++) {
-              const srcRow = Math.floor(r / tileScaleY);
-              const srcCol = Math.floor(c / tileScaleX);
+              // Use proportional mapping instead of rounded scale factors.
+              // This keeps runtime_behavior_map aligned even when the logical
+              // collision grid does not divide 32x24 exactly.
+              const srcRow = collisionRows > 0
+                ? Math.min(collisionRows - 1, Math.floor((r * collisionRows) / SCREEN_HEIGHT))
+                : 0;
+              const srcCol = collisionCols > 0
+                ? Math.min(collisionCols - 1, Math.floor((c * collisionCols) / SCREEN_WIDTH))
+                : 0;
               const tile = collisionLayer[srcRow]?.[srcCol];
               if (tile?.tileId) {
                 const tileAsset = analysis.tiles?.find((t: any) => t.id === tile.tileId);

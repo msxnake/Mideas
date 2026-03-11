@@ -120,6 +120,30 @@ export function generateVariablesFile(analysis: ProjectAnalysis): string {
   code += `frame_counter       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Frame counter (16-bit)\n`;
   currentAddress += 2;
 
+  code += `\n; Profiling counters (16-bit, cumulative)\n`;
+  code += `prof_update_all_entities_calls EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to update_all_entities\n`;
+  currentAddress += 2;
+  code += `prof_execute_sm_calls EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to execute_all_state_machines\n`;
+  currentAddress += 2;
+  code += `prof_sm_update_calls  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to SM_Update\n`;
+  currentAddress += 2;
+  code += `prof_collision_calls  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to update_collision_component\n`;
+  currentAddress += 2;
+  code += `prof_wall_calls       EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to update_wallcollision_component\n`;
+  currentAddress += 2;
+  code += `prof_deadly_calls     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to update_deadly_tiles_component\n`;
+  currentAddress += 2;
+  code += `prof_tile_interaction_calls EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to check_tile_interaction\n`;
+  currentAddress += 2;
+  code += `prof_animation_calls  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to update_animation_component\n`;
+  currentAddress += 2;
+  code += `prof_sprite_calls     EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to update_sprite_component\n`;
+  currentAddress += 2;
+  code += `prof_music_task_calls EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Calls to task_update_music\n`;
+  currentAddress += 2;
+  code += `prof_deadly_behavior_reads EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Deadly helper behavior-map reads\n`;
+  currentAddress += 2;
+
   // Screen map pointers
   code += `
 ; ==================================================================
@@ -527,8 +551,19 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   code += `temp_byte_27        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Temporary 8-bit storage (32 bytes)\n`;
   currentAddress += 32;
 
-  // Wall collision scratch variables
-  code += `\n; Wall collision temporary variables\n`;
+  code += `tileDead_dbg        EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug byte: current hero deadly contact\n`;
+  currentAddress++;
+  code += `tileDead_latched_dbg EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug byte: latched hero deadly contact\n`;
+  currentAddress++;
+  code += `tileDead_x_dbg      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug byte: last sampled deadly tile X\n`;
+  currentAddress++;
+  code += `tileDead_y_dbg      EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug byte: last sampled deadly tile Y\n`;
+  currentAddress++;
+  code += `tileDead_value_dbg  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Debug byte: last raw deadly behavior value\n`;
+  currentAddress++;
+
+    // Wall collision scratch variables
+    code += `\n; Wall collision temporary variables\n`;
   code += `wall_temp_x         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached entity X for wall checks\n`;
   currentAddress++;
   code += `wall_temp_y         EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Cached entity Y for wall checks\n`;

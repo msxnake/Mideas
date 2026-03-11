@@ -964,6 +964,12 @@ function generateDefaultTasks(analysis) {
         code += `    push bc\n`;
         code += `    push de\n`;
         code += `    push hl\n\n`;
+        code += `    ld hl, prof_music_task_calls\n`;
+        code += `    inc (hl)\n`;
+        code += `    jr nz, .music_prof_counted\n`;
+        code += `    inc hl\n`;
+        code += `    inc (hl)\n`;
+        code += `.music_prof_counted:\n`;
         code += `    call music_update\n`;
         if (analysis.stateMachines && analysis.stateMachines.length > 0) {
             code += `    call SM_UpdateSound\n`;

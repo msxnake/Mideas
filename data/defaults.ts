@@ -174,6 +174,11 @@ export const DEFAULT_COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     description: "Defines how much damage an entity inflicts upon collision or attack."
   },
   {
+    id: "comp_deadly_tiles", name: "Deadly Tiles",
+    properties: [],
+    description: "Marker component. Enables per-entity detection of deadly behavior-map tiles and updates the runtime flag used by the state machine."
+  },
+  {
     id: "comp_collectible", name: "Collectible",
     properties: [
       { name: "itemType", type: "string", defaultValue: "coin", description: "Type of collectible (e.g., 'coin', 'key', 'powerup_health')." },
@@ -374,6 +379,8 @@ export const DEFAULT_ENTITY_TEMPLATES: EntityTemplate[] = [
       { definitionId: "comp_render", defaultValues: { spriteAssetId: "placeholder_sprite_player", isVisible: true, layer: 1 } },
       { definitionId: "comp_behavior", defaultValues: { scriptAssetId: "placeholder_behavior_player_control" } },
       { definitionId: "comp_health", defaultValues: { current: 3, max: 3 } },
+      { definitionId: "comp_deadly_tiles", defaultValues: {} },
+      { definitionId: "comp_tile_collector", defaultValues: { collectionRadius: 8, collectibleTileIds: "dot,powerup,fruit", replacementTileId: "empty", targetVariable: "", incrementAmount: 0, bonusTileId: "", bonusReplacementTileId: "", bonusSoundId: "", bonusIsPersistent: false, bonusEntityEffect: "none", bonusEffectAmount: 1, bonusSlashStrength: 8, bonusRespawnSeconds: 0, isEnabled: true } },
       { definitionId: "comp_jump", defaultValues: { jumpPower: "384", maxJumps: "2" } },
       { definitionId: "comp_gravity", defaultValues: { strength: "80" } },
       { definitionId: "comp_animation", defaultValues: { currentAnimationName: "player_idle", animationSpeed: "8", animateOnlyWhenMoving: true } },

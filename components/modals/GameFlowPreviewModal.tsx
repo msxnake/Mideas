@@ -7,6 +7,7 @@ import {
     GameFlowGraph,
     ProjectAsset,
     GameFlowNode,
+    GameFlowStartNode,
     GameFlowSubMenuNode,
     GameFlowWorldLinkNode,
     GameFlowTextNode,
@@ -41,12 +42,14 @@ import {
     type ScreenWorldPosition
 } from '../../utils/screenCoordinates';
 import { getScreenModeMetrics } from '../../utils/screenModeConfig';
+import { getAllGlobalVariables } from '../../utils/globalVariablesUtils';
 import { log } from 'console';
 
 
 const ANIMATION_SPEED_MS = 200; // Fallback if sprite.animationSpeedMs is undefined
 const SCREEN2_LABEL = "SCREEN 2 (Graphics I)";
 const SCREEN5_LABEL = "SCREEN 5 (Graphics III)";
+const DEADLY_TILES_COMPONENT_ID = 'comp_deadly_tiles';
 
 const resolveScreenModeForMap = (map: ScreenMap | null, fallback: string): string => {
     if (!map) return fallback;
@@ -433,6 +436,47 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             return next;
         });
     }, [setGameGlobalVariables]);
+    const allGlobalVariables = useMemo(() => getAllGlobalVariables(allAssets), [allAssets]);
+    const applyStartNodeGlobalInitialization = useCallback((startNode: GameFlowStartNode) => {
+        const initConfig = startNode.initializeGlobals;
+        if (!initConfig?.enabled) return;
+
+        const explicitVariables = Array.isArray(initConfig.variables) ? initConfig.variables : [];
+        updateGameGlobalVariables(prev => {
+            const next: Record<string, any> = { ...prev };
+
+            if (explicitVariables.length > 0) {
+                explicitVariables.forEach(entry => {
+                    const rawName = entry?.variableName;
+                    const resolvedName = normalizeVariableName(rawName) ?? (rawName !== undefined && rawName !== null ? `${rawName}`.trim() : '');
+                    if (!resolvedName) return;
+                    next[resolvedName] = coerceGlobalVariableValue(entry.value);
+                });
+                return next;
+            }
+
+            allGlobalVariables.forEach(variable => {
+                const resolvedName = normalizeVariableName(variable.name) ?? `${variable.name}`.trim();
+                if (!resolvedName) return;
+
+                const rawInitialValue = Array.isArray(variable.values) && variable.values.length > 0
+                    ? variable.values[0]?.value
+                    : 0;
+
+                let initialValue: any = 0;
+                if (typeof rawInitialValue === 'boolean') {
+                    initialValue = rawInitialValue;
+                } else {
+                    const parsedValue = Number(rawInitialValue);
+                    initialValue = Number.isFinite(parsedValue) ? Math.trunc(parsedValue) : 0;
+                }
+
+                next[resolvedName] = initialValue;
+            });
+
+            return next;
+        });
+    }, [allGlobalVariables, updateGameGlobalVariables]);
     // HUD refresh key to make sure overlay re-paints when globals change
     const [hudVersion, setHudVersion] = useState(0);
     useEffect(() => { setHudVersion(v => v + 1); }, [gameGlobalVariables]);
@@ -454,6 +498,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const tileBufferNeedsUpdate = useRef<boolean>(false);
     const screenWorldMapRef = useRef<Map<string, ScreenWorldPosition>>(new Map()); // Multi-screen coordinate system
     const tileBufferRef = useRef<HTMLCanvasElement | null>(null);
+    const gameFlowExitRequestedRef = useRef(false);
+    const cleanSpritesNextFrameRef = useRef(false);
+    const pendingNodeTransitionRef = useRef<string | null>(null);
 
     // Music playback state
     const musicSynthesizerRef = useRef<any>(null); // AYSynthesizer instance for music
@@ -464,6 +511,12 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const currentGraphData = currentNestedGraphData || graphData;
     const { nodes, connections } = currentGraphData;
     const currentNode = nodes.find(node => node.id === currentNodeId);
+
+    useEffect(() => {
+        if (currentNode?.type === 'Start') {
+            applyStartNodeGlobalInitialization(currentNode as GameFlowStartNode);
+        }
+    }, [currentNodeId, currentNode, applyStartNodeGlobalInitialization]);
 
 
     // Refs to share state between callbacks and effects
@@ -1485,6 +1538,20 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
                     break;
                 }
 
+                case 'REGENERATE_HUD':
+                    setHudVersion(v => v + 1);
+                    break;
+
+                case 'CLEAN_SPRITES':
+                    cleanSpritesNextFrameRef.current = true;
+                    break;
+
+                case 'EXIT_CURRENT_WORLD':
+                    if (currentNode?.type === 'WorldLink') {
+                        gameFlowExitRequestedRef.current = true;
+                    }
+                    break;
+
                 case 'INCREMENT_VARIABLE': {
                     const rawVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
                     const resolvedVarName = normalizeVariableName(rawVarName) ?? (rawVarName !== undefined && rawVarName !== null ? `${rawVarName}`.trim() : undefined);
@@ -2149,7 +2216,7 @@ if (targetNodeId === 'START') {
 
 if (targetNodeId) {
     // Store the target node for deferred navigation (after frame completes)
-    (entity as any).pendingNodeTransition = targetNodeId;
+    pendingNodeTransitionRef.current = String(targetNodeId);
 }
 break;
 
@@ -2555,6 +2622,8 @@ useEffect(() => {
         heroRef.current = null;
         pressedKeys.current.clear();
         jumpKeyProcessed.current = false;
+        gameFlowExitRequestedRef.current = false;
+        pendingNodeTransitionRef.current = null;
 
         // Reset transient session state to avoid stale values between plays
         // - Clear collected item registries
@@ -2687,6 +2756,21 @@ const handleScreenTransition = useCallback((toNodeId: string) => {
 
     setCurrentScreenMap(nextScreenAsset.data as ScreenMap);
 }, [currentWorldMapGraph, allAssets]);
+
+const resolveDefaultGameFlowExitNode = useCallback((fromNodeId: string): string | null => {
+    const conn = connections.find(c => c.from.nodeId === fromNodeId);
+    if (!conn) return null;
+
+    let targetNodeId = conn.to.nodeId;
+    let targetNode = nodes.find(n => n.id === targetNodeId);
+    while (targetNode && targetNode.type === 'Waypoint') {
+        const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
+        if (!nextConn) break;
+        targetNodeId = nextConn.to.nodeId;
+        targetNode = nodes.find(n => n.id === targetNodeId);
+    }
+    return targetNodeId;
+}, [connections, nodes]);
 
 const handleKeyUp = useCallback((e: React.KeyboardEvent) => {
     // Remove both e.key and e.code for compatibility
@@ -3399,6 +3483,41 @@ useEffect(() => {
         if (!tileOnLayer || !tileOnLayer.tileId) return false;
         const tile = tileset.find(t => t.id === tileOnLayer.tileId);
         return tile?.logicalProperties?.causesDamage ?? false;
+    };
+
+    const entityHasDeadlyTilesComponent = (entity: AnimatedEntity) =>
+        entity.template.components?.some(c => c.definitionId === DEADLY_TILES_COMPONENT_ID);
+
+    const updateDeadlyTileFlagForEntity = (entity: AnimatedEntity, screenMap: ScreenMap | null) => {
+        if (!screenMap || !entityHasDeadlyTilesComponent(entity)) {
+            entity.hasDangerousTileCollision = false;
+            return;
+        }
+
+        const props = entityCollisionProps(entity);
+        let finalHitbox: { x: number; y: number; width: number; height: number };
+
+        if (props) {
+            finalHitbox = getHitboxFor(entity, props);
+        } else if (entity.sprite.hitbox) {
+            finalHitbox = {
+                x: entity.x + (entity.sprite.hitbox.offsetX ?? 0),
+                y: entity.y + (entity.sprite.hitbox.offsetY ?? 0),
+                width: entity.sprite.hitbox.width ?? entity.sprite.size.width,
+                height: entity.sprite.hitbox.height ?? entity.sprite.size.height,
+            };
+        } else {
+            finalHitbox = {
+                x: entity.x,
+                y: entity.y,
+                width: entity.sprite.size.width,
+                height: entity.sprite.size.height,
+            };
+        }
+
+        const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
+        const centerY = finalHitbox.y + Math.floor(finalHitbox.height / 2);
+        entity.hasDangerousTileCollision = checkDangerousTileAt(centerX, centerY, screenMap);
     };
 
     const renderTileMapToBuffer = (map: ScreenMap, tset: Tile[], mode: string, runtimeLayer?: ScreenTile[][]) => {
@@ -4260,25 +4379,8 @@ useEffect(() => {
         entity.x = tentativeX;
         entity.y = tentativeY;
 
-        // Check whether the player is overlapping a dangerous tile (causesDamage)
-        const finalHitbox = getHitboxFor(entity.x, entity.y);
-        const centerX = finalHitbox.x + Math.floor(finalHitbox.width / 2);
-        const centerY = finalHitbox.y + Math.floor(finalHitbox.height / 2);
-        const bottomY = finalHitbox.y + finalHitbox.height;
-
-        // Sample multiple hitbox points for better detection accuracy
-        const isDangerous =
-            checkDangerousTileAt(centerX, centerY, screenMap) ||  // Centro
-            checkDangerousTileAt(finalHitbox.x, centerY, screenMap) ||  // Izquierda
-            checkDangerousTileAt(finalHitbox.x + finalHitbox.width, centerY, screenMap) ||  // Derecha
-            checkDangerousTileAt(centerX, bottomY, screenMap);  // Abajo (pies)
-
-        // Actualizar flag para state machine
-        entity.hasDangerousTileCollision = isDangerous;
-
-        // NOTE: damage/death is not applied automatically here
-        // The state machine can look at HAS_DEADLY_TILE_COLLISION and decide what to do
-        // (e.g. transition to a "Taking Damage" or "Dead" animation state)
+        // Deadly tile detection now lives in a dedicated component pass
+        // keyed by comp_deadly_tiles so Preview matches the ECS/ASM model.
     };
 
     const entityCollisionProps = (entity: AnimatedEntity) => {
@@ -4503,6 +4605,8 @@ useEffect(() => {
         try { syncGamepadToPressedKeys(); } catch { }
         // Allow gamepad to navigate SubMenu
         try { syncGamepadForMenu(); } catch { }
+        const skipSpriteDrawThisFrame = cleanSpritesNextFrameRef.current;
+        cleanSpritesNextFrameRef.current = false;
         // Reset per-frame item collision guard
         collisionItemFrameGuardRef.current.clear();
         processedCollectibleScoreRef.current.clear();
@@ -4757,7 +4861,7 @@ useEffect(() => {
                     const useMirrored = !!(entityA.isFacingMirrored && entityA.mirroredFrameImages && entityA.mirroredFrameImages.length > 0);
                     const framesToUse = useMirrored ? (entityA.mirroredFrameImages as HTMLImageElement[]) : entityA.frameImages;
                     const img = framesToUse[entityA.currentFrame] || framesToUse[0];
-                    if (img && img.complete && img.naturalWidth > 0) {
+                    if (!skipSpriteDrawThisFrame && img && img.complete && img.naturalWidth > 0) {
                         ctx.drawImage(img, entityA.x, entityA.y);
                     }
                 }
@@ -5281,6 +5385,8 @@ useEffect(() => {
                 entityA.vx = 0;
                 entityA.vy = 0;
             }
+
+            updateDeadlyTileFlagForEntity(entityA, screenMapToRender ?? null);
 
             // --- 3. Screen transition logic (hero only) ---
             if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap && canProcessPhysics) {
@@ -5988,7 +6094,7 @@ useEffect(() => {
 
                 let imageToDraw = shouldUseMirrored ? entityA.mirroredFrameImages![entityA.currentFrame] : entityA.frameImages[entityA.currentFrame];
                 // Asegurarse de que la imagen estA cargada antes de dibujar es crucial para el rendimiento
-                if (imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
+                if (!skipSpriteDrawThisFrame && imageToDraw && imageToDraw.complete && imageToDraw.naturalWidth > 0) {
                     if (heroRef.current?.carriedBox !== entityA) { ctx.drawImage(imageToDraw, entityA.x, entityA.y); }
                 } else if (imageToDraw) {
                     // Opcional: manejar imagen no cargada (e.g., dibujar placeholder)
@@ -6002,7 +6108,7 @@ useEffect(() => {
                 const box = entityA.carriedBox;
                 if (box.frameImages.length > 0) {
                     const img = box.frameImages[box.currentFrame] || box.frameImages[0];
-                    if (img && img.complete && img.naturalWidth > 0) {
+                    if (!skipSpriteDrawThisFrame && img && img.complete && img.naturalWidth > 0) {
                         ctx.drawImage(img, box.x, box.y);
                     }
                 }
@@ -6084,13 +6190,23 @@ useEffect(() => {
 
         refreshVisibleEntityCount(currentScreenMapRef.current?.id);
 
+        if (gameFlowExitRequestedRef.current && currentNode.type === 'WorldLink') {
+            gameFlowExitRequestedRef.current = false;
+            const targetNodeId = resolveDefaultGameFlowExitNode(currentNode.id);
+            if (targetNodeId) {
+                setNavigationStack(prev => [...prev, currentNode.id]);
+                setCurrentNodeId(targetNodeId);
+                setSelectedOptionIndex(0);
+                setCurrentScreenMap(null);
+                setCurrentWorldMapGraph(null);
+                return;
+            }
+        }
+
         // --- Check for pending node transitions (from CHANGE_GAME_FLOW_NODE action) ---
-        const entityWithPendingTransition = entitiesRef.current.find(e => (e as any).pendingNodeTransition);
-        if (entityWithPendingTransition) {
-            const targetNodeId = (entityWithPendingTransition as any).pendingNodeTransition;
-            delete (entityWithPendingTransition as any).pendingNodeTransition;
-
-
+        const targetNodeId = pendingNodeTransitionRef.current;
+        if (targetNodeId) {
+            pendingNodeTransitionRef.current = null;
             // Handle different transition types
             if (currentNode.type === 'WorldLink') {
                 // World map transition
@@ -6209,7 +6325,9 @@ useEffect(() => {
                 }
 
                 if (entity.frameImages.length > 0 && entity.frameImages[0].complete) {
-                    ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
+                    if (!skipSpriteDrawThisFrame) {
+                        ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
+                    }
                 }
             });
 
@@ -6540,20 +6658,9 @@ const modalContent = (
                                 </>
                             )}
                             {currentNode?.type === 'WorldLink' && (() => {
-                                const conn = connections.find(c => c.from.nodeId === currentNode.id);
-                                return conn ? (
+                                const targetNodeId = resolveDefaultGameFlowExitNode(currentNode.id);
+                                return targetNodeId ? (
                                     <Button onClick={() => {
-                                        let targetNodeId = conn.to.nodeId;
-                                        let targetNode = nodes.find(n => n.id === targetNodeId);
-                                        while (targetNode && targetNode.type === 'Waypoint') {
-                                            const nextConn = connections.find(c => c.from.nodeId === targetNodeId);
-                                            if (nextConn) {
-                                                targetNodeId = nextConn.to.nodeId;
-                                                targetNode = nodes.find(n => n.id === targetNodeId);
-                                            } else {
-                                                break;
-                                            }
-                                        }
                                         setNavigationStack(prev => [...prev, currentNode.id]);
                                         setCurrentNodeId(targetNodeId);
                                         setSelectedOptionIndex(0);

@@ -257,6 +257,34 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
           </div>
         );
 
+      case ActionTypes.REGENERATE_HUD:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-msx-textsecondary p-2 bg-black bg-opacity-30 rounded border border-msx-border">
+              Fuerza el redibujado inmediato del HUD o marcador.
+            </div>
+          </div>
+        );
+
+      case ActionTypes.CLEAN_SPRITES:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-msx-textsecondary p-2 bg-black bg-opacity-30 rounded border border-msx-border">
+              Limpia la tabla de sprites para ocultarlos de inmediato hasta el siguiente render.
+            </div>
+          </div>
+        );
+
+      case ActionTypes.EXIT_CURRENT_WORLD:
+        return (
+          <div className="space-y-2">
+            <div className="text-xs text-msx-textsecondary p-2 bg-black bg-opacity-30 rounded border border-msx-border">
+              Sale del nodo `WorldLink` actual del GameFlow y continúa por su conexión por defecto.
+              Úsalo, por ejemplo, al derrotar al jefe final o completar la fase.
+            </div>
+          </div>
+        );
+
       case ActionTypes.SET_VARIABLE: {
         const legacyVarName = action.params.variable ?? action.params.variableName ?? action.params.name;
         const selectedVar = allVariables.find(v => v.name === legacyVarName);
@@ -907,5 +935,27 @@ export const ActionParamsEditor: React.FC<ActionParamsEditorProps> = ({ action, 
     }
   };
 
-  return <div className="mt-2 p-2 bg-msx-bgcolor-darker rounded">{renderParams()}</div>;
+  return (
+    <>
+      <style>{`
+        .state-machine-action-params input:not([type="radio"]):not([type="checkbox"]),
+        .state-machine-action-params select {
+          color: #111827;
+        }
+
+        .state-machine-action-params input::placeholder {
+          color: #6b7280;
+          opacity: 1;
+        }
+
+        .state-machine-action-params option {
+          color: #111827;
+          background: #f3f4f6;
+        }
+      `}</style>
+      <div className="state-machine-action-params mt-2 p-2 bg-msx-bgcolor-darker rounded">
+        {renderParams()}
+      </div>
+    </>
+  );
 };

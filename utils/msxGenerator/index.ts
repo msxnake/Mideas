@@ -66,7 +66,7 @@ function resolveExecutionMode(config: MSXModularConfig): EngineExecutionMode {
   if (config.executionMode) {
     return config.executionMode;
   }
-  return 'gameLoopHalt';
+  return 'interruptTaskManager';
 }
 
 function buildValidatedExecutionPlan(

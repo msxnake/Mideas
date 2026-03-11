@@ -8,7 +8,7 @@ export function buildExecutionPlan(
   analysis: ProjectAnalysis,
   config: MSXModularConfig
 ): ExecutionPlan {
-  const mode = config.executionMode ?? 'gameLoopHalt';
+  const mode = config.executionMode ?? 'interruptTaskManager';
 
   if (mode === 'gameLoopHalt') {
     return {

@@ -1,3 +1,16 @@
+## Unreleased
+
+### Bug Fixes
+
+- **State Machine `Lives` sync fix**: Updated `Action_DecLives` and `Action_IncLives` in the MSX state machine generator so they also write the final value into `global_var_lives`. This fixes exported ASM cases where `HAS_DEADLY_TILE_COLLISION` became true but `VARIABLE_COMPARE(Lives == 0)` still failed because only `entity_health_current` changed.
+- **State Machine global `VARIABLE_COMPARE` fix**: Fixed a Z80 runtime bug in `Condition_VariableCompare` where global variables (`VarID >= 6`, including `Lives`) restored `DE` in the wrong order, overwriting register `E` after reading the global byte. This made conditions like `HAS_DEADLY_TILE_COLLISION AND Lives == 3` fail in exported ASM even when `global_var_lives` had the expected value.
+
+### Documentation
+
+- **Documented State Machine global compare bug**: Added a project note describing the symptom, root cause, affected register flow, and patch for the `Lives == N` transition failure in exported ASM.
+
+---
+
 ## v0.267
 
 Released: 2026-01-01
@@ -86,4 +99,3 @@ Released: 2025-11-11
 \n
 - Clear entitiesRef, heroRef, input, registries (boxPickedUp/collected), globals, music, and HUD; reset screen/world to force clean reinit on Restart.
 \n\n
-

@@ -276,7 +276,8 @@ const GameFlowNodeComponent: React.FC<{
     : node.type === 'IfThenElse' ? `${(node as any).variableName || 'Goal'} ${(node as any).operator || '=='} ${(node as any).compareValue || 'Completed'}`
     : node.type === 'Waypoint' ? '•'
     : node.id;
-  const hasInput = node.type !== 'Start';
+  // Start can be re-entered to rerun its initialization block.
+  const hasInput = true;
   const hasOutput = node.type !== 'End' && node.type !== 'Restart';
   // In linking mode, disable pointer events on Edit buttons so clicks pass through to the node body
   const foStyle: React.CSSProperties = { pointerEvents: isLinkingMode ? 'none' : 'auto' };

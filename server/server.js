@@ -6,9 +6,10 @@
 const express = require('express');
 const cors = require('cors');
 const util = require('util');
-const { exec, execSync } = require('child_process');
+const { exec, execSync, execFile } = require('child_process');
 const fs = require('fs');
 const execAsync = util.promisify(exec);
+const execFileAsync = util.promisify(execFile);
 const path = require('path');
 const { serializeAsset } = require('./assetSerializer');
 
@@ -20,6 +21,7 @@ const ZX0_PER_BLOCK_RUNTIME_OVERHEAD_BYTES = 11;
 const SIMPLE_ROM_LIMIT_BYTES = 32 * 1024;
 const PLAIN48_ROM_LIMIT_BYTES = 48 * 1024;
 const ROM_MODE_VALUES = ['auto', 'simple32k', 'plain48k', 'megarom'];
+const zx0CompressionJobs = new Map();
 
 function isRomFileLockError(text) {
   const value = String(text || '').toLowerCase();
@@ -106,6 +108,26 @@ function runZx0Compression(inputBytes, tempDir) {
   try {
     fs.writeFileSync(inputPath, Buffer.from(inputBytes));
     execFileSync('java', ['-jar', zx0JarPath, inputPath, outputPath], { stdio: 'pipe' });
+    return fs.readFileSync(outputPath);
+  } finally {
+    try { fs.unlinkSync(inputPath); } catch (_) {}
+    try { fs.unlinkSync(outputPath); } catch (_) {}
+  }
+}
+
+async function runZx0CompressionAsync(inputBytes, tempDir) {
+  const zx0JarPath = path.join(__dirname, 'zx0.jar');
+  if (!fs.existsSync(zx0JarPath)) {
+    throw new Error(`ZX0 jar not found: ${zx0JarPath}`);
+  }
+
+  const stamp = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  const inputPath = path.join(tempDir, `zx0_screen_in_${stamp}.bin`);
+  const outputPath = path.join(tempDir, `zx0_screen_out_${stamp}.bin`);
+
+  try {
+    fs.writeFileSync(inputPath, Buffer.from(inputBytes));
+    await execFileAsync('java', ['-jar', zx0JarPath, inputPath, outputPath], { stdio: 'pipe' });
     return fs.readFileSync(outputPath);
   } finally {
     try { fs.unlinkSync(inputPath); } catch (_) {}
@@ -352,7 +374,7 @@ function buildSpriteFrameGroups(spritePatternBlocks, sourceCode) {
   return result;
 }
 
-function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}) {
+async function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}, onProgress = null) {
   const {
     screens       = true,
     behaviorMaps  = true,
@@ -460,6 +482,30 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}) {
   info.candidateFontColors = fontColorBlocks.length;
   info.candidateSpritePatterns = spritePatternBlocks.length;
 
+  const enabledProgressGroups = [
+    screens ? { phase: 'screens', label: 'Compress screen layouts', count: layoutBlocks.length } : null,
+    behaviorMaps ? { phase: 'behaviorMaps', label: 'Compress behavior maps', count: behaviorBlocks.length } : null,
+    tilePatterns ? { phase: 'tilePatterns', label: 'Compress tile patterns', count: tilePatternBlocks.length } : null,
+    tileColors ? { phase: 'tileColors', label: 'Compress tile colors', count: tileColorBlocks.length } : null,
+    fontPatterns ? { phase: 'fontPatterns', label: 'Compress font patterns', count: fontPatternBlocks.length } : null,
+    fontColors ? { phase: 'fontColors', label: 'Compress font colors', count: fontColorBlocks.length } : null,
+    spritePatterns ? { phase: 'spritePatterns', label: 'Compress sprite frames', count: spritePatternBlocks.length > 0 ? buildSpriteFrameGroups(spritePatternBlocks, sourceCode).length : 0 } : null,
+  ].filter(Boolean);
+
+  const totalProgressSteps = enabledProgressGroups.reduce((sum, group) => sum + group.count, 0);
+  let completedProgressSteps = 0;
+
+  const emitProgress = (message, phase, current = completedProgressSteps, total = totalProgressSteps) => {
+    if (typeof onProgress === 'function') {
+      onProgress({
+        message,
+        phase,
+        current,
+        total: Math.max(1, total)
+      });
+    }
+  };
+
   const selectedLayoutBlocks = new Map();
   const selectedBehaviorBlocks = new Map();
   const selectedTilePatternBlocks = new Map();
@@ -467,12 +513,19 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}) {
   const selectedFontPatternBlocks = new Map();
   const selectedFontColorBlocks = new Map();
   const selectedSpritePatternGroups = [];
+  let spriteGroups = [];
 
-  function processBlocks(blocks, kind) {
-    for (const block of blocks) {
+  if (spritePatterns && spritePatternBlocks.length > 0) {
+    spriteGroups = buildSpriteFrameGroups(spritePatternBlocks, sourceCode);
+  }
+
+  async function processBlocks(blocks, kind, phaseLabel, phaseKey) {
+    for (let index = 0; index < blocks.length; index++) {
+      const block = blocks[index];
+      emitProgress(`${phaseLabel} ${index + 1}/${blocks.length}`, phaseKey);
       info.originalBytes += block.bytes.length;
       try {
-        const compressed = runZx0Compression(block.bytes, tempDir);
+        const compressed = await runZx0CompressionAsync(block.bytes, tempDir);
         if (compressed.length < block.bytes.length) {
           const selected = {
             ...block,
@@ -509,26 +562,28 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}) {
         }
         info.compressedBytes += block.bytes.length;
       }
+      completedProgressSteps += 1;
+      emitProgress(`${phaseLabel} ${Math.min(index + 1, blocks.length)}/${blocks.length}`, phaseKey);
     }
   }
 
-  if (screens)      processBlocks(layoutBlocks, 'layout');
-  if (behaviorMaps) processBlocks(behaviorBlocks, 'behavior');
-  if (tilePatterns) processBlocks(tilePatternBlocks, 'tile_pattern');
-  if (tileColors)   processBlocks(tileColorBlocks, 'tile_color');
-  if (fontPatterns) processBlocks(fontPatternBlocks, 'font_pattern');
-  if (fontColors)   processBlocks(fontColorBlocks, 'font_color');
+  emitProgress('Preparing ZX0 blocks...', 'prepare', 0, totalProgressSteps);
 
-  if (spritePatterns && spritePatternBlocks.length > 0) {
-    // Group sprite pattern data by frame (all layers packed together):
-    // HERO_LEFT_0_F1_LAYER1 + HERO_LEFT_0_F1_LAYER2 => frame group HERO_LEFT_0_F1
-    const spriteGroups = buildSpriteFrameGroups(spritePatternBlocks, sourceCode);
+  if (screens)      await processBlocks(layoutBlocks, 'layout', 'Compress screen layouts', 'screens');
+  if (behaviorMaps) await processBlocks(behaviorBlocks, 'behavior', 'Compress behavior maps', 'behaviorMaps');
+  if (tilePatterns) await processBlocks(tilePatternBlocks, 'tile_pattern', 'Compress tile patterns', 'tilePatterns');
+  if (tileColors)   await processBlocks(tileColorBlocks, 'tile_color', 'Compress tile colors', 'tileColors');
+  if (fontPatterns) await processBlocks(fontPatternBlocks, 'font_pattern', 'Compress font patterns', 'fontPatterns');
+  if (fontColors)   await processBlocks(fontColorBlocks, 'font_color', 'Compress font colors', 'fontColors');
 
-    for (const group of spriteGroups) {
+  if (spritePatterns && spriteGroups.length > 0) {
+    for (let groupIndex = 0; groupIndex < spriteGroups.length; groupIndex++) {
+      const group = spriteGroups[groupIndex];
+      emitProgress(`Compress sprite frames ${groupIndex + 1}/${spriteGroups.length}`, 'spritePatterns');
       info.originalBytes += group.bytes.length;
 
       try {
-        const compressed = runZx0Compression(group.bytes, tempDir);
+        const compressed = await runZx0CompressionAsync(group.bytes, tempDir);
         if (compressed.length < group.bytes.length) {
           selectedSpritePatternGroups.push({
             ...group,
@@ -547,6 +602,8 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}) {
         }
         info.compressedBytes += group.bytes.length;
       }
+      completedProgressSteps += 1;
+      emitProgress(`Compress sprite frames ${Math.min(groupIndex + 1, spriteGroups.length)}/${spriteGroups.length}`, 'spritePatterns');
     }
   }
   info.spritePatternBufferSymbol = selectedSpritePatternGroups.length > 0
@@ -566,6 +623,7 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}) {
   info.netSavedBytes = info.savedBytes - routineOverhead - runtimeOverhead;
 
   if (compressedBlockCount === 0 || info.netSavedBytes <= 0) {
+    emitProgress('ZX0 compression finished', 'finalize', totalProgressSteps, totalProgressSteps);
     return { code: sourceCode, info };
   }
 
@@ -1091,6 +1149,7 @@ function injectZx0IntoUnifiedAsm(sourceCode, tempDir, options = {}) {
   }
 
   info.applied = true;
+  emitProgress('ZX0 compression finished', 'finalize', totalProgressSteps, totalProgressSteps);
   return { code: finalCode, info };
 }
 
@@ -1113,7 +1172,7 @@ app.get('/', (req, res) => {
  * @name POST /compile
  * @function
  */
-app.post('/compile', (req, res) => {
+app.post('/compile', async (req, res) => {
   const { code, generateSymbols, projectName, screenCompression, romMode, targetFormat, autoMegaROM } = req.body;
 
   console.log('Compilation request received');
@@ -1195,7 +1254,7 @@ app.post('/compile', (req, res) => {
 
   try {
     if (screenCompression !== false) {
-      const preprocessed = injectZx0IntoUnifiedAsm(code, tempDir);
+      const preprocessed = await injectZx0IntoUnifiedAsm(code, tempDir);
       codeToCompile = preprocessed.code;
       screenCompressionInfo = preprocessed.info;
 
@@ -1664,26 +1723,25 @@ app.post('/compress-unified-asm', (req, res) => {
   const compressedAsmOutputPath = path.join(tempDir, `${sanitizedProjectName}_compressed.asm`);
   const unifiedCompressedAsmOutputPath = path.join(tempDir, 'unitedCompressedFiles.asm');
 
-  try {
-    const preprocessed = injectZx0IntoUnifiedAsm(code, tempDir, zx0Options || {});
+  const buildCompressionResponse = (preprocessed) => {
     const info = preprocessed.info;
 
     if (!info.attempted) {
-      return res.json({
+      return {
         success: true,
         applied: false,
         message: 'Input is not a recognized unitedFiles.asm export',
         compressionInfo: info
-      });
+      };
     }
 
     if (!info.applied) {
-      return res.json({
+      return {
         success: true,
         applied: false,
         message: 'Compression skipped (no net gain)',
         compressionInfo: info
-      });
+      };
     }
 
     fs.writeFileSync(compressedAsmOutputPath, preprocessed.code, 'utf8');
@@ -1692,7 +1750,7 @@ app.post('/compress-unified-asm', (req, res) => {
     const compressedAsmFileName = path.basename(compressedAsmOutputPath);
     const unifiedCompressedAsmFileName = path.basename(unifiedCompressedAsmOutputPath);
 
-    return res.json({
+    return {
       success: true,
       applied: true,
       message: 'Unified ASM compressed with ZX0 successfully',
@@ -1704,7 +1762,21 @@ app.post('/compress-unified-asm', (req, res) => {
       unitedCompressedAsmFile: unifiedCompressedAsmFileName,
       unitedCompressedAsmPath: unifiedCompressedAsmOutputPath,
       unitedCompressedAsmDownloadUrl: `/download/${unifiedCompressedAsmFileName}`
-    });
+    };
+  };
+
+  try {
+    injectZx0IntoUnifiedAsm(code, tempDir, zx0Options || {})
+      .then((preprocessed) => {
+        res.json(buildCompressionResponse(preprocessed));
+      })
+      .catch((error) => {
+        res.status(500).json({
+          success: false,
+          error: 'Failed to compress unified ASM',
+          details: error.message
+        });
+      });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -1712,6 +1784,137 @@ app.post('/compress-unified-asm', (req, res) => {
       details: error.message
     });
   }
+});
+
+app.post('/compress-unified-asm-job', (req, res) => {
+  const { code, projectName, zx0Options } = req.body;
+
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ success: false, error: 'No ASM code provided' });
+  }
+
+  const tempDir = path.join(__dirname, 'temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir);
+  }
+
+  const sanitizedProjectName = projectName
+    ? projectName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_')
+    : `source_${Date.now()}`;
+
+  const compressedAsmOutputPath = path.join(tempDir, `${sanitizedProjectName}_compressed.asm`);
+  const unifiedCompressedAsmOutputPath = path.join(tempDir, 'unitedCompressedFiles.asm');
+  const jobId = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
+  const buildCompressionResponse = (preprocessed) => {
+    const info = preprocessed.info;
+
+    if (!info.attempted) {
+      return {
+        success: true,
+        applied: false,
+        message: 'Input is not a recognized unitedFiles.asm export',
+        compressionInfo: info
+      };
+    }
+
+    if (!info.applied) {
+      return {
+        success: true,
+        applied: false,
+        message: 'Compression skipped (no net gain)',
+        compressionInfo: info
+      };
+    }
+
+    fs.writeFileSync(compressedAsmOutputPath, preprocessed.code, 'utf8');
+    fs.writeFileSync(unifiedCompressedAsmOutputPath, preprocessed.code, 'utf8');
+
+    const compressedAsmFileName = path.basename(compressedAsmOutputPath);
+    const unifiedCompressedAsmFileName = path.basename(unifiedCompressedAsmOutputPath);
+
+    return {
+      success: true,
+      applied: true,
+      message: 'Unified ASM compressed with ZX0 successfully',
+      compressedCode: preprocessed.code,
+      compressionInfo: info,
+      compressedAsmFile: compressedAsmFileName,
+      compressedAsmPath: compressedAsmOutputPath,
+      compressedAsmDownloadUrl: `/download/${compressedAsmFileName}`,
+      unitedCompressedAsmFile: unifiedCompressedAsmFileName,
+      unitedCompressedAsmPath: unifiedCompressedAsmOutputPath,
+      unitedCompressedAsmDownloadUrl: `/download/${unifiedCompressedAsmFileName}`
+    };
+  };
+
+  zx0CompressionJobs.set(jobId, {
+    status: 'queued',
+    progress: {
+      message: 'Preparing ZX0 compression...',
+      phase: 'prepare',
+      current: 0,
+      total: 1
+    },
+    result: null,
+    error: null,
+    createdAt: Date.now()
+  });
+
+  res.json({
+    success: true,
+    jobId
+  });
+
+  (async () => {
+    try {
+      const job = zx0CompressionJobs.get(jobId);
+      if (job) {
+        job.status = 'running';
+      }
+
+      const preprocessed = await injectZx0IntoUnifiedAsm(code, tempDir, zx0Options || {}, (progress) => {
+        const currentJob = zx0CompressionJobs.get(jobId);
+        if (!currentJob) return;
+        currentJob.progress = progress;
+      });
+
+      const responseData = buildCompressionResponse(preprocessed);
+      const currentJob = zx0CompressionJobs.get(jobId);
+      if (currentJob) {
+        currentJob.status = 'completed';
+        currentJob.result = responseData;
+        currentJob.progress = {
+          message: 'ZX0 compression finished',
+          phase: 'finalize',
+          current: currentJob.progress?.total || 1,
+          total: currentJob.progress?.total || 1
+        };
+      }
+    } catch (error) {
+      const currentJob = zx0CompressionJobs.get(jobId);
+      if (currentJob) {
+        currentJob.status = 'failed';
+        currentJob.error = error.message || String(error);
+      }
+    }
+  })();
+});
+
+app.get('/compress-unified-asm-job/:jobId', (req, res) => {
+  const { jobId } = req.params;
+  const job = zx0CompressionJobs.get(jobId);
+  if (!job) {
+    return res.status(404).json({
+      success: false,
+      error: 'Compression job not found'
+    });
+  }
+
+  return res.json({
+    success: true,
+    job
+  });
 });
 
 /**

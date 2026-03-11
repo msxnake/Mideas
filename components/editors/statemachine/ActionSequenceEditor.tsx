@@ -5,6 +5,15 @@ import { Button } from '../../common/Button';
 import { TrashIcon } from '../../icons/MsxIcons';
 import { ActionParamsEditor } from './ActionParamsEditor';
 
+const ACTION_LABELS: Partial<Record<ActionType, string>> = {
+  [ActionTypes.CHANGE_GAME_FLOW_NODE]: 'Go To GameFlow Node',
+  [ActionTypes.REGENERATE_HUD]: 'Refresh HUD',
+  [ActionTypes.CLEAN_SPRITES]: 'Clean Sprites',
+  [ActionTypes.EXIT_CURRENT_WORLD]: 'Exit Current GameFlow Node',
+};
+
+const getActionLabel = (type: ActionType): string => ACTION_LABELS[type] || type;
+
 interface ActionSequenceEditorProps {
   actions: Action[];
   onUpdateActions: (actions: Action[]) => void;
@@ -39,7 +48,7 @@ export const ActionSequenceEditor: React.FC<ActionSequenceEditorProps> = ({ acti
         {actions.map((action, index) => (
           <li key={index} className="p-2 bg-msx-bgcolor-dark rounded">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-mono">{action.type}</span>
+              <span className="text-sm font-mono">{getActionLabel(action.type)}</span>
               <Button onClick={() => handleDeleteAction(index)} variant="danger" size="sm">
                 <TrashIcon className="w-4 h-4" />
               </Button>
@@ -61,7 +70,7 @@ export const ActionSequenceEditor: React.FC<ActionSequenceEditorProps> = ({ acti
           className="w-full p-1 text-sm bg-msx-bgcolor border border-msx-border rounded"
         >
           {Object.values(ActionTypes).map(type => (
-            <option key={type} value={type}>{type}</option>
+            <option key={type} value={type}>{getActionLabel(type)}</option>
           ))}
         </select>
         <Button onClick={handleAddAction} variant="secondary">

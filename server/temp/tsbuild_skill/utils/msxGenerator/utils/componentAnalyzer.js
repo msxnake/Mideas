@@ -29,6 +29,7 @@ const STANDARD_COMPONENT_IDS = {
     'comp_gravity': 'Gravity',
     'comp_jump': 'Jump',
     'comp_damage': 'Damage',
+    'comp_deadly_tiles': 'DeadlyTiles',
     'comp_statemachine': 'StateMachine',
     'comp_cursors': 'Cursors',
     'comp_carry': 'Carry',
@@ -161,7 +162,8 @@ function generateEntityComponentMask(entity, template, analysis) {
         'Health': 6, // Bit 6  - #0040
         'Animation': 7, // Bit 7  - #0080
         'Jump': 8, // Bit 8  - #0100 (NEW)
-        'Gravity': 9 // Bit 9  - #0200 (NEW)
+        'Gravity': 9, // Bit 9  - #0200 (NEW)
+        'DeadlyTiles': 13 // Bit 13 - #2000
     };
     // Track if entity has sprite component defined
     let hasSpriteComponent = false;

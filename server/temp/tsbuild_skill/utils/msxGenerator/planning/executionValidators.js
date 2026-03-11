@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.validateExecutionPlan = validateExecutionPlan;
+const componentAnalyzer_1 = require("../utils/componentAnalyzer");
 const IRQ_FORBIDDEN_RESPONSIBILITIES = new Set([
     'sprites',
     'hud',
@@ -10,6 +11,15 @@ const IRQ_FORBIDDEN_RESPONSIBILITIES = new Set([
 function validateExecutionPlan(plan, _analysis) {
     const errors = [...plan.diagnostics.errors];
     const warnings = [...plan.diagnostics.warnings];
+    // Validate deadly tiles require Health component
+    const hasDeadlyTiles = _analysis.tiles?.some((t) => t.logicalProperties?.causesDamage === true);
+    if (hasDeadlyTiles) {
+        const componentUsage = (0, componentAnalyzer_1.analyzeComponentUsage)(_analysis);
+        if (!componentUsage.usedComponents.has('Health')) {
+            errors.push('Tiles with "Deadly" (causesDamage) exist but no entity has the Health component. ' +
+                'Add the Health component to the hero/player entity so deadly tiles can cause damage.');
+        }
+    }
     const seenSlots = new Map();
     for (const task of plan.tasks) {
         const existing = seenSlots.get(task.slot);

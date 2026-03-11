@@ -188,19 +188,52 @@ BEHAVIOR_${screenName}_${index}_DATA_BANK EQU ((BEHAVIOR_${screenName}_${index}_
                 if (screen.layers.collision && analysis.tiles) {
                     const collisionLayer = screen.layers.collision;
                     const behaviorMapData = [];
-                    collisionLayer.forEach(row => {
-                        row.forEach(tile => {
-                            if (tile.tileId) {
+                    // CRITICAL: Behavior map must ALWAYS be 32x24 (one entry per 8x8 MSX char cell).
+                    // The collision layer may use larger logical tiles (e.g. 16x12 for 16x16 tiles).
+                    // We expand each collision tile to cover its corresponding 8x8 char cells.
+                    const collisionRows = collisionLayer.length;
+                    const collisionCols = collisionLayer[0]?.length ?? 0;
+                    for (let r = 0; r < SCREEN_HEIGHT; r++) {
+                        for (let c = 0; c < SCREEN_WIDTH; c++) {
+                            // Use proportional mapping instead of rounded scale factors.
+                            // This keeps runtime_behavior_map aligned even when the logical
+                            // collision grid does not divide 32x24 exactly.
+                            const srcRow = collisionRows > 0
+                                ? Math.min(collisionRows - 1, Math.floor((r * collisionRows) / SCREEN_HEIGHT))
+                                : 0;
+                            const srcCol = collisionCols > 0
+                                ? Math.min(collisionCols - 1, Math.floor((c * collisionCols) / SCREEN_WIDTH))
+                                : 0;
+                            const tile = collisionLayer[srcRow]?.[srcCol];
+                            if (tile?.tileId) {
                                 const tileAsset = analysis.tiles?.find((t) => t.id === tile.tileId);
-                                behaviorMapData.push(tileAsset?.logicalProperties?.mapId ?? 0);
+                                // Compute behavior byte from boolean flags directly (not mapId).
+                                // Play mode reads causesDamage/isSolid booleans; mapId may be desynchronized.
+                                const lp = tileAsset?.logicalProperties;
+                                if (lp) {
+                                    const familyId = lp.familyId ?? (lp.isSolid ? 1 : 0);
+                                    let flagBits = 0;
+                                    if (lp.isBreakable)
+                                        flagBits |= 0x01;
+                                    if (lp.isMovable)
+                                        flagBits |= 0x02;
+                                    if (lp.causesDamage)
+                                        flagBits |= 0x04;
+                                    if (lp.isInteractiveSwitch)
+                                        flagBits |= 0x08;
+                                    behaviorMapData.push((familyId << 4) | flagBits);
+                                }
+                                else {
+                                    behaviorMapData.push(0);
+                                }
                             }
                             else {
                                 behaviorMapData.push(0);
                             }
-                        });
-                    });
+                        }
+                    }
                     // Generate behavior map ASM
-                    const behaviorASM = (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, screen.width, screen.height, behaviorMapData, 'hex');
+                    const behaviorASM = (0, screenUtils_1.generateBehaviorMapASMCode)(screenNameWithIndex, SCREEN_WIDTH, SCREEN_HEIGHT, behaviorMapData, 'hex');
                     code += `\n${behaviorASM}`;
                 }
             }

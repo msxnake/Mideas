@@ -52,8 +52,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--execution-mode",
         choices=["gameLoopHalt", "interruptTaskManager"],
-        default="gameLoopHalt",
-        help="Engine execution mode passed to utils/msxGenerator (default: gameLoopHalt)",
+        default="interruptTaskManager",
+        help="Engine execution mode passed to utils/msxGenerator (default: interruptTaskManager)",
     )
     parser.add_argument(
         "--auto-megarom",

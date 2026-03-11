@@ -321,6 +321,12 @@ const Z80_RUNTIME_ENGINE = `
     ; Input: A = Entity Index
     ; ------------------------------------------------------------------
 SM_Update:
+    ld hl, prof_sm_update_calls
+    inc (hl)
+    jr nz, .sm_prof_counted
+    inc hl
+    inc (hl)
+.sm_prof_counted:
     push af
     push bc
     push de
@@ -4230,7 +4236,7 @@ Condition_DeadlyTile:
     ; Output: A = 1 (touching deadly tile) or 0 (safe)
     ; Destroys: DE, HL
     push hl
-    ld hl, entity_deadly_collision
+    ld hl, entity_flag_deadly_tile
     ld e, b
     ld d, 0
     add hl, de

@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Mideas - errores solucionados por fecha de descubrimiento</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm 16mm;
+    }
+
+    :root {
+      --ink: #1f2430;
+      --muted: #586074;
+      --line: #d7dce5;
+      --panel: #f5f7fb;
+      --accent: #0f4c81;
+      --accent-soft: #e8f0f8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      font-size: 11pt;
+      line-height: 1.45;
+      background: #fff;
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 8px 0;
+      line-height: 1.15;
+    }
+
+    h1 {
+      font-size: 24pt;
+      color: var(--accent);
+    }
+
+    h2 {
+      margin-top: 22px;
+      font-size: 15pt;
+      color: var(--accent);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 5px;
+    }
+
+    h3 {
+      font-size: 12.5pt;
+    }
+
+    p {
+      margin: 0 0 9px 0;
+    }
+
+    ul {
+      margin: 6px 0 10px 18px;
+      padding: 0;
+    }
+
+    li {
+      margin: 0 0 4px 0;
+    }
+
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.96em;
+      background: #f2f4f8;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+
+    .hero {
+      border: 1px solid var(--line);
+      background: linear-gradient(135deg, var(--accent-soft), #ffffff 62%);
+      padding: 18px 18px 14px 18px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 10pt;
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      background: var(--panel);
+      padding: 10px 12px;
+      margin: 12px 0 0 0;
+    }
+
+    .entry {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 14px 10px 14px;
+      margin: 0 0 14px 0;
+      page-break-inside: avoid;
+    }
+
+    .date {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 9.5pt;
+      letter-spacing: 0.03em;
+      margin-bottom: 10px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .cell {
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 10px 11px;
+    }
+
+    .label {
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 5px;
+    }
+
+    .small {
+      font-size: 10pt;
+      color: var(--muted);
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 10.3pt;
+    }
+
+    .table th,
+    .table td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .table th {
+      background: var(--panel);
+      color: var(--accent);
+    }
+
+    .mono {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 9.5pt;
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <h1>Mideas: errores solucionados por fecha de descubrimiento</h1>
+    <p class="meta">Informe generado el 2026-03-09 a partir de la busqueda en la raiz del proyecto, <code>docs/</code>, <code>docs/project/</code>, <code>CHANGELOG.md</code> y <code>changeLog.txt</code>.</p>
+    <div class="note">
+      <p><strong>Criterio de inclusion:</strong> solo se incluyen incidencias que tienen documentados el sintoma, la causa raiz, el fix aplicado y un resultado estable o integrado en el pipeline. Los documentos de diagnostico sin cierre se listan al final como excluidos.</p>
+      <p><strong>Fecha de descubrimiento:</strong> cuando el documento trae fecha explicita en el titulo o nombre de archivo, se usa esa fecha. Cuando no la trae, se usa la fecha del primer commit que introduce el documento y se marca como inferida.</p>
+    </div>
+  </section>
+
+  <h2>Resumen de incidencias incluidas</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Incidencia</th>
+        <th>Documento base</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>2025-09-21</td>
+        <td>Movimiento de sprite MSX sin respuesta por lectura incorrecta del teclado y saltos incompatibles</td>
+        <td class="mono">SPRITE_MOVEMENT_SOLUTION.md</td>
+      </tr>
+      <tr>
+        <td>2026-02-24</td>
+        <td>Colision entre entidades y transiciones <code>HAS_COLLISION</code> no fiables en ROM MSX</td>
+        <td class="mono">docs/MSX_COLLISION_ERROR_LOG_2026-02-24.md</td>
+      </tr>
+      <tr>
+        <td>2026-03-07</td>
+        <td>Corrupcion progresiva en tiles animados con transformacion</td>
+        <td class="mono">docs/project/ANIMATED_TILE_TRANSFORM_FIX_2026-03-07.md</td>
+      </tr>
+      <tr>
+        <td>2026-03-07</td>
+        <td>Inicializacion intermitente del sprite del heroe con asset incorrecto</td>
+        <td class="mono">docs/project/JUEGO_PATO_HERO_SPRITE_INIT_FIX_2026-03-07.md</td>
+      </tr>
+      <tr>
+        <td>2026-03-08</td>
+        <td>Deadly tiles detectados en mapa pero no aplicados al heroe</td>
+        <td class="mono">docs/project/DEADLY_TILES_RUNTIME_FIX_2026-03-08.md</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Cronologia detallada</h2>
+
+  <section class="entry">
+    <div class="date">2025-09-21 · fecha inferida por primer commit</div>
+    <h3>Movimiento de sprite MSX sin respuesta</h3>
+    <p>El documento <code>SPRITE_MOVEMENT_SOLUTION.md</code> describe un bug multiple en la prueba de movimiento del sprite: se leia la fila equivocada de la matriz del teclado MSX, los bits de cursor eran incorrectos y ademas habia saltos <code>JR</code> demasiado largos para <code>glass.jar</code>.</p>
+    <div class="grid">
+      <div class="cell">
+        <div class="label">Sintoma</div>
+        <p>El sprite aparecia en pantalla pero no se movia con los cursores, aunque la logica de movimiento base si era capaz de desplazarlo en modos de prueba.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Causa raiz</div>
+        <p>La deteccion de entrada estaba mal cableada: fila 8 en vez de 7 para cursores, bits errados y ramas de salto que podian fallar en compilacion.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Fix aplicado</div>
+        <p>Se corrige la fila del teclado a <code>7</code>, los bits <code>UP=5</code>, <code>DOWN=6</code>, <code>LEFT=4</code>, <code>RIGHT=7</code>, y se sustituyen saltos largos <code>JR</code> por <code>JP</code>.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Resultado</div>
+        <p>El documento lo da por resuelto y valida tres modos: cursores, movimiento automatico y prueba con barra espaciadora. La conclusion explicita es que el problema estaba en la deteccion de input, no en la rutina de movimiento.</p>
+      </div>
+    </div>
+    <p class="small">Fuente principal: <span class="mono">C:\Users\salam\Documents\Programacion\Mideas\SPRITE_MOVEMENT_SOLUTION.md</span></p>
+  </section>
+
+  <section class="entry">
+    <div class="date">2026-02-24 · fecha explicita del documento</div>
+    <h3>Colision entre entidades y transiciones <code>HAS_COLLISION</code> no fiables</h3>
+    <p>El log <code>docs/MSX_COLLISION_ERROR_LOG_2026-02-24.md</code> documenta un fallo de runtime en ROM MSX donde el heroe no disparaba de forma consistente las transiciones del state machine asociadas a colision.</p>
+    <div class="grid">
+      <div class="cell">
+        <div class="label">Sintoma</div>
+        <p>La colision aparecia retrasada, intermitente o no llegaba a activar la transicion <code>HAS_COLLISION</code>.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Causa raiz</div>
+        <p>Se combinaban tres problemas: corrupcion del registro <code>C</code> en el bucle de pares de entidades, temporizador <code>entity_sm_wait_timer</code> sin limpiar en <code>init_entities</code> y una ruta de debug que forzaba una bandera de colision en el bucle principal.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Fix aplicado</div>
+        <p>Se reescribe el restaurado del indice fuente para no clobber <code>C</code>, se limpia <code>entity_sm_wait_timer</code> con <code>LDIR</code> y se elimina la escritura de debug que interferia con el comportamiento real.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Resultado</div>
+        <p>El documento lo presenta como fix aplicado tanto en ASM como en el generador, y mantiene la configuracion <code>collisionType: entity</code> para que el trigger quede robusto en ese proyecto.</p>
+      </div>
+    </div>
+    <p class="small">Fuente principal: <span class="mono">C:\Users\salam\Documents\Programacion\Mideas\docs\MSX_COLLISION_ERROR_LOG_2026-02-24.md</span></p>
+  </section>
+
+  <section class="entry">
+    <div class="date">2026-03-07 · fecha explicita del documento</div>
+    <h3>Corrupcion en tiles animados con transformacion</h3>
+    <p>El informe <code>docs/project/ANIMATED_TILE_TRANSFORM_FIX_2026-03-07.md</code> recoge una investigacion sobre tiles transformados que se corrompian con el tiempo en ROM, sobre todo en los assets <code>corda</code>, <code>elevador1</code> y <code>elevador2</code>.</p>
+    <div class="grid">
+      <div class="cell">
+        <div class="label">Sintoma</div>
+        <p>Los tiles animados basados en transformaciones de VRAM degradaban patron y color durante la ejecucion. Algunos elevadores no movian correctamente las filas de color.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Causa raiz</div>
+        <p>El enfoque de lectura-modificacion-escritura directa sobre VRAM resulto fragil para este runtime. Incluso tras arreglar manejo de opcode y <code>FAST_RDVRM</code>, seguia habiendo corrupcion.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Fix aplicado</div>
+        <p>Se abandona la transformacion en vivo desde VRAM y se precomputan los frames durante la generacion. El runtime reutiliza el pipeline normal de animacion por frames.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Resultado</div>
+        <p>La solucion queda descrita como estable, con ROM y ASM de validacion, y con la recomendacion explicita de mantener este enfoque precomputado por ser mas determinista y depurable en MSX1 SCREEN 2.</p>
+      </div>
+    </div>
+    <p class="small">Fuente principal: <span class="mono">C:\Users\salam\Documents\Programacion\Mideas\docs\project\ANIMATED_TILE_TRANSFORM_FIX_2026-03-07.md</span></p>
+  </section>
+
+  <section class="entry">
+    <div class="date">2026-03-07 · fecha explicita del documento</div>
+    <h3>Sprite inicial del heroe cargando un asset incorrecto</h3>
+    <p>El documento <code>docs/project/JUEGO_PATO_HERO_SPRITE_INIT_FIX_2026-03-07.md</code> describe un bug intermitente en <em>juego pato</em>: al arrancar, el heroe podia mostrarse con un sprite incorrecto, a veces el pato, en vez de la nina.</p>
+    <div class="grid">
+      <div class="cell">
+        <div class="label">Sintoma</div>
+        <p>Desde el primer frame visible, el asset del heroe no era determinista y podia salir contaminado por otro sprite.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Causa raiz</div>
+        <p>La tabla runtime <code>entity_facing_dir</code> no se limpiaba en <code>init_entities</code>. <code>Action_ChangeSprite</code> aplicaba redirect direccional usando ese valor basura y podia indexar fuera de rango.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Fix aplicado</div>
+        <p>Se limpia <code>entity_facing_dir</code>, se fuerza facing inicial a derecha para el heroe y se anade una guardia defensiva en <code>Action_ChangeSprite</code> para ignorar facings fuera de <code>1..4</code>.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Resultado</div>
+        <p>El informe lo considera resuelto y, ademas del parche puntual sobre el ASM de validacion, deja documentado que el fix ya fue integrado en <code>entitiesGenerator.ts</code> y <code>stateMachineGenerator.ts</code>.</p>
+      </div>
+    </div>
+    <p class="small">Fuente principal: <span class="mono">C:\Users\salam\Documents\Programacion\Mideas\docs\project\JUEGO_PATO_HERO_SPRITE_INIT_FIX_2026-03-07.md</span></p>
+  </section>
+
+  <section class="entry">
+    <div class="date">2026-03-08 · fecha explicita del documento</div>
+    <h3>Deadly tiles detectados pero no aplicados al heroe</h3>
+    <p>El documento <code>docs/project/DEADLY_TILES_RUNTIME_FIX_2026-03-08.md</code> describe una situacion en la que el mapa runtime marcaba correctamente tiles mortales, pero la bandera <code>entity_flag_deadly_tile</code> no se escribia en la entidad del heroe.</p>
+    <div class="grid">
+      <div class="cell">
+        <div class="label">Sintoma</div>
+        <p>El sistema de deteccion leía valores validos <code>#04</code> y <code>#14</code> en <code>runtime_behavior_map</code>, pero el heroe no moria y la condicion del state machine permanecia falsa.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Causa raiz</div>
+        <p>La rutina <code>update_entity_deadly_flag_runtime</code> recibia el indice de entidad en <code>C</code> y llamaba a <code>wall_build_hitbox_cache</code> antes de preservar <code>BC</code>, por lo que el indice podia quedar corrupto.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Fix aplicado</div>
+        <p>Se mueve <code>push bc</code> a la primera instruccion de la rutina y se mantiene el esquema de salida con <code>pop bc</code>. Asi se garantiza que la bandera mortal se escribe sobre el slot correcto.</p>
+      </div>
+      <div class="cell">
+        <div class="label">Resultado</div>
+        <p>El informe aporta comprobaciones de regresion en OpenMSX y lo describe como fix aplicado en <code>componentsGenerator.ts</code>, con trazas de debug estables para validar el valor leido y la bandera latcheada.</p>
+      </div>
+    </div>
+    <p class="small">Fuente principal: <span class="mono">C:\Users\salam\Documents\Programacion\Mideas\docs\project\DEADLY_TILES_RUNTIME_FIX_2026-03-08.md</span></p>
+  </section>
+
+  <h2>Documentos localizados pero excluidos del informe principal</h2>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Documento</th>
+        <th>Fecha</th>
+        <th>Motivo de exclusion</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="mono">TILE_COLLISION_BUG_REPORT.md</td>
+        <td>2026-02-12</td>
+        <td>Describe bien el problema y propone un fix de 2 lineas, pero el propio documento deja la validacion en checklist y habla de "After Fix" como paso pendiente, no como cierre confirmado.</td>
+      </tr>
+      <tr>
+        <td class="mono">docs/project/PT3_MAPPER_HANDOFF_2026-03-06.md</td>
+        <td>2026-03-06</td>
+        <td>Es un estado de migracion y una ruta de continuacion. Documenta diagnostico y decisiones, pero no un error ya resuelto.</td>
+      </tr>
+      <tr>
+        <td class="mono">docs/project/patoantic134_hook_job_register_audit_2026-03-05.md</td>
+        <td>2026-03-05</td>
+        <td>Es una auditoria tecnica con hallazgos y recomendaciones; no deja un fix cerrado ni validado como solucion definitiva.</td>
+      </tr>
+      <tr>
+        <td class="mono">CHANGELOG.md / changeLog.txt</td>
+        <td>varias</td>
+        <td>Contienen muchos fixes resumidos a nivel de release, pero no siempre ofrecen la narrativa completa de sintoma, causa raiz y validacion requerida para este informe consolidado.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Conclusiones</h2>
+  <p>La mayor parte de los fixes bien documentados encontrados en el repo se concentran en el pipeline MSX/ASM de febrero y marzo de 2026, con un antecedente claro en septiembre de 2025 sobre lectura de teclado y compatibilidad de ensamblado. El patron repetido es consistente: varios errores nacen por contratos de registros no preservados, RAM no inicializada o estrategias runtime fragiles que quedaron mas solidas al moverse a generacion previa.</p>
+  <p>En terminos de riesgo tecnico, los fixes mejor cerrados son los que no solo corrigen ASM puntual, sino que tambien dejan el cambio integrado en generadores como <code>componentsGenerator.ts</code>, <code>entitiesGenerator.ts</code>, <code>stateMachineGenerator.ts</code> y <code>animatedTilesGenerator.ts</code>.</p>
+</body>
+</html>
