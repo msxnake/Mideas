@@ -111,6 +111,13 @@ Las tres rutas consultan hitbox y behavior map en el mismo frame, y conviene med
 - `SM_CheckTransitions`: medir coste real tras optimizacion nueva en escenas con muchas guards.
 - `gameflow_world_game_loop`: volver a evaluar VDP polling solo como modo opcional (no default), con profiling en OpenMSX.
 - `gameflow_world_game_loop`: comparar `HALT` vs `wait_next_frame_tick` en OpenMSX (fluidez + audio + input latency).
+- Fix `#10` aplicado:
+  - `update_collision_component` deja de recalcular deadly tiles.
+  - La deteccion deadly queda centralizada en `update_deadly_tiles_component`.
+  - Se evita una segunda pasada de behavior-map por entidad en el mismo frame.
+- Fix `#11` aplicado:
+  - `update_sprite_component` deja de re-verificar `entity_screen_id/current_screen_id` al iterar `active_entity_list`.
+  - `update_slash_component` deja de re-verificar pantalla al iterar la misma lista compacta.
 - `#3` Job scheduler: corregir modulo por sustraccion + truncado a byte bajo de `interrupt_counter`.
 - `#3` Job scheduler (parcialmente resuelto):
   - Corregido truncado a 8-bit: fallback ahora usa modulo de `interrupt_counter` de 16 bits.

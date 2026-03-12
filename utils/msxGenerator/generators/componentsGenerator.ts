@@ -412,23 +412,10 @@ sprite_update_loop:
 
     ; active_entity_list already excludes inactive entities
 
-    ; Check if entity is in current screen (multi-screen support)
+    ; active_entity_list already guarantees current_screen_id membership
     push bc
     push hl
 
-    ; Check entity screen ID
-    ld hl, entity_screen_id
-    ld e, c                    ; Entity index
-    ld d, 0
-    add hl, de                 ; HL points to entity screen ID
-    ld a, (hl)                 ; A = entity screen ID
-
-    ; Compare with current screen ID
-    ld hl, current_screen_id
-    cp (hl)                    ; Compare entity screen with current screen
-    jr nz, sprite_hide         ; If different screen, hide sprite
-
-    ; Entity is in current screen - render normally
     ; E already contains entity index (from line 129)
     ; D = 0 (from line 130)
     
@@ -496,36 +483,6 @@ sprite_layer_loop:
     dec h                      ; Decrement Layer Count
     jr nz, sprite_layer_loop
     
-    jr sprite_continue
-
-sprite_hide:
-    ; Entity is in different screen - hide sprite (Y = 208+)
-    ; We must hide ALL layers for this entity
-    ; E contains Entity Index (from line 129)
-    ; D = 0 (from line 130)
-
-    ld hl, entity_sprite_config
-    add hl, de
-    add hl, de
-
-    inc hl                     ; Point to Layer Count first
-    ld b, (hl)                 ; B = Layer Count
-    dec hl                     ; Back to Base HW Sprite
-    ld a, b
-    or a
-    jr z, sprite_continue      ; Nothing to hide for anchor entities
-    ld a, (hl)                 ; A = Base HW Sprite (read AFTER zero check)
-
-sprite_hide_loop:
-    push bc
-    push af
-    call hide_sprite           ; A = HW Sprite (correct base index)
-    pop af
-    pop bc
-
-    inc a                      ; Next HW Sprite
-    djnz sprite_hide_loop
-
 sprite_continue:
     pop hl
     pop bc
@@ -865,166 +822,9 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     set 0, (hl)                   ; Mark as grounded
 
 .ground_check_done:
-    ; Check for deadly tile collision (lava, spikes, etc.)
-    ; IMPORTANT:
-    ;   - Read from the behavior map generated from the collision layer,
-    ;     NOT from the visual screen layout.
-    ;   - Mirror the Preview logic by sampling:
-    ;       center/middle, left/middle, right/middle,
-    ;       left/bottom+1, center/bottom+1, right/bottom+1.
-    ; This catches no-solid deadly tiles like ropes that overlap the body,
-    ; not just the feet.
-    ;
-    ; Deadly flag uses logicalProperties.causesDamage (mapId bit 2 = #04).
-    ld e, c
-    ld d, 0
-    ld hl, entity_comp_masks_hi
-    add hl, de
-    ld a, (hl)
-    and #20                       ; COMP_MASK_DEADLY_TILES (#2000) => high byte bit 5
-    jr nz, .deadly_component_active
-
-    ld hl, entity_flag_deadly_tile
-    add hl, de
-    res 0, (hl)
-    jp .deadly_check_done
-
-.deadly_component_active:
-
-    ld hl, entity_x_pos
-    add hl, de
-    ld a, (hl)
-    ld (wall_temp_x), a
-
-    ld hl, entity_y_pos
-    add hl, de
-    ld a, (hl)
-    ld (wall_temp_y), a
-
-    call wall_build_hitbox_cache
-
-    push bc
-
-    ; Mid row = top + floor(height / 2)
-    ld a, (wall_hit_h)
-    srl a
-    ld c, a
-    ld a, (wall_hit_top)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld b, a                       ; B = middle row
-
-    ; Center column = left + floor(width / 2)
-    ld a, (wall_hit_w)
-    srl a
-    ld c, a
-    ld a, (wall_hit_left)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld c, a                       ; C = center column
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Left middle
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Right middle
-    ld a, (wall_hit_right)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Bottom row (matches Preview bottom sample and still catches
-    ; standing on deadly floors after wall-collision snap)
-    ld a, (wall_hit_bottom)
-    cp 191
-    jr nc, .deadly_y_clamped
-    inc a
-    jr .deadly_y_ready
-.deadly_y_clamped:
-    ld a, 191
-.deadly_y_ready:
-    srl a
-    srl a
-    srl a
-    ld b, a                       ; B = bottom row
-
-    ; Left bottom
-    ld a, (wall_hit_left)
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Right bottom
-    ld a, (wall_hit_right)
-    cp 255
-    jr z, .deadly_right_bottom_ready
-    inc a
-.deadly_right_bottom_ready:
-    srl a
-    srl a
-    srl a
-    ld c, a
-    call get_behavior_tile_nb
-    bit 2, a
-    jr nz, .deadly_tile_found
-
-    ; Center bottom
-    ld a, (wall_hit_w)
-    srl a
-    ld c, a
-    ld a, (wall_hit_left)
-    add a, c
-    srl a
-    srl a
-    srl a
-    ld c, a                       ; C = center column
-    call get_behavior_tile_nb
-    bit 2, a
-    jr z, .no_deadly_tile
-
-.deadly_tile_found:
-    pop bc
-
-    ; Entity is touching deadly area - set flag
-    ld hl, entity_deadly_collision
-    ld e, c
-    ld d, 0
-    add hl, de
-    set 0, (hl)                   ; Mark as touching deadly tile
-    jp .deadly_check_done
-
-.no_deadly_tile:
-    pop bc
-
-    ; Clear deadly tile flag
-    ld hl, entity_deadly_collision
-    ld e, c
-    ld d, 0
-    add hl, de
-    res 0, (hl)                   ; Clear deadly flag
-
-.deadly_check_done:
+    ; Deadly contact is updated later by update_deadly_tiles_component.
+    ; Keep collision focused on ground/platform state so we do not resample
+    ; the behavior map twice per frame for the same entity.
     pop de
     pop hl
     pop bc
@@ -5619,16 +5419,9 @@ update_slash_component:
     ld c, (hl)
     inc hl
     push hl                    ; Save list pointer
-
-    ; Skip entities not on the current screen
     ld e, c
     ld d, 0
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jp nz, .slash_next
+    ; active_entity_list already guarantees current_screen_id membership
 
     push bc
 
