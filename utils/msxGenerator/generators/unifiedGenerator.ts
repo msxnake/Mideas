@@ -202,6 +202,7 @@ ${analysis.entities && analysis.entities.length > 0 ? `    ; Initialize game ent
 `}
 ${analysis.screenMaps && analysis.screenMaps.length > 0 ? `    ; Load the first game screen
     call load_game_screen
+    call rebuild_used_entity_list
 ` : `    ; No screens - skip screen loading
 `}
 ${needsFont ? `    ; Initialize font system

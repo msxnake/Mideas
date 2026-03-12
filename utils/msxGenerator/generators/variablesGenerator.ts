@@ -597,6 +597,26 @@ deterministic        EQU #${currentAddress.toString(16).toUpperCase().padStart(4
   currentAddress++;
   code += `active_entity_list_dirty EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; 1=rebuild active_entity_list required\n`;
   currentAddress++;
+  code += `input_entity_list   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Input component (MAX_ENTITIES bytes)\n`;
+  currentAddress += 32;
+  code += `input_entity_count  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in input_entity_list\n`;
+  currentAddress++;
+  code += `render_entity_list  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Sprite component (MAX_ENTITIES bytes)\n`;
+  currentAddress += 32;
+  code += `render_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in render_entity_list\n`;
+  currentAddress++;
+  code += `collision_entity_list EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Collision component (MAX_ENTITIES bytes)\n`;
+  currentAddress += 32;
+  code += `collision_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in collision_entity_list\n`;
+  currentAddress++;
+  code += `ground_entity_list  EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Collision or Gravity (MAX_ENTITIES bytes)\n`;
+  currentAddress += 32;
+  code += `ground_entity_count EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in ground_entity_list\n`;
+  currentAddress++;
+  code += `anim_entity_list    EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Active current-screen entities with Animation+Sprite (MAX_ENTITIES bytes)\n`;
+  currentAddress += 32;
+  code += `anim_entity_count   EQU #${currentAddress.toString(16).toUpperCase().padStart(4, '0')}   ; Number of entries in anim_entity_list\n`;
+  currentAddress++;
 
   // Entity-entity collision optimized system variables
   code += `\n; Entity-entity collision optimized variables\n`;

@@ -179,6 +179,7 @@ ${analysis.hasGameFlow ? `    ; ================================================
     ; Initialize game entities
     call init_game_entities
     call load_game_screen
+    call rebuild_used_entity_list
     call ENASCR
     jp main_loop`}
 

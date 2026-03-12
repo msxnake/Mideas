@@ -118,6 +118,12 @@ Las tres rutas consultan hitbox y behavior map en el mismo frame, y conviene med
 - Fix `#11` aplicado:
   - `update_sprite_component` deja de re-verificar `entity_screen_id/current_screen_id` al iterar `active_entity_list`.
   - `update_slash_component` deja de re-verificar pantalla al iterar la misma lista compacta.
+- Fix `#12` aplicado:
+  - `update_wallcollision_component` deja de llamar `ensure_used_entity_list_current`.
+  - Consume la lista compacta ya preparada por `update_all_entities`.
+- Fix `#13` aplicado:
+  - `update_slash_component` evita `push/pop bc` cuando `entity_slash_vel_x` vale 0.
+  - Se reduce el coste del caso comun sin slash activo.
 - `#3` Job scheduler: corregir modulo por sustraccion + truncado a byte bajo de `interrupt_counter`.
 - `#3` Job scheduler (parcialmente resuelto):
   - Corregido truncado a 8-bit: fallback ahora usa modulo de `interrupt_counter` de 16 bits.

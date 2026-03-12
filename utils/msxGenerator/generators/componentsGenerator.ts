@@ -182,7 +182,12 @@ ensure_used_entity_list_current:
 ${buildRegisterContractComment({
   purpose: 'Recompute compact list of entities active on current screen.',
   inputs: ['entity_active, entity_comp_masks(_hi), entity_screen_id, current_screen_id'],
-  outputs: ['active_entity_list[]', 'active_entity_count', 'active_entity_list_dirty=0'],
+  outputs: [
+    'active_entity_list[]',
+    'active_entity_count',
+    'input/render/collision/ground/anim buckets refreshed',
+    'active_entity_list_dirty=0',
+  ],
   clobbers: ['AF', 'BC', 'DE', 'HL'],
   preserved: ['None'],
   usage: [
@@ -196,6 +201,11 @@ ${buildRegisterContractComment({
 rebuild_used_entity_list:
     xor a
     ld (active_entity_count), a
+    ld (input_entity_count), a
+    ld (render_entity_count), a
+    ld (collision_entity_count), a
+    ld (ground_entity_count), a
+    ld (anim_entity_count), a
     ld b, MAX_ENTITIES
     ld c, 0
 
@@ -243,6 +253,100 @@ rebuild_used_entity_list:
     add hl, de
     ld (hl), c
     ld hl, active_entity_count
+    inc (hl)
+
+    ; Build hot-path buckets once so gameplay systems avoid repeating
+    ; the same component-mask filtering every frame.
+    ld e, c
+    ld d, 0
+
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_INPUT
+    jr z, .skip_input_bucket
+    ld a, (input_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, input_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, input_entity_count
+    inc (hl)
+.skip_input_bucket:
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_SPRITE
+    jr z, .skip_render_bucket
+    ld a, (render_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, render_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, render_entity_count
+    inc (hl)
+.skip_render_bucket:
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_COLLISION
+    jr z, .skip_collision_bucket
+    ld a, (collision_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, collision_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, collision_entity_count
+    inc (hl)
+.skip_collision_bucket:
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_COLLISION
+    jr nz, .store_ground_bucket
+    ld hl, entity_comp_masks_hi
+    add hl, de
+    ld a, (hl)
+    and #02                       ; COMP_MASK_GRAVITY
+    jr z, .skip_ground_bucket
+.store_ground_bucket:
+    ld a, (ground_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, ground_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, ground_entity_count
+    inc (hl)
+.skip_ground_bucket:
+
+    ld e, c
+    ld d, 0
+    ld hl, entity_comp_masks
+    add hl, de
+    ld a, (hl)
+    and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
+    jr nz, .next_entity
+    ld a, (anim_entity_count)
+    ld l, a
+    ld h, 0
+    ld de, anim_entity_list
+    add hl, de
+    ld (hl), c
+    ld hl, anim_entity_count
     inc (hl)
 
 .next_entity:
@@ -391,11 +495,11 @@ init_sprite_system:
 
 update_sprite_component:
     ; Update sprite rendering based on entity positions
-    ld a, (active_entity_count)
+    ld a, (render_entity_count)
     or a
     ret z
-    ld b, a                    ; Loop through used entities only
-    ld hl, active_entity_list
+    ld b, a                    ; Loop through renderable entities only
+    ld hl, render_entity_list
 
 sprite_update_loop:
     ld c, (hl)                 ; C = entity index
@@ -403,16 +507,9 @@ sprite_update_loop:
     push hl                    ; Save list pointer
     ld e, c
     ld d, 0
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)                 ; Get entity component mask
     pop hl                     ; Restore list pointer
-    and COMP_MASK_SPRITE       ; Check if has sprite component
-    jp z, sprite_next_entity   ; Skip if no sprite component (jp because distance > 127 bytes)
 
-    ; active_entity_list already excludes inactive entities
-
-    ; active_entity_list already guarantees current_screen_id membership
+    ; render_entity_list already guarantees active + current_screen_id + sprite
     push bc
     push hl
 
@@ -750,33 +847,17 @@ function generateCollisionSystem(analysis: ProjectAnalysis): string {
     update_collision_component:
     ; Ground detection for entities with Collision or Gravity components
     ; Sets entity_on_ground flag based on Y position
-    ld a, (active_entity_count)
+    ld a, (ground_entity_count)
     or a
     ret z
-    ld b, a                       ; Loop through used entities only
-    ld hl, active_entity_list
+    ld b, a                       ; Loop through ground-probe entities only
+    ld hl, ground_entity_list
 
     collision_update_loop:
     ld c, (hl)                    ; C = entity index
     inc hl                        ; Advance list pointer
     push hl                       ; Save list pointer
 
-    ; Check if entity has Collision OR Gravity component
-    ld e, c
-    ld d, 0
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)                    ; Get low byte (Collision is bit 3)
-    and COMP_MASK_COLLISION
-    jr nz, .has_collision_comp    ; Has Collision component
-
-    ld hl, entity_comp_masks_hi
-    add hl, de
-    ld a, (hl)                    ; Get high byte (Gravity is bit 1)
-    and #02                       ; COMP_MASK_GRAVITY high byte
-    jp z, collision_next_entity   ; Skip if no collision or gravity (JP for long jump)
-
-.has_collision_comp:
     ; Get entity Y position
     push bc
     push hl
@@ -852,35 +933,26 @@ update_entity_collision_fast:
     and 1
     ret nz
 
-    ; === PHASE 1: Build active list ===
+    ; === PHASE 1: Build active list from prefiltered collision bucket ===
     ld hl, coll_list              ; HL = write pointer into coll_list
     xor a
     ld (coll_list_count), a       ; count = 0
-    ld c, 0                       ; C = entity index 0..31
+    ld a, (collision_entity_count)
+    or a
+    ret z
+    ld b, a
+    ld de, collision_entity_list
 
 .build_loop:
-    ld a, c
-    cp 32
-    jp z, .build_done
+    ld a, (de)
+    ld c, a
+    inc de
 
     ; Clear collision flags for ALL entities with collision component
     push hl                       ; Save list write pointer
+    push de
     ld e, c
     ld d, 0
-
-    ; Check active
-    ld hl, entity_active
-    add hl, de
-    ld a, (hl)
-    or a
-    jp z, .build_skip
-
-    ; Check collision component
-    ld hl, entity_comp_masks
-    add hl, de
-    ld a, (hl)
-    and COMP_MASK_COLLISION
-    jp z, .build_skip
 
     ; Clear collision flags for this entity (even if wrong screen)
     ld hl, entity_entity_collision_flags
@@ -889,14 +961,6 @@ update_entity_collision_fast:
     ld hl, entity_last_collision_entity
     add hl, de
     ld (hl), 255
-
-    ; Check screen match
-    ld hl, entity_screen_id
-    add hl, de
-    ld a, (hl)
-    ld hl, current_screen_id
-    cp (hl)
-    jp nz, .build_skip
 
     ; Entity qualifies - add to list (max MAX_ENTITIES)
     ld a, (coll_list_count)
@@ -914,9 +978,9 @@ update_entity_collision_fast:
     ld (coll_list_count), a
 
 .build_skip:
+    pop de
     pop hl                        ; Restore list write pointer
-    inc c
-    jp .build_loop
+    djnz .build_loop
 
 .build_done:
     ; === PHASE 2: Check pairs ===
@@ -1633,26 +1697,19 @@ function generateInputSystem(): string {
             ; NOTE: input_state/prev_input_state are polled by interrupt task_update_input
 
             ; Process input for entities with input component
-            ld a, (active_entity_count)
+            ld a, (input_entity_count)
             or a
             ret z
-            ld b, a                    ; Loop through used entities only
-            ld hl, active_entity_list
+            ld b, a                    ; Loop through input-enabled entities only
+            ld hl, input_entity_list
 
         input_update_loop:
             ld c, (hl)                 ; C = entity index
             inc hl                     ; Advance list pointer
             push hl                    ; Save list pointer
-            ld e, c
-            ld d, 0
-            ld hl, entity_comp_masks
-            add hl, de
-            ld a, (hl)                 ; Get entity component mask
             pop hl                     ; Restore list pointer
-            and COMP_MASK_INPUT        ; Check if has input component
-            jp z, input_next_entity    ; Skip if no input component
 
-            ; active_entity_list already guarantees current_screen_id membership
+            ; input_entity_list already guarantees active + current_screen_id + input
 
             ; Check if input is disabled for this entity (DISABLE_INPUT action)
             push hl
@@ -2818,11 +2875,11 @@ function generateAnimationSystem(): string {
             ; Update animations for entities
             ; - Advances entity_anim_frame using entity_anim_tick/entity_anim_speed
             ; - Copies the selected frame's patterns to VRAM for this entity
-            ld a, (active_entity_count)
+            ld a, (anim_entity_count)
             or a
             ret z
-            ld b, a                    ; Loop used entities only
-            ld hl, active_entity_list
+            ld b, a                    ; Loop animated render entities only
+            ld hl, anim_entity_list
 
         .anim_loop:
             ld c, (hl)                 ; C = entity index
@@ -2830,15 +2887,9 @@ function generateAnimationSystem(): string {
             push hl                    ; Save list pointer
             ld e, c
             ld d, 0
-            ld hl, entity_comp_masks
-            add hl, de
-            ld a, (hl)
             pop hl                     ; Restore list pointer
-            and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
-            cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
-            jp nz, .anim_next_entity
 
-            ; active_entity_list already guarantees active + current_screen_id
+            ; anim_entity_list already guarantees active + current_screen_id + animation + sprite
 
             push bc
             push hl
@@ -3488,17 +3539,16 @@ init_wallcollision_system:
 ;            direction(s) and snap position + zero velocity on hit.
 ;   Inputs:
 ;     - entity_active[]         : 1 = entity exists
+;     - active_entity_list[] / active_entity_count : compact active list already current
 ;     - entity_comp_masks[]     : low byte component bitmask
 ;     - entity_comp_masks_hi[]  : high byte (COMP_MASK_GRAVITY at bit 1)
 ;     - entity_collides_with[]  : must include COLLISION_LAYER_PLATFORM (#08)
-;     - entity_screen_id[]      : entity must be on current_screen_id
 ;     - entity_x_pos/y_pos[]    : world position
 ;     - entity_vel_x/vel_y[]    : signed 8-bit velocity (negative = left/up)
 ;     - entity_gravity_vel[]    : 16-bit signed gravity accumulator (word)
 ;     - entity_collision_offset_x/y[]: signed offset from origin to hitbox corner
 ;     - entity_collision_hitbox_w/h[]: hitbox size (minimum 1 if zero)
 ;     - current_behavior_map    : pointer to active screen behavior map
-;     - current_screen_id       : ID of the visible screen
 ;   Outputs:
 ;     - entity_x_pos/y_pos[]    : snapped on collision
 ;     - entity_vel_x/vel_y[]    : zeroed on collision axis
@@ -3510,6 +3560,7 @@ init_wallcollision_system:
 ;   Notes:
 ;     - Opt-B: loop uses active_entity_list (entities guaranteed active + on screen).
 ;       Eliminates ~29 wasted iterations vs 0..MAX_ENTITIES scan (3 entities active).
+;     - Caller must refresh active_entity_list earlier in the frame.
 ;     - Opt-C: wall_build_hitbox_cache is skipped on DOWN snap when new Y == current Y
 ;       (entity already on floor). Saves ~200 cycles/entity/frame when standing still.
 ;     - wall_build_hitbox_cache is called once at entity entry, and after each snap
@@ -3518,15 +3569,13 @@ init_wallcollision_system:
 ;       so entity_on_ground stays accurate when entity is standing still.
 ; ------------------------------------------------------------------
 update_wallcollision_component:
-    ; Opt-B: use compact active_entity_list instead of 0..MAX_ENTITIES scan.
-    ; Entities in the list are already guaranteed active and on current_screen_id.
-    ; This eliminates ~29 wasted iterations when only 3 entities are active.
-    call ensure_used_entity_list_current
-    ld a, (active_entity_count)
+    ; update_all_entities refreshed active_entity_list before entering the
+    ; component chain, so we can consume it directly here.
+    ld a, (collision_entity_count)
     or a
     ret z                         ; no active entities → done
     ld b, a                       ; B = entity count (loop counter for djnz)
-    ld hl, active_entity_list
+    ld hl, collision_entity_list
 
 .wall_loop:
     ; ---- Load next entity index from compact list ----
@@ -5423,13 +5472,13 @@ update_slash_component:
     ld d, 0
     ; active_entity_list already guarantees current_screen_id membership
 
-    push bc
-
     ld hl, entity_slash_vel_x
     add hl, de
     ld a, (hl)
     or a
-    jp z, .slash_done_entity
+    jp z, .slash_next
+
+    push bc
 
     ld b, a                    ; B = additive slash X velocity
     ld hl, entity_vel_x
@@ -5459,7 +5508,6 @@ update_slash_component:
 .slash_store_decay:
     ld (hl), a
 
-.slash_done_entity:
     pop bc
 
 .slash_next:
@@ -5493,11 +5541,11 @@ ${bonusRespawnRuntimeCode}
 ;   - DE must survive the optional HUD/sound hooks until persistence logic runs
 ; ------------------------------------------------------------------
 check_tile_interaction:
-    ld a, (active_entity_count)
+    ld a, (input_entity_count)
     or a
     jp z, .ti_respawn_only         ; No active entities
 
-    ld hl, active_entity_list
+    ld hl, input_entity_list
     ld b, a                        ; B = entity count
 
 .ti_loop:
