@@ -89,6 +89,7 @@ interface AnimatedEntity {
     y: number;
     vx: number;
     vy: number;
+    gravityVel: number; // 8.8 fixed-point gravity velocity (signed 16-bit), matching Z80 entity_gravity_vel
     frameImages: HTMLImageElement[];
     mirroredFrameImages?: HTMLImageElement[];
     currentFrame: number;
@@ -138,6 +139,21 @@ interface AnimatedEntity {
     // Lifetime
     lifetimeMs?: number;
     expiresAt?: number;
+}
+
+/** Animated tile group state for Z80-faithful tile animation in the simulator */
+interface TileAnimGroupState {
+    groupId: string;
+    baseTileId: string;          // The tile placed on screen (target of animation)
+    frameTiles: Tile[];          // All frame tiles in order (frame 0 = base tile visual)
+    speed: number;               // Ticks (frames) between animation updates
+    currentFrame: number;        // Current frame index
+    tickCounter: number;         // Frames elapsed since last frame change
+    positions: { x: number; y: number }[];  // Grid positions on screen where base tile appears
+    mode: 'frames' | 'transform';
+    transformEffect?: string;    // For transform mode
+    transformIncludeColors?: boolean;
+    transformCheckpoints?: number;
 }
 
 interface StateTransitionOptions {
@@ -498,6 +514,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const tileBufferNeedsUpdate = useRef<boolean>(false);
     const screenWorldMapRef = useRef<Map<string, ScreenWorldPosition>>(new Map()); // Multi-screen coordinate system
     const tileBufferRef = useRef<HTMLCanvasElement | null>(null);
+    const tileAnimGroupsRef = useRef<TileAnimGroupState[]>([]);
     const gameFlowExitRequestedRef = useRef(false);
     const cleanSpritesNextFrameRef = useRef(false);
     const pendingNodeTransitionRef = useRef<string | null>(null);
@@ -1188,13 +1205,39 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
                 // Primero intentar acceder a variables de la entidad (x, y, vx, vy)
                 // Si no existe, buscar en las variables globales
+                //
+                // Z80 velocity mapping: SM conditions use Z80 8-bit unsigned values where
+                // 128+ means negative (two's complement). The simulator uses signed floats.
+                // Convert: sim vy < 0 (rising) → Z80 byte 128..255, sim vy >= 0 → Z80 byte 0..127
+                const simVelToZ80Byte = (v: number): number => {
+                    // Clamp to Z80 signed byte range (-128..127) by scaling:
+                    // Simulator vy is in pixels/frame (~-6 to +6), Z80 is fixed-point 8.8 high byte
+                    // For condition purposes: negative → 128+, zero → 0, positive → 1..127
+                    if (v < 0) {
+                        // Map negative velocity to 128..255 (Z80 two's complement)
+                        const clamped = Math.max(-128, Math.round(v));
+                        return 256 + clamped; // e.g. -6 → 250, -1 → 255
+                    }
+                    // Map positive velocity to 0..127
+                    return Math.min(127, Math.round(v));
+                };
+
                 const leftValue = (() => {
                     // Variables de la entidad (acceso directo - siempre son números)
                     switch (variable) {
                         case 'x': return Number.isFinite(entity.x) ? entity.x : 0;
                         case 'y': return Number.isFinite(entity.y) ? entity.y : 0;
                         case 'vx': return Number.isFinite(entity.vx) ? entity.vx : 0;
-                        case 'vy': return Number.isFinite(entity.vy) ? entity.vy : 0;
+                        case 'vy': {
+                            const vy = Number.isFinite(entity.vy) ? entity.vy : 0;
+                            // If comparison value is in Z80 byte range (>=64), convert sim vy to Z80 byte
+                            // Values 0..~10 are plausible simulator-scale; 64+ are clearly Z80-scale
+                            const rv = Number(rawValue);
+                            if (!Number.isNaN(rv) && rv >= 64) {
+                                return simVelToZ80Byte(vy);
+                            }
+                            return vy;
+                        }
                         default: {
                             // Intentar buscar en variables globales
                             const resolvedVarName = normalizeVariableName(variable) ?? variable;
@@ -1332,18 +1375,31 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
         }
         for (const action of actions) {
             switch (action.type) {
-                case 'SET_VELOCITY':
+                case 'SET_VELOCITY': {
                     entity.vx = action.params.x || 0;
-                    entity.vy = action.params.y || 0;
+                    const setVy = Number(action.params.y || 0);
+                    entity.vy = setVy;
+                    // Sync gravityVel so gravity system doesn't overwrite this vel_y
+                    // Convert pixel velocity to 8.8 fixed point (integer part = vy, fractional = 0)
+                    if (setVy !== 0) {
+                        const gv88 = (setVy << 8) & 0xFFFF;
+                        entity.gravityVel = gv88;
+                    }
                     break;
+                }
 
-                case 'APPLY_FORCE':
+                case 'APPLY_FORCE': {
                     // Add force to current velocity (additive, unlike SET_VELOCITY)
                     const forceX = Number(action.params.x || 0);
                     const forceY = Number(action.params.y || 0);
                     entity.vx = (entity.vx || 0) + forceX;
                     entity.vy = (entity.vy || 0) + forceY;
+                    // Sync gravityVel with new vy
+                    if (forceY !== 0) {
+                        entity.gravityVel = (Math.round(entity.vy) << 8) & 0xFFFF;
+                    }
                     break;
+                }
 
                 case 'CHANGE_SPRITE':
                     const spriteName = action.params.sprite || action.params.spriteName || action.params.sprite_name;
@@ -1835,6 +1891,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             y: spawnY,
             vx: 0,
             vy: 0,
+            gravityVel: 0,
             frameImages,
             mirroredFrameImages,
             currentFrame: 0,
@@ -2298,6 +2355,7 @@ break;
     entity.y = spawnY;
     entity.vx = 0;
     entity.vy = 0;
+    entity.gravityVel = 0;
     break;
 }
 
@@ -3183,6 +3241,7 @@ useEffect(() => {
 
         const newEntity = {
             instance, template, sprite, spriteAssetId, x: startX, y: startY, vx, vy,
+            gravityVel: 0,
             frameImages, mirroredFrameImages, currentFrame: 0, lastFrameUpdateTime: 0,
             stateMachine, currentState, isOnGround: false, spawnTime: performance.now(),
             globalX, globalY, originScreenId, parentEntityId: null, platformGraceFramesLeft: 0,
@@ -3374,6 +3433,7 @@ useEffect(() => {
             heroForThisScreen.y = playerEntryPoint.y;
             heroForThisScreen.vx = 0;
             heroForThisScreen.vy = 0;
+            heroForThisScreen.gravityVel = 0;
             checkpointX = Math.round(playerEntryPoint.x);
             checkpointY = Math.round(playerEntryPoint.y);
         } else {
@@ -3389,6 +3449,7 @@ useEffect(() => {
             heroForThisScreen.y = playerEntryPoint.y;
             heroForThisScreen.vx = 0;
             heroForThisScreen.vy = 0;
+            heroForThisScreen.gravityVel = 0;
             setPlayerEntryPoint(null); // Entry point was consumed
         }
 
@@ -3545,6 +3606,285 @@ useEffect(() => {
         return canvas;
     };
 
+    // === ANIMATED TILES SYSTEM (Z80-faithful) ===
+    // Builds animation groups from tileset + screen map, matching ASM animatedTilesGenerator logic.
+    const buildTileAnimGroups = (map: ScreenMap, tset: Tile[]): TileAnimGroupState[] => {
+        const groups: TileAnimGroupState[] = [];
+        const tileById = new Map<string, Tile>();
+        for (const t of tset) if (t?.id) tileById.set(t.id, t);
+
+        // Collect animated tiles grouped by groupId
+        const candidatesByGroup = new Map<string, { tile: Tile; frameOrder: number; speed: number; baseTileId: string | null; mode: 'frames' | 'transform'; transformEffect?: string; transformIncludeColors?: boolean; transformCheckpoints?: number }[]>();
+
+        for (const tile of tset) {
+            if (!tile?.id) continue;
+            const anim = tile.animation;
+            const isEnabled = anim?.enabled ?? tile.isAnimated ?? false;
+            if (!isEnabled) continue;
+
+            const mode: 'frames' | 'transform' = (tile.animationMode ?? anim?.mode ?? 'frames') as any;
+            let groupId = (tile.animationGroup ?? anim?.groupId ?? '').trim();
+            // Transform tiles often have empty groupId - use tile.id as fallback
+            if (!groupId) {
+                if (mode === 'transform') {
+                    groupId = `__transform_${tile.id}`;
+                } else {
+                    continue; // frames mode NEEDS a groupId to find siblings
+                }
+            }
+
+            const frameOrder = tile.animationFrameIndex ?? anim?.frameIndex ?? 0;
+            const speed = tile.animationSpeed ?? anim?.speed ?? 8;
+            const baseTileId = tile.animationBaseTileId ?? anim?.baseTileId ?? null;
+            const transformEffect = tile.animationTransformEffect ?? anim?.transform?.effect;
+            const transformIncludeColors = tile.animationTransformIncludeColors ?? anim?.transform?.includeColors ?? true;
+            const transformCheckpoints = tile.animationTransformCheckpoints ?? anim?.transform?.checkpoints ?? 8;
+
+            if (!candidatesByGroup.has(groupId)) candidatesByGroup.set(groupId, []);
+            candidatesByGroup.get(groupId)!.push({ tile, frameOrder, speed, baseTileId, mode, transformEffect, transformIncludeColors, transformCheckpoints });
+        }
+
+        // Process each group
+        for (const [groupId, candidates] of candidatesByGroup.entries()) {
+            if (candidates.length === 0) continue;
+
+            const firstCandidate = candidates[0];
+            const mode = firstCandidate.mode;
+
+            if (mode === 'frames') {
+                // Sort frames by frameOrder
+                candidates.sort((a, b) => a.frameOrder - b.frameOrder);
+
+                // Determine the base/target tile (the one placed on screen)
+                const baseTileId = firstCandidate.baseTileId || candidates[0].tile.id;
+                const baseTile = tileById.get(baseTileId);
+                if (!baseTile) continue;
+
+                // Build frame tile list
+                const frameTiles = candidates.map(c => c.tile);
+                if (frameTiles.length < 2) continue; // Need at least 2 frames
+
+                // Find positions on screen where the base tile (or any group tile) is placed
+                const groupTileIds = new Set<string>([baseTileId, ...candidates.map(c => c.tile.id)]);
+                const positions: { x: number; y: number }[] = [];
+                const bgLayer = map.layers.background;
+                for (let y = 0; y < map.height; y++) {
+                    for (let x = 0; x < map.width; x++) {
+                        const cell = bgLayer[y]?.[x];
+                        if (cell?.tileId && groupTileIds.has(cell.tileId)) {
+                            positions.push({ x, y });
+                        }
+                    }
+                }
+
+                if (positions.length === 0) continue; // No instances on screen
+
+                groups.push({
+                    groupId,
+                    baseTileId,
+                    frameTiles,
+                    speed: Math.max(1, firstCandidate.speed),
+                    currentFrame: 0,
+                    tickCounter: 0,
+                    positions,
+                    mode: 'frames'
+                });
+            } else if (mode === 'transform') {
+                // Transform mode: single tile with runtime pixel operations
+                const baseTileId = firstCandidate.baseTileId || firstCandidate.tile.id;
+                const baseTile = tileById.get(baseTileId);
+                if (!baseTile) continue;
+
+                const positions: { x: number; y: number }[] = [];
+                const bgLayer = map.layers.background;
+                for (let y = 0; y < map.height; y++) {
+                    for (let x = 0; x < map.width; x++) {
+                        const cell = bgLayer[y]?.[x];
+                        if (cell?.tileId === baseTileId) {
+                            positions.push({ x, y });
+                        }
+                    }
+                }
+                if (positions.length === 0) continue;
+
+                const checkpoints = Math.max(2, firstCandidate.transformCheckpoints ?? 8);
+                // Pre-generate all transform frames as Tile-like objects with modified pixel data
+                const frameTiles: Tile[] = [];
+                for (let step = 0; step < checkpoints; step++) {
+                    const transformedTile = applyTransformToTile(baseTile, firstCandidate.transformEffect || 'rotate_left', step, firstCandidate.transformIncludeColors ?? true);
+                    frameTiles.push(transformedTile);
+                }
+
+                groups.push({
+                    groupId,
+                    baseTileId,
+                    frameTiles,
+                    speed: Math.max(1, firstCandidate.speed),
+                    currentFrame: 0,
+                    tickCounter: 0,
+                    positions,
+                    mode: 'transform',
+                    transformEffect: firstCandidate.transformEffect,
+                    transformIncludeColors: firstCandidate.transformIncludeColors,
+                    transformCheckpoints: checkpoints
+                });
+            }
+        }
+
+        console.log(`[AnimTiles] Built ${groups.length} anim groups:`, groups.map(g => `${g.groupId}(${g.mode}, ${g.frameTiles.length}fr, ${g.positions.length}pos)`));
+        return groups;
+    };
+
+    // Apply a pixel transform to a tile (matching Z80 transform operations)
+    const applyTransformToTile = (baseTile: Tile, effect: string, steps: number, includeColors: boolean): Tile => {
+        const data = baseTile.data.map(row => [...row]); // Deep copy pixel data
+        const lineAttrs = baseTile.lineAttributes ? baseTile.lineAttributes.map(row => row ? [...row] : row) : undefined;
+
+        switch (effect) {
+            case 'rotate_left':
+            case 'shift_left':
+                // Shift/rotate pixels left by `steps` positions
+                for (let y = 0; y < data.length; y++) {
+                    const row = data[y];
+                    const s = steps % row.length;
+                    if (s === 0) continue;
+                    if (effect === 'rotate_left') {
+                        data[y] = [...row.slice(s), ...row.slice(0, s)];
+                    } else {
+                        data[y] = [...row.slice(s), ...new Array(s).fill(row[row.length - 1] || '#000000')];
+                    }
+                }
+                break;
+            case 'rotate_right':
+            case 'shift_right':
+                for (let y = 0; y < data.length; y++) {
+                    const row = data[y];
+                    const s = steps % row.length;
+                    if (s === 0) continue;
+                    if (effect === 'rotate_right') {
+                        data[y] = [...row.slice(row.length - s), ...row.slice(0, row.length - s)];
+                    } else {
+                        data[y] = [...new Array(s).fill(row[0] || '#000000'), ...row.slice(0, row.length - s)];
+                    }
+                }
+                break;
+            case 'shift_up': {
+                const h = data.length;
+                const s = steps % h;
+                if (s > 0) {
+                    const shifted = [...data.slice(s), ...data.slice(0, s)];
+                    for (let y = 0; y < h; y++) data[y] = shifted[y];
+                    if (includeColors && lineAttrs) {
+                        const shiftedAttrs = [...lineAttrs.slice(s), ...lineAttrs.slice(0, s)];
+                        for (let y = 0; y < h; y++) lineAttrs[y] = shiftedAttrs[y];
+                    }
+                }
+                break;
+            }
+            case 'shift_down': {
+                const h = data.length;
+                const s = steps % h;
+                if (s > 0) {
+                    const shifted = [...data.slice(h - s), ...data.slice(0, h - s)];
+                    for (let y = 0; y < h; y++) data[y] = shifted[y];
+                    if (includeColors && lineAttrs) {
+                        const shiftedAttrs = [...lineAttrs.slice(h - s), ...lineAttrs.slice(0, h - s)];
+                        for (let y = 0; y < h; y++) lineAttrs[y] = shiftedAttrs[y];
+                    }
+                }
+                break;
+            }
+            case 'swap_top_bottom': {
+                if ((steps & 1) !== 0 && data.length >= 2) {
+                    const temp = data[0];
+                    data[0] = data[data.length - 1];
+                    data[data.length - 1] = temp;
+                    if (includeColors && lineAttrs && lineAttrs.length >= 2) {
+                        const tempA = lineAttrs[0];
+                        lineAttrs[0] = lineAttrs[lineAttrs.length - 1];
+                        lineAttrs[lineAttrs.length - 1] = tempA;
+                    }
+                }
+                break;
+            }
+        }
+
+        return { ...baseTile, data, lineAttributes: lineAttrs as any };
+    };
+
+    // Render a single tile onto the tile buffer canvas at a given grid position
+    const renderSingleTileToBuffer = (
+        bufferCanvas: HTMLCanvasElement,
+        tile: Tile,
+        gridX: number,
+        gridY: number,
+        screenTile: ScreenTile | undefined,
+        mode: string
+    ) => {
+        const ctx = bufferCanvas.getContext('2d');
+        if (!ctx) return;
+        ctx.imageSmoothingEnabled = false;
+        const isScreen2 = mode.includes('SCREEN 2') || mode.includes('Graphics I');
+        const SCREEN2_PIXELS_PER_COLOR_SEGMENT = 8;
+
+        const { data: fullPixelData, width: fullAssetWidth, height: fullAssetHeight, lineAttributes } = tile;
+        if (!fullPixelData) return;
+
+        const subTileXCoord = screenTile?.subTileX ?? 0;
+        const subTileYCoord = screenTile?.subTileY ?? 0;
+        const sX = subTileXCoord * TILE_SIZE;
+        const sY = subTileYCoord * TILE_SIZE;
+
+        for (let py = 0; py < TILE_SIZE; py++) {
+            for (let px = 0; px < TILE_SIZE; px++) {
+                const fullDataX = sX + px;
+                const fullDataY = sY + py;
+
+                if (fullDataY < fullAssetHeight && fullDataX < fullAssetWidth) {
+                    let color = fullPixelData[fullDataY]?.[fullDataX];
+                    if (color === undefined) continue;
+
+                    if (isScreen2 && lineAttributes && lineAttributes[fullDataY]) {
+                        const segmentIndex = Math.floor(fullDataX / SCREEN2_PIXELS_PER_COLOR_SEGMENT);
+                        const attr = lineAttributes[fullDataY][segmentIndex];
+                        if (attr && color !== attr.fg && color !== attr.bg) {
+                            color = attr.fg;
+                        }
+                    }
+
+                    ctx.fillStyle = color;
+                    ctx.fillRect(gridX * TILE_SIZE + px, gridY * TILE_SIZE + py, 1, 1);
+                }
+            }
+        }
+    };
+
+    // Update animated tiles: advance tick counters, redraw changed tiles on buffer
+    const updateAnimatedTilesBuffer = () => {
+        const groups = tileAnimGroupsRef.current;
+        if (groups.length === 0) return;
+        const bufferCanvas = tileBufferRef.current;
+        if (!bufferCanvas) return;
+        const map = currentScreenMapRef.current;
+        if (!map) return;
+
+        for (const group of groups) {
+            group.tickCounter++;
+            if (group.tickCounter < group.speed) continue;
+
+            // Advance frame
+            group.tickCounter = 0;
+            group.currentFrame = (group.currentFrame + 1) % group.frameTiles.length;
+            const frameTile = group.frameTiles[group.currentFrame];
+
+            // Repaint all positions where this animated tile appears
+            for (const pos of group.positions) {
+                const screenTile = map.layers.background[pos.y]?.[pos.x];
+                renderSingleTileToBuffer(bufferCanvas, frameTile, pos.x, pos.y, screenTile, previewScreenMode);
+            }
+        }
+    };
+
     // Debug helper: draw outlines for solid tiles from the Collision layer
     const drawCollisionTileOutlines = (ctx: CanvasRenderingContext2D) => {
         if (!showTileHitboxes) return;
@@ -3587,6 +3927,8 @@ useEffect(() => {
         const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
         tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
         tileBufferNeedsUpdate.current = false; // Reset flag
+        // Initialize animated tile groups for this screen
+        tileAnimGroupsRef.current = buildTileAnimGroups(screenMapToRender, tileset);
     }
     // --- Fin Nuevo ---
 
@@ -3748,6 +4090,7 @@ useEffect(() => {
             y: spawnY,
             vx,
             vy,
+            gravityVel: 0,
             frameImages: projFrames.frames,
             mirroredFrameImages: projFrames.mirrored,
             currentFrame: 0,
@@ -4354,6 +4697,7 @@ useEffect(() => {
                     const tileTopEdge = Math.floor((tentativeHitbox.y + tentativeHitbox.height) / TILE_SIZE) * TILE_SIZE;
                     tentativeY = tileTopEdge - Number(entityCollisionProps.offsetY ?? 0) - tentativeHitbox.height;
                     entity.vy = 0;
+                    entity.gravityVel = 0; // Z80: cancel gravity accumulator on floor hit
                     registerWallCollisionEvent('down');
                 }
             } else if (entity.vy < 0) { // Saltando (hacia arriba)
@@ -4364,6 +4708,7 @@ useEffect(() => {
                     const tileBottomEdge = (tileRow + 1) * TILE_SIZE;
                     tentativeY = tileBottomEdge - Number(entityCollisionProps.offsetY ?? 0);
                     entity.vy = 0; // Stop vertical velocity after touching the ceiling
+                    entity.gravityVel = 0; // Z80: cancel gravity accumulator on ceiling hit
                     registerWallCollisionEvent('up');
 
 
@@ -4563,10 +4908,12 @@ useEffect(() => {
                 // Only B moves
                 entityB.y -= separation;
                 entityB.vy = 0;
+                entityB.gravityVel = 0;
             } else if (isBStatic) {
                 // Only A moves
                 entityA.y += separation;
                 entityA.vy = 0;
+                entityA.gravityVel = 0;
             } else {
                 // Both move (split separation)
                 const halfSep = separation / 2;
@@ -4581,13 +4928,13 @@ useEffect(() => {
                     // When on a platform, stop the entity's vertical velocity.
                     // The platform will move the entity directly in the platform update section.
                     if (isBPlatformY && !isAPlatformY && isAAboveB) {
-                        entityA.vy = 0; // Stop player velocity, platform will move it
+                        entityA.vy = 0; entityA.gravityVel = 0; // Stop player velocity, platform will move it
                     } else if (isAPlatformY && !isBPlatformY && isBAboveA) {
-                        entityB.vy = 0; // Stop entity velocity, platform will move it
+                        entityB.vy = 0; entityB.gravityVel = 0; // Stop entity velocity, platform will move it
                     } else {
                         // Side or bottom collision, just stop.
-                        if (isBPlatformY && !isAPlatformY) entityA.vy = 0;
-                        if (isAPlatformY && !isBPlatformY) entityB.vy = 0;
+                        if (isBPlatformY && !isAPlatformY) { entityA.vy = 0; entityA.gravityVel = 0; }
+                        if (isAPlatformY && !isBPlatformY) { entityB.vy = 0; entityB.gravityVel = 0; }
                     }
                 } else {
                     const tempVy = entityA.vy;
@@ -4620,7 +4967,13 @@ useEffect(() => {
             const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
             tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
             tileBufferNeedsUpdate.current = false;
+            // Re-initialize animated tile groups after full buffer rebuild
+            tileAnimGroupsRef.current = buildTileAnimGroups(screenMapToRender, tileset);
         }
+
+        // Update animated tiles (advance frames, repaint changed positions on buffer)
+        updateAnimatedTilesBuffer();
+
         // === RESOLVE PARENTS FOR CHILD-LINKED ENTITIES ===
         const entityLookup = new Map<string, AnimatedEntity>();
         for (const entity of entitiesRef.current) {
@@ -5076,14 +5429,20 @@ useEffect(() => {
                             const canJump = !requireKeyRelease || !jumpKeyProcessed.current;
 
                             if (canJump) {
-                                let jumpPower = Number(jumpProps.jumpPower || 256);
+                                // Z80-faithful 8.8 fixed-point jump impulse
+                                // Z80 hardcodes #FC00 = -1024 in 8.8 = -4 px/frame initial velocity
+                                let jumpImpulse = -1024; // 8.8 fixed-point (matching Z80 #FC00)
 
                                 // Reduce jump power by 25% when carrying a box
                                 if (entityA.carriedBox) {
-                                    jumpPower = jumpPower * 0.75;
+                                    jumpImpulse = Math.round(jumpImpulse * 0.75);
                                 }
 
-                                entityA.vy = -jumpPower / 40;
+                                // Set gravity velocity directly (8.8 fixed-point), matching Z80 .do_jump
+                                entityA.gravityVel = jumpImpulse & 0xFFFF; // keep as unsigned 16-bit
+                                // vy = integer part (high byte, signed)
+                                const hi = (entityA.gravityVel >> 8) & 0xFF;
+                                entityA.vy = hi >= 0x80 ? hi - 0x100 : hi;
                                 jumpKeyProcessed.current = true;
 
                                 // Handle Jump Sprite
@@ -5315,11 +5674,32 @@ useEffect(() => {
                 const gravityOverride = entityA.instance.componentOverrides?.['comp_gravity'];
                 const gravityEnabled = !!gravityComp || !!gravityOverride; // allow instance-level activation
                 if (!skipPhysics && gravityEnabled && !entityA.isOnGround) {
-                    const gravityProps = { ...(gravityComp?.defaultValues || {}), ...(gravityOverride || {}) } as any;
-                    const strength = Number(gravityProps.strength ?? 0) / 60;
-                    const terminalVelocity = Number(gravityProps.terminalVelocity ?? 2);
-                    entityA.vy += strength;
-                    if (entityA.vy > terminalVelocity) entityA.vy = terminalVelocity;
+                    // Z80-faithful 8.8 fixed-point gravity (matching update_gravity_component)
+                    // Gravity accel: add 0x0040 (64) per frame = 0.25 px/frame²
+                    // Terminal velocity: cap at 0x0400 (1024) = 4 px/frame downward
+                    const GRAVITY_ACCEL = 0x40;   // matching Z80 `add a, #40`
+                    const TERMINAL_VEL = 0x0400;  // matching Z80 `cp #04 / ld de, #0400`
+
+                    // Add gravity acceleration (signed 16-bit arithmetic)
+                    let gv = entityA.gravityVel;
+                    // Convert to signed for arithmetic
+                    if (gv >= 0x8000) gv = gv - 0x10000;
+                    gv += GRAVITY_ACCEL;
+
+                    // Terminal velocity cap (only when falling downward, i.e. positive velocity)
+                    if (gv > 0 && gv > TERMINAL_VEL) {
+                        gv = TERMINAL_VEL;
+                    }
+
+                    // Store back as unsigned 16-bit
+                    entityA.gravityVel = gv & 0xFFFF;
+
+                    // vel_y = high byte (integer part) of gravityVel, sign-extended
+                    const hi = (entityA.gravityVel >> 8) & 0xFF;
+                    entityA.vy = hi >= 0x80 ? hi - 0x100 : hi;
+                } else if (!skipPhysics && gravityEnabled && entityA.isOnGround) {
+                    // Z80: gravity_grounded resets gravity_vel to 0
+                    entityA.gravityVel = 0;
                 }
 
                 // --- Friction (for boxes on ground) ---
@@ -6325,9 +6705,7 @@ useEffect(() => {
                 }
 
                 if (entity.frameImages.length > 0 && entity.frameImages[0].complete) {
-                    if (!skipSpriteDrawThisFrame) {
-                        ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
-                    }
+                    ctx.drawImage(entity.frameImages[0], entity.x, entity.y);
                 }
             });
 

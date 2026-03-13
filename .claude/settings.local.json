@@ -125,7 +125,9 @@
       "Bash(Get-Process openmsx:*)",
       "Bash(\"C:/Users/salam/Downloads/pt3_domen.asm\":*)",
       "Bash(\"C:/Users/salam/Downloads/pt3_base.asm\":*)",
-      "WebFetch(domain:zxart.ee)"
+      "WebFetch(domain:zxart.ee)",
+      "Bash(npx next:*)",
+      "Bash(npx vite:*)"
     ],
     "deny": [],
     "ask": []
