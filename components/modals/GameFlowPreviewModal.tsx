@@ -252,6 +252,9 @@ const coerceGlobalVariableValue = (value: any): any => {
         const lowered = trimmed.toLowerCase();
         if (lowered === 'true') return true;
         if (lowered === 'false') return false;
+        // Treat type-hint placeholders (e.g. "number", "byte", "word") as 0
+        // These come from constants.ts values[] definitions and are not actual values
+        if (lowered === 'number' || lowered === 'byte' || lowered === 'word') return 0;
         const numeric = Number(trimmed);
         if (!Number.isNaN(numeric)) {
             return numeric;
@@ -409,6 +412,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     // Collectible items persistence registry: tracks which items have been collected from their original screens
     // Key: "${screenId}_${entityInstanceId}", Value: true if collected (should not respawn)
     const collectedItemsRegistry = useRef<Set<string>>(new Set());
+    // Tile collection persistence registry: tracks interactable tiles collected (mapId & 0x08)
+    // Key: "${screenId}@${tileX},${tileY}", Value: true if collected (should not respawn)
+    const collectedTilesRegistry = useRef<Set<string>>(new Set());
     // Secret passage tiles registry: tracks which background tiles have been revealed (made invisible)
     // Key: "${screenId}_${x}_${y}", Value: true if revealed (should stay hidden)
     const revealedSecretTiles = useRef<Set<string>>(new Set());
@@ -542,6 +548,9 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
     const setPlayerEntryPointRef = useRef<(entry: { x: number; y: number } | null) => void>(() => { });
     const handleScreenTransitionRef = useRef<(toNodeId: string) => void>(() => { });
     const runtimeCollisionLayerRef = useRef<ScreenTile[][]>([]);
+    // HUD config persistence: both the imported frame and the full hudConfiguration persist across screen transitions
+    const hudImportedFrameRef = useRef<any>(null);
+    const hudConfigRef = useRef<any>(null);
     // Cooldown to avoid immediate re-trigger of screen exits after a transition
     const lastScreenTransitionTimeRef = useRef<number>(0);
     const hudBufferRef = useRef<HTMLCanvasElement | null>(null);
@@ -666,6 +675,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             switch ((hudEl as any).type) {
                 case 'Score': return 'Score';
                 case 'HighScore': return 'HighScore';
+                case 'Lives': return 'Lives';
                 case 'CoinCounter': return 'Coin';
                 case 'CustomCounter': return (hudEl as any).text || (hudEl as any).name;
                 default: return undefined;
@@ -693,8 +703,11 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
 
     // Pre-render HUD text (mirrors Screen Editor HUD renderer so text appears in GameFlow)
     useEffect(() => {
-        const map = currentScreenMap;
-        if (!map || !map.hudConfiguration?.elements?.length) {
+        // Use current screen's HUD config, or fall back to the persisted one from the first screen
+        const hudConfig = currentScreenMap?.hudConfiguration?.elements?.length
+            ? currentScreenMap.hudConfiguration
+            : hudConfigRef.current;
+        if (!hudConfig?.elements?.length) {
             hudBufferRef.current = null;
             return;
         }
@@ -716,7 +729,7 @@ export const GameFlowPreviewModal: React.FC<GameFlowPreviewModalProps> = ({
             .filter(a => a.type === 'tilebank' || a.type === 'tilebanks')
             .map(a => a.data as TileBank);
 
-        for (const hudEl of map.hudConfiguration.elements) {
+        for (const hudEl of hudConfig.elements) {
             if (!hudEl || (hudEl as any).visible === false) continue;
             const isTextBased = textBasedTypes.has((hudEl as any).type);
             const rawText = (hudEl as any).text || (hudEl as any).name;
@@ -2277,7 +2290,7 @@ if (targetNodeId) {
 }
 break;
 
-                case 'DECREASE_LIVES':
+                case 'DECREASE_LIVES': {
 const decreaseAmount = Number(action.params.amount || 1);
 // Find comp_health
 const healthCompForDecrease = entity.template.components.find(c => c.definitionId === 'comp_health');
@@ -2292,10 +2305,13 @@ if (healthCompForDecrease) {
     }
     entity.instance.componentOverrides['comp_health'].current = newLives;
 
+    // Sync with Lives global variable (matching Z80: Lives RAM variable)
+    updateGameGlobalVariables(prev => ({ ...prev, Lives: newLives }));
 }
 break;
+}
 
-                case 'INCREASE_LIVES':
+                case 'INCREASE_LIVES': {
 const increaseAmount = Number(action.params.amount || 1);
 const healthCompForIncrease = entity.template.components.find(c => c.definitionId === 'comp_health');
 if (healthCompForIncrease) {
@@ -2310,8 +2326,11 @@ if (healthCompForIncrease) {
     }
     entity.instance.componentOverrides['comp_health'].current = newLives;
 
+    // Sync with Lives global variable (matching Z80: Lives RAM variable)
+    updateGameGlobalVariables(prev => ({ ...prev, Lives: newLives }));
 }
 break;
+}
 
                 case 'RESPAWN_PLAYER': {
     let spawnX: number;
@@ -2687,6 +2706,9 @@ useEffect(() => {
         // - Clear collected item registries
         try { boxPickedUpRegistry.current.clear(); } catch { }
         try { collectedItemsRegistry.current.clear(); } catch { }
+        try { collectedTilesRegistry.current.clear(); } catch { }
+        hudImportedFrameRef.current = null;
+        hudConfigRef.current = null;
         try { revealedSecretTiles.current.clear(); } catch { }
         // - Reset global variables (will be re-initialized by Globals node if present)
         updateGameGlobalVariables(() => ({}));
@@ -2900,6 +2922,9 @@ const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
                     // Hard reset transient gameplay/session state to avoid stale entities (e.g., carried boxes)
                     try { boxPickedUpRegistry.current.clear(); } catch { }
                     try { collectedItemsRegistry.current.clear(); } catch { }
+                    try { collectedTilesRegistry.current.clear(); } catch { }
+        hudImportedFrameRef.current = null;
+        hudConfigRef.current = null;
                     try { revealedSecretTiles.current.clear(); } catch { }
                     updateGameGlobalVariables(() => ({}));
                     try { gameGlobalVariablesRef.current = {}; } catch { }
@@ -3074,6 +3099,14 @@ useEffect(() => {
     // Store refs for use inside asynchronous actions
     currentScreenMapRef.current = currentScreenMap;
     currentWorldMapGraphRef.current = currentWorldMapGraph;
+
+    // Capture HUD config from the first screen that has it (persists across transitions)
+    if (!hudConfigRef.current && currentScreenMap.hudConfiguration?.elements?.length) {
+        hudConfigRef.current = currentScreenMap.hudConfiguration;
+    }
+    if (!hudImportedFrameRef.current && currentScreenMap.hudConfiguration?.importedFrame?.cells?.length) {
+        hudImportedFrameRef.current = currentScreenMap.hudConfiguration.importedFrame;
+    }
     setPlayerEntryPointRef.current = setPlayerEntryPoint;
     handleScreenTransitionRef.current = handleScreenTransition;
 
@@ -3546,6 +3579,149 @@ useEffect(() => {
         return tile?.logicalProperties?.causesDamage ?? false;
     };
 
+    // === TILE INTERACTION (Z80 check_tile_interaction equivalent) ===
+    // Checks if entity center overlaps an INTERACTABLE tile (mapId & 0x08),
+    // collects it (clears from collision + background layers), increments gem_count,
+    // and persists across screen re-entry.
+    const checkTileInteraction = (entity: AnimatedEntity, screenMap: ScreenMap | null) => {
+        if (!screenMap) return;
+        // Only entities with Input or TileCollector can collect tiles (matching Z80: COMP_MASK_INPUT check)
+        const hasInput = entity.template.components?.some(c =>
+            c.definitionId === 'comp_cursors' || c.definitionId === 'comp_input' || c.definitionId === 'comp_player_input'
+        );
+        const hasTileCollector = entity.template.components?.some(c => c.definitionId === 'comp_tile_collector');
+        if (!hasInput && !hasTileCollector) return;
+
+        // Get entity center (matching Z80: x+8, y+8)
+        const centerX = Math.floor(entity.x + 8);
+        const centerY = Math.floor(entity.y + 8);
+
+        // Convert to tile coords (matching Z80: rrca x3 + and #1F = div 8)
+        const tileX = Math.floor(centerX / TILE_SIZE);
+        const tileY = Math.floor(centerY / TILE_SIZE);
+
+        // Check collision layer for INTERACTABLE tile
+        // Always prefer runtime layer (mutable copy) when available
+        const collisionLayer = runtimeCollisionLayerRef.current.length > 0
+            ? runtimeCollisionLayerRef.current
+            : screenMap.layers.collision;
+
+        // Bounds check against actual collision layer dimensions (may differ from screenMap.width/height)
+        const layerRows = collisionLayer.length;
+        const layerCols = collisionLayer[0]?.length ?? 0;
+        if (tileX < 0 || tileX >= layerCols || tileY < 0 || tileY >= layerRows) return;
+
+        const tileOnLayer = collisionLayer[tileY]?.[tileX];
+        if (!tileOnLayer || !tileOnLayer.tileId) return;
+
+        const tile = tileset.find(t => t.id === tileOnLayer.tileId);
+        if (!tile?.logicalProperties) return;
+
+        const mapId = tile.logicalProperties.mapId ?? 0;
+        // INTERACTABLE flag = bit 3 (0x08), matching Z80: and #08
+        // Also accept isInteractiveSwitch directly (same semantic)
+        const isInteractable = (mapId & 0x08) !== 0 || tile.logicalProperties.isInteractiveSwitch === true;
+        if (!isInteractable) return;
+
+        // *** COLLECT! ***
+        console.log(`[TileCollect] ${entity.template.name} collected "${tile.name}" at (${tileX},${tileY}) mapId=${mapId}`);
+        const screenId = currentScreenMapRef.current?.id ?? '';
+
+        // 1. Clear from runtime collision layer (prevents double-collect, matching Z80: ld (hl), 0)
+        if (runtimeCollisionLayerRef.current[tileY]?.[tileX]) {
+            runtimeCollisionLayerRef.current[tileY][tileX] = { tileId: null };
+        }
+
+        // 2. Clear from background layer visually (matching Z80: FAST_WRTVRM NAMETBL+idx, 0)
+        //    We repaint the tile buffer at that position with empty/transparent
+        const bufferCanvas = tileBufferRef.current;
+        if (bufferCanvas) {
+            const ctx = bufferCanvas.getContext('2d');
+            if (ctx) {
+                ctx.clearRect(tileX * TILE_SIZE, tileY * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            }
+        }
+
+        // 2b. Remove position from animated tile groups (prevents animation from re-painting the gem)
+        for (const group of tileAnimGroupsRef.current) {
+            const idx = group.positions.findIndex(p => p.x === tileX && p.y === tileY);
+            if (idx !== -1) {
+                group.positions.splice(idx, 1);
+            }
+        }
+
+        // 3. Increment gem_count (matching Z80: inc (gem_count))
+        //    Store in game global variable "gem_count"
+        updateGameGlobalVariables((prev: Record<string, any>) => {
+            const current = Number(prev.gem_count ?? 0);
+            return { ...prev, gem_count: current + 1 };
+        });
+
+        // Also increment targetVariable if comp_tile_collector specifies one
+        if (hasTileCollector) {
+            const tileCollectorComp = entity.template.components.find(c => c.definitionId === 'comp_tile_collector');
+            const tileCollectorProps = {
+                ...(tileCollectorComp?.defaultValues || {}),
+                ...(entity.instance.componentOverrides?.['comp_tile_collector'] || {})
+            };
+            const targetVar = tileCollectorProps.targetVariable;
+            const incrementAmount = Number(tileCollectorProps.incrementAmount ?? 0);
+            if (targetVar && incrementAmount > 0) {
+                updateGameGlobalVariables((prev: Record<string, any>) => {
+                    const current = Number(prev[targetVar] ?? 0);
+                    return { ...prev, [targetVar]: current + incrementAmount };
+                });
+            }
+        }
+
+        // 4. Store last_gem_char (tile ID for SM conditions)
+        updateGameGlobalVariables((prev: Record<string, any>) => ({
+            ...prev, last_gem_char: tile.id
+        }));
+
+        // 5. Persist collection (matching Z80: collected_screen/collected_idx arrays)
+        const persistKey = `${screenId}@${tileX},${tileY}`;
+        collectedTilesRegistry.current.add(persistKey);
+    };
+
+    // Re-apply collected tiles after screen load (matching Z80: apply_collected_tiles)
+    const applyCollectedTiles = (screenMap: ScreenMap) => {
+        const screenId = screenMap.id ?? currentScreenMapRef.current?.id ?? '';
+        const collisionLayer = runtimeCollisionLayerRef.current;
+        const bufferCanvas = tileBufferRef.current;
+        const prefix = screenId + '@';
+
+        for (const key of collectedTilesRegistry.current) {
+            if (!key.startsWith(prefix)) continue;
+            const coordPart = key.substring(prefix.length); // "tileX,tileY"
+            const [txStr, tyStr] = coordPart.split(',');
+            const tileX = parseInt(txStr, 10);
+            const tileY = parseInt(tyStr, 10);
+            if (isNaN(tileX) || isNaN(tileY)) continue;
+
+            // Clear collision layer
+            if (collisionLayer[tileY]?.[tileX]) {
+                collisionLayer[tileY][tileX] = { tileId: null };
+            }
+
+            // Clear visual on tile buffer
+            if (bufferCanvas) {
+                const ctx = bufferCanvas.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(tileX * TILE_SIZE, tileY * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+
+            // Remove from animated tile groups
+            for (const group of tileAnimGroupsRef.current) {
+                const idx = group.positions.findIndex(p => p.x === tileX && p.y === tileY);
+                if (idx !== -1) {
+                    group.positions.splice(idx, 1);
+                }
+            }
+        }
+    };
+
     const entityHasDeadlyTilesComponent = (entity: AnimatedEntity) =>
         entity.template.components?.some(c => c.definitionId === DEADLY_TILES_COMPONENT_ID);
 
@@ -3604,6 +3780,54 @@ useEffect(() => {
         renderScreenToCanvas(canvas, mapToRender, tset, mode, TILE_SIZE);
         tileBufferRef.current = canvas;
         return canvas;
+    };
+
+    // Paint HUD imported frame (tile-based graphic border) onto the tile buffer.
+    // Matches Z80 imprimir_marco: draws HUD frame tiles once after screen load.
+    const paintHudFrameOnBuffer = (bufferCanvas: HTMLCanvasElement | null) => {
+        const frame = hudImportedFrameRef.current;
+        if (!frame?.cells?.length || !bufferCanvas) return;
+        const ctx = bufferCanvas.getContext('2d');
+        if (!ctx) return;
+        ctx.imageSmoothingEnabled = false;
+
+        const tileById = new Map<string, Tile>();
+        for (const t of tileset) if (t?.id) tileById.set(t.id, t);
+
+        const isScreen2 = previewScreenMode.includes('SCREEN 2') || previewScreenMode.includes('Graphics I');
+        const SCREEN2_PIXELS_PER_COLOR_SEGMENT = 8;
+
+        for (const cell of frame.cells) {
+            const tile = tileById.get(cell.tileId);
+            if (!tile?.data) continue;
+
+            const gridX = cell.x;
+            const gridY = cell.y;
+            const sX = (cell.subTileX ?? 0) * TILE_SIZE;
+            const sY = (cell.subTileY ?? 0) * TILE_SIZE;
+
+            for (let py = 0; py < TILE_SIZE; py++) {
+                for (let px = 0; px < TILE_SIZE; px++) {
+                    const fullDataX = sX + px;
+                    const fullDataY = sY + py;
+                    if (fullDataY >= tile.data.length || fullDataX >= (tile.data[0]?.length ?? 0)) continue;
+
+                    let color = tile.data[fullDataY]?.[fullDataX];
+                    if (color === undefined) continue;
+
+                    if (isScreen2 && tile.lineAttributes && tile.lineAttributes[fullDataY]) {
+                        const segIdx = Math.floor(fullDataX / SCREEN2_PIXELS_PER_COLOR_SEGMENT);
+                        const attr = tile.lineAttributes[fullDataY][segIdx];
+                        if (attr && color !== attr.fg && color !== attr.bg) {
+                            color = attr.fg;
+                        }
+                    }
+
+                    ctx.fillStyle = color;
+                    ctx.fillRect(gridX * TILE_SIZE + px, gridY * TILE_SIZE + py, 1, 1);
+                }
+            }
+        }
     };
 
     // === ANIMATED TILES SYSTEM (Z80-faithful) ===
@@ -3926,9 +4150,13 @@ useEffect(() => {
     if (screenMapToRender) {
         const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
         tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
+        // Paint HUD frame on top of tile buffer (matching Z80: imprimir_marco after screen load)
+        paintHudFrameOnBuffer(tileBufferRef.current);
         tileBufferNeedsUpdate.current = false; // Reset flag
         // Initialize animated tile groups for this screen
         tileAnimGroupsRef.current = buildTileAnimGroups(screenMapToRender, tileset);
+        // Re-apply collected tiles from persistence (matching Z80: call apply_collected_tiles)
+        applyCollectedTiles(screenMapToRender);
     }
     // --- Fin Nuevo ---
 
@@ -4966,9 +5194,13 @@ useEffect(() => {
         if (tileBufferNeedsUpdate.current && screenMapToRender) {
             const layerToUse = runtimeCollisionLayerRef.current.length > 0 ? runtimeCollisionLayerRef.current : undefined;
             tileBufferRef.current = renderTileMapToBuffer(screenMapToRender, tileset, previewScreenMode, layerToUse);
+            // Paint HUD frame on top of tile buffer
+            paintHudFrameOnBuffer(tileBufferRef.current);
             tileBufferNeedsUpdate.current = false;
             // Re-initialize animated tile groups after full buffer rebuild
             tileAnimGroupsRef.current = buildTileAnimGroups(screenMapToRender, tileset);
+            // Re-apply collected tiles after buffer rebuild
+            applyCollectedTiles(screenMapToRender);
         }
 
         // Update animated tiles (advance frames, repaint changed positions on buffer)
@@ -5767,6 +5999,9 @@ useEffect(() => {
             }
 
             updateDeadlyTileFlagForEntity(entityA, screenMapToRender ?? null);
+
+            // --- 2b. Tile interaction (collect interactable tiles, matching Z80 step 8e) ---
+            checkTileInteraction(entityA, screenMapToRender ?? null);
 
             // --- 3. Screen transition logic (hero only) ---
             if (entityA === heroRef.current && currentWorldMapGraph && currentScreenMap && canProcessPhysics) {

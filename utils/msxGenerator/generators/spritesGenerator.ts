@@ -296,11 +296,21 @@ export function generateSpritesFile(analysis: ProjectAnalysis): string {
 
   // Always reserve full hardware sprite table (32) in RAM.
   // VRAM upload can be smaller: active range + one SAT end marker sprite.
+  // However, if any SubMenu node uses a sprite cursor (slots 28-31),
+  // we must upload the full SAT so those slots reach VRAM.
   const totalHardwareSprites = 32;
-  const usedHardwareSprites = Math.max(1, Math.min(currentHwSpriteIndex, totalHardwareSprites));
-  const uploadHardwareSprites = usedHardwareSprites < totalHardwareSprites
-    ? usedHardwareSprites + 1
-    : totalHardwareSprites;
+  const SUBMENU_CURSOR_BASE = 28;
+  const SUBMENU_CURSOR_MAX = 4;
+  const hasSubmenuCursorSprite = (analysis.gameFlow?.nodes || []).some(
+    (n: any) => n.type === 'SubMenu' && n.appearance?.cursorSpriteAssetId
+  );
+  const maxUsedSlot = hasSubmenuCursorSprite
+    ? SUBMENU_CURSOR_BASE + SUBMENU_CURSOR_MAX
+    : Math.max(1, Math.min(currentHwSpriteIndex, totalHardwareSprites));
+  const uploadHardwareSprites = Math.min(
+    maxUsedSlot < totalHardwareSprites ? maxUsedSlot + 1 : totalHardwareSprites,
+    totalHardwareSprites
+  );
   const uploadBytes = uploadHardwareSprites * 4;
 
   // Phase 2: Generate Code

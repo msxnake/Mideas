@@ -9,7 +9,7 @@
 ; Sprites: 10
 ; Screens: 7
 ; Entities: 4
-; Menus: No
+; Menus: Yes
 ; HUD: Yes
 ; State Machines: 1
 ; ROM Mode: simple32k
@@ -30,7 +30,7 @@
 ; ------------------------------------------------------------------
 ; 8KB BANK PACKER ESTIMATE (diagnostic placement view)
 ; Runtime bank constants are derived from label addresses at assemble time.
-; Estimated payload bytes: 107427
+; Estimated payload bytes: 113243
 ; Estimated banks used: 14
 ; ------------------------------------------------------------------
 ; BANK 00 @#0000 : patterns.asm (1383 bytes)
@@ -49,19 +49,19 @@
 ; BANK 06 @#099D : font.asm (3547 bytes)
 ; BANK 06 @#1778 : hud.asm (2184 bytes)
 ; BANK 07 @#0000 : hud.asm (2283 bytes)
-; BANK 07 @#08EB : menus.asm (168 bytes)
-; BANK 07 @#0993 : sound.asm part 1/2 (5741 bytes)
-; BANK 08 @#0000 : sound.asm part 2/2 (3796 bytes)
-; BANK 08 @#0ED4 : scroll.asm (2353 bytes)
-; BANK 08 @#1805 : animtiles.asm (2043 bytes)
-; BANK 09 @#0000 : animtiles.asm (4844 bytes)
-; BANK 09 @#12EC : particles.asm (3348 bytes)
-; BANK 10 @#0000 : particles.asm (1615 bytes)
-; BANK 10 @#064F : statemachine.asm part 1/3 (6577 bytes)
+; BANK 07 @#08EB : menus.asm (454 bytes)
+; BANK 07 @#0AB1 : sound.asm part 1/2 (5455 bytes)
+; BANK 08 @#0000 : sound.asm part 2/2 (4082 bytes)
+; BANK 08 @#0FF2 : scroll.asm (2353 bytes)
+; BANK 08 @#1923 : animtiles.asm (1757 bytes)
+; BANK 09 @#0000 : animtiles.asm (5130 bytes)
+; BANK 09 @#140A : particles.asm (3062 bytes)
+; BANK 10 @#0000 : particles.asm (1901 bytes)
+; BANK 10 @#076D : statemachine.asm part 1/3 (6291 bytes)
 ; BANK 11 @#0000 : statemachine.asm part 2/3 (8192 bytes)
-; BANK 12 @#0000 : statemachine.asm part 3/3 (2753 bytes)
-; BANK 12 @#0AC1 : gameflow.asm (5439 bytes)
-; BANK 13 @#0000 : gameflow.asm (931 bytes)
+; BANK 12 @#0000 : statemachine.asm part 3/3 (3039 bytes)
+; BANK 12 @#0BDF : gameflow.asm part 1/2 (5153 bytes)
+; BANK 13 @#0000 : gameflow.asm part 2/2 (6747 bytes)
 
 ; CRITICAL: header.asm with ORG #4000 and "AB" signature MUST be first
 ; for the ROM to work correctly. EQUs can go after ORG.
@@ -70,7 +70,7 @@
 ; File: header.asm
 ; Description: Standard MSX cartridge initialization
 ; GameFlow Integration: Using "Main" as execution orchestrator
-; Flow: Start → WorldLink (gfn_1772275295906)
+; Flow: Start → SubMenu (CON FALDAS Y A LO LOCA)
 ; ==================================================================
 
     org #4000           ; MSX cartridge start address
@@ -11057,7 +11057,64 @@ update_entity_patrol_facing:
 ; ==================================================================
 
 
-; [menus.asm skipped - no menus]
+; ==================================================================
+; GAME MENUS
+; File: menus.asm
+; Description: Menu systems and user interface with custom font support
+; ==================================================================
+
+; ==================================================================
+; MENU CONSTANTS
+; ==================================================================
+
+MENU_CON_FALDAS_Y_A_LO_LOCA_ID EQU 0
+
+; ==================================================================
+; MENU FUNCTIONS
+; ==================================================================
+
+show_menu_gfn_1773429482585:
+    ; Display CON FALDAS Y A LO LOCA menu
+    ; Set background color using VDP
+    ld b, 17 ; Background (high) | Border (low)
+    ld c, 7                     ; VDP Register 7
+    call FAST_WRTVDP
+
+    ; Set system color variables
+    ld a, 1
+    ld (BDRCLR), a
+
+    ld a, 1
+    ld (BAKCLR), a
+
+    ld a, 15                    ; Default text color (White)
+    ld (FORCLR), a
+
+    ; Clear screen with background color
+    call CLS
+
+    ; Display menu title
+    ld hl, menu_gfn_1773429482585_title
+    ld de, NAMETBL + (5 * 32) + 10
+    call print_string_screen2
+
+    ; Display menu options
+    ; TODO: Add option rendering logic here
+
+    ret
+
+menu_gfn_1773429482585_title:
+    db "CON FALDAS Y A LO LOCA", 0
+
+handle_menu_gfn_1773429482585:
+    ; Handle CON FALDAS Y A LO LOCA menu input
+    call GTSTCK
+    ; TODO: Implement input handling
+    ret
+
+; ==================================================================
+; END OF MENUS
+; ==================================================================
 
 
 ; ==================================================================
@@ -17396,8 +17453,8 @@ SM_New_Statemachine_state_1773007838313_Transitions_Actions_0:
 ; ==================================================================
 ;
 ; GameFlow: Main
-; Total Nodes: 3
-; Total Connections: 3
+; Total Nodes: 5
+; Total Connections: 6
 ; Start Node: gf_start_1770754183471
 ;
 ; ARCHITECTURE:
@@ -17460,6 +17517,8 @@ gameflow_execute_node:
     jp z, gameflow_handle_worldlink
     cp NODE_TYPE_TEXT
     jp z, gameflow_handle_text
+    cp NODE_TYPE_SUB_MENU
+    jp z, gameflow_handle_submenu
     
     ; Unknown node type - error
     ret
@@ -17757,6 +17816,639 @@ wait_for_fire:
     pop bc
     ret
 
+gameflow_handle_submenu:
+    ; SubMenu node - interactive navigation
+    ; DE points to SubMenu data:
+    ;   [bg_color][cursor_sprite_idx][cursor_layer_count]
+    ;   [cursor_layer_offsets x4][cursor_colors x4]
+    ;   [bg_screen_fn DW][bg_screen_bank DB]
+    ;   [option_count][initial_selection][title_ptr][option_ptr_0]...
+    push bc
+    call show_menu_placeholder
+    ld a, (gameflow_menu_selection)
+    cp 6
+    jr c, .submenu_idx_ok
+    ld a, 5                       ; Max supported connection option
+.submenu_idx_ok:
+    add a, CONNECTION_OPTION_0
+    pop bc
+    call gameflow_get_connection_by_type
+    ld a, h
+    or l
+    ret z
+    jp gameflow_execute_node
+
+; ------------------------------------------------------------------
+; show_menu_placeholder
+; Runtime GameFlow submenu renderer + input
+; Input:  DE = menu data pointer
+;   Format: DB bg_color, DB cursor_sprite_idx, DB cursor_layer_count,
+;           DB cursor_src_off0..cursor_src_off3,
+;           DB cursor_color0..cursor_color3,
+;           DW bg_screen_fn, DB bg_screen_bank,
+;           DB option_count, DB initial_selection,
+;           DW title_ptr, DW option_ptr[n]
+; Output: gameflow_menu_selection = selected index (0..5)
+; ------------------------------------------------------------------
+show_menu_placeholder:
+    push bc
+    push de
+    push hl
+
+    ; Cache menu data pointer
+    ld h, d
+    ld l, e
+    ld (gameflow_submenu_data_ptr), hl
+
+    ; Cache option count (clamped to supported range)
+    ; option_count is at offset +14 (+11-12 = bg_screen_fn DW, +13 = bg_screen_bank)
+    ld bc, 14
+    add hl, bc
+    ld a, (hl)
+    cp 6
+    jr c, .smp_count_ok
+    ld a, 6
+.smp_count_ok:
+    ld (gameflow_submenu_option_count), a
+
+    ; Initialize selected option
+    or a
+    jr nz, .smp_has_options
+    xor a
+    ld (gameflow_menu_selection), a
+    call submenu_prepare_cursor_sprite
+    call render_submenu_screen
+    jr .smp_exit
+
+.smp_has_options:
+    ld b, a
+    inc hl
+    ld a, (hl)                    ; initial_selection
+    cp b
+    jr c, .smp_sel_ok
+    xor a
+.smp_sel_ok:
+    ld (gameflow_menu_selection), a
+
+    call submenu_prepare_cursor_sprite
+    call render_submenu_screen
+
+.smp_loop:
+    halt
+
+    ld a, 0
+    call GTSTCK
+    cp 1                          ; Up
+    jr nz, .smp_check_down
+
+    ld a, (gameflow_menu_selection)
+    or a
+    jr z, .smp_wait_neutral
+    dec a
+    ld (gameflow_menu_selection), a
+    call render_submenu_screen
+    jr .smp_wait_neutral
+
+.smp_check_down:
+    cp 5                          ; Down
+    jr nz, .smp_check_fire
+
+    ld a, (gameflow_submenu_option_count)
+    dec a                         ; max index
+    ld b, a
+    ld a, (gameflow_menu_selection)
+    cp b
+    jr nc, .smp_wait_neutral
+    inc a
+    ld (gameflow_menu_selection), a
+    call render_submenu_screen
+    jr .smp_wait_neutral
+
+.smp_check_fire:
+    ld a, 0
+    call GTTRIG
+    or a
+    jr z, .smp_loop
+
+.smp_wait_fire_release:
+    halt
+
+    ld a, 0
+    call GTTRIG
+    or a
+    jr nz, .smp_wait_fire_release
+    jr .smp_exit
+
+.smp_wait_neutral:
+.smp_wait_neutral_loop:
+    halt
+
+    ld a, 0
+    call GTSTCK
+    or a
+    jr nz, .smp_wait_neutral_loop
+    jr .smp_loop
+
+.smp_exit:
+    call submenu_hide_cursor_sprite
+    ; Ensure no gameplay/menu sprite remains resident after leaving submenu.
+    call clear_all_sprites
+    call update_sprites_to_vram
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; render_submenu_screen
+; Draw title, options, and selection marker ('>').
+; Uses cached pointer/count variables set by show_menu_placeholder.
+; ------------------------------------------------------------------
+render_submenu_screen:
+    push bc
+    push de
+    push hl
+
+    ; Apply submenu background/border colors from node config.
+    ld hl, (gameflow_submenu_data_ptr)
+    ld a, (hl)                    ; bg_color
+    ld b, a                       ; border = bg
+    push af
+    call set_screen_colors
+    pop af
+    call init_char0_color
+
+    ; Load background screen (if configured) or clear solid background.
+    ; bg_screen_fn DW is at +11, bg_screen_bank is +13, option_count is +14.
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 11
+    add hl, bc
+    ld e, (hl)                    ; E = bg_screen_fn low
+    inc hl
+    ld d, (hl)                    ; D = bg_screen_fn high
+    inc hl
+    ld a, (hl)                    ; A = bg_screen_bank
+    ld c, a
+    ex de, hl                     ; HL = bg_screen_fn (0 if none)
+    ld d, c                       ; D = bg_screen_bank
+    ld a, h
+    or l
+    jr z, .rss_clear_screen       ; no bg screen -> solid clear
+
+    ; Mapper-safe call to background screen loader.
+    ld a, d
+    call mapper_call_hl_auto
+    jr .rss_read_count
+
+.rss_clear_screen:
+    ; Clear full visible screen (24 rows) with tile 0 (solid background).
+    ld a, 0
+    ld b, 24
+.rss_clear_loop:
+    push af
+    push bc
+    call clear_screen_row
+    pop bc
+    pop af
+    inc a
+    djnz .rss_clear_loop
+
+.rss_read_count:
+    ; Background loaders may overwrite character patterns/colors used for text.
+    ; Restore font before printing title/options in submenu.
+    call init_font_system
+
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 14                     ; offset to option_count (+11-12 fn, +13 bank)
+    add hl, bc
+    ld a, (hl)                    ; option_count
+    cp 6
+    jr c, .rss_count_ok
+    ld a, 6
+.rss_count_ok:
+    ld b, a
+    or a
+    jr z, .rss_done
+
+    inc hl                        ; skip option_count
+    inc hl                        ; skip initial_selection
+
+    ; Print title at row 5, horizontally centered (match PC preview Y=40)
+    ld e, (hl)
+    inc hl
+    ld d, (hl)                    ; DE = title pointer
+    inc hl                        ; HL = first option pointer
+    push hl
+    ex de, hl                     ; HL = title string
+    call submenu_compute_center_col
+    ld c, a                       ; C = centered col
+    ld a, 5                       ; A = row 5 (5*8=40px)
+    call submenu_calc_vram_addr   ; DE = VRAM addr
+    call print_string_vram
+    pop hl
+
+    ; Print options from row 10, spaced 2 rows apart (match PC preview Y=80+idx*12)
+    ld c, 0
+.rss_option_loop:
+    ld a, c
+    cp b
+    jr nc, .rss_done
+
+    ; Read option string pointer
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    inc hl
+    push hl                        ; Save option pointer cursor
+    push de                        ; Save option string pointer
+    push bc                        ; Save option_count/index
+    ex de, hl                      ; HL = option string
+
+    ; Marker at (centered text col - 2)
+    ld a, (gameflow_menu_selection)
+    cp c
+    ld a, ' '
+    jr nz, .rss_marker_ready
+    ld a, (gameflow_submenu_cursor_enabled)
+    or a
+    jr nz, .rss_marker_ready      ; sprite cursor active -> keep blank marker
+    ld a, '>'
+.rss_marker_ready:
+    push af
+    push bc
+    ld a, c
+    add a, a                       ; *2 (2 rows per option)
+    add a, 10                      ; start at row 10
+    ld b, a                        ; B = row for current option
+    call submenu_compute_center_col
+    sub 2
+    jr nc, .rss_marker_col_ok
+    xor a
+.rss_marker_col_ok:
+    ld c, a
+    ld a, b
+    call submenu_calc_vram_addr
+    pop bc
+    pop af
+    ex de, hl
+    call WRTVRM
+
+    pop bc                        ; Restore option_count/index
+    pop hl                        ; HL = option string pointer
+
+    ; Option text at centered column
+    push bc
+    ld a, c
+    add a, a                       ; *2 (2 rows per option)
+    add a, 10                      ; start at row 10
+    ld b, a                        ; B = row for current option
+    call submenu_compute_center_col
+    ld c, a
+    ld a, b
+    call submenu_calc_vram_addr
+    pop bc
+    call print_string_vram
+
+    pop hl                        ; Restore option pointer cursor
+    inc c
+    jr .rss_option_loop
+
+.rss_done:
+    call submenu_update_cursor_sprite
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_calc_vram_addr
+; Convert row/col to name table VRAM address.
+; Input:  A = row (0-23), C = col (0-31)
+; Output: DE = VRAM address (#1800 + row*32 + col)
+; ------------------------------------------------------------------
+submenu_calc_vram_addr:
+    push hl
+    push bc
+
+    ld l, a
+    ld h, 0
+    add hl, hl                    ; *2
+    add hl, hl                    ; *4
+    add hl, hl                    ; *8
+    add hl, hl                    ; *16
+    add hl, hl                    ; *32
+    ld b, 0
+    add hl, bc                    ; +col
+    ld bc, #1800
+    add hl, bc                    ; +name table base
+    ex de, hl
+
+    pop bc
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; submenu_string_length
+; Input: HL = null-terminated string
+; Output: A = length in characters (0..255)
+; Preserves: HL
+; ------------------------------------------------------------------
+submenu_string_length:
+    push hl
+    push bc
+    ld c, 0                       ; C = length counter
+.ssl_loop:
+    ld a, (hl)
+    or a                          ; test char for null terminator
+    jr z, .ssl_done
+    inc c
+    inc hl
+    jr .ssl_loop
+.ssl_done:
+    ld a, c                       ; A = string length
+    pop bc
+    pop hl
+    ret
+
+; ------------------------------------------------------------------
+; submenu_compute_center_col
+; Input: HL = null-terminated string
+; Output: A = centered start column (0..31)
+; Preserves: HL
+; ------------------------------------------------------------------
+submenu_compute_center_col:
+    push bc
+    call submenu_string_length
+    cp 32
+    jr c, .scc_len_ok
+    xor a
+    jr .scc_done
+.scc_len_ok:
+    ld b, a
+    ld a, 32
+    sub b
+    srl a
+.scc_done:
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_prepare_cursor_sprite
+; Load cursor sprite patterns and initialize cursor state.
+; Uses sprite slots SUBMENU_CURSOR_BASE_SPRITE..+3.
+; ------------------------------------------------------------------
+submenu_prepare_cursor_sprite:
+    push bc
+    push de
+    push hl
+
+    ; Default: no sprite cursor
+    xor a
+    ld (gameflow_submenu_cursor_enabled), a
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Clear SAT buffer once to avoid stale sprite garbage in menus
+    call clear_all_sprites
+
+    ld hl, (gameflow_submenu_data_ptr)
+    inc hl                        ; +1 cursor_sprite_idx
+    ld a, (hl)
+    cp #FF
+    jr z, .sps_done               ; no sprite cursor configured
+
+    ; Resolve pattern pointer from sprite asset index
+    call submenu_get_cursor_pattern_ptr
+    jr c, .sps_done               ; invalid index -> fallback to char marker
+    push hl                       ; save pattern ptr
+
+    ; Read and clamp layer count (+2)
+    ld hl, (gameflow_submenu_data_ptr)
+    ld bc, 2
+    add hl, bc
+    ld a, (hl)
+    or a
+    jr z, .sps_restore_no_cursor
+    cp 5
+    jr c, .sps_layer_ok
+    ld a, 4
+.sps_layer_ok:
+    ld (gameflow_submenu_cursor_layer_count), a
+
+    ; Copy selected source layers to reserved cursor slots.
+    ; Header offsets +3..+6 are kept for format compatibility, but sprite
+    ; export is compact (layer0..layerN-1), so we upload a contiguous block:
+    ; bytes = layer_count * 32.
+    ; In ZX0-compressed exports, server-side preprocessing rewrites this
+    ; FAST_LDIRVM call to COPY_SPRITE_SRC_TO_VRAM.
+    pop hl                        ; HL = source pattern base
+    ld a, (gameflow_submenu_cursor_layer_count)
+    add a, a                      ; *2
+    add a, a                      ; *4
+    add a, a                      ; *8
+    add a, a                      ; *16
+    add a, a                      ; *32
+    ld c, a
+    ld b, 0
+    ld de, SPRPAT + (SUBMENU_CURSOR_BASE_SPRITE * 32)
+    call COPY_SPRITE_SRC_TO_VRAM
+
+.sps_enable_cursor:
+
+    ld a, 1
+    ld (gameflow_submenu_cursor_enabled), a
+    jr .sps_done
+
+.sps_restore_no_cursor:
+    pop hl
+
+.sps_done:
+    call submenu_update_cursor_sprite
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_update_cursor_sprite
+; Draw or hide submenu cursor sprite according to current selection.
+; ------------------------------------------------------------------
+submenu_update_cursor_sprite:
+    push bc
+    push de
+    push hl
+
+    ld a, (gameflow_submenu_cursor_enabled)
+    or a
+    jr z, .sus_hide
+
+    ; Compute cursor Y from selected option row (row = 10 + selection*2)
+    ; Y = (10 + selection*2) * 8 - 4 to match PC preview placement.
+    ld a, (gameflow_menu_selection)
+    add a, a                      ; selection * 2
+    add a, 10                     ; + 10 (start row)
+    add a, a                      ; *2
+    add a, a                      ; *4
+    add a, a                      ; *8
+    sub 4
+    jr nc, .sus_y_ok
+    xor a
+.sus_y_ok:
+    ld c, a                       ; C = Y (pixels)
+
+    ; Resolve selected option pointer and centered text start column.
+    ; Header layout (bg_screen_fn DW at +11-12, bg_screen_bank at +13):
+    ; +18 = first option DW pointer
+    ld hl, (gameflow_submenu_data_ptr)
+    ld de, 18
+    add hl, de
+    ld a, (gameflow_menu_selection)
+    add a, a                      ; *2 (DW stride)
+    ld e, a
+    ld d, 0
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl                     ; HL = selected option string
+    call submenu_compute_center_col
+
+    ; X = (start_col * 8) - 16 (sprite width)
+    add a, a                      ; *2
+    add a, a                      ; *4
+    add a, a                      ; *8
+    sub 16
+    jr nc, .sus_x_ok
+    xor a
+.sus_x_ok:
+    ld b, a                       ; B = X (pixels)
+
+    ; HL -> first cursor color byte (+7)
+    ld hl, (gameflow_submenu_data_ptr)
+    ld de, 7
+    add hl, de
+
+    ld a, (gameflow_submenu_cursor_layer_count)
+    or a
+    jr z, .sus_hide
+
+    ld d, SUBMENU_CURSOR_BASE_SPRITE
+.sus_draw_loop:
+    push af                       ; [1] save remaining layer count
+    ld e, (hl)                    ; E = color for this layer
+    push hl                       ; [2] save color pointer
+    push de                       ; [3] save D=sprite index, E=color
+    ld a, d                       ; A = sprite index (for show_sprite param)
+    push af                       ; [4] save A=sprite index
+    add a, a
+    add a, a
+    ld d, a                       ; D = pattern = sprite_index * 4
+    pop af                        ; [4] restore A=sprite index
+    call show_sprite              ; A=index, B=X, C=Y, D=pattern, E=color
+    pop de                        ; [3] restore D=sprite index (E=old color, ignore)
+    inc d                         ; next sprite slot
+    pop hl                        ; [2] restore color pointer
+    inc hl                        ; advance to next layer color
+    pop af                        ; [1] restore remaining layer count
+    dec a
+    jr nz, .sus_draw_loop
+
+    ; Hide unused reserved cursor sprite slots
+    ld a, (gameflow_submenu_cursor_layer_count)
+    ld e, a
+    ld a, SUBMENU_CURSOR_MAX_LAYERS
+    sub e
+    ld b, a                       ; B = remaining to hide
+    ld a, SUBMENU_CURSOR_BASE_SPRITE
+    add a, e
+    ld d, a                       ; D = first unused sprite slot
+    jr .sus_hide_remaining_check
+
+.sus_hide_remaining:
+    ld a, d
+    call hide_sprite
+    inc d
+    djnz .sus_hide_remaining
+
+.sus_hide_remaining_check:
+    ld a, b
+    or a
+    jr nz, .sus_hide_remaining
+    jr .sus_flush
+
+.sus_hide:
+    call submenu_hide_cursor_sprite
+    jr .sus_done
+
+.sus_flush:
+    call update_sprites_to_vram
+
+.sus_done:
+    pop hl
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_hide_cursor_sprite
+; Hide reserved cursor sprite slots.
+; ------------------------------------------------------------------
+submenu_hide_cursor_sprite:
+    push bc
+    push de
+
+    ld d, SUBMENU_CURSOR_BASE_SPRITE
+    ld b, SUBMENU_CURSOR_MAX_LAYERS
+.shc_loop:
+    ld a, d
+    call hide_sprite
+    inc d
+    djnz .shc_loop
+    call update_sprites_to_vram
+
+    pop de
+    pop bc
+    ret
+
+; ------------------------------------------------------------------
+; submenu_get_cursor_pattern_ptr
+; Input: A = sprite asset index
+; Output: HL = SPRITE_<index>_PATTERN, CF=1 on invalid index
+; ------------------------------------------------------------------
+submenu_get_cursor_pattern_ptr:
+    cp SUBMENU_CURSOR_PATTERN_COUNT
+    jr nc, .sgcpp_invalid
+    ld l, a
+    ld h, 0
+    add hl, hl
+    ld de, submenu_cursor_sprite_pattern_table
+    add hl, de
+    ld e, (hl)
+    inc hl
+    ld d, (hl)
+    ex de, hl
+    or a                          ; clear carry
+    ret
+.sgcpp_invalid:
+    scf
+    ret
+
+SUBMENU_CURSOR_BASE_SPRITE EQU 28
+SUBMENU_CURSOR_MAX_LAYERS  EQU 4
+SUBMENU_CURSOR_PATTERN_COUNT EQU 10
+
+submenu_cursor_sprite_pattern_table:
+    dw SPRITE_0_PATTERN
+    dw SPRITE_1_PATTERN
+    dw SPRITE_2_PATTERN
+    dw SPRITE_3_PATTERN
+    dw SPRITE_4_PATTERN
+    dw SPRITE_5_PATTERN
+    dw SPRITE_6_PATTERN
+    dw SPRITE_7_PATTERN
+    dw SPRITE_8_PATTERN
+    dw SPRITE_9_PATTERN
+
+
 ; ------------------------------------------------------------------
 ; Shared helper: Print string to VRAM
 ; Input: HL = string pointer (null-terminated)
@@ -17936,7 +18628,7 @@ gameflow_node_gf_start_1770754183471_data:
 
 gameflow_node_gf_start_1770754183471_conn:
     db CONNECTION_DEFAULT
-    dw gameflow_node_gfn_1772275295906
+    dw gameflow_node_gfn_1773429482585
     db CONNECTION_END
 
 ; ------------------------------------------------------------------
@@ -17947,6 +18639,13 @@ gameflow_node_gf_start_1770754183471_conn:
 gameflow_node_gf_start_1770754183471_init:
     ; === Core Game Systems Initialization (ALWAYS required) ===
     call init_game_systems
+
+    ; === MSX System Initialization ===
+    ; Initialize PSG (silence all channels)
+    call init_psg_silence
+
+    ; Clear sprite attribute table
+    call clear_sprite_table
 
     ; === Global Variables Initialization ===
     ld a, 0
@@ -17999,6 +18698,74 @@ text_gfn_1773061671607_prompt:
     DB "PRESS FIRE TO CONTINUE", 0
 
 gameflow_node_gfn_1773061671607_conn:
+    db CONNECTION_DEFAULT
+    dw gameflow_node_gf_start_1770754183471
+    db CONNECTION_END
+
+; Node: SubMenu - "CON FALDAS Y A LO LOCA"
+gameflow_node_gfn_1773429482585:
+    db NODE_TYPE_SUB_MENU
+    dw gameflow_node_gfn_1773429482585_data
+    dw gameflow_node_gfn_1773429482585_conn
+
+gameflow_node_gfn_1773429482585_data:
+    db 1    ; Background color (MSX index)
+    db 255    ; Cursor sprite asset index (#FF = use text marker)
+    db 0    ; Cursor sprite layer count (max 4)
+    db 0, 0, 0, 0    ; Cursor source layer offsets
+    db 0, 0, 0, 0    ; Cursor layer colors
+    dw 0    ; Background screen load function (0=none)
+    db 0    ; Background screen load bank
+    db 2    ; Number of options (max 6)
+    db 0    ; Initial selected option
+    dw submenu_gfn_1773429482585_title
+    dw submenu_gfn_1773429482585_opt0
+    dw submenu_gfn_1773429482585_opt1
+
+submenu_gfn_1773429482585_title:
+    db "CON FALDAS Y A LO LOCA", 0
+submenu_gfn_1773429482585_opt0:
+    db "START", 0
+submenu_gfn_1773429482585_opt1:
+    db "CREDITS", 0
+
+gameflow_node_gfn_1773429482585_conn:
+    db CONNECTION_OPTION_0
+    dw gameflow_node_gfn_1772275295906
+    db CONNECTION_OPTION_1
+    dw gameflow_node_gfn_1773429614539
+    db CONNECTION_END
+
+; Node: Text - "CREDITS"
+gameflow_node_gfn_1773429614539:
+    db NODE_TYPE_TEXT
+    dw gameflow_node_gfn_1773429614539_data
+    dw gameflow_node_gfn_1773429614539_conn
+
+gameflow_node_gfn_1773429614539_data:
+    DB 1                  ; Background color (MSX index from #000000)
+    DW 0            ; Background screen load function (0=none)
+    DB 0         ; Background screen load bank
+    DB 4                  ; Number of lines
+    DB 3, 12              ; Row 3, Col 12
+    DW text_gfn_1773429614539_title          ; -> "CREDITS"
+    DB 7, 3              ; Row 7, Col 3
+    DW text_gfn_1773429614539_msg0          ; -> "GRAPHICS - MSXNAKE GAME -"
+    DB 8, 12              ; Row 8, Col 12
+    DW text_gfn_1773429614539_msg1          ; -> "MSXNAKE"
+    DB 20, 5              ; Row 20, Col 5
+    DW text_gfn_1773429614539_prompt          ; -> "PRESS FIRE TO CONTINUE"
+
+text_gfn_1773429614539_title:
+    DB "CREDITS", 0
+text_gfn_1773429614539_msg0:
+    DB "GRAPHICS - MSXNAKE GAME -", 0
+text_gfn_1773429614539_msg1:
+    DB "MSXNAKE", 0
+text_gfn_1773429614539_prompt:
+    DB "PRESS FIRE TO CONTINUE", 0
+
+gameflow_node_gfn_1773429614539_conn:
     db CONNECTION_DEFAULT
     dw gameflow_node_gf_start_1770754183471
     db CONNECTION_END
