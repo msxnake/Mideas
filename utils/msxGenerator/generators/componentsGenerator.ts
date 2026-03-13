@@ -216,7 +216,7 @@ rebuild_used_entity_list:
     add hl, de
     ld a, (hl)
     or a
-    jr z, .next_entity
+    jp z, .next_entity
 
     ld hl, entity_comp_masks
     add hl, de
@@ -224,7 +224,7 @@ rebuild_used_entity_list:
     ld hl, entity_comp_masks_hi
     add hl, de
     or (hl)
-    jr z, .next_entity
+    jp z, .next_entity
 
     ; Keep only entities from currently visible screen
     ld hl, entity_screen_id
@@ -232,7 +232,7 @@ rebuild_used_entity_list:
     ld a, (hl)
     ld hl, current_screen_id
     cp (hl)
-    jr nz, .next_entity
+    jp nz, .next_entity
 
     ; Keep only entities scheduled to run on this frame.
     ; entity_job_should_run_c expects C=entity index.
@@ -240,12 +240,12 @@ rebuild_used_entity_list:
     call entity_job_should_run_c
     pop bc
     or a
-    jr z, .next_entity
+    jp z, .next_entity
 
     ld hl, active_entity_count
     ld a, (hl)
     cp MAX_ENTITIES
-    jr nc, .next_entity
+    jp nc, .next_entity
 
     ld e, a
     ld d, 0
@@ -339,7 +339,7 @@ rebuild_used_entity_list:
     ld a, (hl)
     and COMP_MASK_ANIMATION | COMP_MASK_SPRITE
     cp COMP_MASK_ANIMATION | COMP_MASK_SPRITE
-    jr nz, .next_entity
+    jp nz, .next_entity
     ld a, (anim_entity_count)
     ld l, a
     ld h, 0
@@ -351,7 +351,8 @@ rebuild_used_entity_list:
 
 .next_entity:
     inc c
-    djnz .rebuild_loop
+    dec b
+    jp nz, .rebuild_loop
 
 .rebuild_done:
     xor a
